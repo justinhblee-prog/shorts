@@ -6,6 +6,8 @@ from production_pipeline import (
     JsonProvider, ProductionPipeline, ProductionStore, ProviderError,
     submit_production,
 )
+from queue_store import JobQueue
+)
 
 
 class FakeProvider:
@@ -82,6 +84,14 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaises(ProviderError) as caught:
             provider.post("script", {"topic": "test"})
         self.assertFalse(caught.exception.retryable)
+
+    def test_queue_claim_filters_by_job_type(self):
+        queue = JobQueue(str(Path(self.tmp.name) / "queue.sqlite3"))
+        queue.enqueue("unrelated_task", {}, idempotency_key="other")
+        queue.enqueue("short_video_production", self.brief, idempotency_key="video")
+        claimed = queue.claim("worker-1", job_type="short_video_production")
+        self.assertEqual(claimed["job_type"], "short_video_production")
+        self.assertEqual(queue.get(claimed["id"])["status"], "running")
 
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
