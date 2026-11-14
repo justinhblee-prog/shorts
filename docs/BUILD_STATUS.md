@@ -31,7 +31,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00002 | Global trend ingestion | Provider/API/tests implemented; live and runtime validation pending |
 | BUILD-00003 | Competitor/channel intelligence | Provider/API/tests implemented; API-key and runtime validation pending |
 | BUILD-00004 | Profitability scoring and prioritization | Scenario calculator/API/tests implemented; runtime validation pending |
-| BUILD-00005 | AI script, voice and video pipeline | Provider-agnostic orchestration and API implemented; mocked tests committed; runtime/live-provider validation pending |
+| BUILD-00005 | AI script, voice and video pipeline | Provider orchestration, lease-aware worker and API implemented; mocked tests committed; runtime/live-provider validation pending |
 | BUILD-00006 | Ten-brand operations | Not started |
 | BUILD-00007 | Review and approval workflow | Human-review gate designed; integration pending |
 | BUILD-00008 | YouTube publishing and tracking | Not started |
@@ -80,11 +80,11 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - SQLite persistence and API: POST `/api/opportunities/score`; GET `/api/opportunities`.
 - Unit tests committed; runtime validation pending.
 
-## Validation — current truth
+- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.\n\n## Validation — current truth
 
 - Code and tests are committed to the private repository main branch.
-- Latest observed GitHub Actions run: https://github.com/justinhblee-prog/shorts/actions/runs/43654067499
-- GitHub job metadata reported `runner_id=0`, empty runner name, and `steps=[]`; the job failed before checkout or dependency installation. This is an environment/runner initialization failure, not evidence of a Python test failure.
+- Latest observed GitHub Actions run before this documentation update: https://github.com/justinhblee-prog/shorts/actions/runs/43654662581
+- Latest inspected job metadata reported `runner_id=0`, empty runner name, and `steps=[]`; the job failed before checkout or dependency installation. This is an environment/runner initialization failure, not evidence of a Python test failure.
 - The suite has not passed or failed on code behavior; it has not executed in a real Python runtime.
 - No production worker, PostgreSQL, external AI generation, OAuth, rendering or YouTube publishing has been validated.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
