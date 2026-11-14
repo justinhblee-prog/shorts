@@ -91,6 +91,8 @@ def execute_production_job(job_id:str,body:ProductionExecute):
         raise HTTPException(404,"Job not found")
     except LeaseConflict as e:
         raise HTTPException(409,str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         try:
             queue.fail(job_id,body.worker_id,body.lease_token,
