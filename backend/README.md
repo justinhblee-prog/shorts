@@ -40,3 +40,37 @@ Competitor intelligence:
 - `GET /api/opportunities` lists saved scenarios by priority score.
 - A non-empty `forecast_source` is required. Results are explicitly labeled `estimate`; they are not actual earnings or guaranteed results. If monetization is not eligible, ad revenue is forced to zero.
 - The prioritization score is explainable: margin 35%, ROI 25%, evidence quality 20%, strategic fit 10%, production feasibility 10%.
+
+
+## BUILD-00005 — short-video production pipeline
+
+The provider-agnostic orchestration layer is in `production_pipeline.py`.
+It submits durable `short_video_production` queue jobs and executes three
+configured provider stages in order: script, voice generation, and 9:16 video
+rendering. Provider URLs and optional bearer tokens are read from the runtime
+environment:
+
+- `SCRIPT_PROVIDER_URL`, `SCRIPT_PROVIDER_TOKEN`
+- `VOICE_PROVIDER_URL`, `VOICE_PROVIDER_TOKEN`
+- `RENDER_PROVIDER_URL`, `RENDER_PROVIDER_TOKEN`
+
+Each provider accepts a JSON POST contract. Script providers must return a
+non-empty `script`; voice providers must return an HTTP(S) `audio_url`;
+renderers must return an HTTP(S) `video_url`. Provider-specific adapters can
+map vendor APIs to this contract without coupling the core pipeline to one
+vendor. Missing configuration or malformed output fails closed; no placeholder
+audio/video or fabricated artifact URL is created.
+
+API:
+- `POST /api/production/jobs` — create a durable job; body: `brand`, `region`,
+  `language`, `topic`, optional `idempotency_key`.
+- Claim the job with `POST /api/jobs/claim`.
+- `POST /api/production/jobs/{id}/execute` — execute only with the current
+  `worker_id` and `lease_token`.
+- `GET /api/production/jobs/{id}` — inspect stages and artifacts.
+
+A completed render transitions the queue job to `review_pending`. This is not
+a publish operation. Public publishing remains outside this pipeline and must
+require explicit human approval. Provider contracts have mocked unit tests;
+live provider compatibility, actual generation, artifact download/playback,
+and render quality have not been validated.
