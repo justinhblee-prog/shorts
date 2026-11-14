@@ -31,7 +31,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00002 | Global trend ingestion | Provider/API/tests implemented; live and runtime validation pending |
 | BUILD-00003 | Competitor/channel intelligence | Provider/API/tests implemented; API-key and runtime validation pending |
 | BUILD-00004 | Profitability scoring and prioritization | Scenario calculator/API/tests implemented; runtime validation pending |
-| BUILD-00005 | AI script, voice and video pipeline | Not started |
+| BUILD-00005 | AI script, voice and video pipeline | Provider-agnostic orchestration and API implemented; mocked tests committed; runtime/live-provider validation pending |
 | BUILD-00006 | Ten-brand operations | Not started |
 | BUILD-00007 | Review and approval workflow | Human-review gate designed; integration pending |
 | BUILD-00008 | YouTube publishing and tracking | Not started |
@@ -102,3 +102,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - v0.1: initial repository and queue foundation.
 - v0.11: minor improvements.
 - v0.2: major integrated milestone.
+
+
+## BUILD-00005 — AI script, voice and video production pipeline
+
+- Added `backend/production_pipeline.py` with provider-neutral JSON HTTP adapters, persistent production run/artifact records, strict brief validation, and ordered script → voice → render orchestration.
+- Added production job submission, inspection and lease-token-protected execution endpoints in `backend/app.py`.
+- Requires runtime configuration for script, voice and render provider URLs; optional bearer tokens are supported. Vendor-specific endpoints must conform to the documented JSON contracts or be wrapped by a provider adapter.
+- Missing provider configuration, missing script text, missing audio URL or missing video URL fails closed. No fake generation outputs are returned.
+- A successful render ends at `review_pending`; no public publishing action is included.
+- Mock-provider contract tests are committed in `backend/tests/test_production_pipeline.py`.
+- **Not validated:** test execution, real provider API compatibility, real audio/video generation, media playback, render quality, or end-to-end production. GitHub Actions runner initialization remains unresolved.
