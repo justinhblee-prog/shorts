@@ -91,11 +91,13 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 ## Next actions
 
-1. Resolve GitHub Actions runner allocation / repository Actions availability.
-2. Run `pip install -r backend/requirements.txt` and `python -m unittest discover -s tests -v` from `backend/` on Python 3.11+.
-3. Fix failures and validate queue concurrency, lease recovery, trend ingestion and competitor data.
-4. Connect observed trend and competitor evidence into the opportunity scoring inputs.
-5. Continue with BUILD-00005 only after the business data foundations are validated.
+1. Resolve GitHub Actions runner initialization and execute the complete Python test suite; do not treat committed mocked tests as passed.
+2. BUILD-00007 — implement explicit human review, approve/reject, revision and audit history for rendered shorts.
+3. BUILD-00008 — YouTube OAuth, private upload, upload status and platform metrics ingestion.
+4. BUILD-00009 — actual cost/revenue ledger with ad, affiliate and sponsor sources kept separate.
+5. BUILD-00010 — performance analysis and evidence-backed strategy recommendations.
+6. BUILD-00011/00012 — scheduling, recovery, integrated validation and deployment.
+7. Connect and validate real script, TTS and renderer providers using credentials supplied in the runtime environment.
 
 ## Versioning
 
