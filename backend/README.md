@@ -75,3 +75,22 @@ a publish operation. Public publishing remains outside this pipeline and must
 require explicit human approval. Provider contracts have mocked unit tests;
 live provider compatibility, actual generation, artifact download/playback,
 and render quality have not been validated.
+
+
+## BUILD-00006 — ten-brand operations
+
+`brand_operations.py` seeds and persists the ten operating brands. Each profile
+defines its vertical, positioning, audience, tone, supported markets/languages,
+risk level and editorial review rules. Defaults are inserted only when missing,
+so operator activation settings survive restarts.
+
+API:
+- `GET /api/brands` — list all brands.
+- `GET /api/brands?active_only=true` — list active brands only.
+- `GET /api/brands/{slug}` — inspect a brand profile.
+- `PUT /api/brands/{slug}/activation` with `{"active":false}` — pause or
+  reactivate a brand.
+
+Production job creation accepts a registered active brand name or slug and
+rejects unsupported region/language combinations. Initial supported regions
+are KR, US, JP and GB; supported languages are Korean, English and Japanese.
