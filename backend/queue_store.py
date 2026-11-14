@@ -82,7 +82,7 @@ class JobQueue:
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit()
             return self.decode(row)
 
-    def claim(self,worker_id,hostname=None):
+    def claim(self,worker_id,hostname=None,job_type=None):
         if not worker_id.strip(): raise ValueError("worker_id required")
         dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds)); token=str(uuid.uuid4())
         with self.db() as c:
@@ -96,8 +96,14 @@ class JobQueue:
                 c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
                   available_at=?,updated_at=?,error_code='lease_expired',error_message='Worker lease expired' WHERE id=?""",(target,n,n,e["id"]))
                 self.event(c,e["id"],"lease_expired","running",target,None,{"attempt":e["attempt"]})
-            row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable') AND available_at<=? AND attempt<max_attempts
-              ORDER BY priority,created_at LIMIT 1""",(n,)).fetchone()
+            if job_type:
+                row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
+                  AND available_at<=? AND attempt<max_attempts AND job_type=?
+                  ORDER BY priority,created_at LIMIT 1""",(n,job_type)).fetchone()
+            else:
+                row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
+                  AND available_at<=? AND attempt<max_attempts
+                  ORDER BY priority,created_at LIMIT 1""",(n,)).fetchone()
             if row is None: c.commit(); return None
             c.execute("""UPDATE pipeline_jobs SET status='running',worker_id=?,lease_token=?,lease_expires_at=?,
               attempt=attempt+1,started_at=COALESCE(started_at,?),updated_at=?,error_code=NULL,error_message=NULL
