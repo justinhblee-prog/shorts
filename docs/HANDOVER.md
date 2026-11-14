@@ -7,6 +7,7 @@ https://github.com/justinhblee-prog/shorts (private), default branch main.
 - `backend/queue_store.py`: SQLite queue, worker leases, idempotency, retry, events, cancellation and recovery.
 - `backend/trends.py`: Google News RSS (KR/US/JP/GB), Hacker News Firebase API, source-preserving trend storage.
 - `backend/youtube_intel.py`: YouTube Data API v3 channel/video intelligence and historical snapshots.
+- `backend/profitability.py`: scenario-based revenue/cost/ROI calculator and opportunity ranking.
 - `backend/app.py`: FastAPI API surface.
 - `backend/requirements.txt`: runtime dependencies.
 - `backend/tests/test_queue.py`: queue unit tests.
@@ -29,7 +30,9 @@ uvicorn app:app --host 0.0.0.0 --port 8502
 ## API
 - POST /api/trends/collect
 - GET /api/trends
-- GET /api/competitors/search?q=...
+- GET /api/competitors
+- POST /api/opportunities/score
+- GET /api/opportunities/search?q=...
 - GET /api/competitors/{channel_id}
 - GET /api/competitors
 - GET /api/health
@@ -56,6 +59,10 @@ uvicorn app:app --host 0.0.0.0 --port 8502
 ## BUILD-00002 status
 
 Trend provider code and tests are committed, but not yet runtime-validated. Google News RSS is not a search-volume/YouTube-view source; such metrics remain null. Hacker News score/comment counts are only the source-provided values and must not be treated as video view metrics.
+
+## BUILD-00004
+
+Scenario-based opportunity scoring accepts explicit low/high view forecasts, RPM, costs, monetization eligibility, ancillary revenue assumptions, evidence quality, strategic fit and production feasibility. Forecast source is mandatory. Output is labeled estimate and stored with an explainable score breakdown. API: POST `/api/opportunities/score`, GET `/api/opportunities`. Unit tests are committed but not executed due to the runner initialization issue.
 
 ## BUILD-00003
 
