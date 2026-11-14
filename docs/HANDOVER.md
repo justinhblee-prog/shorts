@@ -5,6 +5,7 @@ https://github.com/justinhblee-prog/shorts (private), default branch main.
 
 ## Current files
 - `backend/queue_store.py`: SQLite queue, worker leases, idempotency, retry, events, cancellation and recovery.
+- `backend/trends.py`: Google News RSS (KR/US/JP/GB), Hacker News Firebase API, source-preserving trend storage.
 - `backend/app.py`: FastAPI API surface.
 - `backend/requirements.txt`: runtime dependencies.
 - `backend/tests/test_queue.py`: queue unit tests.
@@ -25,6 +26,8 @@ uvicorn app:app --host 0.0.0.0 --port 8502
 ```
 
 ## API
+- POST /api/trends/collect
+- GET /api/trends
 - GET /api/health
 - GET /api/queue/stats
 - POST /api/jobs
@@ -46,5 +49,9 @@ uvicorn app:app --host 0.0.0.0 --port 8502
 - SQLite is the current local foundation; PostgreSQL migration is not implemented.
 - Do not report tests as passing: CI has not reached a runner/job step yet, and no local runtime execution has been performed in this environment.
 
+## BUILD-00002 status
+
+Trend provider code and tests are committed, but not yet runtime-validated. Google News RSS is not a search-volume/YouTube-view source; such metrics remain null. Hacker News score/comment counts are only the source-provided values and must not be treated as video view metrics.
+
 ## Immediate next task
-Resolve GitHub Actions runner/job initialization. Latest run is https://github.com/justinhblee-prog/shorts/actions/runs/43653199138; it reports a failed job with no step summaries and no logs, so the Python tests did not execute. Then run the documented Python 3.11+ unittest command, fix failures, and only then close BUILD-00001.
+Resolve GitHub Actions runner/job initialization. Latest run is https://github.com/justinhblee-prog/shorts/actions/runs/43653621860; it reports a failed job with no step summaries and no logs, so the Python tests did not execute. Then run the documented Python 3.11+ unittest command, fix failures, and only then close BUILD-00001.
