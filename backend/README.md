@@ -32,3 +32,11 @@ Competitor intelligence:
 - `GET /api/competitors`
 - YouTube Data API search requests consume quota (search.list is typically 100 units); prefer direct channel IDs when known and avoid aggressive polling.
 - Subscriber/view/video counts are provider snapshots, not growth rates, RPM or revenue.
+
+
+## Profitability scoring (scenario estimates)
+
+- `POST /api/opportunities/score` accepts low/high view forecasts, RPM assumptions, cost ranges, optional affiliate/sponsor assumptions, monetization eligibility and evidence/fit/feasibility scores.
+- `GET /api/opportunities` lists saved scenarios by priority score.
+- A non-empty `forecast_source` is required. Results are explicitly labeled `estimate`; they are not actual earnings or guaranteed results. If monetization is not eligible, ad revenue is forced to zero.
+- The prioritization score is explainable: margin 35%, ROI 25%, evidence quality 20%, strategic fit 10%, production feasibility 10%.
