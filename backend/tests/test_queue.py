@@ -16,6 +16,18 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(a["id"],j["id"]); self.assertIsNone(self.q.claim("worker-b"))
   self.assertEqual(self.q.finish(j["id"],"worker-a",a["lease_token"])["status"],"review_pending")
   with self.assertRaises(LeaseConflict): self.q.finish(j["id"],"worker-a",a["lease_token"])
+ def test_cancel_revokes_worker_lease(self):
+  j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
+  cancelled=self.q.cancel(j["id"],"operator stop")
+  self.assertEqual(cancelled["status"],"cancelled")
+  with self.assertRaises(LeaseConflict): self.q.finish(j["id"],"worker-a",a["lease_token"])
+ def test_recover_expired_lease(self):
+  j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(j["id"],))
+  result=self.q.recover()
+  self.assertEqual(result["requeued"],1)
+  self.assertEqual(self.q.get(j["id"])["status"],"queued")
  def test_retry_state_and_event_log(self):
   j=self.q.enqueue("research",{}); a=self.q.claim("worker-a")
   failed=self.q.fail(j["id"],"worker-a",a["lease_token"],"network","temporary",True)
