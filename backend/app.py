@@ -4,11 +4,14 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from queue_store import JobQueue, JobNotFound, LeaseConflict
 from trends import TrendStore, TrendIngestor
+from youtube_intel import CompetitorStore, CompetitorIntelligence
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
 trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 trend_ingestor=TrendIngestor(trend_store)
+competitor_store=CompetitorStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+competitor_intel=CompetitorIntelligence(competitor_store)
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -51,6 +54,34 @@ def list_trends(region:str|None=None,source:str|None=None,q:str|None=None,limit:
         return {"items":trend_store.list(region,source,q,limit)}
     except ValueError as e:
         raise HTTPException(422,str(e))
+
+
+@app.get("/api/competitors/search")
+def search_competitors(q:str,limit:int=5):
+    if len(q)<2 or len(q)>100: raise HTTPException(422,"q must contain 2-100 characters")
+    try:
+        return competitor_intel.search(q,limit)
+    except RuntimeError as e:
+        raise HTTPException(503,str(e))
+    except Exception as e:
+        raise HTTPException(502,"YouTube Data API request failed: "+type(e).__name__)
+
+@app.get("/api/competitors")
+def list_competitors(limit:int=50):
+    return {"channels":competitor_store.list_channels(limit)}
+
+@app.get("/api/competitors/{channel_id}")
+def inspect_competitor(channel_id:str,video_limit:int=10):
+    try:
+        result=competitor_intel.inspect(channel_id,video_limit)
+        if result is None: raise HTTPException(404,"Channel not found")
+        return result
+    except RuntimeError as e:
+        raise HTTPException(503,str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502,"YouTube Data API request failed: "+type(e).__name__)
 
 @app.get("/api/health")
 def health(): return {"status":"ok","service":"nexus-studio-pro"}
