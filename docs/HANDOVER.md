@@ -6,6 +6,7 @@ https://github.com/justinhblee-prog/shorts (private), default branch main.
 ## Current files
 - `backend/queue_store.py`: SQLite queue, worker leases, idempotency, retry, events, cancellation and recovery.
 - `backend/trends.py`: Google News RSS (KR/US/JP/GB), Hacker News Firebase API, source-preserving trend storage.
+- `backend/youtube_intel.py`: YouTube Data API v3 channel/video intelligence and historical snapshots.
 - `backend/app.py`: FastAPI API surface.
 - `backend/requirements.txt`: runtime dependencies.
 - `backend/tests/test_queue.py`: queue unit tests.
@@ -28,6 +29,9 @@ uvicorn app:app --host 0.0.0.0 --port 8502
 ## API
 - POST /api/trends/collect
 - GET /api/trends
+- GET /api/competitors/search?q=...
+- GET /api/competitors/{channel_id}
+- GET /api/competitors
 - GET /api/health
 - GET /api/queue/stats
 - POST /api/jobs
@@ -52,6 +56,10 @@ uvicorn app:app --host 0.0.0.0 --port 8502
 ## BUILD-00002 status
 
 Trend provider code and tests are committed, but not yet runtime-validated. Google News RSS is not a search-volume/YouTube-view source; such metrics remain null. Hacker News score/comment counts are only the source-provided values and must not be treated as video view metrics.
+
+## BUILD-00003
+
+YouTube channel search, channel snapshots and recent public video statistics are implemented in `backend/youtube_intel.py`. Set `YOUTUBE_DATA_API_KEY` in the runtime environment. The provider has fake-transport unit tests only; live API and quota behavior remain unverified. Search.list consumes substantial quota, so prefer known channel IDs.
 
 ## Immediate next task
 Resolve GitHub Actions runner/job initialization. Latest run is https://github.com/justinhblee-prog/shorts/actions/runs/43653621860; it reports a failed job with no step summaries and no logs, so the Python tests did not execute. Then run the documented Python 3.11+ unittest command, fix failures, and only then close BUILD-00001.
