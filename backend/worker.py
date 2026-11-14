@@ -55,6 +55,7 @@ def run_once():
         queue.finish(job["id"], WORKER_ID, job["lease_token"],
                      {"production_status": "review_pending",
                       "artifact_count": len(result["artifacts"])})
+        store.stage(job["id"], "review_pending", "review_pending")
         print(f"review_pending job={job['id']}")
     except ProviderError as exc:
         try:
