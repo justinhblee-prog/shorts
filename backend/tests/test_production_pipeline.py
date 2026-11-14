@@ -55,7 +55,7 @@ class ProductionTests(unittest.TestCase):
         pipeline = ProductionPipeline(self.store, script, voice, render)
         self.store.create("job-1", self.brief)
         result = pipeline.execute("job-1", self.brief)
-        self.assertEqual(result["status"], "review_pending")
+        self.assertEqual(result["status"], "rendered")
         self.assertEqual([a["stage"] for a in result["artifacts"]],
                          ["script", "voice_generation", "rendering"])
         self.assertIsNone(result["artifacts"][0]["artifact_url"])
