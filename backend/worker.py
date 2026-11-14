@@ -6,7 +6,6 @@ The worker only claims short_video_production jobs; it does not consume other qu
 import os
 import socket
 import threading
-import time
 import uuid
 
 from production_pipeline import ProductionPipeline, ProductionStore, ProviderError
@@ -43,7 +42,6 @@ def run_once():
         return False
 
     lost_lease = threading.Event()
-    heartbeat_stop = threading.Event()
     heartbeat = threading.Thread(
         target=heartbeat_loop, args=(job["id"], job["lease_token"], lost_lease),
         daemon=True)
