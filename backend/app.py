@@ -3,9 +3,12 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from queue_store import JobQueue, JobNotFound, LeaseConflict
+from trends import TrendStore, TrendIngestor
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
+trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+trend_ingestor=TrendIngestor(trend_store)
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -26,6 +29,28 @@ class Fail(Lease):
     error_code:str="worker_error"
     error_message:str="Worker failed"
     retryable:bool=True
+
+class TrendCollect(BaseModel):
+    region:str="US"
+    query:str=Field(min_length=2,max_length=200)
+    limit:int=30
+    include_hacker_news:bool=False
+
+@app.post("/api/trends/collect")
+def collect_trends(body:TrendCollect):
+    try:
+        return trend_ingestor.collect(body.region,body.query,body.limit,body.include_hacker_news)
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    except Exception as e:
+        raise HTTPException(502,"Trend provider request failed: "+type(e).__name__)
+
+@app.get("/api/trends")
+def list_trends(region:str|None=None,source:str|None=None,q:str|None=None,limit:int=50):
+    try:
+        return {"items":trend_store.list(region,source,q,limit)}
+    except ValueError as e:
+        raise HTTPException(422,str(e))
 
 @app.get("/api/health")
 def health(): return {"status":"ok","service":"nexus-studio-pro"}
