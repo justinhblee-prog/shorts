@@ -68,6 +68,7 @@ API:
 - `POST /api/production/jobs/{id}/execute` — execute only with the current
   `worker_id` and `lease_token`.
 - `GET /api/production/jobs/{id}` — inspect stages and artifacts.
+- `python worker.py` — run the long-lived worker. It claims only `short_video_production` jobs, renews its lease while provider calls run, and finalizes the queue into `review_pending` after successful rendering.
 
 A completed render transitions the queue job to `review_pending`. This is not
 a publish operation. Public publishing remains outside this pipeline and must
