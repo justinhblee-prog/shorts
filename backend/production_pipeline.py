@@ -128,7 +128,12 @@ class ProductionStore:
         with self.db() as c:
             c.execute("""INSERT INTO production_artifacts
               (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
-              VALUES(?,?,?,?,?,?,?)""",
+              VALUES(?,?,?,?,?,?,?)
+              ON CONFLICT(job_id,stage) DO UPDATE SET
+                artifact_type=excluded.artifact_type,
+                artifact_url=excluded.artifact_url,
+                metadata_json=excluded.metadata_json,
+                created_at=excluded.created_at""",
               (str(uuid.uuid4()), job_id, stage, artifact_type, url,
                json.dumps(metadata, ensure_ascii=False), utc_now()))
 
