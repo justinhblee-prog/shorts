@@ -1,5 +1,6 @@
 """Durable SQLite queue with lease fencing."""
 import json, sqlite3, uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -43,12 +44,20 @@ class JobQueue:
               worker_id TEXT PRIMARY KEY, hostname TEXT, last_seen_at TEXT NOT NULL, status TEXT NOT NULL);
             """)
 
+    @contextmanager
     def db(self):
         c=sqlite3.connect(self.db_path,timeout=30,isolation_level=None)
         c.row_factory=sqlite3.Row
         c.execute("PRAGMA foreign_keys=ON")
         c.execute("PRAGMA busy_timeout=30000")
-        return c
+        try:
+            yield c
+        except Exception:
+            if c.in_transaction:
+                c.rollback()
+            raise
+        finally:
+            c.close()
 
     def event(self,c,jid,kind,before,after,worker,details=None):
         c.execute("INSERT INTO job_events(job_id,event_type,from_status,to_status,worker_id,details_json,created_at) VALUES(?,?,?,?,?,?,?)",
@@ -92,7 +101,7 @@ class JobQueue:
             if row is None: c.commit(); return None
             c.execute("""UPDATE pipeline_jobs SET status='running',worker_id=?,lease_token=?,lease_expires_at=?,
               attempt=attempt+1,started_at=COALESCE(started_at,?),updated_at=?,error_code=NULL,error_message=NULL
-              WHERE id=? AND status='queued'""",(worker_id,token,expiry,n,n,row["id"]))
+              WHERE id=? AND status=?""",(worker_id,token,expiry,n,n,row["id"],row["status"]))
             claimed=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(row["id"],)).fetchone()
             self.event(c,row["id"],"claimed",row["status"],"running",worker_id,{"attempt":claimed["attempt"],"lease_expires_at":expiry})
             c.commit(); return self.decode(claimed)
