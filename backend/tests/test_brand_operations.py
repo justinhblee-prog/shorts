@@ -17,7 +17,7 @@ class BrandOperationsTests(unittest.TestCase):
     def test_seeds_ten_global_brands(self):
         brands = self.store.list()
         self.assertEqual(len(brands), 10)
-        self.assertEqual({b["slug"] for b in brands}.__len__(), 10)
+        self.assertEqual(len({b["slug"] for b in brands}), 10)
         self.assertTrue(all("KR" in b["config"]["regions"] for b in brands))
 
     def test_activation_persists_and_filters(self):
