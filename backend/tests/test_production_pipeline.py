@@ -7,7 +7,6 @@ from production_pipeline import (
     submit_production,
 )
 from queue_store import JobQueue
-)
 
 
 class FakeProvider:
