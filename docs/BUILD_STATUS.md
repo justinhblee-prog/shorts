@@ -33,7 +33,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00004 | Profitability scoring and prioritization | Scenario calculator/API/tests implemented; runtime validation pending |
 | BUILD-00005 | AI script, voice and video pipeline | Provider orchestration, lease-aware worker and API implemented; mocked tests committed; runtime/live-provider validation pending |
 | BUILD-00006 | Ten-brand operations | Persistent 10-brand registry, activation controls and production market validation implemented; runtime validation pending |
-| BUILD-00007 | Review and approval workflow | Human-review gate designed; integration pending |
+| BUILD-00007 | Review and approval workflow | Decision store, authenticated APIs, audit snapshots and tests committed; runtime validation pending |
 | BUILD-00008 | YouTube publishing and tracking | Not started |
 | BUILD-00009 | Revenue, cost and ROI analytics | Not started |
 | BUILD-00010 | AI performance analysis and strategy updates | Not started |
@@ -124,3 +124,15 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Production job creation now accepts only an active registered brand and validates the requested region/language against that brand profile.
 - Default profiles are inserted idempotently; activation state is preserved across restarts.
 - Added local SQLite unit tests in `backend/tests/test_brand_operations.py`; execution remains blocked by GitHub runner initialization.
+
+
+## BUILD-00007 — human review and approval
+
+- Added `backend/review_workflow.py` with a transactional review decision store.
+- Pending queue exposes only production runs in `review_pending`.
+- Approve, reject and revision-request decisions require a configured `NEXUS_REVIEW_TOKEN` sent as `X-Review-Token`; missing token configuration fails closed.
+- Every decision records reviewer ID, timestamp, comment, previous status and a snapshot of the artifacts reviewed. Decision rows are append-only; a second decision cannot overwrite a prior decision.
+- Reject and revision-request actions require a reason. Approval is a review state only; it does not publish or upload anything.
+- APIs: GET `/api/review/pending`; POST `/api/review/{job_id}/approve`; POST `/api/review/{job_id}/reject`; POST `/api/review/{job_id}/request-revision`; GET `/api/review/{job_id}/history`.
+- Added SQLite tests for pending items, decision audit, artifact snapshots, mandatory reasons, immutable decision state and fail-closed token validation.
+- **Not validated:** test execution, deployment security, reviewer identity integration or connection to a public publishing workflow.
