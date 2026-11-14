@@ -2,9 +2,24 @@
 Requires YOUTUBE_DATA_API_KEY. Search calls consume quota; direct channel lookups are cheaper.
 """
 import json, os, sqlite3, urllib.parse, urllib.request
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 BASE="https://www.googleapis.com/youtube/v3"
+
+
+@contextmanager
+def connection(path):
+ db=sqlite3.connect(path,timeout=30)
+ try:
+  db.execute("PRAGMA busy_timeout=30000")
+  yield db
+  db.commit()
+ except Exception:
+  db.rollback()
+  raise
+ finally:
+  db.close()
 
 def utc_now(): return datetime.now(timezone.utc).isoformat()
 
@@ -64,8 +79,7 @@ class CompetitorStore:
  def __init__(self,path="data/nexus.sqlite3"):
   self.path=path
   os.makedirs(os.path.dirname(path) or ".",exist_ok=True)
-  with sqlite3.connect(path,timeout=30) as db:
-   db.execute("PRAGMA busy_timeout=30000")
+  with connection(path) as db:
    db.execute("""CREATE TABLE IF NOT EXISTS competitor_channels(
     channel_id TEXT PRIMARY KEY,title TEXT NOT NULL,description TEXT,custom_url TEXT,published_at TEXT,
     country TEXT,subscriber_count INTEGER,view_count INTEGER,video_count INTEGER,
@@ -77,7 +91,7 @@ class CompetitorStore:
     video_id TEXT PRIMARY KEY,channel_id TEXT NOT NULL,title TEXT NOT NULL,published_at TEXT,
     view_count INTEGER,like_count INTEGER,comment_count INTEGER,duration TEXT,collected_at TEXT NOT NULL)""")
  def save_channels(self,items):
-  with sqlite3.connect(self.path,timeout=30) as db:
+  with connection(self.path) as db:
    for x in items:
     db.execute("""INSERT INTO competitor_channels VALUES(?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(channel_id) DO UPDATE SET title=excluded.title,description=excluded.description,
