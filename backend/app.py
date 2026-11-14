@@ -50,6 +50,15 @@ def fail(jid:str,body:Fail):
     try: return queue.fail(jid,body.worker_id,body.lease_token,body.error_code,body.error_message,body.retryable)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
+@app.post("/api/jobs/{jid}/cancel")
+def cancel(jid:str):
+    try: return queue.cancel(jid)
+    except JobNotFound: raise HTTPException(404,"Job not found")
+    except ValueError as e: raise HTTPException(409,str(e))
+@app.post("/api/queue/recover")
+def recover(): return queue.recover()
+@app.get("/api/workers")
+def workers(): return {"workers":queue.workers()}
 @app.get("/api/jobs/{jid}")
 def get_job(jid:str):
     try: return queue.get(jid)
