@@ -87,14 +87,14 @@ class JobQueue:
                 c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
                   available_at=?,updated_at=?,error_code='lease_expired',error_message='Worker lease expired' WHERE id=?""",(target,n,n,e["id"]))
                 self.event(c,e["id"],"lease_expired","running",target,None,{"attempt":e["attempt"]})
-            row=c.execute("""SELECT * FROM pipeline_jobs WHERE status='queued' AND available_at<=? AND attempt<max_attempts
+            row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable') AND available_at<=? AND attempt<max_attempts
               ORDER BY priority,created_at LIMIT 1""",(n,)).fetchone()
             if row is None: c.commit(); return None
             c.execute("""UPDATE pipeline_jobs SET status='running',worker_id=?,lease_token=?,lease_expires_at=?,
               attempt=attempt+1,started_at=COALESCE(started_at,?),updated_at=?,error_code=NULL,error_message=NULL
               WHERE id=? AND status='queued'""",(worker_id,token,expiry,n,n,row["id"]))
             claimed=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(row["id"],)).fetchone()
-            self.event(c,row["id"],"claimed","queued","running",worker_id,{"attempt":claimed["attempt"],"lease_expires_at":expiry})
+            self.event(c,row["id"],"claimed",row["status"],"running",worker_id,{"attempt":claimed["attempt"],"lease_expires_at":expiry})
             c.commit(); return self.decode(claimed)
 
     def assert_lease(self,row,worker,token,n):
