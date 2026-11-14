@@ -47,4 +47,4 @@ uvicorn app:app --host 0.0.0.0 --port 8502
 - Do not report tests as passing: CI has not reached a runner/job step yet, and no local runtime execution has been performed in this environment.
 
 ## Immediate next task
-Resolve GitHub Actions runner allocation, execute tests, fix all failures, and only then close BUILD-00001.
+Resolve GitHub Actions runner/job initialization. Latest run is https://github.com/justinhblee-prog/shorts/actions/runs/43653199138; it reports a failed job with no step summaries and no logs, so the Python tests did not execute. Then run the documented Python 3.11+ unittest command, fix failures, and only then close BUILD-00001.
