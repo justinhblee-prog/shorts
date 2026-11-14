@@ -30,8 +30,8 @@ Health, finance and crime/event content require source verification and non-sens
 | ID | Scope | State |
 |---|---|---|
 | BUILD-00001 | Durable queue and Worker Lease | Source implemented; execution validation blocked |
-| BUILD-00002 | Global trend ingestion | Source implementation added; execution validation pending |
-| BUILD-00003 | Competitor/channel intelligence | Not started |
+| BUILD-00002 | Global trend ingestion | Provider/API/tests implemented; live and runtime validation pending |
+| BUILD-00003 | Competitor/channel intelligence | Provider/API/tests implemented; API-key and runtime validation pending |
 | BUILD-00004 | Profitability scoring and prioritization | Not started |
 | BUILD-00005 | AI script, voice and video pipeline | Not started |
 | BUILD-00006 | Ten-brand operations | Not started |
@@ -42,7 +42,7 @@ Health, finance and crime/event content require source verification and non-sens
 | BUILD-00011 | Scheduling and recovery operations | Not started |
 | BUILD-00012 | Integrated validation and deployment | Not started |
 
-## BUILD-00002 implementation (in progress)\n\n- Google News RSS provider for KR, US, JP and GB with correct locale parameters.\n- Official Hacker News Firebase API provider using top-stories and item endpoints.\n- Persistent `trend_signals` table with source URL deduplication, collection timestamps and publication timestamps.\n- Preserve source-provided Hacker News score/comment counts; leave unavailable popularity/search-volume metrics null.\n- FastAPI endpoints: POST `/api/trends/collect`, GET `/api/trends`.\n- Provider/persistence unit tests added; they have not yet executed in a runtime.\n\n## BUILD-00001 implementation
+## BUILD-00001 — durable queue and Worker Lease
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.
 - Serialized claim transactions using BEGIN IMMEDIATE.
@@ -52,25 +52,44 @@ Health, finance and crime/event content require source verification and non-sens
 - Job event history and worker registry.
 - Operator cancellation and expired-lease recovery APIs.
 - Successful worker completion moves a job to review_pending; this milestone has no public publish transition.
-- FastAPI API surface and unit tests for idempotency, exclusive claims, concurrent claims, retry, stale worker fencing, cancellation and lease recovery.
-- GitHub Actions test workflow.
+- Unit tests cover idempotency, exclusive and concurrent claims, retry, stale worker fencing, cancellation and lease recovery.
+- **Validation blocked:** GitHub Actions jobs are failing before checkout/steps. Python tests have not executed in a real runtime. Do not mark this build complete.
+
+## BUILD-00002 — global trend ingestion
+
+- Google News RSS provider for KR, US, JP and GB with locale parameters.
+- Official Hacker News Firebase API provider using top-stories and item endpoints.
+- Persistent `trend_signals` table with source URL deduplication, publication and collection timestamps.
+- Preserve source-provided Hacker News score/comment counts; unavailable search-volume and video-view metrics remain null.
+- API: POST `/api/trends/collect`; GET `/api/trends`.
+- Provider and persistence unit tests added.
+- **Validation pending:** live source requests and test execution have not been verified.
+
+## BUILD-00003 — competitor/channel intelligence
+
+- YouTube Data API v3 provider for channel search, channel statistics and recent public video statistics.
+- Stores channel snapshots and video counters in SQLite.
+- API: GET `/api/competitors/search?q=...`; GET `/api/competitors/{channel_id}`; GET `/api/competitors`.
+- Requires `YOUTUBE_DATA_API_KEY`; no key is committed to the repository.
+- Search API calls consume quota (search.list is typically 100 quota units); direct channel IDs are preferred when available.
+- Subscriber/view counts are point-in-time provider snapshots, not growth rates, view velocity, RPM or revenue.
+- Unit tests use a fake transport; they are not a substitute for live API validation.
 
 ## Validation — current truth
 
 - Source and test files are committed to main.
-- Latest code commit: `1b28008bd129a31a1f01f7dbfc066840f6fb5511`.
-- GitHub Actions run for that commit: https://github.com/justinhblee-prog/shorts/actions/runs/43653199138
-- GitHub reports the workflow job as failed with no step summaries and no downloadable job logs. The runner did not reach checkout, dependency installation or unittest execution.
-- Consequently, the suite has **not** passed or failed on code behavior; it has not executed. BUILD-00001 remains open.
-- No production worker, PostgreSQL, external AI provider, OAuth, rendering or YouTube publishing has been validated.
+- GitHub Actions has repeatedly reported failed jobs with no step summaries and no downloadable logs. The runner has not reached checkout, dependency installation or unittest execution.
+- The test suite has **not** passed or failed on code behavior; it has not executed.
+- No production worker, PostgreSQL, external AI generation, OAuth, rendering or YouTube publishing has been validated.
+- Build status reflects code committed, not successful production operation.
 
-## Next actions\n\n1. Resolve Actions runner/job initialization and run all backend tests.\n2. Validate BUILD-00001 under concurrency and recovery tests.\n3. Validate BUILD-00002 against live Google News RSS and Hacker News endpoints, including regional coverage, deduplication and provider failure handling.\n4. Add source freshness, query scheduling and ingestion observability before calling BUILD-00002 complete.\n\n## Deferred work
+## Next actions
 
-1. Resolve GitHub Actions runner/job initialization in repository Actions settings or billing/usage limits.
-2. Execute `pip install -r backend/requirements.txt` and `python -m unittest discover -s backend/tests -v` on Python 3.11+.
-3. Fix any runtime failures, then repeat concurrent claim and stale lease recovery tests.
-4. Add production worker process, Docker healthcheck and observability only after tests pass.
-5. Start BUILD-00002 after BUILD-00001 validation is green.
+1. Resolve GitHub Actions runner/job initialization and execute the complete Python 3.11+ test suite.
+2. Fix any runtime failures and verify BUILD-00001 concurrency, retry and lease-recovery behavior.
+3. Validate Google News RSS and Hacker News live ingestion for all supported regions.
+4. Configure a restricted YouTube Data API key and validate BUILD-00003 quota-aware channel/video retrieval.
+5. Add data freshness, collection scheduling, source failure observability and then begin BUILD-00004 profitability scoring.
 
 ## Versioning
 
