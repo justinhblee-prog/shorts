@@ -23,8 +23,6 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 9. 30Sec Shift — health, sleep and longevity
 10. Why Nobody Tells — social and business insights
 
-Health, finance and crime/event content require source verification and non-sensational claims.
-
 ## Build roadmap
 
 | ID | Scope | State |
@@ -48,57 +46,56 @@ Health, finance and crime/event content require source verification and non-sens
 - Serialized claim transactions using BEGIN IMMEDIATE.
 - Worker lease expiry and UUID fencing token.
 - Heartbeat, completion, failure, retryable re-claim and terminal retry handling.
-- Idempotency key on enqueue.
-- Job event history and worker registry.
+- Idempotency key on enqueue; event history and worker registry.
 - Operator cancellation and expired-lease recovery APIs.
 - Successful worker completion moves a job to review_pending; this milestone has no public publish transition.
-- Unit tests cover idempotency, exclusive and concurrent claims, retry, stale worker fencing, cancellation and lease recovery.
-- **Validation blocked:** GitHub Actions jobs are failing before checkout/steps. Python tests have not executed in a real runtime. Do not mark this build complete.
+- Tests cover idempotency, exclusive/concurrent claims, retry, stale worker fencing, cancellation and lease recovery.
+- **Not complete:** runtime tests have not executed.
 
 ## BUILD-00002 — global trend ingestion
 
-- Google News RSS provider for KR, US, JP and GB with locale parameters.
+- Google News RSS provider for KR, US, JP and GB.
 - Official Hacker News Firebase API provider using top-stories and item endpoints.
-- Persistent `trend_signals` table with source URL deduplication, publication and collection timestamps.
-- Preserve source-provided Hacker News score/comment counts; unavailable search-volume and video-view metrics remain null.
+- Persistent `trend_signals` table with source URL deduplication and timestamps.
+- Preserve provider metrics only; unavailable search-volume and video-view metrics remain null.
 - API: POST `/api/trends/collect`; GET `/api/trends`.
-- Provider and persistence unit tests added.
-- **Validation pending:** live source requests and test execution have not been verified.
-
-## BUILD-00004 — profitability scoring and prioritization
-
-- Transparent low/high scenario calculator for views, RPM, ads, affiliate/sponsor revenue and production costs.
-- Monetization eligibility gate forces estimated ad revenue to zero when not eligible.
-- Requires an attributable forecast source; all outputs are labeled estimates, never actual revenue.
-- Explainable 100-point priority model: margin 35%, ROI 25%, evidence 20%, strategic fit 10%, production feasibility 10%.
-- Persists scored opportunities in SQLite. API: POST `/api/opportunities/score`, GET `/api/opportunities`.
-- Unit tests cover range validation, monetization gate, scenario math and persistence; not executed yet.
+- Provider and persistence unit tests committed; live and runtime validation pending.
 
 ## BUILD-00003 — competitor/channel intelligence
 
-- YouTube Data API v3 provider for channel search, channel statistics and recent public video statistics.
+- YouTube Data API v3 channel search, channel statistics and recent public video statistics.
 - Stores channel snapshots and video counters in SQLite.
 - API: GET `/api/competitors/search?q=...`; GET `/api/competitors/{channel_id}`; GET `/api/competitors`.
-- Requires `YOUTUBE_DATA_API_KEY`; no key is committed to the repository.
-- Search API calls consume quota (search.list is typically 100 quota units); direct channel IDs are preferred when available.
-- Subscriber/view counts are point-in-time provider snapshots, not growth rates, view velocity, RPM or revenue.
-- Unit tests use a fake transport; they are not a substitute for live API validation.
+- Requires runtime secret `YOUTUBE_DATA_API_KEY`; no key is committed.
+- Search.list typically consumes 100 quota units; prefer known channel IDs.
+- Counters are snapshots, not growth rates, view velocity, RPM or revenue.
+- Fake-transport tests committed; live API validation pending.
+
+## BUILD-00004 — profitability scoring
+
+- Transparent low/high scenario model for forecast views, RPM, ad/affiliate/sponsor revenue and operating costs.
+- Monetization eligibility gate sets ad revenue to zero when the channel is not eligible.
+- A forecast source is mandatory; outputs are explicitly labeled estimates.
+- Explainable priority score: margin 35%, ROI 25%, evidence quality 20%, strategic fit 10%, production feasibility 10%.
+- SQLite persistence and API: POST `/api/opportunities/score`; GET `/api/opportunities`.
+- Unit tests committed; runtime validation pending.
 
 ## Validation — current truth
 
-- Source and test files are committed to main.
-- GitHub Actions has repeatedly reported failed jobs with no step summaries and no downloadable logs. The runner has not reached checkout, dependency installation or unittest execution.
-- The test suite has **not** passed or failed on code behavior; it has not executed.
+- Code and tests are committed to the private repository main branch.
+- Latest observed GitHub Actions run: https://github.com/justinhblee-prog/shorts/actions/runs/43654067499
+- GitHub job metadata reported `runner_id=0`, empty runner name, and `steps=[]`; the job failed before checkout or dependency installation. This is an environment/runner initialization failure, not evidence of a Python test failure.
+- The suite has not passed or failed on code behavior; it has not executed in a real Python runtime.
 - No production worker, PostgreSQL, external AI generation, OAuth, rendering or YouTube publishing has been validated.
-- Build status reflects code committed, not successful production operation.
+- Do not claim real earnings, real monetization or a complete automated business cycle.
 
 ## Next actions
 
-1. Resolve GitHub Actions runner/job initialization and execute the complete Python 3.11+ test suite.
-2. Fix any runtime failures and verify BUILD-00001 concurrency, retry and lease-recovery behavior.
-3. Validate Google News RSS and Hacker News live ingestion for all supported regions.
-4. Configure a restricted YouTube Data API key and validate BUILD-00003 quota-aware channel/video retrieval.
-5. Add data freshness, collection scheduling and source failure observability; then connect opportunity scoring to observed trend and competitor evidence.
+1. Resolve GitHub Actions runner allocation / repository Actions availability.
+2. Run `pip install -r backend/requirements.txt` and `python -m unittest discover -s tests -v` from `backend/` on Python 3.11+.
+3. Fix failures and validate queue concurrency, lease recovery, trend ingestion and competitor data.
+4. Connect observed trend and competitor evidence into the opportunity scoring inputs.
+5. Continue with BUILD-00005 only after the business data foundations are validated.
 
 ## Versioning
 
