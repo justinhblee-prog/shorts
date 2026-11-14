@@ -213,7 +213,7 @@ class ProductionPipeline:
                 raise ProviderError("rendering", "Renderer returned no valid video_url", False)
             self.store.artifact(job_id, "rendering", "video", video_url,
                                 {k: v for k, v in rendered.items() if k != "video_url"})
-            self.store.stage(job_id, "review_pending", "review_pending")
+            self.store.stage(job_id, "rendered", "rendered")
             return self.store.get(job_id)
         except ProviderError as exc:
             self.store.stage(job_id, exc.stage, "failed_retriable" if exc.retryable else "failed_terminal",
