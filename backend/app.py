@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from queue_store import JobQueue, JobNotFound, LeaseConflict
 from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
+from profitability import OpportunityStore, score_opportunity
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -12,6 +13,7 @@ trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 trend_ingestor=TrendIngestor(trend_store)
 competitor_store=CompetitorStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 competitor_intel=CompetitorIntelligence(competitor_store)
+opportunity_store=OpportunityStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -82,6 +84,39 @@ def inspect_competitor(channel_id:str,video_limit:int=10):
         raise
     except Exception as e:
         raise HTTPException(502,"YouTube Data API request failed: "+type(e).__name__)
+
+
+class OpportunityInput(BaseModel):
+    title:str=Field(default="",max_length=200)
+    currency:str=Field(default="USD",min_length=3,max_length=3)
+    forecast_source:str=Field(min_length=1,max_length=500)
+    forecast_views_low:float=Field(ge=0)
+    forecast_views_high:float=Field(ge=0)
+    rpm_low:float=Field(ge=0)
+    rpm_high:float=Field(ge=0)
+    cost_low:float=Field(ge=0)
+    cost_high:float=Field(ge=0)
+    monetization_eligible:bool=False
+    affiliate_revenue_low:float=Field(default=0,ge=0)
+    affiliate_revenue_high:float=Field(default=0,ge=0)
+    sponsor_revenue_low:float=Field(default=0,ge=0)
+    sponsor_revenue_high:float=Field(default=0,ge=0)
+    evidence_quality:float=Field(default=0,ge=0,le=1)
+    strategic_fit:float=Field(default=0,ge=0,le=1)
+    production_feasibility:float=Field(default=0,ge=0,le=1)
+
+
+@app.post("/api/opportunities/score",status_code=201)
+def create_opportunity_score(body:OpportunityInput):
+    try:
+        result=score_opportunity(body.model_dump())
+        return opportunity_store.save(result)
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+@app.get("/api/opportunities")
+def list_opportunities(limit:int=50):
+    return {"opportunities":opportunity_store.list(limit)}
 
 @app.get("/api/health")
 def health(): return {"status":"ok","service":"nexus-studio-pro"}
