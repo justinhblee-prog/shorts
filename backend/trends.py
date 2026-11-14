@@ -19,6 +19,7 @@ HN_ITEM="https://hacker-news.firebaseio.com/v0/item/{}.json"
 def connection(path):
  db=sqlite3.connect(path,timeout=30)
  try:
+  db.execute("PRAGMA busy_timeout=30000")
   yield db
   db.commit()
  except Exception:
