@@ -143,6 +143,43 @@ class JobQueue:
         with self.db() as c:
             return [{**dict(r),"details":json.loads(r["details_json"])} for r in c.execute("SELECT * FROM job_events WHERE job_id=? ORDER BY id",(jid,))]
 
+    def cancel(self,jid,reason="Cancelled by operator"):
+        n=stamp(now())
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            if row is None: raise JobNotFound()
+            if row["status"] in ("uploaded","cancelled","failed_terminal"):
+                raise ValueError("Job is already terminal")
+            c.execute("""UPDATE pipeline_jobs SET status='cancelled',worker_id=NULL,lease_token=NULL,
+              lease_expires_at=NULL,updated_at=?,error_code='cancelled',error_message=? WHERE id=?""",
+              (n,reason[:2000],jid))
+            self.event(c,jid,"cancelled",row["status"],"cancelled",None,{"reason":reason})
+            out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            c.commit()
+            return self.decode(out)
+
+    def recover(self):
+        n=stamp(now()); recovered=0; terminal=0
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            rows=c.execute("""SELECT id,attempt,max_attempts FROM pipeline_jobs WHERE status='running'
+              AND lease_expires_at IS NOT NULL AND lease_expires_at<=?""",(n,)).fetchall()
+            for row in rows:
+                target="queued" if row["attempt"]<row["max_attempts"] else "failed_terminal"
+                c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,
+                  lease_expires_at=NULL,available_at=?,updated_at=?,error_code='lease_expired',
+                  error_message='Worker lease expired' WHERE id=?""",(target,n,n,row["id"]))
+                self.event(c,row["id"],"lease_recovered","running",target,None,{"attempt":row["attempt"]})
+                if target=="queued": recovered+=1
+                else: terminal+=1
+            c.commit()
+        return {"requeued":recovered,"terminal":terminal}
+
+    def workers(self):
+        with self.db() as c:
+            return [dict(r) for r in c.execute("SELECT * FROM worker_registry ORDER BY last_seen_at DESC")]
+
     def stats(self):
         with self.db() as c:
             d={r["status"]:r["n"] for r in c.execute("SELECT status,COUNT(*) n FROM pipeline_jobs GROUP BY status")}
