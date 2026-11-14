@@ -99,3 +99,19 @@ A successful pipeline stores script text, audio URL and rendered video URL, then
 New file: `backend/brand_operations.py` — seeds and persists the ten brand profiles and exposes active-state controls through the API. Profiles include editorial risk and review rules, region/language support and positioning. Production job submission validates the selected active brand and supported market.
 
 New tests: `backend/tests/test_brand_operations.py`. Tests are committed but not executed in a Python runtime.
+
+
+## BUILD-00007 — review workflow
+
+New file: `backend/review_workflow.py`; tests: `backend/tests/test_review_workflow.py`.
+
+Set a strong `NEXUS_REVIEW_TOKEN` secret in the backend runtime. Send it in the `X-Review-Token` header for every review endpoint. The API deliberately denies access when the secret is absent. Provide a non-empty `reviewer_id`; rejection and revision requests also require a reason. Each decision stores an artifact snapshot and append-only audit entry. A decision cannot be overwritten. Approval changes the production record to `approved` only; it does not publish or upload.
+
+Endpoints:
+- GET `/api/review/pending`
+- POST `/api/review/{job_id}/approve`
+- POST `/api/review/{job_id}/reject`
+- POST `/api/review/{job_id}/request-revision`
+- GET `/api/review/{job_id}/history`
+
+All review endpoints require `X-Review-Token`. These endpoints are not a substitute for user-specific identity/role management; the current baseline uses one shared operator secret and an asserted reviewer ID. Runtime test execution and deployment hardening remain outstanding.
