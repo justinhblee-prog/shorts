@@ -80,7 +80,16 @@ def set_brand_activation(slug:str,body:BrandActivation):
 @app.post("/api/production/jobs",status_code=201)
 def create_production_job(body:ProductionBrief):
     try:
-        return submit_production(queue,production_store,body.model_dump())
+        brand = next((b for b in brand_store.list(active_only=True)
+                      if body.brand in (b["slug"], b["name"])), None)
+        if brand is None:
+            raise HTTPException(422,"Unknown or inactive brand")
+        config = brand["config"]
+        if body.region not in config["regions"] or body.language not in config["languages"]:
+            raise HTTPException(422,"Region or language is not enabled for this brand")
+        brief = body.model_dump()
+        brief["brand"] = brand["name"]
+        return submit_production(queue,production_store,brief)
     except ValueError as e:
         raise HTTPException(422,str(e))
 
