@@ -75,6 +75,7 @@ Resolve GitHub Actions runner/job initialization. Latest run is https://github.c
 ## BUILD-00005 — production pipeline
 
 New files:
+- `backend/worker.py`: long-running worker, job-type-specific claims, lease heartbeats, and review-gate completion.
 - `backend/production_pipeline.py`: durable production run/artifact store, JSON provider adapter, and script → voice → render orchestration.
 - `backend/tests/test_production_pipeline.py`: mocked contract tests.
 
@@ -83,6 +84,6 @@ Updated `backend/app.py` endpoints:
 - `GET /api/production/jobs/{job_id}`
 - `POST /api/production/jobs/{job_id}/execute`
 
-The execution endpoint requires a job already claimed through the durable queue and validates the current worker ID and lease token. Configure `SCRIPT_PROVIDER_URL`, `VOICE_PROVIDER_URL`, and `RENDER_PROVIDER_URL`; optional tokens use the matching `*_TOKEN` variables. Provider contracts and exact request/response requirements are documented in `backend/README.md`.
+The execution endpoint requires a job already claimed through the durable queue and validates the current worker ID and lease token. Alternatively, run `python worker.py` from `backend/` to run a long-lived worker that claims only production jobs and renews the lease during provider calls. Configure `SCRIPT_PROVIDER_URL`, `VOICE_PROVIDER_URL`, and `RENDER_PROVIDER_URL`; optional tokens use the matching `*_TOKEN` variables. Provider contracts and exact request/response requirements are documented in `backend/README.md`.
 
 A successful pipeline stores script text, audio URL and rendered video URL, then moves the queue job to `review_pending`. No publish call exists. This source milestone is committed but not runtime-tested. Mock tests are not evidence of real provider compatibility or real generated media.
