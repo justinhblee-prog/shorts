@@ -1,0 +1,64 @@
+import os
+import tempfile
+import unittest
+
+from production_pipeline import ProductionStore
+from review_workflow import ReviewStore, ReviewConflict, ReviewNotFound, valid_review_token
+
+
+class ReviewWorkflowTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db = os.path.join(self.tmp.name, "review.sqlite3")
+        self.production = ProductionStore(self.db)
+        self.review = ReviewStore(self.db)
+        self.production.create("job-1", {
+            "brand": "Brain Glitch", "region": "US",
+            "language": "English", "topic": "Sleep"
+        })
+        self.production.stage("job-1", "rendered", "review_pending")
+        self.production.artifact("job-1", "rendering", "video",
+                                  "https://media.example/video.mp4", {"duration": 30})
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_pending_queue_contains_real_artifact_reference(self):
+        pending = self.review.list_pending()
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["artifacts"][0]["artifact_url"],
+                         "https://media.example/video.mp4")
+
+    def test_approval_is_explicit_and_audited_with_snapshot(self):
+        result = self.review.decide("job-1", "approved", "operator-1", "Looks good")
+        self.assertEqual(result["production"]["status"], "approved")
+        self.assertEqual(result["decision"]["reviewer_id"], "operator-1")
+        self.assertEqual(result["decision"]["artifact_snapshot"][0]["artifact_url"],
+                         "https://media.example/video.mp4")
+        self.assertEqual(len(self.review.history("job-1")), 1)
+
+    def test_rejection_and_revision_require_reason(self):
+        with self.assertRaises(ValueError):
+            self.review.decide("job-1", "rejected", "operator-1", "")
+        result = self.review.decide("job-1", "revision_requested",
+                                    "operator-1", "Captions are inaccurate")
+        self.assertEqual(result["production"]["status"], "revision_requested")
+
+    def test_second_decision_cannot_overwrite_first(self):
+        self.review.decide("job-1", "approved", "operator-1")
+        with self.assertRaises(ReviewConflict):
+            self.review.decide("job-1", "rejected", "operator-2", "Changed mind")
+        self.assertEqual(len(self.review.history("job-1")), 1)
+
+    def test_unknown_job(self):
+        with self.assertRaises(ReviewNotFound):
+            self.review.decide("missing", "approved", "operator-1")
+
+    def test_review_token_fails_closed(self):
+        self.assertFalse(valid_review_token("abc", None))
+        self.assertFalse(valid_review_token("wrong", "secret"))
+        self.assertTrue(valid_review_token("secret", "secret"))
+
+
+if __name__ == "__main__":
+    unittest.main()
