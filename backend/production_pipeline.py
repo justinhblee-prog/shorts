@@ -83,7 +83,7 @@ class ProductionStore:
               current_stage TEXT, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS production_artifacts(
               id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES production_runs(job_id),
-              stage TEXT NOT NULL, artifact_type TEXT NOT NULL, artifact_url TEXT NOT NULL,
+              stage TEXT NOT NULL, artifact_type TEXT NOT NULL, artifact_url TEXT,
               metadata_json TEXT NOT NULL, created_at TEXT NOT NULL,
               UNIQUE(job_id, stage));
             """)
@@ -119,8 +119,12 @@ class ProductionStore:
                 raise KeyError(job_id)
 
     def artifact(self, job_id, stage, artifact_type, url, metadata):
-        if not isinstance(url, str) or not url.startswith(("https://", "http://")):
-            raise ValueError(f"{stage} provider must return an HTTP(S) artifact_url")
+        if artifact_type in ("audio", "video") and (
+            not isinstance(url, str) or not url.startswith(("https://", "http://"))
+        ):
+            raise ValueError(f"{stage} provider must return an HTTP(S) artifact URL")
+        if url is not None and not isinstance(url, str):
+            raise ValueError("artifact URL must be a string or null")
         with self.db() as c:
             c.execute("""INSERT INTO production_artifacts
               (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
@@ -178,8 +182,7 @@ class ProductionPipeline:
             script_text = script.get("script")
             if not isinstance(script_text, str) or not script_text.strip():
                 raise ProviderError("script", "Script provider returned no script text", False)
-            self.store.artifact(job_id, "script", "text", script.get("artifact_url") or
-                                "https://nexus.invalid/artifacts/" + job_id + "/script",
+            self.store.artifact(job_id, "script", "text", script.get("artifact_url"),
                                 {"script": script_text, "provider": script.get("provider")})
 
             self.store.stage(job_id, "voice_generation")
