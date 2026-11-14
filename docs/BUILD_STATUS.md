@@ -30,7 +30,7 @@ Health, finance and crime/event content require source verification and non-sens
 | ID | Scope | State |
 |---|---|---|
 | BUILD-00001 | Durable queue and Worker Lease | Source implemented; execution validation blocked |
-| BUILD-00002 | Global trend ingestion | Not started |
+| BUILD-00002 | Global trend ingestion | Source implementation added; execution validation pending |
 | BUILD-00003 | Competitor/channel intelligence | Not started |
 | BUILD-00004 | Profitability scoring and prioritization | Not started |
 | BUILD-00005 | AI script, voice and video pipeline | Not started |
@@ -42,7 +42,7 @@ Health, finance and crime/event content require source verification and non-sens
 | BUILD-00011 | Scheduling and recovery operations | Not started |
 | BUILD-00012 | Integrated validation and deployment | Not started |
 
-## BUILD-00001 implementation
+## BUILD-00002 implementation (in progress)\n\n- Google News RSS provider for KR, US, JP and GB with correct locale parameters.\n- Official Hacker News Firebase API provider using top-stories and item endpoints.\n- Persistent `trend_signals` table with source URL deduplication, collection timestamps and publication timestamps.\n- Preserve source-provided Hacker News score/comment counts; leave unavailable popularity/search-volume metrics null.\n- FastAPI endpoints: POST `/api/trends/collect`, GET `/api/trends`.\n- Provider/persistence unit tests added; they have not yet executed in a runtime.\n\n## BUILD-00001 implementation
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.
 - Serialized claim transactions using BEGIN IMMEDIATE.
@@ -64,7 +64,7 @@ Health, finance and crime/event content require source verification and non-sens
 - Consequently, the suite has **not** passed or failed on code behavior; it has not executed. BUILD-00001 remains open.
 - No production worker, PostgreSQL, external AI provider, OAuth, rendering or YouTube publishing has been validated.
 
-## Next actions
+## Next actions\n\n1. Resolve Actions runner/job initialization and run all backend tests.\n2. Validate BUILD-00001 under concurrency and recovery tests.\n3. Validate BUILD-00002 against live Google News RSS and Hacker News endpoints, including regional coverage, deduplication and provider failure handling.\n4. Add source freshness, query scheduling and ingestion observability before calling BUILD-00002 complete.\n\n## Deferred work
 
 1. Resolve GitHub Actions runner/job initialization in repository Actions settings or billing/usage limits.
 2. Execute `pip install -r backend/requirements.txt` and `python -m unittest discover -s backend/tests -v` on Python 3.11+.
