@@ -6,6 +6,7 @@ from queue_store import JobQueue, JobNotFound, LeaseConflict
 from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
 from profitability import OpportunityStore, score_opportunity
+from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -14,6 +15,8 @@ trend_ingestor=TrendIngestor(trend_store)
 competitor_store=CompetitorStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 competitor_intel=CompetitorIntelligence(competitor_store)
 opportunity_store=OpportunityStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+production_store=ProductionStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+production_pipeline=ProductionPipeline(production_store)
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -35,11 +38,58 @@ class Fail(Lease):
     error_message:str="Worker failed"
     retryable:bool=True
 
+class ProductionBrief(BaseModel):
+    brand:str=Field(min_length=1,max_length=100)
+    region:str=Field(min_length=2,max_length=8)
+    language:str=Field(min_length=2,max_length=40)
+    topic:str=Field(min_length=1,max_length=500)
+    idempotency_key:str|None=None
+
+class ProductionExecute(BaseModel):
+    worker_id:str=Field(min_length=1,max_length=128)
+    lease_token:str=Field(min_length=1,max_length=128)
+
 class TrendCollect(BaseModel):
     region:str="US"
     query:str=Field(min_length=2,max_length=200)
     limit:int=30
     include_hacker_news:bool=False
+
+@app.post("/api/production/jobs",status_code=201)
+def create_production_job(body:ProductionBrief):
+    try:
+        return submit_production(queue,production_store,body.model_dump())
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+@app.get("/api/production/jobs/{job_id}")
+def get_production_job(job_id:str):
+    result=production_store.get(job_id)
+    if result is None: raise HTTPException(404,"Production job not found")
+    return result
+
+@app.post("/api/production/jobs/{job_id}/execute")
+def execute_production_job(job_id:str,body:ProductionExecute):
+    try:
+        job=queue.get(job_id)
+        if job["job_type"]!="short_video_production":
+            raise HTTPException(409,"Job is not a short-video production job")
+        if job["status"]!="running" or job["worker_id"]!=body.worker_id or job["lease_token"]!=body.lease_token:
+            raise HTTPException(409,"Current worker lease is required")
+        result=production_pipeline.execute(job_id,job["payload"])
+        queue.finish(job_id,body.worker_id,body.lease_token,{"production_status":"review_pending"})
+        return result
+    except ProviderError as e:
+        try:
+            queue.fail(job_id,body.worker_id,body.lease_token,
+                       "provider_"+e.stage,str(e),e.retryable)
+        except Exception:
+            pass
+        raise HTTPException(502,{"stage":e.stage,"error":str(e),"retryable":e.retryable})
+    except JobNotFound:
+        raise HTTPException(404,"Job not found")
+    except LeaseConflict as e:
+        raise HTTPException(409,str(e))
 
 @app.post("/api/trends/collect")
 def collect_trends(body:TrendCollect):
