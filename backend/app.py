@@ -78,7 +78,8 @@ def execute_production_job(job_id:str,body:ProductionExecute):
             raise HTTPException(409,"Current worker lease is required")
         result=production_pipeline.execute(job_id,job["payload"])
         queue.finish(job_id,body.worker_id,body.lease_token,{"production_status":"review_pending"})
-        return result
+        production_store.stage(job_id,"review_pending","review_pending")
+        return production_store.get(job_id)
     except ProviderError as e:
         try:
             queue.fail(job_id,body.worker_id,body.lease_token,
