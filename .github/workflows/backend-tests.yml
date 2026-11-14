@@ -17,5 +17,5 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r backend/requirements.txt
-      - run: python -m unittest discover -s backend/tests -v
-        working-directory: .
+      - run: python -m unittest discover -s tests -v
+        working-directory: backend
