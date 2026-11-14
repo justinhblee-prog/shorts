@@ -94,3 +94,15 @@ API:
 Production job creation accepts a registered active brand name or slug and
 rejects unsupported region/language combinations. Initial supported regions
 are KR, US, JP and GB; supported languages are Korean, English and Japanese.
+
+## BUILD-00007 — human review
+
+Configure a strong `NEXUS_REVIEW_TOKEN` secret in the API environment. Review endpoints require it in the `X-Review-Token` header and fail closed if unset.
+
+- `GET /api/review/pending`
+- `POST /api/review/{job_id}/approve`
+- `POST /api/review/{job_id}/reject`
+- `POST /api/review/{job_id}/request-revision`
+- `GET /api/review/{job_id}/history`
+
+Request body: `{"reviewer_id":"operator-1","comment":"Optional approval note"}`. Rejection and revision requests require a comment. Decisions record the reviewed artifact snapshot and are append-only; a decision cannot be overwritten. Approval does not trigger upload or public publishing. The current reviewer ID is asserted by the caller; integrate a real identity provider and role-based authorization before multi-user production deployment.
