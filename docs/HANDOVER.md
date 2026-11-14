@@ -70,3 +70,19 @@ YouTube channel search, channel snapshots and recent public video statistics are
 
 ## Immediate next task
 Resolve GitHub Actions runner/job initialization. Latest run is https://github.com/justinhblee-prog/shorts/actions/runs/43653621860; it reports a failed job with no step summaries and no logs, so the Python tests did not execute. Then run the documented Python 3.11+ unittest command, fix failures, and only then close BUILD-00001.
+
+
+## BUILD-00005 — production pipeline
+
+New files:
+- `backend/production_pipeline.py`: durable production run/artifact store, JSON provider adapter, and script → voice → render orchestration.
+- `backend/tests/test_production_pipeline.py`: mocked contract tests.
+
+Updated `backend/app.py` endpoints:
+- `POST /api/production/jobs`
+- `GET /api/production/jobs/{job_id}`
+- `POST /api/production/jobs/{job_id}/execute`
+
+The execution endpoint requires a job already claimed through the durable queue and validates the current worker ID and lease token. Configure `SCRIPT_PROVIDER_URL`, `VOICE_PROVIDER_URL`, and `RENDER_PROVIDER_URL`; optional tokens use the matching `*_TOKEN` variables. Provider contracts and exact request/response requirements are documented in `backend/README.md`.
+
+A successful pipeline stores script text, audio URL and rendered video URL, then moves the queue job to `review_pending`. No publish call exists. This source milestone is committed but not runtime-tested. Mock tests are not evidence of real provider compatibility or real generated media.
