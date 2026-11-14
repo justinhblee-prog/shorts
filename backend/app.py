@@ -1,6 +1,6 @@
 import os
 from typing import Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 from queue_store import JobQueue, JobNotFound, LeaseConflict
 from trends import TrendStore, TrendIngestor
@@ -8,6 +8,7 @@ from youtube_intel import CompetitorStore, CompetitorIntelligence
 from profitability import OpportunityStore, score_opportunity
 from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError
 from brand_operations import BrandStore, BrandNotFound
+from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -19,6 +20,7 @@ opportunity_store=OpportunityStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3
 production_store=ProductionStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 production_pipeline=ProductionPipeline(production_store)
 brand_store=BrandStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -131,6 +133,70 @@ def execute_production_job(job_id:str,body:ProductionExecute):
         except Exception:
             pass
         raise HTTPException(500,"Production pipeline failed internally")
+
+
+def require_review_access(token):
+    expected=os.getenv("NEXUS_REVIEW_TOKEN")
+    if not valid_review_token(token, expected):
+        raise HTTPException(401,"Valid review token required")
+
+
+@app.get("/api/review/pending")
+def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return {"items":review_store.list_pending(limit)}
+
+
+@app.post("/api/review/{job_id}/approve")
+def approve_review(job_id:str, body:ReviewDecision,
+                   x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return review_store.decide(job_id,"approved",body.reviewer_id,body.comment)
+    except ReviewNotFound:
+        raise HTTPException(404,"Production job not found")
+    except ReviewConflict as e:
+        raise HTTPException(409,str(e))
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+
+@app.post("/api/review/{job_id}/reject")
+def reject_review(job_id:str, body:ReviewDecision,
+                  x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return review_store.decide(job_id,"rejected",body.reviewer_id,body.comment)
+    except ReviewNotFound:
+        raise HTTPException(404,"Production job not found")
+    except ReviewConflict as e:
+        raise HTTPException(409,str(e))
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+
+@app.post("/api/review/{job_id}/request-revision")
+def request_revision(job_id:str, body:ReviewDecision,
+                     x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return review_store.decide(job_id,"revision_requested",body.reviewer_id,body.comment)
+    except ReviewNotFound:
+        raise HTTPException(404,"Production job not found")
+    except ReviewConflict as e:
+        raise HTTPException(409,str(e))
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+
+@app.get("/api/review/{job_id}/history")
+def review_history(job_id:str, x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return {"items":review_store.history(job_id)}
+    except ReviewNotFound:
+        raise HTTPException(404,"Production job not found")
+
 
 @app.post("/api/trends/collect")
 def collect_trends(body:TrendCollect):
