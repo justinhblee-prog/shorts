@@ -1,4 +1,5 @@
 import hashlib, json, os, sqlite3, urllib.parse, urllib.request
+from contextlib import contextmanager
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -12,6 +13,19 @@ REGIONS = {
 GOOGLE_RSS="https://news.google.com/rss/search"
 HN_TOP="https://hacker-news.firebaseio.com/v0/topstories.json"
 HN_ITEM="https://hacker-news.firebaseio.com/v0/item/{}.json"
+
+
+@contextmanager
+def connection(path):
+ db=sqlite3.connect(path,timeout=30)
+ try:
+  yield db
+  db.commit()
+ except Exception:
+  db.rollback()
+  raise
+ finally:
+  db.close()
 
 def now():
  return datetime.now(timezone.utc).isoformat()
@@ -35,8 +49,7 @@ class TrendStore:
  def __init__(self,path="data/nexus.sqlite3"):
   self.path=path
   os.makedirs(os.path.dirname(path) or ".",exist_ok=True)
-  with sqlite3.connect(path,timeout=30) as db:
-   db.execute("PRAGMA busy_timeout=30000")
+  with connection(path) as db:
    db.execute("""CREATE TABLE IF NOT EXISTS trend_signals(
     id TEXT PRIMARY KEY,source TEXT NOT NULL,region TEXT NOT NULL,query TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,url TEXT NOT NULL,summary TEXT,published_at TEXT,
@@ -44,7 +57,7 @@ class TrendStore:
     collected_at TEXT NOT NULL,UNIQUE(source,url))""")
    db.execute("CREATE INDEX IF NOT EXISTS idx_trends_region_date ON trend_signals(region,published_at)")
  def save(self,items):
-  with sqlite3.connect(self.path,timeout=30) as db:
+  with connection(self.path) as db:
    db.execute("PRAGMA busy_timeout=30000")
    for x in items:
     db.execute("""INSERT INTO trend_signals VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
