@@ -32,7 +32,7 @@ Health, finance and crime/event content require source verification and non-sens
 | BUILD-00001 | Durable queue and Worker Lease | Source implemented; execution validation blocked |
 | BUILD-00002 | Global trend ingestion | Provider/API/tests implemented; live and runtime validation pending |
 | BUILD-00003 | Competitor/channel intelligence | Provider/API/tests implemented; API-key and runtime validation pending |
-| BUILD-00004 | Profitability scoring and prioritization | Not started |
+| BUILD-00004 | Profitability scoring and prioritization | Scenario calculator/API/tests implemented; runtime validation pending |
 | BUILD-00005 | AI script, voice and video pipeline | Not started |
 | BUILD-00006 | Ten-brand operations | Not started |
 | BUILD-00007 | Review and approval workflow | Human-review gate designed; integration pending |
@@ -65,6 +65,15 @@ Health, finance and crime/event content require source verification and non-sens
 - Provider and persistence unit tests added.
 - **Validation pending:** live source requests and test execution have not been verified.
 
+## BUILD-00004 — profitability scoring and prioritization
+
+- Transparent low/high scenario calculator for views, RPM, ads, affiliate/sponsor revenue and production costs.
+- Monetization eligibility gate forces estimated ad revenue to zero when not eligible.
+- Requires an attributable forecast source; all outputs are labeled estimates, never actual revenue.
+- Explainable 100-point priority model: margin 35%, ROI 25%, evidence 20%, strategic fit 10%, production feasibility 10%.
+- Persists scored opportunities in SQLite. API: POST `/api/opportunities/score`, GET `/api/opportunities`.
+- Unit tests cover range validation, monetization gate, scenario math and persistence; not executed yet.
+
 ## BUILD-00003 — competitor/channel intelligence
 
 - YouTube Data API v3 provider for channel search, channel statistics and recent public video statistics.
@@ -89,7 +98,7 @@ Health, finance and crime/event content require source verification and non-sens
 2. Fix any runtime failures and verify BUILD-00001 concurrency, retry and lease-recovery behavior.
 3. Validate Google News RSS and Hacker News live ingestion for all supported regions.
 4. Configure a restricted YouTube Data API key and validate BUILD-00003 quota-aware channel/video retrieval.
-5. Add data freshness, collection scheduling, source failure observability and then begin BUILD-00004 profitability scoring.
+5. Add data freshness, collection scheduling and source failure observability; then connect opportunity scoring to observed trend and competitor evidence.
 
 ## Versioning
 
