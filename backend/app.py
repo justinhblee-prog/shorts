@@ -7,6 +7,7 @@ from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
 from profitability import OpportunityStore, score_opportunity
 from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError
+from brand_operations import BrandStore, BrandNotFound
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -17,6 +18,7 @@ competitor_intel=CompetitorIntelligence(competitor_store)
 opportunity_store=OpportunityStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 production_store=ProductionStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 production_pipeline=ProductionPipeline(production_store)
+brand_store=BrandStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -38,6 +40,9 @@ class Fail(Lease):
     error_message:str="Worker failed"
     retryable:bool=True
 
+class BrandActivation(BaseModel):
+    active:bool
+
 class ProductionBrief(BaseModel):
     brand:str=Field(min_length=1,max_length=100)
     region:str=Field(min_length=2,max_length=8)
@@ -54,6 +59,23 @@ class TrendCollect(BaseModel):
     query:str=Field(min_length=2,max_length=200)
     limit:int=30
     include_hacker_news:bool=False
+
+@app.get("/api/brands")
+def list_brands(active_only:bool=False):
+    return {"brands":brand_store.list(active_only)}
+
+@app.get("/api/brands/{slug}")
+def get_brand(slug:str):
+    result=brand_store.get(slug)
+    if result is None: raise HTTPException(404,"Brand not found")
+    return result
+
+@app.put("/api/brands/{slug}/activation")
+def set_brand_activation(slug:str,body:BrandActivation):
+    try:
+        return brand_store.set_active(slug,body.active)
+    except BrandNotFound:
+        raise HTTPException(404,"Brand not found")
 
 @app.post("/api/production/jobs",status_code=201)
 def create_production_job(body:ProductionBrief):
