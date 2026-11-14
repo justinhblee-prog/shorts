@@ -23,9 +23,9 @@ pipeline = ProductionPipeline(store)
 stopping = threading.Event()
 
 
-def heartbeat_loop(job_id, token, lost_lease):
+def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop):
     interval = max(5, LEASE_SECONDS // 3)
-    while not stopping.wait(interval):
+    while not heartbeat_stop.wait(interval):
         try:
             queue.heartbeat(job_id, WORKER_ID, token)
         except LeaseConflict:
@@ -42,8 +42,9 @@ def run_once():
         return False
 
     lost_lease = threading.Event()
+    heartbeat_stop = threading.Event()
     heartbeat = threading.Thread(
-        target=heartbeat_loop, args=(job["id"], job["lease_token"], lost_lease),
+        target=heartbeat_loop, args=(job["id"], job["lease_token"], lost_lease, heartbeat_stop),
         daemon=True)
     heartbeat.start()
     try:
@@ -72,9 +73,8 @@ def run_once():
             print(f"lease_lost job={job['id']}")
         print(f"worker_failure job={job['id']} error={type(exc).__name__}")
     finally:
-        stopping.set()
-        heartbeat.join(timeout=2)
-        stopping.clear()
+        heartbeat_stop.set()
+        heartbeat.join(timeout=5)
     return True
 
 
