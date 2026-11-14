@@ -1,4 +1,5 @@
 import sys, tempfile, unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from queue_store import JobQueue, LeaseConflict
@@ -16,6 +17,21 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(a["id"],j["id"]); self.assertIsNone(self.q.claim("worker-b"))
   self.assertEqual(self.q.finish(j["id"],"worker-a",a["lease_token"])["status"],"review_pending")
   with self.assertRaises(LeaseConflict): self.q.finish(j["id"],"worker-a",a["lease_token"])
+ def test_concurrent_claims_are_unique(self):
+  jobs=[self.q.enqueue("render",{"n":i}) for i in range(8)]
+  with ThreadPoolExecutor(max_workers=8) as pool:
+   claimed=list(pool.map(lambda n:self.q.claim("worker-"+str(n)),range(8)))
+  ids=[j["id"] for j in claimed if j]
+  self.assertEqual(len(ids),8)
+  self.assertEqual(len(set(ids)),8)
+ def test_expired_lease_fences_old_worker_after_reclaim(self):
+  j=self.q.enqueue("render",{}); old=self.q.claim("worker-old")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(j["id"],))
+  new=self.q.claim("worker-new")
+  self.assertEqual(new["id"],j["id"])
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(j["id"],"worker-old",old["lease_token"])
  def test_cancel_revokes_worker_lease(self):
   j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
   cancelled=self.q.cancel(j["id"],"operator stop")
