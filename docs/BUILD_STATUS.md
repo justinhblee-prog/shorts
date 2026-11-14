@@ -32,7 +32,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00003 | Competitor/channel intelligence | Provider/API/tests implemented; API-key and runtime validation pending |
 | BUILD-00004 | Profitability scoring and prioritization | Scenario calculator/API/tests implemented; runtime validation pending |
 | BUILD-00005 | AI script, voice and video pipeline | Provider orchestration, lease-aware worker and API implemented; mocked tests committed; runtime/live-provider validation pending |
-| BUILD-00006 | Ten-brand operations | Not started |
+| BUILD-00006 | Ten-brand operations | Persistent 10-brand registry, activation controls and production market validation implemented; runtime validation pending |
 | BUILD-00007 | Review and approval workflow | Human-review gate designed; integration pending |
 | BUILD-00008 | YouTube publishing and tracking | Not started |
 | BUILD-00009 | Revenue, cost and ROI analytics | Not started |
@@ -113,3 +113,12 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - A successful render ends at `review_pending`; no public publishing action is included.
 - Mock-provider contract tests are committed in `backend/tests/test_production_pipeline.py`.
 - **Not validated:** test execution, real provider API compatibility, real audio/video generation, media playback, render quality, or end-to-end production. GitHub Actions runner initialization remains unresolved.
+
+
+## BUILD-00006 — ten-brand operations
+
+- Added `backend/brand_operations.py` with persistent profiles for all ten planned brands: vertical, positioning, audience, tone, supported regions/languages, risk level and editorial review rules.
+- Added list/detail/activation APIs: GET `/api/brands`, GET `/api/brands/{slug}`, PUT `/api/brands/{slug}/activation`.
+- Production job creation now accepts only an active registered brand and validates the requested region/language against that brand profile.
+- Default profiles are inserted idempotently; activation state is preserved across restarts.
+- Added local SQLite unit tests in `backend/tests/test_brand_operations.py`; execution remains blocked by GitHub runner initialization.
