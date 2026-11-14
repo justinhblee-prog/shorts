@@ -8,7 +8,7 @@
 
 Automate a profitable short-form video operation: global topic discovery → evidence-backed opportunity scoring → script/voice/video production → human review → publishing → measured revenue and cost analysis → strategy improvement.
 
-The product is not merely a video generator. Business success is measured by verified net revenue, ROI, content throughput, and operating cost. Forecasts must remain clearly labeled as estimates. Public publishing requires explicit human approval.
+Business success is measured by verified net revenue, ROI, content throughput, and operating cost. Forecasts remain estimates. Public publishing requires explicit human approval.
 
 ## Brand portfolio
 
@@ -29,7 +29,7 @@ Health, finance and crime/event content require source verification and non-sens
 
 | ID | Scope | State |
 |---|---|---|
-| BUILD-00001 | Durable queue and Worker Lease | Implemented in source; runtime tests pending |
+| BUILD-00001 | Durable queue and Worker Lease | Source implemented; execution validation blocked |
 | BUILD-00002 | Global trend ingestion | Not started |
 | BUILD-00003 | Competitor/channel intelligence | Not started |
 | BUILD-00004 | Profitability scoring and prioritization | Not started |
@@ -42,34 +42,35 @@ Health, finance and crime/event content require source verification and non-sens
 | BUILD-00011 | Scheduling and recovery operations | Not started |
 | BUILD-00012 | Integrated validation and deployment | Not started |
 
-## BUILD-00001 implementation inventory
+## BUILD-00001 implementation
 
-- SQLite durable queue with WAL, foreign keys and busy timeout.
-- Serialized claim transaction using BEGIN IMMEDIATE.
+- SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.
+- Serialized claim transactions using BEGIN IMMEDIATE.
 - Worker lease expiry and UUID fencing token.
 - Heartbeat, completion, failure, retryable re-claim and terminal retry handling.
 - Idempotency key on enqueue.
 - Job event history and worker registry.
 - Operator cancellation and expired-lease recovery APIs.
-- Successful worker completion moves a job to review_pending; no public publish transition exists in this milestone.
-- FastAPI endpoints and initial unit tests.
-- GitHub Actions workflow added.
+- Successful worker completion moves a job to review_pending; this milestone has no public publish transition.
+- FastAPI API surface and unit tests for idempotency, exclusive claims, concurrent claims, retry, stale worker fencing, cancellation and lease recovery.
+- GitHub Actions test workflow.
 
-## Validation status — do not overstate
+## Validation — current truth
 
-- Source files committed to main.
-- GitHub Actions runs were created but failed before any job step ran: runner_id=0 and steps=[]. This does not establish a code test failure or a pass; execution did not reach the test commands.
-- Tests have not yet been executed in a real Python runtime in this environment.
-- No production worker, external AI provider, OAuth, rendering or YouTube publishing has been validated.
-- Do not mark BUILD-00001 complete until the test suite runs successfully in an actual Python 3.11+ environment and concurrency/recovery behavior is exercised.
+- Source and test files are committed to main.
+- Latest code commit: `1b28008bd129a31a1f01f7dbfc066840f6fb5511`.
+- GitHub Actions run for that commit: https://github.com/justinhblee-prog/shorts/actions/runs/43653199138
+- GitHub reports the workflow job as failed with no step summaries and no downloadable job logs. The runner did not reach checkout, dependency installation or unittest execution.
+- Consequently, the suite has **not** passed or failed on code behavior; it has not executed. BUILD-00001 remains open.
+- No production worker, PostgreSQL, external AI provider, OAuth, rendering or YouTube publishing has been validated.
 
 ## Next actions
 
-1. Determine why GitHub Actions does not allocate a runner; verify repository Actions policy and billing/runner availability in GitHub settings.
-2. Run `pip install -r backend/requirements.txt` and `python -m unittest discover -s backend/tests -v` in Python 3.11+.
-3. Add true concurrent-claim test and stale lease fencing/recovery tests.
-4. Add Dockerfile/healthcheck and process-level worker only after queue tests pass.
-5. Start BUILD-00002 only after BUILD-00001 validation is green.
+1. Resolve GitHub Actions runner/job initialization in repository Actions settings or billing/usage limits.
+2. Execute `pip install -r backend/requirements.txt` and `python -m unittest discover -s backend/tests -v` on Python 3.11+.
+3. Fix any runtime failures, then repeat concurrent claim and stale lease recovery tests.
+4. Add production worker process, Docker healthcheck and observability only after tests pass.
+5. Start BUILD-00002 after BUILD-00001 validation is green.
 
 ## Versioning
 
