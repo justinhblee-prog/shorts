@@ -17,7 +17,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth,
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
                  skip_recommendation_feedback, capture_trend_recommendations,
-                 get_job_lifecycle, get_job_lifecycle_consistency)
+                 get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -155,6 +155,61 @@ class ApiSecurityTests(unittest.TestCase):
                     "job-2", x_review_token="test-token"
                 )
         self.assertEqual(caught.exception.status_code, 409)
+
+    def test_global_lifecycle_queue_is_bounded_and_returns_risk_summary(self):
+        jobs = [{
+            "id":"job-global-1","job_type":"short_video_production",
+            "status":"review_pending","attempt":1,"max_attempts":3,
+            "updated_at":"2026-11-15T08:00:00Z","error_code":None,
+        }]
+        with (
+            mock.patch("app.require_review_access") as access,
+            mock.patch("app.queue.list_jobs",return_value={
+                "items":jobs,"total":121,"limit":25,"offset":50,
+                "status_counts":{"review_pending":121},
+            }) as listing,
+            mock.patch("app.production_store.get",return_value={
+                "status":"approved","current_stage":"review","brand":"NEXUS",
+                "topic":"AI trends",
+            }),
+            mock.patch("app.review_store.history",return_value=[
+                {"decision":"approved","id":1}
+            ]),
+            mock.patch("app.youtube_upload_store.get",return_value=None),
+            mock.patch("app.tiktok_publish_store.get",return_value=None),
+        ):
+            result=get_lifecycle_queue(limit=25,offset=50,status="review_pending",
+                                       x_review_token="test-token")
+        access.assert_called_once_with("test-token")
+        listing.assert_called_once_with(job_type="short_video_production",
+                                        limit=25,offset=50,status="review_pending")
+        self.assertEqual(result["total"],121)
+        self.assertEqual(result["items"][0]["job_id"],"job-global-1")
+        self.assertEqual(result["risk_counts"]["consistent"],1)
+        self.assertTrue(result["read_only"])
+        self.assertFalse(result["automatic_retry_performed"])
+        self.assertNotIn("payload",result["items"][0])
+
+    def test_global_lifecycle_queue_marks_missing_production_as_blocker(self):
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.queue.list_jobs",return_value={
+                "items":[{"id":"job-missing","status":"queued","attempt":0,
+                          "max_attempts":3}],
+                "total":1,"limit":50,"offset":0,"status_counts":{"queued":1},
+            }),
+            mock.patch("app.production_store.get",return_value=None),
+        ):
+            result=get_lifecycle_queue(x_review_token="test-token")
+        self.assertEqual(result["items"][0]["risk_status"],"blocked")
+        self.assertEqual(result["items"][0]["blocker_count"],1)
+        self.assertEqual(result["risk_counts"]["missing_production"],1)
+
+    def test_global_lifecycle_queue_rejects_unknown_status_filter(self):
+        with mock.patch("app.require_review_access"):
+            with self.assertRaises(HTTPException) as caught:
+                get_lifecycle_queue(status="all_jobs",x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code,422)
 
     def test_lifecycle_endpoint_rejects_nonproduction_queue_jobs(self):
         with (
