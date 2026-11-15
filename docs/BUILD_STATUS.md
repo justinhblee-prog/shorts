@@ -1025,4 +1025,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Exclude requested-but-unverified output formats from within-exposure comparable-cohort validation. Requested 9:16 is not evidence that the rendered artifact actually passed dimension/format inspection.
 - Reject boolean, NaN and infinite render-duration metadata from duration cohort bucketing.
 - Add regression coverage for both invalid duration metadata and unverified requested-format exclusion.
-- CI validation pending.
+- CI passed at code commit 6742ceb (325 tests).
