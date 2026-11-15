@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from production_pipeline import (
-    JsonProvider, ProductionPipeline, ProductionStore, ProviderError,
+    JsonProvider, ProductionPipeline, ProductionStore, ProductionLeaseConflict, ProviderError,
     submit_production,
 )
 from queue_store import JobQueue
@@ -91,6 +91,45 @@ class ProductionTests(unittest.TestCase):
         claimed = queue.claim("worker-1", job_type="short_video_production")
         self.assertEqual(claimed["job_type"], "short_video_production")
         self.assertEqual(queue.get(claimed["id"])["status"], "running")
+
+    def test_stale_worker_cannot_write_after_lease_is_reclaimed(self):
+        db = self.store.db_path
+        queue = JobQueue(db, lease_seconds=10)
+        submitted = submit_production(queue, self.store, self.brief)
+        job_id = submitted["job"]["id"]
+        old_claim = queue.claim("worker-old", "host-old",
+                                job_type="short_video_production")
+        with queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET lease_expires_at=? WHERE id=?",
+                ("2000-01-01T00:00:00+00:00", job_id)
+            )
+        new_claim = queue.claim("worker-new", "host-new",
+                                job_type="short_video_production")
+        self.assertEqual(new_claim["id"], job_id)
+        self.assertNotEqual(old_claim["lease_token"], new_claim["lease_token"])
+
+        script = FakeProvider({"script": "Fresh worker script"})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3"})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4"})
+        pipeline = ProductionPipeline(self.store, script, voice, render)
+
+        with self.assertRaises(ProductionLeaseConflict):
+            pipeline.execute(job_id, self.brief, worker_id="worker-old",
+                             lease_token=old_claim["lease_token"])
+        self.assertEqual(script.calls, [])
+        self.assertEqual(self.store.get(job_id)["status"], "queued")
+
+        with self.assertRaises(ProductionLeaseConflict):
+            self.store.artifact(job_id, "rendering", "video",
+                                "https://media.example/stale.mp4", {},
+                                worker_id="worker-old",
+                                lease_token=old_claim["lease_token"])
+
+        fresh = pipeline.execute(job_id, self.brief, worker_id="worker-new",
+                                 lease_token=new_claim["lease_token"])
+        self.assertEqual(fresh["status"], "rendered")
+        self.assertEqual(len(fresh["artifacts"]), 3)
 
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
