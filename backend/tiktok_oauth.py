@@ -319,6 +319,8 @@ class TikTokOAuthManager:
                             raise TikTokOAuthError("Stored TikTok access token cannot be decrypted") from exc
                 raise TikTokOAuthError("TikTok token refresh is already in progress; retry shortly")
             try:
+                if not self.client_key or not self.client_secret:
+                    raise TikTokOAuthError("TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET are required to refresh tokens")
                 # Re-read after taking the distributed lease; another process may
                 # have completed a refresh immediately before this lease was acquired.
                 row = self.store.token_record()
