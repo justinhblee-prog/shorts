@@ -243,6 +243,34 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(within["holdout_positive_score_association_share"], 1.0)
         self.assertFalse(within["score_adjustment_enabled"])
 
+    def test_within_run_validation_excludes_unverified_requested_format(self):
+        timestamp = "2026-11-01T00:00:00+00:00"
+        items = [self.item(index, 90 - index * 10) for index in range(3)]
+        run = self.store.record_run("US", items, timestamp)
+        videos = []
+        for index in range(3):
+            trend_id = f"trend-{index}"
+            job_id = f"requested-format-job-{index}"
+            candidate_id = self.candidate_id(run, trend_id, "future-leak")
+            self.store.link_production(
+                trend_id, "future-leak", job_id, timestamp,
+                candidate_id=candidate_id,
+            )
+            videos.append({
+                "job_id": job_id,
+                "measurement_status": "measured",
+                "views_per_hour": 100 + index * 10,
+                "brand": "Future Leak",
+                "region": "US",
+                "publication_age_bucket": "under_24h",
+                "duration_bucket": "20_40s",
+                "format": "vertical_short_requested",
+            })
+        result = self.store.evaluate({"videos": videos})
+        within = result["within_run_validation"]
+        self.assertEqual(within["eligible_run_count"], 0)
+        self.assertEqual(within["status"], "insufficient_run_coverage")
+
     def test_within_run_validation_rejects_runs_with_fewer_than_three_outcomes(self):
         videos = []
         for run_index in range(5):
