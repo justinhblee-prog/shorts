@@ -70,7 +70,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(result["status"], "holdout_available")
         self.assertEqual(result["selected_production_count"], 10)
         self.assertEqual(result["measured_outcome_count"], 10)
-        self.assertEqual(result["training_count"], 5)
+        self.assertEqual(result["pre_holdout_count"], 5)
         self.assertEqual(result["holdout_count"], 5)
         self.assertEqual(result["holdout_score_views_spearman"], 1.0)
         self.assertFalse(result["ranking_score_adjustment_enabled"])
