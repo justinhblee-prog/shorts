@@ -145,6 +145,13 @@ class JobQueue:
             if production_paused and job_type == "short_video_production":
                 c.commit()
                 return None
+            if instance_token is not None:
+                current = c.execute(
+                    "SELECT instance_token FROM worker_registry WHERE worker_id=?",
+                    (worker_id,),
+                ).fetchone()
+                if current is not None and current["instance_token"] != instance_token:
+                    raise LeaseConflict("Worker process instance no longer owns this worker ID")
             c.execute("""INSERT INTO worker_registry(worker_id,hostname,last_seen_at,status,instance_token)
               VALUES(?,?,?,'online',?) ON CONFLICT(worker_id) DO UPDATE SET
               hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online',
