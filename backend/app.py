@@ -552,6 +552,10 @@ def tiktok_oauth_status(x_review_token:str|None=Header(default=None)):
 @app.post("/api/tiktok/oauth/disconnect")
 def disconnect_tiktok_oauth(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
+    if os.getenv("TIKTOK_ACCESS_TOKEN"):
+        raise HTTPException(
+            409,"Static TIKTOK_ACCESS_TOKEN is configured; remove it from the runtime before disconnecting OAuth."
+        )
     try:
         return tiktok_oauth_manager.disconnect()
     except TikTokOAuthError as e:
