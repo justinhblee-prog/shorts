@@ -22,6 +22,7 @@ from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
 from lifecycle_consistency import inspect_lifecycle_consistency
+from operator_recovery import build_operator_recovery_plan
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
@@ -341,6 +342,27 @@ def get_job_lifecycle_consistency(job_id:str,x_review_token:str|None=Header(defa
         youtube_upload_store.get(job_id),tiktok_publish_store.get(job_id),
     )
     return {"job_id":job_id,**result}
+
+
+@app.get("/api/lifecycle/jobs/{job_id}/recovery")
+def get_job_recovery_plan(job_id:str,x_review_token:str|None=Header(default=None)):
+    """Return an operator checklist; this endpoint never performs recovery actions."""
+    require_review_access(x_review_token)
+    try:
+        job=queue.get(job_id)
+    except JobNotFound:
+        raise HTTPException(404,"Job not found")
+    if job.get("job_type")!="short_video_production":
+        raise HTTPException(409,"Job is not a short-video production job")
+    production=production_store.get(job_id)
+    if production is None:
+        raise HTTPException(404,"Production record not found")
+    decisions=review_store.history(job_id)
+    latest=decisions[-1] if decisions else None
+    return build_operator_recovery_plan(
+        job,production,{"latest":latest},
+        youtube_upload_store.get(job_id),tiktok_publish_store.get(job_id),
+    )
 
 
 @app.post("/api/production/jobs/{job_id}/execute")
