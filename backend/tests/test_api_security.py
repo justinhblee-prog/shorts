@@ -15,7 +15,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  publish_tiktok_video, refresh_tiktok_publication_status,
                  get_tiktok_publication, approved_reviews, start_tiktok_oauth,
                  tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth,
-                 TikTokOAuthAccessLogRedaction)
+                 TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,\n                 skip_recommendation_feedback)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -116,6 +116,25 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result.status_code, 303)
         self.assertIn("tiktok_oauth=connected", result.headers["location"])
         exchange.assert_called_once_with("code-1", "state-1")
+
+    def test_recommendation_skip_feedback_is_token_protected(self):
+        route = next(route for route in app.routes
+                     if getattr(route, "path", "") == "/api/recommendations/feedback/skip")
+        self.assertIn("x_review_token", route.endpoint.__annotations__)
+
+    def test_recommendation_skip_feedback_records_operator_decision(self):
+        body = RecommendationSkipFeedback(
+            trend_id="trend-1", brand_slug="alpha",
+            reviewer_id="reviewer-1", reason="Already covered",
+        )
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.recommendation_evaluation_store.record_skip",
+                       return_value={"recorded": True, "candidate_id": "candidate-1"}) as record,
+        ):
+            result = skip_recommendation_feedback(body, x_review_token="test-token")
+        self.assertTrue(result["recorded"])
+        record.assert_called_once_with("trend-1", "alpha", "reviewer-1", "Already covered")
 
     def test_tiktok_oauth_callback_query_is_redacted_from_access_logs(self):
         record = logging.LogRecord(
