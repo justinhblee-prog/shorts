@@ -953,6 +953,11 @@ class ApiSecurityTests(unittest.TestCase):
              mock.patch.object(app_module.youtube_upload_store, "metrics_collection_status",
                                return_value={"platform": "youtube", "status": "succeeded",
                                              "coverage": {}, "read_only": True}), \
+             mock.patch.object(app_module.youtube_analytics_store, "status",
+                               return_value={"platform": "youtube_analytics", "status": "not_started",
+                                             "last_success_at": None, "requested": 0,
+                                             "available_metrics": ["averageViewPercentage"],
+                                             "read_only": True}), \
              mock.patch.object(app_module.tiktok_metrics_store, "status",
                                return_value={"platform": "tiktok", "status": "not_started",
                                              "coverage": {}, "available_metrics": ["view_count", "like_count", "comment_count", "share_count"],
@@ -969,6 +974,10 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertIn("share_count", tiktok["available_metrics"])
         self.assertIn("swipe_away_rate",
                       result["platforms"]["youtube"]["unavailable_metrics"])
+        analytics = result["platforms"]["youtube_analytics"]
+        self.assertEqual(analytics["status"], "scope_unverified")
+        self.assertEqual(analytics["scope_required"], "https://www.googleapis.com/auth/yt-analytics.readonly")
+        self.assertFalse(analytics["scope_authorized"])
 
 
 
