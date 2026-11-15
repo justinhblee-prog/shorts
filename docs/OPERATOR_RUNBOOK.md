@@ -40,7 +40,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Open `http://localhost:8502/`. The API, worker and scheduler use the same persistent SQLite volume. The scheduler uses a shared-database leader lease; multiple instances may run safely, with one active dispatcher at a time. The dashboard's token is held in browser memory only; refreshing the browser clears it.
+Open `http://localhost:8502/`. The API, worker, scheduler and metrics collector use the same persistent SQLite volume. The scheduler uses a shared-database leader lease; multiple instances may run safely, with one active dispatcher at a time. The dashboard's token is held in browser memory only; refreshing the browser clears it.
 
 ## 3. Production lifecycle
 
@@ -50,8 +50,8 @@ Open `http://localhost:8502/`. The API, worker and scheduler use the same persis
 4. The production enters `review_pending`. Open the remote renderer artifact link and inspect the real output.
 5. Use **미디어 스테이징** or the approved-upload queue. Staging reads the saved artifact URL from the production record; the operator cannot supply an arbitrary URL.
 6. Approve or reject the production. Rejection and revision require a reason.
-7. In **승인 완료 · 비공개 업로드**, explicitly choose **비공개 업로드**. The YouTube API request sets `privacyStatus=private`.
-8. Confirm the returned YouTube video ID and inspect the upload record.
+7. In **승인 완료 · 비공개 업로드**, explicitly choose the intended platform action. YouTube upload sets `privacyStatus=private`; TikTok Direct Post is fixed to `SELF_ONLY`.
+8. Confirm the returned platform video/publication ID and inspect the unified publishing dashboard. For TikTok, an ambiguous timeout blocks retry until the operator verifies the remote account and records reconciliation evidence.
 
 The UI does not provide a public-publish action. Human approval is mandatory.
 
@@ -81,6 +81,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 - Use the correct ISO currency code. Reports are currency-filtered; do not add currencies together.
 - Profitability scoring is a scenario estimate based on operator-supplied assumptions. It is not an earnings forecast or guarantee.
 - Performance insights compare stored counter snapshots; they are not causal attribution, retention analytics or real-time view velocity.
+- The metrics-collector service refreshes YouTube and TikTok independently. TikTok requires `video.list` consent and collects only views, likes, comments and shares for completed owned publications. Reauthorize an existing TikTok connection if that scope is missing. The dashboard status distinguishes missing authorization from collection errors.
 
 ## 7. Recovery and operations
 
@@ -101,13 +102,14 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 - [ ] Verify each provider's real script, voice and video output, including licensing and costs.
 - [ ] Verify renderer CDN host allowlisting and staged MP4 playback.
 - [ ] Verify YouTube OAuth scopes and one private test upload on the intended channel.
+- [ ] Enable TikTok Login Kit, Content Posting API and Display API; grant `video.publish` and `video.list` consent, then verify one `SELF_ONLY` test publication and real counter retrieval.
 - [ ] Verify YouTube Analytics and external affiliate/sponsor statements against ledger entries.
 - [ ] Configure HTTPS, secret rotation, backups, restore drills, monitoring and alerting.
 - [ ] Validate one small content cohort and actual net ROI before scaling.
 
 ## 9. Current known blockers
 
-- Latest fail-closed recovery branch validation: [GitHub Actions run 43667201896](https://github.com/justinhblee-prog/shorts/actions/runs/43667201896), **121 tests passed**.
+- Latest verified TikTok performance dashboard code validation: [GitHub Actions run 43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), **476 tests passed**. This is automated validation only; live TikTok app approval, OAuth scope consent, publication and analytics remain external checks.
 - Real provider credentials, renderer CDN hostnames, YouTube OAuth and financial integrations remain external dependencies. CI does not establish live provider compatibility, actual media generation, private YouTube upload, revenue ingestion or deployment readiness.
 - The application still uses a single-host SQLite architecture; multi-host distributed worker/scheduler operation is not established.
 
