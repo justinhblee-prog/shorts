@@ -135,6 +135,27 @@ class YouTubePublishingTests(unittest.TestCase):
         result = evaluate_content_policy(brief)
         self.assertNotIn("youtube_contains_synthetic_media", result["approval_blockers"])
 
+    def test_upload_fails_closed_when_youtube_disclosure_classification_is_missing(self):
+        with self.store.db() as connection:
+            row = connection.execute(
+                """SELECT metadata_json FROM production_artifacts
+                   WHERE job_id=? AND stage='script' AND artifact_type='text'""",
+                ("job-1",),
+            ).fetchone()
+            metadata = json.loads(row["metadata_json"])
+            metadata["policy_preflight"].pop("youtube_contains_synthetic_media", None)
+            connection.execute(
+                """UPDATE production_artifacts SET metadata_json=?
+                   WHERE job_id=? AND stage='script' AND artifact_type='text'""",
+                (json.dumps(metadata), "job-1"),
+            )
+        with self.assertRaisesRegex(YouTubeUploadError, "not explicitly classified"):
+            self.publisher.upload_approved(
+                "job-1", self.media, self.review, "Unclassified short"
+            )
+        self.assertIsNone(self.uploads.get("job-1"))
+        self.assertFalse(hasattr(self.service._videos, "body"))
+
     def test_late_upload_completion_cannot_override_reconciled_not_uploaded(self):
         first_attempt=self.uploads.begin("job-1", "Title", "Description")
         self.uploads.mark_reconciliation_required("job-1", "timeout",first_attempt["attempt_id"])
