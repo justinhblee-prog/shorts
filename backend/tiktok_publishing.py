@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from policy_engine import POLICY_VERSION
-from approval_integrity import approval_snapshot_matches_current_artifacts, verify_staged_media_hash
+from approval_integrity import approval_snapshot_matches_current_artifacts, create_verified_media_snapshot
 from tiktok_disclosure import build_tiktok_disclosure, TikTokDisclosureError
 from media_inspection import MediaInspector, MediaInspectionError
 
@@ -572,22 +572,29 @@ class TikTokPublisher:
                 "Approved commercial relationship disclosure evidence is required for branded content"
             )
         resolved, mime, size = self._media(media_path)
-        media_matches, media_error = verify_staged_media_hash(
-            resolved, history[-1].get("staged_media_sha256"),
-            history[-1].get("staged_media_size_bytes")
-        )
-        if not media_matches:
-            raise TikTokPublishError(
-                media_error or "Staged media does not match the approved video fingerprint"
+        try:
+            snapshot_path, size = create_verified_media_snapshot(
+                resolved, history[-1].get("staged_media_sha256"),
+                history[-1].get("staged_media_size_bytes")
             )
+        except (OSError, ValueError) as exc:
+            raise TikTokPublishError(str(exc)) from exc
+        resolved = Path(snapshot_path)
         existing = self.store.get(job_id)
         if existing and existing["status"] == "publish_complete":
             return existing
         attempt_id = uuid.uuid4().hex
-        begun = self.store.begin(
-            job_id, title, disclosure["is_aigc"], operator_id.strip(), attempt_id,
-            brand_content_toggle, brand_organic_toggle,
-        )
+        try:
+            begun = self.store.begin(
+                job_id, title, disclosure["is_aigc"], operator_id.strip(), attempt_id,
+                brand_content_toggle, brand_organic_toggle,
+            )
+        except Exception:
+            try:
+                os.unlink(snapshot_path)
+            except OSError:
+                pass
+            raise
         # The preflight read above can race with another worker completing this
         # same job. Respect the authoritative row returned under BEGIN IMMEDIATE.
         if begun and begun.get("status") == "publish_complete":
@@ -680,6 +687,11 @@ class TikTokPublisher:
             if isinstance(exc, TikTokPublishError):
                 raise
             raise TikTokPublishError("TikTok publish failed before initialization") from exc
+        finally:
+            try:
+                os.unlink(snapshot_path)
+            except OSError:
+                pass
 
     def refresh_status(self, job_id):
         record = self.store.get(job_id)
