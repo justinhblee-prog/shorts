@@ -1164,7 +1164,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Queue resume now requires an explicit `recovery_confirmed` attestation and is rejected while operational blockers remain. A paused queue cannot be resumed merely by supplying a free-text note.
 - Integrated the checklist into the control center with an explicit operator checkbox and confirmation dialog. Pause remains independently available and audited.
 - The checklist is guidance/attestation, not automated proof that external provider, billing, artifact, or policy evidence was actually inspected. No automatic recovery, retry, or publishing is performed.
-- CI validation pending.
+- CI validation passed: **372 tests** at commit `9b23353` (run `43698909193`).
 
 ### BUILD-00049 — deterministic failure classification and operator diagnostics
 
@@ -1174,7 +1174,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Integrated failure category, severity, rationale, recommended operator action, and retry disposition into each job's lifecycle diagnostics in the control center.
 - Added deterministic classifier, API authorization/response, and frontend regression tests.
 - Unknown and ambiguous failures fail closed; automatic retry, replay, cancellation, or publishing is not performed.
-- CI validation pending.
+- CI validation passed: **372 tests** at commit `9b23353` (run `43698909193`).
 
 ### BUILD-00050 — unified production lifecycle overview
 
