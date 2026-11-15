@@ -19,7 +19,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.temp.cleanup()
 
     @staticmethod
-    def item(index, score):
+    def item(index=1, score=80):
         return {
             "trend": {
                 "id": f"trend-{index}",
