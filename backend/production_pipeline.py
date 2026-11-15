@@ -51,9 +51,12 @@ class JsonProvider:
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 return response.status, response.read()
         except urllib.error.HTTPError as exc:
-            detail = exc.read(1000).decode("utf-8", "replace")
-            raise ProviderError("provider", f"Provider HTTP {exc.code}: {detail}",
-                                retryable=exc.code == 429)
+            status = exc.code
+            exc.close()
+            # Provider response bodies may echo credentials, prompts or private data.
+            # Persist only the status code; never copy arbitrary upstream text into job logs.
+            raise ProviderError("provider", f"Provider HTTP {status}",
+                                retryable=status == 429)
         except (urllib.error.URLError, TimeoutError) as exc:
             raise ProviderError("provider", f"Provider connection failed: {type(exc).__name__}", retryable=False)
 

@@ -854,3 +854,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 
 - Follow-up hardening rejects malformed or out-of-range provider URL ports. GitHub Actions [run 43680880928](https://github.com/justinhblee-prog/shorts/actions/runs/43680880928) passed on commit `c0c8d7e01fde93ef9bf641385bcf8e05627dcdfa`: **239 backend tests**, Python compilation, Compose YAML validation and frontend syntax/DOM-ID checks.
+
+
+### External provider error redaction — implementation added 2026-11-15
+
+- Provider HTTP error bodies are no longer copied into durable job errors or API responses. Upstream response bodies can contain echoed prompts, identifiers or secret-bearing diagnostics.
+- Only the HTTP status is retained; HTTP 429 remains retryable and other HTTP statuses retain the existing fail-closed behavior.
+- Regression coverage asserts provider error bodies are not exposed. CI pending.

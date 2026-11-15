@@ -261,12 +261,14 @@ class ProductionTests(unittest.TestCase):
     def test_provider_http_5xx_is_not_retryable(self):
         error=urllib.error.HTTPError(
             "https://provider.example",503,"Service unavailable",{},
-            io.BytesIO(b"upstream failure")
+            io.BytesIO(b"upstream failure secret-token")
         )
         with mock.patch("urllib.request.urlopen",side_effect=error):
             with self.assertRaises(ProviderError) as caught:
                 JsonProvider._request("https://provider.example",{},b"{}",1)
         self.assertFalse(caught.exception.retryable)
+        self.assertEqual(str(caught.exception), "Provider HTTP 503")
+        self.assertNotIn("secret-token", str(caught.exception))
 
     def test_provider_http_429_is_retryable(self):
         error=urllib.error.HTTPError(
