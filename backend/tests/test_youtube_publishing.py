@@ -91,6 +91,34 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(resolved["video_id"], "late-video-id")
         self.assertEqual(resolved["events"][-1]["operator_id"], "reviewer-ops")
 
+    def test_operator_can_keep_current_video_when_stale_duplicate_arrives(self):
+        first=self.uploads.begin("job-1","First attempt","")
+        self.uploads.mark_reconciliation_required(
+            "job-1","first request timed out",first["attempt_id"]
+        )
+        self.uploads.reconcile(
+            "job-1","not_uploaded",note="Verified no upload at that time"
+        )
+        second=self.uploads.begin("job-1","Second attempt","")
+        self.uploads.finish("job-1","current-video",second["attempt_id"])
+        with self.assertRaises(YouTubeUploadError):
+            self.uploads.finish("job-1","late-duplicate-video",first["attempt_id"])
+        pending=self.uploads.get("job-1")
+        self.assertEqual(pending["status"],"late_success_review_required")
+        self.assertEqual(pending["video_id"],"current-video")
+        late_ids=[event["video_id"] for event in pending["events"]
+                  if event["event_type"]=="late_remote_success"]
+        self.assertEqual(late_ids,["late-duplicate-video"])
+        with self.assertRaisesRegex(YouTubeUploadError,"Choose the currently recorded"):
+            self.uploads.resolve_late_success(
+                "job-1","reviewer","invalid unrecorded ID","not-a-video"
+            )
+        resolved=self.uploads.resolve_late_success(
+            "job-1","reviewer","Retained the already confirmed canonical video","current-video"
+        )
+        self.assertEqual(resolved["status"],"uploaded")
+        self.assertEqual(resolved["video_id"],"current-video")
+
     def test_superseded_attempt_uncertainty_blocks_new_attempt(self):
         first=self.uploads.begin("job-1","First attempt","")
         self.uploads.mark_reconciliation_required("job-1","first attempt timed out",first["attempt_id"])
