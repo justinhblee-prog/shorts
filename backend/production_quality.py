@@ -166,8 +166,6 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             item for item in warnings
             if item != "actual_media_bytes_not_inspected"
         ]
-        if media_inspection.get("subtitle_stream_present") is False:
-            warnings.append("no_subtitle_stream_detected_burned_in_captions_not_verified")
     status = "blocked" if blockers else "review_required" if warnings else "ready_for_human_review"
     return {
         "version": "production_quality_media_v2",
