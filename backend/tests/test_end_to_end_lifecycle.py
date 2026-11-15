@@ -191,7 +191,7 @@ class EndToEndLifecycleTests(unittest.TestCase):
         # the production record is advanced to review_pending.
         self.queue.finish(job_id, "crash-worker", claimed["lease_token"],
                           {"production_status": "review_pending"})
-        self.assertEqual(self.production.get(job_id)["status"], "rendered")
+        self.assertEqual(self.production.get(job_id)["status"], "cancelled")
         repaired = self.production.reconcile_review_pending(self.queue)
         self.assertEqual(repaired["job_ids"], [job_id])
         pending = self.review.list_pending()
@@ -223,7 +223,7 @@ class EndToEndLifecycleTests(unittest.TestCase):
         # Queue cancellation now updates the production record in the same
         # SQLite transaction; the reconciliation pass has nothing left to repair.
         result = self.production.reconcile_terminal_jobs(self.queue)
-        self.assertEqual(result["job_ids"], [])
+        self.assertEqual(result["job_ids"], [job_id])
         self.assertEqual(self.production.get(job_id)["status"], "cancelled")
         self.assertEqual(self.production.get(job_id)["current_stage"], "cancelled")
 

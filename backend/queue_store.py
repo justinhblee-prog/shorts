@@ -342,10 +342,10 @@ class JobQueue:
                 ).fetchone()
                 if production and production["status"] in ("approved","uploaded"):
                     raise ValueError("Approved or uploaded production cannot be cancelled")
-                if row["status"] == "review_pending" and (
-                    production is None or production["status"] != "rendered"
-                ):
-                    raise ValueError("Production has already completed the review handoff")
+            if row["status"] == "review_pending" and (
+                not production_table or production is None or production["status"] != "rendered"
+            ):
+                raise ValueError("Production has already completed the review handoff")
             ambiguous = is_production and row["status"] == "running"
             error_code = "cancelled_external_outcome_ambiguous" if ambiguous else "cancelled"
             error_message = (
