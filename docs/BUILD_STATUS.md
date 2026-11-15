@@ -36,7 +36,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00007 | Review and approval workflow | Decision store, authenticated APIs, audit snapshots and tests committed; runtime validation pending |
 | BUILD-00008 | YouTube publishing and tracking | OAuth refresh-token adapter, approval-gated private resumable upload, upload ledger and Data API counter snapshots committed; live validation pending |
 | BUILD-00009 | Revenue, cost and ROI analytics | Source-referenced financial ledger and separate revenue/cost reports committed; provider reconciliation pending |
-| BUILD-00010 | AI performance analysis and strategy updates | Not started |
+| BUILD-00010 | AI performance analysis and strategy updates | Source implementation expanded: brand/region/video evidence, measurement coverage, reset detection and currency-safe financial grouping; runtime validation pending |
 | BUILD-00011 | Scheduling and recovery operations | Not started |
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
 
@@ -234,3 +234,12 @@ Latest run 103 (`43657516480`) still fails before runner allocation: `runner_id=
 - Dashboard financial ledger and profitability scenarios now accept USD, KRW, JPY and GBP independently; reports remain currency-filtered and do not mix exchange rates.
 
 Latest CI run 106: https://github.com/justinhblee-prog/shorts/actions/runs/43657737487. The job again terminated with `runner_id=0`, no runner name and `steps=[]`; no tests executed, including the latest approved-queue filtering change.
+
+## BUILD-00010 — evidence-based performance analysis
+
+- Added per-video measurement status and valid snapshot deltas, grouped by brand and region.
+- Detects negative counter differences as reset/invalid measurements and excludes them from growth aggregates.
+- Reports measurement coverage and source-grounded operational recommendations; no predictive/causal claims.
+- Financial summaries are grouped by brand and ISO currency; optional brand filter applies to both video and financial data. No FX mixing.
+- Dashboard displays brand, region, video-level measurement and recorded financial summaries.
+- Unit tests cover insufficient snapshots, measured deltas, counter resets, multi-currency separation and brand filtering. Execution remains blocked by Actions runner allocation.
