@@ -39,7 +39,7 @@ class ApiSecurityTests(unittest.TestCase):
                        idempotency_key="already-used")
         with (
             mock.patch("app.require_review_access"),
-            mock.patch.object(app.queue, "enqueue",
+            mock.patch("app.queue.enqueue",
                               side_effect=IdempotencyConflict("different payload")),
         ):
             with self.assertRaises(HTTPException) as caught:
@@ -54,10 +54,10 @@ class ApiSecurityTests(unittest.TestCase):
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
             mock.patch("app.require_review_access"),
-            mock.patch.object(app.queue, "get", return_value=job),
+            mock.patch("app.queue.get", return_value=job),
             mock.patch.object(app.production_pipeline, "execute",
                               return_value={"artifacts": []}) as execute,
-            mock.patch.object(app.queue, "finish") as finish,
+            mock.patch("app.queue.finish") as finish,
             mock.patch.object(app.production_store, "reconcile_review_pending") as reconcile,
             mock.patch.object(app.production_store, "get", return_value=response),
         ):
@@ -77,10 +77,10 @@ class ApiSecurityTests(unittest.TestCase):
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
             mock.patch("app.require_review_access"),
-            mock.patch.object(app.queue, "get", return_value=job),
+            mock.patch("app.queue.get", return_value=job),
             mock.patch.object(app.production_pipeline, "execute",
                               side_effect=ProductionLeaseConflict("stale lease")),
-            mock.patch.object(app.queue, "fail") as fail,
+            mock.patch("app.queue.fail") as fail,
         ):
             with self.assertRaises(HTTPException) as caught:
                 execute_production_job("job-1", body, x_review_token="test-token")
