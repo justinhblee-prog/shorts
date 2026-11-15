@@ -56,7 +56,7 @@ class SchedulerTests(unittest.TestCase):
   self.assertEqual(self.s.pending_dispatches(),[])
 
  def test_dispatch_runs_only_under_acquired_scheduler_lease(self):
-  now=datetime(2026,11,15,tzinfo=timezone.utc)
+  now=datetime.now(timezone.utc)
   self.s.create("hourly",3600,{"brand":"B","region":"US","language":"English","topic":"x"},now.isoformat())
   token=self.s.acquire_scheduler_lease("scheduler-a",90,now)
   result=self.s.dispatch_due(self.q,now,lease_owner="scheduler-a",
