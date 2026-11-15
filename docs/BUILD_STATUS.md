@@ -1248,3 +1248,18 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions run [43701730561](https://github.com/justinhblee-prog/shorts/actions/runs/43701730561) passed **400 tests** at code commit `7fd7c5b`.
 - This validates deterministic tests and the collection-state implementation only. Real YouTube OAuth credentials, API quota, live account collection and TikTok analytics access remain unverified.
 - No ranking score, production, approval, queue, retry or publishing behavior is mutated.
+
+
+## BUILD-00056 — run-isolated recommendation holdout and immutable experiment history
+
+- Corrected the primary chronological holdout split so an entire recommendation exposure run is assigned to either pre-holdout or holdout; candidates from one captured ranking response can no longer leak across both sets.
+- Require at least five distinct measured exposure runs before the primary holdout is reported. Insufficient run coverage is explicit and does not silently fall back to a candidate-level split.
+- Report pre-holdout versus holdout score/rank Spearman associations, run counts, observation counts, time boundaries, and association-direction stability. These remain observational diagnostics over selected-and-produced recommendations, not causal estimates.
+- Added a stable SHA-256 input fingerprint over selected/measured coverage, measured outcomes and operator selection/skip feedback.
+- Added explicit operator-triggered, authenticated `POST /api/recommendations/evaluation/snapshots` and bounded read-only `GET /api/recommendations/evaluation/snapshots`.
+- Evaluation snapshots are append-only in SQLite, protected by update/delete rejection triggers, and deduplicated by evaluation version plus input fingerprint. Repeated capture of unchanged inputs returns the existing record.
+- Added dashboard action to capture an immutable evaluation record and display its timestamp, coverage, holdout exposure count, score association and input fingerprint.
+- Regression tests cover whole-run split isolation, minimum exposure-run coverage, input deduplication, immutable history, history bounds, API authorization and dashboard rendering.
+- GitHub Actions run [43702530629](https://github.com/justinhblee-prog/shorts/actions/runs/43702530629) passed **405 tests** at code commit `3ac740b`.
+- No randomized exposure assignment, counterfactual measurement, causal lift estimate, or automatic score adjustment is enabled. Existing selected-only outcome capture remains selection-biased; actual platform reach is not independently verified.
+- Ranking score adjustment remains disabled; no queue, production, approval, retry or publishing behavior changes.
