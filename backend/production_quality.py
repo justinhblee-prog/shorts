@@ -37,6 +37,9 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             warnings.append("trend_source_citations_not_returned_by_script_provider")
     if script_metadata.get("factual_claims_verified") is not True:
         warnings.append("script_provider_did_not_attest_fact_check")
+    originality = script_metadata.get("originality_check")
+    if isinstance(originality, dict) and originality.get("status") == "similar_content_found":
+        warnings.append("script_similarity_to_prior_production_above_threshold")
     checks.append({
         "name": "source_and_fact_check_metadata",
         "status": "warning" if (
@@ -44,6 +47,9 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             or "script_provider_did_not_attest_fact_check" in warnings
         ) else "provider_attested",
         "provider_attestation_only": True,
+        "originality_status": originality.get("status") if isinstance(originality, dict) else None,
+        "similarity_threshold": originality.get("threshold") if isinstance(originality, dict) else None,
+        "similar_matches": originality.get("similar_matches", []) if isinstance(originality, dict) else [],
     })
 
     voice_duration = _positive_number(voice_metadata.get("duration_seconds"))
