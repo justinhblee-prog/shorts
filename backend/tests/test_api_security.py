@@ -822,8 +822,7 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertIn("swipe_away_rate",
                       result["platforms"]["youtube"]["unavailable_metrics"])
 
-if __name__ == "__main__":
-    unittest.main()
+
 
 
     def test_recommendation_experiment_routes_are_authenticated_and_shadow_only(self):
@@ -876,3 +875,7 @@ if __name__ == "__main__":
         self.assertEqual(set(found),protected)
         for route in found.values():
             self.assertIn("x_review_token",route.endpoint.__annotations__)
+
+
+if __name__ == "__main__":
+    unittest.main()
