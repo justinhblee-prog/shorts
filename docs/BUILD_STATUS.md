@@ -190,7 +190,7 @@ All BUILD-00001 through BUILD-00012 source milestones have a committed baseline.
 
 ## Latest CI observation
 
-The latest checked run (run 74) failed before runner allocation: `runner_id=0`, `runner_name` empty, and `steps=[]`. It did not execute checkout, dependency installation, compilation or tests. A local clone attempt from this execution environment also could not resolve github.com, so no alternate local test run was possible. Do not interpret this as code passing or failing.
+The latest checked run (run 84) failed before runner allocation: `runner_id=0`, `runner_name` empty, and `steps=[]`. It did not execute checkout, dependency installation, compilation or tests. A local clone attempt from this execution environment also could not resolve github.com, so no alternate local test run was possible. Do not interpret this as code passing or failing.
 
 ## API security hardening (follow-up)
 
@@ -207,3 +207,5 @@ The latest checked run (run 74) failed before runner allocation: `runner_id=0`, 
 - Uses a pinned resolved public IP with hostname TLS verification, bounded streaming, MP4 MIME/signature checks, temporary files and atomic placement.
 - Added protected API: POST `/api/production/jobs/{job_id}/stage-media`; it uses the stored render artifact, not a caller-supplied URL.
 - **Not validated:** actual renderer CDN hosts, live TLS/download, media playback, full test suite and YouTube upload. Configure exact artifact hostnames before use.
+
+Latest observed Actions run: [43656898926](https://github.com/justinhblee-prog/shorts/actions/runs/43656898926). Job metadata: `runner_id=0`, empty runner name, `steps=[]`; no test command executed. Latest media staging changes are committed after this run and have not been executed in CI.
