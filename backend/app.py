@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import secrets
 import logging
 from typing import Any, Literal
@@ -26,6 +27,7 @@ from operator_recovery import build_operator_recovery_plan
 from failure_analysis import classify_failure
 from stage_performance import build_stage_performance
 from pipeline_performance import build_pipeline_performance
+from operational_economics import build_operational_economics
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
@@ -1308,6 +1310,21 @@ def get_job_failure_analysis(jid:str,x_review_token:str|None=Header(default=None
                 "event_type":event.get("event_type"),"created_at":event.get("created_at"),
                 "from_status":event.get("from_status"),"to_status":event.get("to_status")},
             "latest_failure":analysis,"read_only":True,"actions_taken":[]}
+@app.get("/api/analytics/operations-economics")
+def get_operations_economics(
+    limit:int=500, x_review_token:str|None=Header(default=None),
+):
+    """Read-only bounded production quality, publishing and recorded-financial analytics."""
+    require_review_access(x_review_token)
+    if limit < 1 or limit > 500:
+        raise HTTPException(422,"limit must be between 1 and 500")
+    try:
+        return build_operational_economics(queue.db_path, limit=limit)
+    except sqlite3.OperationalError as exc:
+        logging.exception("Operational economics analytics schema unavailable")
+        raise HTTPException(503,"Operational analytics are not available for this database schema") from exc
+
+
 @app.get("/api/performance/pipeline")
 def get_pipeline_performance(
     limit:int=100, min_samples:int=5,
