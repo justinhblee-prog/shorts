@@ -114,6 +114,9 @@ class RecommendationEvaluationTests(unittest.TestCase):
                     "job_id": job_id,
                     "measurement_status": "measured",
                     "views_per_hour": [300, 200, 100][candidate_index],
+                    "brand": "Future Leak", "region": "US",
+                    "publication_age_bucket": "under_24h",
+                    "duration_bucket": "15_30s", "format": "vertical_short",
                 })
         result = self.store.evaluate({"videos": videos})
         within = result["within_run_validation"]
@@ -147,6 +150,9 @@ class RecommendationEvaluationTests(unittest.TestCase):
                 videos.append({
                     "job_id": job_id, "measurement_status": "measured",
                     "views_per_hour": [200, 100][candidate_index],
+                    "brand": "Future Leak", "region": "US",
+                    "publication_age_bucket": "under_24h",
+                    "duration_bucket": "15_30s", "format": "vertical_short",
                 })
         result = self.store.evaluate({"videos": videos})
         self.assertEqual(result["status"], "holdout_available")
