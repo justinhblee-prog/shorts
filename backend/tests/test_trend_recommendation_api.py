@@ -27,6 +27,15 @@ class TrendRecommendationApiTests(unittest.TestCase):
                 "brand": "Future Leak", "region": "US", "topic": "AI technology research",
                 "measurement_status": "measured", "views_per_hour": 90.0,
                 "interactions_per_1000_view_delta": 14.0
+            }],
+            "cohorts": [{
+                "brand": "Future Leak", "region": "US",
+                "publication_age_bucket": "under_24h", "duration_bucket": "20_40s",
+                "format": "vertical_short", "topic_signature": "ai research technology",
+                "sample_count": 3, "median_views_per_hour": 90.0,
+                "interaction_rate_sample_count": 2,
+                "median_interactions_per_1000_view_delta": 14.0,
+                "evidence_status": "observed",
             }]
         }
         with (mock.patch("app.require_review_access"),
@@ -42,7 +51,11 @@ class TrendRecommendationApiTests(unittest.TestCase):
         topic_history = result["items"][0]["best_brand"]["topic_performance"]
         self.assertEqual(topic_history["matched_video_count"], 1)
         self.assertEqual(topic_history["median_views_per_hour"], 90.0)
-        self.assertIn("not a profitability forecast", result["warning"])
+        cohort_context = result["items"][0]["best_brand"]["comparable_cohort_performance"]
+        self.assertEqual(cohort_context["matched_cohort_count"], 1)
+        self.assertEqual(cohort_context["cohorts"][0]["sample_count"], 3)
+        self.assertEqual(cohort_context["ranking_score_adjustment"], 0)
+        self.assertIn("held-out validation", result["warning"])
 
 
 if __name__ == "__main__":
