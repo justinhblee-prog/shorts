@@ -6,6 +6,7 @@ https://github.com/justinhblee-prog/shorts (private), default branch main.
 ## Current files
 - `backend/queue_store.py`: SQLite queue, worker leases, idempotency, retry, events, cancellation and recovery.
 - `backend/trends.py`: Google News RSS (KR/US/JP/GB), Hacker News Firebase API, source-preserving trend storage.
+- `backend/trend_recommendations.py`: evidence-bounded freshness and brand-fit ranking for collected trends.
 - `backend/youtube_intel.py`: YouTube Data API v3 channel/video intelligence and historical snapshots.
 - `backend/profitability.py`: scenario-based revenue/cost/ROI calculator and opportunity ranking.
 - `backend/app.py`: FastAPI API surface.
@@ -30,6 +31,7 @@ uvicorn app:app --host 0.0.0.0 --port 8502
 ## API
 - POST /api/trends/collect
 - GET /api/trends
+- GET /api/trends/recommendations?region=US&limit=30 (authenticated editorial ranking; not a profit forecast)
 - GET /api/competitors
 - POST /api/opportunities/score
 - GET /api/opportunities/search?q=...
