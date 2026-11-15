@@ -482,15 +482,19 @@ class RecommendationEvaluationStore:
             for item in observations
         ]
         input_fingerprint = hashlib.sha256(json.dumps(
-            fingerprint_payload, ensure_ascii=False, sort_keys=True,
-            separators=(",", ":")
+            {
+                "selected_count": total_selected,
+                "measured_count": total_measured,
+                "observations": fingerprint_payload,
+            },
+            ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode("utf-8")).hexdigest()
         result = {
             "feedback_summary": feedback_summary,
             "evaluation_version": "run_isolated_holdout_v2",
             "input_fingerprint": input_fingerprint,
             "status": "insufficient_data",
-            "method": "chronological_70_30_holdout_spearman",
+            "method": "chronological_exposure_run_70_30_holdout_spearman",
             "selected_production_count": total_selected,
             "measured_outcome_count": total_measured,
             "unmeasured_selected_count": max(0, total_selected - total_measured),
