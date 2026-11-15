@@ -30,7 +30,7 @@ class MediaInspectorTests(unittest.TestCase):
                        "duration": "29.75", "size": "123456"},
             "streams": [
                 {"index": 0, "codec_type": "video", "codec_name": "h264",
-                 "width": 1080, "height": 1920},
+                 "width": 1080, "height": 1920, "avg_frame_rate": "30000/1001"},
                 {"index": 1, "codec_type": "audio", "codec_name": "aac",
                  "sample_rate": "48000", "channels": 2},
             ],
@@ -43,6 +43,7 @@ class MediaInspectorTests(unittest.TestCase):
         self.assertAlmostEqual(report["duration_seconds"], 29.75)
         self.assertTrue(report["audio_track_present"])
         self.assertEqual(report["video_codec"], "h264")
+        self.assertAlmostEqual(report["frame_rate"], 30000 / 1001, places=3)
         self.assertFalse(report["subtitle_stream_present"])
         self.assertEqual(report["subtitle_extraction"]["status"], "not_present")
         self.assertIsNone(report["subtitle_text"])
@@ -142,13 +143,25 @@ class MediaInspectorTests(unittest.TestCase):
         with self.assertRaisesRegex(MediaInspectionError, "no video stream"):
             inspector.inspect(self.path)
 
-    def test_rejects_non_mp4_container(self):
-        inspector = MediaInspector(runner=self.runner_for({
+    def test_accepts_supported_webm_container_and_reports_frame_rate(self):
+        inspector = MediaInspector(analyze_signals=False, runner=self.runner_for({
             "format": {"format_name": "matroska,webm", "duration": "10", "size": "123"},
             "streams": [{"codec_type": "video", "codec_name": "vp9",
+                         "width": 1080, "height": 1920,
+                         "avg_frame_rate": "24/1"}],
+        }))
+        report = inspector.inspect(self.path)
+        self.assertIn("webm", report["format_names"])
+        self.assertEqual(report["video_codec"], "vp9")
+        self.assertEqual(report["frame_rate"], 24)
+
+    def test_rejects_unsupported_container(self):
+        inspector = MediaInspector(runner=self.runner_for({
+            "format": {"format_name": "avi", "duration": "10", "size": "123"},
+            "streams": [{"codec_type": "video", "codec_name": "mpeg4",
                          "width": 1080, "height": 1920}],
         }))
-        with self.assertRaisesRegex(MediaInspectionError, "MP4-family"):
+        with self.assertRaisesRegex(MediaInspectionError, "supported MP4-family or WebM"):
             inspector.inspect(self.path)
 
     def test_rejects_invalid_probe_and_missing_file(self):
