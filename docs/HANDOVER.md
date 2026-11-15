@@ -780,3 +780,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Trend source metadata must contain at least one syntactically valid absolute HTTP(S) URL; malformed source entries remain a human-review warning, not a claim that sources were independently verified.
 - Audio/subtitle flags are normalized from explicit JSON booleans and common string/0/1 values; explicit audio absence blocks handoff.
 - GitHub Actions [run 43676820374](https://github.com/justinhblee-prog/shorts/actions/runs/43676820374) passed `sh scripts/validate.sh` on `3a4cce45764c637c534bc5d9d3ca315bbf160db7`, including **230 backend tests**, Python compileall, Compose YAML validation and frontend syntax/DOM-ID checks.
+
+
+### Recommendation attribution idempotency — 2026-11-15
+
+- Linking a production job to its originating recommendation exposure is now idempotent: repeating the same job/run/trend/brand link returns the existing candidate.
+- A job already attributed to a different recommendation exposure is rejected with a stable conflict reason instead of raising a database uniqueness error or being reassigned.
+- GitHub Actions [run 43676956985](https://github.com/justinhblee-prog/shorts/actions/runs/43676956985) passed `sh scripts/validate.sh` on `deb635f37b85e6149413bd6e2e719e29efd4fee7`, including **230 backend tests**.
