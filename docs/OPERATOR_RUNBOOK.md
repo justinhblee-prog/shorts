@@ -147,3 +147,23 @@ The endpoint requires the operator token, an explicit confirmation flag and a no
 - Recovery is restricted to `short_video_production` jobs in queued, retryable-failure or running states, uses the same SQLite database and `BEGIN IMMEDIATE`, and is idempotent. Invalid payloads are reported as skipped rather than turned into fabricated production records.
 - Added regression tests for recovery after an enqueue crash and for the race where a worker claims the job before recovery.
 - Tests are committed but not executed; GitHub Actions runner allocation remains an external validation blocker.
+
+
+### Durable production-worker pause — 2026-11-15
+
+- A provider failure, lease conflict, heartbeat/database failure, or unexpected worker exception now stops the current worker from claiming further jobs.
+- The queue stores a global pause flag, reason, affected job ID and timestamp in the shared SQLite database. This survives worker/container restarts; Docker's `restart: unless-stopped` policy cannot silently resume queue consumption.
+- While paused, the worker remains inert and does not claim jobs. Jobs already queued remain untouched. A retryable job may be marked `failed_retriable`, but it is not dispatched while the global pause is active.
+- Inspect the durable pause before resuming:
+
+```bash
+docker compose exec worker python -c "from queue_store import JobQueue; print(JobQueue('/app/data/nexus.sqlite3').worker_control())"
+```
+
+- Resume only after the cause and affected job have been investigated and any ambiguous external side effect has been reconciled:
+
+```bash
+docker compose exec worker python -c "from queue_store import JobQueue; print(JobQueue('/app/data/nexus.sqlite3').resume())"
+```
+
+- Resume clears only the global worker pause. It does not automatically change a terminal job state or reconcile an uncertain provider result. Confirm the affected job's queue and production records before allowing it to retry.
