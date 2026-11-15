@@ -8,6 +8,7 @@ import uuid
 from queue_store import JobQueue
 from scheduler_store import ScheduleStore
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher
+from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager
 
 DB = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
 INTERVAL = max(5, int(os.getenv("NEXUS_SCHEDULER_POLL_SECONDS", "30")))
@@ -16,7 +17,11 @@ OWNER_ID = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4()}"
 queue = JobQueue(DB)
 schedules = ScheduleStore(DB)
 tiktok_store = TikTokPublishStore(DB)
-tiktok_publisher = TikTokPublisher(tiktok_store)
+tiktok_oauth_store = TikTokOAuthStore(DB)
+tiktok_oauth_manager = TikTokOAuthManager(tiktok_oauth_store)
+tiktok_publisher = TikTokPublisher(
+    tiktok_store, token_provider=tiktok_oauth_manager.get_access_token
+)
 
 logging.basicConfig(
     level=os.getenv("NEXUS_LOG_LEVEL", "INFO").upper(),
@@ -51,7 +56,7 @@ def main():
                     elif result.get("paused"):
                         logger.warning("scheduled_dispatch_held queue_paused pending=%s",
                                        result["pending"])
-                    if os.getenv("TIKTOK_ACCESS_TOKEN"):
+                    if os.getenv("TIKTOK_ACCESS_TOKEN") or tiktok_oauth_manager.status().get("connected"):
                         try:
                             poll = tiktok_publisher.refresh_due_statuses(
                                 limit=2, min_age_seconds=60
