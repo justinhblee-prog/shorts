@@ -1806,5 +1806,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added optional streaming AES-256-GCM encryption for online SQLite backups, using dedicated `NEXUS_BACKUP_ENCRYPTION_KEY` material.
 - Encrypted backups use `.sqlite3.enc`; verify/restore authenticate ciphertext and fail closed on wrong keys, tampering or truncation.
 - Temporary plaintext is removed; restore remains no-clobber; retention includes encrypted and plaintext backups.
-- Added tests for encrypted restore, wrong-key/tamper detection, combined retention, key requirements and temporary-file cleanup. CI evidence pending.
+- Added tests for encrypted restore, wrong-key/tamper detection, combined retention, key requirements and temporary-file cleanup. Final-head push CI [43774559417](https://github.com/justinhblee-prog/shorts/actions/runs/43774559417) and PR CI [43774562521](https://github.com/justinhblee-prog/shorts/actions/runs/43774562521): **609 tests passed**.
 - Encryption remains opt-in. Secure key custody and off-host replication/restore drills remain operator requirements.
