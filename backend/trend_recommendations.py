@@ -253,13 +253,29 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
         if not title:
             continue
         trend_tokens = _tokens(title + " " + str(trend.get("summary") or ""))
-        age = _age_hours(trend.get("published_at") or trend.get("collected_at"), now)
-        freshness = 0.0 if age is None else round(40 * max(0.0, 1.0 - min(age, 168.0) / 168.0), 2)
+        # Collection time is not a proxy for publication time. If the source
+        # timestamp is absent or invalid, freshness is unverified and receives 0.
+        age = _age_hours(trend.get("published_at"), now)
+        freshness = 0.0 if age is None else round(
+            40 * max(0.0, 1.0 - min(age, 168.0) / 168.0), 2
+        )
         candidates = []
         region_eligible = 0
         for brand, config, tokens in brand_rows:
             region = str(trend.get("region") or "").upper()
-            if region and region != "GLOBAL" and region not in config.get("regions", []):
+            allowed_regions = {
+                str(value).upper() for value in config.get("regions", [])
+            }
+            if region and region != "GLOBAL" and allowed_regions and region not in allowed_regions:
+                continue
+            trend_language = str(trend.get("language") or "").strip().lower()
+            allowed_languages = {
+                str(value).strip().lower().split("-")[0]
+                for value in config.get("languages", [])
+                if str(value).strip()
+            }
+            if (trend_language and allowed_languages
+                    and trend_language.split("-")[0] not in allowed_languages):
                 continue
             region_eligible += 1
             fit, matched_terms, excluded_terms = _brand_fit_score(
@@ -297,7 +313,13 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
                 "comparable_cohort_performance": _comparable_cohort_context(
                     trend_tokens, brand.get("name"), trend.get("region"), performance_cohorts
                 ),
-                "supported_languages": config.get("languages", [])
+                "supported_languages": config.get("languages", []),
+                "language_match": (
+                    "unverified" if not trend_language
+                    else "matched" if not allowed_languages
+                    or trend_language.split("-")[0] in allowed_languages
+                    else "unsupported"
+                )
             })
         if region and region != "GLOBAL" and region_eligible == 0:
             continue
@@ -334,9 +356,14 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
                       + source_evidence + novelty, 2)
         if source_evidence < 10:
             evidence_gaps.append("trend_source_provenance_incomplete")
+        if age is None:
+            evidence_gaps.append("trend_publication_timestamp_unavailable")
         ranked.append({
             "trend": trend, "recommendation_score": score,
-            "freshness_score": freshness, "source_evidence_score": source_evidence,
+            "freshness_score": freshness,
+            "publication_age_hours": round(age, 2) if age is not None else None,
+            "freshness_evidence": "publisher_timestamp" if age is not None else "unverified",
+            "source_evidence_score": source_evidence,
             "topic_distinctiveness_score": novelty,
             "score_breakdown": {
                 "freshness": freshness,
