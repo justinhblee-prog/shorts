@@ -771,3 +771,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added `POST /api/trends/recommendations/snapshot` for the production workspace to explicitly capture the candidate set it receives for later outcome linkage.
 - Updated the workspace to call the POST endpoint. Identical snapshots remain deduplicated within 60 seconds.
 - Exact `evaluation_run_id` is propagated into production drafting, so measured outcomes can only be linked to the recommendation set explicitly captured for that workspace view.
+
+
+### Latest production QA hardening and verification — 2026-11-15
+
+- Provider-supplied numeric measurements now reject booleans, NaN and infinity rather than treating them as valid duration/dimension evidence.
+- Vertical aspect ratios accept equivalent numeric 9:16 values, but a generic `vertical` label alone is not proof of the exact 9:16 target.
+- Trend source metadata must contain at least one syntactically valid absolute HTTP(S) URL; malformed source entries remain a human-review warning, not a claim that sources were independently verified.
+- Audio/subtitle flags are normalized from explicit JSON booleans and common string/0/1 values; explicit audio absence blocks handoff.
+- GitHub Actions [run 43676820374](https://github.com/justinhblee-prog/shorts/actions/runs/43676820374) passed `sh scripts/validate.sh` on `3a4cce45764c637c534bc5d9d3ca315bbf160db7`, including **230 backend tests**, Python compileall, Compose YAML validation and frontend syntax/DOM-ID checks.
