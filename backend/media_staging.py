@@ -70,6 +70,47 @@ class MediaStager:
             connection.close()
             raise MediaStagingError("Renderer artifact download failed") from exc
 
+    def staged_path(self, job_id):
+        filename = hashlib.sha256(str(job_id).encode("utf-8")).hexdigest() + ".mp4"
+        return (self.media_dir / filename).resolve()
+
+    def cleanup_uploaded(self, job_id, upload_store):
+        """Delete only this job's staged file, and only after durable upload confirmation."""
+        upload = upload_store.get(job_id)
+        if upload is None or upload.get("status") != "uploaded" or not upload.get("video_id"):
+            raise MediaStagingError("Media can be removed only after a confirmed YouTube upload")
+        target = self.staged_path(job_id)
+        try:
+            target.relative_to(self.media_dir)
+        except ValueError as exc:
+            raise MediaStagingError("Staged media path escaped the media directory") from exc
+        try:
+            target.unlink(missing_ok=True)
+        except OSError as exc:
+            raise MediaStagingError("Staged media could not be removed") from exc
+        return {"job_id": str(job_id), "removed": not target.exists(),
+                "reason": "confirmed_upload", "video_id": upload["video_id"]}
+
+    def prune_temporary_files(self, older_than_seconds=86400, now=None):
+        """Remove abandoned atomic-write .part files only after a conservative age threshold."""
+        if older_than_seconds < 3600:
+            raise ValueError("Temporary media retention must be at least one hour")
+        import time
+        cutoff = (now if now is not None else time.time()) - older_than_seconds
+        removed = []
+        if not self.media_dir.exists():
+            return {"removed": [], "count": 0}
+        for candidate in self.media_dir.glob(".nexus-*.part"):
+            try:
+                if candidate.is_file() and candidate.stat().st_mtime <= cutoff:
+                    candidate.unlink()
+                    removed.append(candidate.name)
+            except FileNotFoundError:
+                continue
+            except OSError:
+                continue
+        return {"removed": removed, "count": len(removed)}
+
     def stage(self, job_id, artifact_url):
         parsed = urlsplit(artifact_url or "")
         host = (parsed.hostname or "").lower().rstrip(".")
