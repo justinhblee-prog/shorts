@@ -39,9 +39,6 @@ class YouTubeUploadStore:
               source TEXT NOT NULL DEFAULT 'YouTube Data API v3 videos.list',
               collected_at TEXT NOT NULL
             );
-            upload_columns={r["name"] for r in c.execute("PRAGMA table_info(youtube_uploads)")}
-            if "attempt_id" not in upload_columns:
-                c.execute("ALTER TABLE youtube_uploads ADD COLUMN attempt_id TEXT")
             CREATE TABLE IF NOT EXISTS youtube_upload_events(
               id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
               event_type TEXT NOT NULL, outcome TEXT, video_id TEXT,
@@ -52,6 +49,9 @@ class YouTubeUploadStore:
             CREATE INDEX IF NOT EXISTS idx_youtube_snapshots_video
               ON youtube_video_snapshots(video_id,collected_at);
             """)
+            upload_columns={r["name"] for r in c.execute("PRAGMA table_info(youtube_uploads)")}
+            if "attempt_id" not in upload_columns:
+                c.execute("ALTER TABLE youtube_uploads ADD COLUMN attempt_id TEXT")
     @contextmanager
     def db(self):
         c=sqlite3.connect(self.db_path,timeout=30)
