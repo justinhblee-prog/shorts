@@ -129,7 +129,7 @@ Only a production job with a recorded `approved` decision can be uploaded. The a
 - GET `/api/youtube/uploads/{job_id}`.
 - POST `/api/youtube/videos/{video_id}/refresh-metrics`.
 
-The media file must exist on the API server. Existing render adapters return a remote URL; the secure media download/staging adapter remains to be built. The current OAuth configuration supports one channel per runtime. Upload ledger and Data API view/like/comment snapshots are persisted; these are not revenue figures. Tests are mocked and not yet executed. No live OAuth/upload has been performed.
+The media file must exist on the API server. Existing render adapters return a remote URL; the secure media download/staging adapter remains to be built. The current OAuth configuration supports one authenticated channel per runtime; multi-channel OAuth provisioning remains unimplemented. Upload ledger and Data API view/like/comment snapshots are persisted; these are not revenue figures. Tests are mocked and not yet executed. No live OAuth/upload has been performed.
 
 ## BUILD-00009 — financial ledger
 
