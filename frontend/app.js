@@ -58,6 +58,16 @@
       const scriptPreview=typeof scriptText==="string"&&scriptText.trim()
         ? '<details class="review-script"><summary>생성 대본 검수</summary><pre>'+esc(scriptText)+'</pre></details>'
         : '';
+      const policy=scriptArtifact?.metadata?.policy_preflight||{};
+      const policyLabels={blocked:"제작 차단",review_required:"확인 필요",ready_for_human_review:"사전 항목 확인 · 사람 승인 필요"};
+      const policyItems=Array.isArray(policy.required_confirmations)?policy.required_confirmations:[];
+      const policyBlocks=Array.isArray(policy.blocking_reasons)?policy.blocking_reasons:[];
+      const policySummary=policy.status
+        ? '<section class="review-policy"><strong>플랫폼 정책 사전검사 · '+esc(policyLabels[policy.status]||policy.status)+'</strong>'
+          +(policyBlocks.length?'<p>차단 사유: '+policyBlocks.map(esc).join(', ')+'</p>':'')
+          +(policyItems.length?'<p>추가 확인: '+policyItems.map(esc).join(', ')+'</p>':'')
+          +'<small>YouTube / TikTok 사전 위험 점검입니다. 영상 전체 검사나 플랫폼 승인·수익화 보증이 아니며, 게시 전 최신 공식 정책과 사용 권리를 확인해야 합니다.</small></section>'
+        : '<section class="review-policy"><strong>정책 사전검사 자료 없음</strong><small>게시 전 권리·AI 표시·사실성·독창성을 직접 확인하세요.</small></section>';
       const audioPreview=audioArtifact?.artifact_url
         ? '<div class="review-audio"><label>내레이션 미리 듣기</label><audio controls preload="metadata" src="'+esc(audioArtifact.artifact_url)+'"></audio></div>'
         : '';
@@ -66,7 +76,7 @@
       const guidance=profile.risk_level
         ? '<section class="review-guidance"><div><strong>브랜드 검수 기준</strong><span class="risk-level risk-'+esc(profile.risk_level)+'">위험도 '+esc(profile.risk_level)+'</span></div>'+(profile.positioning?'<p>'+esc(profile.positioning)+'</p>':'')+(rules.length?'<ul>'+rules.map(rule=>'<li>'+esc(rule)+'</li>').join('')+'</ul>':'')+'</section>'
         : '';
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+scriptPreview+audioPreview+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'">승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+scriptPreview+audioPreview+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'">승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
 
