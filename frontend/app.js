@@ -169,7 +169,7 @@
     if(lateButton){
       if(!requireToken())return;
       const id=lateButton.dataset.resolveLateId;
-      const videoId=prompt("업로드 응답에서 보존된 영상 ID를 입력하세요. 이벤트 기록의 ID와 정확히 일치해야 합니다.");
+      const videoId=prompt("현재 기록된 영상 ID 또는 늦게 도착한 응답의 영상 ID 중 선택하세요.");
       if(videoId===null||!videoId.trim())return;
       const note=prompt("YouTube Studio에서 선택한 영상 ID를 확인한 근거를 입력하세요.");
       if(note===null||!note.trim())return;
