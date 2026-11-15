@@ -245,6 +245,16 @@ class JobQueue:
             if row is None: raise JobNotFound()
             if row["status"] in ("uploaded","cancelled","failed_terminal"):
                 raise ValueError("Job is already terminal")
+            if row["status"] == "running" and row["job_type"] == "short_video_production":
+                # The provider may already have accepted the request. Do not report
+                # a clean cancellation or permit automatic replay of ambiguous work.
+                self._pause_production_in_transaction(
+                    c, "Active production cancellation requested; provider outcome may be ambiguous",
+                    jid, n, actor="operator_cancel"
+                )
+                out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+                c.commit()
+                return self.decode(out)
             c.execute("""UPDATE pipeline_jobs SET status='cancelled',worker_id=NULL,lease_token=NULL,
               lease_expires_at=NULL,updated_at=?,error_code='cancelled',error_message=? WHERE id=?""",
               (n,reason[:2000],jid))
