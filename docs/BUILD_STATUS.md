@@ -39,6 +39,8 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00010 | AI performance analysis and strategy updates | Source implementation expanded: brand/region/video evidence, measurement coverage, reset detection and currency-safe financial grouping; runtime validation pending |
 | BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
+| BUILD-00023 | Platform-specific AI disclosure evidence | YouTube realism classification and TikTok AIGC label evidence are persisted in policy reports; policy/UI regression tests included |
+| BUILD-00024 | TikTok private Direct Post | Authenticated private-only video init/upload/status API, creator consent, sponsorship declarations, immutable events and operator reconciliation; branch CI passed 258 tests |
 
 ## BUILD-00001 — durable queue and Worker Lease
 
@@ -82,25 +84,25 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 - Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.\n\n## Validation — current truth
 
-- Code and tests are committed to the private repository main branch.
-- Latest observed GitHub Actions run before this documentation update: https://github.com/justinhblee-prog/shorts/actions/runs/43654662581
-- Latest inspected job metadata reported `runner_id=0`, empty runner name, and `steps=[]`; the job failed before checkout or dependency installation. This is an environment/runner initialization failure, not evidence of a Python test failure.
-- The suite has not passed or failed on code behavior; it has not executed in a real Python runtime.
-- No production worker, PostgreSQL, external AI generation, OAuth, rendering or YouTube publishing has been validated.
+- Latest TikTok branch commit `0d1499e`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43690777187 completed successfully; `./scripts/validate.sh` ran **258 tests**, all passed.
+- The run includes the TikTok adapter, authenticated API routes, policy evidence, operator reconciliation, consent UI and existing regression suite.
+- PR #35 remains draft and is not merged to `main`.
+- No real TikTok OAuth token, approved `video.publish` scope, app audit, live channel upload or public post was performed.
+- No production worker, PostgreSQL, external AI generation, live rendering or actual financial integration has been validated.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
 
 ## Remaining blockers before a real revenue-producing launch
 
-1. **CI runner:** GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43656517188 failed before any step (`runner_id=0`, empty runner name, `steps=[]`). No Python test has executed. Resolve runner allocation or run `./scripts/validate.sh` in an authorized Python 3.11+ environment.
-2. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
-3. **Media handoff:** current renderer output is a remote artifact URL, while YouTube upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
-4. **YouTube OAuth:** issue and configure a refresh token with `youtube.upload` and `youtube.readonly`; validate channel identity, quota, private upload and processing on a test channel.
+1. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
+2. **Media handoff:** current renderer output is a remote artifact URL, while platform upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
+3. **YouTube OAuth:** issue and configure a refresh token with `youtube.upload` and `youtube.readonly`; validate channel identity, quota, private upload and processing on a test channel.
+4. **TikTok OAuth and app audit:** implement OAuth authorization/refresh, encrypted per-user token storage, approved `video.publish` scope and the TikTok app audit. Until audited, the adapter stays `SELF_ONLY`.
 5. **Financial integrations:** connect YouTube Analytics, affiliate networks and sponsor billing to the source-backed ledger. Reconcile actual currency, refunds, taxes and platform adjustments.
 6. **Security/operations:** replace shared review token with real user identity and roles; add HTTPS, secret rotation, audit export, backups/restore, monitoring, rate limits and incident recovery.
 7. **Scale:** migrate SQLite to PostgreSQL and add distributed worker/scheduler coordination before multi-instance deployment.
 8. **Commercial validation:** test one controlled content cohort across the ten brands; compare verified net revenue and costs before increasing production volume. No actual revenue or monetization is established yet.
 
-All BUILD-00001 through BUILD-00012 source milestones have a committed baseline. This is **not** equivalent to a tested production system or a completed revenue-generating business. External credentials, real provider execution, YouTube channel authorization and actual financial data remain necessary.
+BUILD-00001 through BUILD-00024 describe source milestones, not a verified production system. The current CI evidence is branch-scoped and does not replace OAuth, provider, renderer, platform or financial live validation.
 
 ## Versioning
 
