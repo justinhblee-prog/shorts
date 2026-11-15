@@ -110,3 +110,15 @@ Real provider credentials, renderer CDN hostnames, YouTube OAuth and financial i
 ### Review queue recovery
 
 The worker reconciles completed queue jobs before claiming new work. The authenticated pending-review API also performs this reconciliation. If a process stops after the durable queue enters `review_pending` but before the production record is updated, the next worker poll or pending-review request repairs the production record. The queue status is authoritative; jobs that are not durably `review_pending` are never promoted by this recovery path.
+## YouTube upload timeout / ambiguous result recovery
+
+A resumable upload can reach YouTube even if the client loses the final response. Do not simply retry an upload that is stuck in `uploading` or marked `reconciliation_required`; this can create duplicate private videos.
+
+1. Wait for the active upload window to expire. The default stale threshold is 900 seconds; configure `NEXUS_UPLOAD_STALE_SECONDS` (minimum 60 seconds) only if your upload sizes and network conditions justify it.
+2. Open the intended YouTube channel's YouTube Studio content list and inspect private videos. Compare the intended title, approximate upload time and video ID.
+3. In the approved upload queue, choose **업로드 결과 대조**.
+4. If the video exists, select `uploaded`, enter its YouTube video ID and record the verification note. The local upload ledger is finalized without creating another video.
+5. If and only if no matching video exists, select `not_uploaded` and record the check. The job becomes eligible for a new private upload attempt.
+6. If the result is uncertain, do not reconcile as `not_uploaded`; leave the record blocked and investigate further.
+
+The endpoint requires the operator token, an explicit confirmation flag and a non-empty note. This is a manual reconciliation workflow; the current implementation does not query YouTube Studio to discover an upload whose video ID was never received.
