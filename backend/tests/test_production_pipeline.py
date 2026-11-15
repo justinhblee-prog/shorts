@@ -90,6 +90,36 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(voice_payload["target_audience"], profile["audience"])
         self.assertEqual(render_payload["brand_profile"], profile)
 
+    def test_trend_context_is_validated_and_passed_as_untrusted_source_material(self):
+        trend = {
+            "source": "google_news_rss", "title": "AI agent adoption grows",
+            "url": "https://news.example/story", "summary": "A report describes adoption.",
+            "published_at": "2026-11-15T00:00:00+00:00", "region": "US",
+        }
+        brief = {**self.brief, "trend_context": trend}
+        script = FakeProvider({"script": "Hook. Evidence. Takeaway."})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3"})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4"})
+        pipeline = ProductionPipeline(self.store, script, voice, render)
+        self.store.create("job-trend", brief)
+        pipeline.execute("job-trend", brief)
+        payload = script.calls[0][1]
+        self.assertEqual(payload["trend_context"], trend)
+        self.assertIn("untrusted source material", payload["trend_context_handling"])
+        self.assertIn("do not invent facts", payload["trend_context_handling"])
+
+    def test_invalid_trend_context_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, "HTTP"):
+            ProductionPipeline.validate_brief({
+                **self.brief, "trend_context": {
+                    "title": "A title", "url": "javascript:alert(1)"
+                }
+            })
+        with self.assertRaisesRegex(ValueError, "source URL"):
+            ProductionPipeline.validate_brief({
+                **self.brief, "trend_context": {"title": "A title", "url": ""}
+            })
+
     def test_invalid_brand_profile_fails_before_provider_calls(self):
         script = FakeProvider({"script": "must not run"})
         voice = FakeProvider({"audio_url": "https://media.example/audio.mp3"})
