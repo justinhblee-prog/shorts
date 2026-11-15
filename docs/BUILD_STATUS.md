@@ -1557,3 +1557,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - PR #51 and #52 are Open / Draft / unmerged, based independently on BUILD-00085.
 - No production deployment, OAuth consent or live platform request was performed.
 - Existing BUILD-00086 through BUILD-00089 integration evidence remains the 532-test run [43725622356](https://github.com/justinhblee-prog/shorts/actions/runs/43725622356). BUILD-00090 and BUILD-00091 have passed individual CI but have not yet been combined with that integration branch.
+
+
+
+## BUILD-00092 — explicit worker offline lifecycle (2026-11-15)
+
+- Pull request: [#54](https://github.com/justinhblee-prog/shorts/pull/54), Open / Draft / unmerged.
+- Workers now persist a graceful offline transition from the worker main loop's `finally` block.
+- Operational health counts only fresh `status='online'` workers as online; stale-heartbeat warnings apply only to online records whose heartbeat expired.
+- Abrupt process termination remains detected through the existing stale-heartbeat threshold.
+- Push CI [43728064603](https://github.com/justinhblee-prog/shorts/actions/runs/43728064603): 522 tests passed.
+- PR merge-result CI [43728086152](https://github.com/justinhblee-prog/shorts/actions/runs/43728086152): 522 tests passed.
+- Tests cover local registry and health-state behavior; no OS-level SIGKILL or production supervisor behavior is claimed.

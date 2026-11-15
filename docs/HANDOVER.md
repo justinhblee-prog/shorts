@@ -926,3 +926,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - BUILD-00086–00089 combined validation remains 532 tests. BUILD-00090 and BUILD-00091 have individual passing CI only; no combined validation with those tracks is claimed yet.
 - Do not merge the BUILD-00083–00085 stacked chain out of order. Review/merge it sequentially, then retarget or rebase the independent workstreams.
 - Live YouTube/TikTok OAuth, AI provider generation, real media rendering, real publishing and revenue remain unverified.
+
+
+
+### BUILD-00092 — worker shutdown observability
+- Added `JobQueue.mark_worker_offline(worker_id)` and invoke it in the worker main loop's `finally` block so normal exit, SIGTERM and handled fatal exits are reflected promptly.
+- Health metrics now exclude explicitly offline workers from online and stale counts. Online rows with expired heartbeats still raise the stale warning for abrupt exits.
+- Push CI [43728064603](https://github.com/justinhblee-prog/shorts/actions/runs/43728064603) and PR merge-result CI [43728086152](https://github.com/justinhblee-prog/shorts/actions/runs/43728086152) each passed **522 tests**.
+- PR #54 is Open/Draft/unmerged and based on BUILD-00085. No deployment or real worker process supervisor validation was performed.
