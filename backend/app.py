@@ -84,6 +84,7 @@ class Enqueue(BaseModel):
 class QueueControlAction(BaseModel):
     operator_id:str=Field(min_length=1,max_length=128)
     note:str=Field(min_length=1,max_length=2000)
+    recovery_confirmed:bool=False
 
 class Claim(BaseModel):
     worker_id:str=Field(min_length=1,max_length=128)
