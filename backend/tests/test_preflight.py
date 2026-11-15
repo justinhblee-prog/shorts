@@ -11,6 +11,19 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(result["live_connectivity_verified"])
         self.assertFalse(result["checks"]["tiktok_publish"]["configured"])
         self.assertFalse(result["capabilities"]["tiktok_private_publish_configured"])
+    def test_tiktok_oauth_configuration_enables_preflight_without_static_token(self):
+        env = {
+            "TIKTOK_CLIENT_KEY": "client-key",
+            "TIKTOK_CLIENT_SECRET": "client-secret",
+            "TIKTOK_REDIRECT_URI": "https://example.test/api/tiktok/oauth/callback",
+            "TIKTOK_TOKEN_ENCRYPTION_KEY": "fernet-key-placeholder",
+        }
+        result = build_preflight(env)
+        self.assertTrue(result["checks"]["tiktok_oauth"]["configured"])
+        self.assertTrue(result["checks"]["tiktok_publish"]["configured"])
+        self.assertEqual(result["checks"]["tiktok_publish"]["mode"], "oauth")
+        self.assertFalse(result["live_connectivity_verified"])
+
     def test_complete_environment_reports_configuration_not_live_success(self):
         env={k:"configured" for k in [
             "NEXUS_REVIEW_TOKEN","SCRIPT_PROVIDER_URL","SCRIPT_PROVIDER_TOKEN",
