@@ -141,7 +141,7 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(cohort["evidence_status"],"observed")
   self.assertEqual(cohort["ranking_score_adjustment"],0)
   insight=next(x for x in result["cohort_insights"]
-   if x["brand"]=="Future Leak" and x["topic_signature"]=="ai explained robotics"
+   if x["brand"]=="Future Leak" and x["region"]=="US" and x["topic_signature"]=="ai explained robotics"
    and x["duration_bucket"]=="20_40s")
   self.assertEqual(insight["status"],"insufficient_comparable_cohorts")
   self.assertEqual(insight["sample_count"],3)
