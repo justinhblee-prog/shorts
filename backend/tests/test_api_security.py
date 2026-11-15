@@ -18,10 +18,34 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
                  skip_recommendation_feedback, capture_trend_recommendations,
                  get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
-                 operational_health, operational_recovery_plan)
+                 operational_health, operational_recovery_plan, get_job_failure_analysis)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
+    def test_failure_analysis_requires_review_access_and_classifies_latest_failure(self):
+        job={"id":"job-1","job_type":"short_video_production","status":"failed_retriable",
+             "error_code":"provider_rendering","error_message":"Provider connection failed",
+             "attempt":1,"max_attempts":3}
+        events=[{"event_type":"failed","created_at":"2026-11-15T00:00:00Z",
+                 "from_status":"running","to_status":"failed_retriable",
+                 "details":{"error_code":"provider_rendering","retryable":True}}]
+        with mock.patch("app.require_review_access") as access, \
+             mock.patch.object(app_module.queue,"get",return_value=job), \
+             mock.patch.object(app_module.queue,"events",return_value=events):
+            result=get_job_failure_analysis("job-1",x_review_token="test-token")
+        access.assert_called_once_with("test-token")
+        self.assertEqual(result["latest_failure"]["category"],"external_outcome_ambiguous")
+        self.assertFalse(result["latest_failure"]["retry_authorized"])
+        self.assertEqual(result["actions_taken"],[])
+
+    def test_failure_analysis_returns_empty_when_job_has_no_failure_event(self):
+        job={"id":"job-2","job_type":"short_video_production","status":"running"}
+        with mock.patch("app.require_review_access"), \
+             mock.patch.object(app_module.queue,"get",return_value=job), \
+             mock.patch.object(app_module.queue,"events",return_value=[]):
+            result=get_job_failure_analysis("job-2",x_review_token="test-token")
+        self.assertIsNone(result["latest_failure"])
+        self.assertTrue(result["read_only"])
     def test_operational_health_requires_review_access_and_returns_snapshot(self):
         with mock.patch("app.require_review_access") as access, \
              mock.patch.object(app_module.queue, "operational_health",
