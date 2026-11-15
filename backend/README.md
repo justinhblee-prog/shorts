@@ -344,3 +344,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Regression coverage verifies frozen-profile retrieval, old database compatibility, and the frontend's use of the guidance fields.
 
 **Validation boundary:** this confirms the Python suite and source-level frontend assertions. It does not confirm browser interaction in a deployed environment, live AI provider adherence, real audio/video generation, YouTube OAuth/upload, or actual revenue.
+
+
+### Review usability enhancement — verified 2026-11-15
+
+- Pending review cards now show the actual generated script in an expandable, escaped text preview and provide an inline audio player for the generated narration. The rendered video link remains available.
+- This lets the reviewer compare the script, narration and final render before approving, requesting changes or rejecting; it does not bypass the human approval gate.
+- `scripts/validate.sh` now runs `node --check ../frontend/app.js` when Node.js is available, in addition to Python compile and unit tests.
+- Verified latest source HEAD: `c12300583c6c45b3750eba2ec667027a02628143`.
+- GitHub Actions: https://github.com/justinhblee-prog/shorts/actions/runs/43666919957 — success; **118 tests passed** and JavaScript syntax check completed in the validation script.
+- Browser-level behavior, external media playback availability, live AI generation and real YouTube upload still require a deployed environment and configured provider credentials.
