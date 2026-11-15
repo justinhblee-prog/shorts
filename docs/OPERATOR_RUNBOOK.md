@@ -151,9 +151,9 @@ The endpoint requires the operator token, an explicit confirmation flag and a no
 
 ### Durable production-worker pause — 2026-11-15
 
-- A provider failure, lease conflict, heartbeat/database failure, or unexpected worker exception now stops the current worker from claiming further jobs.
+- A provider failure, lease conflict, heartbeat/database failure, or unexpected worker exception now persists a global queue pause. Every queue claim checks that pause inside the same SQLite transaction, so even another worker process cannot claim work while the pause is active.
 - The queue stores a global pause flag, reason, affected job ID and timestamp in the shared SQLite database. This survives worker/container restarts; Docker's `restart: unless-stopped` policy cannot silently resume queue consumption.
-- While paused, the worker remains inert and does not claim jobs. Jobs already queued remain untouched. A retryable job may be marked `failed_retriable`, but it is not dispatched while the global pause is active.
+- While paused, workers remain inert and do not claim jobs. Jobs already queued remain untouched. A retryable job may be marked `failed_retriable`, but it is not dispatched while the global pause is active. Docker may restart the worker container, but the persisted pause prevents resumed queue consumption.
 - Inspect the durable pause before resuming:
 
 ```bash
