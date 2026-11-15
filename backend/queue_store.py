@@ -42,7 +42,8 @@ class JobQueue:
               details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS idx_events_job ON job_events(job_id,id);
             CREATE TABLE IF NOT EXISTS worker_registry(
-              worker_id TEXT PRIMARY KEY, hostname TEXT, last_seen_at TEXT NOT NULL, status TEXT NOT NULL);
+              worker_id TEXT PRIMARY KEY, hostname TEXT, last_seen_at TEXT NOT NULL, status TEXT NOT NULL,
+              instance_token TEXT);
             CREATE TABLE IF NOT EXISTS worker_control(
               id INTEGER PRIMARY KEY CHECK(id=1), paused INTEGER NOT NULL DEFAULT 0,
               pause_reason TEXT, paused_job_id TEXT, updated_at TEXT NOT NULL);
@@ -53,6 +54,10 @@ class JobQueue:
             INSERT OR IGNORE INTO worker_control(id,paused,updated_at)
               VALUES(1,0,'1970-01-01T00:00:00+00:00');
             """)
+
+            columns = {row["name"] for row in c.execute("PRAGMA table_info(worker_registry)")}
+            if "instance_token" not in columns:
+                c.execute("ALTER TABLE worker_registry ADD COLUMN instance_token TEXT")
 
     @contextmanager
     def db(self):
@@ -130,7 +135,7 @@ class JobQueue:
                     current_stage='worker_paused',error=?,updated_at=?
                     WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
                     (("Queue paused: " + reason)[:2000], timestamp, row["id"]))
-    def claim(self,worker_id,hostname=None,job_type=None):
+    def claim(self,worker_id,hostname=None,job_type=None,instance_token=None):
         if not worker_id.strip(): raise ValueError("worker_id required")
         dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds)); token=str(uuid.uuid4())
         with self.db() as c:
@@ -140,8 +145,11 @@ class JobQueue:
             if production_paused and job_type == "short_video_production":
                 c.commit()
                 return None
-            c.execute("""INSERT INTO worker_registry VALUES(?,?,?,'online') ON CONFLICT(worker_id)
-              DO UPDATE SET hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",(worker_id,hostname,n))
+            c.execute("""INSERT INTO worker_registry(worker_id,hostname,last_seen_at,status,instance_token)
+              VALUES(?,?,?,'online',?) ON CONFLICT(worker_id) DO UPDATE SET
+              hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online',
+              instance_token=COALESCE(excluded.instance_token,worker_registry.instance_token)""",
+              (worker_id,hostname,n,instance_token))
             expired=c.execute("""SELECT id,job_type,attempt,max_attempts FROM pipeline_jobs WHERE status='running'
               AND lease_expires_at IS NOT NULL AND lease_expires_at<=?""",(n,)).fetchall()
             production_expired = []
@@ -196,13 +204,17 @@ class JobQueue:
         if row["status"]!="running" or row["worker_id"]!=worker or row["lease_token"]!=token or not row["lease_expires_at"] or row["lease_expires_at"]<=n:
             raise LeaseConflict("Lease expired or no longer owned by this worker")
 
-    def heartbeat(self,jid,worker,token):
+    def heartbeat(self,jid,worker,token,instance_token=None):
         dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds))
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); self.assert_lease(row,worker,token,n)
             c.execute("UPDATE pipeline_jobs SET lease_expires_at=?,updated_at=? WHERE id=?",(expiry,n,jid))
-            c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",(n,worker))
+            if instance_token is None:
+                c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",(n,worker))
+            else:
+                c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=? AND instance_token=?",
+                          (n,worker,instance_token))
             self.event(c,jid,"heartbeat","running","running",worker,{"lease_expires_at":expiry})
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
@@ -454,28 +466,35 @@ class JobQueue:
     def is_paused(self):
         return bool(self.worker_control()["paused"])
 
-    def register_worker(self, worker_id, hostname=None):
+    def register_worker(self, worker_id, hostname=None, instance_token=None):
         if not str(worker_id).strip():
             raise ValueError("worker_id required")
         n = stamp(now())
         with self.db() as c:
-            c.execute("""INSERT INTO worker_registry(worker_id,hostname,last_seen_at,status)
-                VALUES(?,?,?,'online') ON CONFLICT(worker_id) DO UPDATE SET
-                hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",
-                (worker_id, hostname, n))
+            c.execute("""INSERT INTO worker_registry(worker_id,hostname,last_seen_at,status,instance_token)
+                VALUES(?,?,?,'online',?) ON CONFLICT(worker_id) DO UPDATE SET
+                hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online',
+                instance_token=COALESCE(excluded.instance_token,worker_registry.instance_token)""",
+                (worker_id, hostname, n, instance_token))
         return {"worker_id": worker_id, "hostname": hostname,
                 "last_seen_at": n, "status": "online"}
 
-    def mark_worker_offline(self, worker_id):
+    def mark_worker_offline(self, worker_id, instance_token=None):
         """Persist a graceful worker shutdown; stale heartbeats still cover hard crashes."""
         worker_id = str(worker_id or "").strip()
         if not worker_id:
             raise ValueError("worker_id required")
         with self.db() as c:
-            updated = c.execute(
-                "UPDATE worker_registry SET last_seen_at=?,status='offline' WHERE worker_id=?",
-                (stamp(now()), worker_id),
-            )
+            if instance_token is None:
+                updated = c.execute(
+                    "UPDATE worker_registry SET last_seen_at=?,status='offline' WHERE worker_id=?",
+                    (stamp(now()), worker_id),
+                )
+            else:
+                updated = c.execute(
+                    "UPDATE worker_registry SET last_seen_at=?,status='offline' WHERE worker_id=? AND instance_token=?",
+                    (stamp(now()), worker_id, instance_token),
+                )
             return updated.rowcount == 1
 
     def workers(self, stale_after_seconds=None):
