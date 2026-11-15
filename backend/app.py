@@ -248,7 +248,7 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
             )
         finally:
             heartbeat_stop.set()
-            heartbeat.join(timeout=5)
+            heartbeat.join()
         if lost_lease.is_set():
             raise ProductionLeaseConflict(
                 "Production lease heartbeat was lost during API execution"
