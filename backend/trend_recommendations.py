@@ -316,8 +316,8 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
                 "supported_languages": config.get("languages", []),
                 "language_match": (
                     "unverified" if not trend_language
-                    else "matched" if not allowed_languages
-                    or trend_language.split("-")[0] in allowed_languages
+                    else "unrestricted" if not allowed_languages
+                    else "matched" if trend_language.split("-")[0] in allowed_languages
                     else "unsupported"
                 )
             })
