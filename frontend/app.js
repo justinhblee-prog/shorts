@@ -393,16 +393,14 @@
     if(!requireToken())return;
     const id=button.dataset.queueLifecycleId;button.disabled=true;
     try{
-      const [trace,consistency,recovery,failure]=await Promise.all([
-        api("/api/lifecycle/jobs/"+encodeURIComponent(id)),
-        api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/consistency"),
-        api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/recovery"),
-        api("/api/jobs/"+encodeURIComponent(id)+"/failure-analysis")
-      ]);
+      const overview=await api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/overview");
+      const trace=overview.trace,consistency=overview.consistency,recovery=overview.recovery;
       const detail=document.createElement("div");detail.className="review-policy lifecycle-operations";
-      const analysis=failure.latest_failure;
+      const analysis=overview.failure?.latest_failure;
+      const stageLabels={queue:"작업 큐",production:"AI 제작",human_review:"사람 검수",youtube:"YouTube",tiktok:"TikTok"};
+      const stagePanel='<section class="review-policy"><strong>전체 제작 단계 현황</strong><div class="finance-summary">'+(overview.stages||[]).map(stage=>'<div><small>'+esc(stageLabels[stage.stage]||stage.stage)+'</small><b>'+esc(stage.status||"not_started")+'</b></div>').join("")+'</div><small>현재 단계: '+esc(overview.summary?.current_stage||"기록 없음")+' · 일관성: '+esc(overview.summary?.consistency_status||"unknown")+'</small></section>';
       const failurePanel=analysis?'<div class="data-item"><b>실패 원인 · '+esc(analysis.category)+' · '+esc(analysis.severity)+'</b><small>'+esc(analysis.error_code)+' · '+esc(analysis.message||"상세 오류 메시지 없음")+'</small><p>'+esc(analysis.rationale)+'</p><p><b>권장 조치:</b> '+esc(analysis.recommended_operator_action)+'</p><p><b>재처리 판정:</b> '+esc(analysis.retry_recommendation)+' (자동 재시도 권한 없음)</p></div>':'<div class="data-item"><b>실패 원인 분석</b><small>기록된 실패 이벤트가 없습니다.</small></div>';
-      detail.innerHTML=renderLifecycleTrace(trace)+failurePanel+renderLifecycleOperations(consistency,recovery);
+      detail.innerHTML=stagePanel+renderLifecycleTrace(trace)+failurePanel+renderLifecycleOperations(consistency,recovery);
       button.insertAdjacentElement("afterend",detail);
     }catch(err){toast(err.message);}
     finally{button.disabled=false;}
