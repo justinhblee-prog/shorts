@@ -1348,4 +1348,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Displays experiment count, shadow assignment count, client viewport acknowledgement count, verified randomized served exposures, assignment-to-exposure join availability, outcome attribution availability, duplicate fingerprint groups, foreign-key issues and per-experiment integrity warnings.
 - Explicitly displays live assignment, ranking adjustment and deployment authorization as disabled/zero.
 - Added API authorization/read-only regression coverage and frontend integration assertions.
-- The preceding BUILD-00063 documentation-only head CI run [43707877471](https://github.com/justinhblee-prog/shorts/actions/runs/43707877471) completed successfully. BUILD-00064 validation is pending for the new code/UI changes.
+- The preceding BUILD-00063 documentation-only head CI run [43707877471](https://github.com/justinhblee-prog/shorts/actions/runs/43707877471) completed successfully.
+- BUILD-00064 GitHub Actions run [43708236894](https://github.com/justinhblee-prog/shorts/actions/runs/43708236894) passed **437 tests**; `scripts/validate.sh` completed successfully.
