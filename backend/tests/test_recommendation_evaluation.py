@@ -58,10 +58,10 @@ class RecommendationEvaluationTests(unittest.TestCase):
     def test_skip_feedback_is_audited_and_included_in_human_selection_summary(self):
         self.store.record_run("US", [self.item()])
         result = self.store.record_skip(
-            "trend-1", "alpha", "reviewer-1", "Topic is already overused"
+            "trend-1", "future-leak", "reviewer-1", "Topic is already overused"
         )
         self.assertTrue(result["recorded"])
-        evaluation = self.store.evaluate()
+        evaluation = self.store.evaluate({"videos": []})
         summary = evaluation["feedback_summary"]
         self.assertEqual(summary["skipped_count"], 1)
         self.assertEqual(summary["selected_count"], 0)
