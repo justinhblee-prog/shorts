@@ -208,6 +208,30 @@ class ProductionStore:
                     restored.append(row["id"])
         return {"restored": len(restored), "job_ids": restored, "invalid": invalid}
 
+    def reconcile_terminal_jobs(self, queue, limit=200):
+        """Mirror durable queue cancellation/terminal failure into production status."""
+        if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
+            raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
+        changed = []
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            rows = c.execute("""SELECT r.job_id,j.status,j.error_message
+                FROM production_runs r JOIN pipeline_jobs j ON j.id=r.job_id
+                WHERE j.job_type='short_video_production'
+                  AND j.status IN ('cancelled','failed_terminal')
+                  AND r.status NOT IN ('approved','uploaded')
+                ORDER BY j.updated_at LIMIT ?""",
+                (max(1, min(int(limit), 500)),)).fetchall()
+            for row in rows:
+                c.execute("""UPDATE production_runs
+                    SET status=?,current_stage=?,error=?,updated_at=?
+                    WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                    (row["status"], row["status"], row["error_message"],
+                     utc_now(), row["job_id"]))
+                if c.rowcount:
+                    changed.append(row["job_id"])
+        return {"updated": len(changed), "job_ids": changed}
+
     def reconcile_review_pending(self, queue, limit=100):
         """Atomically repair only queue jobs durably completed into review_pending."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
