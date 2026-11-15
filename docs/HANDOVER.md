@@ -691,3 +691,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added `docs/PLATFORM_POLICY_MATRIX.md` as the source register, decision matrix, data contract and limitation record.
 - **Important boundary:** the policy gate reads operator declarations; it does not inspect video/audio bytes or independently prove rights. Platform disclosure acknowledgements do not apply platform labels automatically. YouTube upload remains private-only and requires human approval; public publishing remains disabled.
 - CI validation for this branch is pending; do not mark this milestone verified until the branch workflow passes.
+
+
+- Added authenticated `POST /api/review/{job_id}/policy-evidence` so a reviewer can resolve required attestations during `review_pending` without changing the generated media. The server recomputes the report from the durable queue payload, updates the script artifact metadata, and records append-only `policy_evidence_events`.
+- Added a review-workspace action for rights, synthetic-media classification, factuality and platform disclosure attestations. The UI shows non-overridable approval blockers and disables approval until they are resolved.
+- Evidence updates are allowed only while both the production record and durable queue job are in `review_pending`; the endpoint rejects stale/terminal jobs and unsupported declaration fields.
