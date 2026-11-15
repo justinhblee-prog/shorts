@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from app import (app, require_review_access, YouTubeLateSuccessResolution, Enqueue,
                  enqueue, IdempotencyConflict, ProductionExecute, execute_production_job,
                  ProductionLeaseConflict, ProductionBrief, create_production_job)
+from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
     def test_all_operational_routes_require_review_token(self):
@@ -119,6 +120,43 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 409)
         fail.assert_not_called()
 
+    def test_api_provider_error_records_failure_and_pauses_production(self):
+        job = {"id": "job-provider", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.production_pipeline, "execute",
+                              side_effect=ProviderError("script", "provider timeout", True)),
+            mock.patch.object(app_module.queue, "fail") as fail,
+            mock.patch.object(app_module.queue, "pause") as pause,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job("job-provider", body, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 502)
+        fail.assert_called_once()
+        pause.assert_called_once()
+
+    def test_api_internal_error_records_failure_and_pauses_production(self):
+        job = {"id": "job-internal", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.production_pipeline, "execute",
+                              side_effect=RuntimeError("unexpected")),
+            mock.patch.object(app_module.queue, "fail") as fail,
+            mock.patch.object(app_module.queue, "pause") as pause,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job("job-internal", body, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 500)
+        fail.assert_called_once()
+        pause.assert_called_once()
     def test_review_token_fails_closed(self):
         previous = os.environ.get("NEXUS_REVIEW_TOKEN")
         os.environ["NEXUS_REVIEW_TOKEN"] = "unit-test-secret"
