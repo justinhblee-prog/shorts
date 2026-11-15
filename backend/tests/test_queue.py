@@ -2,7 +2,7 @@ import sys, tempfile, unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from queue_store import JobQueue, LeaseConflict
+from queue_store import JobQueue, LeaseConflict, IdempotencyConflict
 
 class QueueTests(unittest.TestCase):
  def setUp(self):
@@ -10,8 +10,12 @@ class QueueTests(unittest.TestCase):
  def tearDown(self): self.tmp.cleanup()
  def test_idempotency(self):
   a=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
-  b=self.q.enqueue("script",{"topic":"y"},idempotency_key="once")
+  b=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
   self.assertEqual(a["id"],b["id"]); self.assertEqual(self.q.stats()["total"],1)
+  with self.assertRaises(IdempotencyConflict):
+   self.q.enqueue("script",{"topic":"y"},idempotency_key="once")
+  with self.assertRaises(IdempotencyConflict):
+   self.q.enqueue("render",{"topic":"x"},idempotency_key="once")
  def test_exclusive_claim_and_fenced_completion(self):
   j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
   self.assertEqual(a["id"],j["id"]); self.assertIsNone(self.q.claim("worker-b"))
