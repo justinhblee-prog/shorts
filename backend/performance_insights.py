@@ -14,7 +14,8 @@ def _elapsed_hours(start, end):
         if last.tzinfo is None:
             last = last.replace(tzinfo=timezone.utc)
         seconds = (last - first).total_seconds()
-        return round(seconds / 3600.0, 4) if seconds > 0 else None
+        # Avoid unstable hourly rates from near-simultaneous snapshots.
+        return round(seconds / 3600.0, 6) if seconds >= 60 else None
     except (TypeError, ValueError):
         return None
 
