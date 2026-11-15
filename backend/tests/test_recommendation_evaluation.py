@@ -466,5 +466,18 @@ class RecommendationEvaluationTests(unittest.TestCase):
             self.store.assign_shadow(experiment["experiment_id"], "x" * 257)
 
 
+
+    def test_participant_fingerprints_are_scoped_per_experiment(self):
+        first_experiment = self.store.create_experiment("first", "operator")
+        second_experiment = self.store.create_experiment("second", "operator")
+        self.store.assign_shadow(first_experiment["experiment_id"], "same-private-key")
+        self.store.assign_shadow(second_experiment["experiment_id"], "same-private-key")
+        with self.store.db() as connection:
+            rows = connection.execute(
+                "SELECT participant_fingerprint FROM recommendation_experiment_assignments ORDER BY experiment_id"
+            ).fetchall()
+        self.assertEqual(len(rows), 2)
+        self.assertNotEqual(rows[0]["participant_fingerprint"], rows[1]["participant_fingerprint"])
+
 if __name__ == "__main__":
     unittest.main()
