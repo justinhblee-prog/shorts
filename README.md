@@ -36,7 +36,7 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 | Worker | Claims and executes short-video production jobs |
 | Scheduler | Dispatches due interval schedules into the durable queue |
 
-All services share the persistent `nexus_data` volume. Run only one scheduler instance. This is a single-host SQLite baseline, not a horizontally scalable production deployment.
+All services share the persistent `nexus_data` volume. The scheduler uses a SQLite singleton leader lease with a fencing token, so multiple instances can safely run with only one active dispatcher; crashed leaders are replaced after lease expiry. This remains a single-host SQLite baseline, not a horizontally scalable multi-host production deployment.
 
 ## Validation
 
@@ -46,7 +46,7 @@ With Python dependencies installed:
 sh scripts/validate.sh
 ```
 
-This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified GitHub Actions run [43670349660](https://github.com/justinhblee-prog/shorts/actions/runs/43668403972) completed successfully on main; **152 tests passed**. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
+This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified GitHub Actions run [43670844206](https://github.com/justinhblee-prog/shorts/actions/runs/43670844206) completed successfully on main; **156 tests passed**. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
 
 ## Documentation
 
