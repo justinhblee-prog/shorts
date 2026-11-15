@@ -98,6 +98,17 @@ class RecommendationExperimentAssignment(BaseModel):
     participant_key:str=Field(min_length=1,max_length=256)
 
 
+class RecommendationRenderedExposure(BaseModel):
+    event_id:str=Field(min_length=36,max_length=36)
+    trend_id:str=Field(min_length=1,max_length=256)
+    visibility_ms:int=Field(ge=1000,le=30000)
+
+
+class RecommendationRenderedExposureBatch(BaseModel):
+    run_id:str=Field(min_length=1,max_length=128)
+    exposures:list[RecommendationRenderedExposure]=Field(min_length=1,max_length=100)
+
+
 class QueueControlAction(BaseModel):
     operator_id:str=Field(min_length=1,max_length=128)
     note:str=Field(min_length=1,max_length=2000)
@@ -1222,6 +1233,36 @@ def list_recommendation_evaluation_snapshots(
 ):
     require_review_access(x_review_token)
     return recommendation_evaluation_store.list_evaluation_snapshots(limit)
+
+
+@app.post("/api/recommendations/exposures/rendered")
+def record_recommendation_rendered_exposures(
+    body:RecommendationRenderedExposureBatch,
+    x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    try:
+        result=recommendation_evaluation_store.record_rendered_exposures(
+            body.run_id,[item.model_dump() for item in body.exposures]
+        )
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    if result is None:
+        raise HTTPException(404,"Recommendation run not found")
+    return result
+
+
+@app.get("/api/recommendations/exposures/{run_id}/report")
+def recommendation_rendered_exposure_report(
+    run_id:str,x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    result=recommendation_evaluation_store.rendered_exposure_report(
+        run_id,performance_analyzer.analyze()
+    )
+    if result is None:
+        raise HTTPException(404,"Recommendation run not found")
+    return result
 
 
 @app.post("/api/recommendations/experiments")
