@@ -529,7 +529,10 @@
         }
         const account=creator.creator_nickname||creator.creator_username||"연결된 TikTok 계정";
         const privacySummary=options.join(", ");
-        if(!confirm(account+" 계정의 TikTok 공개 범위 옵션: "+privacySummary+"\nNEXUS 현재 운영 모드는 SELF_ONLY 비공개 전송으로 제한됩니다. 이 콘텐츠를 TikTok에 전송하는 데 동의하십니까?"))return;
+        if(!confirm(account+" 계정의 TikTok 공개 범위 옵션: "+privacySummary+"\nNEXUS 현재 운영 모드는 SELF_ONLY 비공개 전송으로 제한됩니다."))return;
+        const selectedPrivacy=prompt("TikTok 공개 범위를 직접 선택하세요. 현재 앱은 미감사 상태이므로 SELF_ONLY만 허용됩니다. 정확히 입력하세요: SELF_ONLY");
+        if(selectedPrivacy===null)return;
+        if(selectedPrivacy.trim()!=="SELF_ONLY"){toast("현재 허용되는 공개 범위는 SELF_ONLY뿐입니다.");return;}
         const caption=prompt("TikTok 캡션을 입력하세요. 최대 2,200 UTF-16 코드 단위입니다.", "NEXUS STUDIO PRO · "+id.slice(0,8));
         if(caption===null)return;
         const title=caption.trim();
@@ -543,6 +546,7 @@
             media_path:staged.media_path,
             title,
             operator_id:reviewer||"operator",
+            privacy_level:selectedPrivacy.trim(),
             explicit_consent:true,
             brand_content_toggle:brandContent,
             brand_organic_toggle:brandOrganic
