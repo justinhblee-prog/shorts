@@ -20,7 +20,7 @@ def _load_credentials(raw: str) -> dict[str, str]:
         if (not isinstance(reviewer_id, str) or not reviewer_id.strip() or len(reviewer_id) > 128
                 or any(ord(ch) < 32 or ord(ch) == 127 for ch in reviewer_id)):
             raise ReviewCredentialConfigurationError("Reviewer IDs must be 1-128 printable characters")
-        if not isinstance(token, str) or len(token) < 32 or len(token) > 512:
+        if not isinstance(token, str) or len(token) < 32 or len(token) > 512 or not token.isascii():
             raise ReviewCredentialConfigurationError("Each reviewer token must contain 32-512 characters")
         if token in token_owners:
             raise ReviewCredentialConfigurationError("Each reviewer must have a unique token")
@@ -36,7 +36,7 @@ def resolve_review_principal(provided: str | None, *, credentials_json: str | No
     path exists only for controlled migration and maps to fixed identity
     legacy-operator.
     """
-    if not provided:
+    if not provided or not str(provided).isascii():
         return None
     if credentials_json is None:
         credentials_json = os.getenv("NEXUS_REVIEW_CREDENTIALS_JSON", "")
