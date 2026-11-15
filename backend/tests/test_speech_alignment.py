@@ -1,6 +1,9 @@
 import unittest
 
-from speech_alignment import compare_transcript_to_script, build_speech_alignment_report
+from speech_alignment import (
+    compare_transcript_to_script, build_speech_alignment_report,
+    build_caption_alignment_report,
+)
 
 
 class SpeechAlignmentTests(unittest.TestCase):
@@ -53,6 +56,33 @@ class SpeechAlignmentTests(unittest.TestCase):
         self.assertTrue(report["transcript_available"])
         self.assertIn("not proof of factual correctness", report["warning"])
 
+
+    def test_srt_caption_text_matches_asr_transcript_without_timecode_noise(self):
+        srt = (
+            "1\\n00:00:00,000 --> 00:00:02,000\\n"
+            "The human brain predicts what happens next.\\n\\n"
+            "2\\n00:00:02,000 --> 00:00:04,000\\n"
+            "Patterns help the brain learn.\\n"
+        )
+        reference = (
+            "The human brain predicts what happens next. "
+            "Patterns help the brain learn."
+        )
+        report = build_caption_alignment_report(
+            self.script, srt, asr_transcript=reference,
+        )
+        self.assertEqual(report["status"], "aligned")
+        self.assertEqual(report["reference"], "independent_asr_transcript")
+        self.assertEqual(report["word_error_rate"], 0)
+
+    def test_caption_mismatch_uses_generated_script_when_asr_missing(self):
+        report = build_caption_alignment_report(
+            self.script,
+            "Ocean researchers explore deep water habitats using robotic vehicles "
+            "to observe unusual species around underwater volcanic vents.",
+        )
+        self.assertEqual(report["reference"], "generated_script")
+        self.assertEqual(report["status"], "material_mismatch")
 
 if __name__ == "__main__":
     unittest.main()
