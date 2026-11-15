@@ -68,11 +68,15 @@ class YouTubePublishingTests(unittest.TestCase):
     def tearDown(self): self.tmp.cleanup()
 
     def test_late_upload_completion_cannot_override_reconciled_not_uploaded(self):
-        self.uploads.begin("job-1", "Title", "Description")
+        first_attempt=self.uploads.begin("job-1", "Title", "Description")
         self.uploads.mark_reconciliation_required("job-1", "timeout")
         self.uploads.reconcile("job-1", "not_uploaded", note="Checked YouTube Studio")
+        # A retry can begin after explicit no-upload confirmation. The stale
+        # request must not finalize or overwrite that newer attempt.
+        second_attempt=self.uploads.begin("job-1", "Retry", "")
+        self.assertNotEqual(first_attempt["attempt_id"],second_attempt["attempt_id"])
         with self.assertRaises(YouTubeUploadError):
-            self.uploads.finish("job-1", "late-video-id")
+            self.uploads.finish("job-1", "late-video-id",first_attempt["attempt_id"])
         result = self.uploads.get("job-1")
         self.assertEqual(result["status"], "late_success_review_required")
         self.assertEqual(result["video_id"], "late-video-id")
@@ -80,7 +84,7 @@ class YouTubePublishingTests(unittest.TestCase):
         with self.assertRaisesRegex(YouTubeUploadError, "blocked"):
             self.uploads.begin("job-1", "Retry", "")
         resolved=self.uploads.resolve_late_success(
-            "job-1","reviewer-ops","Confirmed late video ID in YouTube Studio"
+            "job-1","reviewer-ops","Confirmed late video ID in YouTube Studio","late-video-id"
         )
         self.assertEqual(resolved["status"], "uploaded")
         self.assertEqual(resolved["video_id"], "late-video-id")
