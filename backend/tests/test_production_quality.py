@@ -52,7 +52,9 @@ class ProductionQualityTests(unittest.TestCase):
         self.assertIn("trend_source_citations_not_returned_by_script_provider",
                       report["warnings"])
         self.assertIn("render_aspect_ratio_not_reported", report["warnings"])
-        self.assertIn("does not download or inspect audio/video bytes",
+        self.assertIn("When configured, staged video bytes are inspected with ffprobe",
+                      report["verification_boundary"])
+        self.assertIn("does not verify burned-in caption text",
                       report["verification_boundary"])
 
     def test_reported_dimensions_must_match_vertical_short_ratio(self):
