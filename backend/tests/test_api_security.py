@@ -27,6 +27,12 @@ class ApiSecurityTests(unittest.TestCase):
                 unprotected.append(path)
         self.assertEqual(unprotected, [])
 
+    def test_tiktok_oauth_disconnect_route_is_registered_and_token_protected(self):
+        route = next((r for r in app.routes
+                      if getattr(r, "path", None) == "/api/tiktok/oauth/disconnect"), None)
+        self.assertIsNotNone(route)
+        self.assertIn("x_review_token", route.endpoint.__annotations__)
+
     def test_late_upload_resolution_route_is_registered_and_token_protected(self):
         route = next((r for r in app.routes
                       if getattr(r,"path",None)=="/api/youtube/uploads/{job_id}/resolve-late-result"),None)
