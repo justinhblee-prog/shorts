@@ -856,6 +856,13 @@ def _build_trend_recommendations(region, limit):
 
 
 def _trend_recommendation_payload(ranked):
+    for item in ranked:
+        trend_id=(item.get("trend") or {}).get("id")
+        for candidate in item.get("brand_candidates") or []:
+            if trend_id and candidate.get("brand"):
+                candidate["human_decision"]=recommendation_evaluation_store.latest_decision(
+                    trend_id,candidate["brand"]
+                )
     return {
         "items":ranked,
         "count":len(ranked),
