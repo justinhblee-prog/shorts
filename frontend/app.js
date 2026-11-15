@@ -142,6 +142,24 @@
       '<strong>최근 통합 이벤트 (최대 20개)</strong>'+eventHtml+'</section>';
   }
 
+  function renderLifecycleOperations(consistency,recovery){
+    const severityLabels={blocker:"조치 전 게시·재처리 차단",warning:"확인 필요"};
+    const findings=(consistency.findings||[]);
+    const findingHtml=findings.length
+      ? '<ul>'+findings.map(item=>'<li><strong>'+esc(severityLabels[item.severity]||item.severity)+' · '+esc(item.code)+'</strong><p>'+esc(item.message)+'</p><small>단계: '+esc(item.stage||"")+'</small></li>').join("")+'</ul>'
+      : '<p>현재 기록에서 자동 탐지된 상태 불일치가 없습니다.</p>';
+    const steps=(recovery.steps||[]);
+    const stepHtml=steps.length
+      ? '<ol>'+steps.map(item=>'<li><strong>'+esc(item.platform)+' · '+esc(item.instruction)+'</strong><p>우선순위: '+esc(item.priority)+'</p>'+(item.endpoint?'<code>'+esc(item.method||"GET")+' '+esc(item.endpoint)+'</code>':'')+
+        ((item.requires_operator_evidence||[]).length?'<p>필요 증거: '+item.requires_operator_evidence.map(esc).join(" · ")+'</p>':'')+'</li>').join("")+'</ol>'
+      : '<p>현재 상태에서 추가 복구 조치가 자동 제안되지 않았습니다.</p>';
+    return '<section class="review-policy lifecycle-operations"><strong>상태 일관성 진단 · '+esc(consistency.status||"unknown")+'</strong>'+
+      '<p>'+ (consistency.read_only?"읽기 전용 진단 · 원격 게시·재시도 없음":"")+'</p>'+findingHtml+
+      '<strong>운영자 복구 절차</strong>'+stepHtml+
+      '<p><strong>재처리 정책:</strong> '+esc(recovery.retry_policy||"별도 확인 필요")+'</p>'+
+      '<small>이 화면은 절차 안내입니다. 복구·재게시·재시도는 별도 승인과 원격 상태 확인 없이는 실행되지 않습니다.</small></section>';
+  }
+
   async function loadApproved(){
     const data=await api("/api/review/approved?limit=100");
     const items=data.items||[];
@@ -181,7 +199,7 @@
           tiktokAction='<button class="button button-secondary" data-tiktok-publish-id="'+esc(item.job_id)+'">TikTok 비공개 게시</button>';
         }
       }
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · YouTube '+esc(statusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div><div id="lifecycle-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'<button class="button button-quiet" data-lifecycle-id="'+esc(item.job_id)+'">작업 전체 이력</button></div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · YouTube '+esc(statusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div><div id="lifecycle-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'<button class="button button-quiet" data-lifecycle-id="'+esc(item.job_id)+'">상태·복구 진단</button></div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 게시 대기 중인 콘텐츠가 없습니다.</div>';
   }
   async function loadTrends(){
@@ -541,9 +559,13 @@
       const id=lifecycleButton.dataset.lifecycleId;
       lifecycleButton.disabled=true;
       try{
-        const data=await api("/api/lifecycle/jobs/"+encodeURIComponent(id));
+        const [data,consistency,recovery]=await Promise.all([
+          api("/api/lifecycle/jobs/"+encodeURIComponent(id)),
+          api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/consistency"),
+          api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/recovery")
+        ]);
         const target=$("lifecycle-"+id);
-        if(target)target.innerHTML=renderLifecycleTrace(data);
+        if(target)target.innerHTML=renderLifecycleTrace(data)+renderLifecycleOperations(consistency,recovery);
       }catch(err){
         const target=$("lifecycle-"+id);
         if(target)target.textContent=err.message;
