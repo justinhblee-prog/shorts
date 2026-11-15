@@ -387,7 +387,7 @@ class TikTokPublisher:
             raise TikTokPublishError("TikTok returned an untrusted upload URL")
         if (
             parsed.scheme != "https"
-            or host != "open-upload.tiktokapis.com"
+            or host not in ("open-upload.tiktokapis.com", "upload.us.tiktokapis.com")
             or parsed.username is not None
             or parsed.password is not None
             or port not in (None, 443)
