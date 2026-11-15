@@ -7,6 +7,7 @@ services:
     env_file: .env
     environment:
       NEXUS_DB_PATH: /app/data/nexus.sqlite3
+      NEXUS_MEDIA_DIR: /app/data/media
     ports:
       - "8502:8502"
     volumes:
