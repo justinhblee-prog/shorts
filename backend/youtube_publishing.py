@@ -46,6 +46,12 @@ class YouTubeUploadStore:
               previous_status TEXT, resulting_status TEXT, created_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_youtube_upload_events_job ON youtube_upload_events(job_id,id);
+            CREATE TRIGGER IF NOT EXISTS youtube_upload_events_no_update
+              BEFORE UPDATE ON youtube_upload_events
+              BEGIN SELECT RAISE(ABORT,'youtube upload audit events are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS youtube_upload_events_no_delete
+              BEFORE DELETE ON youtube_upload_events
+              BEGIN SELECT RAISE(ABORT,'youtube upload audit events are immutable'); END;
             CREATE INDEX IF NOT EXISTS idx_youtube_snapshots_video
               ON youtube_video_snapshots(video_id,collected_at);
             """)
