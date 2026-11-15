@@ -236,12 +236,13 @@ class JobQueue:
                         current_stage='failed_terminal',error=?,updated_at=?
                         WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
                         (error_message[:2000],n,jid))
-                self._pause_production_in_transaction(
-                    c,
-                    "Terminal production failure; provider outcome may be ambiguous",
-                    jid,
-                    n,
-                )
+                if str(error_code).startswith("provider_"):
+                    self._pause_production_in_transaction(
+                        c,
+                        "Terminal production provider failure; external outcome may be ambiguous",
+                        jid,
+                        n,
+                    )
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
     def get(self,jid):
