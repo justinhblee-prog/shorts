@@ -103,6 +103,8 @@ class TikTokPublishRequest(BaseModel):
     title:str=Field(min_length=1,max_length=2200)
     operator_id:str=Field(min_length=1,max_length=128)
     explicit_consent:bool
+    brand_content_toggle:bool
+    brand_organic_toggle:bool
 
 
 class YouTubeUploadReconciliation(BaseModel):
@@ -474,7 +476,9 @@ def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
     try:
         return tiktok_publisher.publish_private_approved(
             job_id,body.media_path,review_store,body.title,body.operator_id,
-            explicit_consent=body.explicit_consent
+            explicit_consent=body.explicit_consent,
+            brand_content_toggle=body.brand_content_toggle,
+            brand_organic_toggle=body.brand_organic_toggle
         )
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
