@@ -57,13 +57,18 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(retried["attempt"],2)
   self.assertEqual([e["event_type"] for e in self.q.events(j["id"])],["enqueued","claimed","failed","claimed"])
  def test_paused_queue_refuses_claim_until_resume(self):
-  self.q.enqueue("render", {"topic": "held"})
+  self.q.enqueue("short_video_production", {"topic": "held"})
   self.q.pause("operator investigation")
   self.assertIsNone(self.q.claim("worker-a"))
   self.q.resume()
   self.assertIsNotNone(self.q.claim("worker-a"))
+ def test_production_pause_does_not_block_other_queue_types(self):
+  self.q.enqueue("render", {"topic":"other"})
+  self.q.pause("production only")
+  claimed=self.q.claim("worker-other",job_type="render")
+  self.assertEqual(claimed["job_type"],"render")
  def test_pause_revokes_every_in_flight_lease(self):
-  job=self.q.enqueue("render", {"topic":"active"})
+  job=self.q.enqueue("short_video_production", {"topic":"active"})
   claimed=self.q.claim("worker-active")
   self.assertEqual(claimed["id"],job["id"])
   self.q.pause("another worker failed", "job-other")
