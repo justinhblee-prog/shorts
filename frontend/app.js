@@ -78,6 +78,10 @@
       const qualityLabels={blocked:"품질 게이트 차단",review_required:"사람 확인 필요",ready_for_human_review:"메타데이터 검사 통과 · 사람 승인 필요"};
       const mediaCheck=quality.media_inspection||{};
       const signalCheck=mediaCheck.signal_analysis||{};
+      const speechCheck=quality.speech_alignment||{};
+      const speechSummary=speechCheck.status
+        ? '<p>음성-대본 대조: '+esc(speechCheck.status)+' · '+(speechCheck.match_rate===null||speechCheck.match_rate===undefined?'유사도 산출 불가':esc((Number(speechCheck.match_rate)*100).toFixed(1))+'% 일치 추정')+' · ASR '+esc(speechCheck.provider||"미설정")+'</p>'
+        : '';
       const originalityCheck=quality.originality_check||{};
       const similarScripts=Array.isArray(originalityCheck.similar_matches)?originalityCheck.similar_matches:[];
       const originalitySummary=similarScripts.length
@@ -90,6 +94,7 @@
       const qualitySummary=qualityArtifact
         ? '<section class="review-policy"><strong>자동 제작 품질 검사 · '+esc(qualityLabels[quality.status]||quality.status)+'</strong>'
           +mediaSummary
+          +speechSummary
           +originalitySummary
           +(qualityBlocks.length?'<p>차단 사유: '+qualityBlocks.map(esc).join(', ')+'</p>':'')
           +(qualityWarnings.length?'<p>확인 경고: '+qualityWarnings.map(esc).join(', ')+'</p>':'')
