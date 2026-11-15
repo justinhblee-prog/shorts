@@ -8,6 +8,17 @@ class QueueTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.q=JobQueue(Path(self.tmp.name)/"test.db",10)
  def tearDown(self): self.tmp.cleanup()
+ def test_graceful_worker_shutdown_is_persisted_as_offline_not_stale(self):
+  self.q.register_worker("worker-clean","host-a")
+  self.assertTrue(self.q.mark_worker_offline("worker-clean"))
+  self.assertEqual(self.q.workers()[0]["status"],"offline")
+  health=self.q.operational_health()
+  self.assertEqual(health["workers"]["total"],1)
+  self.assertEqual(health["workers"]["online"],0)
+  self.assertEqual(health["workers"]["stale"],0)
+  self.assertEqual(health["status"],"healthy")
+  self.assertFalse(self.q.mark_worker_offline("missing-worker"))
+
  def test_operational_health_reports_worker_staleness_without_mutation(self):
   job=self.q.enqueue("render",{})
   claimed=self.q.claim("worker-stale")
