@@ -383,21 +383,38 @@ def get_lifecycle_queue(
     items=[]
     risk_counts={"blocked":0,"attention_required":0,"consistent":0,"missing_production":0}
     production_status_counts={}
+    summaries=queue.lifecycle_summaries([job["id"] for job in page["items"]])
     for job in page["items"]:
         job_id=job["id"]
-        production=production_store.get(job_id)
-        if production is None:
+        snapshot=summaries.get(job_id)
+        if snapshot is None or snapshot.get("production_status") is None:
+            production=None
             consistency={"status":"blocked","findings":[{
                 "code":"production_record_missing","severity":"blocker",
                 "message":"Durable production record is missing","stage":"production",
             }]}
             latest=None
         else:
-            decisions=review_store.history(job_id)
-            latest=decisions[-1] if decisions else None
+            production={
+                "status":snapshot.get("production_status"),
+                "current_stage":snapshot.get("current_stage"),
+                "brand":snapshot.get("brand"),"topic":snapshot.get("topic"),
+            }
+            latest={"decision":snapshot.get("latest_review_decision")} if snapshot.get("latest_review_decision") else None
+            youtube={
+                "status":snapshot.get("youtube_status"),
+                "attempt_id":snapshot.get("youtube_attempt_id"),
+                "video_id":snapshot.get("youtube_video_id"),
+                "events":snapshot.get("youtube_events") or [],
+            }
+            tiktok={
+                "status":snapshot.get("tiktok_status"),
+                "attempt_id":snapshot.get("tiktok_attempt_id"),
+                "video_id":snapshot.get("tiktok_video_id"),
+                "events":snapshot.get("tiktok_events") or [],
+            }
             consistency=inspect_lifecycle_consistency(
-                job,production,{"latest":latest},
-                youtube_upload_store.get(job_id),tiktok_publish_store.get(job_id),
+                job,production,{"latest":latest},youtube,tiktok,
             )
         risk=consistency["status"]
         risk_counts[risk]=risk_counts.get(risk,0)+1
