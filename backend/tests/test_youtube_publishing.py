@@ -226,6 +226,24 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(current["video_id"],"yt-video-123")
         self.assertEqual(current["events"][-1]["resulting_status"],"uploaded")
 
+    def test_same_attempt_error_after_confirmation_is_audited_without_downgrade(self):
+        uploaded=self.publisher.upload_approved(
+            "job-1",self.media,self.review,"Confirmed short"
+        )
+        attempt_id=uploaded["attempt_id"]
+        self.uploads.mark_reconciliation_required(
+            "job-1","post-confirmation database read failed",attempt_id
+        )
+        current=self.uploads.get("job-1")
+        self.assertEqual(current["status"],"uploaded")
+        self.assertEqual(current["video_id"],"yt-video-123")
+        event=current["events"][-1]
+        self.assertEqual(event["event_type"],"upload_error_after_confirmation")
+        self.assertEqual(event["outcome"],"ignored")
+        self.assertEqual(event["attempt_id"],attempt_id)
+        self.assertEqual(event["previous_status"],"uploaded")
+        self.assertEqual(event["resulting_status"],"uploaded")
+
     def test_upload_is_idempotent_after_success(self):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         second=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
