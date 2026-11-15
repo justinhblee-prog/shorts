@@ -154,7 +154,7 @@ The endpoint requires the operator token, an explicit confirmation flag and a no
 
 - A provider failure, lease conflict, heartbeat/database failure, or unexpected worker exception now persists a short-video production queue pause. Every claim path excludes `short_video_production` jobs while the pause is active, including generic claims and concurrent worker processes.
 - The pause reason, affected job ID and timestamp survive worker/container restarts. Docker's `restart: unless-stopped` policy cannot silently resume queue consumption.
-- On pause, every currently running `short_video_production` job is fenced and moved to `failed_terminal` with a `worker_paused` event; this prevents stale workers from writing after the stop. Queued jobs remain untouched, and unrelated queue job types are not paused. A known retryable provider failure is recorded before the pause and remains `failed_retriable`, but it cannot be dispatched until resume.
+- On pause, every currently running `short_video_production` job is fenced and moved to `failed_terminal` with a `worker_paused` event; the matching `production_runs` row is synchronized in the same SQLite transaction. This prevents stale workers from writing after the stop. Queued jobs remain untouched, and unrelated queue job types are not paused. A known retryable provider failure is recorded before the pause and remains `failed_retriable`, but it cannot be dispatched until resume.
 - Inspect the durable pause before resuming:
 
 ```bash
