@@ -263,6 +263,8 @@ class ProductionPipeline:
 
     @staticmethod
     def validate_brief(brief):
+        if not isinstance(brief, dict):
+            raise ValueError("production brief must be an object")
         required = ("brand", "region", "language", "topic")
         for key in required:
             if not isinstance(brief.get(key), str) or not brief[key].strip():
