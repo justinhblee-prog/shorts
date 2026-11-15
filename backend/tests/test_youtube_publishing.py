@@ -150,6 +150,27 @@ class YouTubePublishingTests(unittest.TestCase):
                 "job-1","not_uploaded",None,"Premature operator check"
             )
 
+    def test_stale_upload_is_exposed_for_manual_reconciliation(self):
+        previous=os.environ.get("NEXUS_UPLOAD_STALE_SECONDS")
+        os.environ["NEXUS_UPLOAD_STALE_SECONDS"]="60"
+        try:
+            self.uploads.begin("job-1","Sleep short","")
+            with self.uploads.db() as connection:
+                connection.execute(
+                    "UPDATE youtube_uploads SET updated_at=? WHERE job_id=?",
+                    ("2020-01-01T00:00:00+00:00","job-1")
+                )
+            self.assertTrue(self.uploads.get("job-1")["reconciliation_required"])
+            resolved=self.uploads.reconcile(
+                "job-1","not_uploaded",None,"Verified no matching video in channel"
+            )
+            self.assertEqual(resolved["status"],"failed")
+        finally:
+            if previous is None:
+                os.environ.pop("NEXUS_UPLOAD_STALE_SECONDS",None)
+            else:
+                os.environ["NEXUS_UPLOAD_STALE_SECONDS"]=previous
+
     def test_path_outside_media_root_rejected(self):
         outside=os.path.join(self.tmp.name,"..","outside.mp4")
         with self.assertRaises(YouTubeUploadError):
