@@ -8,6 +8,45 @@ class QueueTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.q=JobQueue(Path(self.tmp.name)/"test.db",10)
  def tearDown(self): self.tmp.cleanup()
+ def test_operational_health_reports_worker_staleness_without_mutation(self):
+  job=self.q.enqueue("render",{})
+  claimed=self.q.claim("worker-stale")
+  with self.q.db() as c:
+   c.execute("UPDATE worker_registry SET last_seen_at='2000-01-01T00:00:00+00:00' WHERE worker_id='worker-stale'")
+  before=self.q.get(job["id"])
+  result=self.q.operational_health()
+  after=self.q.get(job["id"])
+  self.assertEqual(result["status"],"attention_required")
+  self.assertEqual(result["workers"]["stale"],1)
+  self.assertEqual(result["leases"]["expired_running"],0)
+  self.assertEqual(before["status"],after["status"])
+  self.assertTrue(result["read_only"])
+  self.assertEqual(result["actions_taken"],[])
+
+ def test_operational_health_detects_expired_and_incomplete_running_leases(self):
+  first=self.q.enqueue("render",{})
+  self.q.claim("worker-expired")
+  second=self.q.enqueue("render",{})
+  self.q.claim("worker-incomplete")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(first["id"],))
+   c.execute("UPDATE pipeline_jobs SET worker_id=NULL,lease_token=NULL,lease_expires_at=NULL WHERE id=?",(second["id"],))
+  result=self.q.operational_health()
+  self.assertEqual(result["status"],"blocked")
+  self.assertEqual(result["leases"]["expired_running"],1)
+  self.assertEqual(result["leases"]["running_missing_ownership"],1)
+  self.assertEqual({x["code"] for x in result["blockers"]},
+                   {"worker_lease_expired","worker_lease_incomplete"})
+  self.assertEqual(self.q.get(first["id"])["status"],"running")
+
+ def test_operational_health_reports_operator_pause_as_blocker(self):
+  self.q.pause("manual safety stop")
+  result=self.q.operational_health()
+  self.assertEqual(result["status"],"blocked")
+  self.assertTrue(result["queue"]["paused"])
+  self.assertEqual(result["control"]["pause_reason"],"manual safety stop")
+  self.assertEqual(result["blockers"][0]["code"],"production_queue_paused")
+
  def test_idempotency(self):
   a=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
   b=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
