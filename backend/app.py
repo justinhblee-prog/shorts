@@ -16,6 +16,7 @@ from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_r
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
+from recommendation_evaluation import RecommendationEvaluationStore
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
@@ -35,6 +36,7 @@ youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sq
 youtube_publisher=YouTubePublisher(youtube_upload_store)
 ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
 
@@ -194,7 +196,11 @@ def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(de
             "risk_level": profile.get("risk_level", "standard"),
             "review_rules": profile.get("review_rules", []),
         }
-        return submit_production(queue,production_store,brief)
+        submitted=submit_production(queue,production_store,brief)
+        recommendation_evaluation_store.link_production(
+            trend_id,brand["slug"],submitted["job"]["id"]
+        )
+        return submitted
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
     except ValueError as e:
@@ -672,12 +678,22 @@ def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|N
         performance_videos=performance.get("videos",[]),
         performance_cohorts=performance.get("cohorts",[])
     )
+    exposure=recommendation_evaluation_store.record_run(region,ranked)
     return {
         "items":ranked,
         "count":len(ranked),
+        "evaluation_run_id":exposure["run_id"],
+        "evaluation_candidates_recorded":exposure["recorded_candidates"],
         "method":"100-point editorial score: freshness (0-40), editorial brand fit (0-40), source provenance completeness (0-10), and topic distinctiveness (0-10). Brand/topic-matched historical performance cohorts are displayed separately and are not scored.",
         "warning":"Editorial recommendation score only. Brand/region/topic-matched cohort evidence is contextual, may be sparse, and does not alter ranking until held-out validation demonstrates stable improvement. This is not a profitability forecast, search-volume estimate, or automatic production approval."
     }
+
+@app.get("/api/recommendations/evaluation")
+def recommendation_evaluation(x_review_token:str|None=Header(default=None)):
+    """Report chronological holdout diagnostics for selected recommendation outcomes."""
+    require_review_access(x_review_token)
+    return recommendation_evaluation_store.evaluate(performance_analyzer.analyze())
+
 
 @app.get("/api/opportunities")
 def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None)):
