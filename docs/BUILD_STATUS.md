@@ -1062,3 +1062,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions passed **330 tests** at commit `670344a`.
 - One intermediate CI failure was caused by stale frontend assertions expecting the old queue-only label; assertions were updated to the unified timeline and the latest run is green.
 - Read-only audit visibility only: no automatic retry, publishing, approval, or recommendation-ranking behavior changed. No live platform integration was exercised.
+
+
+### BUILD-00042 — TikTok terminal-state race protection (2026-11-15)
+
+- Fixed a concurrent polling race: a slow TikTok status request that times out after another poll has already confirmed `PUBLISH_COMPLETE`, `FAILED`, or `SEND_TO_USER_INBOX` can no longer overwrite the terminal publication state with `reconciliation_required`.
+- Late errors after a terminal result are preserved as informational `post_terminal_poll_error` audit events; they do not alter the terminal record or its scheduler freshness timestamp.
+- The periodic status-poll error recorder now applies the same terminal-state guard and no longer labels a post-terminal error as a scheduled retry.
+- Added regressions for completed publication and inbox handoff, including late transport and scheduler poll errors.
+- GitHub Actions passed **331 tests** at code commit `6e44c4b`.
+- The earlier intermediate failing run exposed a test-fixture issue (multiple terminal outcomes attempted on one already-terminal job); the test was isolated per outcome and the final run passed.
+- No automatic republishing/retry was introduced; ambiguous non-terminal outcomes still require reconciliation.
