@@ -261,10 +261,11 @@ class TikTokPublishStore:
 
 
 class TikTokPublisher:
-    def __init__(self, store, access_token=None, transport=None):
+    def __init__(self, store, access_token=None, transport=None, token_provider=None):
         self.store = store
         self.access_token = access_token
         self.transport = transport or self._request
+        self.token_provider = token_provider
 
     @staticmethod
     def _request(url, headers, body, timeout, method="POST"):
@@ -278,9 +279,14 @@ class TikTokPublisher:
             raise TikTokPublishError("TikTok network request failed: " + type(exc).__name__) from exc
 
     def _token(self):
-        token = self.access_token or os.getenv("TIKTOK_ACCESS_TOKEN")
+        token = self.access_token
+        if not token and self.token_provider:
+            token = self.token_provider()
+        token = token or os.getenv("TIKTOK_ACCESS_TOKEN")
         if not token:
-            raise TikTokPublishError("TIKTOK_ACCESS_TOKEN is not configured")
+            raise TikTokPublishError(
+                "TikTok account is not connected; complete OAuth or configure TIKTOK_ACCESS_TOKEN"
+            )
         return token
 
     def creator_info(self):
