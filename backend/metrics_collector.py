@@ -101,13 +101,15 @@ def main():
         INTERVAL, MIN_AGE, BATCH_SIZE
     )
     while True:
-        try:
-            run_once()
-            run_tiktok_once()
-        except Exception:
-            # A provider/auth failure is visible in logs and retried next interval;
-            # it never fabricates metrics or blocks production/review jobs.
-            logger.exception("metrics_collection_failed")
+        # Keep provider failures isolated: a YouTube outage must not suppress
+        # TikTok collection, and vice versa.
+        for provider_name, collector_run in (
+            ("youtube", run_once), ("tiktok", run_tiktok_once)
+        ):
+            try:
+                collector_run()
+            except Exception:
+                logger.exception("%s_metrics_collection_failed", provider_name)
         time.sleep(INTERVAL)
 
 
