@@ -86,7 +86,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 ## Validation — current truth
 
 - Baseline main commit `dc98712` reports a successful 245-test CI run in its commit record.
-- YouTube disclosure branch `291d32b`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685350286 completed successfully; `./scripts/validate.sh` ran **251 tests**, all passed.
+- YouTube disclosure branch `291d32b`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685350286 completed successfully; `./scripts/validate.sh` ran **252 tests**, all passed.
 - Earlier disclosure commits failed two fixture assertions after the new explicit realism classification was introduced. Those fixtures were corrected; the latest branch run above is green.
 - TikTok adapter branch `6e80f7c`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685373875 completed successfully; `./scripts/validate.sh` ran **248 tests**, all passed.
 - These are branch CI results. PR #34 and PR #35 remain draft and have not been merged to main.
@@ -101,7 +101,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - TikTok Direct Post documents `is_aigc`; an isolated fail-closed mapping helper and tests are in PR #35. The TikTok publisher client is not yet implemented.
 - The platform policy matrix distinguishes YouTube's realistic A/S disclosure from TikTok's AI-generated label.
 - Human approval remains mandatory; YouTube uploads remain private. Public automatic publishing remains disabled.
-- CI evidence: YouTube branch 251 tests passed; TikTok adapter branch 248 tests passed.
+- CI evidence: YouTube branch 252 tests passed; TikTok adapter branch 248 tests passed.
 - Live channel authorization, OAuth, actual API upload and label verification remain pending.
 
 ## Remaining blockers before a real revenue-producing launch
