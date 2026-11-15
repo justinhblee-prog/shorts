@@ -8,6 +8,19 @@ from app import trend_recommendations
 
 
 class TrendRecommendationApiTests(unittest.TestCase):
+    def test_holdout_evaluation_endpoint_is_review_protected_and_delegates_report(self):
+        route = next(r for r in app_module.app.routes
+                     if getattr(r, "path", None) == "/api/recommendations/evaluation")
+        self.assertIn("x_review_token", route.endpoint.__annotations__)
+        expected = {"status": "insufficient_data", "ranking_score_adjustment_enabled": False}
+        with (mock.patch("app.require_review_access"),
+              mock.patch("app.recommendation_evaluation_store.evaluate",
+                         return_value=expected) as evaluate,
+              mock.patch("app.performance_analyzer.analyze", return_value={"videos": []})):
+            result = app_module.recommendation_evaluation(x_review_token="valid")
+        self.assertEqual(result, expected)
+        evaluate.assert_called_once_with({"videos": []})
+
     def test_endpoint_requires_review_token_and_returns_explained_editorial_rank(self):
         route = next(r for r in app_module.app.routes
                      if getattr(r, "path", None) == "/api/trends/recommendations")
