@@ -144,6 +144,88 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(quality["metadata"]["status"], "ready_for_human_review")
         self.assertEqual(result["status"], "rendered")
 
+    def test_pipeline_inspects_actual_staged_media_before_review_handoff(self):
+        class FakeStager:
+            def __init__(self, folder):
+                self.media_dir = Path(folder)
+            def stage(self, job_id, url):
+                path = self.media_dir / "staged.mp4"
+                path.write_bytes(b"verified fixture")
+                return {"media_path": "staged.mp4", "size_bytes": 15}
+        class FakeInspector:
+            def inspect(self, path):
+                self.assert_exists = Path(path).is_file()
+                return {
+                    "status": "inspected", "inspection_method": "ffprobe_file_bytes",
+                    "duration_seconds": 30, "width": 1080, "height": 1920,
+                    "aspect_ratio": 0.5625, "audio_track_present": True,
+                    "video_codec": "h264", "audio_codec": "aac",
+                    "subtitle_stream_present": True,
+                    "subtitle_note": "Subtitle stream detected.",
+                }
+        script = FakeProvider({
+            "script": "A clear opening explains the problem. Evidence supports the claim. "
+                      "The ending gives viewers a useful next step with a concise summary.",
+            "factual_claims_verified": True,
+        })
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3",
+                              "duration_seconds": 30})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4",
+                               "duration_seconds": 30, "aspect_ratio": "9:16",
+                               "audio_track_present": True, "subtitles_enabled": True})
+        pipeline = ProductionPipeline(
+            self.store, script, voice, render,
+            media_stager=FakeStager(self.tmp.name), media_inspector=FakeInspector(),
+        )
+        self.store.create("job-byte-inspected", self.brief)
+        result = pipeline.execute("job-byte-inspected", self.brief)
+        quality = next(a["metadata"] for a in result["artifacts"]
+                       if a["stage"] == "quality_check")
+        self.assertEqual(quality["status"], "ready_for_human_review")
+        self.assertEqual(quality["media_inspection"]["inspection_method"],
+                         "ffprobe_file_bytes")
+        self.assertTrue(quality["checks"][-1]["status"] == "inspected")
+        video = next(a for a in result["artifacts"] if a["stage"] == "rendering")
+        self.assertEqual(video["metadata"]["media_staging"]["media_path"], "staged.mp4")
+
+    def test_pipeline_blocks_actual_nonvertical_or_silent_media_even_if_provider_claims_good(self):
+        class FakeStager:
+            def __init__(self, folder):
+                self.media_dir = Path(folder)
+            def stage(self, job_id, url):
+                path = self.media_dir / "bad.mp4"
+                path.write_bytes(b"untrusted fixture")
+                return {"media_path": "bad.mp4", "size_bytes": 16}
+        class FakeInspector:
+            def inspect(self, path):
+                return {
+                    "status": "inspected", "inspection_method": "ffprobe_file_bytes",
+                    "duration_seconds": 30, "width": 1920, "height": 1080,
+                    "aspect_ratio": 1.77778, "audio_track_present": False,
+                    "video_codec": "h264", "audio_codec": None,
+                    "subtitle_stream_present": False,
+                }
+        script = FakeProvider({"script": "A clear opening explains the problem and gives viewers a useful takeaway."})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3",
+                              "duration_seconds": 30})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4",
+                               "duration_seconds": 30, "aspect_ratio": "9:16",
+                               "audio_track_present": True, "subtitles_enabled": True})
+        pipeline = ProductionPipeline(
+            self.store, script, voice, render,
+            media_stager=FakeStager(self.tmp.name), media_inspector=FakeInspector(),
+        )
+        self.store.create("job-actual-bad-media", self.brief)
+        with self.assertRaisesRegex(ProviderError, "quality gate blocked"):
+            pipeline.execute("job-actual-bad-media", self.brief)
+        result = self.store.get("job-actual-bad-media")
+        quality = next(a["metadata"] for a in result["artifacts"]
+                       if a["stage"] == "quality_check")
+        self.assertEqual(quality["status"], "blocked")
+        self.assertIn("actual_media_dimensions_are_not_vertical_9_16",
+                      quality["blockers"])
+        self.assertIn("actual_media_contains_no_audio_track", quality["blockers"])
+
     def test_brand_profile_is_applied_to_script_voice_and_render_provider_payloads(self):
         profile = {
             "positioning": "Evidence-led AI explainers",
