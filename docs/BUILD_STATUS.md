@@ -823,3 +823,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - This is not a copyright check, plagiarism verdict, reused-content policy determination, or guarantee of monetization eligibility.
 - No generated script is automatically published; human review and approval remain required.
 - Validation pending on this branch.
+
+
+### BUILD-00017 — independent narration transcription and script alignment (2026-11-15)
+
+- Added `backend/speech_alignment.py` to compare a normalized ASR transcript with the exact generated script using token-level Levenshtein distance and word error rate (WER).
+- When `TRANSCRIPTION_PROVIDER_URL` is explicitly configured, the pipeline sends the generated audio URL and language to that provider for verbatim transcription before rendering.
+- Stores a `speech_alignment` report artifact and adds the result to the production quality report and human review UI.
+- WER above 0.25 is a reviewer warning, not an automatic rejection. Short transcripts are marked insufficient rather than falsely passing.
+- If no ASR provider is configured, quality reports explicitly include `speech_transcription_not_configured`.
+- Configuration is opt-in through `.env`; the audio URL is shared with the configured transcription provider. No ASR provider is called by default.
+- This validates approximate spoken narration/script alignment only. It does not verify burned-in subtitles, subtitle timing, factual correctness, pronunciation quality, voice identity consent, or platform policy compliance.
+- CI validation pending on this branch.
