@@ -123,7 +123,7 @@
   $("opportunityForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
     const num=id=>Number($(id).value);
-    const body={title:$("oppTitle").value,currency:"USD",forecast_source:$("forecastSource").value,forecast_views_low:num("viewsLow"),forecast_views_high:num("viewsHigh"),rpm_low:num("rpmLow"),rpm_high:num("rpmHigh"),cost_low:num("costLow"),cost_high:num("costHigh"),monetization_eligible:$("monetizationEligible").checked};
+    const body={title:$("oppTitle").value,currency:$("oppCurrency").value,forecast_source:$("forecastSource").value,forecast_views_low:num("viewsLow"),forecast_views_high:num("viewsHigh"),rpm_low:num("rpmLow"),rpm_high:num("rpmHigh"),cost_low:num("costLow"),cost_high:num("costHigh"),monetization_eligible:$("monetizationEligible").checked};
     try{const r=await api("/api/opportunities/score",{method:"POST",body:JSON.stringify(body)});msg("opportunityResult","우선순위 점수 "+r.priority_score+" / 100 · 예상치이며 실제 수익이 아닙니다.");}
     catch(err){msg("opportunityResult",err.message,true);}
   });
