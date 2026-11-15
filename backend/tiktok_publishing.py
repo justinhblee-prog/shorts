@@ -49,7 +49,7 @@ def _safe_api_error(response):
     return f"TikTok API error ({code or response.status_code}): {str(message or 'request failed')[:500]}"
 
 
-class TikTokOAuthError(RuntimeError):
+class TikTokOAuthError(TikTokPublishError):
     pass
 
 
@@ -295,7 +295,7 @@ class TikTokOAuthStore:
         now = datetime.now(timezone.utc).timestamp()
         return {
             "connected": True, "open_id": row["open_id"],
-            "display_name": row["display_name"], "scopes": row["scopes"].split(","),
+            "display_name": row["display_name"], "scopes": [scope.strip() for scope in row["scopes"].split(",") if scope.strip()],
             "access_token_expires_in": max(0, int(row["access_expires_at"] - now)),
             "refresh_token_expires_in": max(0, int(row["refresh_expires_at"] - now)),
             "updated_at": row["updated_at"],
