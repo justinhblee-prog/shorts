@@ -382,6 +382,16 @@ class TikTokPublishStore:
                   message[:1000], stamp, row["policy_version"]))
             return True
 
+    def list_recent(self, limit=100):
+        """Return bounded TikTok publication records with immutable event histories."""
+        limit = max(1, min(int(limit), 200))
+        with self.db() as c:
+            rows = c.execute(
+                "SELECT job_id FROM tiktok_publications ORDER BY updated_at DESC, job_id LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [item for row in rows if (item := self.get(row["job_id"])) is not None]
+
     def get(self, job_id):
         with self.db() as c:
             row = c.execute(
