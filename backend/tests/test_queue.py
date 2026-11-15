@@ -109,6 +109,16 @@ class QueueTests(unittest.TestCase):
    self.q.resume(actor="admin-7",note="")
   self.q.resume(actor="admin-7",note="Reviewed queue and provider state")
   self.assertEqual(self.q.worker_control_events()[0]["event_type"],"resumed")
+ def test_idle_worker_presence_refresh_and_stale_offline_detection(self):
+  first=self.q.register_worker("idle-worker","host-a")
+  self.assertEqual(first["status"],"online")
+  self.assertEqual(self.q.workers(stale_after_seconds=30)[0]["status"],"online")
+  with self.q.db() as c:
+   c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",
+             ("2000-01-01T00:00:00+00:00","idle-worker"))
+  self.assertEqual(self.q.workers(stale_after_seconds=30)[0]["status"],"offline")
+  self.q.register_worker("idle-worker","host-a")
+  self.assertEqual(self.q.workers(stale_after_seconds=30)[0]["status"],"online")
  def test_worker_pause_persists_until_explicit_resume(self):
   self.q.pause("provider outcome uncertain", "job-123")
   self.assertTrue(self.q.is_paused())
