@@ -106,6 +106,18 @@ class ScheduleStore:
                 (max(1, min(int(limit), 500)),)).fetchall()
             return [dict(row) for row in rows]
 
+
+    def outbox_status(self, limit=20):
+        with self.db() as c:
+            counts = {row["status"]: row["n"] for row in c.execute(
+                "SELECT status,COUNT(*) n FROM schedule_dispatch_outbox GROUP BY status")}
+            rows = c.execute("""SELECT id,schedule_id,scheduled_for,status,attempts,
+                last_error,created_at FROM schedule_dispatch_outbox
+                ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END,
+                created_at DESC LIMIT ?""", (max(1, min(int(limit), 100)),)).fetchall()
+            return {"counts": counts, "items": [dict(row) for row in rows],
+                    "pending_retries": counts.get("pending", 0)}
+
     def dispatch_due(self, queue, now=None, limit=20):
         current = now or datetime.now(timezone.utc)
         if current.tzinfo is None:
