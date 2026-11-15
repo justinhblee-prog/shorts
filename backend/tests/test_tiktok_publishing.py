@@ -198,6 +198,33 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(result["status"], "publish_complete")
         self.assertEqual(result["video_id"], "123456789")
 
+    def test_late_processing_status_cannot_downgrade_published_result(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True,
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        complete = self.store.mark_status(
+            "job-1", attempt_id, "PUBLISH_COMPLETE", ["123456789"], None
+        )
+        self.assertEqual(complete["status"], "publish_complete")
+        stale = self.store.mark_status(
+            "job-1", attempt_id, "PROCESSING_UPLOAD", [], None
+        )
+        self.assertEqual(stale["status"], "publish_complete")
+        self.assertEqual(stale["video_id"], "123456789")
+
+    def test_status_fetch_rejects_malformed_nested_data(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True,
+        )
+        self.transport.responses.append((200, {
+            "data": ["unexpected"], "error": {"code": "ok"}
+        }))
+        with self.assertRaisesRegex(TikTokPublishError, "unexpected shape"):
+            self.publisher.refresh_status("job-1")
+
     def test_scheduler_poll_refreshes_pending_status_and_stops_after_completion(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
