@@ -15,9 +15,19 @@ class QueueTests(unittest.TestCase):
   self.assertFalse(self.q.mark_worker_offline("worker-reused","instance-old"))
   row=self.q.workers()[0]
   self.assertEqual(row["status"],"online")
-  self.assertEqual(row["instance_token"],"instance-new")
+  self.assertNotIn("instance_token",row)
+  with self.q.db() as c:
+   self.assertEqual(c.execute("SELECT instance_token FROM worker_registry WHERE worker_id=?",("worker-reused",)).fetchone()[0],"instance-new")
   self.assertTrue(self.q.mark_worker_offline("worker-reused","instance-new"))
   self.assertEqual(self.q.workers()[0]["status"],"offline")
+
+ def test_stale_worker_instance_cannot_heartbeat_after_restart(self):
+  job=self.q.enqueue("render",{})
+  claimed=self.q.claim("worker-reused",instance_token="instance-old")
+  self.q.register_worker("worker-reused","host-b","instance-new")
+  with self.assertRaises(LeaseConflict):
+   self.q.heartbeat(job["id"],"worker-reused",claimed["lease_token"],"instance-old")
+  self.assertEqual(self.q.get(job["id"])["lease_expires_at"],claimed["lease_expires_at"])
 
  def test_graceful_worker_shutdown_is_persisted_as_offline_not_stale(self):
   self.q.register_worker("worker-clean","host-a")
