@@ -204,7 +204,7 @@ class ProductionStore:
         with self.db() as c:
             if worker_id is not None or lease_token is not None:
                 c.execute("BEGIN IMMEDIATE")
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, instance_token)
             c.execute("""INSERT INTO production_artifacts
               (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
               VALUES(?,?,?,?,?,?,?)
