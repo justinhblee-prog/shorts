@@ -22,7 +22,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
                  operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview, metrics_collection_status,
                  capture_recommendation_evaluation_snapshot, list_recommendation_evaluation_snapshots,
-                 require_canonical_staged_media)
+                 require_canonical_staged_media, stage_production_media)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -38,6 +38,28 @@ class ApiSecurityTests(unittest.TestCase):
                 with self.assertRaises(HTTPException) as caught:
                     require_canonical_staged_media("job-1","other-job.mp4")
                 self.assertEqual(caught.exception.status_code,409)
+
+    def test_stage_media_refreshes_existing_job_file_from_current_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            existing=root/"job-1.mp4"
+            existing.write_bytes(b"stale-render")
+            stager=SimpleNamespace(
+                media_dir=root,
+                staged_path=lambda job_id:root/(job_id+".mp4"),
+                stage=mock.Mock(return_value={"media_path":"job-1.mp4","size_bytes":12}),
+            )
+            production={"status":"approved","artifacts":[{
+                "artifact_type":"video","artifact_url":"https://cdn.example/current.mp4"
+            }]}
+            with mock.patch("app.require_review_access"), \
+                 mock.patch.object(app_module,"media_stager",stager), \
+                 mock.patch.object(app_module.production_store,"get",return_value=production):
+                result=stage_production_media("job-1",x_review_token="test-token")
+            stager.stage.assert_called_once_with(
+                "job-1","https://cdn.example/current.mp4"
+            )
+            self.assertEqual(result["media_path"],"job-1.mp4")
 
     def test_canonical_staged_media_rejects_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
