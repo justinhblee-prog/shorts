@@ -761,3 +761,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added ffmpeg/ffprobe to the production Docker image. The manual stage-media endpoint reuses the already-staged file.
 - **Configuration:** set `RENDER_ARTIFACT_HOSTS` to the exact comma-separated renderer artifact hostnames in `.env`. If unset, the pipeline deliberately remains in `review_required` with `actual_media_bytes_not_inspected`; it does not claim byte-level QA.
 - **Verification boundary:** ffprobe does not prove visual quality, subtitle legibility/correctness (especially burned-in captions), source facts, copyright/music rights, consent, platform compliance, or monetization eligibility. Human review remains mandatory. The tests use mocked ffprobe output and fake staged media; no real renderer artifact has yet been inspected.
+
+
+### BUILD-00015 — black-frame and audio-silence signal checks (2026-11-15)
+
+- Extended ffmpeg inspection to scan the full staged video stream with `blackdetect` and the audio stream with `silencedetect`.
+- Reports black segments and low-volume silence segments, with warnings for extended black frames, extended silence, and long silence at the beginning/end.
+- These are review warnings, not automatic blockers: dark scenes and pauses can be intentional. They are not semantic visual QA, speech recognition, loudness normalization, copyright/music detection, or subtitle correctness checks.
+- The human review UI shows actual dimensions, duration, codecs, subtitle stream presence, and black/silence segment counts.
+- Analysis uses bounded execution time and a local-file-only protocol whitelist. No media is uploaded to a third-party inspection service.
+- Validation pending on this branch; the prior BUILD-00014 baseline passed 210 tests before this extension.
