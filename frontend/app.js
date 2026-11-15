@@ -190,7 +190,7 @@
       )).map(x=>{
           const decision=x.human_decision?.decision;
           const suffix=decision==="skipped"?" · 이전 제외":(decision==="selected"?" · 기획 등록":"");
-          return '<option value="'+esc(x.brand)+'">'+esc(x.brand_name+suffix)+'</option>';
+          return '<option value="'+esc(x.brand)+'" data-candidate-id="'+esc(x.evaluation_candidate_id||"")+'">'+esc(x.brand_name+suffix)+'</option>';
         }).join("");
       const controls=trend.id&&options
         ? '<div class="trend-actions"><select aria-label="추천 제작 브랜드" data-recommend-brand="'+esc(trend.id)+'">'+options+'</select><button type="button" class="button button-secondary" data-recommend-draft="'+esc(trend.id)+'" data-recommend-language="'+language+'">추천 브랜드로 기획</button><button type="button" class="button button-quiet" data-recommend-skip="'+esc(trend.id)+'">이번 후보 제외</button></div>'
@@ -356,6 +356,9 @@
       if(!requireToken())return;
       const selector=skipButton.parentElement.querySelector("select[data-recommend-brand]");
       if(!selector)return;
+      const selectedOption=selector.selectedOptions[0];
+      const candidateId=selectedOption?.dataset.candidateId;
+      if(!candidateId){toast("현재 노출된 추천 후보 ID가 없습니다. 추천 목록을 새로고침하세요.");return;}
       const reason=prompt("이 추천 브랜드/주제를 제외하는 이유를 기록하세요.","브랜드 적합도 또는 중복 이슈");
       if(reason===null)return;
       skipButton.disabled=true;
@@ -365,6 +368,7 @@
           body:JSON.stringify({
             trend_id:skipButton.dataset.recommendSkip,
             brand_slug:selector.value,
+            recommendation_candidate_id:candidateId,
             reviewer_id:reviewer||"operator",
             reason
           })
@@ -380,10 +384,17 @@
     if(!requireToken())return;
     const selector=button.parentElement.querySelector("select[data-recommend-brand]");
     if(!selector)return;
+    const selectedOption=selector.selectedOptions[0];
+    const candidateId=selectedOption?.dataset.candidateId;
+    if(!candidateId){toast("현재 노출된 추천 후보 ID가 없습니다. 추천 목록을 새로고침하세요.");return;}
     button.disabled=true;
     try{
       const result=await api("/api/trends/"+encodeURIComponent(button.dataset.recommendDraft)+"/draft-production",{
-        method:"POST",body:JSON.stringify({brand:selector.value,language:button.dataset.recommendLanguage})
+        method:"POST",body:JSON.stringify({
+          brand:selector.value,
+          language:button.dataset.recommendLanguage,
+          recommendation_candidate_id:candidateId
+        })
       });
       toast("추천 후보 제작 기획 등록 완료 · "+result.job.id);
       await Promise.all([loadMetrics(),loadTrendRecommendations()]);
