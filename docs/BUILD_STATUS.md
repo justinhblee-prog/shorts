@@ -38,7 +38,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00009 | Revenue, cost and ROI analytics | Source-referenced financial ledger and separate revenue/cost reports committed; provider reconciliation pending |
 | BUILD-00010 | AI performance analysis and strategy updates | Source implementation expanded: brand/region/video evidence, measurement coverage, reset detection and currency-safe financial grouping; runtime validation pending |
 | BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
-| BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
+| BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |\n| BUILD-00023 | Platform AI disclosure enforcement | YouTube API disclosure mapping implemented and branch CI passed; TikTok adapter isolated in PR #35; live platform authorization/publish validation pending |
 
 ## BUILD-00001 — durable queue and Worker Lease
 
@@ -80,18 +80,32 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - SQLite persistence and API: POST `/api/opportunities/score`; GET `/api/opportunities`.
 - Unit tests committed; runtime validation pending.
 
-- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.\n\n## Validation — current truth
+- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.
 
-- Code and tests are committed to the private repository main branch.
-- Latest observed GitHub Actions run before this documentation update: https://github.com/justinhblee-prog/shorts/actions/runs/43654662581
-- Latest inspected job metadata reported `runner_id=0`, empty runner name, and `steps=[]`; the job failed before checkout or dependency installation. This is an environment/runner initialization failure, not evidence of a Python test failure.
-- The suite has not passed or failed on code behavior; it has not executed in a real Python runtime.
-- No production worker, PostgreSQL, external AI generation, OAuth, rendering or YouTube publishing has been validated.
+## Validation — current truth
+
+- Baseline main commit `dc98712` reports a successful 245-test CI run in its commit record.
+- YouTube disclosure branch `291d32b`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685350286 completed successfully; `./scripts/validate.sh` ran **251 tests**, all passed.
+- Earlier disclosure commits failed two fixture assertions after the new explicit realism classification was introduced. Those fixtures were corrected; the latest branch run above is green.
+- TikTok adapter branch `6e80f7c`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685373875 completed successfully; `./scripts/validate.sh` ran **248 tests**, all passed.
+- These are branch CI results. PR #34 and PR #35 remain draft and have not been merged to main.
+- No production worker, PostgreSQL, external AI generation, OAuth, rendering or live YouTube/TikTok publishing has been validated.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
+
+## BUILD-00023 — platform AI-generated and synthetic-media disclosure
+
+- YouTube Data API v3 `videos.insert` supports `status.containsSyntheticMedia`; the upload adapter now sends this field alongside the existing private-only status.
+- Policy preflight preserves the explicit YouTube realism classification. For generic AI-generated content, the classification must resolve to a boolean; realistic alteration forces true and non-realistic classes force false.
+- The upload is blocked before the remote API call if the current script artifact lacks a valid disclosure classification.
+- TikTok Direct Post documents `is_aigc`; an isolated fail-closed mapping helper and tests are in PR #35. The TikTok publisher client is not yet implemented.
+- The platform policy matrix distinguishes YouTube's realistic A/S disclosure from TikTok's AI-generated label.
+- Human approval remains mandatory; YouTube uploads remain private. Public automatic publishing remains disabled.
+- CI evidence: YouTube branch 251 tests passed; TikTok adapter branch 248 tests passed.
+- Live channel authorization, OAuth, actual API upload and label verification remain pending.
 
 ## Remaining blockers before a real revenue-producing launch
 
-1. **CI runner:** GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43656517188 failed before any step (`runner_id=0`, empty runner name, `steps=[]`). No Python test has executed. Resolve runner allocation or run `./scripts/validate.sh` in an authorized Python 3.11+ environment.
+1. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
 2. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
 3. **Media handoff:** current renderer output is a remote artifact URL, while YouTube upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
 4. **YouTube OAuth:** issue and configure a refresh token with `youtube.upload` and `youtube.readonly`; validate channel identity, quota, private upload and processing on a test channel.
