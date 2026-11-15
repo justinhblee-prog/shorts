@@ -70,6 +70,16 @@ class TikTokPublishingTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_missing_explicit_privacy_choice_is_blocked_before_network_request(self):
+        with self.assertRaisesRegex(TikTokPublishError, "explicitly select SELF_ONLY"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True,
+                brand_content_toggle=False,
+                brand_organic_toggle=False,
+            )
+        self.assertEqual(self.transport.calls, [])
+
     def test_video_exceeding_creator_duration_limit_is_blocked_before_init(self):
         self.transport.responses[0] = (200, {
             "data": {
