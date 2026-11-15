@@ -401,6 +401,8 @@
         if(!["none","ai_assisted_nonrealistic","ai_generated","realistic_alteration"].includes(synthetic.trim())) {
           toast("지원하지 않는 합성 미디어 유형입니다.");return;
         }
+        const hasCommercialRelationship=confirm("이 콘텐츠에 협찬·제휴·유료 파트너십 등 상업적 관계가 있습니까?");
+        const commercialRelationshipDisclosed=!hasCommercialRelationship||confirm("해당 상업적 관계를 영상과 설명에 명확히 표시했습니까?");
         const declarations={
           reviewer_id:reviewer,
           platforms:["youtube","tiktok"],
@@ -411,7 +413,7 @@
           },
           synthetic_media_status:synthetic.trim(),
           factual_claims_verified:confirm("대본의 사실·통계·인용 주장을 신뢰할 수 있는 자료로 검증했습니까?"),
-          commercial_relationship_disclosed:confirm("협찬·제휴·유료 파트너십 등 상업적 관계가 있다면 영상과 설명에 투명하게 표시했습니까? 해당 관계가 없다면 취소하지 말고 확인을 눌러 주세요."),
+          commercial_relationship_disclosed:commercialRelationshipDisclosed,
           originality_notes:prompt("이번 영상만의 독창적인 설명·분석·구성 차이를 기록하세요.","독창적 설명과 편집 구성을 검토함")||""
         };
         if(["ai_generated","realistic_alteration"].includes(declarations.synthetic_media_status)){
