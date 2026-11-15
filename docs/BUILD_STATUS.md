@@ -828,3 +828,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Linking a production job to its originating recommendation exposure is now idempotent: repeating the same job/run/trend/brand link returns the existing candidate.
 - A job already attributed to a different recommendation exposure is rejected with a stable conflict reason instead of raising a database uniqueness error or being reassigned.
 - GitHub Actions [run 43676956985](https://github.com/justinhblee-prog/shorts/actions/runs/43676956985) passed `sh scripts/validate.sh` on `deb635f37b85e6149413bd6e2e719e29efd4fee7`, including **230 backend tests**.
+
+
+### Staged media byte-level verification — implementation added 2026-11-15
+
+- Added `backend/media_inspection.py`, which invokes ffprobe against the actual staged MP4 bytes; provider-returned dimensions/duration are not used as proof.
+- Staging now fails closed unless ffprobe can read a video stream and audio stream, confirms vertical 9:16 dimensions, and measures a duration no longer than 180 seconds. The staged file is removed when inspection fails.
+- YouTube upload repeats the same inspection immediately before the remote upload to prevent a staged-file bypass.
+- The report records container, codecs, dimensions, duration, byte size and subtitle-stream presence. Burned-in subtitle readability remains a human visual-review requirement.
+- Docker image now installs FFmpeg/ffprobe. Local non-Docker deployments must install FFmpeg separately.
+- Regression tests cover unavailable ffprobe, unreadable/truncated media, empty/missing files, missing audio, wrong aspect ratio and invalid/overlong duration.
+- CI/runtime execution for this new change is pending; no real renderer artifact has yet been inspected in the deployed environment.

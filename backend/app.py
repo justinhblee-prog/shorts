@@ -20,6 +20,7 @@ from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
+from media_inspection import inspect_media_file, MediaInspectionError
 from preflight import build_preflight
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
@@ -420,10 +421,21 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
                 if item["artifact_type"]=="video" and item["artifact_url"]),None)
     if video is None:
         raise HTTPException(409,"Rendered video artifact is not available")
+    staged = None
     try:
-        return media_stager.stage(job_id,video["artifact_url"])
+        staged = media_stager.stage(job_id,video["artifact_url"])
+        media_path = media_stager.media_dir / staged["media_path"]
+        inspection = inspect_media_file(media_path)
+        return {**staged, "media_inspection": inspection}
     except MediaStagingError as e:
         raise HTTPException(502,str(e))
+    except MediaInspectionError as e:
+        if staged:
+            try:
+                (media_stager.media_dir / staged["media_path"]).unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise HTTPException(422,{"error":str(e),"media_staging":"rejected"})
 
 
 @app.post("/api/production/jobs/{job_id}/cleanup-media")
@@ -440,9 +452,18 @@ def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
                          x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     try:
+        candidate = Path(body.media_path)
+        media_root = media_stager.media_dir.resolve()
+        media_file = (media_root / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
+        media_file.relative_to(media_root)
+        inspect_media_file(media_file)
         return youtube_publisher.upload_approved(
             job_id,body.media_path,review_store,body.title,body.description,
             body.tags,body.category_id)
+    except MediaInspectionError as e:
+        raise HTTPException(422,{"error":str(e),"upload":"blocked"})
+    except ValueError:
+        raise HTTPException(422,"Media path must remain inside the configured media directory")
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except YouTubeUploadError as e:

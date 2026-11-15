@@ -787,3 +787,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Linking a production job to its originating recommendation exposure is now idempotent: repeating the same job/run/trend/brand link returns the existing candidate.
 - A job already attributed to a different recommendation exposure is rejected with a stable conflict reason instead of raising a database uniqueness error or being reassigned.
 - GitHub Actions [run 43676956985](https://github.com/justinhblee-prog/shorts/actions/runs/43676956985) passed `sh scripts/validate.sh` on `deb635f37b85e6149413bd6e2e719e29efd4fee7`, including **230 backend tests**.
+
+
+## 2026-11-15 — byte-level media verification
+
+The staging endpoint now inspects downloaded media bytes with ffprobe before making
+the staged path available to the upload workflow. It requires readable video and
+audio streams, 9:16 dimensions and a duration at most 180 seconds. The upload API
+repeats inspection immediately before calling YouTube. Docker installs FFmpeg;
+local deployments must install it and expose `ffprobe` on PATH. If inspection
+cannot run, upload is blocked rather than treating provider metadata as proof.

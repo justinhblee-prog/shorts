@@ -389,3 +389,22 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Each row shows rank, title, priority score, estimated net-profit range, competitor adjustment, sample counts and timestamp. The list refreshes after scoring and via a manual refresh control.
 - This is an estimate/ranking view only. It does not represent actual earnings, guaranteed performance or a market-wide competitive assessment.
 - Latest source HEAD: `0b32d5ca12aea5c2580264665c4fd3d7cbfe7cf0`. GitHub Actions: https://github.com/justinhblee-prog/shorts/actions/runs/43668889808 — success; **139 tests passed**, including JavaScript syntax validation.
+
+
+## Byte-level media verification
+
+The API container installs FFmpeg/ffprobe. After an allowlisted renderer artifact is
+downloaded by `POST /api/production/jobs/{job_id}/stage-media`, the server runs
+`ffprobe` against the staged bytes and requires a readable video stream, an audio
+stream, vertical 9:16 dimensions and a duration between 1 and 180 seconds. The
+endpoint returns a `media_inspection` report with the actual container, codecs,
+dimensions and duration. If ffprobe is unavailable or inspection fails, staging
+is rejected and the downloaded file is removed.
+
+The YouTube upload endpoint repeats byte-level inspection immediately before
+upload, so a file placed in the media directory by another path cannot bypass the
+gate. Subtitle stream presence is reported, but burned-in subtitle readability,
+visual quality, factual accuracy and rights still require human review. Local
+non-Docker installations must install FFmpeg and make `ffprobe` available on
+PATH (or set `FFPROBE_PATH`). This is actual file inspection, not proof that a
+third-party AI renderer generated the content correctly.
