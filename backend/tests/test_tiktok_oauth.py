@@ -1,0 +1,135 @@
+import json
+import os
+import tempfile
+import unittest
+from datetime import datetime, timezone, timedelta
+from urllib.parse import parse_qs, urlparse
+
+from cryptography.fernet import Fernet
+from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
+
+
+class OAuthTransport:
+    def __init__(self, responses=None):
+        self.responses = list(responses or [])
+        self.calls = []
+
+    def __call__(self, url, headers, body, timeout):
+        self.calls.append((url, headers, body, timeout))
+        status, payload = self.responses.pop(0)
+        return status, json.dumps(payload).encode("utf-8")
+
+
+class TikTokOAuthTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db = os.path.join(self.tmp.name, "oauth.sqlite3")
+        self.store = TikTokOAuthStore(self.db)
+        self.key = Fernet.generate_key()
+        self.transport = OAuthTransport([(
+            200, {
+                "access_token": "access-secret-1",
+                "refresh_token": "refresh-secret-1",
+                "open_id": "creator-123",
+                "scope": "user.info.basic,video.publish",
+                "token_type": "Bearer",
+                "expires_in": 7200,
+                "refresh_expires_in": 15552000,
+            }
+        )])
+        self.manager = TikTokOAuthManager(
+            self.store, "client-key", "client-secret",
+            "https://example.test/api/tiktok/oauth/callback",
+            self.key, self.transport,
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_authorization_state_is_random_hashed_and_one_time(self):
+        result = self.manager.start_authorization()
+        query = parse_qs(urlparse(result["authorization_url"]).query)
+        state = query["state"][0]
+        self.assertEqual(query["client_key"], ["client-key"])
+        self.assertEqual(query["response_type"], ["code"])
+        self.assertEqual(query["scope"], ["user.info.basic,video.publish"])
+        self.assertEqual(result["expires_in"], 600)
+        with self.store.db() as connection:
+            row = connection.execute("SELECT * FROM tiktok_oauth_states").fetchone()
+        self.assertNotEqual(row["state_hash"], state)
+        self.manager.exchange_code("one-time-code", state)
+        with self.assertRaisesRegex(TikTokOAuthError, "invalid, expired or already used"):
+            self.manager.exchange_code("one-time-code", state)
+
+    def test_tokens_are_encrypted_and_status_exposes_no_secret_values(self):
+        auth = self.manager.start_authorization()
+        state = parse_qs(urlparse(auth["authorization_url"]).query)["state"][0]
+        result = self.manager.exchange_code("one-time-code", state)
+        self.assertTrue(result["connected"])
+        row = self.store.token_record()
+        self.assertNotIn("access-secret-1", row["access_token_encrypted"])
+        self.assertNotIn("refresh-secret-1", row["refresh_token_encrypted"])
+        status = self.manager.status()
+        self.assertEqual(status["open_id"], "creator-123")
+        self.assertNotIn("access_token", status)
+        self.assertNotIn("refresh_token", status)
+        self.assertEqual(self.manager.get_access_token(), "access-secret-1")
+
+    def test_refresh_rotates_and_persists_the_new_refresh_token(self):
+        self.manager._save_token_response({
+            "access_token": "access-old",
+            "refresh_token": "refresh-old",
+            "open_id": "creator-123",
+            "scope": "user.info.basic,video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_oauth_tokens SET access_expires_at=? WHERE id=1",
+                ((datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat(),),
+            )
+        self.transport.responses.append((200, {
+            "access_token": "access-new",
+            "refresh_token": "refresh-new",
+            "open_id": "creator-123",
+            "scope": "user.info.basic,video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        }))
+        self.assertEqual(self.manager.get_access_token(), "access-new")
+        row = self.store.token_record()
+        cipher = Fernet(self.key)
+        self.assertEqual(cipher.decrypt(row["refresh_token_encrypted"].encode()).decode(),
+                         "refresh-new")
+        self.assertEqual(cipher.decrypt(row["access_token_encrypted"].encode()).decode(),
+                         "access-new")
+        self.assertEqual(self.transport.calls[-1][0],
+                         "https://open.tiktokapis.com/v2/oauth/token/")
+
+    def test_refresh_lease_fences_concurrent_processes(self):
+        first = self.store.acquire_refresh_lease("process-a", 60)
+        second = self.store.acquire_refresh_lease("process-b", 60)
+        self.assertIsNotNone(first)
+        self.assertIsNone(second)
+        self.assertTrue(self.store.release_refresh_lease("process-a", first))
+        third = self.store.acquire_refresh_lease("process-b", 60)
+        self.assertIsNotNone(third)
+
+    def test_expired_or_unknown_state_is_rejected(self):
+        with self.assertRaisesRegex(TikTokOAuthError, "invalid, expired or already used"):
+            self.store.consume_state("missing-state-hash")
+
+    def test_redirect_uri_must_be_static_https(self):
+        manager = TikTokOAuthManager(
+            self.store, "client-key", "client-secret",
+            "http://example.test/callback?x=1", self.key, self.transport,
+        )
+        with self.assertRaisesRegex(TikTokOAuthError, "absolute HTTPS"):
+            manager.start_authorization()
+
+
+if __name__ == "__main__":
+    unittest.main()
