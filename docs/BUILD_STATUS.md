@@ -37,7 +37,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00008 | YouTube publishing and tracking | OAuth refresh-token adapter, approval-gated private resumable upload, upload ledger and Data API counter snapshots committed; live validation pending |
 | BUILD-00009 | Revenue, cost and ROI analytics | Source-referenced financial ledger and separate revenue/cost reports committed; provider reconciliation pending |
 | BUILD-00010 | AI performance analysis and strategy updates | Source implementation expanded: brand/region/video evidence, measurement coverage, reset detection and currency-safe financial grouping; runtime validation pending |
-| BUILD-00011 | Scheduling and recovery operations | Not started |
+| BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
 
 ## BUILD-00001 — durable queue and Worker Lease
@@ -243,3 +243,11 @@ Latest CI run 106: https://github.com/justinhblee-prog/shorts/actions/runs/43657
 - Financial summaries are grouped by brand and ISO currency; optional brand filter applies to both video and financial data. No FX mixing.
 - Dashboard displays brand, region, video-level measurement and recorded financial summaries.
 - Unit tests cover insufficient snapshots, measured deltas, counter resets, multi-currency separation and brand filtering. Execution remains blocked by Actions runner allocation.
+
+## BUILD-00011 — scheduling and recovery
+
+- Added persistent `schedule_dispatch_outbox` with unique `(schedule_id, scheduled_for)` occurrence keys.
+- Due schedule advancement and outbox insertion are atomic under `BEGIN IMMEDIATE`.
+- Queue enqueue uses a deterministic idempotency key; if the scheduler crashes after enqueue but before outbox acknowledgement, the next poll replays safely without creating a duplicate job.
+- Failed dispatch attempts remain pending with bounded error details and retry on later scheduler polls.
+- Added tests for single dispatch, crash-window replay, inactive schedules and timezone-aware scheduling. Runtime execution remains pending due GitHub Actions runner allocation failures.
