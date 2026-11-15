@@ -1816,3 +1816,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Applied role checks across review, production, media, publishing/OAuth, finance, analytics, schedules, trends, recommendations, brand activation and queue controls.
 - Unmapped identities are denied when a role map is active; malformed configuration fails closed. Roles: admin, producer, reviewer, publisher, analyst, operator, finance.
 - Legacy full-access behavior remains only when the role map is absent/blank; production migration must populate the role map. External IdP and token lifecycle remain future work. Final-head push CI [43775131523](https://github.com/justinhblee-prog/shorts/actions/runs/43775131523), PR CI [43775135385](https://github.com/justinhblee-prog/shorts/actions/runs/43775135385), and post-merge integration CI [43775221344](https://github.com/justinhblee-prog/shorts/actions/runs/43775221344): **620 tests passed**.
+
+
+## BUILD-00111 — role-scoped read-only API coverage
+
+- Extended role grants with explicit read scopes for production, review, publishing, queue, operations, trends, competitor intelligence and recommendation data.
+- Applied role authorization to lifecycle views, review history, queue/worker diagnostics, preflight, analytics, publishing dashboard, trends, competitor intelligence, recommendation reports and job/event inspection.
+- Role separation now applies to mutations and sensitive read endpoints; public health and public brand catalog endpoints remain intentionally public.
+- Added tests for role-specific read grants and denial of operational/review data outside the assigned role. CI pending.
