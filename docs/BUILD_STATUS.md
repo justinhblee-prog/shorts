@@ -190,7 +190,7 @@ All BUILD-00001 through BUILD-00012 source milestones have a committed baseline.
 
 ## Latest CI observation
 
-The latest checked run (run 84) failed before runner allocation: `runner_id=0`, `runner_name` empty, and `steps=[]`. It did not execute checkout, dependency installation, compilation or tests. A local clone attempt from this execution environment also could not resolve github.com, so no alternate local test run was possible. Do not interpret this as code passing or failing.
+The latest checked run (run 94) failed before runner allocation: `runner_id=0`, `runner_name` empty, and `steps=[]`. It did not execute checkout, dependency installation, compilation or tests. A local clone attempt from this execution environment also could not resolve github.com, so no alternate local test run was possible. Do not interpret this as code passing or failing.
 
 ## API security hardening (follow-up)
 
@@ -218,3 +218,5 @@ Latest observed Actions run: [43656898926](https://github.com/justinhblee-prog/s
 - Added an approved queue endpoint `GET /api/review/approved`; dashboard supports explicit private upload from approved items.
 - Docker image now includes frontend assets.
 - **Not validated:** browser rendering, cross-device UI, complete user journey, API integration in a live browser or YouTube upload.
+
+Latest observed Actions run 94: https://github.com/justinhblee-prog/shorts/actions/runs/43657260929. It failed before runner allocation (`runner_id=0`, empty runner name, `steps=[]`). A rerun was requested; its result is not yet established. No tests have been executed by CI.
