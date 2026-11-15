@@ -127,18 +127,28 @@
       const uncertain=!!item.upload_reconciliation_required;
       const status=item.upload_status||"not_uploaded";
       const lateIds=(item.upload_events||[]).filter(event=>event.event_type==="late_remote_success"&&event.video_id).map(event=>event.video_id);
-      const lateIdSummary=lateIds.length?'<p>늦게 확인된 영상 ID: '+lateIds.map(esc).join(" · ")+'</p>':"";
-      const existingIdSummary=item.upload_video_id?'<p>현재 기록된 영상 ID: '+esc(item.upload_video_id)+'</p>':"";
-      const action=status==="late_success_review_required"
-        ? '<button class="button button-outline" data-resolve-late-id="'+esc(item.job_id)+'">늦은 업로드 결과 확정</button>'
+      const lateIdSummary=lateIds.length?'<p>늦게 확인된 YouTube 영상 ID: '+lateIds.map(esc).join(" · ")+'</p>':"";
+      const existingIdSummary=item.upload_video_id?'<p>YouTube 영상 ID: '+esc(item.upload_video_id)+'</p>':"";
+      const ytAction=status==="late_success_review_required"
+        ? '<button class="button button-outline" data-resolve-late-id="'+esc(item.job_id)+'">YouTube 늦은 결과 확정</button>'
         : (uncertain
-          ? '<button class="button button-outline" data-reconcile-id="'+esc(item.job_id)+'">업로드 결과 대조</button>'
+          ? '<button class="button button-outline" data-reconcile-id="'+esc(item.job_id)+'">YouTube 결과 대조</button>'
           : (status==="uploading"
-            ? '<button class="button button-quiet" disabled>업로드 진행 중 · 대기</button>'
-            : '<button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">비공개 업로드</button>'));
-      const statusText=status==="late_success_review_required"?"늦은 업로드 성공 · 운영자 확인 필요":(uncertain?"업로드 결과 확인 필요":(status==="uploading"?"업로드 진행 중":(status==="failed"?"이전 업로드 실패 · 재시도 가능":(status==="uploaded"?"업로드 완료":"업로드 대기"))));
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+'</div></article>';
-    }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
+            ? '<button class="button button-quiet" disabled>YouTube 업로드 진행 중</button>'
+            : (status==="uploaded"
+              ? '<button class="button button-quiet" disabled>YouTube 업로드 완료</button>'
+              : '<button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">YouTube 비공개 업로드</button>')));
+      const ttStatus=item.tiktok_status||"not_published";
+      const ttStatusText=ttStatus==="published"?"게시 완료":ttStatus==="processing"?"TikTok 처리 중":ttStatus==="uploading"?"TikTok 업로드 중":ttStatus==="initializing"?"TikTok 초기화 중":ttStatus==="reconciliation_required"?"결과 대조 필요":ttStatus==="failed"?"이전 시도 실패 · 확인 후 재시도 가능":"게시 대기";
+      const ttAction=ttStatus==="published"
+        ? '<button class="button button-quiet" disabled>TikTok 게시 완료</button>'
+        : ttStatus==="reconciliation_required"
+          ? '<button class="button button-outline" data-tiktok-reconcile-id="'+esc(item.job_id)+'">TikTok 결과 대조</button>'
+          : (["processing","uploading","initializing"].includes(ttStatus)
+            ? '<button class="button button-outline" data-tiktok-refresh-id="'+esc(item.job_id)+'">TikTok 상태 확인</button>'
+            : '<button class="button button-primary" data-tiktok-publish-id="'+esc(item.job_id)+'">TikTok 비공개 게시</button>');
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+'<p>YouTube: '+esc(status==='uploaded'?'업로드 완료':uncertain?'결과 대조 필요':status)+'</p><p>TikTok: '+esc(ttStatusText)+(item.tiktok_is_aigc===true?' · AI 생성 표시 적용':'')+'</p><div class="inline-message" id="upload-'+esc(item.job_id)+'"></div><div class="inline-message" id="tiktok-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+ytAction+ttAction+'</div></article>';
+    }).join(""):'<div class="empty-state">승인 완료 후 게시 대기 중인 콘텐츠가 없습니다.</div>';
   }
   async function loadTrends(){
     const data=await api("/api/trends?limit=12");
@@ -394,11 +404,19 @@
           factual_claims_verified:confirm("대본의 사실·통계·인용 주장을 신뢰할 수 있는 자료로 검증했습니까?"),
           originality_notes:prompt("이번 영상만의 독창적인 설명·분석·구성 차이를 기록하세요.","독창적 설명과 편집 구성을 검토함")||""
         };
+        if(declarations.synthetic_media_status==="realistic_alteration"){
+          declarations.youtube_contains_synthetic_media=true;
+        }else if(declarations.synthetic_media_status==="ai_generated"){
+          declarations.youtube_contains_synthetic_media=confirm("이 AI 생성 콘텐츠가 실제 인물·장소·사건처럼 현실적으로 보이거나 실제 장면을 의미 있게 변형했습니까? YouTube의 합성 콘텐츠 표시 기준에 해당하면 예를 선택하세요.");
+        }else{
+          declarations.youtube_contains_synthetic_media=false;
+        }
+        declarations.platform_disclosures={};
+        if(declarations.youtube_contains_synthetic_media){
+          declarations.platform_disclosures.youtube_altered_content=confirm("YouTube 업로드 시 합성·변형 콘텐츠 표시를 적용할 준비가 되었습니까?");
+        }
         if(["ai_generated","realistic_alteration"].includes(declarations.synthetic_media_status)){
-          declarations.platform_disclosures={
-            youtube_altered_content:confirm("YouTube 업로드 시 실제와 같이 보이는 AI 생성·변형 콘텐츠 표시를 적용할 준비가 되었습니까?"),
-            tiktok_ai_generated_content:confirm("TikTok 게시 시 AI 생성 콘텐츠 라벨을 적용할 준비가 되었습니까?")
-          };
+          declarations.platform_disclosures.tiktok_ai_generated_content=confirm("TikTok 게시 시 AI 생성 콘텐츠 라벨을 적용할 준비가 되었습니까?");
         }
         const result=await api("/api/review/"+encodeURIComponent(id)+"/policy-evidence",{
           method:"POST",body:JSON.stringify(declarations)
@@ -426,6 +444,65 @@
   });
 
   $("approvedList").addEventListener("click",async e=>{
+    const ttPublish=e.target.closest("button[data-tiktok-publish-id]");
+    if(ttPublish){
+      if(!requireToken())return;
+      const id=ttPublish.dataset.tiktokPublishId;
+      const caption=prompt("TikTok 게시 캡션 (최대 2200자)", "Shorts · "+id.slice(0,8));
+      if(caption===null||!caption.trim())return;
+      if(caption.length>2200){toast("캡션은 2200자 이하여야 합니다.");return;}
+      if(!confirm("선택한 캡션을 검토했고 TikTok으로 이 영상을 전송하는 데 명시적으로 동의하십니까?"))return;
+      const disclosure=prompt("상업적 관계를 선택하세요: none / paid / own", "none");
+      if(disclosure===null)return;
+      const mode=disclosure.trim().toLowerCase();
+      if(!["none","paid","own"].includes(mode)){toast("none, paid, own 중 하나를 선택하세요.");return;}
+      try{
+        const staged=await api("/api/production/jobs/"+encodeURIComponent(id)+"/stage-media",{method:"POST"});
+        await api("/api/tiktok/publish/"+encodeURIComponent(id),{method:"POST",body:JSON.stringify({
+          media_path:staged.media_path,title:caption.trim(),creator_consented:true,
+          caption_confirmed:true,operator_id:reviewer||"operator",
+          brand_content_toggle:mode==="paid",brand_organic_toggle:mode==="own"
+        })});
+        toast("TikTok 비공개 게시 요청이 접수되었습니다. 처리 상태를 확인합니다.");
+        await loadApproved();
+      }catch(err){$("tiktok-"+CSS.escape(id)).textContent=err.message;toast(err.message);}
+      return;
+    }
+    const ttRefresh=e.target.closest("button[data-tiktok-refresh-id]");
+    if(ttRefresh){
+      if(!requireToken())return;
+      const id=ttRefresh.dataset.tiktokRefreshId;
+      try{
+        const result=await api("/api/tiktok/publications/"+encodeURIComponent(id)+"/refresh-status",{method:"POST"});
+        $("tiktok-"+CSS.escape(id)).textContent="TikTok 상태: "+result.status+" · "+(result.remote_status||"");
+        await loadApproved();
+      }catch(err){$("tiktok-"+CSS.escape(id)).textContent=err.message;toast(err.message);}
+      return;
+    }
+    const ttReconcile=e.target.closest("button[data-tiktok-reconcile-id]");
+    if(ttReconcile){
+      if(!requireToken())return;
+      const id=ttReconcile.dataset.tiktokReconcileId;
+      const outcome=prompt("TikTok 프로필·받은 편지함에서 확인한 결과: published 또는 not_published");
+      if(outcome===null)return;
+      const normalized=outcome.trim().toLowerCase();
+      if(!["published","not_published"].includes(normalized)){toast("published 또는 not_published만 입력할 수 있습니다.");return;}
+      const confirmed=confirm("TikTok 계정에서 해당 게시 결과를 직접 확인하셨습니까?");
+      if(!confirmed)return;
+      const publishId=normalized==="published"?prompt("TikTok publish_id를 입력하세요."):null;
+      if(normalized==="published"&&(!publishId||!publishId.trim()))return;
+      const note=prompt("확인 근거를 기록하세요.");
+      if(note===null||!note.trim())return;
+      try{
+        await api("/api/tiktok/publications/"+encodeURIComponent(id)+"/reconcile",{method:"POST",body:JSON.stringify({
+          outcome:normalized,confirmed:true,publish_id:publishId?publishId.trim():null,
+          operator_id:reviewer||"operator",note:note.trim()
+        })});
+        toast("TikTok 게시 결과 대조가 기록되었습니다.");
+        await loadApproved();
+      }catch(err){$("tiktok-"+CSS.escape(id)).textContent=err.message;toast(err.message);}
+      return;
+    }
     const lateButton=e.target.closest("button[data-resolve-late-id]");
     if(lateButton){
       if(!requireToken())return;
