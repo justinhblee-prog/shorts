@@ -111,7 +111,7 @@
           <div class="compact-form queue-control-form">
             <div class="field-row"><label>운영자 ID<input id="queueOperator" maxlength="128" value="operator" required></label><label>조치 사유<input id="queueControlNote" maxlength="2000" placeholder="오류 확인 및 복구 점검 완료" required></label></div>
             <div class="field-row"><button class="button button-secondary" id="pauseQueue" type="button">생산 일시 중지</button><button class="button button-primary" id="resumeQueue" type="button" disabled>검증 후 생산 재개</button></div>
-            <small class="notice">재개 전 원격 AI 작업 결과, 생성 파일 및 과금 내역을 확인하세요. 재개 결정은 감사 기록에 남습니다.</small>
+            <div class="notice"><span>재개 전 원격 AI 작업 결과, 생성 파일 및 과금 내역을 확인하세요. 재개 결정은 감사 기록에 남습니다.</span></div>
           </div>
           <div id="queueDetails" class="data-list"><div class="empty-state">인증 후 작업 현황을 불러옵니다.</div></div></article>
       </div>
