@@ -17,6 +17,16 @@ LEASE_SECONDS = max(30, int(os.getenv("NEXUS_LEASE_SECONDS", "300")))
 WORKER_ID = os.getenv("NEXUS_WORKER_ID", "nexus-production-" + str(uuid.uuid4())[:8])
 IDLE_SECONDS = max(1, int(os.getenv("NEXUS_IDLE_SECONDS", "3")))
 
+
+def heartbeat_interval(lease_seconds, configured_seconds=10):
+    """Keep operator pause/lost-lease detection responsive within the lease window."""
+    return max(5, min(int(configured_seconds), max(5, int(lease_seconds) // 3)))
+
+
+HEARTBEAT_SECONDS = heartbeat_interval(
+    LEASE_SECONDS, os.getenv("NEXUS_HEARTBEAT_SECONDS", "10")
+)
+
 queue = JobQueue(DB_PATH, LEASE_SECONDS)
 store = ProductionStore(DB_PATH)
 pipeline = ProductionPipeline(store)
@@ -24,7 +34,7 @@ stopping = threading.Event()
 
 
 def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
-    interval = max(5, LEASE_SECONDS // 3) if interval is None else max(0, interval)
+    interval = HEARTBEAT_SECONDS if interval is None else max(0, interval)
     while not heartbeat_stop.wait(interval):
         try:
             queue.heartbeat(job_id, WORKER_ID, token)
