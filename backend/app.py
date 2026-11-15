@@ -559,6 +559,26 @@ def health(): return {"status":"ok","service":"nexus-studio-pro"}
 def stats(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     return queue.stats()
+@app.get("/api/queue/control")
+def queue_control(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return {"control":queue.worker_control(),"events":queue.worker_control_events(30)}
+
+@app.post("/api/queue/pause")
+def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    control=queue.pause(body.note,actor=body.operator_id)
+    return {"control":control,"events":queue.worker_control_events(30)}
+
+@app.post("/api/queue/resume")
+def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        control=queue.resume(actor=body.operator_id,note=body.note)
+        return {"control":control,"events":queue.worker_control_events(30)}
+    except ValueError as e:
+        raise HTTPException(409,str(e))
+
 @app.post("/api/jobs",status_code=201)
 def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
