@@ -1489,6 +1489,6 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The default HTTP transport reads at most limit + 1 bytes and fails closed before retaining an oversized body. The shared `JsonProvider.post` boundary enforces the same cap for injected/custom transports before JSON decoding.
 - Non-binary provider response bodies are rejected explicitly. No oversized response content is included in error messages or durable job errors.
 - Added regression tests for bounded socket reads and custom transport size enforcement.
-- CI validation is pending on the BUILD-00078 branch. The expected test total is 499 if the 497-test BUILD-00077 suite remains unchanged; this is not a test result.
+- GitHub Actions PR merge-result run [43720002960](https://github.com/justinhblee-prog/shorts/actions/runs/43720002960) passed **499 tests**, with **107 unique IDs / 91 literal selectors**. Python compilation, Compose YAML parsing, frontend validation and `scripts/validate.sh` completed successfully.
 - This limit applies to provider JSON response bodies, not rendered media artifacts; media downloads retain their separate byte limits and streaming validation.
 - No external provider request, AI generation, OAuth, platform upload or monetization check is performed by these tests.
