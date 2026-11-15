@@ -80,6 +80,63 @@ class ApiSecurityTests(unittest.TestCase):
             "review_rules": ["Label speculation"],
         })
 
+    def test_trend_signal_creates_brand_aware_production_draft(self):
+        trend = {
+            "id": "trend-abc", "source": "google_news_rss", "region": "US",
+            "title": "New AI agent research", "url": "https://news.example/ai",
+            "summary": "A research group published new findings.",
+            "published_at": "2026-11-15T00:00:00+00:00",
+        }
+        brand = {
+            "slug": "future-leak", "name": "Future Leak", "active": True,
+            "config": {
+                "positioning": "Grounded emerging technology explainers",
+                "audience": "technology-curious adults",
+                "tone": ["clear", "grounded"], "risk_level": "elevated",
+                "review_rules": ["Distinguish demos from shipped products"],
+                "regions": ["US"], "languages": ["en"],
+            },
+        }
+        body = TrendProductionDraft(brand="future-leak", language="en")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.trend_store.get", return_value=trend),
+            mock.patch("app.brand_store.list", return_value=[brand]),
+            mock.patch("app.submit_production", return_value={"job": {"id": "job-from-trend"}}) as submit,
+        ):
+            result = draft_production_from_trend("trend-abc", body, x_review_token="test-token")
+        self.assertEqual(result["job"]["id"], "job-from-trend")
+        brief = submit.call_args.args[2]
+        self.assertEqual(brief["topic"], "New AI agent research")
+        self.assertEqual(brief["brand"], "Future Leak")
+        self.assertEqual(brief["trend_context"]["url"], "https://news.example/ai")
+        self.assertEqual(brief["brand_profile"]["review_rules"],
+                         ["Distinguish demos from shipped products"])
+        self.assertEqual(brief["idempotency_key"], "trend:trend-abc:future-leak:en")
+
+    def test_trend_production_draft_rejects_missing_trend_and_unsupported_region(self):
+        body = TrendProductionDraft(brand="future-leak", language="en")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.trend_store.get", return_value=None),
+        ):
+            with self.assertRaises(HTTPException) as missing:
+                draft_production_from_trend("missing", body, x_review_token="test-token")
+        self.assertEqual(missing.exception.status_code, 404)
+
+        trend = {"id": "trend-kr", "source": "google_news_rss", "region": "KR",
+                 "title": "AI", "url": "https://news.example/ai"}
+        brand = {"slug": "future-leak", "name": "Future Leak", "active": True,
+                 "config": {"regions": ["US"], "languages": ["en"]}}
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.trend_store.get", return_value=trend),
+            mock.patch("app.brand_store.list", return_value=[brand]),
+        ):
+            with self.assertRaises(HTTPException) as unsupported:
+                draft_production_from_trend("trend-kr", body, x_review_token="test-token")
+        self.assertEqual(unsupported.exception.status_code, 422)
+
     def test_api_production_execution_passes_worker_lease_and_reconciles_handoff(self):
         job = {"id": "job-1", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
