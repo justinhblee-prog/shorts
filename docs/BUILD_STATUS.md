@@ -842,3 +842,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 
 - Follow-up fix: the first CI run for byte-level inspection exposed a test expectation mismatch when an explicitly configured ffprobe executable path does not exist. The inspector now detects a missing binary before subprocess invocation and reports the intended fail-closed "unavailable" state. The corrected implementation passed GitHub Actions run [43680428150](https://github.com/justinhblee-prog/shorts/actions/runs/43680428150): **237 backend tests**, Python compilation, Compose YAML validation and frontend syntax/DOM-ID checks.
+
+
+### Provider readiness transparency — implementation added 2026-11-15
+
+- Extended protected preflight output with per-stage script, voice and renderer status: endpoint validity/host, credential presence, generic JSON adapter mode, connectivity verification and live-call verification.
+- Secret values and complete provider URLs are not returned. Remote endpoints must use HTTPS; plain HTTP is allowed only for loopback development.
+- `ai_generation_configured` now requires all three valid endpoint/token pairs, not merely non-empty environment variables.
+- The preflight explicitly states that generic JSON contract configuration does not prove vendor compatibility or a successful paid generation call. It performs no external requests.
+- Regression tests cover missing configuration, secure endpoints, insecure/malformed URLs, local development endpoints and secret redaction. CI pending.

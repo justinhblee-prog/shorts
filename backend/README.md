@@ -408,3 +408,16 @@ visual quality, factual accuracy and rights still require human review. Local
 non-Docker installations must install FFmpeg and make `ffprobe` available on
 PATH (or set `FFPROBE_PATH`). This is actual file inspection, not proof that a
 third-party AI renderer generated the content correctly.
+
+
+### Provider readiness and verification boundary
+
+`GET /api/preflight` reports each script, voice and render integration separately:
+endpoint shape/host, credential presence, adapter mode and whether connectivity
+or a live generation call has been verified. Secret values and full endpoint URLs
+are never returned. Remote provider endpoints must use HTTPS; HTTP is allowed only
+for loopback development endpoints. The current pipeline adapter is
+`generic_json_http`: each vendor must expose or be wrapped by the documented JSON
+contract. A configured endpoint is not proof of vendor compatibility, successful
+generation, artifact availability or billing. This preflight performs no network
+request and makes no paid provider call.
