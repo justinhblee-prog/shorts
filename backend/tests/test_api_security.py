@@ -824,3 +824,55 @@ class ApiSecurityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_recommendation_experiment_routes_are_authenticated_and_shadow_only(self):
+        from app import (
+            create_recommendation_experiment, list_recommendation_experiments,
+            assign_recommendation_experiment_shadow, recommendation_experiment_report,
+            RecommendationExperimentCreate, RecommendationExperimentAssignment,
+        )
+        created = {
+            "experiment_id":"exp-1","status":"draft","assignment_mode":"shadow_only",
+            "live_assignment_enabled":False,"ranking_score_adjustment":0,
+        }
+        with mock.patch("app.require_review_access") as access, \
+             mock.patch.object(app_module.recommendation_evaluation_store,
+                               "create_experiment",return_value=created):
+            result=create_recommendation_experiment(
+                RecommendationExperimentCreate(name="test",operator_id="operator"),
+                x_review_token="token",
+            )
+        self.assertEqual(result["experiment_id"],"exp-1")
+        access.assert_called_once_with("token")
+        with mock.patch("app.require_review_access"), \
+             mock.patch.object(app_module.recommendation_evaluation_store,
+                               "assign_shadow",return_value={
+                                   "assignment_mode":"shadow_only",
+                                   "recommendation_served":False,
+                                   "production_behavior_changed":False,
+                               }):
+            assigned=assign_recommendation_experiment_shadow(
+                "exp-1",RecommendationExperimentAssignment(participant_key="user"),
+                x_review_token="token",
+            )
+        self.assertFalse(assigned["recommendation_served"])
+        with mock.patch("app.require_review_access"), \
+             mock.patch.object(app_module.recommendation_evaluation_store,
+                               "list_experiments",return_value={"items":[],"count":0}), \
+             mock.patch.object(app_module.recommendation_evaluation_store,
+                               "experiment_report",return_value={"live_assignment_enabled":False}):
+            self.assertEqual(list_recommendation_experiments(x_review_token="token")["count"],0)
+            self.assertFalse(recommendation_experiment_report("exp-1",x_review_token="token")["live_assignment_enabled"])
+
+    def test_recommendation_experiment_routes_are_included_in_auth_audit(self):
+        protected = {
+            "/api/recommendations/experiments",
+            "/api/recommendations/experiments/{experiment_id}/shadow-assignment",
+            "/api/recommendations/experiments/{experiment_id}/report",
+        }
+        found = {getattr(route,"path",""):route for route in app.routes
+                 if getattr(route,"path","") in protected}
+        self.assertEqual(set(found),protected)
+        for route in found.values():
+            self.assertIn("x_review_token",route.endpoint.__annotations__)
