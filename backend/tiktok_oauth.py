@@ -20,7 +20,7 @@ from cryptography.fernet import Fernet, InvalidToken
 TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
 REVOKE_URL = "https://open.tiktokapis.com/v2/oauth/revoke/"
 AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/"
-DEFAULT_SCOPES = "user.info.basic,video.publish"
+DEFAULT_SCOPES = "user.info.basic,video.publish,video.list"
 
 
 def _now():
@@ -300,18 +300,20 @@ class TikTokOAuthManager:
             "refresh_expires_at": saved["refresh_expires_at"],
         }
 
-    def get_access_token(self):
+    def get_access_token(self, required_scope="video.publish"):
+        if required_scope not in {"video.publish", "video.list"}:
+            raise TikTokOAuthError("Unsupported TikTok OAuth scope requirement")
         if self.cipher is None:
             raise TikTokOAuthError("TIKTOK_TOKEN_ENCRYPTION_KEY must be a valid Fernet key")
         with self._local_lock:
             row = self.store.token_record()
             if not row:
                 return None
-            if "video.publish" not in {
+            if required_scope not in {
                 scope.strip() for scope in str(row.get("scope") or "").split(",")
             }:
                 raise TikTokOAuthError(
-                    "TikTok account authorization is missing the required video.publish scope"
+                    "TikTok account authorization is missing the required " + required_scope + " scope"
                 )
             now = _now()
             access_expiry = datetime.fromisoformat(row["access_expires_at"])
@@ -330,6 +332,8 @@ class TikTokOAuthManager:
                     time.sleep(0.25)
                     row = self.store.token_record()
                     if row and datetime.fromisoformat(row["access_expires_at"]) > _now() + timedelta(minutes=1):
+                        if required_scope not in {scope.strip() for scope in str(row.get("scope") or "").split(",")}:
+                            raise TikTokOAuthError("TikTok account authorization is missing the required " + required_scope + " scope")
                         try:
                             return self.cipher.decrypt(row["access_token_encrypted"].encode()).decode()
                         except InvalidToken as exc:
@@ -341,6 +345,8 @@ class TikTokOAuthManager:
                 # Re-read after taking the distributed lease; another process may
                 # have completed a refresh immediately before this lease was acquired.
                 row = self.store.token_record()
+                if required_scope not in {scope.strip() for scope in str(row.get("scope") or "").split(",")}:
+                    raise TikTokOAuthError("TikTok account authorization is missing the required " + required_scope + " scope")
                 if datetime.fromisoformat(row["access_expires_at"]) > _now() + timedelta(minutes=10):
                     return self.cipher.decrypt(row["access_token_encrypted"].encode()).decode()
                 refresh_token = self.cipher.decrypt(row["refresh_token_encrypted"].encode()).decode()
@@ -351,6 +357,8 @@ class TikTokOAuthManager:
                     "refresh_token": refresh_token,
                 })
                 self._save_token_response(data)
+                if required_scope not in {scope.strip() for scope in str(data.get("scope") or "").split(",")}:
+                    raise TikTokOAuthError("Refreshed TikTok token is missing the required " + required_scope + " scope")
                 return data["access_token"]
             except InvalidToken as exc:
                 raise TikTokOAuthError("Stored TikTok refresh token cannot be decrypted") from exc
