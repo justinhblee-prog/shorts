@@ -84,6 +84,18 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('id="opportunityList"', html)
         self.assertIn("경쟁 조정", app_js)
 
+    def test_approved_workspace_exposes_private_tiktok_publish_and_status_controls(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/tiktok/creator-info", app_js)
+        self.assertIn("/api/tiktok/publish/", app_js)
+        self.assertIn("data-tiktok-publish-id", app_js)
+        self.assertIn("data-tiktok-refresh-id", app_js)
+        self.assertIn("explicit_consent:true", app_js)
+        self.assertIn("brand_content_toggle", app_js)
+        self.assertIn("brand_organic_toggle", app_js)
+        self.assertIn("commercial_relationship_disclosed", app_js)
+        self.assertIn("SELF_ONLY", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
