@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflict
 from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
-from profitability import OpportunityStore, score_opportunity
+from profitability import OpportunityStore, score_opportunity, analyze_competition
 from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError, ProductionLeaseConflict
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
@@ -594,13 +594,27 @@ class OpportunityInput(BaseModel):
     evidence_quality:float=Field(default=0,ge=0,le=1)
     strategic_fit:float=Field(default=0,ge=0,le=1)
     production_feasibility:float=Field(default=0,ge=0,le=1)
+    competitor_channel_ids:list[str]=Field(default_factory=list,max_length=10)
 
 
 @app.post("/api/opportunities/score",status_code=201)
 def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     try:
-        result=score_opportunity(body.model_dump())
+        data=body.model_dump()
+        channel_ids=data.pop("competitor_channel_ids",[])
+        result=score_opportunity(data)
+        benchmark=analyze_competition(result.get("title",""),channel_ids,competitor_store)
+        observed=benchmark["observed_videos"]
+        matched=benchmark["topic_matched_videos"]
+        pressure=min(1.0,matched/max(1,len(channel_ids)*3)) if observed else None
+        penalty=round(10*pressure,2) if pressure is not None else 0.0
+        result["priority_score"]=round(max(0.0,result["priority_score"]-penalty),2)
+        result["score_breakdown"]["competitor_pressure_penalty"]=penalty
+        result["competitive_context"]={
+            **benchmark,"competition_pressure_index":round(pressure,3) if pressure is not None else None,
+            "score_adjustment":-penalty if observed else 0.0,
+        }
         return opportunity_store.save(result)
     except ValueError as e:
         raise HTTPException(422,str(e))
