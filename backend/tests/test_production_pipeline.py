@@ -98,7 +98,7 @@ class ProductionTests(unittest.TestCase):
         result = pipeline.execute("job-1", self.brief)
         self.assertEqual(result["status"], "rendered")
         self.assertEqual([a["stage"] for a in result["artifacts"]],
-                         ["script", "voice_generation", "rendering", "quality_check"])
+                         ["script", "originality_check", "voice_generation", "rendering", "quality_check"])
         quality = result["artifacts"][-1]["metadata"]
         self.assertEqual(quality["status"], "review_required")
         self.assertFalse(quality["automatic_publication"])
@@ -106,6 +106,39 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(len(script.calls), 1)
         self.assertEqual(len(voice.calls), 1)
         self.assertEqual(len(render.calls), 1)
+
+    def test_pipeline_flags_similar_script_from_another_brand_for_review(self):
+        previous_script = (
+            "The human brain predicts what happens next using patterns from previous "
+            "experiences. When expectations are violated, attention increases and the "
+            "brain updates its model of the world. This process helps people learn, "
+            "adapt, and make decisions under uncertainty."
+        )
+        self.store.create("prior-job", {
+            "brand": "Brain Glitch", "region": "US", "language": "en",
+            "topic": "Brain prediction",
+        })
+        self.store.stage("prior-job", "rendered", "rendered")
+        self.store.artifact("prior-job", "script", "text", None,
+                            {"script": previous_script})
+        script = FakeProvider({"script": previous_script,
+                               "factual_claims_verified": True})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3",
+                              "duration_seconds": 30})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4",
+                               "duration_seconds": 30, "aspect_ratio": "9:16",
+                               "audio_track_present": True, "subtitles_enabled": True})
+        pipeline = ProductionPipeline(self.store, script, voice, render)
+        self.store.create("job-current", self.brief)
+        result = pipeline.execute("job-current", self.brief)
+        originality = next(a["metadata"] for a in result["artifacts"]
+                           if a["stage"] == "originality_check")
+        quality = next(a["metadata"] for a in result["artifacts"]
+                       if a["stage"] == "quality_check")
+        self.assertEqual(originality["status"], "similar_content_found")
+        self.assertEqual(originality["similar_matches"][0]["brand"], "Brain Glitch")
+        self.assertIn("script_similarity_to_prior_production_above_threshold",
+                      quality["warnings"])
 
     def test_pipeline_blocks_explicitly_nonvertical_render_before_review(self):
         script = FakeProvider({"script": "This script has enough words to explain the topic clearly and give viewers a useful takeaway."})
@@ -303,7 +336,7 @@ class ProductionTests(unittest.TestCase):
             FakeProvider({"video_url": "https://media.example/old.mp4"}),
         )
         first.execute("job-1", self.brief)
-        self.assertEqual(len(self.store.get("job-1")["artifacts"]), 4)
+        self.assertEqual(len(self.store.get("job-1")["artifacts"]), 5)
 
         retry = ProductionPipeline(
             self.store,
@@ -328,7 +361,7 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(caught.exception.stage, "voice_generation")
         result = self.store.get("job-1")
         self.assertEqual(result["status"], "failed_terminal")
-        self.assertEqual(len(result["artifacts"]), 1)
+        self.assertEqual(len(result["artifacts"]), 2)
         self.assertEqual(render.calls, [])
 
     def test_missing_provider_url_fails_closed(self):
