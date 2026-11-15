@@ -525,14 +525,14 @@ class ApiSecurityTests(unittest.TestCase):
             reviewer_id="reviewer-1", reason="Already covered",
         )
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_access", return_value="authenticated-operator"),
             mock.patch("app.recommendation_evaluation_store.record_skip",
                        return_value={"recorded": True, "candidate_id": "candidate-1"}) as record,
         ):
             result = skip_recommendation_feedback(body, x_review_token="test-token")
         self.assertTrue(result["recorded"])
         record.assert_called_once_with(
-            "trend-1", "alpha", "reviewer-1", "Already covered",
+            "trend-1", "alpha", "authenticated-operator", "Already covered",
             candidate_id="candidate-1",
         )
 
@@ -870,24 +870,24 @@ class ApiSecurityTests(unittest.TestCase):
         control = {"paused": True, "pause_reason": body.note, "paused_job_id": "job-1"}
         events = [{"event_type": "paused", "actor": body.operator_id}]
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_access", return_value="authenticated-operator"),
             mock.patch.object(app_module.queue, "pause", return_value=control) as pause,
             mock.patch.object(app_module.queue, "worker_control", return_value=control),
             mock.patch.object(app_module.queue, "worker_control_events", return_value=events),
         ):
             paused = pause_queue(body, x_review_token="test-token")
-        pause.assert_called_once_with(body.note, actor=body.operator_id)
+        pause.assert_called_once_with(body.note, actor="authenticated-operator")
         self.assertTrue(paused["control"]["paused"])
         self.assertEqual(paused["events"], events)
 
         resumed_control = {"paused": False, "pause_reason": None, "paused_job_id": None}
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_access", return_value="authenticated-operator"),
             mock.patch.object(app_module.queue, "resume", return_value=resumed_control) as resume,
             mock.patch.object(app_module.queue, "worker_control_events", return_value=[]),
         ):
             resumed = resume_queue(body, x_review_token="test-token")
-        resume.assert_called_once_with(actor=body.operator_id, note=body.note)
+        resume.assert_called_once_with(actor="authenticated-operator", note=body.note)
         self.assertFalse(resumed["control"]["paused"])
 
     def test_queue_resume_requires_explicit_recovery_confirmation(self):
