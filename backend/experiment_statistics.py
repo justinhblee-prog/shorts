@@ -127,3 +127,91 @@ def compare_experiment_arms(control, treatment, *, randomized_assignment,
             "pre-registration and multiple-testing controls still require review."
         ),
     }
+
+def evaluate_preregistered_decision(primary, *, expected_direction,
+                                    minimum_meaningful_effect, guardrails=()):
+    """Apply predeclared practical-effect and non-inferiority guardrail gates.
+
+    This only produces a review candidate. It never deploys a variant or changes
+    recommendation ranking. All comparisons must already be verified, randomized
+    and available from compare_experiment_arms().
+    """
+    if expected_direction not in ("higher", "lower"):
+        raise ValueError("expected_direction must be higher or lower")
+    if (isinstance(minimum_meaningful_effect, bool)
+            or not isinstance(minimum_meaningful_effect, (int, float))
+            or not math.isfinite(float(minimum_meaningful_effect))
+            or minimum_meaningful_effect <= 0):
+        raise ValueError("minimum_meaningful_effect must be a finite positive number")
+    if not isinstance(primary, dict):
+        raise ValueError("primary comparison must be an object")
+    if not isinstance(guardrails, (list, tuple)) or len(guardrails) > 20:
+        raise ValueError("guardrails must be a list containing at most 20 comparisons")
+    base = {
+        "status": "blocked",
+        "primary_metric": primary.get("metric"),
+        "expected_direction": expected_direction,
+        "minimum_meaningful_effect": float(minimum_meaningful_effect),
+        "guardrail_results": [],
+        "ranking_score_adjustment": 0,
+        "deployment_authorized": False,
+    }
+    comparisons = [("primary", primary)] + [
+        (f"guardrail_{index + 1}", item) for index, item in enumerate(guardrails)
+    ]
+    for label, comparison in comparisons:
+        if (not isinstance(comparison, dict)
+                or comparison.get("status") != "comparison_available"
+                or comparison.get("randomized_assignment_verified") is not True
+                or comparison.get("served_exposure_verified") is not True
+                or not isinstance(comparison.get("confidence_interval"), list)
+                or len(comparison["confidence_interval"]) != 2):
+            return {
+                **base, "status": "blocked_missing_verified_comparison",
+                "reason": f"{label} comparison is not backed by verified randomized served-exposure evidence.",
+            }
+        low, high = comparison["confidence_interval"]
+        if (any(isinstance(value, bool) or not isinstance(value, (int, float))
+                or not math.isfinite(float(value)) for value in (low, high))
+                or low > high):
+            return {**base, "status": "blocked_invalid_confidence_interval",
+                    "reason": f"{label} confidence interval is invalid."}
+    primary_low, primary_high = primary["confidence_interval"]
+    threshold = float(minimum_meaningful_effect)
+    if expected_direction == "higher":
+        primary_pass = primary_low > threshold
+    else:
+        primary_pass = primary_high < -threshold
+    if not primary_pass:
+        return {
+            **base, "status": "inconclusive_practical_effect",
+            "primary_confidence_interval": [primary_low, primary_high],
+            "reason": "The full primary 95% confidence interval does not exceed the pre-registered practical-effect threshold.",
+        }
+    guardrail_results = []
+    for index, comparison in enumerate(guardrails):
+        margin = comparison.get("allowed_degradation")
+        if (isinstance(margin, bool) or not isinstance(margin, (int, float))
+                or not math.isfinite(float(margin)) or margin < 0):
+            raise ValueError("each guardrail needs a finite non-negative allowed_degradation")
+        low, high = comparison["confidence_interval"]
+        passed = low >= -float(margin)
+        guardrail_results.append({
+            "metric": str(comparison.get("metric", f"guardrail_{index + 1}"))[:128],
+            "allowed_degradation": float(margin),
+            "confidence_interval": [low, high],
+            "passed": passed,
+        })
+        if not passed:
+            return {
+                **base, "status": "blocked_guardrail_regression",
+                "primary_confidence_interval": [primary_low, primary_high],
+                "guardrail_results": guardrail_results,
+                "reason": "At least one guardrail confidence interval permits degradation beyond its pre-registered margin.",
+            }
+    return {
+        **base, "status": "review_candidate",
+        "primary_confidence_interval": [primary_low, primary_high],
+        "guardrail_results": guardrail_results,
+        "reason": "Practical-effect and guardrail gates passed; independent human review is still required. No rollout or ranking change is authorized.",
+    }
