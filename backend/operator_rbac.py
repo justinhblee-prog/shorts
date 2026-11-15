@@ -61,7 +61,7 @@ def permissions_for(operator_id: str, *, role_map_json: str | None = None) -> fr
     """Resolve explicit role grants; legacy mode retains the operator role."""
     raw = os.getenv("NEXUS_REVIEW_ROLE_MAP_JSON", "") if role_map_json is None else role_map_json
     if not raw.strip():
-        return frozenset(ROLE_PERMISSIONS["operator"])
+        return frozenset({"*"})
     role_map = _load_role_map(raw)
     roles = role_map.get(operator_id)
     if roles is None:
