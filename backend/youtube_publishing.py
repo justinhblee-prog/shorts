@@ -295,13 +295,14 @@ class YouTubeUploadStore:
             if row is None or row["status"]!="late_success_review_required":
                 raise YouTubeUploadError("No preserved late remote success is awaiting resolution")
             chosen=str(video_id or "").strip()
-            known=c.execute("""SELECT 1 FROM youtube_upload_events
-              WHERE job_id=? AND event_type='late_remote_success' AND video_id=? LIMIT 1""",
-              (job_id,chosen)).fetchone()
+            known=c.execute("""SELECT attempt_id FROM youtube_upload_events
+              WHERE job_id=? AND event_type='late_remote_success' AND video_id=?
+              ORDER BY id DESC LIMIT 1""",(job_id,chosen)).fetchone()
             if not chosen or (chosen!=row["video_id"] and not known):
                 raise YouTubeUploadError(
                     "Choose the currently recorded video ID or one preserved in late-success audit events"
                 )
+            resolved_attempt_id=(known["attempt_id"] if known else row["attempt_id"])
             now=_now()
             updated=c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',privacy_status='private',
               uploaded_at=COALESCE(uploaded_at,?),error=NULL,updated_at=?
@@ -311,7 +312,7 @@ class YouTubeUploadStore:
             c.execute("""INSERT INTO youtube_upload_events
               (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
               VALUES(?,?,'late_success_resolved','uploaded',?,?,?,?,?,?)""",
-              (job_id,row["attempt_id"],chosen,operator_id,note,row["status"],"uploaded",now))
+              (job_id,resolved_attempt_id,chosen,operator_id,note,row["status"],"uploaded",now))
         return self.get(job_id)
 
     def snapshot(self,video_id,stats):
