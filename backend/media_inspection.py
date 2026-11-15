@@ -16,13 +16,17 @@ class MediaInspector:
         self.runner = runner or subprocess.run
 
     def inspect(self, media_path):
-        path = Path(media_path).resolve()
-        if not path.is_file() or path.is_symlink():
+        supplied_path = Path(media_path)
+        if supplied_path.is_symlink():
+            raise MediaInspectionError("Staged media path must not be a symlink")
+        path = supplied_path.resolve()
+        if not path.is_file():
             raise MediaInspectionError("Staged media file is missing or is not a regular file")
         try:
             result = self.runner(
                 [
-                    self.ffprobe_path, "-v", "error",
+                    self.ffprobe_path, "-nostdin", "-v", "error",
+                    "-protocol_whitelist", "file,pipe",
                     "-show_entries",
                     "format=format_name,duration,size:"
                     "stream=index,codec_type,codec_name,width,height,avg_frame_rate,"
