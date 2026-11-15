@@ -501,6 +501,19 @@ class JobQueue:
         return {"worker_id": worker_id, "hostname": hostname,
                 "last_seen_at": n, "status": "online"}
 
+    def touch_worker(self, worker_id, instance_token):
+        """Refresh presence only while this process still owns the registry row."""
+        worker_id = str(worker_id or "").strip()
+        if not worker_id or not instance_token:
+            raise ValueError("worker_id and instance_token required")
+        with self.db() as c:
+            updated = c.execute(
+                "UPDATE worker_registry SET last_seen_at=? "
+                "WHERE worker_id=? AND instance_token=? AND status='online'",
+                (stamp(now()), worker_id, instance_token),
+            )
+            return updated.rowcount == 1
+
     def mark_worker_offline(self, worker_id, instance_token=None):
         """Persist a graceful worker shutdown; stale heartbeats still cover hard crashes."""
         worker_id = str(worker_id or "").strip()
