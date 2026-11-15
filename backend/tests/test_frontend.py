@@ -297,5 +297,17 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("/api/recommendations/exposures/",app_js)
         self.assertIn("인과 효과 미측정",app_js)
 
+
+    def test_unified_publishing_dashboard_is_integrated_without_automatic_remote_actions(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        index_html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("/api/lifecycle/publishing?limit=50&offset=0", app_js)
+        self.assertIn("loadPublishingDashboard()", app_js)
+        self.assertIn("youtube_status_counts", app_js)
+        self.assertIn("tiktok_status_counts", app_js)
+        self.assertIn("data-queue-lifecycle-id", app_js)
+        self.assertIn('id="globalPublishingPanel"', index_html)
+        self.assertIn("원격 폴링이나 재게시를 실행하지 않습니다", index_html)
+
 if __name__ == "__main__":
     unittest.main()
