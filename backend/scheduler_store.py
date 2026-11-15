@@ -38,6 +38,11 @@ class ScheduleStore:
             );
             CREATE INDEX IF NOT EXISTS idx_schedule_outbox_pending
               ON schedule_dispatch_outbox(status,created_at);
+            CREATE TABLE IF NOT EXISTS scheduler_leader_lease(
+              id INTEGER PRIMARY KEY CHECK(id=1), owner_id TEXT NOT NULL,
+              lease_token TEXT NOT NULL, expires_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
             """)
 
     @contextmanager
@@ -131,11 +136,78 @@ class ScheduleStore:
             return {"counts": counts, "items": [dict(row) for row in rows],
                     "pending_retries": counts.get("pending", 0)}
 
-    def dispatch_due(self, queue, now=None, limit=20):
+
+    def acquire_scheduler_lease(self, owner_id, lease_seconds=90, now=None):
+        """Acquire or renew the singleton scheduler lease; return its fencing token."""
+        if not owner_id or not str(owner_id).strip():
+            raise ValueError("scheduler owner_id is required")
+        ttl = max(15, int(lease_seconds))
         current = now or datetime.now(timezone.utc)
         if current.tzinfo is None:
             raise ValueError("now must be timezone-aware")
         current_s = _stamp(current)
+        expires = _stamp(current + timedelta(seconds=ttl))
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row = c.execute("SELECT * FROM scheduler_leader_lease WHERE id=1").fetchone()
+            if row and row["owner_id"] != owner_id and row["expires_at"] > current_s:
+                c.commit()
+                return None
+            token = row["lease_token"] if row and row["owner_id"] == owner_id else str(uuid.uuid4())
+            c.execute("""INSERT INTO scheduler_leader_lease
+                (id,owner_id,lease_token,expires_at,updated_at) VALUES(1,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET owner_id=excluded.owner_id,
+                lease_token=excluded.lease_token,expires_at=excluded.expires_at,
+                updated_at=excluded.updated_at""",
+                (str(owner_id), token, expires, current_s))
+            c.commit()
+            return token
+
+    def renew_scheduler_lease(self, owner_id, lease_token, lease_seconds=90, now=None):
+        ttl = max(15, int(lease_seconds))
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            raise ValueError("now must be timezone-aware")
+        current_s = _stamp(current)
+        expires = _stamp(current + timedelta(seconds=ttl))
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            cur = c.execute("""UPDATE scheduler_leader_lease
+                SET expires_at=?,updated_at=? WHERE id=1 AND owner_id=?
+                AND lease_token=? AND expires_at>?""",
+                (expires, current_s, str(owner_id), lease_token, current_s))
+            c.commit()
+            return bool(cur.rowcount)
+
+    def release_scheduler_lease(self, owner_id, lease_token):
+        current_s = _stamp(datetime.now(timezone.utc))
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            cur = c.execute("""DELETE FROM scheduler_leader_lease
+                WHERE id=1 AND owner_id=? AND lease_token=?""",
+                (str(owner_id), lease_token))
+            c.commit()
+            return bool(cur.rowcount)
+
+    def scheduler_lease_is_valid(self, owner_id, lease_token, now=None):
+        current_s = _stamp(now or datetime.now(timezone.utc))
+        with self.db() as c:
+            row = c.execute("""SELECT 1 FROM scheduler_leader_lease
+                WHERE id=1 AND owner_id=? AND lease_token=? AND expires_at>?""",
+                (str(owner_id), lease_token, current_s)).fetchone()
+            return row is not None
+
+    def dispatch_due(self, queue, now=None, limit=20, lease_owner=None, lease_token=None, lease_seconds=90):
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            raise ValueError("now must be timezone-aware")
+        current_s = _stamp(current)
+        if (lease_owner is None) != (lease_token is None):
+            raise ValueError("lease_owner and lease_token must be supplied together")
+        if lease_owner is not None and not self.scheduler_lease_is_valid(
+                lease_owner, lease_token, current):
+            return {"dispatched": [], "count": 0,
+                    "pending": len(self.pending_dispatches()), "lease_lost": True}
         # Reserve each due occurrence and persist an outbox item atomically.
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
@@ -170,6 +242,10 @@ class ScheduleStore:
         dispatched = []
         for item in self.pending_dispatches(limit=max(20, min(int(limit) * 5, 500))):
             try:
+                if lease_owner is not None and not self.renew_scheduler_lease(
+                        lease_owner, lease_token, lease_seconds):
+                    return {"dispatched": dispatched, "count": len(dispatched),
+                            "pending": len(self.pending_dispatches()), "lease_lost": True}
                 payload = json.loads(item["payload_json"])
                 job = queue.enqueue("short_video_production", payload,
                     channel_name=payload["brand"],
@@ -177,6 +253,15 @@ class ScheduleStore:
                 stamp = _stamp(datetime.now(timezone.utc))
                 with self.db() as c:
                     c.execute("BEGIN IMMEDIATE")
+                    if lease_owner is not None:
+                        lease = c.execute("""SELECT 1 FROM scheduler_leader_lease
+                            WHERE id=1 AND owner_id=? AND lease_token=? AND expires_at>?""",
+                            (str(lease_owner), lease_token,
+                             _stamp(datetime.now(timezone.utc)))).fetchone()
+                        if not lease:
+                            c.rollback()
+                            return {"dispatched": dispatched, "count": len(dispatched),
+                                    "pending": len(self.pending_dispatches()), "lease_lost": True}
                     c.execute("""UPDATE schedule_dispatch_outbox SET status='dispatched',
                         attempts=attempts+1,last_error=NULL,dispatched_at=?
                         WHERE id=? AND status='pending'""", (stamp, item["id"]))
