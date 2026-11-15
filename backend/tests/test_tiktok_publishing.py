@@ -68,10 +68,12 @@ class TikTokPublishingTests(unittest.TestCase):
         self.prod.artifact("job-1", "script", "text", None, {
             "script": "Approved test script", "policy_preflight": policy
         })
-        self.review.decide("job-1", "approved", "reviewer-1")
         self.media = os.path.join(self.tmp.name, "video.mp4")
         Path(self.media).write_bytes(b"test-video-bytes")
         os.environ["NEXUS_MEDIA_DIR"] = self.tmp.name
+        self.review.decide(
+            "job-1", "approved", "reviewer-1", staged_media_path=self.media
+        )
         self.transport = TikTokTransport([
             (200, {"data": {"privacy_level_options": ["SELF_ONLY"], "max_video_post_duration_sec": 600},
                    "error": {"code": "ok"}}),
