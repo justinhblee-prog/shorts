@@ -10,7 +10,7 @@ from fastapi import HTTPException, Response
 from types import SimpleNamespace
 from pydantic import ValidationError
 from app import (app, require_review_access, YouTubeLateSuccessResolution, Enqueue,
-                 enqueue, IdempotencyConflict, ProductionExecute, execute_production_job,
+                 enqueue, IdempotencyConflict, ProductionExecute, execute_production_job, cancel as cancel_job,
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
@@ -878,6 +878,23 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 500)
         fail.assert_called_once()
         pause.assert_called_once()
+    def test_cancelled_production_job_reconciles_production_record_immediately(self):
+        cancelled = {"id": "job-cancel", "job_type": "short_video_production",
+                     "status": "cancelled"}
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "cancel", return_value=cancelled) as cancel,
+            mock.patch.object(
+                app_module.production_store, "reconcile_terminal_jobs",
+                return_value={"updated": 1, "job_ids": ["job-cancel"]}
+            ) as reconcile,
+        ):
+            result = cancel_job("job-cancel", x_review_token="test-token")
+
+        self.assertEqual(result, cancelled)
+        cancel.assert_called_once_with("job-cancel")
+        reconcile.assert_called_once_with(app_module.queue)
+
     def test_queue_control_endpoints_are_authenticated_and_audited(self):
         body = QueueControlAction(operator_id="operator-1", note="Reviewed worker state", recovery_confirmed=True)
         control = {"paused": True, "pause_reason": body.note, "paused_job_id": "job-1"}

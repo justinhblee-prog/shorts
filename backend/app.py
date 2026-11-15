@@ -1673,7 +1673,10 @@ def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None)):
 def cancel(jid:str,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     try:
-        return queue.cancel(jid)
+        result=queue.cancel(jid)
+        if result.get("job_type")=="short_video_production":
+            production_store.reconcile_terminal_jobs(queue)
+        return result
     except JobNotFound:
         raise HTTPException(404,"Job not found")
     except ValueError as e:
