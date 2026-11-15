@@ -462,6 +462,15 @@ def tiktok_oauth_authorize(body:TikTokOAuthAuthorizationRequest,
         raise HTTPException(503,str(e))
 
 
+@app.post("/api/tiktok/oauth/disconnect")
+def tiktok_oauth_disconnect(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_oauth_store.disconnect()
+    except TikTokOAuthError as e:
+        raise HTTPException(503,str(e))
+
+
 @app.get("/api/tiktok/oauth/callback")
 def tiktok_oauth_callback(code:str|None=None,state:str|None=None,error:str|None=None):
     if error or not code or not state:
