@@ -39,7 +39,8 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00010 | AI performance analysis and strategy updates | Source implementation expanded: brand/region/video evidence, measurement coverage, reset detection and currency-safe financial grouping; runtime validation pending |
 | BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
-| BUILD-00024 | TikTok private Direct Post integration | Token-protected creator-info/publish/status APIs, SELF_ONLY Direct Post, explicit consent, AIGC and commercial disclosures, chunk transfer and immutable audit; branch CI and live OAuth validation pending |
+| BUILD-00023 | Platform AI disclosure enforcement | YouTube API disclosure mapping implemented and branch CI passed; TikTok adapter isolated in PR #35; live platform authorization/publish validation pending |
+| BUILD-00024 | TikTok private Direct Post integration | Private-only Direct Post, creator-info, explicit consent, AIGC/commercial disclosures, status lifecycle and audit; 260 branch tests passed; live OAuth pending |
 
 ## BUILD-00001 — durable queue and Worker Lease
 
@@ -81,37 +82,40 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - SQLite persistence and API: POST `/api/opportunities/score`; GET `/api/opportunities`.
 - Unit tests committed; runtime validation pending.
 
-- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.\n\n## Validation — current truth
+- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.
 
-- YouTube synthetic-media disclosure remains in draft PR #34; latest verified branch run executed 252 tests successfully.
-- TikTok AIGC mapping remains in draft PR #35; latest verified branch run executed 248 tests successfully.
-- TikTok private Direct Post integration is in draft branch `feat/tiktok-private-direct-publish`. CI is being rerun after fixing fixture lifecycle and API contract issues; BUILD-00024 is not complete until the latest run is green.
-- TikTok tests use a deterministic HTTP transport and temporary SQLite database. No live TikTok OAuth, app review, creator authorization or account posting has been performed.
-- No live YouTube OAuth upload, production worker/database, real provider rendering or monetization validation has been performed.
+## Validation — current truth
+
+- Baseline main commit `dc98712` reports a successful 245-test CI run.
+- YouTube disclosure branch `0c4b352`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685657932 passed **252 tests**.
+- TikTok AIGC mapping branch `6e80f7c`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685373875 passed **248 tests**.
+- Integrated TikTok private Direct Post branch `163b4a0`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43686659497 passed **260 tests**.
+- These are branch CI results; PR #34, #35 and #36 remain draft and are not merged to main.
+- Tests use deterministic provider transports and temporary SQLite. No production worker, PostgreSQL, external AI generation, OAuth, rendering or live YouTube/TikTok publishing has been validated.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
 
-## BUILD-00024 — TikTok private Direct Post and disclosure lifecycle
+## BUILD-00023 — platform AI-generated and synthetic-media disclosure
 
-- Added `backend/tiktok_publishing.py`: creator-info query, private-only Direct Post initialization, signed media upload, status polling, immutable audit events and duplicate-attempt blocking.
-- Added token-protected routes: `GET /api/tiktok/creator-info`, `POST /api/tiktok/publish/{job_id}`, `GET /api/tiktok/publications/{job_id}`, and `POST /api/tiktok/publications/{job_id}/refresh-status`.
-- Requires the latest human approval snapshot and current policy evidence, explicit operator consent, TikTok platform selection, AIGC label evidence, and explicit branded-content/own-business declarations.
-- Direct Post is fixed to `SELF_ONLY`; public publishing remains disabled. TikTok's creator-info response is exposed so the export workspace can display account capabilities before the operator confirms.
-- Media transfer uses HTTP PUT to TikTok's signed upload URL, omits the OAuth bearer token on that URL, and follows the documented floor-based chunk count with a 64 MiB chunk size and a bounded final remainder.
-- Tracks PROCESSING_UPLOAD, PROCESSING_DOWNLOAD, SEND_TO_USER_INBOX, PUBLISH_COMPLETE and FAILED; uncertain remote outcomes block automatic retries.
-- OAuth authorization-code exchange/token refresh and live account testing remain outside this milestone.
+- YouTube Data API v3 `videos.insert` supports `status.containsSyntheticMedia`; the upload adapter now sends this field alongside the existing private-only status.
+- Policy preflight preserves the explicit YouTube realism classification. For generic AI-generated content, the classification must resolve to a boolean; realistic alteration forces true and non-realistic classes force false.
+- The upload is blocked before the remote API call if the current script artifact lacks a valid disclosure classification.
+- TikTok Direct Post documents `is_aigc`; an isolated fail-closed mapping helper and tests are in PR #35. The TikTok publisher client is not yet implemented.
+- The platform policy matrix distinguishes YouTube's realistic A/S disclosure from TikTok's AI-generated label.
+- Human approval remains mandatory; YouTube uploads remain private. Public automatic publishing remains disabled.
+- CI evidence: YouTube branch 252 tests passed; TikTok adapter branch 248 tests passed.
+- Live channel authorization, OAuth, actual API upload and label verification remain pending.
 
 ## Remaining blockers before a real revenue-producing launch
 
-1. **CI runner:** GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43656517188 failed before any step (`runner_id=0`, empty runner name, `steps=[]`). No Python test has executed. Resolve runner allocation or run `./scripts/validate.sh` in an authorized Python 3.11+ environment.
-2. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
-3. **Media handoff:** current renderer output is a remote artifact URL, while YouTube upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
+1. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
+2. **Media handoff:** current renderer output is a remote artifact URL, while YouTube upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
 4. **YouTube OAuth:** issue and configure a refresh token with `youtube.upload` and `youtube.readonly`; validate channel identity, quota, private upload and processing on a test channel.
 5. **Financial integrations:** connect YouTube Analytics, affiliate networks and sponsor billing to the source-backed ledger. Reconcile actual currency, refunds, taxes and platform adjustments.
 6. **Security/operations:** replace shared review token with real user identity and roles; add HTTPS, secret rotation, audit export, backups/restore, monitoring, rate limits and incident recovery.
 7. **Scale:** migrate SQLite to PostgreSQL and add distributed worker/scheduler coordination before multi-instance deployment.
 8. **Commercial validation:** test one controlled content cohort across the ten brands; compare verified net revenue and costs before increasing production volume. No actual revenue or monetization is established yet.
 
-All BUILD-00001 through BUILD-00012 source milestones have a committed baseline. This is **not** equivalent to a tested production system or a completed revenue-generating business. External credentials, real provider execution, YouTube channel authorization and actual financial data remain necessary.
+BUILD-00001 through BUILD-00023 describe implemented source milestones, but are not equivalent to a tested production system or a completed revenue-generating business. This is **not** equivalent to a tested production system or a completed revenue-generating business. External credentials, real provider execution, YouTube channel authorization and actual financial data remain necessary.
 
 ## Versioning
 
