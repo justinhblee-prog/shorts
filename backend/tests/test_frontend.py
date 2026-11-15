@@ -128,7 +128,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("renderLifecycleTrace", app_js)
         self.assertIn("data.timeline", app_js)
         self.assertIn("통합 작업 이력", app_js)
-        self.assertIn("최근 큐 이벤트", app_js)
+        self.assertIn("최근 통합 이벤트", app_js)
 
     def test_lifecycle_trace_renders_cross_platform_timeline(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
