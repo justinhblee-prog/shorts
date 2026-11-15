@@ -91,6 +91,70 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertFalse(result["ranking_score_adjustment_enabled"])
         self.assertIn("selection bias", result["warning"])
 
+    def test_within_run_holdout_compares_only_candidates_from_same_exposure(self):
+        videos = []
+        for run_index in range(5):
+            timestamp = (
+                datetime(2026, 11, 1, tzinfo=timezone.utc)
+                + timedelta(days=run_index)
+            ).isoformat()
+            items = [
+                self.item(run_index * 3 + 0, 90),
+                self.item(run_index * 3 + 1, 80),
+                self.item(run_index * 3 + 2, 70),
+            ]
+            self.store.record_run("US", items, timestamp)
+            for candidate_index in range(3):
+                trend_id = f"trend-{run_index * 3 + candidate_index}"
+                job_id = f"within-job-{run_index}-{candidate_index}"
+                self.store.link_production(
+                    trend_id, "future-leak", job_id, timestamp
+                )
+                videos.append({
+                    "job_id": job_id,
+                    "measurement_status": "measured",
+                    "views_per_hour": [300, 200, 100][candidate_index],
+                })
+        result = self.store.evaluate({"videos": videos})
+        within = result["within_run_validation"]
+        self.assertEqual(within["status"], "holdout_available")
+        self.assertEqual(within["eligible_run_count"], 5)
+        self.assertEqual(within["pre_holdout_run_count"], 3)
+        self.assertEqual(within["holdout_run_count"], 2)
+        self.assertEqual(within["holdout_median_score_views_spearman"], 1.0)
+        self.assertEqual(within["holdout_median_rank_views_spearman"], 1.0)
+        self.assertEqual(within["holdout_positive_score_association_share"], 1.0)
+        self.assertFalse(within["score_adjustment_enabled"])
+
+    def test_within_run_validation_rejects_runs_with_fewer_than_three_outcomes(self):
+        videos = []
+        for run_index in range(5):
+            timestamp = (
+                datetime(2026, 11, 1, tzinfo=timezone.utc)
+                + timedelta(days=run_index)
+            ).isoformat()
+            items = [
+                self.item(run_index * 2 + 0, 90),
+                self.item(run_index * 2 + 1, 70),
+            ]
+            self.store.record_run("US", items, timestamp)
+            for candidate_index in range(2):
+                job_id = f"two-job-{run_index}-{candidate_index}"
+                self.store.link_production(
+                    f"trend-{run_index * 2 + candidate_index}",
+                    "future-leak", job_id, timestamp,
+                )
+                videos.append({
+                    "job_id": job_id, "measurement_status": "measured",
+                    "views_per_hour": [200, 100][candidate_index],
+                })
+        result = self.store.evaluate({"videos": videos})
+        self.assertEqual(result["status"], "holdout_available")
+        self.assertEqual(result["within_run_validation"]["status"],
+                         "insufficient_run_coverage")
+        self.assertEqual(result["within_run_validation"]["eligible_run_count"], 0)
+        self.assertFalse(result["ranking_score_adjustment_enabled"])
+
     def test_insufficient_or_unmeasured_outcomes_never_claim_validation(self):
         self.store.record_run("US", [self.item(1, 80)],
                               "2026-11-01T00:00:00+00:00")
