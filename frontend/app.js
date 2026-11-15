@@ -301,9 +301,13 @@
     const account='<div class="data-item"><b>TikTok 계정 · <span class="'+(tiktok.connected?"ready-text":"missing-text")+'">'+(tiktok.connected?"연결됨":"연결 필요")+'</span></b><small>'+esc(tiktok.open_id||tiktok.mode||tiktok.status||"OAuth 연결 후 표시")+'</small></div>';
     $("preflightList").innerHTML=rows+account+'<div class="notice"><b>'+(data.capabilities.end_to_end_configured?"필수 설정값 구성 완료":"외부 연동 설정이 더 필요합니다")+'</b><span>'+esc(data.note)+'</span></div>';
   }
+  let lifecycleOffset=0;
   async function loadLifecycleQueue(){
-    const data=await api("/api/lifecycle/queue?limit=50&offset=0");
-    const counts=data.status_counts||{},risks=data.risk_counts||{};
+    const filter=$("lifecycleStatusFilter")?.value||"";
+    const params=new URLSearchParams({limit:"50",offset:String(lifecycleOffset)});
+    if(filter)params.set("status",filter);
+    const data=await api("/api/lifecycle/queue?"+params.toString());
+    const counts=data.status_counts||{},productionCounts=data.production_status_counts||{},risks=data.risk_counts||{};
     const summary='<div class="finance-summary"><div><small>전체 제작 작업</small><b>'+Number(data.total||0).toLocaleString()+'</b></div><div><small>차단 위험</small><b>'+Number(risks.blocked||0).toLocaleString()+'</b></div><div><small>확인 필요</small><b>'+Number(risks.attention_required||0).toLocaleString()+'</b></div></div>';
     const rows=(data.items||[]).map(item=>{
       const findings=(item.findings||[]).slice(0,3);
@@ -311,8 +315,11 @@
       const riskLabels={blocked:"차단 조치 필요",attention_required:"운영자 확인 필요",consistent:"일관성 확인"};
       return '<article class="data-item"><div class="recommendation-head"><b>'+esc(item.brand||"브랜드 미상")+' · '+esc(item.topic||item.job_id)+'</b><strong>'+esc(riskLabels[item.risk_status]||item.risk_status)+'</strong></div><small>작업 '+esc(labels[item.status]||item.status)+' · 제작 '+esc(item.production_status||"기록 없음")+' · '+esc(item.current_stage||"단계 미상")+'</small><small>JOB '+esc(item.job_id)+' · 갱신 '+esc(item.updated_at||"")+' · 시도 '+Number(item.attempt||0)+'/'+Number(item.max_attempts||0)+'</small>'+(item.error_code?'<small class="missing-text">오류 코드: '+esc(item.error_code)+'</small>':'')+(findings.length?'<ul>'+findings.map(f=>'<li>'+esc(f.severity)+' · '+esc(f.code)+' — '+esc(f.message)+'</li>').join("")+'</ul>':'<small>현재 자동 진단된 불일치 없음</small>')+'<button class="button button-quiet button-small" data-queue-lifecycle-id="'+esc(item.job_id)+'">상세 이력·복구 진단</button></article>';
     }).join("");
-    const statusSummary=Object.entries(counts).map(([status,count])=>'<span class="tag">'+esc(status)+' '+Number(count).toLocaleString()+'</span>').join(" ");
-    $("lifecycleQueue").innerHTML=summary+'<div class="notice">큐 상태 '+statusSummary+'</div>'+(rows||'<div class="empty-state">표시할 숏폼 제작 작업이 없습니다.</div>')+'<small>읽기 전용 관제 · 자동 재시도·원격 상태 조회·게시 실행 없음 · 페이지 최대 50건</small>';
+    const statusSummary=Object.entries(counts).map(([status,count])=>'<span class="tag">큐 '+esc(status)+' '+Number(count).toLocaleString()+'</span>').join(" ");
+    const productionSummary=Object.entries(productionCounts).map(([status,count])=>'<span class="tag">제작 '+esc(status)+' '+Number(count).toLocaleString()+'</span>').join(" ");
+    $("lifecycleQueue").innerHTML=summary+'<div class="notice">큐 상태 '+statusSummary+'<br>제작 상태 '+productionSummary+'</div>'+(rows||'<div class="empty-state">표시할 숏폼 제작 작업이 없습니다.</div>')+'<small>읽기 전용 관제 · 자동 재시도·원격 상태 조회·게시 실행 없음 · 페이지 최대 50건 · '+(data.offset+1)+'–'+Math.min(data.offset+(data.items||[]).length,data.total)+' / '+data.total+'</small>';
+    $("lifecyclePrev").disabled=data.offset<=0;
+    $("lifecycleNext").disabled=data.offset+(data.items||[]).length>=data.total;
   }
 
   async function loadQueue(){
@@ -374,6 +381,9 @@
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
   $("loadLifecycleQueue").addEventListener("click",()=>loadLifecycleQueue().catch(e=>toast(e.message)));
+  $("lifecycleStatusFilter").addEventListener("change",()=>{lifecycleOffset=0;loadLifecycleQueue().catch(e=>toast(e.message));});
+  $("lifecyclePrev").addEventListener("click",()=>{lifecycleOffset=Math.max(0,lifecycleOffset-50);loadLifecycleQueue().catch(e=>toast(e.message));});
+  $("lifecycleNext").addEventListener("click",()=>{lifecycleOffset+=50;loadLifecycleQueue().catch(e=>toast(e.message));});
   $("lifecycleQueue").addEventListener("click",async e=>{
     const button=e.target.closest("button[data-queue-lifecycle-id]");if(!button)return;
     if(!requireToken())return;
