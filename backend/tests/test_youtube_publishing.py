@@ -130,6 +130,9 @@ class YouTubePublishingTests(unittest.TestCase):
             self.uploads.reconcile("missing","uploaded","video-id","checked")
         self.uploads.begin("job-1","Sleep short","")
         with self.assertRaises(YouTubeUploadError):
+            self.uploads.reconcile("job-1","uploaded","yt-video-1","checked too early")
+        self.uploads.mark_reconciliation_required("job-1","Simulated stale upload")
+        with self.assertRaises(YouTubeUploadError):
             self.uploads.reconcile("job-1","uploaded",None,"checked")
         reconciled=self.uploads.reconcile(
             "job-1","uploaded","yt-video-1","Verified in YouTube Studio"
@@ -139,6 +142,13 @@ class YouTubePublishingTests(unittest.TestCase):
                 "job-1","not_uploaded",None,"conflicting operator decision"
             )
         self.assertEqual(reconciled["video_id"],"yt-video-1")
+
+    def test_active_upload_cannot_be_reconciled_early(self):
+        self.uploads.begin("job-1","Sleep short","")
+        with self.assertRaisesRegex(YouTubeUploadError,"active window"):
+            self.uploads.reconcile(
+                "job-1","not_uploaded",None,"Premature operator check"
+            )
 
     def test_path_outside_media_root_rejected(self):
         outside=os.path.join(self.tmp.name,"..","outside.mp4")
