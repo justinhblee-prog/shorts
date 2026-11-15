@@ -38,6 +38,51 @@ class RecommendationEvaluationTests(unittest.TestCase):
             },
         }
 
+    def test_record_run_persists_all_brand_candidates_for_selection(self):
+        item = self.item()
+        item["brand_candidates"] = [
+            {"brand": "alpha", "brand_name": "Alpha", "fit_score": 38},
+            {"brand": "beta", "brand_name": "Beta", "fit_score": 34},
+        ]
+        result = self.store.record_run("US", [item])
+        self.assertEqual(result["recorded_candidates"], 2)
+        linked = self.store.link_production("trend-1", "beta", "job-beta")
+        self.assertTrue(linked["linked"])
+        with self.store.db() as connection:
+            row = connection.execute(
+                "SELECT selected_job_id,decision FROM recommendation_candidates WHERE brand_slug='beta'"
+            ).fetchone()
+        self.assertEqual(row["selected_job_id"], "job-beta")
+        self.assertEqual(row["decision"], "selected")
+
+    def test_skip_feedback_is_audited_and_included_in_human_selection_summary(self):
+        self.store.record_run("US", [self.item()])
+        result = self.store.record_skip(
+            "trend-1", "alpha", "reviewer-1", "Topic is already overused"
+        )
+        self.assertTrue(result["recorded"])
+        evaluation = self.store.evaluate()
+        summary = evaluation["feedback_summary"]
+        self.assertEqual(summary["skipped_count"], 1)
+        self.assertEqual(summary["selected_count"], 0)
+        self.assertEqual(summary["selection_rate"], 0.0)
+        self.assertIn("not a platform performance metric", summary["interpretation"])
+
+    def test_later_selection_supersedes_skip_but_preserves_feedback_event_history(self):
+        self.store.record_run("US", [self.item()])
+        self.store.record_skip("trend-1", "alpha", "reviewer-1", "Not suitable today")
+        linked = self.store.link_production("trend-1", "alpha", "job-after-reconsideration")
+        self.assertTrue(linked["linked"])
+        evaluation = self.store.evaluate()
+        self.assertEqual(evaluation["feedback_summary"]["selected_count"], 1)
+        self.assertEqual(evaluation["feedback_summary"]["skipped_count"], 0)
+        with self.store.db() as connection:
+            events = connection.execute(
+                "SELECT decision FROM recommendation_feedback_events WHERE candidate_id=? ORDER BY created_at,id",
+                (linked["candidate_id"],),
+            ).fetchall()
+        self.assertEqual([row["decision"] for row in events], ["skipped", "selected"])
+
     def test_identical_api_result_is_deduplicated_within_one_minute(self):
         first = self.store.record_run(
             "US", [self.item(1, 82.5)], "2026-11-01T00:00:00+00:00"
