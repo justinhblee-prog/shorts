@@ -122,3 +122,9 @@ A resumable upload can reach YouTube even if the client loses the final response
 6. If the result is uncertain, do not reconcile as `not_uploaded`; leave the record blocked and investigate further.
 
 The endpoint requires the operator token, an explicit confirmation flag and a non-empty note. This is a manual reconciliation workflow; the current implementation does not query YouTube Studio to discover an upload whose video ID was never received.
+
+### Upload authorization re-check — 2026-11-15
+
+- YouTube upload now requires the **latest** review decision to be `approved`; an earlier approval does not survive a later revision/rejection decision.
+- The upload claim re-checks both `production_runs.status='approved'` and the latest `review_decisions.decision='approved'` under `BEGIN IMMEDIATE` in the same SQLite database transaction that claims the upload. This closes the check-then-claim gap against concurrent review-state changes.
+- Regression tests cover a later revision decision and a production record that is no longer approved. Tests are committed but remain unexecuted pending a working GitHub Actions runner.
