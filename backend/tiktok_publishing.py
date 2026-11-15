@@ -21,7 +21,7 @@ from tiktok_disclosure import build_tiktok_disclosure, TikTokDisclosureError
 
 
 API_ROOT = "https://open.tiktokapis.com"
-CHUNK_SIZE = 5 * 1024 * 1024
+CHUNK_SIZE = 64 * 1024 * 1024
 MAX_VIDEO_BYTES = 4 * 1024 * 1024 * 1024
 
 
@@ -227,8 +227,8 @@ class TikTokPublisher:
         self.transport = transport or self._request
 
     @staticmethod
-    def _request(url, headers, body, timeout):
-        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    def _request(url, headers, body, timeout, method="POST"):
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 return response.status, response.read()
@@ -253,7 +253,7 @@ class TikTokPublisher:
             headers["Content-Type"] = "application/json; charset=UTF-8"
         if extra_headers:
             headers.update(extra_headers)
-        status, raw = self.transport(url, headers, body, 90)
+        status, raw = self.transport(url, headers, body, 90, method)
         try:
             data = json.loads(raw.decode("utf-8")) if not binary else {}
         except (ValueError, UnicodeDecodeError) as exc:
@@ -316,7 +316,7 @@ class TikTokPublisher:
     def _upload_chunks(self, upload_url, media_path, mime, size):
         chunk_size = min(CHUNK_SIZE, size)
         if size > CHUNK_SIZE:
-            chunk_count = (size + chunk_size - 1) // chunk_size
+            chunk_count = size // chunk_size
         else:
             chunk_count = 1
         if chunk_count < 1 or chunk_count > 1000:
@@ -335,7 +335,7 @@ class TikTokPublisher:
                     raise TikTokPublishError("Media file changed during TikTok upload")
                 end = offset + current_size - 1
                 result = self._call(
-                    upload_url, payload=chunk, binary=True,
+                    upload_url, payload=chunk, method="PUT", binary=True,
                     extra_headers={
                         "Content-Type": mime,
                         "Content-Length": str(current_size),
@@ -410,7 +410,7 @@ class TikTokPublisher:
                 )
             remote_started = True
             chunk_size = min(CHUNK_SIZE, size)
-            chunk_count = max(1, (size + chunk_size - 1) // chunk_size)
+            chunk_count = max(1, size // chunk_size)
             initialized = self._call(
                 API_ROOT + "/v2/post/publish/video/init/",
                 payload={
