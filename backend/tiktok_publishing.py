@@ -326,6 +326,8 @@ class TikTokPublisher:
             data = json.loads(raw.decode("utf-8")) if not binary else {}
         except (ValueError, UnicodeDecodeError) as exc:
             raise TikTokPublishError("TikTok returned an invalid response") from exc
+        if not binary and not isinstance(data, dict):
+            raise TikTokPublishError("TikTok returned an unexpected response shape")
         error = data.get("error") if isinstance(data, dict) else None
         if isinstance(error, dict):
             error_code = error.get("code")
