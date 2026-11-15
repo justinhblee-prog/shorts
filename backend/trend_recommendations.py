@@ -58,6 +58,33 @@ def _competitor_context(topic, region, channels, videos_by_channel):
     }
 
 
+def _brand_fit_score(trend_tokens, brand, config):
+    """Weighted lexical fit with explicit exclusions; never infer demand or audience size."""
+    groups = [
+        (config.get("keywords", []), 3.0),
+        (config.get("vertical", ""), 3.0),
+        (brand.get("name", ""), 1.0),
+        (config.get("positioning", ""), 1.5),
+        (config.get("audience", ""), 0.25),
+    ]
+    weights = {}
+    for values, weight in groups:
+        if isinstance(values, str):
+            values = [values]
+        for value in values if isinstance(values, list) else []:
+            for token in _tokens(value):
+                weights[token] = max(weights.get(token, 0.0), weight)
+    excluded = set()
+    for value in config.get("exclude_keywords", []) if isinstance(config.get("exclude_keywords", []), list) else []:
+        excluded.update(_tokens(value))
+    excluded_matches = sorted(trend_tokens & excluded)
+    matched = sorted(trend_tokens & set(weights))
+    total_weight = sum(weights.values())
+    matched_weight = sum(weights[token] for token in matched)
+    score = 0.0 if excluded_matches or not total_weight else round(40.0 * matched_weight / total_weight, 2)
+    return score, matched, excluded_matches
+
+
 def _source_evidence_score(trend, age):
     """Score source provenance completeness, not source popularity or trustworthiness."""
     score = 0.0
@@ -133,13 +160,17 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
             if region and region != "GLOBAL" and region not in config.get("regions", []):
                 continue
             region_eligible += 1
-            overlap = len(tokens & trend_tokens) / len(trend_tokens) if trend_tokens else 0.0
-            fit = round(40 * min(1.0, overlap * 2.0), 2)
+            fit, matched_terms, excluded_terms = _brand_fit_score(
+                trend_tokens, brand, config
+            )
             if fit <= 0:
                 continue
             candidates.append({
                 "brand": brand.get("slug"), "brand_name": brand.get("name"),
-                "fit_score": fit, "supported_languages": config.get("languages", [])
+                "fit_score": fit, "matched_terms": matched_terms,
+                "excluded_terms": excluded_terms,
+                "match_method": "weighted_profile_term_coverage",
+                "supported_languages": config.get("languages", [])
             })
         if region and region != "GLOBAL" and region_eligible == 0:
             continue
