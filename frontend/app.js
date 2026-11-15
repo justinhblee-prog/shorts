@@ -62,12 +62,14 @@
       const video=(item.artifacts||[]).find(a=>a.artifact_type==="video");
       const uncertain=!!item.upload_reconciliation_required;
       const status=item.upload_status||"not_uploaded";
-      const action=uncertain
-        ? '<button class="button button-outline" data-reconcile-id="'+esc(item.job_id)+'">업로드 결과 대조</button>'
-        : (status==="uploading"
-          ? '<button class="button button-quiet" disabled>업로드 진행 중 · 대기</button>'
-          : '<button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">비공개 업로드</button>');
-      const statusText=uncertain?"업로드 결과 확인 필요":(status==="uploading"?"업로드 진행 중":(status==="failed"?"이전 업로드 실패 · 재시도 가능":(status==="uploaded"?"업로드 완료":"업로드 대기")));
+      const action=status==="late_success_review_required"
+        ? '<button class="button button-outline" data-resolve-late-id="'+esc(item.job_id)+'">늦은 업로드 결과 확정</button>'
+        : (uncertain
+          ? '<button class="button button-outline" data-reconcile-id="'+esc(item.job_id)+'">업로드 결과 대조</button>'
+          : (status==="uploading"
+            ? '<button class="button button-quiet" disabled>업로드 진행 중 · 대기</button>'
+            : '<button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">비공개 업로드</button>'));
+      const statusText=status==="late_success_review_required"?"늦은 업로드 성공 · 운영자 확인 필요":(uncertain?"업로드 결과 확인 필요":(status==="uploading"?"업로드 진행 중":(status==="failed"?"이전 업로드 실패 · 재시도 가능":(status==="uploaded"?"업로드 완료":"업로드 대기"))));
       return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+'</div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
   }
@@ -160,6 +162,18 @@
   });
 
   $("approvedList").addEventListener("click",async e=>{
+    const lateButton=e.target.closest("button[data-resolve-late-id]");
+    if(lateButton){
+      if(!requireToken())return;
+      const id=lateButton.dataset.resolveLateId;
+      const note=prompt("보존된 YouTube 영상 ID를 YouTube Studio에서 확인한 근거를 입력하세요.");
+      if(note===null||!note.trim())return;
+      try{
+        await api("/api/youtube/uploads/"+encodeURIComponent(id)+"/resolve-late-result",{method:"POST",body:JSON.stringify({operator_id:reviewer||"operator",note:note.trim()})});
+        toast("늦은 업로드 결과를 확정했습니다.");await refreshAll();
+      }catch(err){$("upload-"+CSS.escape(id)).textContent=err.message;toast(err.message);}
+      return;
+    }
     const reconcileButton=e.target.closest("button[data-reconcile-id]");
     if(reconcileButton){
       if(!requireToken())return;
@@ -178,7 +192,7 @@
       const note=prompt("대조 근거 또는 확인 메모를 입력하세요.");
       if(note===null||!note.trim())return;
       try{
-        await api("/api/youtube/uploads/"+encodeURIComponent(id)+"/reconcile",{method:"POST",body:JSON.stringify({outcome:normalized,confirmed:true,video_id:videoId,note:note.trim()})});
+        await api("/api/youtube/uploads/"+encodeURIComponent(id)+"/reconcile",{method:"POST",body:JSON.stringify({outcome:normalized,confirmed:true,video_id:videoId,note:note.trim(),operator_id:reviewer||"operator"})});
         toast("업로드 상태 대조가 기록되었습니다.");await refreshAll();
       }catch(err){$("upload-"+CSS.escape(id)).textContent=err.message;toast(err.message);}
       return;
