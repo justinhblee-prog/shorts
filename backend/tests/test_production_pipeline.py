@@ -160,6 +160,14 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(result["restored"], 1)
         self.assertEqual(self.store.get(job["id"])["status"], "queued")
 
+    def test_orphan_recovery_skips_non_object_payload_without_crashing(self):
+        queue = JobQueue(self.store.db_path)
+        job = queue.enqueue("short_video_production", ["not", "an", "object"])
+        result = self.store.reconcile_missing_runs(queue)
+        self.assertEqual(result["restored"], 0)
+        self.assertEqual(result["invalid"], [job["id"]])
+        self.assertIsNone(self.store.get(job["id"]))
+
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
             ProductionPipeline.validate_brief({"brand": "x", "region": "US",
