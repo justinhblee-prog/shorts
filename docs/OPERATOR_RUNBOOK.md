@@ -167,3 +167,10 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 ```
 
 - Resume clears only the global worker pause. It does not automatically change a terminal job state or reconcile an uncertain provider result. Confirm the affected job's queue and production records before allowing it to retry.
+
+
+### Queue idempotency contract — 2026-11-15
+
+- Repeating a submission with the same idempotency key, job type, channel and JSON payload returns the existing job without creating another queue entry.
+- Reusing that key with a different job type, channel or payload is rejected with HTTP 409. The original job remains unchanged.
+- A client retry must resend the original request body with the original key. Generate a new key only for a genuinely new production request.
