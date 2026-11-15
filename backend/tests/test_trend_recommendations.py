@@ -42,8 +42,8 @@ class TrendRecommendationTests(unittest.TestCase):
     def test_competitor_evidence_is_region_scoped_and_does_not_change_editorial_score(self):
         store = Mock()
         store.list_channels.return_value = [
+            *[{"channel_id": f"jp-channel-{index}", "country": "JP"} for index in range(12)],
             {"channel_id": "us-channel", "country": "US"},
-            {"channel_id": "jp-channel", "country": "JP"},
         ]
         store.list_videos.side_effect = lambda channel_id, limit: [
             {"channel_id": channel_id, "title": "AI technology explained",
@@ -64,6 +64,7 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(result["recommendation_score"], result["freshness_score"] +
                          result["best_brand"]["fit_score"])
         self.assertNotIn("competitor_video_sample_unavailable", result["evidence_gaps"])
+        store.list_channels.assert_called_once_with(limit=200)
         store.list_videos.assert_called_once_with("us-channel", limit=30)
 
 
