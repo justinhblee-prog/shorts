@@ -3,6 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore
@@ -234,6 +235,34 @@ class YouTubePublishingTests(unittest.TestCase):
         current=self.uploads.get("job-1")
         self.assertEqual(current["status"],"uploaded")
         self.assertEqual(current["events"][-1]["event_type"],"post_confirmation_worker_error")
+
+    def test_post_confirmation_read_failure_does_not_report_uncertain_upload(self):
+        original_get=self.uploads.get
+        calls=0
+
+        def fail_final_read(job_id):
+            nonlocal calls
+            calls+=1
+            if calls==2:
+                raise OSError("temporary database read failure")
+            return original_get(job_id)
+
+        with patch.object(self.uploads,"get",side_effect=fail_final_read):
+            with self.assertRaisesRegex(
+                YouTubeUploadError,"confirmed as video ID yt-video-123"
+            ):
+                self.publisher.upload_approved(
+                    "job-1",self.media,self.review,"Confirmed before read failure"
+                )
+
+        persisted=original_get("job-1")
+        self.assertEqual(persisted["status"],"uploaded")
+        self.assertEqual(persisted["video_id"],"yt-video-123")
+        self.assertEqual(persisted["events"][-1]["event_type"],"upload_confirmed")
+        self.assertNotIn(
+            "upload_outcome_uncertain",
+            [event["event_type"] for event in persisted["events"]]
+        )
 
     def test_upload_is_idempotent_after_success(self):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
