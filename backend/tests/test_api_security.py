@@ -229,7 +229,7 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertFalse(caught.exception.detail["retryable"])
         fail.assert_called_once()
         self.assertIs(fail.call_args.args[-1], False)
-        pause.assert_called_once()
+        pause.assert_not_called()
 
     def test_generic_api_failure_forces_production_job_terminal_and_pauses(self):
         job = {"id": "job-generic-fail", "job_type": "short_video_production"}
