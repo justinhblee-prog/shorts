@@ -277,3 +277,11 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - Added regression coverage for competing owners, expiry/takeover, stale-owner fencing, invalid lease rejection and successful dispatch under a valid lease.
 - GitHub Actions run [43670844206](https://github.com/justinhblee-prog/shorts/actions/runs/43670844206) passed **156 tests** on commit `851551896e1bc1b0416427d3a4d6f5964f05862c`. Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing also passed.
 - Calendar/DST recurrence rules and multi-host database deployment remain outside the current SQLite baseline.
+
+
+## BUILD-00077 — provider endpoint configuration check
+
+- Configure `SCRIPT_PROVIDER_URL`, `VOICE_PROVIDER_URL`, `RENDER_PROVIDER_URL` and optional `TRANSCRIPTION_PROVIDER_URL` as HTTPS endpoints with valid hostnames and ports.
+- Do not embed usernames, passwords, access tokens or API keys in provider URLs. Keep credentials in their dedicated environment variables / secret store.
+- The API preflight rejects malformed or non-HTTPS provider URLs without displaying their values. It performs no network request; a configured result is not a live connectivity or provider compatibility test.
+- Provider HTTP error response bodies are not retained. Diagnose provider failures using the sanitized stage and HTTP status, then consult the provider console with appropriate access controls.
