@@ -856,3 +856,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Bound analysis to 10,000 subtitle cues and preserve raw subtitle text out of quality artifacts.
 - Timing and reading-speed thresholds are heuristic review signals, not universal platform/accessibility standards. They do not evaluate actual font size, contrast, placement, safe areas, language-specific reading speed, or burned-in captions.
 - Validation pending on this branch.
+
+
+### BUILD-00020 — within-exposure recommendation validation (2026-11-15)
+
+- Extended recommendation evaluation to compare only candidates from the same captured recommendation exposure and same measured outcome cohort: brand, region, publication-age bucket, duration bucket and format.
+- Requires at least three selected measured outcomes per comparable cohort and at least five eligible exposure runs before reporting a chronological 70/30 holdout.
+- Summarizes cohort Spearman correlations within each exposure run, then reports median score/rank association and positive-association share across holdout runs.
+- Retains the pooled cross-exposure metric only as a coarse diagnostic and explicitly labels its confounding boundary.
+- Dashboard now shows within-exposure holdout coverage separately from pooled correlation.
+- Recommendation score changes remain disabled. The evaluation is observational and selection-biased because only operator-selected recommendations receive production outcomes.
+- CI validation pending on this branch.
