@@ -3,7 +3,7 @@ from production_pipeline import ProductionStore
 from youtube_publishing import YouTubeUploadStore
 from review_workflow import ReviewStore
 from ledger import LedgerStore
-from performance_insights import PerformanceAnalyzer
+from performance_insights import PerformanceAnalyzer, _duration_bucket
 from policy_engine import evaluate_content_policy
 
 class PerformanceTests(unittest.TestCase):
@@ -27,6 +27,14 @@ class PerformanceTests(unittest.TestCase):
   self.l.record({"brand":brand,"region":"US","entry_type":kind,"amount":amount,
    "currency":currency,"source_type":"operator_receipt","source_reference":ref,
    "occurred_at":"2026-11-15T00:00:00+00:00"})
+ def test_duration_bucket_rejects_boolean_and_nonfinite_metadata(self):
+  self.assertEqual(_duration_bucket(True),"unknown")
+  self.assertEqual(_duration_bucket(False),"unknown")
+  self.assertEqual(_duration_bucket(float("nan")),"unknown")
+  self.assertEqual(_duration_bucket(float("inf")),"unknown")
+  self.assertEqual(_duration_bucket(-float("inf")),"unknown")
+  self.assertEqual(_duration_bucket(30),"20_40s")
+
  def test_insufficient_snapshots_not_misrepresented_as_growth(self):
   self.video("j1","Brain Glitch","US","Sleep","vid1")
   r=PerformanceAnalyzer(self.db).analyze()
