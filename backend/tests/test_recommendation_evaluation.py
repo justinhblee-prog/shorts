@@ -479,5 +479,72 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertNotEqual(rows[0]["participant_fingerprint"], rows[1]["participant_fingerprint"])
 
+
+    def test_rendered_exposure_records_only_candidates_in_captured_run_and_is_idempotent(self):
+        run=self.store.record_run("US",[self.item(1),self.item(2)])
+        event="b8d6f5e4-73b0-4f6d-91ab-2d5e5a1c0f01"
+        first=self.store.record_rendered_exposures(run["run_id"],[{
+            "event_id":event,"trend_id":"trend-1","visibility_ms":1200
+        }])
+        repeated=self.store.record_rendered_exposures(run["run_id"],[{
+            "event_id":event,"trend_id":"trend-1","visibility_ms":1200
+        }])
+        self.assertEqual(first["recorded_count"],1)
+        self.assertEqual(repeated["recorded_count"],0)
+        self.assertEqual(repeated["duplicate_count"],1)
+        self.assertFalse(first["randomized_assignment"])
+        with self.assertRaises(ValueError):
+            self.store.record_rendered_exposures(run["run_id"],[{
+                "event_id":"b8d6f5e4-73b0-4f6d-91ab-2d5e5a1c0f02",
+                "trend_id":"not-in-run","visibility_ms":1200
+            }])
+        report=self.store.rendered_exposure_report(run["run_id"])
+        self.assertEqual(report["visible_trend_card_count"],1)
+        self.assertEqual(report["unseen_trend_card_count"],1)
+        self.assertEqual(report["render_impression_count"],1)
+        self.assertEqual(report["causal_effect_status"],"not_estimable_nonrandomized")
+
+    def test_rendered_exposure_report_counts_only_post_render_measured_outcomes(self):
+        run=self.store.record_run("US",[self.item(1)])
+        candidate=self.candidate_id(run,"trend-1","future-leak")
+        self.store.record_rendered_exposures(run["run_id"],[{
+            "event_id":"b8d6f5e4-73b0-4f6d-91ab-2d5e5a1c0f03",
+            "trend_id":"trend-1","visibility_ms":1500
+        }])
+        self.store.link_production("trend-1","future-leak","job-after",
+            selected_at="9999-01-01T00:00:00+00:00",candidate_id=candidate)
+        report=self.store.rendered_exposure_report(run["run_id"],{"videos":[
+            {"job_id":"job-after","measurement_status":"measured","views_per_hour":12.5},
+            {"job_id":"unrelated","measurement_status":"measured","views_per_hour":99}
+        ]})
+        item=report["items"][0]
+        self.assertEqual(item["selected_after_exposure_count"],1)
+        self.assertEqual(item["measured_outcome_count"],1)
+        self.assertEqual(item["median_views_per_hour"],12.5)
+        self.assertEqual(report["measured_outcome_count"],1)
+        self.assertEqual(report["ranking_score_adjustment"],0)
+
+    def test_rendered_exposure_validation_and_immutable_storage(self):
+        run=self.store.record_run("US",[self.item(1)])
+        with self.assertRaises(ValueError):
+            self.store.record_rendered_exposures(run["run_id"],[{
+                "event_id":"not-a-uuid","trend_id":"trend-1","visibility_ms":1500
+            }])
+        with self.assertRaises(ValueError):
+            self.store.record_rendered_exposures(run["run_id"],[{
+                "event_id":"b8d6f5e4-73b0-4f6d-91ab-2d5e5a1c0f04",
+                "trend_id":"trend-1","visibility_ms":999
+            }])
+        self.store.record_rendered_exposures(run["run_id"],[{
+            "event_id":"b8d6f5e4-73b0-4f6d-91ab-2d5e5a1c0f05",
+            "trend_id":"trend-1","visibility_ms":1500
+        }])
+        with self.store.db() as connection:
+            with self.assertRaises(Exception):
+                connection.execute("UPDATE recommendation_rendered_exposures SET visibility_ms=2000")
+            with self.assertRaises(Exception):
+                connection.execute("DELETE FROM recommendation_rendered_exposures")
+        self.assertIsNone(self.store.rendered_exposure_report("missing-run"))
+
 if __name__ == "__main__":
     unittest.main()
