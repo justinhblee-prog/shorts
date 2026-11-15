@@ -74,8 +74,17 @@ class YouTubePublishingTests(unittest.TestCase):
         with self.assertRaises(YouTubeUploadError):
             self.uploads.finish("job-1", "late-video-id")
         result = self.uploads.get("job-1")
-        self.assertEqual(result["status"], "failed")
-        self.assertIsNone(result["video_id"])
+        self.assertEqual(result["status"], "late_success_review_required")
+        self.assertEqual(result["video_id"], "late-video-id")
+        self.assertEqual(result["events"][-1]["event_type"], "late_remote_success")
+        with self.assertRaisesRegex(YouTubeUploadError, "blocked"):
+            self.uploads.begin("job-1", "Retry", "")
+        resolved=self.uploads.resolve_late_success(
+            "job-1","reviewer-ops","Confirmed late video ID in YouTube Studio"
+        )
+        self.assertEqual(resolved["status"], "uploaded")
+        self.assertEqual(resolved["video_id"], "late-video-id")
+        self.assertEqual(resolved["events"][-1]["operator_id"], "reviewer-ops")
 
     def test_finish_requires_active_upload_state(self):
         with self.assertRaises(YouTubeUploadError):
@@ -149,9 +158,14 @@ class YouTubePublishingTests(unittest.TestCase):
                 "job-1",self.media,self.review,"Sleep short"
             )
         reconciled=self.uploads.reconcile(
-            "job-1","not_uploaded",None,"Checked channel uploads; no matching private video"
+            "job-1","not_uploaded",None,"Checked channel uploads; no matching private video",
+            "reviewer-audit"
         )
         self.assertEqual(reconciled["status"],"failed")
+        event=reconciled["events"][-1]
+        self.assertEqual(event["operator_id"],"reviewer-audit")
+        self.assertEqual(event["outcome"],"not_uploaded")
+        self.assertTrue(event["created_at"])
         retried=YouTubePublisher(self.uploads,FakeService()).upload_approved(
             "job-1",self.media,self.review,"Sleep short"
         )
