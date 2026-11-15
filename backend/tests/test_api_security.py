@@ -16,7 +16,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  get_tiktok_publication, approved_reviews, start_tiktok_oauth,
                  tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth,
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
-                 skip_recommendation_feedback, capture_trend_recommendations)
+                 skip_recommendation_feedback, capture_trend_recommendations,\n                 get_job_lifecycle)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -88,6 +88,39 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["tiktok_status"], "processing")
         self.assertTrue(result["items"][0]["tiktok_eligible"])
         self.assertEqual(result["items"][0]["tiktok_publish_id"], "publish-1")
+
+    def test_lifecycle_endpoint_returns_joined_authoritative_records(self):
+        job={"id":"job-1","job_type":"short_video_production","status":"review_pending"}
+        production={"job_id":"job-1","status":"review_pending","artifacts":[]}
+        decisions=[{"id":1,"job_id":"job-1","decision":"approved"}]
+        youtube={"job_id":"job-1","status":"uploaded","video_id":"yt-1"}
+        tiktok={"job_id":"job-1","status":"send_to_inbox","publish_id":"tt-1"}
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.queue.get",return_value=job),
+            mock.patch("app.queue.events",return_value=[{"event_type":"completed"}]),
+            mock.patch("app.production_store.get",return_value=production),
+            mock.patch("app.review_store.history",return_value=decisions),
+            mock.patch("app.youtube_upload_store.get",return_value=youtube),
+            mock.patch("app.tiktok_publish_store.get",return_value=tiktok),
+        ):
+            result=get_job_lifecycle("job-1",x_review_token="test-token")
+        self.assertEqual(result["job"]["status"],"review_pending")
+        self.assertEqual(result["production"]["status"],"review_pending")
+        self.assertEqual(result["review"]["latest"]["decision"],"approved")
+        self.assertEqual(result["publishing"]["youtube"]["video_id"],"yt-1")
+        self.assertEqual(result["publishing"]["tiktok"]["status"],"send_to_inbox")
+        self.assertEqual(result["queue_events"][0]["event_type"],"completed")
+
+    def test_lifecycle_endpoint_rejects_nonproduction_queue_jobs(self):
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.queue.get",return_value={
+                "id":"job-2","job_type":"other","status":"completed"}),
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                get_job_lifecycle("job-2",x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code,409)
 
     def test_tiktok_oauth_start_and_status_routes_are_token_protected(self):
         expected = {"/api/tiktok/oauth/start", "/api/tiktok/oauth/status",
