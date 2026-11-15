@@ -8,15 +8,18 @@ ROLE_PERMISSIONS = {
     "admin": {"*"},
     "producer": {
         "production.create", "production.execute", "trends.collect",
-        "schedules.manage", "queue.enqueue", "media.manage",
+        "schedules.manage", "queue.enqueue", "media.manage", "trends.read",
+        "intelligence.read", "recommendations.read", "production.read",
     },
-    "reviewer": {"review.read", "review.decide", "review.evidence"},
-    "publisher": {"publish.execute", "publish.reconcile", "publish.manage"},
-    "analyst": {"analytics.read", "finance.read"},
+    "reviewer": {"review.read", "review.decide", "review.evidence", "production.read"},
+    "publisher": {"publish.execute", "publish.reconcile", "publish.manage", "publishing.read"},
+    "analyst": {"analytics.read", "finance.read", "trends.read", "intelligence.read",
+        "recommendations.read", "publishing.read"},
     "operator": {
         "operations.read", "queue.control", "queue.enqueue", "production.create",
         "production.execute", "trends.collect", "schedules.manage", "brand.manage",
-        "media.manage", "recommendations.manage",
+        "media.manage", "recommendations.manage", "queue.read", "publishing.read",
+        "trends.read", "intelligence.read", "recommendations.read", "production.read",
     },
     "finance": {"finance.read", "finance.write"},
 }
