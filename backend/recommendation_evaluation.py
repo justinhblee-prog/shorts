@@ -180,7 +180,7 @@ class RecommendationEvaluationStore:
                cohort_context_json,created_at)
               VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", rows)
             c.execute("""DELETE FROM recommendation_candidates
-                WHERE selected_job_id IS NULL AND created_at<?""",
+                WHERE selected_job_id IS NULL AND decision IS NULL AND created_at<?""",
                 (retention_cutoff,))
             c.execute("""DELETE FROM recommendation_runs
                 WHERE generated_at<? AND NOT EXISTS (
