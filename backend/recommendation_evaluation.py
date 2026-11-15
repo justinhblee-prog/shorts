@@ -120,7 +120,6 @@ class RecommendationEvaluationStore:
             CREATE TRIGGER IF NOT EXISTS recommendation_evaluation_snapshots_no_delete
               BEFORE DELETE ON recommendation_evaluation_snapshots
               BEGIN SELECT RAISE(ABORT,'Recommendation evaluation snapshots are immutable'); END;
-            """)
             CREATE TABLE IF NOT EXISTS recommendation_experiments(
               id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL,
               control_label TEXT NOT NULL, treatment_label TEXT NOT NULL,
