@@ -23,7 +23,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview, metrics_collection_status,
                  capture_recommendation_evaluation_snapshot, list_recommendation_evaluation_snapshots,
                  require_canonical_staged_media, stage_production_media, approve_review,
-                 publishing_dashboard)
+                 publishing_dashboard, tiktok_metrics)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -921,6 +921,19 @@ class ApiSecurityTests(unittest.TestCase):
                 os.environ.pop("NEXUS_REVIEW_TOKEN", None)
             else:
                 os.environ["NEXUS_REVIEW_TOKEN"] = previous
+
+    def test_tiktok_metrics_endpoint_is_authenticated_bounded_and_read_only(self):
+        sample = [{"video_id": "video-1", "view_count": 10, "privacy_level": "SELF_ONLY"}]
+        with mock.patch("app.require_review_access") as access, \
+             mock.patch.object(app_module.tiktok_metrics_store, "recent_metrics",
+                               return_value=sample) as recent:
+            result = tiktok_metrics(limit=500, x_review_token="test-token")
+        access.assert_called_once_with("test-token")
+        recent.assert_called_once_with(app_module.tiktok_publish_store, 200)
+        self.assertEqual(result["items"], sample)
+        self.assertEqual(result["limit"], 200)
+        self.assertEqual(result["ranking_score_adjustment"], 0)
+        self.assertTrue(result["read_only"])
 
     def test_metrics_collection_status_is_authenticated_and_discloses_platform_scopes(self):
         with mock.patch("app.require_review_access") as access, \
