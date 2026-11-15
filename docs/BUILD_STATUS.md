@@ -793,3 +793,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - API and background production workers now wait for their heartbeat threads to exit before finishing/releasing the lease, preventing an in-flight heartbeat from observing a completed job as a lease conflict and pausing unrelated production work.
 - GitHub Actions runs 43675072630 and 43675069941 passed on commit `a6805bc4790cd61e8e22faf92ffbcd66ae46fe97`; each passed compile/Compose/frontend validation and all 205 backend unit tests.
 - Not merged or deployed; live YouTube/provider validation remains outstanding.
+
+
+## Latest verification override — 2026-11-15
+
+This section supersedes earlier validation statements above where they describe the Actions runner as unavailable or the backend suite as not yet executed.
+
+- GitHub Actions run [43675142147](https://github.com/justinhblee-prog/shorts/actions/runs/43675142147) checked out commit `648366755c5b7d622b97ab1c62fddb50682ff704`, installed Python 3.11 dependencies, ran `sh scripts/validate.sh`, and passed.
+- The validation script completed successfully, including Python compilation, Compose/frontend checks, and **206 backend unit tests** (`Ran 206 tests ... OK`).
+- The preceding implementation commit [0438df5](https://github.com/justinhblee-prog/shorts/commit/0438df52270ef627cc684c9c756351adb6267a06) also passed Actions run [43675139398](https://github.com/justinhblee-prog/shorts/actions/runs/43675139398).
+- YouTube resumable upload now fails closed when its attempt lease refresh returns false or raises: the publisher stops before issuing another chunk and marks the remote outcome for reconciliation. Regression test: `test_upload_stops_after_attempt_lease_is_lost_between_chunks`.
+- The source changes remain in Draft PR #20. They are **not merged or deployed**. Live provider credentials, actual provider calls, OAuth, and live YouTube upload remain unverified.
