@@ -1272,3 +1272,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Safety boundary: experiments remain draft; assignment is shadow-only and does not serve a different recommendation, alter production ranking, or change publishing. Live traffic allocation is not implemented or enabled. Ranking score adjustment remains zero.
 - Added unit/API regression coverage for allocation validation, deterministic assignment, idempotency, participant-key minimization, report limitations and route authentication.
 - CI validation pending. Shadow assignments are infrastructure checks, not actual randomized exposure or causal evidence.
+
+
+### BUILD-00057 validation evidence (final)
+- Final implementation commit: `c612771601123f8215589f5b921f882ef0bd6ffb`.
+- GitHub Actions run [43703549995](https://github.com/justinhblee-prog/shorts/actions/runs/43703549995) passed **411 tests**; `scripts/validate.sh` completed successfully, including Python compileall, YAML validation, frontend syntax/ID checks and unittest discovery.
+- Added per-experiment HMAC participant fingerprinting after review to prevent cross-experiment participant correlation; the final CI run includes the regression test.
+- This confirms repository CI only. No production traffic was randomized and no actual platform outcome was measured.
