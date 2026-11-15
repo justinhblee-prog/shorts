@@ -199,12 +199,24 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
                        "provider_"+e.stage,str(e),e.retryable)
         except Exception:
             pass
+        try:
+            queue.pause(f"API provider failure at {e.stage}: {e}", job_id)
+        except Exception:
+            pass
         raise HTTPException(502,{"stage":e.stage,"error":str(e),"retryable":e.retryable})
     except JobNotFound:
         raise HTTPException(404,"Job not found")
     except ProductionLeaseConflict as e:
+        try:
+            queue.pause(f"API production lease conflict: {e}", job_id)
+        except Exception:
+            pass
         raise HTTPException(409,str(e))
     except LeaseConflict as e:
+        try:
+            queue.pause(f"API queue lease conflict: {e}", job_id)
+        except Exception:
+            pass
         raise HTTPException(409,str(e))
     except HTTPException:
         raise
@@ -212,6 +224,10 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
         try:
             queue.fail(job_id,body.worker_id,body.lease_token,
                        "pipeline_internal_error",type(e).__name__,False)
+        except Exception:
+            pass
+        try:
+            queue.pause(f"API pipeline internal error: {type(e).__name__}: {e}", job_id)
         except Exception:
             pass
         raise HTTPException(500,"Production pipeline failed internally")
