@@ -77,8 +77,10 @@
         : '<section class="review-policy"><strong>정책 사전검사 자료 없음</strong><small>게시 전 권리·AI 표시·사실성·독창성을 직접 확인하세요.</small></section>';
       const qualityLabels={blocked:"품질 게이트 차단",review_required:"사람 확인 필요",ready_for_human_review:"메타데이터 검사 통과 · 사람 승인 필요"};
       const mediaCheck=quality.media_inspection||{};
+      const signalCheck=mediaCheck.signal_analysis||{};
       const mediaSummary=mediaCheck.status==="inspected"
         ? '<p>실제 파일 검사: '+esc(mediaCheck.width)+'×'+esc(mediaCheck.height)+' px · '+esc(Number(mediaCheck.duration_seconds).toFixed(1))+'초 · 영상 '+esc(mediaCheck.video_codec||"알 수 없음")+' · 오디오 '+esc(mediaCheck.audio_codec||"없음")+' · 자막 스트림 '+(mediaCheck.subtitle_stream_present?"있음":"없음")+'</p>'
+          +(signalCheck.status==="analyzed"?'<p>신호 분석: 검은 화면 구간 '+esc((signalCheck.black_segments||[]).length)+'개 · 무음 구간 '+esc((signalCheck.silence_segments||[]).length)+'개</p>':'')
         : '';
       const qualitySummary=qualityArtifact
         ? '<section class="review-policy"><strong>자동 제작 품질 검사 · '+esc(qualityLabels[quality.status]||quality.status)+'</strong>'

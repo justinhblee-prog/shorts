@@ -147,6 +147,10 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
         if actual_duration is None or actual_width is None or actual_height is None:
             media_blockers.append("actual_media_probe_missing_required_stream_metadata")
         blockers.extend(media_blockers)
+        signal_report = media_inspection.get("signal_analysis") or {}
+        signal_warnings = signal_report.get("signal_warnings") or []
+        if isinstance(signal_warnings, list):
+            warnings.extend(str(item) for item in signal_warnings)
         checks.append({
             "name": "media_bytes",
             "status": "blocked" if media_blockers else "inspected",
@@ -160,6 +164,11 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             "audio_codec": media_inspection.get("audio_codec"),
             "subtitle_stream_present": media_inspection.get("subtitle_stream_present"),
             "subtitle_note": media_inspection.get("subtitle_note"),
+            "signal_analysis_status": signal_report.get("status"),
+            "black_frame_segments": signal_report.get("black_segments", []),
+            "audio_silence_segments": signal_report.get("silence_segments", []),
+            "signal_warnings": signal_warnings,
+            "signal_analysis_boundary": signal_report.get("signal_analysis_boundary"),
             "blockers": media_blockers,
         })
         warnings = [

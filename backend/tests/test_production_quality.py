@@ -43,6 +43,39 @@ class ProductionQualityTests(unittest.TestCase):
         self.assertNotIn("actual_media_bytes_not_inspected", report["warnings"])
         self.assertEqual(report["checks"][-1]["status"], "inspected")
 
+    def test_black_frame_and_audio_silence_signals_require_human_review(self):
+        report = evaluate_production_quality(
+            "A clear opening explains the problem. Evidence supports the claim. "
+            "The ending gives viewers a useful next step with a concise summary.",
+            {"factual_claims_verified": True},
+            {"duration_seconds": 30},
+            {"duration_seconds": 30, "aspect_ratio": "9:16",
+             "audio_track_present": True, "subtitles_enabled": True},
+            {},
+            media_inspection={
+                "status": "inspected", "duration_seconds": 30,
+                "width": 1080, "height": 1920, "audio_track_present": True,
+                "signal_analysis": {
+                    "status": "analyzed", "black_segments": [
+                        {"start_seconds": 0, "end_seconds": 3, "duration_seconds": 3}
+                    ],
+                    "silence_segments": [
+                        {"start_seconds": 0, "end_seconds": 2, "duration_seconds": 2}
+                    ],
+                    "signal_warnings": [
+                        "black_frame_segment_at_least_2_seconds_detected",
+                        "audio_silence_segment_at_least_2_seconds_detected",
+                    ],
+                },
+            },
+        )
+        self.assertEqual(report["status"], "review_required")
+        self.assertEqual(report["blockers"], [])
+        self.assertIn("black_frame_segment_at_least_2_seconds_detected",
+                      report["warnings"])
+        self.assertIn("audio_silence_segment_at_least_2_seconds_detected",
+                      report["warnings"])
+
     def test_missing_metadata_is_review_warning_not_false_success_or_block(self):
         report = evaluate_production_quality(
             "A short script with a hook and useful takeaway.",
