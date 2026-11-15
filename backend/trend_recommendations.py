@@ -157,6 +157,9 @@ def _comparable_cohort_context(trend_tokens, brand_name, region, cohorts):
             "topic_signature": cohort.get("topic_signature"),
             "sample_count": int(cohort.get("sample_count") or 0),
             "median_views_per_hour": cohort.get("median_views_per_hour"),
+            "analytics_sample_count": int(cohort.get("analytics_sample_count") or 0),
+            "median_average_view_percentage": cohort.get("median_average_view_percentage"),
+            "median_average_view_duration_seconds": cohort.get("median_average_view_duration_seconds"),
             "interaction_rate_sample_count": int(
                 cohort.get("interaction_rate_sample_count") or 0
             ),
