@@ -25,6 +25,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  require_canonical_staged_media, stage_production_media, approve_review,
                  publishing_dashboard, tiktok_metrics, youtube_analytics_metrics)
 from production_pipeline import ProviderError
+from queue_store import LeaseConflict
 
 class ApiSecurityTests(unittest.TestCase):
     def test_canonical_staged_media_accepts_only_current_job_file(self):
