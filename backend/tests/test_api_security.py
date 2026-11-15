@@ -17,10 +17,21 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth,
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
                  skip_recommendation_feedback, capture_trend_recommendations,
-                 get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue)
+                 get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
+                 operational_health)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
+    def test_operational_health_requires_review_access_and_returns_snapshot(self):
+        with mock.patch("app.require_review_access") as access, \
+             mock.patch.object(app_module.queue, "operational_health",
+                               return_value={"status":"healthy","read_only":True}) as snapshot:
+            result = operational_health(x_review_token="test-token")
+        access.assert_called_once_with("test-token")
+        snapshot.assert_called_once_with()
+        self.assertEqual(result["status"], "healthy")
+        self.assertTrue(result["read_only"])
+
     def test_all_operational_routes_require_review_token(self):
         public = {"/api/health", "/api/brands", "/api/brands/{slug}", "/api/tiktok/oauth/callback"}
         unprotected = []
