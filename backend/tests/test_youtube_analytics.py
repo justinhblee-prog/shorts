@@ -181,6 +181,7 @@ class YouTubeAnalyticsTests(unittest.TestCase):
             def refresh(self, **kwargs):
                 error = RuntimeError("forbidden")
                 error.resp = SimpleNamespace(status=403)
+                error.error_details = [{"reason": "insufficientPermissions"}]
                 raise error
         fake = FakeStore()
         with self.assertRaisesRegex(RuntimeError, "forbidden"):
