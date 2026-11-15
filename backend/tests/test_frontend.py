@@ -19,6 +19,13 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("COPY backend/ ./backend/", dockerfile)
         self.assertIn("COPY frontend/ ./frontend/", dockerfile)
         self.assertIn("WORKDIR /app/backend", dockerfile)
+    def test_late_upload_resolution_controls_are_wired(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data-resolve-late-id", app_js)
+        self.assertIn("/resolve-late-result", app_js)
+        self.assertIn("lateIdSummary", app_js)
+        self.assertIn("existingIdSummary", app_js)
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
