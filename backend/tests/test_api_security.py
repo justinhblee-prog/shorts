@@ -251,6 +251,13 @@ class ApiSecurityTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as caught:
                 resume_queue(body, x_review_token="test-token")
         self.assertEqual(caught.exception.status_code, 409)
+    def test_queue_control_rejects_whitespace_only_fields(self):
+        with mock.patch("app.require_review_access"):
+            for action in (pause_queue, resume_queue):
+                body = QueueControlAction(operator_id="   ", note="   ")
+                with self.assertRaises(HTTPException) as caught:
+                    action(body, x_review_token="test-token")
+                self.assertEqual(caught.exception.status_code, 422)
     def test_review_token_fails_closed(self):
         previous = os.environ.get("NEXUS_REVIEW_TOKEN")
         os.environ["NEXUS_REVIEW_TOKEN"] = "unit-test-secret"
