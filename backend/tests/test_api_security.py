@@ -22,7 +22,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
                  operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview, metrics_collection_status,
                  capture_recommendation_evaluation_snapshot, list_recommendation_evaluation_snapshots,
-                 require_canonical_staged_media, stage_production_media)
+                 require_canonical_staged_media, stage_production_media, approve_review)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -49,7 +49,7 @@ class ApiSecurityTests(unittest.TestCase):
                 staged_path=lambda job_id:root/(job_id+".mp4"),
                 stage=mock.Mock(return_value={"media_path":"job-1.mp4","size_bytes":12}),
             )
-            production={"status":"approved","artifacts":[{
+            production={"status":"review_pending","artifacts":[{
                 "artifact_type":"video","artifact_url":"https://cdn.example/current.mp4"
             }]}
             with mock.patch("app.require_review_access"), \
@@ -60,6 +60,18 @@ class ApiSecurityTests(unittest.TestCase):
                 "job-1","https://cdn.example/current.mp4"
             )
             self.assertEqual(result["media_path"],"job-1.mp4")
+
+    def test_approve_review_binds_canonical_staged_file_into_decision(self):
+        staged = Path("test-staged-media.mp4")
+        with mock.patch("app.require_review_access"), \
+             mock.patch.object(app_module.media_stager, "staged_path", return_value=staged), \
+             mock.patch.object(app_module.review_store, "decide", return_value={"decision": "approved"}) as decide:
+            result = approve_review(
+                "job-1", SimpleNamespace(reviewer_id="reviewer-1", comment="Reviewed"),
+                x_review_token="test-token",
+            )
+        self.assertEqual(result["decision"], "approved")
+        self.assertEqual(decide.call_args.kwargs["staged_media_path"], staged)
 
     def test_canonical_staged_media_rejects_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
