@@ -330,3 +330,17 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression tests for provider-stage propagation, malformed-profile fail-closed validation, and API-level profile snapshotting at submission.
 - GitHub Actions run [43666178495](https://github.com/justinhblee-prog/shorts/actions/runs/43666178495) on commit `f7d7c20c396d8ea05fb60ed8414b84d5301e63d8` completed successfully. The full validation script passed and the log confirms **116 tests ran**.
 - This verifies profile propagation through the mocked provider contract and API test boundary. Actual provider prompt adherence, voice characteristics and rendered visual branding still require live provider credentials and real media review.
+
+
+## Latest verified checkpoint — 2026-11-15 (UTC)
+
+- GitHub Actions hosted-runner allocation is operational. This checkpoint supersedes the older historical notes in this document that say Actions has never executed the test suite or that runner allocation is still blocked.
+- Latest run: https://github.com/justinhblee-prog/shorts/actions/runs/43666742044
+- HEAD: `b1db42bc366d1b9c6ddc41e3355c80ed84cc158a`
+- Workflow completed successfully. `sh scripts/validate.sh` passed: **118 tests ran, OK**.
+- The review queue now returns the frozen `brand_profile` captured in the durable job payload. It exposes positioning, audience, tone, risk level and editorial review rules without exposing the raw queue payload.
+- The single-page review workspace displays the brand's risk level and editorial checklist before approval, revision request or rejection. All user-controlled values are HTML-escaped.
+- Review listing remains compatible with isolated/legacy databases where the queue table has not yet been initialized; in that case brand guidance is null rather than causing the review endpoint to fail.
+- Regression coverage verifies frozen-profile retrieval, old database compatibility, and the frontend's use of the guidance fields.
+
+**Validation boundary:** this confirms the Python suite and source-level frontend assertions. It does not confirm browser interaction in a deployed environment, live AI provider adherence, real audio/video generation, YouTube OAuth/upload, or actual revenue.
