@@ -136,7 +136,7 @@ GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports 
 
 ## BUILD-00011 — persistent scheduler
 
-Run `python scheduler.py` as a separate supervised process from the API and production worker. It dispatches due interval schedules to the durable queue with deterministic idempotency keys. API endpoints POST/GET `/api/schedules` and PUT `/api/schedules/{id}/activation?active=true|false` require `X-Review-Token`. Schedules are hourly or less frequent and validate active brand/market settings. Operate one scheduler instance only; distributed scheduler locking and calendar/DST rules are not implemented.
+Run `python scheduler.py` as a separate supervised process from the API and production worker. It dispatches due interval schedules to the durable queue with deterministic idempotency keys. API endpoints POST/GET `/api/schedules` and PUT `/api/schedules/{id}/activation?active=true|false` require `X-Review-Token`. Schedules are hourly or less frequent and validate active brand/market settings. Multiple scheduler processes are safe: a SQLite singleton leader lease with a fencing token allows only one dispatcher at a time, renews during dispatch, and permits takeover after expiry/crash. Configure `NEXUS_SCHEDULER_LEASE_SECONDS` (default 90) and `NEXUS_SCHEDULER_POLL_SECONDS` (default 30). Calendar/DST rules are not implemented.
 
 ## Integrated Docker Compose deployment
 
