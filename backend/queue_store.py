@@ -216,13 +216,23 @@ class JobQueue:
         return {"requeued":recovered,"terminal":terminal}
 
     def pause(self, reason, job_id=None):
-        """Persist a global production-worker pause until an explicit operator resume."""
+        """Persist a global pause and fence every in-flight worker lease."""
         n=stamp(now())
+        reason=str(reason)[:2000]
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             c.execute("""UPDATE worker_control SET paused=1,pause_reason=?,
-              paused_job_id=?,updated_at=? WHERE id=1""",
-              (str(reason)[:2000], job_id, n))
+              paused_job_id=?,updated_at=? WHERE id=1""", (reason, job_id, n))
+            running=c.execute("""SELECT id,worker_id FROM pipeline_jobs
+                WHERE status='running'""").fetchall()
+            for row in running:
+                c.execute("""UPDATE pipeline_jobs SET status='failed_terminal',
+                    worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
+                    updated_at=?,error_code='worker_paused',error_message=?
+                    WHERE id=? AND status='running'""",
+                    (n, ("Queue paused: " + reason)[:2000], row["id"]))
+                self.event(c,row["id"],"worker_pause","running","failed_terminal",
+                           row["worker_id"],{"reason":reason,"paused_job_id":job_id})
             c.commit()
             return self.worker_control()
 
