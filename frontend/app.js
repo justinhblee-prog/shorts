@@ -105,7 +105,24 @@
       return '<div class="data-item trend-item"><b>'+esc(x.title||x.query||"Untitled signal")+'</b><small>'+esc(region)+' · '+esc(x.source||"")+' · '+esc(x.published_at||x.collected_at||"")+'</small>'+controls+'</div>';
     }).join("")||'<div class="empty-state">저장된 트렌드 신호가 없습니다.</div>';
   }
-  async function loadSchedules(){
+
+  async function loadTrendRecommendations(){
+    const region=$("trendRegion").value;
+    const data=await api("/api/trends/recommendations?region="+encodeURIComponent(region)+"&limit=20");
+    const items=data.items||[];
+    $("trendRecommendations").innerHTML=items.map(item=>{
+      const trend=item.trend||{};
+      const candidates=item.brand_candidates||[];
+      const language=region==="KR"?"ko":(region==="JP"?"ja":"en");
+      const options=candidates.filter(x=>(x.supported_languages||[]).includes(language))
+        .map(x=>'<option value="'+esc(x.brand)+'">'+esc(x.brand_name)+'</option>').join("");
+      const controls=trend.id&&options
+        ? '<div class="trend-actions"><select aria-label="추천 제작 브랜드" data-recommend-brand="'+esc(trend.id)+'">'+options+'</select><button type="button" class="button button-secondary" data-recommend-draft="'+esc(trend.id)+'" data-recommend-language="'+language+'">추천 브랜드로 기획</button></div>'
+        : '<small class="trend-unavailable">현재 시장·언어에 맞는 활성 브랜드가 없습니다.</small>';
+      return '<div class="data-item trend-item"><div class="recommendation-head"><b>'+esc(trend.title||"Untitled trend")+'</b><strong>'+Number(item.recommendation_score||0).toFixed(1)+'/80</strong></div><small>'+esc(trend.region||"")+' · 최신성 '+Number(item.freshness_score||0).toFixed(1)+' · '+esc(item.score_type||"")+'</small>'+(item.best_brand?'<small>최적 브랜드: '+esc(item.best_brand.brand_name)+' · 적합도 '+Number(item.best_brand.fit_score||0).toFixed(1)+'</small>':'<small>적합 브랜드 미확인</small>')+controls+'<small class="recommendation-caveat">수익·검색량·Shorts 수요 미검증</small></div>';
+    }).join("")||'<div class="empty-state">선택한 시장에 추천할 트렌드가 없습니다.</div>';
+  }
+\n  async function loadSchedules(){
     const [data,outbox]=await Promise.all([api("/api/schedules"),api("/api/schedules/outbox")]);
     const schedules=(data.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.name)+' · '+(x.active?"활성":"중지")+'</b><small>'+esc(x.payload.brand)+' · '+esc(x.payload.region)+' · 다음 실행 '+esc(x.next_run_at)+'</small></div>').join("")||'<div class="empty-state">등록된 예약이 없습니다.</div>';
     const dispatches=(outbox.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.schedule_id)+'</b><small>'+esc(x.scheduled_for)+' · attempts '+x.attempts+(x.last_error?' · '+esc(x.last_error):'')+'</small></div>').join("");
@@ -156,7 +173,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTrends(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTrends(),loadTrendRecommendations(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -204,10 +221,28 @@
   });
   $("trendForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
-    try{const r=await api("/api/trends/collect",{method:"POST",body:JSON.stringify({region:$("trendRegion").value,query:$("trendQuery").value.trim(),limit:Number($("trendLimit").value),include_hacker_news:true})});msg("trendList","수집 완료 · "+(r.stored??r.count??"저장 결과 확인"));await loadTrends();}
+    try{const r=await api("/api/trends/collect",{method:"POST",body:JSON.stringify({region:$("trendRegion").value,query:$("trendQuery").value.trim(),limit:Number($("trendLimit").value),include_hacker_news:true})});msg("trendList","수집 완료 · "+(r.stored??r.count??"저장 결과 확인"));await Promise.all([loadTrends(),loadTrendRecommendations()]);}
     catch(err){toast(err.message);}
   });
-  $("trendList").addEventListener("click",async e=>{
+
+  $("loadTrendRecommendations").addEventListener("click",()=>loadTrendRecommendations().catch(e=>toast(e.message)));
+  $("trendRecommendations").addEventListener("click",async e=>{
+    const button=e.target.closest("[data-recommend-draft]");
+    if(!button)return;
+    if(!requireToken())return;
+    const selector=button.parentElement.querySelector("select[data-recommend-brand]");
+    if(!selector)return;
+    button.disabled=true;
+    try{
+      const result=await api("/api/trends/"+encodeURIComponent(button.dataset.recommendDraft)+"/draft-production",{
+        method:"POST",body:JSON.stringify({brand:selector.value,language:button.dataset.recommendLanguage})
+      });
+      toast("추천 후보 제작 기획 등록 완료 · "+result.job.id);
+      await loadMetrics();
+    }catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
+\n  $("trendList").addEventListener("click",async e=>{
     const button=e.target.closest("[data-trend-draft]");
     if(!button)return;
     if(!requireToken())return;
