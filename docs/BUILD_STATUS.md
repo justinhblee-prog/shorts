@@ -877,3 +877,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Existing private-only upload behavior and explicit human approval remain unchanged.
 - This compares local rule versions only; it does not live-refresh Google/TikTok policy documents. Current official rules and regional restrictions still require manual verification.
 - CI validation pending on this branch.
+
+
+### BUILD-00022 — upload policy-version audit stamps (2026-11-15)
+
+- Persist the active `POLICY_VERSION` and `POLICY_CHECKED_ON` on each YouTube upload record at attempt creation.
+- Stamp the same values into the immutable `upload_attempt_started` event so the audit trail preserves the exact local policy ruleset used.
+- Additive SQLite migrations extend existing upload and event tables without rewriting historical records; legacy rows retain null policy stamps.
+- CI validation pending on this branch.
