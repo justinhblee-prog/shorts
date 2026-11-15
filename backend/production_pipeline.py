@@ -166,6 +166,44 @@ class ProductionStore:
                json.dumps(metadata, ensure_ascii=False), utc_now()))
 
 
+    def reconcile_missing_runs(self, queue, job_ids=None, limit=200):
+        """Restore production rows if a process crashed between queue enqueue and record creation."""
+        if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
+            raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
+        restored = []
+        invalid = []
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            params = []
+            where = """j.job_type='short_video_production'
+                AND j.status IN ('queued','failed_retriable','running')
+                AND r.job_id IS NULL"""
+            if job_ids is not None:
+                ids = [str(value) for value in job_ids]
+                if not ids:
+                    return {"restored": 0, "job_ids": [], "invalid": []}
+                where += " AND j.id IN (" + ",".join("?" for _ in ids) + ")"
+                params.extend(ids)
+            params.append(max(1, min(int(limit), 500)))
+            rows = c.execute("""SELECT j.id,j.payload_json FROM pipeline_jobs j
+                LEFT JOIN production_runs r ON r.job_id=j.id
+                WHERE """ + where + " ORDER BY j.created_at LIMIT ?", params).fetchall()
+            for row in rows:
+                try:
+                    brief = ProductionPipeline.validate_brief(json.loads(row["payload_json"]))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    invalid.append(row["id"])
+                    continue
+                timestamp = utc_now()
+                c.execute("""INSERT OR IGNORE INTO production_runs
+                    (job_id,brand,region,language,topic,status,current_stage,created_at,updated_at)
+                    VALUES(?,?,?,?,?,'queued','queued',?,?)""",
+                    (row["id"], brief["brand"], brief["region"], brief["language"],
+                     brief["topic"], timestamp, timestamp))
+                if c.rowcount:
+                    restored.append(row["id"])
+        return {"restored": len(restored), "job_ids": restored, "invalid": invalid}
+
     def reconcile_review_pending(self, queue, limit=100):
         """Atomically repair only queue jobs durably completed into review_pending."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
