@@ -1157,4 +1157,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - Authenticated operator identity now flows into queue control, YouTube/TikTok reconciliation and publishing, and recommendation experiment/skip-feedback audit records.
 - Request body actor IDs are compatibility-only and are not trusted for audit attribution.
-- Added endpoint-level forged-identity regression tests. All configured tokens currently have the same permissions; this is not RBAC. CI evidence pending.
+- Added endpoint-level forged-identity regression tests. All configured tokens currently have the same permissions; this is not RBAC. Final-head push CI [43773950141](https://github.com/justinhblee-prog/shorts/actions/runs/43773950141) and PR CI [43773953927](https://github.com/justinhblee-prog/shorts/actions/runs/43773953927): **603 tests passed**.
