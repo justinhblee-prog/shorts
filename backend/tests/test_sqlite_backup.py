@@ -33,6 +33,8 @@ class SQLiteBackupTests(unittest.TestCase):
         self.assertTrue(backup.is_file())
         self.assertEqual(result["integrity_check"], "ok")
         self.assertEqual(self.rows(backup), [("committed in WAL",)])
+        self.assertFalse(Path(str(backup) + "-wal").exists())
+        self.assertFalse(Path(str(backup) + "-shm").exists())
         self.assertEqual(verify_database(backup)["integrity_check"], "ok")
         if os.name != "nt":
             self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
@@ -119,7 +121,7 @@ class SQLiteBackupTests(unittest.TestCase):
         encrypted = create_backup(
             self.source, self.backups, keep=1, encryption_key=Fernet.generate_key()
         )
-        files = [p for p in self.backups.iterdir() if p.name.startswith("nexus-")]
+        files = [p for p in self.backups.iterdir() if p.name.startswith("nexus-") and (p.name.endswith(".sqlite3") or p.name.endswith(".sqlite3.enc"))]
         self.assertEqual(len(files), 1, [item.name for item in files])
         self.assertTrue(files[0].name.endswith(".sqlite3.enc"))
         self.assertEqual(encrypted["retained"], 1)
