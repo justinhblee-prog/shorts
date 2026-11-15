@@ -1154,4 +1154,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Snapshot includes the check timestamp, stale-heartbeat threshold, explicit `read_only` marker, and empty `actions_taken`; it does not mutate jobs, pause/resume workers, requeue work, or contact external providers.
 - Control center now displays blocker/warning signals alongside existing queue controls and audit history. Operators retain explicit, audited pause/resume authority.
 - Added tests for stale workers, expired and incomplete leases, paused state, non-mutating diagnostics, and authenticated API access; frontend regression assertions cover visibility and read-only messaging.
-- CI validation pending. Diagnostics are limited to data persisted in the local queue database; they do not prove external worker process or provider availability.
+- GitHub Actions passed **361 tests** at commit `4981053` (run `43698181905`).
+- Diagnostics are limited to data persisted in the local queue database; they do not prove external worker process or provider availability.
