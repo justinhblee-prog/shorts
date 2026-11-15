@@ -1200,3 +1200,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Invalid/out-of-order event timestamps are surfaced as data-quality warnings. No queue, worker, provider, retry, or publishing state is mutated.
 - Added unit/API/frontend regression coverage. GitHub Actions passed **379 tests** at commit `b942371` (run `43699702448`).
 
+## BUILD-00052 — cohort pipeline performance statistics
+
+- Added `backend/pipeline_performance.py` to aggregate durable queue-state dwell observations across a bounded cohort of up to 100 recent short-video jobs.
+- Reports per-state sample counts, mean, median, P90 and maximum only when the configured minimum sample threshold is met (default 5); otherwise statistical values are withheld.
+- A bottleneck candidate is identified only among stages with sufficient observations, using median dwell time. This is a diagnostic candidate, not a causal prediction.
+- Added authenticated read-only `GET /api/performance/pipeline` with bounded cohort and minimum-sample parameters.
+- Integrated cohort metrics into the global operations dashboard, including sample sufficiency and measurement limitations.
+- Queue state dwell time is not provider execution, render CPU, or remote API latency. The cohort is limited to the latest bounded jobs and is not a lifetime census.
+- No queue, worker, provider, retry, approval, OAuth, or publishing state is mutated. CI validation pending.
+
