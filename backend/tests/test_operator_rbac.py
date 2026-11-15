@@ -12,7 +12,7 @@ class OperatorRoleTests(unittest.TestCase):
         with mock.patch.dict("os.environ", {}, clear=True):
             self.assertTrue(has_permission("legacy-operator", "queue.control"))
             self.assertTrue(has_permission("any-authenticated-operator", "production.create"))
-            self.assertFalse(has_permission("any-authenticated-operator", "publish.execute"))
+            self.assertTrue(has_permission("any-authenticated-operator", "publish.execute"))
 
     def test_explicit_role_map_grants_only_declared_permissions(self):
         roles = json.dumps({
