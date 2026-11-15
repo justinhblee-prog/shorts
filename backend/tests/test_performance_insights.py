@@ -77,6 +77,52 @@ class PerformanceTests(unittest.TestCase):
   self.assertIsNone(result["videos"][0]["elapsed_hours"])
   self.assertIsNone(result["videos"][0]["views_per_hour"])
 
+ def test_comparable_cohorts_isolate_region_age_duration_format_and_topic(self):
+  def add_measured(job,brand,region,topic,video,duration,upload_at,first_at,second_at,views_delta):
+   self.video(job,brand,region,topic,video)
+   self.p.artifact(job,"rendering","video","https://media.example/"+video+".mp4",
+                   {"duration_seconds":duration,"aspect_ratio":"9:16"})
+   self.u.snapshot(video,{"viewCount":"100","likeCount":"5","commentCount":"1"})
+   self.u.snapshot(video,{"viewCount":str(100+views_delta),"likeCount":"8","commentCount":"2"})
+   with self.u.db() as connection:
+    connection.execute("UPDATE youtube_uploads SET uploaded_at=? WHERE job_id=?",
+                       (upload_at,job))
+    ids=[row["id"] for row in connection.execute(
+     "SELECT id FROM youtube_video_snapshots WHERE video_id=? ORDER BY id",(video,)
+    )]
+    connection.execute("UPDATE youtube_video_snapshots SET collected_at=? WHERE id=?",
+                       (first_at,ids[0]))
+    connection.execute("UPDATE youtube_video_snapshots SET collected_at=? WHERE id=?",
+                       (second_at,ids[1]))
+
+  add_measured("j1","Future Leak","US","AI robotics explained","vid1",30,
+   "2026-11-14T00:00:00+00:00","2026-11-14T01:00:00+00:00",
+   "2026-11-14T02:00:00+00:00",100)
+  add_measured("j2","Future Leak","US","AI robotics explained","vid2",30,
+   "2026-11-14T00:00:00+00:00","2026-11-14T01:00:00+00:00",
+   "2026-11-14T02:00:00+00:00",200)
+  add_measured("j3","Future Leak","US","AI robotics explained","vid3",30,
+   "2026-11-14T00:00:00+00:00","2026-11-14T01:00:00+00:00",
+   "2026-11-14T02:00:00+00:00",300)
+  add_measured("j4","Future Leak","JP","AI robotics explained","vid4",30,
+   "2026-11-14T00:00:00+00:00","2026-11-14T01:00:00+00:00",
+   "2026-11-14T02:00:00+00:00",900)
+  add_measured("j5","Future Leak","US","AI robotics explained","vid5",70,
+   "2026-11-14T00:00:00+00:00","2026-11-14T01:00:00+00:00",
+   "2026-11-14T02:00:00+00:00",800)
+
+  result=PerformanceAnalyzer(self.db).analyze()
+  cohort=next(x for x in result["cohorts"]
+   if x["region"]=="US" and x["duration_bucket"]=="20_40s")
+  self.assertEqual(cohort["publication_age_bucket"],"under_24h")
+  self.assertEqual(cohort["format"],"vertical_short")
+  self.assertEqual(cohort["topic_signature"],"ai explained robotics")
+  self.assertEqual(cohort["sample_count"],3)
+  self.assertEqual(cohort["median_views_per_hour"],200.0)
+  self.assertEqual(cohort["evidence_status"],"observed")
+  self.assertEqual(cohort["ranking_score_adjustment"],0)
+  self.assertNotIn("vid4",[x["job_id"] for x in result["videos"] if x["region"]=="US"])
+
  def test_financials_never_mix_currencies_and_brand_filter_applies(self):
   self.entry("Brain Glitch","USD","youtube_ads","usd-rev",100)
   self.entry("Brain Glitch","KRW","production_cost","krw-cost",20000)
