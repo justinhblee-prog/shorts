@@ -27,3 +27,12 @@
 .trend-actions select{min-width:150px;max-width:100%;padding:8px 10px;border:1px solid var(--line,#d9dee8);border-radius:8px;background:var(--surface,#fff);color:inherit}
 .trend-actions .button{font-size:12px;padding:8px 12px}
 .trend-unavailable{color:var(--muted,#64748b)}
+
+.competitor-item{gap:8px}
+.competitor-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.competitor-actions label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted,#64748b)}
+.competitor-actions input{accent-color:var(--accent,#667eea)}
+.competitor-evidence{display:grid;gap:6px;margin-top:4px}
+.competitor-video{display:flex;justify-content:space-between;gap:12px;padding:6px 8px;border-radius:7px;background:var(--surface-soft,#f7f8fb);font-size:11px}
+.competitor-video span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.competitor-video b{white-space:nowrap}
