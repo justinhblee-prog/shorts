@@ -154,7 +154,7 @@ class ScheduleStore:
         # A production pause also pauses scheduled dispatch. Due occurrences are
         # already durable in the outbox, so they remain pending and replay after
         # an operator explicitly resumes production.
-        if queue.is_paused():
+        if getattr(queue, "is_paused", lambda: False)():
             return {"dispatched": [], "count": 0,
                     "pending": len(self.pending_dispatches()) , "paused": True}
 
