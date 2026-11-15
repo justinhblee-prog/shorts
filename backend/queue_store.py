@@ -329,10 +329,42 @@ class JobQueue:
             if row is None: raise JobNotFound()
             if row["status"] in ("uploaded","cancelled","failed_terminal"):
                 raise ValueError("Job is already terminal")
+            is_production = row["job_type"] == "short_video_production"
+            if is_production and row["status"] not in ("queued","failed_retriable","running"):
+                raise ValueError("Production jobs can only be cancelled before review handoff")
+            production_table = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+            ).fetchone()
+            production = None
+            if is_production and production_table:
+                production = c.execute(
+                    "SELECT status FROM production_runs WHERE job_id=?", (jid,)
+                ).fetchone()
+                if production and production["status"] in ("approved","uploaded"):
+                    raise ValueError("Approved or uploaded production cannot be cancelled")
+            ambiguous = is_production and row["status"] == "running"
+            error_code = "cancelled_external_outcome_ambiguous" if ambiguous else "cancelled"
+            error_message = (
+                "Production cancelled while a provider request may be in flight; "
+                "external outcome must be reconciled manually before any retry"
+                if ambiguous else str(reason)[:2000]
+            )
             c.execute("""UPDATE pipeline_jobs SET status='cancelled',worker_id=NULL,lease_token=NULL,
-              lease_expires_at=NULL,updated_at=?,error_code='cancelled',error_message=? WHERE id=?""",
-              (n,reason[:2000],jid))
-            self.event(c,jid,"cancelled",row["status"],"cancelled",None,{"reason":reason})
+              lease_expires_at=NULL,updated_at=?,error_code=?,error_message=? WHERE id=?""",
+              (n,error_code,error_message,jid))
+            if is_production and production_table and production:
+                stage = "cancelled_ambiguous" if ambiguous else "cancelled"
+                c.execute("""UPDATE production_runs SET status='cancelled',
+                    current_stage=?,error=?,updated_at=?
+                    WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                    (stage,error_message,n,jid))
+            self.event(c,jid,"cancelled",row["status"],"cancelled",None,
+                       {"reason":str(reason)[:2000],"external_outcome_ambiguous":ambiguous})
+            if ambiguous:
+                self._pause_production_in_transaction(
+                    c, "Production cancellation occurred during provider execution; external outcome is ambiguous",
+                    jid, n, actor="system"
+                )
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             c.commit()
             return self.decode(out)
