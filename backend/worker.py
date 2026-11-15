@@ -72,7 +72,8 @@ def run_once():
     heartbeat.start()
     try:
         result = pipeline.execute(job["id"], job["payload"],
-                                  worker_id=WORKER_ID, lease_token=job["lease_token"])
+                                  worker_id=WORKER_ID, lease_token=job["lease_token"],
+                                  stop_event=lost_lease)
         if lost_lease.is_set():
             raise LeaseConflict("Worker lease/heartbeat was lost while generating media")
         queue.finish(job["id"], WORKER_ID, job["lease_token"],
@@ -97,6 +98,13 @@ def run_once():
         try:
             queue.pause(f"lease/production conflict: {exc}", job["id"])
         except Exception:
+            pass
+        # If this worker still owns a valid lease, make the interrupted job
+        # terminal so a later resume cannot blindly repeat an ambiguous provider call.
+        try:
+            queue.fail(job["id"], WORKER_ID, job["lease_token"],
+                       "worker_interrupted_ambiguous", str(exc), False)
+        except LeaseConflict:
             pass
         print(f"lease_lost job={job['id']}; worker_paused")
     except Exception as exc:
