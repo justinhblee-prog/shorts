@@ -532,6 +532,7 @@ class ApiSecurityTests(unittest.TestCase):
         )
         with (
             mock.patch("app.require_review_access"),
+            mock.patch("app.require_canonical_staged_media",return_value="/staged/job-1.mp4") as validate_path,
             mock.patch("app.tiktok_publisher.publish_private_approved",
                        return_value={"status": "uploading"}) as publish,
         ):
@@ -542,6 +543,8 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertFalse(publish.call_args.kwargs["brand_content_toggle"])
         self.assertFalse(publish.call_args.kwargs["brand_organic_toggle"])
         self.assertEqual(publish.call_args.args[0], "job-1")
+        validate_path.assert_called_once_with("job-1","video.mp4")
+        self.assertEqual(publish.call_args.args[1],"/staged/job-1.mp4")
 
     def test_tiktok_publication_status_endpoints_return_missing_record_as_404(self):
         with (
