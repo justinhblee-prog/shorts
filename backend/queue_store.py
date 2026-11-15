@@ -42,6 +42,11 @@ class JobQueue:
             CREATE INDEX IF NOT EXISTS idx_events_job ON job_events(job_id,id);
             CREATE TABLE IF NOT EXISTS worker_registry(
               worker_id TEXT PRIMARY KEY, hostname TEXT, last_seen_at TEXT NOT NULL, status TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS worker_control(
+              id INTEGER PRIMARY KEY CHECK(id=1), paused INTEGER NOT NULL DEFAULT 0,
+              pause_reason TEXT, paused_job_id TEXT, updated_at TEXT NOT NULL);
+            INSERT OR IGNORE INTO worker_control(id,paused,updated_at)
+              VALUES(1,0,'1970-01-01T00:00:00+00:00');
             """)
 
     @contextmanager
@@ -87,6 +92,10 @@ class JobQueue:
         dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds)); token=str(uuid.uuid4())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            control=c.execute("SELECT paused FROM worker_control WHERE id=1").fetchone()
+            if control and control["paused"]:
+                c.commit()
+                return None
             c.execute("""INSERT INTO worker_registry VALUES(?,?,?,'online') ON CONFLICT(worker_id)
               DO UPDATE SET hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",(worker_id,hostname,n))
             expired=c.execute("""SELECT id,attempt,max_attempts FROM pipeline_jobs WHERE status='running'
@@ -190,6 +199,36 @@ class JobQueue:
                 else: terminal+=1
             c.commit()
         return {"requeued":recovered,"terminal":terminal}
+
+    def pause(self, reason, job_id=None):
+        """Persist a global production-worker pause until an explicit operator resume."""
+        n=stamp(now())
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            c.execute("""UPDATE worker_control SET paused=1,pause_reason=?,
+              paused_job_id=?,updated_at=? WHERE id=1""",
+              (str(reason)[:2000], job_id, n))
+            c.commit()
+            return self.worker_control()
+
+    def resume(self):
+        """Explicitly clear a persisted worker pause after operator investigation."""
+        n=stamp(now())
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            c.execute("""UPDATE worker_control SET paused=0,pause_reason=NULL,
+              paused_job_id=NULL,updated_at=? WHERE id=1""", (n,))
+            c.commit()
+            return self.worker_control()
+
+    def worker_control(self):
+        with self.db() as c:
+            row=c.execute("SELECT * FROM worker_control WHERE id=1").fetchone()
+            return dict(row) if row else {"paused": 0, "pause_reason": None,
+                                           "paused_job_id": None}
+
+    def is_paused(self):
+        return bool(self.worker_control()["paused"])
 
     def workers(self):
         with self.db() as c:
