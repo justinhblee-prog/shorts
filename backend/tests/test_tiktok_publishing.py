@@ -109,13 +109,40 @@ class TikTokPublishingTests(unittest.TestCase):
                 "caption", True, True, "reviewer", False, False)
         self.assertIsNone(self.store.get("job-tt"))
 
+    def test_sponsorship_fields_are_explicit_and_audited(self):
+        result = self.publisher.publish_approved("job-tt", self.media, self.review,
+            "caption", True, True, "reviewer", True, False)
+        init = next(item for item in self.session.posts if "/video/init/" in item[0])
+        self.assertTrue(init[1]["json"]["post_info"]["brand_content_toggle"])
+        self.assertFalse(init[1]["json"]["post_info"]["brand_organic_toggle"])
+        self.assertEqual(result["events"][0]["operator_id"], "reviewer")
+
+    def test_ambiguous_init_can_be_reconciled_by_operator(self):
+        attempt = self.store.begin("job-tt", "caption", True, "policy-v1", "reviewer")
+        self.store.update("job-tt", attempt["attempt_id"], "reconciliation_required",
+            error="timeout", event_type="publish_outcome_uncertain")
+        result = self.store.reconcile("job-tt", "not_published", "ops",
+            "Checked TikTok profile and inbox; no post exists")
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["events"][-1]["event_type"], "operator_reconciled")
+        self.assertEqual(result["events"][-1]["operator_id"], "ops")
+
+    def test_chunk_plan_matches_tiktok_trailing_chunk_rule(self):
+        size = 50_000_123
+        chunk_size = 10_000_000
+        total_chunks = size // chunk_size
+        self.assertEqual(total_chunks, 5)
+        last_chunk = size - chunk_size * (total_chunks - 1)
+        self.assertGreaterEqual(last_chunk, 5 * 1024 * 1024)
+        self.assertEqual(last_chunk, 10_000_123)
+
     def test_untrusted_upload_url_is_rejected(self):
         self.assertRaises(TikTokPublishError,
             TikTokPublisher._upload_url_allowed, "https://evil.example/upload")
 
     def test_uncertain_upload_cannot_be_retried(self):
         result = self.publisher.publish_approved("job-tt", self.media, self.review,
-            "caption", True, True, "reviewer")
+            "caption", True, True, "reviewer", False, False)
         self.store.update("job-tt", result["attempt_id"], "reconciliation_required",
             error="timeout", event_type="publish_outcome_uncertain")
         with self.assertRaisesRegex(TikTokPublishError, "retry"):
