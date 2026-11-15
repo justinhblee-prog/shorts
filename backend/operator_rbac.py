@@ -9,12 +9,12 @@ ROLE_PERMISSIONS = {
     "producer": {
         "production.create", "production.execute", "trends.collect",
         "schedules.manage", "queue.enqueue", "media.manage", "trends.read",
-        "intelligence.read", "recommendations.read", "production.read",
+        "intelligence.read", "recommendations.read", "production.read", "opportunities.manage",
     },
     "reviewer": {"review.read", "review.decide", "review.evidence", "production.read"},
     "publisher": {"publish.execute", "publish.reconcile", "publish.manage", "publishing.read"},
     "analyst": {"analytics.read", "finance.read", "trends.read", "intelligence.read",
-        "recommendations.read", "publishing.read"},
+        "recommendations.read", "publishing.read", "opportunities.manage"},
     "operator": {
         "operations.read", "queue.control", "queue.enqueue", "production.create",
         "production.execute", "trends.collect", "schedules.manage", "brand.manage",
@@ -22,6 +22,7 @@ ROLE_PERMISSIONS = {
         "trends.read", "intelligence.read", "recommendations.read", "production.read",
     },
     "finance": {"finance.read", "finance.write"},
+    "worker": {"worker.execute"},
 }
 
 
