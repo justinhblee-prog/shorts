@@ -1088,3 +1088,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Regression coverage verifies live renewal stability, same-owner expired reacquisition token rotation, and stale-token rejection.
 - Final-head push CI [43737597720](https://github.com/justinhblee-prog/shorts/actions/runs/43737597720) and PR merge-result CI [43737605403](https://github.com/justinhblee-prog/shorts/actions/runs/43737605403): passed.
 - No production deployment or live provider request was performed.
+
+
+## BUILD-00102 — API production execution instance fencing (2026-11-15)
+
+- Pull request: [#69](https://github.com/justinhblee-prog/shorts/pull/69), merged into the integration-only branch at `31b927de69d4ae016f0804c496a3f1c61f293a8a`.
+- Found that the authenticated API production-execution route still accepted only the queue lease token and therefore bypassed the worker process-instance fencing added in BUILD-00098.
+- `ProductionExecute` now requires the worker `instance_token`; the API verifies current registry ownership before invoking the pipeline.
+- The token is passed through pipeline execution, job finish/fail and pause handling so stale API callers cannot mutate state after worker restart.
+- Added tests for stale-instance rejection and token propagation across successful and failure paths.
+- Initial CI attempts caught incomplete test fixture updates; the fixtures and imports were corrected.
+- Final-head push CI [43737807891](https://github.com/justinhblee-prog/shorts/actions/runs/43737807891) and PR merge-result CI [43737821405](https://github.com/justinhblee-prog/shorts/actions/runs/43737821405): **560 tests passed**.
+- No production deployment, live AI generation or platform publishing was performed.
