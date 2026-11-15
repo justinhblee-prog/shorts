@@ -297,7 +297,13 @@ class TikTokPublishStore:
             result = c.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
-            return dict(result)
+            resolved = dict(result)
+            resolved["is_aigc"] = bool(resolved["is_aigc"])
+            resolved["events"] = [dict(event) for event in c.execute(
+                "SELECT * FROM tiktok_publication_events WHERE job_id=? ORDER BY id",
+                (job_id,),
+            ).fetchall()]
+            return resolved
 
     def mark_failed_before_remote(self, job_id, attempt_id, message):
         with self.db() as c:
