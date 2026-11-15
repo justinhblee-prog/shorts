@@ -1457,3 +1457,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The channel refresh token must be reauthorized with `yt-analytics.readonly` in addition to existing YouTube scopes; the YouTube Analytics API must be enabled in Google Cloud. This external consent/API setup has not been performed.
 - GitHub Actions passed at code commit `3984e759e618c6aaa93c744830b775908dfa7618`: run [43716302094](https://github.com/justinhblee-prog/shorts/actions/runs/43716302094), **489 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
 - Live YouTube Analytics report retrieval, OAuth scope consent, and actual channel data remain unverified.
+
+## BUILD-00075 — Analytics-informed recommendation evidence (display-only)
+
+- Updated `PerformanceAnalyzer` to join each confirmed uploaded video to its latest YouTube Analytics snapshot, exposing Shorts engaged views, estimated minutes watched, average view duration, average view percentage, likes, comments, shares and subscribers gained.
+- Comparable brand/region/topic/publication-age/duration/format cohorts now calculate median average view percentage and average view duration, with explicit analytics sample counts. Sparse or missing observations remain null and are not fabricated.
+- Extended trend recommendation context and the operator dashboard to show watch-quality evidence alongside views/hour and interaction metrics.
+- The new analytics fields are contextual only: they do not enter recommendation score calculation, reorder candidates, enable live assignment, trigger production or publish content. `ranking_score_adjustment=0` remains enforced.
+- Detailed per-second audience-retention curves and causal effect claims remain unavailable; the metrics are rolling 28-day channel reports.
+- GitHub Actions passed at code commit `aeb9a12760ddc1e4ae41cb791d0d8c7fb6e68148`: run [43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969), **490 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
+- Live YouTube Analytics OAuth consent and actual channel report retrieval remain unverified.
