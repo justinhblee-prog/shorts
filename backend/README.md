@@ -161,3 +161,7 @@ It performs bytecode compilation and discovers all unittest cases. A successful 
 ### YouTube upload media safety
 
 YouTube upload accepts only staged files resolved inside `NEXUS_MEDIA_DIR` (default `data/media`). Supported extensions: MP4, M4V, MOV and WebM. The upload validates file existence, non-zero size and `NEXUS_MAX_MEDIA_BYTES` (default 256 MiB), and derives the MIME type from the extension. Paths outside the staging root and symlink escapes are rejected. The renderer currently returns a remote URL; an authenticated, allowlisted downloader must stage that artifact before upload. Do not pass arbitrary host paths to the API.
+
+### API authentication
+
+Operational endpoints require `X-Review-Token: <NEXUS_REVIEW_TOKEN>`. This includes production, trends, competitor intelligence, opportunities, schedules, review, YouTube, finance, performance, queue and worker operations, plus brand activation. Public endpoints are limited to health and read-only brand catalog/detail. Configure a long random secret and protect it; the shared token is not multi-user authentication.
