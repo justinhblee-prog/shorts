@@ -161,6 +161,48 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertFalse(result["ranking_score_adjustment_enabled"])
         self.assertIn("selection bias", result["warning"])
 
+    def test_evaluation_rejects_boolean_nonfinite_and_duplicate_outcomes(self):
+        videos = []
+        for index in range(10):
+            timestamp = (
+                datetime(2026, 11, 1, tzinfo=timezone.utc)
+                + timedelta(days=index)
+            ).isoformat()
+            run = self.store.record_run(
+                "US", [self.item(index, 50 + index * 2)], timestamp
+            )
+            candidate_id = self.candidate_id(
+                run, f"trend-{index}", "future-leak"
+            )
+            self.store.link_production(
+                f"trend-{index}", "future-leak", f"job-{index}",
+                timestamp, candidate_id=candidate_id,
+            )
+            videos.append({
+                "job_id": f"job-{index}",
+                "measurement_status": "measured",
+                "views_per_hour": 100 + index * 10,
+            })
+
+        videos = [
+            {"job_id": "job-0", "measurement_status": "measured",
+             "views_per_hour": True},
+            videos[0],
+            {"job_id": "job-0", "measurement_status": "measured",
+             "views_per_hour": 10000},
+            *videos[1:],
+            {"job_id": "not-selected-inf", "measurement_status": "measured",
+             "views_per_hour": float("inf")},
+            {"job_id": "not-selected-nan", "measurement_status": "measured",
+             "views_per_hour": float("nan")},
+            {"job_id": "not-selected-bool", "measurement_status": "measured",
+             "views_per_hour": False},
+            None,
+        ]
+        result = self.store.evaluate({"videos": videos})
+        self.assertEqual(result["measured_outcome_count"], 10)
+        self.assertEqual(result["holdout_score_views_spearman"], 1.0)
+
     def test_within_run_holdout_compares_only_candidates_from_same_exposure(self):
         videos = []
         for run_index in range(5):
