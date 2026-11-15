@@ -49,6 +49,18 @@ class OperatorRoleTests(unittest.TestCase):
         self.assertTrue(has_permission("operator", "queue.read", role_map_json=roles))
         self.assertFalse(has_permission("operator", "review.read", role_map_json=roles))
 
+    def test_worker_and_opportunity_roles_are_separated(self):
+        roles = json.dumps({
+            "worker-service": ["worker"],
+            "analyst": ["analyst"],
+            "producer": ["producer"],
+        })
+        self.assertTrue(has_permission("worker-service", "worker.execute", role_map_json=roles))
+        self.assertFalse(has_permission("worker-service", "queue.control", role_map_json=roles))
+        self.assertTrue(has_permission("analyst", "opportunities.manage", role_map_json=roles))
+        self.assertFalse(has_permission("analyst", "review.decide", role_map_json=roles))
+        self.assertFalse(has_permission("producer", "publish.execute", role_map_json=roles))
+
     def test_admin_role_grants_wildcard(self):
         self.assertTrue(has_permission("root", "any.future.permission",
                                        role_map_json=json.dumps({"root": ["admin"]})))

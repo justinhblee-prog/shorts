@@ -1171,7 +1171,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 ## Handover — BUILD-00110 (2026-11-16)
 
 - Added `backend/operator_rbac.py` and role checks for sensitive operator API actions.
-- Configure `NEXUS_REVIEW_CREDENTIALS_JSON` and `NEXUS_REVIEW_ROLE_MAP_JSON` with matching reviewer IDs. Roles: admin, producer, reviewer, publisher, analyst, operator, finance.
+- Configure `NEXUS_REVIEW_CREDENTIALS_JSON` and `NEXUS_REVIEW_ROLE_MAP_JSON` with matching reviewer IDs. Roles: admin, producer, reviewer, publisher, analyst, operator, finance, worker.
 - When the role map is set, unmapped identities have no role permissions; malformed config returns 503. Without it, legacy authenticated full-access remains for compatibility, so RBAC is not yet active.
 - Read `docs/BUILD_00110.md`, `backend/README.md` and `docs/OPERATOR_RUNBOOK.md` before deployment. External IdP/OIDC, token expiry/rotation automation and production deployment remain outstanding. Final-head push CI [43775131523](https://github.com/justinhblee-prog/shorts/actions/runs/43775131523), PR CI [43775135385](https://github.com/justinhblee-prog/shorts/actions/runs/43775135385), and post-merge integration CI [43775221344](https://github.com/justinhblee-prog/shorts/actions/runs/43775221344): **620 tests passed**.
 
@@ -1182,3 +1182,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Applied role authorization to lifecycle views, review history, queue/worker diagnostics, preflight, analytics, publishing dashboard, trends, competitor intelligence, recommendation reports and job/event inspection.
 - Role separation now applies to mutations and sensitive read endpoints; public health and public brand catalog endpoints remain intentionally public.
 - Added tests for role-specific read grants and denial of operational/review data outside the assigned role. CI pending.
+
+
+## BUILD-00112 — complete API RBAC coverage
+
+- Added role guards to the remaining authenticated production/publishing reads, OAuth status/creator info, metrics refresh, opportunity scoring, rendered recommendation exposure capture, and queue worker endpoints.
+- Added a static route-coverage regression test: every `/api/*` route must declare an explicit RBAC permission except the documented public health, brand catalog and OAuth callback routes.
+- Added a dedicated `worker` role for API claim/heartbeat/complete/fail calls; queue cancellation remains a separate operator control permission.
+- Producer and analyst roles can manage opportunity scoring. CI pending.
