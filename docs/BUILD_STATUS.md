@@ -930,3 +930,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Stamp the same values into the immutable `upload_attempt_started` event so the audit trail preserves the exact local policy ruleset used.
 - Additive SQLite migrations extend existing upload and event tables without rewriting historical records; legacy rows retain null policy stamps.
 - CI validation pending on this branch.
+
+
+### BUILD-00027 — TikTok signed upload URL trust boundary (2026-11-15)
+
+- Restrict signed upload URLs to the two official hostnames shown in TikTok's media-transfer documentation: `open-upload.tiktokapis.com` and `upload.us.tiktokapis.com`.
+- Require HTTPS, default/implicit port 443, no embedded URL credentials, and no fragment; preserve the signed query string unchanged.
+- Disable HTTP redirects in the TikTok transport so staged video bytes cannot be forwarded to a redirect destination outside the allowlist.
+- Add regression coverage for documented hosts, unapproved subdomains, URL credentials, nonstandard ports, fragments, and redirect rejection.
+- Official reference: https://developers.tiktok.com/docs/en/content-posting-api-media-transfer-guide
+- CI validation pending for the latest commit; no live TikTok upload has been performed.
