@@ -41,7 +41,7 @@ class YouTubeUploadStore:
             );
             CREATE TABLE IF NOT EXISTS youtube_upload_events(
               id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
-              event_type TEXT NOT NULL, outcome TEXT, video_id TEXT,
+              attempt_id TEXT, event_type TEXT NOT NULL, outcome TEXT, video_id TEXT,
               operator_id TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
               previous_status TEXT, resulting_status TEXT, created_at TEXT NOT NULL
             );
@@ -58,6 +58,9 @@ class YouTubeUploadStore:
             upload_columns={r["name"] for r in c.execute("PRAGMA table_info(youtube_uploads)")}
             if "attempt_id" not in upload_columns:
                 c.execute("ALTER TABLE youtube_uploads ADD COLUMN attempt_id TEXT")
+            event_columns={r["name"] for r in c.execute("PRAGMA table_info(youtube_upload_events)")}
+            if "attempt_id" not in event_columns:
+                c.execute("ALTER TABLE youtube_upload_events ADD COLUMN attempt_id TEXT")
     @contextmanager
     def db(self):
         c=sqlite3.connect(self.db_path,timeout=30)
@@ -103,6 +106,11 @@ class YouTubeUploadStore:
                 description=excluded.description,error=NULL,updated_at=excluded.updated_at,
                 video_id=NULL,uploaded_at=NULL,attempt_id=excluded.attempt_id
             """,(job_id,title,description,_now(),attempt_id))
+            c.execute("""INSERT INTO youtube_upload_events
+              (job_id,attempt_id,event_type,outcome,operator_id,note,previous_status,resulting_status,created_at)
+              VALUES(?,?,'upload_attempt_started','started','system:upload_worker',
+                'Upload attempt initialized with private visibility',?,'uploading',?)""",
+              (job_id,attempt_id,row["status"] if row else None,_now()))
             return dict(c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone())
 
     def finish(self,job_id,video_id,attempt_id=None):
@@ -121,12 +129,12 @@ class YouTubeUploadStore:
                 now=_now()
                 prior_status=row["status"]
                 c.execute("""INSERT INTO youtube_upload_events
-                  (job_id,event_type,outcome,video_id,operator_id,note,
+                  (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,
                    previous_status,resulting_status,created_at)
-                  VALUES(?,'late_remote_success','uploaded',?,'system:youtube_response',
+                  VALUES(?,?,'late_remote_success','uploaded',?,'system:youtube_response',
                    'Remote success arrived for a superseded or reconciled upload attempt',
                    ?, 'late_success_review_required',?)""",
-                  (job_id,video_id.strip(),prior_status,now))
+                  (job_id,attempt_id,video_id.strip(),prior_status,now))
                 c.execute("""UPDATE youtube_uploads SET
                   video_id=COALESCE(video_id,?),status='late_success_review_required',
                   error=?,updated_at=? WHERE job_id=?""",
@@ -141,12 +149,12 @@ class YouTubeUploadStore:
                     state_error="Upload attempt was replaced before finalization"
                 else:
                     c.execute("""INSERT INTO youtube_upload_events
-                      (job_id,event_type,outcome,video_id,operator_id,note,
+                      (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,
                        previous_status,resulting_status,created_at)
-                      VALUES(?,'upload_confirmed','uploaded',?,'system:youtube_response',
+                      VALUES(?,?,'upload_confirmed','uploaded',?,'system:youtube_response',
                        'YouTube returned a video ID for the active upload attempt',
                        'uploading','uploaded',?)""",
-                      (job_id,video_id.strip(),_now()))
+                      (job_id,attempt_id,video_id.strip(),_now()))
         if late_conflict:
             raise YouTubeUploadError("Late YouTube success detected for a superseded attempt. Retry is blocked; all returned video IDs are preserved for operator review.")
         if state_error:
@@ -190,15 +198,15 @@ class YouTubeUploadStore:
             if row["attempt_id"]!=attempt_id:
                 if row["status"]=="uploaded":
                     c.execute("""INSERT INTO youtube_upload_events
-                      (job_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
-                      VALUES(?,'superseded_attempt_uncertain','uncertain',NULL,'system:upload_worker',?,
+                      (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
+                      VALUES(?,?,'superseded_attempt_uncertain','uncertain',NULL,'system:upload_worker',?,
                         'uploaded','uploaded',?)""",
-                      (job_id,str(error)[:2000],now))
+                      (job_id,attempt_id,str(error)[:2000],now))
                     return
                 c.execute("""INSERT INTO youtube_upload_events
-                  (job_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
-                  VALUES(?,'superseded_attempt_uncertain','uncertain',NULL,'system:upload_worker',?,?, 'reconciliation_required',?)""",
-                  (job_id,str(error)[:2000],row["status"],now))
+                  (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
+                  VALUES(?,?,'superseded_attempt_uncertain','uncertain',NULL,'system:upload_worker',?,?, 'reconciliation_required',?)""",
+                  (job_id,attempt_id,str(error)[:2000],row["status"],now))
                 c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',
                   error=?,updated_at=? WHERE job_id=? AND status IN ('uploading','failed','reconciliation_required')""",
                   ("A superseded upload attempt ended with an uncertain remote outcome. "+str(error)[:1500],now,job_id))
@@ -252,9 +260,9 @@ class YouTubeUploadStore:
                 raise YouTubeUploadError("Upload state changed during reconciliation")
             resulting="uploaded" if outcome=="uploaded" else "failed"
             c.execute("""INSERT INTO youtube_upload_events
-              (job_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
-              VALUES(?,'operator_reconciliation',?,?,?,?,?,?,?)""",
-              (job_id,outcome,video_id.strip() if isinstance(video_id,str) else None,
+              (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
+              VALUES(?,?,'operator_reconciliation',?,?,?,?,?,?,?)""",
+              (job_id,row["attempt_id"],outcome,video_id.strip() if isinstance(video_id,str) else None,
                operator_id,note,row["status"],resulting,_now()))
         return self.get(job_id)
 
@@ -283,9 +291,9 @@ class YouTubeUploadStore:
             if updated.rowcount!=1:
                 raise YouTubeUploadError("Late success state changed during resolution")
             c.execute("""INSERT INTO youtube_upload_events
-              (job_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
-              VALUES(?,'late_success_resolved','uploaded',?,?,?,?,?,?)""",
-              (job_id,chosen,operator_id,note,row["status"],"uploaded",now))
+              (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
+              VALUES(?,?,'late_success_resolved','uploaded',?,?,?,?,?,?)""",
+              (job_id,row["attempt_id"],chosen,operator_id,note,row["status"],"uploaded",now))
         return self.get(job_id)
 
     def snapshot(self,video_id,stats):
