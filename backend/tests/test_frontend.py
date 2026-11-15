@@ -4,6 +4,16 @@ from app import app
 
 ROOT = Path(__file__).resolve().parents[2]
 class FrontendPortalTests(unittest.TestCase):
+    def test_recommendation_experiments_show_run_isolated_holdout_and_immutable_history(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        index_html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("/api/recommendations/evaluation/snapshots?limit=10", app_js)
+        self.assertIn("/api/recommendations/evaluation/snapshots", app_js)
+        self.assertIn("검증 결과 이력 저장", index_html)
+        self.assertIn("불변 검증 이력", app_js)
+        self.assertIn("노출 단위 학습", app_js)
+        self.assertIn("점수 자동 조정은 비활성", app_js)
+
     def test_insights_show_evidence_gated_cohort_experiments(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertIn("data.cohort_insights", app_js)
