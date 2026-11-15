@@ -200,7 +200,7 @@ class ApiSecurityTests(unittest.TestCase):
     def test_tiktok_publish_requires_explicit_consent_and_passes_it_through(self):
         body = TikTokPublishRequest(
             media_path="video.mp4", title="Test AI short",
-            operator_id="operator-1", explicit_consent=True,
+            operator_id="operator-1", privacy_level="SELF_ONLY", explicit_consent=True,
             brand_content_toggle=False, brand_organic_toggle=False
         )
         with (
@@ -211,6 +211,7 @@ class ApiSecurityTests(unittest.TestCase):
             result = publish_tiktok_video("job-1", body, x_review_token="test-token")
         self.assertEqual(result["status"], "uploading")
         self.assertTrue(publish.call_args.kwargs["explicit_consent"])
+        self.assertEqual(publish.call_args.kwargs["privacy_level"], "SELF_ONLY")
         self.assertFalse(publish.call_args.kwargs["brand_content_toggle"])
         self.assertFalse(publish.call_args.kwargs["brand_organic_toggle"])
         self.assertEqual(publish.call_args.args[0], "job-1")
