@@ -1100,3 +1100,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Initial CI attempts caught incomplete test fixture updates; the fixtures and imports were corrected.
 - Final-head push CI [43737807891](https://github.com/justinhblee-prog/shorts/actions/runs/43737807891) and PR merge-result CI [43737821405](https://github.com/justinhblee-prog/shorts/actions/runs/43737821405): **560 tests passed**.
 - No production deployment, live AI generation or platform publishing was performed.
+
+
+## BUILD-00103 — SQLite backup integrity and non-destructive restore tooling (2026-11-15)
+
+- Pull request: [#70](https://github.com/justinhblee-prog/shorts/pull/70), merged into the integration-only branch at `e0145a216f7a61997240208e09c6b21919a78088`.
+- Added `backend/sqlite_backup.py` with SQLite online snapshot backup, full `PRAGMA integrity_check`, atomic publication, restrictive file permissions and configurable retention.
+- Added a restore-verification command that writes only to a new target path and refuses to overwrite an existing database.
+- Added tests for committed WAL data, integrity verification, retention, corrupt-source rejection, symlink rejection and non-destructive restore.
+- Updated `docs/OPERATOR_RUNBOOK.md` with backup, verification and restore-drill commands.
+- Final-head PR CI [43738024437](https://github.com/justinhblee-prog/shorts/actions/runs/43738024437): **565 tests passed**.
+- The utility does not encrypt backups or upload them off-host; operators must provide encrypted, access-controlled external storage. No production database was backed up or restored.
