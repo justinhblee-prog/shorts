@@ -55,6 +55,16 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("competitive_context", app_js)
         self.assertIn("최근 영상 분석", app_js)
 
+    def test_saved_opportunity_ranking_is_loaded_and_rendered(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        self.assertIn("/api/opportunities?limit=20", app_js)
+        self.assertIn("opportunityList", app_js)
+        self.assertIn("loadOpportunities()", app_js)
+        self.assertIn('id="opportunityList"', html)
+        self.assertIn("경쟁 조정", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
