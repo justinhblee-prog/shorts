@@ -165,3 +165,13 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - API: GET `/api/performance/insights?brand=...`, protected by `NEXUS_REVIEW_TOKEN`.
 - Added tests for insufficient evidence, snapshot differences and ledger integration.
 - **Not validated:** runtime tests, long-term cohorts, controlled experiments, YouTube Analytics watch-time/retention data, or automated strategy execution.
+
+## BUILD-00011 — scheduling and recovery
+
+- Added `backend/scheduler_store.py` for persistent interval schedules and idempotent due-job dispatch.
+- Schedules are limited to hourly or less frequent intervals; missed intervals are skipped forward rather than creating a burst backlog.
+- Dispatch uses a deterministic queue idempotency key derived from schedule ID and scheduled timestamp.
+- Added `backend/scheduler.py` long-running scheduler process; it is separate from API and production worker.
+- APIs: POST/GET `/api/schedules`; PUT `/api/schedules/{id}/activation?active=true|false`; all protected by review token. Creation validates active brand and region/language.
+- Added tests for dispatch, missed interval handling and minimum interval.
+- **Not validated:** runtime tests, process supervision, multi-instance scheduler leadership, timezone/DST calendar schedules or production alerting. Run one scheduler instance until distributed leader election is added.
