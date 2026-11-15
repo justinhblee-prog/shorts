@@ -697,7 +697,11 @@ def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None)):
 @app.post("/api/jobs/{jid}/complete")
 def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    try: return queue.finish(jid,body.worker_id,body.lease_token,body.result)
+    try:
+        job=queue.get(jid)
+        if job["job_type"]=="short_video_production":
+            raise HTTPException(409,"Production jobs must complete through the production execution endpoint")
+        return queue.finish(jid,body.worker_id,body.lease_token,body.result)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/fail")
