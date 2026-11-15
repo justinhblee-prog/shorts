@@ -54,7 +54,7 @@ class TikTokPublishingTests(unittest.TestCase):
             (200, {"data": {"privacy_level_options": ["SELF_ONLY"]},
                    "error": {"code": "ok"}}),
             (200, {"data": {"publish_id": "publish-123",
-                            "upload_url": "https://open-upload.tiktokapis.com/video/?token=x"},
+                            "upload_url": "https://upload.us.tiktokapis.com/video/?token=x"},
                    "error": {"code": "ok"}}),
         ])
         self.publisher = TikTokPublisher(self.store, "test-token", self.transport)
@@ -123,7 +123,7 @@ class TikTokPublishingTests(unittest.TestCase):
 
     def test_upload_url_rejects_unapproved_tiktok_subdomain(self):
         with self.assertRaisesRegex(TikTokPublishError, "untrusted upload URL"):
-            TikTokPublisher._validate_upload_url("https://upload.us.tiktokapis.com/video/")
+            TikTokPublisher._validate_upload_url("https://evil.tiktokapis.com/video/")
 
     def test_upload_url_rejects_credentials_and_nonstandard_ports(self):
         for url in (
@@ -134,6 +134,10 @@ class TikTokPublishingTests(unittest.TestCase):
             with self.subTest(url=url):
                 with self.assertRaisesRegex(TikTokPublishError, "untrusted upload URL"):
                     TikTokPublisher._validate_upload_url(url)
+
+    def test_upload_url_accepts_documented_regional_upload_host(self):
+        url = "https://upload.us.tiktokapis.com/video/?token=signed"
+        self.assertEqual(TikTokPublisher._validate_upload_url(url), url)
 
     def test_upload_url_accepts_official_upload_host(self):
         url = "https://open-upload.tiktokapis.com/video/?token=signed"
