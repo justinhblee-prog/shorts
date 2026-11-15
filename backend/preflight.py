@@ -12,6 +12,7 @@ def build_preflight(env=None):
         "artifact_staging": ["RENDER_ARTIFACT_HOSTS"],
         "youtube_upload": ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"],
         "youtube_data_api": ["YOUTUBE_DATA_API_KEY"],
+        "tiktok_publish": ["TIKTOK_ACCESS_TOKEN"],
     }
     checks = {}
     missing = []
@@ -30,6 +31,7 @@ def build_preflight(env=None):
                      ("script_generation","voice_generation","video_rendering"))
     staging = checks["artifact_staging"]["configured"] and checks["media_directory"]["configured"]
     upload = checks["youtube_upload"]["configured"]
+    tiktok_upload = checks["tiktok_publish"]["configured"]
     operation = checks["operator_auth"]["configured"]
     return {
         "checks": checks,
@@ -38,6 +40,7 @@ def build_preflight(env=None):
             "ai_generation_configured": generation,
             "artifact_staging_configured": staging,
             "youtube_upload_configured": upload,
+            "tiktok_private_publish_configured": operation and tiktok_upload,
             "end_to_end_configured": operation and generation and staging and upload
                 and checks["youtube_data_api"]["configured"],
         },
