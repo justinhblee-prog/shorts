@@ -137,6 +137,10 @@ class ProductionStore:
             if worker_id is not None or lease_token is not None:
                 c.execute("BEGIN IMMEDIATE")
                 self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            if stage == "script" and status == "running":
+                # A fresh attempt invalidates every artifact from the previous attempt.
+                # Keep this in the same transaction as the fenced stage transition.
+                c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
             c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
                          WHERE job_id=?""", (stage, status, error, utc_now(), job_id))
             if c.total_changes == 0:
