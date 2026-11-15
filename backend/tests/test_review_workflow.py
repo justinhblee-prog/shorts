@@ -55,6 +55,30 @@ class ReviewWorkflowTests(unittest.TestCase):
                          ["Cite sources", "No diagnosis"])
         self.assertNotIn("job_payload_json", item)
 
+    def test_policy_review_required_needs_explicit_approval_note(self):
+        self.production.artifact("job-1", "script", "text", None, {
+            "script": "Example", "policy_preflight": {
+                "status": "review_required",
+                "required_confirmations": ["rights.visuals_cleared", "factual_claims_verified"]
+            }
+        })
+        with self.assertRaisesRegex(ValueError, "explicit reviewer confirmation"):
+            self.review.decide("job-1", "approved", "operator-1", "")
+        result = self.review.decide("job-1", "approved", "operator-1",
+                                    "Confirmed rights and factual claims in source records")
+        self.assertEqual(result["production"]["status"], "approved")
+        self.assertIn("Confirmed rights", result["decision"]["comment"])
+
+    def test_policy_blocked_content_cannot_be_approved(self):
+        self.production.artifact("job-1", "script", "text", None, {
+            "script": "Example", "policy_preflight": {
+                "status": "blocked", "blocking_reasons": ["known_unauthorized_assets"]
+            }
+        })
+        with self.assertRaisesRegex(ReviewConflict, "Policy-blocked"):
+            self.review.decide("job-1", "approved", "operator-1", "Reviewed")
+        self.assertEqual(self.production.get("job-1")["status"], "review_pending")
+
     def test_approval_is_explicit_and_audited_with_snapshot(self):
         result = self.review.decide("job-1", "approved", "operator-1", "Looks good")
         self.assertEqual(result["production"]["status"], "approved")
