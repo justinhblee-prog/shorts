@@ -611,3 +611,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Updated both push and pull-request filters to cover `backend/**`, `frontend/**`, `scripts/**` and the workflow file.
 - Verified GitHub Actions run [43669862254](https://github.com/justinhblee-prog/shorts/actions/runs/43669862254) on commit `6b8807068363dcb6fb639b4c1c0b5e4643b3e8aa`: success, **149 tests passed**, JavaScript syntax validation passed, and the DOM validator reported **84 unique HTML IDs / 69 literal selectors**.
 - This validates the repository's automated checks only; live YouTube OAuth/upload, external AI rendering and real financial ingestion remain unverified.
+
+
+### Graceful container termination during production — 2026-11-15
+
+- Added SIGTERM handling for the production worker. If a process receives termination while holding a production lease, it signals the pipeline stop event and durably pauses production, terminalizing the current/other in-flight production jobs rather than waiting for lease expiry.
+- Started the job heartbeat before post-claim production-row reconciliation so a termination signal during that reconciliation window is also fenced before any provider request can begin.
+- Corrected the paused-worker loop to check the stop flag before sleeping, allowing a terminated worker to exit even when production is already paused.
+- Added tests for signal-driven pause and for local stop behavior when pause persistence itself fails.
+- GitHub Actions run [43669995888](https://github.com/justinhblee-prog/shorts/actions/runs/43669995888) passed **151 tests**, frontend syntax and DOM ID checks, and Python compilation.
