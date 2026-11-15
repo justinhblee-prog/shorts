@@ -785,3 +785,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a regression test proving a one-second lease is renewed during a 550 ms execution window.
 - GitHub Actions PR run 43674925201 passed on commit `92cca54d4901b065f92adce697a2f89e88c4e480`: validation script and all 204 backend tests passed.
 - External provider credentials, real provider calls, production deployment and live YouTube publishing remain unverified.
+
+### Upload idempotency and heartbeat shutdown race fixes — 2026-11-15
+
+- Fixed a YouTube upload concurrency race: if a competing request completes the upload between the caller's initial read and its transactional `begin`, the returned `uploaded` state is now returned instead of issuing another remote insert.
+- Added regression coverage simulating the stale initial read and confirmed only one upload attempt is recorded.
+- API and background production workers now wait for their heartbeat threads to exit before finishing/releasing the lease, preventing an in-flight heartbeat from observing a completed job as a lease conflict and pausing unrelated production work.
+- GitHub Actions runs 43675072630 and 43675069941 passed on commit `a6805bc4790cd61e8e22faf92ffbcd66ae46fe97`; each passed compile/Compose/frontend validation and all 205 backend unit tests.
+- Not merged or deployed; live YouTube/provider validation remains outstanding.
