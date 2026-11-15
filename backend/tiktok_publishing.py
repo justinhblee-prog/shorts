@@ -398,6 +398,14 @@ class TikTokPublisher:
             ) is not True
         ):
             raise TikTokPublishError("TikTok AI-generated disclosure acknowledgement is missing")
+        if (brand_content_toggle or brand_organic_toggle) and (
+            (approved_policy.get("evidence") or {}).get(
+                "commercial_relationship_disclosed"
+            ) is not True
+        ):
+            raise TikTokPublishError(
+                "Approved commercial relationship disclosure evidence is required for branded content"
+            )
         resolved, mime, size = self._media(media_path)
         existing = self.store.get(job_id)
         if existing and existing["status"] == "publish_complete":
