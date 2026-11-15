@@ -13,6 +13,7 @@ from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUplo
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from scheduler_store import ScheduleStore
+from media_staging import MediaStager, MediaStagingError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -30,6 +31,7 @@ youtube_publisher=YouTubePublisher(youtube_upload_store)
 ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+media_stager=MediaStager()
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -244,6 +246,25 @@ def review_history(job_id:str, x_review_token:str|None=Header(default=None)):
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
 
+
+
+
+@app.post("/api/production/jobs/{job_id}/stage-media")
+def stage_production_media(job_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    production=production_store.get(job_id)
+    if production is None:
+        raise HTTPException(404,"Production job not found")
+    if production["status"] not in ("rendered","review_pending"):
+        raise HTTPException(409,"Only rendered production jobs can be staged")
+    video=next((item for item in production["artifacts"]
+                if item["artifact_type"]=="video" and item["artifact_url"]),None)
+    if video is None:
+        raise HTTPException(409,"Rendered video artifact is not available")
+    try:
+        return media_stager.stage(job_id,video["artifact_url"])
+    except MediaStagingError as e:
+        raise HTTPException(502,str(e))
 
 
 @app.post("/api/youtube/upload/{job_id}",status_code=201)
