@@ -55,6 +55,9 @@ def inspect_lifecycle_consistency(job, production, review, youtube=None, tiktok=
     tt_started = any(e.get("event_type") in (
         "operator_consent_recorded", "publish_initialization_started",
         "publication_attempt_started") for e in tt_events)
+    if production_status == "approved" and decision != "approved":
+        add("approved_production_without_latest_approval", "blocker",
+            "Production is approved but the latest immutable review decision is not approved", "review")
     if decision != "approved" and (yt_started or tt_started):
         add("publication_without_current_approval", "blocker",
             "A platform publication attempt exists but the latest review decision is not approved", "review")
