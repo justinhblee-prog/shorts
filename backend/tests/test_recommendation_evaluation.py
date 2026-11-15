@@ -242,6 +242,81 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(within["holdout_median_rank_views_spearman"], 1.0)
         self.assertEqual(within["holdout_positive_score_association_share"], 1.0)
         self.assertFalse(within["score_adjustment_enabled"])
+        self.assertEqual(result["distinct_exposure_run_count"], 5)
+        self.assertEqual(result["pre_holdout_run_count"], 3)
+        self.assertEqual(result["holdout_run_count"], 2)
+        self.assertEqual(result["pre_holdout_count"], 9)
+        self.assertEqual(result["holdout_count"], 6)
+        self.assertEqual(result["holdout_score_views_spearman"], 1.0)
+        self.assertEqual(result["score_association_stability"], "consistent_positive")
+        self.assertEqual(len(set(result["holdout_run_ids"])), 2)
+
+    def test_primary_holdout_never_splits_an_exposure_run(self):
+        videos = []
+        for run_index in range(3):
+            timestamp = (
+                datetime(2026, 11, 1, tzinfo=timezone.utc)
+                + timedelta(days=run_index)
+            ).isoformat()
+            items = [self.item(run_index * 5 + index, 90 - index * 10)
+                     for index in range(5)]
+            run = self.store.record_run("US", items, timestamp)
+            for index in range(5):
+                trend_id = f"trend-{run_index * 5 + index}"
+                candidate_id = self.candidate_id(run, trend_id, "future-leak")
+                job_id = f"grouped-job-{run_index}-{index}"
+                self.store.link_production(
+                    trend_id, "future-leak", job_id, timestamp,
+                    candidate_id=candidate_id,
+                )
+                videos.append({
+                    "job_id": job_id, "measurement_status": "measured",
+                    "views_per_hour": 100 + run_index * 50 + index,
+                })
+        result = self.store.evaluate({"videos": videos})
+        self.assertEqual(result["measured_outcome_count"], 15)
+        self.assertEqual(result["status"], "insufficient_run_coverage")
+        self.assertEqual(result["distinct_exposure_run_count"], 3)
+        self.assertIsNone(result["holdout_score_views_spearman"])
+        self.assertFalse(result["ranking_score_adjustment_enabled"])
+
+    def test_evaluation_snapshot_is_immutable_and_deduplicated_by_input(self):
+        videos = []
+        for index in range(10):
+            timestamp = (
+                datetime(2026, 11, 1, tzinfo=timezone.utc)
+                + timedelta(days=index)
+            ).isoformat()
+            run = self.store.record_run(
+                "US", [self.item(index, 50 + index * 2)], timestamp
+            )
+            candidate_id = self.candidate_id(run, f"trend-{index}", "future-leak")
+            self.store.link_production(
+                f"trend-{index}", "future-leak", f"snapshot-job-{index}",
+                timestamp, candidate_id=candidate_id,
+            )
+            videos.append({
+                "job_id": f"snapshot-job-{index}",
+                "measurement_status": "measured",
+                "views_per_hour": 100 + index * 10,
+            })
+        result = self.store.evaluate({"videos": videos})
+        first = self.store.record_evaluation_snapshot(result)
+        repeated = self.store.record_evaluation_snapshot(result)
+        history = self.store.list_evaluation_snapshots()
+        self.assertFalse(first["deduplicated"])
+        self.assertTrue(repeated["deduplicated"])
+        self.assertEqual(first["snapshot_id"], repeated["snapshot_id"])
+        self.assertEqual(history["count"], 1)
+        self.assertEqual(history["items"][0]["input_fingerprint"],
+                         result["input_fingerprint"])
+        with self.store.db() as connection:
+            with self.assertRaisesRegex(Exception, "immutable"):
+                connection.execute(
+                    "UPDATE recommendation_evaluation_snapshots SET status='changed'"
+                )
+            with self.assertRaisesRegex(Exception, "immutable"):
+                connection.execute("DELETE FROM recommendation_evaluation_snapshots")
 
     def test_within_run_validation_excludes_unverified_requested_format(self):
         timestamp = "2026-11-01T00:00:00+00:00"
