@@ -908,6 +908,38 @@ def performance_insights(brand:str|None=None,x_review_token:str|None=Header(defa
     return performance_analyzer.analyze(brand)
 
 
+@app.get("/api/metrics/collection-status")
+def metrics_collection_status(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    interval=max(300,int(os.getenv("NEXUS_METRICS_COLLECTION_INTERVAL_SECONDS","21600")))
+    youtube=youtube_upload_store.metrics_collection_status(interval*2)
+    youtube["credentials_configured"]=all(os.getenv(key) for key in (
+        "YOUTUBE_CLIENT_ID","YOUTUBE_CLIENT_SECRET","YOUTUBE_REFRESH_TOKEN"
+    ))
+    youtube["available_metrics"]=["view_count","like_count","comment_count"]
+    youtube["unavailable_metrics"]=[
+        "audience_retention","swipe_away_rate","watch_time","estimated_revenue"
+    ]
+    return {
+        "platforms": {
+            "youtube": youtube,
+            "tiktok": {
+                "platform": "tiktok",
+                "status": "not_implemented",
+                "provider": None,
+                "last_attempt_at": None,
+                "last_success_at": None,
+                "last_error": None,
+                "available_metrics": [],
+                "unavailable_metrics": ["analytics_collection_not_implemented"],
+                "read_only": True,
+            },
+        },
+        "collection_interval_seconds": interval,
+        "read_only": True,
+    }
+
+
 
 @app.post("/api/schedules",status_code=201)
 def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=None)):
