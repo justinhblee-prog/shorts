@@ -8,6 +8,7 @@ import sqlite3
 import threading
 import uuid
 from contextlib import contextmanager
+from policy_engine import POLICY_VERSION
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -86,12 +87,55 @@ class YouTubeUploadStore:
                 "SELECT status FROM production_runs WHERE job_id=?",(job_id,)
             ).fetchone()
             latest=c.execute(
-                "SELECT decision FROM review_decisions WHERE job_id=? ORDER BY id DESC LIMIT 1",
+                "SELECT decision,artifact_snapshot_json FROM review_decisions "
+                "WHERE job_id=? ORDER BY id DESC LIMIT 1",
                 (job_id,)
             ).fetchone()
             if run is None or run["status"]!="approved" or latest is None or latest["decision"]!="approved":
                 raise YouTubeUploadError(
                     "The production job must remain approved by its latest human review decision"
+                )
+
+            # A previous human approval cannot silently carry forward after
+            # the deterministic policy checklist has changed.
+            script_row=c.execute("""SELECT metadata_json FROM production_artifacts
+                WHERE job_id=? AND stage='script' AND artifact_type='text'
+                ORDER BY created_at DESC,id DESC LIMIT 1""",(job_id,)).fetchone()
+            if script_row is None:
+                raise YouTubeUploadError(
+                    "Current policy evidence is missing from the script artifact; return to review"
+                )
+            try:
+                script_metadata=json.loads(script_row["metadata_json"])
+                current_policy=script_metadata.get("policy_preflight") or {}
+                approval_snapshot=json.loads(latest["artifact_snapshot_json"] or "[]")
+            except (TypeError,ValueError,AttributeError):
+                raise YouTubeUploadError(
+                    "Saved policy evidence or approval snapshot is invalid; return to review"
+                )
+            approved_script=next((
+                item for item in approval_snapshot
+                if isinstance(item,dict) and item.get("stage")=="script"
+                and item.get("artifact_type")=="text"
+            ),None) if isinstance(approval_snapshot,list) else None
+            approved_policy=(
+                (approved_script.get("metadata") or {}).get("policy_preflight")
+                if isinstance(approved_script,dict)
+                and isinstance(approved_script.get("metadata"),dict) else None
+            )
+            if (not isinstance(current_policy,dict)
+                    or current_policy.get("policy_version")!=POLICY_VERSION
+                    or not isinstance(approved_policy,dict)
+                    or approved_policy.get("policy_version")!=POLICY_VERSION):
+                raise YouTubeUploadError(
+                    "Platform policy rules changed or were not recorded after human approval; "
+                    "refresh policy evidence and obtain a new human approval before upload"
+                )
+            if (current_policy.get("status")=="blocked"
+                    or current_policy.get("approval_blockers")):
+                raise YouTubeUploadError(
+                    "Current platform policy evidence still contains blocking requirements; "
+                    "return to human review before upload"
                 )
             row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
             if row and row["status"]=="uploaded":

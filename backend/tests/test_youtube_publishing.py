@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import tempfile
@@ -7,6 +8,7 @@ from pathlib import Path
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
+from policy_engine import evaluate_content_policy
 
 
 class FakeRequest:
@@ -79,6 +81,18 @@ class YouTubePublishingTests(unittest.TestCase):
         self.prod.stage("job-1","rendered","review_pending")
         self.prod.artifact("job-1","rendering","video",
                            "https://media.example/video.mp4",{})
+        policy_brief = {
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "synthetic_media_status": "none",
+            "factual_claims_verified": True,
+            "originality_notes": "Original educational narration.",
+        }
+        self.prod.artifact(
+            "job-1", "script", "text", None,
+            {"script": "Approved test script",
+             "policy_preflight": evaluate_content_policy(policy_brief)},
+        )
         self.review.decide("job-1","approved","reviewer-1")
         os.environ["NEXUS_MEDIA_DIR"]=self.tmp.name
         self.media=os.path.join(self.tmp.name,"video.mp4")
@@ -198,6 +212,57 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(event["event_type"],"upload_preflight_failed")
         self.assertEqual(event["attempt_id"],attempt["attempt_id"])
 
+    def test_upload_is_blocked_when_current_policy_artifact_version_is_stale(self):
+        with self.uploads.db() as connection:
+            row = connection.execute(
+                "SELECT id,metadata_json FROM production_artifacts "
+                "WHERE job_id='job-1' AND stage='script'"
+            ).fetchone()
+            metadata = json.loads(row["metadata_json"])
+            metadata["policy_preflight"]["policy_version"] = "outdated-policy-version"
+            connection.execute(
+                "UPDATE production_artifacts SET metadata_json=? WHERE id=?",
+                (json.dumps(metadata), row["id"]),
+            )
+        with self.assertRaisesRegex(YouTubeUploadError, "rules changed"):
+            self.uploads.begin("job-1", "Title", "Description")
+        self.assertIsNone(self.uploads.get("job-1"))
+
+    def test_upload_is_blocked_when_approval_snapshot_has_old_policy_version(self):
+        with self.uploads.db() as connection:
+            row = connection.execute(
+                "SELECT id,artifact_snapshot_json FROM review_decisions "
+                "WHERE job_id='job-1' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            snapshot = json.loads(row["artifact_snapshot_json"])
+            script = next(item for item in snapshot if item["stage"] == "script")
+            script["metadata"]["policy_preflight"]["policy_version"] = "outdated-policy-version"
+            connection.execute(
+                "UPDATE review_decisions SET artifact_snapshot_json=? WHERE id=?",
+                (json.dumps(snapshot), row["id"]),
+            )
+        with self.assertRaisesRegex(YouTubeUploadError, "rules changed"):
+            self.uploads.begin("job-1", "Title", "Description")
+        self.assertIsNone(self.uploads.get("job-1"))
+
+    def test_upload_is_blocked_if_current_policy_evidence_has_approval_blockers(self):
+        with self.uploads.db() as connection:
+            row = connection.execute(
+                "SELECT id,metadata_json FROM production_artifacts "
+                "WHERE job_id='job-1' AND stage='script'"
+            ).fetchone()
+            metadata = json.loads(row["metadata_json"])
+            metadata["policy_preflight"]["approval_blockers"] = [
+                "platform_disclosures.youtube_altered_content"
+            ]
+            connection.execute(
+                "UPDATE production_artifacts SET metadata_json=? WHERE id=?",
+                (json.dumps(metadata), row["id"]),
+            )
+        with self.assertRaisesRegex(YouTubeUploadError, "blocking requirements"):
+            self.uploads.begin("job-1", "Title", "Description")
+        self.assertIsNone(self.uploads.get("job-1"))
+
     def test_upload_requires_approval(self):
         self.prod.create("job-2",{"brand":"Brain Glitch","region":"US",
                                   "language":"English","topic":"Focus"})
@@ -234,6 +299,17 @@ class YouTubePublishingTests(unittest.TestCase):
         self.prod.create("job-2",{"brand":"Future Leak","region":"US",
                                   "language":"English","topic":"Robotics"})
         self.prod.stage("job-2","rendered","review_pending")
+        policy = evaluate_content_policy({
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "synthetic_media_status": "none",
+            "factual_claims_verified": True,
+            "originality_notes": "Original robotics explainer.",
+        })
+        self.prod.artifact(
+            "job-2", "script", "text", None,
+            {"script": "Robotics explainer", "policy_preflight": policy},
+        )
         self.review.decide("job-2","approved","reviewer-1")
         for job_id,video_id in (("job-1","yt-one"),("job-2","yt-two")):
             attempt=self.uploads.begin(job_id,"Title","")

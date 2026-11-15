@@ -4,6 +4,7 @@ from youtube_publishing import YouTubeUploadStore
 from review_workflow import ReviewStore
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
+from policy_engine import evaluate_content_policy
 
 class PerformanceTests(unittest.TestCase):
  def setUp(self):
@@ -13,6 +14,13 @@ class PerformanceTests(unittest.TestCase):
  def video(self,job,brand,region,topic,video):
   self.p.create(job,{"brand":brand,"region":region,"language":"English","topic":topic})
   self.p.stage(job,"rendered","review_pending")
+  policy = evaluate_content_policy({
+   "rights":{"visuals_cleared":True,"audio_cleared":True,"likeness_authorized":True},
+   "synthetic_media_status":"none","factual_claims_verified":True,
+   "originality_notes":"Analytics fixture has original content."
+  })
+  self.p.artifact(job,"script","text",None,{"script":"Analytics fixture script",
+                                             "policy_preflight":policy})
   self.review.decide(job,"approved","test-reviewer","Approved for analytics fixture")
   attempt=self.u.begin(job,"t","d"); self.u.finish(job,video,attempt["attempt_id"])
  def entry(self,brand,currency,kind,ref,amount):

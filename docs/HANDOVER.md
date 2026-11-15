@@ -826,3 +826,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Dashboard now shows within-exposure holdout coverage separately from pooled correlation.
 - Recommendation score changes remain disabled. The evaluation is observational and selection-biased because only operator-selected recommendations receive production outcomes.
 - CI validation pending on this branch.
+
+
+### BUILD-00021 — upload-time policy version freshness gate (2026-11-15)
+
+- Before a YouTube upload attempt is initialized, verify the current script artifact contains the active policy rule version and has no unresolved policy blockers.
+- Verify the latest human approval snapshot was made against the same active policy version; old approvals cannot silently carry forward after a rule update.
+- Missing/malformed policy evidence, stale approval version, blocked status or approval blockers stop upload before the remote YouTube API request.
+- Existing private-only upload behavior and explicit human approval remain unchanged.
+- This compares local rule versions only; it does not live-refresh Google/TikTok policy documents. Current official rules and regional restrictions still require manual verification.
+- CI validation pending on this branch.
