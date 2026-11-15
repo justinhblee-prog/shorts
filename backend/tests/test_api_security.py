@@ -224,7 +224,9 @@ class ApiSecurityTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as caught:
                 execute_production_job("job-provider", body, x_review_token="test-token")
         self.assertEqual(caught.exception.status_code, 502)
+        self.assertFalse(caught.exception.detail["retryable"])
         fail.assert_called_once()
+        self.assertIs(fail.call_args.args[-1], False)
         pause.assert_called_once()
 
     def test_api_internal_error_records_failure_and_pauses_production(self):
