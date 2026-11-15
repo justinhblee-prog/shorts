@@ -851,3 +851,6 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - `ai_generation_configured` now requires all three valid endpoint/token pairs, not merely non-empty environment variables.
 - The preflight explicitly states that generic JSON contract configuration does not prove vendor compatibility or a successful paid generation call. It performs no external requests.
 - Regression tests cover missing configuration, secure endpoints, insecure/malformed URLs, local development endpoints and secret redaction. GitHub Actions [run 43680723709](https://github.com/justinhblee-prog/shorts/actions/runs/43680723709) passed **239 backend tests**, Python compilation, Compose YAML validation and frontend syntax/DOM-ID checks.
+
+
+- Follow-up hardening rejects malformed or out-of-range provider URL ports. GitHub Actions [run 43680880928](https://github.com/justinhblee-prog/shorts/actions/runs/43680880928) passed on commit `c0c8d7e01fde93ef9bf641385bcf8e05627dcdfa`: **239 backend tests**, Python compilation, Compose YAML validation and frontend syntax/DOM-ID checks.
