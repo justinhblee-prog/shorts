@@ -18,6 +18,9 @@ METRICS = (
     "views,engagedViews,estimatedMinutesWatched,averageViewDuration,"
     "averageViewPercentage,likes,comments,shares,subscribersGained"
 )
+MAX_ANALYTICS_RESPONSE_ROWS = 200
+MAX_ANALYTICS_COLUMN_HEADERS = 64
+MAX_ANALYTICS_VIDEO_ID_CHARS = 256
 NUMERIC_FIELDS = (
     "views", "engagedViews", "estimatedMinutesWatched", "averageViewDuration",
     "averageViewPercentage", "likes", "comments", "shares", "subscribersGained",
@@ -292,26 +295,57 @@ class YouTubeAnalyticsCollector:
             raise YouTubeAnalyticsError("YouTube Analytics response is malformed")
         headers = response.get("columnHeaders")
         rows = response.get("rows", [])
-        if not isinstance(headers, list) or not isinstance(rows, list):
-            raise YouTubeAnalyticsError("YouTube Analytics response omitted headers or rows")
-        names = [item.get("name") for item in headers if isinstance(item, dict)]
-        if len(names) != len(headers) or len(names) != len(set(names)) or "video" not in names:
+        if (not isinstance(headers, list) or not isinstance(rows, list)
+                or not 1 <= len(headers) <= MAX_ANALYTICS_COLUMN_HEADERS):
+            raise YouTubeAnalyticsError("YouTube Analytics response omitted valid headers or rows")
+        if len(rows) > MAX_ANALYTICS_RESPONSE_ROWS:
+            raise YouTubeAnalyticsError("YouTube Analytics response exceeded the 200-row limit")
+        if not isinstance(requested_ids, (set, frozenset)) or any(
+            not isinstance(value, str) or not value or len(value) > MAX_ANALYTICS_VIDEO_ID_CHARS
+            for value in requested_ids
+        ):
+            raise YouTubeAnalyticsError("Requested YouTube video IDs are malformed")
+        names = []
+        for header in headers:
+            if not isinstance(header, dict):
+                raise YouTubeAnalyticsError("YouTube Analytics response columns are invalid")
+            name = header.get("name")
+            if (not isinstance(name, str) or not name or len(name) > 64
+                    or not name.isascii() or not name[0].isalpha()
+                    or not name.replace("_", "").isalnum()):
+                raise YouTubeAnalyticsError("YouTube Analytics response columns are invalid")
+            names.append(name)
+        if len(names) != len(set(names)) or "video" not in names:
             raise YouTubeAnalyticsError("YouTube Analytics response columns are invalid")
         required = {"video", *NUMERIC_FIELDS}
         if not required.issubset(set(names)):
             raise YouTubeAnalyticsError("YouTube Analytics response omitted requested metrics")
-        parsed = []
+        parsed, seen = [], set()
         for row in rows:
             if not isinstance(row, list) or len(row) != len(names):
                 raise YouTubeAnalyticsError("YouTube Analytics row shape is invalid")
             item = dict(zip(names, row))
             video_id = item.get("video")
-            if video_id not in requested_ids:
+            if (not isinstance(video_id, str) or not video_id
+                    or len(video_id) > MAX_ANALYTICS_VIDEO_ID_CHARS
+                    or video_id not in requested_ids):
                 raise YouTubeAnalyticsError("YouTube Analytics returned an unrequested video ID")
+            if video_id in seen:
+                raise YouTubeAnalyticsError("YouTube Analytics returned duplicate video rows")
+            seen.add(video_id)
             values = {key: item.get(key) for key in NUMERIC_FIELDS}
+            for key, value in values.items():
+                if value is None:
+                    continue
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise YouTubeAnalyticsError("YouTube Analytics metric is not numeric: " + key)
+                try:
+                    valid = math.isfinite(float(value)) and float(value) >= 0
+                except (OverflowError, ValueError):
+                    valid = False
+                if not valid:
+                    raise YouTubeAnalyticsError("YouTube Analytics metric is outside the valid range: " + key)
             parsed.append((video_id, values))
-        if len({video_id for video_id, _ in parsed}) != len(parsed):
-            raise YouTubeAnalyticsError("YouTube Analytics returned duplicate video rows")
         return parsed
 
     def refresh(self, limit=50, days=28, min_age_seconds=21600):

@@ -108,6 +108,44 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         with self.assertRaisesRegex(YouTubeAnalyticsError, "valid range"):
             self.store.save_snapshot("video-1", "2026-10-01", "2026-10-28", values)
 
+    def test_parser_rejects_unhashable_or_invalid_header_names(self):
+        for headers in ([{"name": []}], [{"name": None}], [{"name": "video"}, {"name": []}]):
+            with self.subTest(headers=headers):
+                with self.assertRaises(YouTubeAnalyticsError):
+                    YouTubeAnalyticsCollector._parse_response(
+                        {"columnHeaders": headers, "rows": []}, {"video-1"}
+                    )
+
+    def test_parser_rejects_unhashable_or_invalid_video_ids(self):
+        for video_id in ([], {}, True, "", "x" * 257):
+            with self.subTest(video_id_type=type(video_id).__name__):
+                with self.assertRaises(YouTubeAnalyticsError):
+                    YouTubeAnalyticsCollector._parse_response(
+                        self.response([video_id]), {"video-1"}
+                    )
+
+    def test_parser_rejects_invalid_metric_types_before_any_snapshot_is_saved(self):
+        headers = self.response([])["columnHeaders"]
+        rows = self.response(["video-1", "video-2"])["rows"]
+        rows[1][1] = True
+        uploads = FakeUploads([
+            {"job_id": "job-1", "video_id": "video-1", "status": "uploaded"},
+            {"job_id": "job-2", "video_id": "video-2", "status": "uploaded"},
+        ])
+        service = FakeAnalyticsService({"columnHeaders": headers, "rows": rows})
+        collector = YouTubeAnalyticsCollector(self.store, uploads, service_factory=lambda: service)
+        with self.assertRaisesRegex(YouTubeAnalyticsError, "not numeric"):
+            collector.refresh()
+        with self.store.db() as connection:
+            count = connection.execute("SELECT COUNT(*) FROM youtube_analytics_snapshots").fetchone()[0]
+        self.assertEqual(count, 0)
+
+    def test_parser_caps_response_rows(self):
+        with self.assertRaisesRegex(YouTubeAnalyticsError, "200-row limit"):
+            YouTubeAnalyticsCollector._parse_response(
+                self.response(["video-1"] * 201), {"video-1"}
+            )
+
     def test_recent_metrics_returns_latest_owned_uploaded_snapshot(self):
         values = {key: 1 for key in NUMERIC_FIELDS}
         self.store.save_snapshot("video-1", "2026-10-01", "2026-10-28", values)
