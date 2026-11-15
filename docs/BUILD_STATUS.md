@@ -1808,3 +1808,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Temporary plaintext is removed; restore remains no-clobber; retention includes encrypted and plaintext backups.
 - Added tests for encrypted restore, wrong-key/tamper detection, combined retention, key requirements and temporary-file cleanup. Final-head push CI [43774559417](https://github.com/justinhblee-prog/shorts/actions/runs/43774559417) and PR CI [43774562521](https://github.com/justinhblee-prog/shorts/actions/runs/43774562521): **609 tests passed**.
 - Encryption remains opt-in. Secure key custody and off-host replication/restore drills remain operator requirements.
+
+
+## BUILD-00110 — operator role-based access control (2026-11-16)
+
+- Added explicit role-to-permission grants and `NEXUS_REVIEW_ROLE_MAP_JSON` keyed by authenticated reviewer IDs.
+- Applied role checks across review, production, media, publishing/OAuth, finance, analytics, schedules, trends, recommendations, brand activation and queue controls.
+- Unmapped identities are denied when a role map is active; malformed configuration fails closed. Roles: admin, producer, reviewer, publisher, analyst, operator, finance.
+- Legacy full-access behavior remains only when the role map is absent/blank; production migration must populate the role map. External IdP and token lifecycle remain future work. CI pending.
