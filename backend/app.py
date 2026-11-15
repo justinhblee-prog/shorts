@@ -75,6 +75,11 @@ class YouTubeUploadReconciliation(BaseModel):
     confirmed:bool
     video_id:str|None=Field(default=None,min_length=1,max_length=128)
     note:str=Field(min_length=1,max_length=2000)
+    operator_id:str=Field(min_length=1,max_length=128)
+
+class YouTubeLateSuccessResolution(BaseModel):
+    operator_id:str=Field(min_length=1,max_length=128)
+    note:str=Field(min_length=1,max_length=2000)
 
 class LedgerEntry(BaseModel):
     job_id:str|None=None
@@ -339,7 +344,19 @@ def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
         raise HTTPException(422,"A verified YouTube video ID is required")
     try:
         return youtube_upload_store.reconcile(
-            job_id,body.outcome,body.video_id,body.note
+            job_id,body.outcome,body.video_id,body.note,body.operator_id
+        )
+    except YouTubeUploadError as e:
+        raise HTTPException(409,str(e))
+
+
+@app.post("/api/youtube/uploads/{job_id}/resolve-late-result")
+def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
+                                x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return youtube_upload_store.resolve_late_success(
+            job_id,body.operator_id,body.note
         )
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
