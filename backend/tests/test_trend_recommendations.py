@@ -123,6 +123,39 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(historical["ranking_score_adjustment"], 0)
         self.assertIn("not yet topic-matched", historical["reason"])
 
+    def test_topic_matched_performance_uses_only_measured_same_region_videos(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        trend = {"id": "ai", "title": "AI robotics explained", "region": "US",
+                 "published_at": now.isoformat()}
+        brand = {"slug": "future-leak", "name": "Future Leak", "active": True,
+                 "config": {"positioning": "AI robotics technology", "regions": ["US"]}}
+        videos = [
+            {"brand": "Future Leak", "region": "US", "topic": "AI robotics",
+             "measurement_status": "measured", "views_per_hour": 100.0,
+             "interactions_per_1000_view_delta": 20.0},
+            {"brand": "Future Leak", "region": "US", "topic": "AI robotics research",
+             "measurement_status": "measured", "views_per_hour": 200.0,
+             "interactions_per_1000_view_delta": 30.0},
+            {"brand": "Future Leak", "region": "US", "topic": "AI robotics future",
+             "measurement_status": "measured", "views_per_hour": 300.0,
+             "interactions_per_1000_view_delta": 40.0},
+            {"brand": "Future Leak", "region": "JP", "topic": "AI robotics",
+             "measurement_status": "measured", "views_per_hour": 999.0,
+             "interactions_per_1000_view_delta": 99.0},
+            {"brand": "Future Leak", "region": "US", "topic": "Cooking recipes",
+             "measurement_status": "measured", "views_per_hour": 888.0,
+             "interactions_per_1000_view_delta": 88.0},
+        ]
+        result = rank_trend_candidates(
+            [trend], [brand], now=now, performance_videos=videos
+        )[0]
+        context = result["best_brand"]["topic_performance"]
+        self.assertEqual(context["matched_video_count"], 3)
+        self.assertEqual(context["median_views_per_hour"], 200.0)
+        self.assertEqual(context["median_interactions_per_1000_view_delta"], 30.0)
+        self.assertEqual(context["evidence_status"], "observed")
+        self.assertEqual(context["ranking_score_adjustment"], 0)
+
     def test_competitor_evidence_is_region_scoped_and_does_not_change_editorial_score(self):
         store = Mock()
         store.list_channels.return_value = [
