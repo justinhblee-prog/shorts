@@ -573,3 +573,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Each result carries evidence-gap flags. No trend is automatically sent to production; the operator still selects a brand and uses the existing draft-production and human-review gates.
 - Regression tests cover freshness ordering, region eligibility, missing brand matches, evidence caveats and route authentication.
 - **Validation:** GitHub Actions run `43669273892` completed successfully at source commit `01c0a927b7dc38a2d6f7125c8e37caacc1aa4af0`; `144` tests passed, including the new ranking and authenticated API regressions. Earlier failed runs exposed a region-eligibility edge case; the implementation was corrected and the successful run is on the corrected commit.
+
+
+### Faster production lease-loss detection — 2026-11-15
+
+- Reduced the default active-job heartbeat interval from one-third of the lease (100 seconds for a 300-second lease) to **10 seconds**, configurable through `NEXUS_HEARTBEAT_SECONDS` and capped at one-third of the lease.
+- This reduces the delay before a worker detects an operator pause or lease revocation. An in-flight provider HTTP request cannot be forcibly cancelled by the current synchronous transport; it runs until its configured timeout, after which the stop signal prevents the next pipeline stage.
+- Extracted the heartbeat interval policy into a pure helper and added boundary tests for the lease cap and minimum interval.
+- GitHub Actions run [43669352365](https://github.com/justinhblee-prog/shorts/actions/runs/43669352365) passed **148 tests** on commit `5b1aa3d0d1993176c4d135abf581e101f3113efe`; Python compilation and JavaScript syntax validation passed.
