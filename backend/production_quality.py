@@ -189,6 +189,7 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
         "warnings": sorted(set(warnings)),
         "checks": checks,
         "script_word_count": words,
+        "originality_check": originality if isinstance(originality, dict) else None,
         "verification_boundary": (
             "When configured, staged video bytes are inspected with ffprobe for container, "
             "duration, dimensions, codecs and audio/subtitle streams. This does not verify "
