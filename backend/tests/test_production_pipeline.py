@@ -64,6 +64,29 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(len(voice.calls), 1)
         self.assertEqual(len(render.calls), 1)
 
+    def test_retry_start_clears_stale_downstream_artifacts(self):
+        self.store.create("job-1", self.brief)
+        first = ProductionPipeline(
+            self.store,
+            FakeProvider({"script": "Old script"}),
+            FakeProvider({"audio_url": "https://media.example/old.mp3"}),
+            FakeProvider({"video_url": "https://media.example/old.mp4"}),
+        )
+        first.execute("job-1", self.brief)
+        self.assertEqual(len(self.store.get("job-1")["artifacts"]), 3)
+
+        retry = ProductionPipeline(
+            self.store,
+            FakeProvider(ProviderError("script", "Temporary script failure", True)),
+            FakeProvider({"audio_url": "https://media.example/unused.mp3"}),
+            FakeProvider({"video_url": "https://media.example/unused.mp4"}),
+        )
+        with self.assertRaises(ProviderError):
+            retry.execute("job-1", self.brief)
+        result = self.store.get("job-1")
+        self.assertEqual(result["status"], "failed_retriable")
+        self.assertEqual(result["artifacts"], [])
+
     def test_missing_audio_url_fails_without_fake_video(self):
         script = FakeProvider({"script": "Real script"})
         voice = FakeProvider({"status": "ok"})
