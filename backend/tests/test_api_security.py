@@ -34,6 +34,22 @@ class ApiSecurityTests(unittest.TestCase):
                 unprotected.append(path)
         self.assertEqual(unprotected, [])
 
+    def test_tiktok_publish_request_requires_explicit_private_visibility(self):
+        required = {
+            "media_path": "/media/video.mp4",
+            "title": "Approved video",
+            "operator_id": "operator-1",
+            "explicit_consent": True,
+            "brand_content_toggle": False,
+            "brand_organic_toggle": False,
+        }
+        with self.assertRaises(Exception):
+            TikTokPublishRequest(**required)
+        valid = TikTokPublishRequest(**required, privacy_level="SELF_ONLY")
+        self.assertEqual(valid.privacy_level, "SELF_ONLY")
+        with self.assertRaises(Exception):
+            TikTokPublishRequest(**required, privacy_level="PUBLIC_TO_EVERYONE")
+
     def test_tiktok_publish_and_status_routes_are_token_protected(self):
         expected = {
             "/api/tiktok/creator-info",
