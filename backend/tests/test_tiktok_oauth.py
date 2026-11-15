@@ -90,6 +90,7 @@ class TikTokOAuthTests(unittest.TestCase):
                 "UPDATE tiktok_oauth_tokens SET access_expires_at=? WHERE id=1",
                 ((datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat(),),
             )
+        self.transport.responses.clear()
         self.transport.responses.append((200, {
             "access_token": "access-new",
             "refresh_token": "refresh-new",
