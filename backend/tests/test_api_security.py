@@ -18,7 +18,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
                  skip_recommendation_feedback, capture_trend_recommendations,
                  get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
-                 operational_health)
+                 operational_health, operational_recovery_plan)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -634,7 +634,7 @@ class ApiSecurityTests(unittest.TestCase):
         fail.assert_called_once()
         pause.assert_called_once()
     def test_queue_control_endpoints_are_authenticated_and_audited(self):
-        body = QueueControlAction(operator_id="operator-1", note="Reviewed worker state")
+        body = QueueControlAction(operator_id="operator-1", note="Reviewed worker state", recovery_confirmed=True)
         control = {"paused": True, "pause_reason": body.note, "paused_job_id": "job-1"}
         events = [{"event_type": "paused", "actor": body.operator_id}]
         with (
@@ -658,8 +658,34 @@ class ApiSecurityTests(unittest.TestCase):
         resume.assert_called_once_with(actor=body.operator_id, note=body.note)
         self.assertFalse(resumed["control"]["paused"])
 
-    def test_queue_resume_rejects_unpaused_queue(self):
+    def test_queue_resume_requires_explicit_recovery_confirmation(self):
         body = QueueControlAction(operator_id="operator-1", note="Checked state")
+        with mock.patch("app.require_review_access"):
+            with self.assertRaises(HTTPException) as caught:
+                resume_queue(body, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 422)
+
+    def test_queue_resume_is_blocked_by_operational_health_signals(self):
+        body = QueueControlAction(operator_id="operator-1", note="Checked state", recovery_confirmed=True)
+        with mock.patch("app.require_review_access"), \
+             mock.patch.object(app_module.queue, "operational_health", return_value={"blockers":[{"code":"worker_lease_expired"}]}), \
+             mock.patch.object(app_module.queue, "resume") as resume:
+            with self.assertRaises(HTTPException) as caught:
+                resume_queue(body, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 409)
+        resume.assert_not_called()
+
+    def test_recovery_plan_requires_review_access_and_returns_operator_checks(self):
+        snapshot={"blockers":[],"queue":{"paused":True},"leases":{"expired_running":0,"running_missing_ownership":0}}
+        with mock.patch("app.require_review_access") as access, \
+             mock.patch.object(app_module.queue, "operational_health", return_value=snapshot):
+            result=operational_recovery_plan(x_review_token="test-token")
+        access.assert_called_once_with("test-token")
+        self.assertTrue(result["resume_allowed"])
+        self.assertEqual(len(result["operator_checks"]),4)
+        self.assertEqual(result["actions_taken"],[])
+    def test_queue_resume_rejects_unpaused_queue(self):
+        body = QueueControlAction(operator_id="operator-1", note="Checked state", recovery_confirmed=True)
         with (
             mock.patch("app.require_review_access"),
             mock.patch.object(app_module.queue, "resume", side_effect=ValueError("not paused")),
