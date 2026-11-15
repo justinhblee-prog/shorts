@@ -221,3 +221,7 @@ Latest observed run 106 (commit `efa84562519ea814f9f10d5e030c8c3b5f2f131e`) fail
 ## BUILD-00010 — performance insights
 
 `GET /api/performance/insights` now returns `brands`, `regions`, `videos`, `financial` (array grouped by brand/currency), and `limitations`. It excludes negative view-counter differences from growth totals, labels invalid/reset measurements, and applies the brand filter to financial records too. Dashboard renders these evidence groups. Recommendations are heuristics only, not forecasts.
+
+## BUILD-00011 — scheduler outbox recovery
+
+The scheduler atomically reserves due occurrences and writes them to `schedule_dispatch_outbox`. Queue enqueue uses `schedule:{schedule_id}:{scheduled_for}` idempotency. Pending outbox records are replayed on each poll; a crash between queue enqueue and outbox acknowledgement cannot duplicate the job. Failures remain pending with attempt count and bounded error text. Test file: `backend/tests/test_scheduler_store.py`.
