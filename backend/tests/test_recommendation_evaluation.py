@@ -113,6 +113,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
             "US", [self.item(1, 82.5)], "2026-11-01T00:02:00+00:00"
         )
         self.assertEqual(first["run_id"], repeated["run_id"])
+        self.assertEqual(first["candidate_ids"], repeated["candidate_ids"])
         self.assertTrue(repeated["deduplicated"])
         self.assertNotEqual(first["run_id"], later["run_id"])
         self.assertFalse(later["deduplicated"])
@@ -127,7 +128,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
         )
         self.assertTrue(linked["linked"])
         self.assertFalse(self.store.link_production(
-            "trend-1", "future-leak", "job-2"
+            "trend-1", "future-leak", "job-2", candidate_id=candidate_id
         )["linked"])
 
     def test_holdout_is_chronological_and_reports_score_outcome_association(self):
@@ -247,6 +248,23 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(result["selected_production_count"], 1)
         self.assertEqual(result["unmeasured_selected_count"], 1)
         self.assertFalse(result["ranking_score_adjustment_enabled"])
+
+    def test_candidate_id_cannot_be_used_for_another_trend_or_brand(self):
+        run = self.store.record_run("US", [self.item()])
+        candidate_id = self.candidate_id(run, "trend-1", "future-leak")
+        wrong_trend = self.store.link_production(
+            "trend-other", "future-leak", "job-wrong-trend",
+            candidate_id=candidate_id,
+        )
+        wrong_brand = self.store.link_production(
+            "trend-1", "other-brand", "job-wrong-brand",
+            candidate_id=candidate_id,
+        )
+        self.assertFalse(wrong_trend["linked"])
+        self.assertFalse(wrong_brand["linked"])
+        self.assertEqual(
+            self.store.evaluate({"videos": []})["selected_production_count"], 0
+        )
 
     def test_spearman_handles_ties_and_constant_values(self):
         self.assertEqual(_spearman([1, 2, 3], [10, 20, 30]), 1.0)
