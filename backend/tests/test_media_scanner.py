@@ -2,6 +2,7 @@ import os
 import tempfile
 import unittest
 from media_scanner import ClamAVScanner, MediaScanError
+from media_staging import MediaStager, MediaStagingError
 
 
 class ClamAVScannerTests(unittest.TestCase):
@@ -55,6 +56,48 @@ class ClamAVScannerTests(unittest.TestCase):
             scanner.scan(link)
         with self.assertRaises(MediaScanError):
             scanner.scan(os.path.join(self.tmp.name, "missing.mp4"))
+
+
+class MediaStagingScanIntegrationTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.payload = b"0000ftypisom" + b"x" * 64
+        self.scanned = []
+        def fetcher(host, ip, path, timeout):
+            return 200, {"content-type": "video/mp4", "content-length": str(len(self.payload))}, [self.payload]
+        class Scanner:
+            def __init__(inner, error=None):
+                inner.error = error
+            def scan(inner, path):
+                self.scanned.append(path)
+                if inner.error:
+                    raise inner.error
+        self.Scanner = Scanner
+        self.fetcher = fetcher
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _stager(self, scanner):
+        return MediaStager(self.tmp.name, "cdn.example.test", 1024,
+            resolver=lambda host: ["8.8.8.8"], fetcher=self.fetcher,
+            scanner=scanner, scan_enabled=True)
+
+    def test_clean_scan_is_required_before_staged_file_is_published(self):
+        scanner = self.Scanner()
+        result = self._stager(scanner).stage("clean-job", "https://cdn.example.test/video.mp4")
+        self.assertEqual(result["malware_scan"], "clean")
+        self.assertEqual(len(self.scanned), 1)
+        self.assertTrue(os.path.isfile(os.path.join(self.tmp.name, result["media_path"])))
+
+    def test_infected_or_unavailable_scanner_blocks_and_cleans_temporary_file(self):
+        for error in (MediaScanError("infected"), MediaScanError("scanner unavailable")):
+            with self.subTest(error=str(error)):
+                stager = self._stager(self.Scanner(error))
+                with self.assertRaises(MediaStagingError):
+                    stager.stage("blocked-job", "https://cdn.example.test/video.mp4")
+                self.assertFalse(os.path.exists(stager.staged_path("blocked-job")))
+                self.assertFalse(any(name.endswith(".part") for name in os.listdir(self.tmp.name)))
 
 
 if __name__ == "__main__":
