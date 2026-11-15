@@ -1,4 +1,5 @@
 import os
+import threading
 from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import FileResponse
@@ -216,9 +217,40 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
             raise HTTPException(409,"Job is not a short-video production job")
         if job["status"]!="running" or job["worker_id"]!=body.worker_id or job["lease_token"]!=body.lease_token:
             raise HTTPException(409,"Current worker lease is required")
-        result=production_pipeline.execute(
-            job_id,job["payload"],worker_id=body.worker_id,lease_token=body.lease_token
-        )
+        # API-triggered production can run longer than a queue lease. Renew it
+        # while providers are working, and propagate any lost lease into the
+        # pipeline stop signal before another external side effect can begin.
+        lost_lease=threading.Event()
+        heartbeat_stop=threading.Event()
+        def renew_api_lease():
+            interval=max(1,queue.lease_seconds//3)
+            while not heartbeat_stop.wait(interval):
+                try:
+                    queue.heartbeat(job_id,body.worker_id,body.lease_token)
+                except Exception as exc:
+                    lost_lease.set()
+                    try:
+                        queue.pause(
+                            f"API production heartbeat failed: {type(exc).__name__}: {exc}",
+                            job_id,
+                        )
+                    except Exception:
+                        pass
+                    return
+        heartbeat=threading.Thread(target=renew_api_lease,daemon=True)
+        heartbeat.start()
+        try:
+            result=production_pipeline.execute(
+                job_id,job["payload"],worker_id=body.worker_id,
+                lease_token=body.lease_token,stop_event=lost_lease
+            )
+        finally:
+            heartbeat_stop.set()
+            heartbeat.join(timeout=5)
+        if lost_lease.is_set():
+            raise ProductionLeaseConflict(
+                "Production lease heartbeat was lost during API execution"
+            )
         queue.finish(job_id,body.worker_id,body.lease_token,{"production_status":"review_pending"})
         production_store.reconcile_review_pending(queue)
         return production_store.get(job_id)
