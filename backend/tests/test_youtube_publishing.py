@@ -29,6 +29,23 @@ class FakeService:
     def videos(self): return self._videos
 
 
+class TimeoutRequest:
+    def next_chunk(self):
+        raise TimeoutError("connection dropped after request started")
+
+
+class TimeoutVideos:
+    def __init__(self): self.insert_calls=0
+    def insert(self,**kwargs):
+        self.insert_calls+=1
+        return TimeoutRequest()
+
+
+class TimeoutService:
+    def __init__(self): self._videos=TimeoutVideos()
+    def videos(self): return self._videos
+
+
 class YouTubePublishingTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
@@ -69,6 +86,59 @@ class YouTubePublishingTests(unittest.TestCase):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         second=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         self.assertEqual(first["video_id"],second["video_id"])
+
+    def test_ambiguous_timeout_blocks_duplicate_retry_until_operator_reconciles(self):
+        uncertain_service=TimeoutService()
+        uncertain_publisher=YouTubePublisher(self.uploads,uncertain_service)
+        with self.assertRaises(YouTubeUploadError):
+            uncertain_publisher.upload_approved(
+                "job-1",self.media,self.review,"Sleep short"
+            )
+        record=self.uploads.get("job-1")
+        self.assertEqual(record["status"],"reconciliation_required")
+        self.assertIn("uncertain",record["error"].lower())
+
+        with self.assertRaises(YouTubeUploadError):
+            uncertain_publisher.upload_approved(
+                "job-1",self.media,self.review,"Sleep short"
+            )
+        self.assertEqual(uncertain_service._videos.insert_calls,1)
+
+        reconciled=self.uploads.reconcile(
+            "job-1","uploaded","yt-video-recovered","Found matching private video in YouTube Studio"
+        )
+        self.assertEqual(reconciled["status"],"uploaded")
+        self.assertEqual(reconciled["video_id"],"yt-video-recovered")
+
+    def test_operator_confirms_no_remote_upload_before_retry_is_allowed(self):
+        uncertain_publisher=YouTubePublisher(self.uploads,TimeoutService())
+        with self.assertRaises(YouTubeUploadError):
+            uncertain_publisher.upload_approved(
+                "job-1",self.media,self.review,"Sleep short"
+            )
+        reconciled=self.uploads.reconcile(
+            "job-1","not_uploaded",None,"Checked channel uploads; no matching private video"
+        )
+        self.assertEqual(reconciled["status"],"failed")
+        retried=YouTubePublisher(self.uploads,FakeService()).upload_approved(
+            "job-1",self.media,self.review,"Sleep short"
+        )
+        self.assertEqual(retried["status"],"uploaded")
+
+    def test_reconciliation_requires_a_note_and_rejects_conflicting_outcome(self):
+        with self.assertRaises(YouTubeUploadError):
+            self.uploads.reconcile("missing","uploaded","video-id","checked")
+        self.uploads.begin("job-1","Sleep short","")
+        with self.assertRaises(YouTubeUploadError):
+            self.uploads.reconcile("job-1","uploaded",None,"checked")
+        reconciled=self.uploads.reconcile(
+            "job-1","uploaded","yt-video-1","Verified in YouTube Studio"
+        )
+        with self.assertRaises(YouTubeUploadError):
+            self.uploads.reconcile(
+                "job-1","not_uploaded",None,"conflicting operator decision"
+            )
+        self.assertEqual(reconciled["video_id"],"yt-video-1")
 
     def test_path_outside_media_root_rejected(self):
         outside=os.path.join(self.tmp.name,"..","outside.mp4")
