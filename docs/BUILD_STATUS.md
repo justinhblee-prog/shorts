@@ -1436,4 +1436,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a latest-snapshot query that keeps historical rows intact and returns the associated job ID and publication privacy level; no remote calls or state mutations occur during dashboard reads.
 - Integrated TikTok views, likes, comments, and shares into the existing performance insights workspace, separately labeled from YouTube metrics. Empty state explains that TikTok `video.list` authorization and collection are prerequisites.
 - Added tests for latest-snapshot selection, `SELF_ONLY` metadata, endpoint authentication/limit enforcement/read-only behavior, and frontend visibility. Ranking score adjustment remains zero.
-- Validation pending for the latest dashboard integration commit. No real account metrics or live TikTok app approval is implied.
+- GitHub Actions passed at code commit `35d4c072e3703b2e197528534cc162ca8af930d5`: run [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), **476 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
+- No real account metrics or live TikTok app approval is implied.
