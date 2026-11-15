@@ -1111,3 +1111,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - All server-provided values are HTML-escaped before rendering. The diagnostics remain read-only and do not execute any remote action.
 - Added frontend regression coverage for the integrated API calls, combined rendering, operator evidence and retry-policy display.
 - CI validation pending. The workspace currently exposes per-job diagnostics on approved production cards; it does not claim a complete all-queue global risk dashboard.
+
+
+### BUILD-00044 — lifecycle blocker classification and identifier integrity (2026-11-15)
+
+- Corrected lifecycle consistency severity aggregation: any `blocker` finding now produces top-level `status=blocked`, rather than the ambiguous `attention_required`.
+- Added durable queue lease checks for running jobs missing worker/token/expiry fields and non-running jobs retaining stale lease ownership.
+- Added publication integrity blockers when YouTube is marked uploaded without a video ID, TikTok is marked publish-complete without a video ID, or an active/ambiguous platform attempt lacks its attempt identifier.
+- Added a review-state blocker when production is marked approved but the latest immutable human-review decision is not approved.
+- Added regression coverage for blocker aggregation, missing identifiers, incomplete queue leases, and approval-history mismatch.
+- GitHub Actions passed **351 tests** at code commit `9cf4367`.
+- All diagnostics remain read-only; remote platform verification and any new upload remain explicit operator actions.
