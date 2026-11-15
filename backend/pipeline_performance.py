@@ -16,6 +16,7 @@ def _percentile(values, percentile):
 def build_pipeline_performance(jobs, event_map, min_samples=MIN_STAGE_SAMPLES):
     """Aggregate queue-state dwell observations; suppress weak cohort conclusions."""
     observations = {}
+    stage_names = {}
     analyzed = 0
     warnings = set()
     for job in jobs or []:
@@ -25,6 +26,7 @@ def build_pipeline_performance(jobs, event_map, min_samples=MIN_STAGE_SAMPLES):
         warnings.update(result["data_quality_warnings"])
         for item in result["state_durations"]:
             observations.setdefault(item["status"], []).append(item["observed_seconds"])
+            stage_names[item["status"]] = item["stage"]
 
     stages = []
     for status, values in sorted(observations.items()):
@@ -32,10 +34,7 @@ def build_pipeline_performance(jobs, event_map, min_samples=MIN_STAGE_SAMPLES):
         enough = count >= max(1, int(min_samples))
         stages.append({
             "status": status,
-            "stage": next((x["stage"] for job in jobs or []
-                           for x in build_stage_performance(
-                               job, event_map.get(job.get("id"), []))["state_durations"]
-                           if x["status"] == status), "unclassified"),
+            "stage": stage_names.get(status, "unclassified"),
             "sample_count": count,
             "mean_seconds": round(sum(values) / count, 3) if enough else None,
             "median_seconds": _percentile(values, 0.5) if enough else None,
