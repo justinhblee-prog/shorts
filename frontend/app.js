@@ -185,9 +185,13 @@
       const candidates=item.brand_candidates||[];
       const language=region==="KR"?"ko":(region==="JP"?"ja":"en");
       const options=candidates.filter(x=>(x.supported_languages||[]).includes(language))
-        .map(x=>'<option value="'+esc(x.brand)+'">'+esc(x.brand_name)+'</option>').join("");
+        .map(x=>{
+          const decision=x.human_decision?.decision;
+          const suffix=decision==="skipped"?" · 이전 제외":(decision==="selected"?" · 기획 등록":"");
+          return '<option value="'+esc(x.brand)+'">'+esc(x.brand_name+suffix)+'</option>';
+        }).join("");
       const controls=trend.id&&options
-        ? '<div class="trend-actions"><select aria-label="추천 제작 브랜드" data-recommend-brand="'+esc(trend.id)+'">'+options+'</select><button type="button" class="button button-secondary" data-recommend-draft="'+esc(trend.id)+'" data-recommend-language="'+language+'">추천 브랜드로 기획</button></div>'
+        ? '<div class="trend-actions"><select aria-label="추천 제작 브랜드" data-recommend-brand="'+esc(trend.id)+'">'+options+'</select><button type="button" class="button button-secondary" data-recommend-draft="'+esc(trend.id)+'" data-recommend-language="'+language+'">추천 브랜드로 기획</button><button type="button" class="button button-quiet" data-recommend-skip="'+esc(trend.id)+'">이번 후보 제외</button></div>'
         : '<small class="trend-unavailable">현재 시장·언어에 맞는 활성 브랜드가 없습니다.</small>';
       const competitor=item.competitor_context||{};
       const competitorSummary=Number(competitor.observed_videos||0)>0
@@ -345,6 +349,30 @@
 
   $("loadTrendRecommendations").addEventListener("click",()=>loadTrendRecommendations().catch(e=>toast(e.message)));
   $("trendRecommendations").addEventListener("click",async e=>{
+    const skipButton=e.target.closest("[data-recommend-skip]");
+    if(skipButton){
+      if(!requireToken())return;
+      const selector=skipButton.parentElement.querySelector("select[data-recommend-brand]");
+      if(!selector)return;
+      const reason=prompt("이 추천 브랜드/주제를 제외하는 이유를 기록하세요.","브랜드 적합도 또는 중복 이슈");
+      if(reason===null)return;
+      skipButton.disabled=true;
+      try{
+        await api("/api/recommendations/feedback/skip",{
+          method:"POST",
+          body:JSON.stringify({
+            trend_id:skipButton.dataset.recommendSkip,
+            brand_slug:selector.value,
+            reviewer_id:reviewer||"operator",
+            reason
+          })
+        });
+        toast("추천 제외 사유를 평가 데이터에 기록했습니다.");
+        await loadTrendRecommendations();
+      }catch(err){toast(err.message);}
+      finally{skipButton.disabled=false;}
+      return;
+    }
     const button=e.target.closest("[data-recommend-draft]");
     if(!button)return;
     if(!requireToken())return;
@@ -356,7 +384,7 @@
         method:"POST",body:JSON.stringify({brand:selector.value,language:button.dataset.recommendLanguage})
       });
       toast("추천 후보 제작 기획 등록 완료 · "+result.job.id);
-      await loadMetrics();
+      await Promise.all([loadMetrics(),loadTrendRecommendations()]);
     }catch(err){toast(err.message);}
     finally{button.disabled=false;}
   });
