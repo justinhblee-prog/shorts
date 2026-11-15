@@ -518,3 +518,16 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Scheduler logs now include timestamps, severity, actionable exception traces, dispatch counts and an explicit warning when dispatch is held by a production pause.
 - Added regression coverage proving a due schedule remains in the outbox during pause, creates no queue job, and dispatches exactly once after audited resume.
 - GitHub Actions run [43668701509](https://github.com/justinhblee-prog/shorts/actions/runs/43668701509) passed **137 tests** on commit `77aa3e2fbfd6ed874a55f57d35f17d49b712fb0d`; Python compilation and JavaScript syntax checks also passed.
+
+
+## Verified milestone — competitor evidence in profitability ranking (2026-11-15)
+
+- Competitor search results now offer **최근 영상 분석**. It fetches and persists up to 20 recent public videos. Operators can select up to 10 channels as comparison evidence.
+- Opportunity scoring evaluates stored recent video titles against the opportunity title using transparent token overlap (at least 25% of topic terms), reporting sample count, matched count, median observed views and up to five examples.
+- A sample-based competitive-pressure adjustment is applied to the existing 0–100 priority score: `min(10, 10 × matched_videos / (selected_channels × 3))`. It appears as a separate score-breakdown component and does not alter revenue, ROI or margin estimates.
+- With no stored samples, no penalty is applied. Results state that selected channels and available recent videos are not a market-wide sample and do not establish growth, causal demand or revenue.
+- Added UI selection, API integration and benchmark tests. Also fixed legacy scheduler queue-adapter compatibility exposed by CI.
+- Latest verified source HEAD: `eb1a3248ac7429003e3e0f9a024fa02929653a22`.
+- GitHub Actions: https://github.com/justinhblee-prog/shorts/actions/runs/43668719310 — success; **137 tests passed**, JavaScript syntax check passed.
+
+**Validation boundary:** scoring and API contracts were tested with stored/mock public-video samples. Live YouTube collection still requires `YOUTUBE_DATA_API_KEY`; live competitor coverage, view velocity, market-wide saturation and actual revenue are not verified.
