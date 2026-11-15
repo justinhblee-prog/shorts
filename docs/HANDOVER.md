@@ -668,3 +668,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added tests for the performance context, no-score-adjustment guarantee and endpoint integration.
 - GitHub Actions run [43672582331](https://github.com/justinhblee-prog/shorts/actions/runs/43672582331) passed **179 tests** on source commit `3d52e5d713967d419c5c7f6fbdceadd83557c2f9`; frontend validation passed (84 unique IDs, 69 literal selectors), and Compose YAML validation passed.
 - This remains historical brand-level context, not a prediction of a specific trend's results. Topic-level performance learning is a separate next step.
+
+ 
+### Topic-matched historical performance evidence — verified 2026-11-15
+
+- Recommendation candidates now include historical production videos from the same brand and target region whose recorded topic overlaps the proposed trend title/summary by at least 25%.
+- Only videos with valid snapshot-derived `views_per_hour` are eligible. The context reports matched video count, median views/hour and median interaction rate where available.
+- Fewer than three matching measured videos are explicitly marked as limited evidence. The evidence is displayed in the recommendation workspace but does **not** change the recommendation score (`ranking_score_adjustment=0`); this avoids overfitting sparse, non-comparable samples.
+- Added regression tests for region isolation, topic matching, median calculations, no-score-adjustment and API wiring.
+- GitHub Actions run [43672849832](https://github.com/justinhblee-prog/shorts/actions/runs/43672849832) passed **180 tests** on commit `6a023c5fa39081bdaf83d9c1c663337e4e422aeb`; frontend ID validation passed (84 unique IDs, 69 literal selectors).
+- Next learning milestone: establish comparable cohorts by region, publication-age window, format and topic, then validate a score adjustment against held-out historical outcomes before using it to reorder recommendations.
