@@ -250,11 +250,9 @@ class TikTokPublisher:
 
     def _call(self, url, payload=None, method="POST", binary=False, extra_headers=None):
         body = payload if binary else json.dumps(payload or {}).encode("utf-8")
-        headers = {
-            "Authorization": "Bearer " + self._token(),
-            "Accept": "application/json",
-        }
+        headers = {"Accept": "application/json"}
         if not binary:
+            headers["Authorization"] = "Bearer " + self._token()
             headers["Content-Type"] = "application/json; charset=UTF-8"
         if extra_headers:
             headers.update(extra_headers)
