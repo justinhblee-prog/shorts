@@ -365,6 +365,13 @@ def list_schedules(x_review_token:str|None=Header(default=None)):
     return {"items":schedule_store.list()}
 
 
+
+@app.get("/api/schedules/outbox")
+def schedule_outbox(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return schedule_store.outbox_status()
+
+
 @app.put("/api/schedules/{schedule_id}/activation")
 def activate_schedule(schedule_id:str,active:bool,
                       x_review_token:str|None=Header(default=None)):
