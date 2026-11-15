@@ -1325,3 +1325,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Outcomes are limited to blocked, inconclusive, guardrail-blocked or review-candidate states. Even a review candidate explicitly does not authorize deployment, variant rollout or recommendation score changes; ranking adjustment remains zero.
 - Added regression tests for successful review-candidate gating, practical-effect uncertainty, guardrail regression, shadow/unverified evidence and invalid thresholds.
 - CI validation pending for this branch-head commit. No live randomized experiment or outcome pipeline is enabled.
+
+## CI evidence — BUILD-00061 and BUILD-00062
+
+- BUILD-00061 branch-head Actions run [43707065436](https://github.com/justinhblee-prog/shorts/actions/runs/43707065436) completed successfully: **427 tests passed**.
+- BUILD-00062 branch-head Actions run [43707209959](https://github.com/justinhblee-prog/shorts/actions/runs/43707209959) completed successfully: **432 tests passed**, including repository validation and the new statistical decision-gate regressions.
