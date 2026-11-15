@@ -8,7 +8,7 @@ from pathlib import Path
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
-from policy_engine import evaluate_content_policy, POLICY_VERSION
+from policy_engine import evaluate_content_policy
 
 
 class FakeRequest:
