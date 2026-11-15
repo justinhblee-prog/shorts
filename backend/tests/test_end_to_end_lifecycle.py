@@ -212,7 +212,7 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.queue.cancel(job_id, "Operator cancelled before review handoff")
         result = self.production.reconcile_review_pending(self.queue)
         self.assertEqual(result["reconciled"], 0)
-        self.assertEqual(self.production.get(job_id)["status"], "rendered")
+        self.assertEqual(self.production.get(job_id)["status"], "cancelled")
 
     def test_cancelled_queue_job_is_reflected_in_production_record(self):
         brief = {"brand": "Brain Glitch", "region": "US",
@@ -220,6 +220,8 @@ class EndToEndLifecycleTests(unittest.TestCase):
         submitted = submit_production(self.queue, self.production, brief)
         job_id = submitted["job"]["id"]
         self.queue.cancel(job_id, "Operator cancellation")
+        # Queue cancellation now updates the production record in the same
+        # SQLite transaction; the reconciliation pass has nothing left to repair.
         result = self.production.reconcile_terminal_jobs(self.queue)
         self.assertEqual(result["job_ids"], [job_id])
         self.assertEqual(self.production.get(job_id)["status"], "cancelled")
