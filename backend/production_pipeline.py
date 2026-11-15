@@ -17,6 +17,7 @@ from production_quality import evaluate_production_quality
 from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
 from script_originality import build_script_originality_report
+from speech_alignment import build_speech_alignment_report
 
 
 class ProviderError(RuntimeError):
@@ -318,7 +319,7 @@ class ProductionStore:
 class ProductionPipeline:
     """Executes script -> voice -> render using configured real provider endpoints."""
     def __init__(self, store, script_provider=None, voice_provider=None, render_provider=None,
-                 media_stager=None, media_inspector=None):
+                 media_stager=None, media_inspector=None, transcription_provider=None):
         self.store = store
         configured_hosts = os.getenv("RENDER_ARTIFACT_HOSTS", "").strip()
         self.media_stager = media_stager or (MediaStager() if configured_hosts else None)
@@ -331,6 +332,11 @@ class ProductionPipeline:
             os.getenv("VOICE_PROVIDER_URL"), os.getenv("VOICE_PROVIDER_TOKEN"))
         self.render = render_provider or JsonProvider(
             os.getenv("RENDER_PROVIDER_URL"), os.getenv("RENDER_PROVIDER_TOKEN"))
+        transcription_url = os.getenv("TRANSCRIPTION_PROVIDER_URL", "").strip()
+        self.transcription = transcription_provider or (
+            JsonProvider(transcription_url, os.getenv("TRANSCRIPTION_PROVIDER_TOKEN"))
+            if transcription_url else None
+        )
 
     @staticmethod
     def validate_brief(brief):
@@ -515,6 +521,38 @@ class ProductionPipeline:
                                 {k: v for k, v in voice.items() if k != "audio_url"},
                                 **lease)
 
+            speech_report = None
+            if self.transcription is not None:
+                self._check_stop(stop_event)
+                self.store.stage(job_id, "speech_alignment", **lease)
+                transcript_result = self.transcription.post("speech_alignment", {
+                    "task": "transcribe_audio",
+                    "audio_url": audio_url,
+                    "language": brief["language"],
+                    "response_format": "json",
+                    "instructions": (
+                        "Transcribe only the supplied audio faithfully. Do not correct, "
+                        "rewrite, summarize, or infer words that are not audible. Return "
+                        "the transcript in the original spoken language."
+                    ),
+                })
+                self._check_stop(stop_event)
+                transcript_text = transcript_result.get("transcript")
+                if not isinstance(transcript_text, str) or not transcript_text.strip():
+                    raise ProviderError(
+                        "speech_alignment",
+                        "Transcription provider returned no transcript text",
+                        False,
+                    )
+                speech_report = build_speech_alignment_report(
+                    script_text, transcript_text, transcript_result.get("provider")
+                )
+                speech_report["language"] = brief["language"]
+                self.store.artifact(
+                    job_id, "speech_alignment", "report", None,
+                    {**speech_report, "transcript": transcript_text}, **lease
+                )
+
             self._check_stop(stop_event)
             self.store.stage(job_id, "rendering", **lease)
             self._check_stop(stop_event)
@@ -552,6 +590,7 @@ class ProductionPipeline:
                 script_text, script_metadata,
                 {k: v for k, v in voice.items() if k != "audio_url"},
                 render_metadata, brief, media_inspection=media_inspection,
+                speech_report=speech_report,
             )
             if media_inspection is not None:
                 quality_report["media_inspection"] = media_inspection
