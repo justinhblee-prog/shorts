@@ -163,7 +163,7 @@ def run_once():
     finally:
         heartbeat_stop.set()
         if heartbeat.is_alive():
-            heartbeat.join(timeout=5)
+            heartbeat.join()
         active_job_id = None
         active_lost_lease_event = None
     return True
