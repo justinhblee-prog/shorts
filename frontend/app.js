@@ -282,10 +282,11 @@
   }
 
   async function loadInsights(){
-    const [data,evaluation,collection]=await Promise.all([
+    const [data,evaluation,collection,snapshots]=await Promise.all([
       api("/api/performance/insights"),
       api("/api/recommendations/evaluation"),
-      api("/api/metrics/collection-status")
+      api("/api/metrics/collection-status"),
+      api("/api/recommendations/evaluation/snapshots?limit=10")
     ]);
     const brands=(data.brands||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+Number(x.view_delta||0).toLocaleString()+' views (snapshot delta)</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+' · 미측정 '+x.unmeasured_videos+' · '+esc((x.recommendations||[]).map(r=>r.action).join(" / "))+'</small></div>').join("");
     const regions=(data.regions||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+Number(x.view_delta||0).toLocaleString()+' views</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+'</small></div>').join("");
@@ -303,8 +304,9 @@
     const within=evaluation.within_run_validation||{};
     const withinStatus=within.status==="holdout_available"?"동일 추천 세트 기준 홀드아웃 가능":"동일 추천 세트 표본 부족";
     const withinRho=within.holdout_median_score_views_spearman;
-    const evaluationPanel='<h4>추천 알고리즘 홀드아웃 검증</h4><div class="data-item"><b>'+esc(evalStatus)+' · '+Number(evaluation.measured_outcome_count||0)+'개 실측 / 선택 제작 '+Number(evaluation.selected_production_count||0)+'개</b><small>교차 노출 단순 참고 ρ '+(evaluation.holdout_score_views_spearman===null||evaluation.holdout_score_views_spearman===undefined?"—":Number(evaluation.holdout_score_views_spearman).toFixed(3))+' · 학습 '+Number(evaluation.pre_holdout_count||0)+'개 / 홀드아웃 '+Number(evaluation.holdout_count||0)+'개</small><small><b>'+esc(withinStatus)+'</b> · 유효 노출 '+Number(within.eligible_run_count||0)+'개 · 학습 '+Number(within.pre_holdout_run_count||0)+'개 / 홀드아웃 '+Number(within.holdout_run_count||0)+'개 · 동일 노출 중앙 Spearman ρ '+(withinRho===null||withinRho===undefined?"—":Number(withinRho).toFixed(3))+' · 순위 ρ '+(within.holdout_median_rank_views_spearman===null||within.holdout_median_rank_views_spearman===undefined?"—":Number(within.holdout_median_rank_views_spearman).toFixed(3))+' · 양의 연관 비율 '+(within.holdout_positive_score_association_share===null||within.holdout_positive_score_association_share===undefined?"—":Math.round(Number(within.holdout_positive_score_association_share)*100)+'%')+'</small><small>'+esc(within.reason||evaluation.reason||"")+'</small><small>'+esc(evaluation.pooled_metric_boundary||"")+'</small><small class="recommendation-caveat">'+esc(evaluation.warning||"")+' 점수 자동 조정은 비활성 상태입니다.</small></div>';
-    $("insightList").innerHTML=collectionPanel+evaluationPanel+'<h4>브랜드 성과</h4>'+(brands||'<div class="empty-state">업로드된 영상 데이터가 없습니다.</div>')+'<h4>지역별 성과</h4>'+(regions||'<div class="empty-state">지역별 데이터가 없습니다.</div>')+'<h4>비교 가능한 성과 코호트</h4>'+(cohorts||'<div class="empty-state">비교 조건을 만족하는 측정 표본이 아직 없습니다.</div>')+'<h4>성과 기반 다음 제작 실험 제안 (점수 자동 변경 없음)</h4>'+(cohortInsights||'<div class="empty-state">비교 가능한 표본이 부족합니다. 동일 조건의 측정 영상이 더 필요합니다.</div>')+'<h4>영상별 측정 상태</h4>'+(videos||'<div class="empty-state">영상 측정 데이터가 없습니다.</div>')+'<h4>실제 기록 금융 데이터 (통화별)</h4>'+(finance||'<div class="empty-state">기록된 금융 데이터가 없습니다.</div>')+'<div class="notice">'+(data.limitations||[]).map(esc).join(" · ")+'</div>';
+    const evaluationPanel='<h4>추천 알고리즘 홀드아웃 검증</h4><div class="data-item"><b>'+esc(evalStatus)+' · '+Number(evaluation.measured_outcome_count||0)+'개 실측 / 선택 제작 '+Number(evaluation.selected_production_count||0)+'개</b><small>교차 노출 단순 참고 ρ '+(evaluation.holdout_score_views_spearman===null||evaluation.holdout_score_views_spearman===undefined?"—":Number(evaluation.holdout_score_views_spearman).toFixed(3))+' · 학습 '+Number(evaluation.pre_holdout_count||0)+'개 / 홀드아웃 '+Number(evaluation.holdout_count||0)+'개 · 노출 단위 학습 '+Number(evaluation.pre_holdout_run_count||0)+'개 / 검증 '+Number(evaluation.holdout_run_count||0)+'개</small><small>학습 ρ '+(evaluation.pre_holdout_score_views_spearman===null||evaluation.pre_holdout_score_views_spearman===undefined?"—":Number(evaluation.pre_holdout_score_views_spearman).toFixed(3))+' · 검증 ρ '+(evaluation.holdout_score_views_spearman===null||evaluation.holdout_score_views_spearman===undefined?"—":Number(evaluation.holdout_score_views_spearman).toFixed(3))+' · 연관 안정성 '+esc(evaluation.score_association_stability||"판정 불가")+'</small><small><b>'+esc(withinStatus)+'</b> · 유효 노출 '+Number(within.eligible_run_count||0)+'개 · 학습 '+Number(within.pre_holdout_run_count||0)+'개 / 홀드아웃 '+Number(within.holdout_run_count||0)+'개 · 동일 노출 중앙 Spearman ρ '+(withinRho===null||withinRho===undefined?"—":Number(withinRho).toFixed(3))+' · 순위 ρ '+(within.holdout_median_rank_views_spearman===null||within.holdout_median_rank_views_spearman===undefined?"—":Number(within.holdout_median_rank_views_spearman).toFixed(3))+' · 양의 연관 비율 '+(within.holdout_positive_score_association_share===null||within.holdout_positive_score_association_share===undefined?"—":Math.round(Number(within.holdout_positive_score_association_share)*100)+'%')+'</small><small>'+esc(within.reason||evaluation.reason||"")+'</small><small>'+esc(evaluation.pooled_metric_boundary||"")+'</small><small class="recommendation-caveat">'+esc(evaluation.warning||"")+' 점수 자동 조정은 비활성 상태입니다.</small></div>';
+    const snapshotPanel='<h4>불변 검증 이력 · '+Number(snapshots.count||0)+'건</h4>'+(snapshots.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.created_at)+'</b><small>실측 '+Number(x.measured_count||0)+'/'+Number(x.selected_count||0)+' · 홀드아웃 노출 '+Number(x.holdout_run_count||0)+'개 · ρ '+(x.holdout_score_spearman===null||x.holdout_score_spearman===undefined?"—":Number(x.holdout_score_spearman).toFixed(3))+'</small><small>입력 지문 '+esc(String(x.input_fingerprint||"").slice(0,16))+'… · '+esc(x.evaluation_version)+'</small></div>').join("")||'<div class="empty-state">아직 저장된 검증 이력이 없습니다.</div>';
+    $("insightList").innerHTML=collectionPanel+evaluationPanel+snapshotPanel+'<h4>브랜드 성과</h4>'+(brands||'<div class="empty-state">업로드된 영상 데이터가 없습니다.</div>')+'<h4>지역별 성과</h4>'+(regions||'<div class="empty-state">지역별 데이터가 없습니다.</div>')+'<h4>비교 가능한 성과 코호트</h4>'+(cohorts||'<div class="empty-state">비교 조건을 만족하는 측정 표본이 아직 없습니다.</div>')+'<h4>성과 기반 다음 제작 실험 제안 (점수 자동 변경 없음)</h4>'+(cohortInsights||'<div class="empty-state">비교 가능한 표본이 부족합니다. 동일 조건의 측정 영상이 더 필요합니다.</div>')+'<h4>영상별 측정 상태</h4>'+(videos||'<div class="empty-state">영상 측정 데이터가 없습니다.</div>')+'<h4>실제 기록 금융 데이터 (통화별)</h4>'+(finance||'<div class="empty-state">기록된 금융 데이터가 없습니다.</div>')+'<div class="notice">'+(data.limitations||[]).map(esc).join(" · ")+'</div>';
   }
 
   async function loadPreflight(){
@@ -432,6 +434,17 @@
   });
   $("loadSchedules").addEventListener("click",()=>loadSchedules().catch(e=>toast(e.message)));
   $("loadInsights").addEventListener("click",()=>loadInsights().catch(e=>toast(e.message)));
+  $("captureRecommendationEvaluation").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    const button=$("captureRecommendationEvaluation");
+    button.disabled=true;
+    try{
+      const result=await api("/api/recommendations/evaluation/snapshots",{method:"POST"});
+      toast(result.deduplicated?"동일 데이터의 검증 이력이 이미 저장되어 있습니다.":"검증 결과를 불변 이력으로 저장했습니다.");
+      await loadInsights();
+    }catch(e){toast(e.message);}
+    finally{button.disabled=false;}
+  });
   $("loadPreflight").addEventListener("click",()=>loadPreflight().catch(e=>toast(e.message)));
   $("connectTikTok").addEventListener("click",async()=>{
     if(!requireToken())return;
