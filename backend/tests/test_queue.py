@@ -42,6 +42,23 @@ class QueueTests(unittest.TestCase):
    self.q.heartbeat(job["id"],"worker-reused",claimed["lease_token"],"instance-old")
   self.assertEqual(self.q.get(job["id"])["lease_expires_at"],claimed["lease_expires_at"])
 
+ def test_stale_worker_instance_cannot_finish_or_fail_job(self):
+  job=self.q.enqueue("render",{})
+  old=self.q.claim("worker-reused",instance_token="instance-old")
+  self.q.register_worker("worker-reused","host-b","instance-new")
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"worker-reused",old["lease_token"],instance_token="instance-old")
+  with self.assertRaises(LeaseConflict):
+   self.q.fail(job["id"],"worker-reused",old["lease_token"],"stale","stale",False,instance_token="instance-old")
+  self.assertEqual(self.q.get(job["id"])["status"],"running")
+
+ def test_stale_worker_instance_cannot_pause_production_queue(self):
+  self.q.register_worker("worker-reused","host-a","instance-old")
+  self.q.register_worker("worker-reused","host-b","instance-new")
+  with self.assertRaises(LeaseConflict):
+   self.q.pause("stale process attempted pause",worker_id="worker-reused",instance_token="instance-old")
+  self.assertFalse(self.q.is_paused())
+
  def test_graceful_worker_shutdown_is_persisted_as_offline_not_stale(self):
   self.q.register_worker("worker-clean","host-a")
   self.assertTrue(self.q.mark_worker_offline("worker-clean"))

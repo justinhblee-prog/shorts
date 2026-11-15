@@ -204,16 +204,20 @@ class JobQueue:
         if row["status"]!="running" or row["worker_id"]!=worker or row["lease_token"]!=token or not row["lease_expires_at"] or row["lease_expires_at"]<=n:
             raise LeaseConflict("Lease expired or no longer owned by this worker")
 
+    @staticmethod
+    def assert_worker_instance(c, worker, instance_token):
+        owner = c.execute("SELECT instance_token FROM worker_registry WHERE worker_id=?",
+                          (worker,)).fetchone()
+        if owner is None or owner["instance_token"] != instance_token:
+            raise LeaseConflict("Worker process instance no longer owns this worker ID")
+
     def heartbeat(self,jid,worker,token,instance_token=None):
         dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds))
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); self.assert_lease(row,worker,token,n)
             if instance_token is not None:
-                owner = c.execute("SELECT instance_token FROM worker_registry WHERE worker_id=?",
-                                  (worker,)).fetchone()
-                if owner is None or owner["instance_token"] != instance_token:
-                    raise LeaseConflict("Worker process instance no longer owns this worker ID")
+                self.assert_worker_instance(c,worker,instance_token)
             c.execute("UPDATE pipeline_jobs SET lease_expires_at=?,updated_at=? WHERE id=?",(expiry,n,jid))
             if instance_token is None:
                 c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",(n,worker))
@@ -223,21 +227,25 @@ class JobQueue:
             self.event(c,jid,"heartbeat","running","running",worker,{"lease_expires_at":expiry})
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
-    def finish(self,jid,worker,token,result=None):
+    def finish(self,jid,worker,token,result=None,instance_token=None):
         n=stamp(now())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE"); row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             self.assert_lease(row,worker,token,n)
+            if instance_token is not None:
+                self.assert_worker_instance(c,worker,instance_token)
             c.execute("""UPDATE pipeline_jobs SET status='review_pending',worker_id=NULL,lease_token=NULL,
               lease_expires_at=NULL,completed_at=?,updated_at=? WHERE id=?""",(n,n,jid))
             self.event(c,jid,"completed","running","review_pending",worker,{"result":result or {}})
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
-    def fail(self,jid,worker,token,error_code,error_message,retryable=True):
+    def fail(self,jid,worker,token,error_code,error_message,retryable=True,instance_token=None):
         n=stamp(now())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE"); row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             self.assert_lease(row,worker,token,n)
+            if instance_token is not None:
+                self.assert_worker_instance(c,worker,instance_token)
             retry=bool(retryable and row["attempt"]<row["max_attempts"]); status="failed_retriable" if retry else "failed_terminal"
             c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
               available_at=?,updated_at=?,error_code=?,error_message=? WHERE id=?""",(status,n,n,error_code,error_message[:2000],jid))
@@ -423,11 +431,13 @@ class JobQueue:
             c.commit()
         return {"requeued":recovered,"terminal":terminal}
 
-    def pause(self, reason, job_id=None, actor="system"):
+    def pause(self, reason, job_id=None, actor="system", worker_id=None, instance_token=None):
         """Persist a production pause, fence in-flight leases, and audit the action."""
         n=stamp(now())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if instance_token is not None:
+                self.assert_worker_instance(c,worker_id,instance_token)
             self._pause_production_in_transaction(c, reason, job_id, n, actor)
             c.commit()
             return self.worker_control()
