@@ -1,12 +1,16 @@
 """Deterministic metadata-level production QA; never claims to inspect media bytes."""
 
+import math
+
 
 def _positive_number(value):
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
-    return number if number > 0 else None
+    return number if math.isfinite(number) and number > 0 else None
 
 
 def evaluate_production_quality(script_text, script_metadata, voice_metadata,
