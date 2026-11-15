@@ -3,7 +3,9 @@ import unittest
 from unittest import mock
 from fastapi import HTTPException
 from pydantic import ValidationError
-from app import app, require_review_access, YouTubeLateSuccessResolution, Enqueue, enqueue, IdempotencyConflict
+from app import (app, require_review_access, YouTubeLateSuccessResolution, Enqueue,
+                 enqueue, IdempotencyConflict, ProductionExecute, execute_production_job,
+                 ProductionLeaseConflict)
 
 class ApiSecurityTests(unittest.TestCase):
     def test_all_operational_routes_require_review_token(self):
@@ -43,6 +45,47 @@ class ApiSecurityTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as caught:
                 enqueue(body, x_review_token="test-token")
         self.assertEqual(caught.exception.status_code, 409)
+
+    def test_api_production_execution_passes_worker_lease_and_reconciles_handoff(self):
+        job = {"id": "job-1", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        response = {"status": "review_pending"}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app.queue, "get", return_value=job),
+            mock.patch.object(app.production_pipeline, "execute",
+                              return_value={"artifacts": []}) as execute,
+            mock.patch.object(app.queue, "finish") as finish,
+            mock.patch.object(app.production_store, "reconcile_review_pending") as reconcile,
+            mock.patch.object(app.production_store, "get", return_value=response),
+        ):
+            result = execute_production_job("job-1", body, x_review_token="test-token")
+
+        self.assertEqual(result, response)
+        execute.assert_called_once_with(
+            "job-1", job["payload"], worker_id="worker-1", lease_token="lease-1"
+        )
+        finish.assert_called_once()
+        reconcile.assert_called_once_with(app.queue)
+
+    def test_api_production_execution_rejects_stale_pipeline_lease(self):
+        job = {"id": "job-1", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app.queue, "get", return_value=job),
+            mock.patch.object(app.production_pipeline, "execute",
+                              side_effect=ProductionLeaseConflict("stale lease")),
+            mock.patch.object(app.queue, "fail") as fail,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job("job-1", body, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 409)
+        fail.assert_not_called()
 
     def test_review_token_fails_closed(self):
         previous = os.environ.get("NEXUS_REVIEW_TOKEN")
