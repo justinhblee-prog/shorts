@@ -28,9 +28,9 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(result["count"], 1)
         self.assertEqual(result["pending"], 0)
         self.assertGreater(datetime.fromisoformat(self.schedules.get(item["id"])["next_run_at"]), now)
-        jobs = self.queue.list(limit=10)
-        self.assertEqual(len(jobs), 1)
-        self.assertEqual(jobs[0]["idempotency_key"],
+        job = self.queue.claim("test-worker", "localhost", job_type="short_video_production")
+        self.assertIsNotNone(job)
+        self.assertEqual(job["idempotency_key"],
                          "schedule:" + item["id"] + ":" + item["next_run_at"])
 
     def test_pending_outbox_is_replayed_idempotently(self):
@@ -50,7 +50,7 @@ class SchedulerTests(unittest.TestCase):
         second = self.schedules.dispatch_due(self.queue, now=now)
         self.assertEqual(first["count"], 1)
         self.assertEqual(second["count"], 0)
-        self.assertEqual(len(self.queue.list(limit=10)), 1)
+        self.assertEqual(self.queue.stats()["total"], 1)
         self.assertEqual(self.schedules.pending_dispatches(), [])
 
     def test_inactive_schedule_does_not_create_outbox(self):
