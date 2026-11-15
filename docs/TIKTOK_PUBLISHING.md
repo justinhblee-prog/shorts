@@ -89,3 +89,7 @@ The review UI now shows the connected creator identity and available privacy opt
 
 Before the Direct Post init request, ffprobe now verifies the actual container, video codec, dimensions, average frame rate, duration, and file size. The TikTok gate accepts MP4/MOV-family containers and WebM, H.264/H.265/VP8/VP9 video, 23–60 FPS, 360–4096 pixels on each dimension, and no more than 4 GB. The duration ceiling is the lower of the creator's current `max_video_post_duration_sec` and the 10-minute developer upload limit. Missing frame-rate or other required byte-level evidence fails closed. This validation follows TikTok's current Media Transfer Guide and Video Restrictions.
 
+## Large-file chunk planning
+
+The same chunk plan is used in the Direct Post initialization payload and the sequential upload loop. Files over 64 MiB always use at least two chunks, including the narrow range just above the 64 MiB boundary. Base chunks stay at or below 64 MiB; TikTok's documented trailing chunk may absorb the remainder up to 128 MiB. The uploader verifies each response code, byte count, and Content-Range before continuing.
+
