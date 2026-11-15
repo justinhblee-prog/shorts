@@ -225,7 +225,7 @@ class TikTokPublishStore:
                 AND p.status IN ('uploading','processing','reconciliation_required')
                 AND julianday(p.updated_at) <= julianday('now') - (
                   MAX(?, MIN(3600, 60 * (
-                    1 << MIN(6, (
+                    1 << MIN(6, MAX(0, (
                       SELECT COUNT(*) FROM tiktok_publication_events AS failed
                       WHERE failed.job_id=p.job_id
                         AND failed.attempt_id=p.attempt_id
@@ -237,7 +237,7 @@ class TikTokPublishStore:
                             AND success.attempt_id=p.attempt_id
                             AND success.event_type='status_refreshed'
                         ), 0)
-                    ))
+                    ) - 1))
                   ))) / 86400.0
                 )
               ORDER BY p.updated_at ASC LIMIT ?
