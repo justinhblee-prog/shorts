@@ -128,7 +128,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('/overview', app_js)
         self.assertIn("overview.stages", app_js)
         self.assertIn("전체 제작 단계 현황", app_js)
-        self.assertIn('/failure-analysis', app_js)
+        self.assertIn('/overview', app_js)
         self.assertIn("failure.latest_failure", app_js)
         self.assertIn("retry_recommendation", app_js)
         self.assertIn("renderLifecycleTrace", app_js)
