@@ -224,7 +224,13 @@ class YouTubePublishingTests(unittest.TestCase):
         current=self.uploads.get("job-1")
         self.assertEqual(current["status"],"uploaded")
         self.assertEqual(current["video_id"],"yt-video-123")
-        self.assertEqual(current["events"][-1]["resulting_status"],"uploaded")
+        self.assertEqual(current["events"][-1]["event_type"],"superseded_attempt_uncertain")
+        self.uploads.mark_reconciliation_required(
+            "job-1","post-confirmation cleanup exception",uploaded["attempt_id"]
+        )
+        current=self.uploads.get("job-1")
+        self.assertEqual(current["status"],"uploaded")
+        self.assertEqual(current["events"][-1]["event_type"],"post_confirmation_worker_error")
 
     def test_upload_is_idempotent_after_success(self):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
