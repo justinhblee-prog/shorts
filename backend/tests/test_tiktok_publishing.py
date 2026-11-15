@@ -75,6 +75,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(body["source_info"]["source"], "FILE_UPLOAD")
         self.assertEqual(self.transport.calls[2][2], b"test-video-bytes")
         self.assertEqual(self.transport.calls[2][3], "PUT")
+        self.assertNotIn("Authorization", self.transport.calls[2][1])
         self.assertEqual(self.transport.calls[2][1]["Content-Range"],
                          "bytes 0-15/16")
         self.assertEqual(result["events"][0]["event_type"], "operator_consent_recorded")
@@ -116,6 +117,19 @@ class TikTokPublishingTests(unittest.TestCase):
                 "job-1", self.media, self.review, "Caption", "operator-1",
                 explicit_consent=True,
             )
+
+    def test_send_to_user_inbox_status_is_tracked_separately(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True,
+        )
+        self.transport.responses.append((200, {
+            "data": {"status": "SEND_TO_USER_INBOX",
+                     "publicaly_available_post_id": []},
+            "error": {"code": "ok"},
+        }))
+        result = self.publisher.refresh_status("job-1")
+        self.assertEqual(result["status"], "send_to_inbox")
 
     def test_status_refresh_records_published_video(self):
         self.publisher.publish_private_approved(
