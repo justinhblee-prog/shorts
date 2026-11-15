@@ -21,6 +21,7 @@ from recommendation_evaluation import RecommendationEvaluationStore
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
+from policy_engine import POLICY_VERSION
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -310,7 +311,7 @@ def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
         tiktok_selected="tiktok" in (policy.get("platforms") or [])
         tiktok=tiktok_publish_store.get(item["job_id"])
         item["tiktok_eligible"]=bool(
-            tiktok_selected and policy.get("policy_version")
+            tiktok_selected and policy.get("policy_version")==POLICY_VERSION
             and not policy.get("approval_blockers")
             and policy.get("status")!="blocked"
         )
