@@ -20,6 +20,7 @@ from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUplo
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
 from tiktok_metrics import TikTokMetricsStore
+from youtube_analytics import YouTubeAnalyticsStore
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
@@ -71,6 +72,7 @@ tiktok_publish_store=TikTokPublishStore(os.getenv("NEXUS_DB_PATH","data/nexus.sq
 tiktok_oauth_store=TikTokOAuthStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 tiktok_oauth_manager=TikTokOAuthManager(tiktok_oauth_store)
 tiktok_metrics_store=TikTokMetricsStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+youtube_analytics_store=YouTubeAnalyticsStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 tiktok_publisher=TikTokPublisher(
     tiktok_publish_store,token_provider=tiktok_oauth_manager.get_access_token
 )
@@ -976,6 +978,21 @@ def performance_insights(brand:str|None=None,x_review_token:str|None=Header(defa
     return performance_analyzer.analyze(brand)
 
 
+@app.get("/api/youtube/analytics-metrics")
+def youtube_analytics_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    bounded=max(1,min(limit,200))
+    items=youtube_analytics_store.recent_metrics(youtube_upload_store,bounded)
+    return {
+        "items": items,
+        "count": len(items),
+        "limit": bounded,
+        "source": "YouTube Analytics API v2",
+        "read_only": True,
+        "ranking_score_adjustment": 0,
+    }
+
+
 @app.get("/api/tiktok/metrics")
 def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
@@ -1003,6 +1020,16 @@ def metrics_collection_status(x_review_token:str|None=Header(default=None)):
     youtube["unavailable_metrics"]=[
         "audience_retention","swipe_away_rate","watch_time","estimated_revenue"
     ]
+    youtube_analytics = youtube_analytics_store.status(interval*4)
+    youtube_analytics["credentials_configured"] = all(os.getenv(key) for key in (
+        "YOUTUBE_CLIENT_ID","YOUTUBE_CLIENT_SECRET","YOUTUBE_REFRESH_TOKEN"
+    ))
+    youtube_analytics["scope_authorized"] = bool(
+        youtube_analytics.get("last_success_at") and youtube_analytics.get("requested", 0) > 0
+    )
+    if not youtube_analytics["scope_authorized"] and youtube_analytics["status"] == "not_started":
+        youtube_analytics["status"] = "scope_unverified"
+        youtube_analytics["last_error"] = "yt-analytics.readonly consent has not been verified"
     tiktok = tiktok_metrics_store.status(tiktok_publish_store, interval*2)
     oauth_status = tiktok_oauth_manager.status()
     granted_scopes = {scope.strip() for scope in str(oauth_status.get("scope") or "").split(",")}
@@ -1013,7 +1040,7 @@ def metrics_collection_status(x_review_token:str|None=Header(default=None)):
         tiktok["status"] = "scope_missing"
         tiktok["last_error"] = "TikTok reauthorization with video.list is required"
     return {
-        "platforms": {"youtube": youtube, "tiktok": tiktok},
+        "platforms": {"youtube": youtube, "youtube_analytics": youtube_analytics, "tiktok": tiktok},
         "collection_interval_seconds": interval,
         "read_only": True,
     }
