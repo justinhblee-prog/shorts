@@ -76,6 +76,43 @@ class ProductionQualityTests(unittest.TestCase):
         self.assertIn("audio_silence_segment_at_least_2_seconds_detected",
                       report["warnings"])
 
+    def test_speech_alignment_mismatch_is_a_warning_not_automatic_rejection(self):
+        report = evaluate_production_quality(
+            "The human brain predicts what happens next using patterns from previous "
+            "experiences. When expectations are violated, attention increases and the "
+            "brain updates its model of the world.",
+            {"factual_claims_verified": True},
+            {"duration_seconds": 30},
+            {"duration_seconds": 30, "aspect_ratio": "9:16",
+             "audio_track_present": True, "subtitles_enabled": True},
+            {},
+            speech_report={
+                "status": "material_mismatch", "provider": "test-asr",
+                "script_token_count": 25, "transcript_token_count": 24,
+                "word_error_rate": 0.8, "match_rate": 0.2,
+                "threshold_word_error_rate": 0.25,
+                "method": "test", "warning": "ASR can make mistakes.",
+            },
+        )
+        self.assertEqual(report["status"], "review_required")
+        self.assertEqual(report["blockers"], [])
+        self.assertIn("spoken_audio_differs_from_generated_script",
+                      report["warnings"])
+        self.assertEqual(report["speech_alignment"]["provider"], "test-asr")
+
+    def test_unconfigured_asr_is_explicitly_not_verified(self):
+        report = evaluate_production_quality(
+            "A clear opening explains the problem. Evidence supports the claim. "
+            "The ending gives viewers a useful next step with a concise summary.",
+            {"factual_claims_verified": True}, {"duration_seconds": 30},
+            {"duration_seconds": 30, "aspect_ratio": "9:16",
+             "audio_track_present": True, "subtitles_enabled": True}, {},
+        )
+        self.assertIn("speech_transcription_not_configured", report["warnings"])
+        check = next(item for item in report["checks"]
+                     if item["name"] == "speech_script_alignment")
+        self.assertEqual(check["status"], "not_configured")
+
     def test_missing_metadata_is_review_warning_not_false_success_or_block(self):
         report = evaluate_production_quality(
             "A short script with a hook and useful takeaway.",
