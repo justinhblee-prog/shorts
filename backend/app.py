@@ -825,14 +825,15 @@ def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
 @app.post("/api/youtube/uploads/{job_id}/reconcile")
 def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
                               x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_access(x_review_token)
     if not body.confirmed:
         raise HTTPException(422,"Explicit operator confirmation is required")
     if body.outcome=="uploaded" and not body.video_id:
         raise HTTPException(422,"A verified YouTube video ID is required")
     try:
         return youtube_upload_store.reconcile(
-            job_id,body.outcome,body.video_id,body.note,body.operator_id
+            job_id,body.outcome,body.video_id,body.note,
+            authenticated_operator or body.operator_id
         )
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
@@ -841,10 +842,10 @@ def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
 @app.post("/api/youtube/uploads/{job_id}/resolve-late-result")
 def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
                                 x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_access(x_review_token)
     try:
         return youtube_upload_store.resolve_late_success(
-            job_id,body.operator_id,body.note,body.video_id
+            job_id,authenticated_operator or body.operator_id,body.note,body.video_id
         )
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
@@ -935,11 +936,12 @@ def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
 @app.post("/api/tiktok/publish/{job_id}",status_code=201)
 def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
                          x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_access(x_review_token)
     staged_path=require_canonical_staged_media(job_id,body.media_path)
     try:
         return tiktok_publisher.publish_private_approved(
-            job_id,staged_path,review_store,body.title,body.operator_id,
+            job_id,staged_path,review_store,body.title,
+            authenticated_operator or body.operator_id,
             explicit_consent=body.explicit_consent,
             privacy_level=body.privacy_level,
             brand_content_toggle=body.brand_content_toggle,
@@ -965,10 +967,10 @@ def reconcile_tiktok_publication(
     job_id:str, body:TikTokPublicationReconciliation,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_access(x_review_token)
     try:
         return tiktok_publish_store.reconcile(
-            job_id, body.outcome, body.operator_id, body.note,
+            job_id, body.outcome, authenticated_operator or body.operator_id, body.note,
             video_id=body.video_id, confirmed=body.confirmed,
         )
     except TikTokPublishError as e:
@@ -1397,10 +1399,10 @@ def create_recommendation_experiment(
     body:RecommendationExperimentCreate,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_access(x_review_token)
     try:
         return recommendation_evaluation_store.create_experiment(
-            body.name,body.operator_id,body.control_label,body.treatment_label,
+            body.name,authenticated_operator or body.operator_id,body.control_label,body.treatment_label,
             body.treatment_allocation_basis_points
         )
     except ValueError as e:
@@ -1448,10 +1450,10 @@ def skip_recommendation_feedback(
     body:RecommendationSkipFeedback,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_access(x_review_token)
     try:
         result=recommendation_evaluation_store.record_skip(
-            body.trend_id, body.brand_slug, body.reviewer_id, body.reason,
+            body.trend_id, body.brand_slug, authenticated_operator or body.reviewer_id, body.reason,
             candidate_id=body.recommendation_candidate_id,
         )
     except ValueError as e:
@@ -1581,8 +1583,8 @@ def queue_control(x_review_token:str|None=Header(default=None)):
 
 @app.post("/api/queue/pause")
 def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
-    operator_id=body.operator_id.strip()
+    authenticated_operator = require_review_access(x_review_token)
+    operator_id=(authenticated_operator or body.operator_id).strip()
     note=body.note.strip()
     if not operator_id or not note:
         raise HTTPException(422,"operator_id and note must not be blank")
@@ -1591,8 +1593,9 @@ def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=N
 
 @app.post("/api/queue/resume")
 def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
-    if not body.operator_id.strip() or not body.note.strip():
+    authenticated_operator = require_review_access(x_review_token)
+    operator_id=(authenticated_operator or body.operator_id).strip()
+    if not operator_id or not body.note.strip():
         raise HTTPException(422,"operator_id and note must not be blank")
     if not body.recovery_confirmed:
         raise HTTPException(422,"Explicit recovery checklist confirmation is required")
@@ -1600,7 +1603,7 @@ def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=
     if health["blockers"]:
         raise HTTPException(409,{"message":"Queue recovery is blocked by unresolved operational safety signals","blockers":health["blockers"]})
     try:
-        control=queue.resume(actor=body.operator_id.strip(),note=body.note.strip())
+        control=queue.resume(actor=operator_id,note=body.note.strip())
         return {"control":control,"events":queue.worker_control_events(30)}
     except ValueError as e:
         raise HTTPException(409,str(e))

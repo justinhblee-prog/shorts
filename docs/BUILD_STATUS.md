@@ -1791,3 +1791,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Invalid CIDR configuration fails API startup. Added IPv4/IPv6, spoofing, chain and malformed-header tests.
 - Corrected escaped newlines accidentally introduced in the BUILD-00106 `.env.example` reviewer-credential section.
 - Final-head push CI [43773527527](https://github.com/justinhblee-prog/shorts/actions/runs/43773527527) and PR CI [43773552365](https://github.com/justinhblee-prog/shorts/actions/runs/43773552365): **595 tests passed**.
+
+
+## BUILD-00108 — authenticated operator audit attribution (2026-11-16)
+
+- Extended token-resolved actor identity to queue pause/resume, YouTube reconciliation/late-success resolution, TikTok private publishing/reconciliation, recommendation experiment creation and recommendation-skip feedback.
+- Request-body actor IDs remain accepted for compatibility but no longer determine audit attribution for these operations.
+- Added regression tests for forged actor IDs across the covered mutation endpoints.
+- Operators still share the same permissions; role separation and external IdP integration remain open. Final-head push CI [43773950141](https://github.com/justinhblee-prog/shorts/actions/runs/43773950141) and PR CI [43773953927](https://github.com/justinhblee-prog/shorts/actions/runs/43773953927): **603 tests passed**.
