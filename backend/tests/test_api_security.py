@@ -9,7 +9,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
-                 OpportunityInput, create_opportunity_score)
+                 OpportunityInput, create_opportunity_score, Fail, fail as fail_job)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -228,6 +228,25 @@ class ApiSecurityTests(unittest.TestCase):
         fail.assert_called_once()
         self.assertIs(fail.call_args.args[-1], False)
         pause.assert_called_once()
+
+    def test_generic_api_failure_forces_production_job_terminal_and_pauses(self):
+        job = {"id": "job-generic-fail", "job_type": "short_video_production"}
+        body = Fail(worker_id="worker-1", lease_token="lease-1",
+                    error_code="provider_timeout", error_message="timeout",
+                    retryable=True)
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "fail", return_value={"status": "failed_terminal"}) as fail,
+            mock.patch.object(app_module.queue, "pause") as pause,
+        ):
+            result = fail_job("job-generic-fail", body, x_review_token="test-token")
+        self.assertEqual(result["status"], "failed_terminal")
+        self.assertIs(fail.call_args.args[-1], False)
+        pause.assert_called_once_with(
+            "API reported production failure; provider outcome may be ambiguous",
+            "job-generic-fail",
+        )
 
     def test_api_internal_error_records_failure_and_pauses_production(self):
         job = {"id": "job-internal", "job_type": "short_video_production",
