@@ -197,6 +197,7 @@ def require_review_access(token):
 @app.get("/api/review/pending")
 def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
+    production_store.reconcile_review_pending(queue)
     return {"items":review_store.list_pending(limit)}
 
 
