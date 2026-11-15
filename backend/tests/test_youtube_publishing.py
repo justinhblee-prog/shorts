@@ -8,7 +8,7 @@ from pathlib import Path
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
-from policy_engine import evaluate_content_policy
+from policy_engine import evaluate_content_policy, POLICY_VERSION, POLICY_CHECKED_ON
 
 
 class FakeRequest:
@@ -198,6 +198,10 @@ class YouTubePublishingTests(unittest.TestCase):
             event_columns={row["name"] for row in connection.execute("PRAGMA table_info(youtube_upload_events)")}
         self.assertIn("attempt_id",upload_columns)
         self.assertIn("attempt_id",event_columns)
+        self.assertIn("policy_version",upload_columns)
+        self.assertIn("policy_checked_on",upload_columns)
+        self.assertIn("policy_version",event_columns)
+        self.assertIn("policy_checked_on",event_columns)
 
     def test_finish_requires_active_upload_state(self):
         with self.assertRaises(YouTubeUploadError):
@@ -336,6 +340,10 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(result["status"],"uploaded")
         self.assertEqual(result["privacy_status"],"private")
         self.assertEqual(result["video_id"],"yt-video-123")
+        self.assertEqual(result["policy_version"],POLICY_VERSION)
+        self.assertEqual(result["policy_checked_on"],POLICY_CHECKED_ON)
+        self.assertEqual(result["events"][0]["policy_version"],POLICY_VERSION)
+        self.assertEqual(result["events"][0]["policy_checked_on"],POLICY_CHECKED_ON)
         self.assertEqual(result["events"][-1]["event_type"],"upload_confirmed")
         self.assertEqual(result["events"][-1]["video_id"],"yt-video-123")
         self.assertEqual(result["events"][-1]["attempt_id"],result["attempt_id"])
