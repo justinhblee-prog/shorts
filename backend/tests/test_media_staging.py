@@ -40,6 +40,33 @@ class MediaStagerTests(unittest.TestCase):
         self.stager.fetcher=lambda *args:(200,{"content-type":"video/mp4"},[b"not-a-video-file"])
         with self.assertRaises(MediaStagingError):
             self.stager.stage("job-2","https://cdn.example.test/video.mp4")
+    def test_cleanup_requires_confirmed_upload_and_is_idempotent(self):
+        staged = self.stager.stage("job-clean", "https://cdn.example.test/video.mp4")
+        class UploadStore:
+            def __init__(self, status): self.status = status
+            def get(self, job_id):
+                return {"status": self.status, "video_id": "yt-123" if self.status == "uploaded" else None}
+        with self.assertRaises(MediaStagingError):
+            self.stager.cleanup_uploaded("job-clean", UploadStore("reconciliation_required"))
+        self.assertTrue(os.path.exists(os.path.join(self.tmp.name, staged["media_path"])))
+        result = self.stager.cleanup_uploaded("job-clean", UploadStore("uploaded"))
+        self.assertTrue(result["removed"])
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, staged["media_path"])))
+        self.assertTrue(self.stager.cleanup_uploaded("job-clean", UploadStore("uploaded"))["removed"])
+
+    def test_prunes_only_old_temporary_parts(self):
+        old_part = os.path.join(self.tmp.name, ".nexus-old.part")
+        normal_file = os.path.join(self.tmp.name, "keep.mp4")
+        with open(old_part, "wb") as f: f.write(b"x")
+        with open(normal_file, "wb") as f: f.write(b"x")
+        os.utime(old_part, (1, 1))
+        result = self.stager.prune_temporary_files(older_than_seconds=3600, now=10000)
+        self.assertEqual(result["count"], 1)
+        self.assertFalse(os.path.exists(old_part))
+        self.assertTrue(os.path.exists(normal_file))
+        with self.assertRaises(ValueError):
+            self.stager.prune_temporary_files(older_than_seconds=60)
+
     def test_rejects_http_and_embedded_credentials(self):
         for url in ("http://cdn.example.test/a.mp4","https://user:pass@cdn.example.test/a.mp4"):
             with self.assertRaises(MediaStagingError):
