@@ -271,3 +271,12 @@ The upload path now avoids a duplicate-video hazard when a resumable upload has 
 - Existing direct pipeline unit tests remain supported without a lease context for isolated component tests; the production worker always supplies one.
 - Tests are committed but not executed because GitHub Actions jobs continue to fail before runner allocation (no steps/logs available).
 - Review handoff recovery now performs a single SQLite `BEGIN IMMEDIATE` transaction joining `production_runs` to `pipeline_jobs`; it promotes only jobs whose durable queue status is still `review_pending`. A cancellation between queue completion and review handoff therefore cannot be overwritten by a stale worker.
+
+
+### Queue-to-production crash recovery — 2026-11-15
+
+- Added idempotent recovery for the enqueue/production-row creation gap. If the process stops after a durable queue insert but before the corresponding `production_runs` insert, the worker reconstructs the production row from the validated queue payload before claiming work and again immediately after a claim to close the concurrent enqueue race.
+- Production-row creation now uses `INSERT OR IGNORE` so a concurrent recovery and submitter cannot fail each other with a duplicate-key error.
+- Recovery is restricted to `short_video_production` jobs in queued, retryable-failure or running states, uses the same SQLite database and `BEGIN IMMEDIATE`, and is idempotent. Invalid payloads are reported as skipped rather than turned into fabricated production records.
+- Added regression tests for recovery after an enqueue crash and for the race where a worker claims the job before recovery.
+- Tests are committed but not executed; GitHub Actions runner allocation remains an external validation blocker.
