@@ -21,9 +21,13 @@ def inspect_lifecycle_consistency(job, production, review, youtube=None, tiktok=
     if queue_status in terminal_pairs and production_status not in terminal_pairs[queue_status]:
         add("queue_production_terminal_mismatch", "warning",
             "Queue and production records disagree about a terminal outcome", "production")
-    if queue_status == "review_pending" and production_status != "review_pending":
+    # The queue intentionally remains review_pending after handoff; human review
+    # updates production_runs independently to one of these durable decisions.
+    if queue_status == "review_pending" and production_status not in (
+        "review_pending", "approved", "rejected", "revision_requested"
+    ):
         add("review_handoff_incomplete", "warning",
-            "Queue completed but production has not reached the review handoff state", "production")
+            "Queue completed but production is not in a recognized review lifecycle state", "production")
     if production_status == "review_pending" and queue_status != "review_pending":
         add("review_handoff_without_queue_completion", "warning",
             "Production is review-pending while the durable queue is not", "queue")
