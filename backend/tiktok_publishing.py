@@ -281,9 +281,18 @@ class TikTokPublishStore:
             if not row or row["attempt_id"] != attempt_id:
                 return False
             stamp = _now()
+            if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
+                c.execute("""
+                  INSERT INTO tiktok_publication_events
+                    (job_id,attempt_id,event_type,outcome,publish_id,video_id,
+                     operator_id,note,created_at,policy_version)
+                  VALUES(?,?,'post_terminal_poll_error','informational',?,?,?,?,?,?)
+                """, (job_id, attempt_id, row["publish_id"], row["video_id"],
+                      row["operator_id"], message[:1000], stamp, row["policy_version"]))
+                return True
             c.execute(
-                "UPDATE tiktok_publications SET updated_at=? WHERE job_id=?",
-                (stamp, job_id),
+                "UPDATE tiktok_publications SET updated_at=? WHERE job_id=? AND attempt_id=?",
+                (stamp, job_id, attempt_id),
             )
             c.execute("""
               INSERT INTO tiktok_publication_events
