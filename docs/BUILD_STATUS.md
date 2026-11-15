@@ -1210,3 +1210,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Queue state dwell time is not provider execution, render CPU, or remote API latency. The cohort is limited to the latest bounded jobs and is not a lifetime census.
 - No queue, worker, provider, retry, approval, OAuth, or publishing state is mutated. GitHub Actions passed **385 tests** at code commit `96d78a4` (run `43700040116`).
 
+## BUILD-00053 — production quality and recorded-economics analytics
+
+- Added `backend/operational_economics.py`, using a bounded recent cohort of up to 500 short-video jobs and a SQLite read-only connection.
+- Aggregates brand-level terminal failure rate, review approval rate, persisted YouTube/TikTok publication states, stage-level failure rates, and queue error codes.
+- Joins financial ledger entries only when they carry a matching `job_id`; reports recorded revenue, costs, net and ROI separately by ISO currency without currency conversion.
+- Cost/revenue Pearson correlation is exploratory only and suppressed below five job-level observations or when either variable has zero variance.
+- Added authenticated read-only `GET /api/analytics/operations-economics` and integrated the report into the global operations dashboard.
+- No inferred revenue, estimated views/RPM, external metrics refresh, worker mutation, retry, approval, or publication action is performed.
+- Publication counters reflect persisted platform statuses, not independently verified public reach. Brand-only ledger entries are excluded from per-job economics.
+- CI validation pending.
+
