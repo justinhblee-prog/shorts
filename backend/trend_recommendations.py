@@ -263,15 +263,21 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
         region_eligible = 0
         for brand, config, tokens in brand_rows:
             region = str(trend.get("region") or "").upper()
+            region_values = config.get("regions", [])
+            if isinstance(region_values, str):
+                region_values = [region_values]
             allowed_regions = {
-                str(value).upper() for value in config.get("regions", [])
+                str(value).upper() for value in region_values
             }
             if region and region != "GLOBAL" and allowed_regions and region not in allowed_regions:
                 continue
             trend_language = str(trend.get("language") or "").strip().lower()
+            language_values = config.get("languages", [])
+            if isinstance(language_values, str):
+                language_values = [language_values]
             allowed_languages = {
                 str(value).strip().lower().split("-")[0]
-                for value in config.get("languages", [])
+                for value in language_values
                 if str(value).strip()
             }
             if (trend_language and allowed_languages
