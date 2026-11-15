@@ -5,6 +5,7 @@ import unittest
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore, ReviewConflict, ReviewNotFound, valid_review_token
 from queue_store import JobQueue
+from queue_store import JobQueue
 
 
 class ReviewWorkflowTests(unittest.TestCase):
@@ -12,6 +13,7 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = os.path.join(self.tmp.name, "review.sqlite3")
         self.production = ProductionStore(self.db)
+        self.queue = JobQueue(self.db)
         self.review = ReviewStore(self.db)
         self.production.create("job-1", {
             "brand": "Brain Glitch", "region": "US",
