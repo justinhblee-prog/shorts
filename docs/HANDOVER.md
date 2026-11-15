@@ -717,3 +717,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Other brands and other regions are excluded. Nonmatching topic signatures are excluded.
 - Cohort context is displayed in the recommendation workspace beside existing brand-level and topic-level history.
 - **No score adjustment:** `ranking_score_adjustment=0`; the 100-point editorial rubric remains unchanged until a held-out evaluation validates a stable ranking improvement.
+
+### Production replay and API fencing hardening — 2026-11-15
+
+- Consolidated the production replay-safety changes in Draft PR #20: https://github.com/justinhblee-prog/shorts/pull/20.
+- Provider HTTP 5xx, network failures and timeouts are treated as ambiguous and non-retryable; HTTP 429 remains retryable as an explicit rate-limit rejection.
+- A terminal provider failure atomically updates the queue job and matching production run, pauses production, and fences other running production leases in one SQLite transaction. Non-provider policy failures remain job-local.
+- Generic job APIs cannot create, claim, heartbeat, or complete short_video_production jobs. Those operations must use the production-aware path.
+- Queued production cancellation synchronizes production_runs; running cancellation is treated as ambiguous and fences the lease rather than claiming a clean cancellation.
+- A confirmed YouTube upload remains confirmed if a later metrics/readback request fails.
+- Added regression tests for API bypasses, provider retryability, atomic failure/pause behavior, policy-failure isolation, cancellation, and post-confirmation upload read failures.
+- Earlier implementation head passed GitHub Actions with Python compileall, Compose YAML validation, frontend syntax/ID checks, and 194 backend unit tests; the latest-main branch is undergoing its own CI validation.
+- External provider/production validation has not been performed.
