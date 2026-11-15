@@ -596,3 +596,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Dashboard recommendation cards now show observed competitor sample counts and median views, with a caveat explaining the sample boundary.
 - Initial regression test failed because the test expected one channel fetch while the implementation preloaded two regions; retrieval was narrowed to trend-eligible regions. GitHub Actions run [43670200759](https://github.com/justinhblee-prog/shorts/actions/runs/43670200759) passed **152 tests**, including frontend syntax and DOM ID validation.
 - Actual YouTube Data API credentials/live data remain unverified; this feature only summarizes records already stored from prior competitor collection.
+
+
+### Docker shutdown grace and deployment validation — 2026-11-15
+
+- Added `NEXUS_HEARTBEAT_SECONDS=10` to `.env.example` so the active worker lease detection interval is configurable without editing source.
+- Added a 45-second Docker Compose `stop_grace_period` for the production worker, allowing its SIGTERM handler to persist the production pause before Docker forcibly terminates the container.
+- Extended `scripts/validate.sh` to parse `compose.yaml` with PyYAML, catching malformed deployment configuration in CI.
+- GitHub Actions run [43670349660](https://github.com/justinhblee-prog/shorts/actions/runs/43670349660) passed **152 tests**, Python compilation, frontend JavaScript syntax/DOM ID checks, and Docker Compose YAML parsing.
