@@ -11,7 +11,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  TrendProductionDraft, draft_production_from_trend,
                  OpportunityInput, create_opportunity_score, Fail, fail as fail_job,
                  Complete, complete as complete_job, Claim, claim as claim_job,
-                 Enqueue, enqueue as enqueue_job)
+                 Enqueue, enqueue as enqueue_job, Lease, heartbeat as heartbeat_job)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -249,6 +249,19 @@ class ApiSecurityTests(unittest.TestCase):
             "API reported production failure; provider outcome may be ambiguous",
             "job-generic-fail",
         )
+
+    def test_generic_heartbeat_cannot_extend_production_lease(self):
+        job={"id":"job-production-heartbeat","job_type":"short_video_production"}
+        body=Lease(worker_id="generic-worker",lease_token="lease-token")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue,"get",return_value=job),
+            mock.patch.object(app_module.queue,"heartbeat") as heartbeat,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                heartbeat_job("job-production-heartbeat",body,x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code,409)
+        heartbeat.assert_not_called()
 
     def test_generic_enqueue_rejects_production_jobs(self):
         body=Enqueue(job_type="short_video_production",payload={"topic":"bypass"})
