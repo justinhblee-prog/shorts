@@ -844,3 +844,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Stamp the same values into the immutable `upload_attempt_started` event so the audit trail preserves the exact local policy ruleset used.
 - Additive SQLite migrations extend existing upload and event tables without rewriting historical records; legacy rows retain null policy stamps.
 - CI validation pending on this branch.
+
+### TikTok metrics collector and performance dashboard — 2026-11-15
+- BUILD-00071 adds a dedicated TikTok Display API v2 collector for confirmed completed publication IDs, with `video.list` consent, bounded requests, durable snapshots, lease fencing, response validation and independent provider failure handling.
+- BUILD-00072 adds authenticated read-only `GET /api/tiktok/metrics` and displays latest views/likes/comments/shares alongside YouTube insights. The API does not trigger network refreshes or alter publication state or recommendation scores.
+- The Compose metrics-collector service now runs both YouTube and TikTok collectors. A TikTok connection must have `video.list` consent in addition to `video.publish`; existing accounts may need to reconnect/reauthorize.
+- Automated validation: run [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), 476 tests passed; 107 unique HTML IDs / 91 JS selectors. This does not establish live OAuth, real TikTok posting, visibility, analytics or monetization.
+- TikTok remains `SELF_ONLY`; YouTube remains `private`. No public posting or automatic recommendation-score adjustment is enabled.
