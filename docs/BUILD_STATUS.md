@@ -1467,3 +1467,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Detailed per-second audience-retention curves and causal effect claims remain unavailable; the metrics are rolling 28-day channel reports.
 - GitHub Actions passed at code commit `aeb9a12760ddc1e4ae41cb791d0d8c7fb6e68148`: run [43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969), **490 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
 - Live YouTube Analytics OAuth consent and actual channel report retrieval remain unverified.
+
+
+## BUILD-00076 — production API lease fencing and cancellation reconciliation
+
+- Added API-side lease renewal during long-running production pipeline execution. If the heartbeat fails or ownership is lost, a stop event is propagated into the pipeline; subsequent provider stages are blocked and the API does not mark the job complete.
+- Generic queue claims exclude `short_video_production`; generic enqueue, heartbeat and completion endpoints cannot bypass the production-aware lifecycle. Non-production queue jobs retain their existing API flow.
+- Provider failure responses report retryability only when the durable queue transition actually scheduled a retry.
+- Production cancellation through the generic operator API now immediately reconciles the production record with the durable queue terminal state, avoiding a stale running/rendered production card while a worker is paused.
+- Regression coverage includes API heartbeat lease loss, stop-event propagation, no false completion, and immediate production cancellation reconciliation.
+- CI validation is pending for the latest branch head. The preceding branch head passed 491 tests and full repository validation.

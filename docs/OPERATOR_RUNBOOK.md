@@ -277,3 +277,11 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - Added regression coverage for competing owners, expiry/takeover, stale-owner fencing, invalid lease rejection and successful dispatch under a valid lease.
 - GitHub Actions run [43670844206](https://github.com/justinhblee-prog/shorts/actions/runs/43670844206) passed **156 tests** on commit `851551896e1bc1b0416427d3a4d6f5964f05862c`. Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing also passed.
 - Calendar/DST recurrence rules and multi-host database deployment remain outside the current SQLite baseline.
+
+
+## BUILD-00076 — API execution and cancellation safety
+
+- Production API execution renews its worker lease in the background. If ownership is lost or heartbeat storage fails, execution is fenced and subsequent provider stages are not started.
+- Generic job claim/heartbeat/complete endpoints must not be used for `short_video_production`; use the production-aware execution flow.
+- Cancelling a production job through the API immediately reconciles the production record with the durable queue status.
+- A provider failure is retryable only when the queue's durable failure transition returns `failed_retriable`.
