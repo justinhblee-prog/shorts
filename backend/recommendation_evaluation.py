@@ -230,6 +230,8 @@ class RecommendationEvaluationStore:
                 item.get("publication_age_bucket"), item.get("duration_bucket"),
                 item.get("format"),
             )
+            if not all(value and value != "unknown" for value in cohort_key):
+                continue
             grouped.setdefault(run_id, {}).setdefault(cohort_key, []).append(item)
         run_diagnostics = []
         eligible_cohort_count = 0
