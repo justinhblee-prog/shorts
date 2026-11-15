@@ -64,6 +64,43 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(len(voice.calls), 1)
         self.assertEqual(len(render.calls), 1)
 
+    def test_brand_profile_is_applied_to_script_voice_and_render_provider_payloads(self):
+        profile = {
+            "positioning": "Evidence-led AI explainers",
+            "audience": "technology-curious adults",
+            "tone": ["clear", "grounded"],
+            "risk_level": "elevated",
+            "review_rules": ["Distinguish demos from shipped capabilities"],
+        }
+        brief = {**self.brief, "brand_profile": profile}
+        script = FakeProvider({"script": "Hook. Evidence. Takeaway."})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3"})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4"})
+        pipeline = ProductionPipeline(self.store, script, voice, render)
+        self.store.create("job-brand-profile", brief)
+
+        pipeline.execute("job-brand-profile", brief)
+
+        script_payload = script.calls[0][1]
+        voice_payload = voice.calls[0][1]
+        render_payload = render.calls[0][1]
+        self.assertEqual(script_payload["brand_profile"], profile)
+        self.assertEqual(script_payload["editorial_constraints"], profile["review_rules"])
+        self.assertEqual(voice_payload["voice_tone"], profile["tone"])
+        self.assertEqual(voice_payload["target_audience"], profile["audience"])
+        self.assertEqual(render_payload["brand_profile"], profile)
+
+    def test_invalid_brand_profile_fails_before_provider_calls(self):
+        script = FakeProvider({"script": "must not run"})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3"})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4"})
+        pipeline = ProductionPipeline(self.store, script, voice, render)
+        with self.assertRaisesRegex(ValueError, "brand_profile.risk_level"):
+            pipeline.validate_brief({**self.brief, "brand_profile": {"risk_level": "unknown"}})
+        self.assertEqual(script.calls, [])
+        self.assertEqual(voice.calls, [])
+        self.assertEqual(render.calls, [])
+
     def test_retry_start_clears_stale_downstream_artifacts(self):
         self.store.create("job-1", self.brief)
         first = ProductionPipeline(
