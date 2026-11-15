@@ -52,5 +52,23 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  metrics-collector:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python","metrics_collector.py"]
+    env_file: .env
+    environment:
+      NEXUS_DB_PATH: /app/data/nexus.sqlite3
+      NEXUS_METRICS_COLLECTION_INTERVAL_SECONDS: ${NEXUS_METRICS_COLLECTION_INTERVAL_SECONDS:-21600}
+      NEXUS_METRICS_MIN_AGE_SECONDS: ${NEXUS_METRICS_MIN_AGE_SECONDS:-21600}
+      NEXUS_METRICS_BATCH_SIZE: ${NEXUS_METRICS_BATCH_SIZE:-50}
+    volumes:
+      - nexus_data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   nexus_data:
