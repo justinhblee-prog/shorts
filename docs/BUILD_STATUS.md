@@ -588,3 +588,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a brand recommendation panel to the global intelligence workspace. It refreshes for the selected market and shows freshness, editorial-fit score, top brand candidate and missing-evidence caveat.
 - Operators can select one of the region/language-compatible suggested brands and create a production draft. This still uses the existing authenticated draft endpoint and human review gate; it does not auto-generate or publish.
 - Frontend static syntax check and complete regression suite passed in the validation run above.
+
+
+### Frontend validation gate restored — 2026-11-15
+
+- Found that CI watched backend and validation-script paths but ignored frontend-only changes. A trend dashboard update therefore introduced a literal newline escape in `frontend/app.js` without triggering the syntax check.
+- Fixed both stray literal newline escapes and expanded workflow path filters to include `frontend/**`. Frontend JavaScript changes now trigger the same automated validation workflow.
+- GitHub Actions run [43669577773](https://github.com/justinhblee-prog/shorts/actions/runs/43669577773) passed **149 tests** and the frontend `node --check` step on commit `8970caef75930c00be4b6125455daa8639ccd10e`.
