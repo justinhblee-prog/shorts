@@ -24,8 +24,8 @@ pipeline = ProductionPipeline(store)
 stopping = threading.Event()
 
 
-def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop):
-    interval = max(5, LEASE_SECONDS // 3)
+def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
+    interval = max(5, LEASE_SECONDS // 3) if interval is None else max(0, interval)
     while not heartbeat_stop.wait(interval):
         try:
             queue.heartbeat(job_id, WORKER_ID, token)
