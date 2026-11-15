@@ -297,6 +297,15 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
         raise HTTPException(502,str(e))
 
 
+@app.post("/api/production/jobs/{job_id}/cleanup-media")
+def cleanup_production_media(job_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return media_stager.cleanup_uploaded(job_id,youtube_upload_store)
+    except MediaStagingError as e:
+        raise HTTPException(409,str(e))
+
+
 @app.post("/api/youtube/upload/{job_id}",status_code=201)
 def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
                          x_review_token:str|None=Header(default=None)):
