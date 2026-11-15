@@ -18,6 +18,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 
 TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
+REVOKE_URL = "https://open.tiktokapis.com/v2/oauth/revoke/"
 AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/"
 DEFAULT_SCOPES = "user.info.basic,video.publish"
 
@@ -129,6 +130,12 @@ class TikTokOAuthStore:
         with self.db() as c:
             row = c.execute("SELECT * FROM tiktok_oauth_tokens WHERE id=1").fetchone()
             return dict(row) if row else None
+
+    def clear_tokens(self):
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            c.execute("DELETE FROM tiktok_oauth_tokens WHERE id=1")
+            c.execute("DELETE FROM tiktok_oauth_refresh_lease WHERE id=1")
 
     def status(self):
         row = self.token_record()
@@ -339,6 +346,38 @@ class TikTokOAuthManager:
                 raise TikTokOAuthError("Stored TikTok refresh token cannot be decrypted") from exc
             finally:
                 self.store.release_refresh_lease(self._owner_id, lease)
+
+    def disconnect(self):
+        if not self.client_key or not self.client_secret:
+            raise TikTokOAuthError("TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET are required to revoke TikTok access")
+        if self.cipher is None:
+            raise TikTokOAuthError("TIKTOK_TOKEN_ENCRYPTION_KEY is required to revoke TikTok access")
+        row = self.store.token_record()
+        if not row:
+            return {"connected": False, "status": "disconnected"}
+        access_token = self.get_access_token()
+        body = urllib.parse.urlencode({
+            "client_key": self.client_key,
+            "client_secret": self.client_secret,
+            "token": access_token,
+        }).encode("utf-8")
+        status, raw = self.transport(
+            REVOKE_URL,
+            {"Content-Type": "application/x-www-form-urlencoded",
+             "Accept": "application/json", "Cache-Control": "no-cache"},
+            body, 30,
+        )
+        data = {}
+        if raw:
+            try:
+                data = json.loads(raw.decode("utf-8"))
+            except (ValueError, UnicodeDecodeError) as exc:
+                raise TikTokOAuthError("TikTok revoke endpoint returned invalid JSON") from exc
+        if status < 200 or status >= 300 or data.get("error"):
+            code = data.get("error") or "http_" + str(status)
+            raise TikTokOAuthError("TikTok token revocation failed: " + str(code))
+        self.store.clear_tokens()
+        return {"connected": False, "status": "disconnected"}
 
     def status(self):
         result = self.store.status()
