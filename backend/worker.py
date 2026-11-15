@@ -8,7 +8,7 @@ import socket
 import threading
 import uuid
 
-from production_pipeline import ProductionPipeline, ProductionStore, ProviderError
+from production_pipeline import ProductionPipeline, ProductionStore, ProductionLeaseConflict, ProviderError
 from queue_store import JobQueue, LeaseConflict
 
 
@@ -50,7 +50,7 @@ def run_once():
         daemon=True)
     heartbeat.start()
     try:
-        result = pipeline.execute(job["id"], job["payload"])
+        result = pipeline.execute(job["id"], job["payload"],\n                                    worker_id=WORKER_ID, lease_token=job["lease_token"])
         if lost_lease.is_set():
             raise LeaseConflict("Worker lease was lost while generating media")
         queue.finish(job["id"], WORKER_ID, job["lease_token"],
