@@ -186,6 +186,7 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["total"],121)
         self.assertEqual(result["items"][0]["job_id"],"job-global-1")
         self.assertEqual(result["risk_counts"]["consistent"],1)
+        self.assertEqual(result["production_status_counts"]["approved"],1)
         self.assertTrue(result["read_only"])
         self.assertFalse(result["automatic_retry_performed"])
         self.assertNotIn("payload",result["items"][0])
