@@ -175,6 +175,55 @@ class ProductionTests(unittest.TestCase):
                          "material_mismatch")
         self.assertEqual(result["status"], "rendered")
 
+    def test_pipeline_extracts_and_aligns_text_subtitles_before_review(self):
+        class FakeStager:
+            def __init__(self, folder):
+                self.media_dir = Path(folder)
+            def stage(self, job_id, url):
+                path = self.media_dir / "caption-fixture.mp4"
+                path.write_bytes(b"fixture")
+                return {"media_path": path.name, "size_bytes": 7}
+        script_text = (
+            "The human brain predicts what happens next using patterns from previous "
+            "experiences. When expectations are violated, attention increases and the "
+            "brain updates its model of the world."
+        )
+        class FakeInspector:
+            def inspect(self, path):
+                return {
+                    "status": "inspected", "inspection_method": "ffprobe_file_bytes",
+                    "duration_seconds": 30, "width": 1080, "height": 1920,
+                    "audio_track_present": True, "video_codec": "h264",
+                    "audio_codec": "aac", "subtitle_stream_present": True,
+                    "subtitle_extraction": {"status": "extracted"},
+                    "subtitle_text": (
+                        "1\\n00:00:00,000 --> 00:00:05,000\\n"
+                        + script_text + "\\n"
+                    ),
+                }
+        pipeline = ProductionPipeline(
+            self.store,
+            FakeProvider({"script": script_text, "factual_claims_verified": True}),
+            FakeProvider({"audio_url": "https://media.example/audio.mp3",
+                          "duration_seconds": 30}),
+            FakeProvider({"video_url": "https://media.example/video.mp4",
+                          "duration_seconds": 30, "aspect_ratio": "9:16",
+                          "audio_track_present": True, "subtitles_enabled": True}),
+            media_stager=FakeStager(self.tmp.name),
+            media_inspector=FakeInspector(),
+        )
+        self.store.create("job-captions", self.brief)
+        result = pipeline.execute("job-captions", self.brief)
+        caption = next(item for item in result["artifacts"]
+                       if item["stage"] == "caption_alignment")
+        quality = next(item for item in result["artifacts"]
+                       if item["stage"] == "quality_check")
+        self.assertEqual(caption["metadata"]["status"], "aligned")
+        self.assertEqual(caption["metadata"]["reference"], "generated_script")
+        self.assertEqual(quality["metadata"]["caption_alignment"]["status"], "aligned")
+        self.assertNotIn("subtitle_text",
+                         quality["metadata"]["media_inspection"])
+
     def test_pipeline_flags_similar_script_from_another_brand_for_review(self):
         previous_script = (
             "The human brain predicts what happens next using patterns from previous "
