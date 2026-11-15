@@ -267,12 +267,28 @@ class RecommendationEvaluationStore:
             return dict(row) if row else None
 
     def evaluate(self, performance):
-        measured = {
-            str(item.get("job_id")): item for item in performance.get("videos", [])
-            if item.get("measurement_status") == "measured"
-            and isinstance(item.get("views_per_hour"), (int, float))
-            and item.get("views_per_hour") >= 0
-        }
+        performance_videos = (
+            performance.get("videos", []) if isinstance(performance, dict) else []
+        )
+        measured = {}
+        for item in performance_videos:
+            if not isinstance(item, dict):
+                continue
+            job_id = str(item.get("job_id") or "").strip()
+            views_per_hour = item.get("views_per_hour")
+            if (
+                not job_id
+                or item.get("measurement_status") != "measured"
+                or isinstance(views_per_hour, bool)
+                or not isinstance(views_per_hour, (int, float))
+                or not math.isfinite(views_per_hour)
+                or views_per_hour < 0
+            ):
+                continue
+            # One job is one outcome. If an upstream payload repeats it, keep
+            # the first eligible observation rather than silently overwriting
+            # it with an order-dependent later record.
+            measured.setdefault(job_id, item)
         with self.db() as c:
             rows = c.execute("""SELECT c.run_id,r.generated_at AS run_generated_at,
                 c.selected_job_id,c.selected_at,c.created_at,
