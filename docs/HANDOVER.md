@@ -255,3 +255,9 @@ The upload path now avoids a duplicate-video hazard when a resumable upload has 
 - Dashboard exposes an explicit “업로드 결과 대조” action only for stale or uncertain attempts. Active attempts show as in progress.
 - Never select `not_uploaded` without checking the intended channel's private uploads in YouTube Studio. The reconciliation operation is an operator assertion, not an automated YouTube-side lookup.
 - Tests were added but remain unexecuted until a GitHub Actions runner actually starts.
+
+### Upload authorization re-check — 2026-11-15
+
+- YouTube upload now requires the **latest** review decision to be `approved`; an earlier approval does not survive a later revision/rejection decision.
+- The upload claim re-checks both `production_runs.status='approved'` and the latest `review_decisions.decision='approved'` under `BEGIN IMMEDIATE` in the same SQLite database transaction that claims the upload. This closes the check-then-claim gap against concurrent review-state changes.
+- Regression tests cover a later revision decision and a production record that is no longer approved. Tests are committed but remain unexecuted pending a working GitHub Actions runner.
