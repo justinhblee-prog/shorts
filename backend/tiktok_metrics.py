@@ -232,10 +232,13 @@ class TikTokMetricsCollector:
         if not isinstance(data, dict):
             raise TikTokMetricsError("TikTok metrics returned an unexpected response shape")
         error = data.get("error")
-        if status < 200 or status >= 300 or not isinstance(error, dict) or error.get("code") not in ("ok", 0, None):
+        if status < 200 or status >= 300 or not isinstance(error, dict) or error.get("code") not in ("ok", 0):
             code = error.get("code") if isinstance(error, dict) else "invalid_error_envelope"
             raise TikTokMetricsError("TikTok metrics request failed: " + str(code or "http_" + str(status)))
-        videos = (data.get("data") or {}).get("videos")
+        response_data = data.get("data")
+        if not isinstance(response_data, dict):
+            raise TikTokMetricsError("TikTok metrics response omitted its data object")
+        videos = response_data.get("videos")
         if not isinstance(videos, list):
             raise TikTokMetricsError("TikTok metrics response omitted data.videos")
         jobs = {x["video_id"]: x["job_id"] for x in due}
