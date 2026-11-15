@@ -13,6 +13,12 @@ class FrontendPortalTests(unittest.TestCase):
         paths = {getattr(route, "path", None) for route in app.routes}
         self.assertIn("/", paths)
         self.assertIn("/assets", paths)
+
+    def test_docker_preserves_backend_frontend_relative_layout(self):
+        dockerfile = (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("COPY backend/ ./backend/", dockerfile)
+        self.assertIn("COPY frontend/ ./frontend/", dockerfile)
+        self.assertIn("WORKDIR /app/backend", dockerfile)
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
