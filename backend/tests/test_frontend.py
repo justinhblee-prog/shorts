@@ -268,7 +268,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("visibility_ms",app_js)
         self.assertIn("/api/recommendations/exposures/rendered",app_js)
         self.assertIn("/api/recommendations/exposures/",app_js)
-        self.assertIn("not_estimable_nonrandomized",app_js)
+        self.assertIn("인과 효과 미측정",app_js)
 
 if __name__ == "__main__":
     unittest.main()
