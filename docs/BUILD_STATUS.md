@@ -1381,4 +1381,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - YouTube and TikTok publisher preflights verify the current staged file against the exact fingerprint in the latest approval, in addition to the existing artifact-snapshot check. Missing fingerprints/files, symlinks, invalid sizes, and byte changes fail closed before any remote upload initialization.
 - Regression tests cover approval fingerprint persistence, missing staged media, exact-byte acceptance, post-approval mutation, and rejection before either platform makes a network request.
 - Human approval remains mandatory; TikTok remains SELF_ONLY and YouTube remains private. No external publishing was performed.
-- CI validation for BUILD-00067 is pending.
+- GitHub Actions passed **453 tests** at code commit `7dfa9d6` (run [43709886701](https://github.com/justinhblee-prog/shorts/actions/runs/43709886701)).
