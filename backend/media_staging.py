@@ -52,18 +52,20 @@ class MediaStager:
             response = connection.getresponse()
             headers = {k.lower(): v for k, v in response.getheaders()}
             def chunks():
-                while True:
-                    block = response.read(1024 * 1024)
-                    if not block:
-                        break
-                    yield block
+                try:
+                    while True:
+                        block = response.read(1024 * 1024)
+                        if not block:
+                            break
+                        yield block
+                except OSError as exc:
+                    raise MediaStagingError("Renderer artifact stream was interrupted") from exc
+                finally:
+                    connection.close()
             return response.status, headers, chunks()
         except OSError as exc:
+            connection.close()
             raise MediaStagingError("Renderer artifact download failed") from exc
-        finally:
-            # Response body is consumed by the caller before this function returns its iterator.
-            # Keep connection lifetime attached to the iterator wrapper below.
-            pass
 
     def stage(self, job_id, artifact_url):
         parsed = urlsplit(artifact_url or "")
