@@ -70,6 +70,12 @@
     const data=await api("/api/performance/insights");
     $("insightList").innerHTML=(data.brands||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+Number(x.view_delta||0).toLocaleString()+' views (snapshot delta)</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+' · '+esc((x.recommendations||[]).map(r=>r.action).join(" / "))+'</small></div>').join("")||'<div class="empty-state">비교 가능한 스냅샷이 아직 없습니다.</div>';
   }
+
+  async function loadPreflight(){
+    const data=await api("/api/preflight");
+    const labels={operator_auth:"운영자 인증",script_generation:"AI 대본",voice_generation:"AI 음성",video_rendering:"영상 렌더링",artifact_staging:"렌더링 파일 스테이징",youtube_upload:"YouTube OAuth",youtube_data_api:"YouTube 데이터 API",media_directory:"미디어 저장소"};
+    $("preflightList").innerHTML=Object.entries(data.checks||{}).map(([key,value])=>'<div class="data-item"><b>'+esc(labels[key]||key)+' · <span class="'+(value.configured?"ready-text":"missing-text")+'">'+(value.configured?"설정 확인":"설정 누락")+'</span></b><small>'+esc((value.missing||[]).join(", ")||"필수 설정값 존재")+'</small></div>').join("")+'<div class="notice"><b>'+(data.capabilities.end_to_end_configured?"필수 설정값 구성 완료":"외부 연동 설정이 더 필요합니다")+'</b><span>'+esc(data.note)+'</span></div>';
+  }
   async function loadQueue(){
     const [q,w]=await Promise.all([api("/api/queue/stats"),api("/api/workers")]);
     $("queueDetails").innerHTML='<div class="data-item"><b>Queue status</b><small>'+esc(JSON.stringify(q))+'</small></div>'+(w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status)+'</b><small>'+esc(x.hostname||"")+' · '+esc(x.last_seen_at||"")+'</small></div>').join("");
@@ -77,7 +83,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadReviews(),loadApproved(),loadTrends(),loadSchedules(),loadInsights(),loadQueue()]);
+      await Promise.all([loadMetrics(),loadReviews(),loadApproved(),loadTrends(),loadSchedules(),loadInsights(),loadQueue(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -93,6 +99,7 @@
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
   $("loadSchedules").addEventListener("click",()=>loadSchedules().catch(e=>toast(e.message)));
   $("loadInsights").addEventListener("click",()=>loadInsights().catch(e=>toast(e.message)));
+  $("loadPreflight").addEventListener("click",()=>loadPreflight().catch(e=>toast(e.message)));
   $("productionForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
     try{const result=await api("/api/production/jobs",{method:"POST",body:JSON.stringify({brand:$("brandSelect").value,region:$("regionSelect").value,language:$("languageSelect").value,topic:$("topicInput").value.trim()})});msg("productionMessage","작업 등록 완료 · "+result.job.id);$("topicInput").value="";await refreshAll();}
