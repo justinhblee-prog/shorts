@@ -78,6 +78,19 @@ def run_once():
                       "artifact_count": len(result["artifacts"])})
         store.reconcile_review_pending(queue)
         print(f"review_pending job={job['id']}")
+    except KeyboardInterrupt:
+        stopping.set()
+        try:
+            queue.fail(job["id"], WORKER_ID, job["lease_token"],
+                       "worker_interrupted_ambiguous",
+                       "Worker interrupted during provider execution; outcome may be ambiguous", False)
+        except LeaseConflict:
+            pass
+        try:
+            queue.pause("Worker interrupted during provider execution; outcome may be ambiguous", job["id"])
+        except Exception:
+            pass
+        raise
     except ProviderError as exc:
         stopping.set()
         try:
