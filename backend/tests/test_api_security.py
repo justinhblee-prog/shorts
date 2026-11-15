@@ -22,7 +22,8 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
                  operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview, metrics_collection_status,
                  capture_recommendation_evaluation_snapshot, list_recommendation_evaluation_snapshots,
-                 require_canonical_staged_media, stage_production_media, approve_review)
+                 require_canonical_staged_media, stage_production_media, approve_review,
+                 publishing_dashboard)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
