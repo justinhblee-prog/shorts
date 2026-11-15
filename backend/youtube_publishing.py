@@ -557,7 +557,7 @@ class YouTubePublisher:
             body={
                 "snippet":{"title":title,"description":description,
                            "tags":list(tags or []),"categoryId":str(category_id)},
-                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False,
+                "status":{"privacyStatus":"private",
                           "containsSyntheticMedia":contains_synthetic_media}
             }
             request=service.videos().insert(
