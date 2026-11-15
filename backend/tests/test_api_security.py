@@ -18,7 +18,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
                  skip_recommendation_feedback, capture_trend_recommendations,
                  get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
-                 operational_health, operational_recovery_plan, get_job_failure_analysis)
+                 operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -125,6 +125,33 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertTrue(result["items"][0]["tiktok_eligible"])
         self.assertEqual(result["items"][0]["tiktok_publish_id"], "publish-1")
 
+    def test_unified_lifecycle_overview_combines_all_stages_read_only(self):
+        trace={"job":{"id":"job-1","status":"review_pending","updated_at":"2026-11-15"},
+               "production":{"status":"review_pending","current_stage":"rendering",
+                             "brand":"Brand","topic":"Topic","updated_at":"2026-11-15",
+                             "artifacts":[{"id":"artifact-1"}]},
+               "review":{"latest":{"decision":"approved","id":"review-1"}},
+               "publishing":{"youtube":{"status":"uploaded","video_id":"yt-1"},
+                             "tiktok":{"status":"send_to_inbox","publish_id":"tt-1"}},
+               "timeline":[]}
+        consistency={"status":"consistent","findings":[],"read_only":True}
+        recovery={"steps":[],"retry_policy":"operator-only","read_only":True}
+        failure={"latest_failure":None,"read_only":True}
+        with mock.patch("app.require_review_access") as access, \
+             mock.patch("app.get_job_lifecycle",return_value=trace), \
+             mock.patch("app.get_job_lifecycle_consistency",return_value=consistency), \
+             mock.patch("app.get_job_recovery_plan",return_value=recovery), \
+             mock.patch("app.get_job_failure_analysis",return_value=failure):
+            result=get_job_lifecycle_overview("job-1",x_review_token="test-token")
+        access.assert_called_once_with("test-token")
+        self.assertEqual(result["summary"]["brand"],"Brand")
+        self.assertEqual([x["stage"] for x in result["stages"]],
+                         ["queue","production","human_review","youtube","tiktok"])
+        self.assertEqual(result["stages"][-1]["status"],"send_to_inbox")
+        self.assertTrue(result["read_only"])
+        self.assertFalse(result["automatic_retry_performed"])
+        self.assertFalse(result["remote_status_refresh_performed"])
+        self.assertFalse(result["publishing_performed"])
     def test_lifecycle_endpoint_returns_joined_authoritative_records(self):
         job={"id":"job-1","job_type":"short_video_production","status":"review_pending"}
         production={"job_id":"job-1","status":"review_pending","artifacts":[{"id":7,"stage":"rendering","created_at":"2026-11-15T08:00:00Z"}]}
