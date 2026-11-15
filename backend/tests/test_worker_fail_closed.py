@@ -75,8 +75,7 @@ class WorkerFailClosedTests(unittest.TestCase):
         ):
             with self.assertRaises(KeyboardInterrupt):
                 worker.run_once()
-        fail.assert_called_once()
-        self.assertFalse(fail.call_args.args[-1])
+        fail.assert_not_called()
         pause.assert_called_once()
         self.assertTrue(worker.stopping.is_set())
     def test_main_does_not_claim_another_job_after_stop_flag(self):
