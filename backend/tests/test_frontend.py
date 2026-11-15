@@ -84,6 +84,23 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('id="opportunityList"', html)
         self.assertIn("경쟁 조정", app_js)
 
+    def test_tiktok_private_publish_consent_and_reconciliation_controls_are_wired(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/tiktok/publish/", app_js)
+        self.assertIn("creator_consented:true", app_js)
+        self.assertIn("caption_confirmed:true", app_js)
+        self.assertIn("brand_content_toggle", app_js)
+        self.assertIn("/api/tiktok/publications/", app_js)
+        self.assertIn("data-tiktok-reconcile-id", app_js)
+        self.assertIn("data-tiktok-refresh-id", app_js)
+
+    def test_policy_evidence_ui_distinguishes_youtube_realism_from_tiktok_aigc(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("youtube_contains_synthetic_media", app_js)
+        self.assertIn("TikTok 게시 시 AI 생성 콘텐츠 라벨", app_js)
+        self.assertIn("현실적으로 보이거나 실제 장면을 의미 있게 변형", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
