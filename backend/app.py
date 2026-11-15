@@ -681,6 +681,8 @@ def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=
 @app.post("/api/jobs",status_code=201)
 def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
+    if body.job_type=="short_video_production":
+        raise HTTPException(409,"Use /api/production/jobs so the production record and queue job are created together")
     try:
         return queue.enqueue(**body.model_dump())
     except IdempotencyConflict as e:
