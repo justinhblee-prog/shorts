@@ -79,6 +79,16 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(result["count"], 0)
         self.assertEqual(self.schedules.pending_dispatches(), [])
 
+
+    def test_outbox_status_reports_pending_and_dispatched_counts(self):
+        now = datetime.now(timezone.utc)
+        self.schedule(now - timedelta(minutes=5))
+        self.schedules.dispatch_due(self.queue, now=now)
+        status = self.schedules.outbox_status()
+        self.assertEqual(status["counts"].get("dispatched"), 1)
+        self.assertEqual(status["pending_retries"], 0)
+        self.assertEqual(status["items"][0]["status"], "dispatched")
+
     def test_naive_now_is_rejected(self):
         with self.assertRaises(ValueError):
             self.schedules.dispatch_due(self.queue, now=datetime(2026, 1, 1))
