@@ -199,3 +199,11 @@ The latest checked run (run 74) failed before runner allocation: `runner_id=0`, 
 - Added route-audit tests that fail if a future operational endpoint omits the token parameter, plus token acceptance/rejection checks.
 - Shared token remains a single-operator transitional control; it is not user identity/role authorization.
 - Tests have not been executed because GitHub Actions currently fails before runner allocation.
+
+## Renderer artifact staging
+
+- Added `backend/media_staging.py` to fetch the renderer's stored video artifact into the protected YouTube media staging directory.
+- Requires HTTPS and an exact hostname allowlist in `RENDER_ARTIFACT_HOSTS`; rejects credentials, non-443 ports, redirects and non-public DNS answers.
+- Uses a pinned resolved public IP with hostname TLS verification, bounded streaming, MP4 MIME/signature checks, temporary files and atomic placement.
+- Added protected API: POST `/api/production/jobs/{job_id}/stage-media`; it uses the stored render artifact, not a caller-supplied URL.
+- **Not validated:** actual renderer CDN hosts, live TLS/download, media playback, full test suite and YouTube upload. Configure exact artifact hostnames before use.
