@@ -1165,4 +1165,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - SQLite backup utility now supports optional AES-256-GCM encrypted backup files with streaming IO and authenticated verify/restore.
 - Configure dedicated `NEXUS_BACKUP_ENCRYPTION_KEY` (generate via Fernet.generate_key); do not reuse the TikTok token key. Preserve it separately from backup media.
 - Encrypted backups are `.sqlite3.enc`; CLI verify and restore use the configured key. Wrong key or tampering fails closed; plaintext temporary files are cleaned.
-- Existing plaintext mode remains supported. Key custody, off-host copy and real restore drills are still operator tasks. CI evidence pending.
+- Existing plaintext mode remains supported. Key custody, off-host copy and real restore drills are still operator tasks. Final-head push CI [43774559417](https://github.com/justinhblee-prog/shorts/actions/runs/43774559417) and PR CI [43774562521](https://github.com/justinhblee-prog/shorts/actions/runs/43774562521): **609 tests passed**.
