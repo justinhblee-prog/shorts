@@ -1,5 +1,6 @@
 """Evidence-bound performance analysis; no synthetic metrics or predictive claims."""
 import sqlite3
+import statistics
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
@@ -80,7 +81,8 @@ class PerformanceAnalyzer:
             brand_row = by_brand.setdefault(video["brand"], {
                 "brand": video["brand"], "videos": 0, "measured_videos": 0,
                 "unmeasured_videos": 0, "view_delta": 0, "like_delta": 0,
-                "comment_delta": 0, "recommendations": []
+                "comment_delta": 0, "recommendations": [],
+                "_views_per_hour_samples": [], "_interaction_rate_samples": []
             })
             region_key = (video["brand"], video["region"])
             region_row = by_region.setdefault(region_key, {
@@ -129,6 +131,8 @@ class PerformanceAnalyzer:
                         round(deltas["view_delta"] / result["elapsed_hours"], 2)
                         if result["elapsed_hours"] is not None else None
                     )
+                    if result["views_per_hour"] is not None:
+                        brand_row["_views_per_hour_samples"].append(result["views_per_hour"])
                     interaction_delta = (
                         deltas["like_delta"] + deltas["comment_delta"]
                         if deltas["like_delta"] is not None and deltas["comment_delta"] is not None
@@ -140,6 +144,10 @@ class PerformanceAnalyzer:
                         if interaction_delta is not None and deltas["view_delta"] > 0
                         else None
                     )
+                    if result["interactions_per_1000_view_delta"] is not None:
+                        brand_row["_interaction_rate_samples"].append(
+                            result["interactions_per_1000_view_delta"]
+                        )
                 else:
                     result["measurement_status"] = "counter_reset_or_invalid"
                     result["views_per_hour"] = None
@@ -153,6 +161,20 @@ class PerformanceAnalyzer:
             video_results.append(result)
 
         for item in by_brand.values():
+            rate_samples = item.pop("_views_per_hour_samples")
+            interaction_samples = item.pop("_interaction_rate_samples")
+            item["rate_sample_count"] = len(rate_samples)
+            item["median_views_per_hour"] = (
+                round(statistics.median(rate_samples), 2) if rate_samples else None
+            )
+            item["interaction_rate_sample_count"] = len(interaction_samples)
+            item["median_interactions_per_1000_view_delta"] = (
+                round(statistics.median(interaction_samples), 2)
+                if interaction_samples else None
+            )
+            item["performance_evidence_status"] = (
+                "limited" if len(rate_samples) < 3 else "sample_available"
+            )
             if item["measured_videos"] == 0:
                 item["recommendations"].append({
                     "type": "insufficient_evidence",
