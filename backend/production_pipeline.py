@@ -18,6 +18,7 @@ from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
 from script_originality import build_script_originality_report
 from speech_alignment import build_speech_alignment_report, build_caption_alignment_report
+from provider_endpoint import provider_endpoint_error
 
 
 class ProviderError(RuntimeError):
@@ -51,19 +52,34 @@ class JsonProvider:
     @staticmethod
     def _request(url, headers, body, timeout):
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+
+        class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, response_headers, newurl):
+                # urllib's default handler can carry Authorization headers to a
+                # redirected host. Provider endpoints must not redirect credentials.
+                return None
+
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
+            opener = urllib.request.build_opener(NoRedirectHandler)
+            with opener.open(req, timeout=timeout) as response:
                 return response.status, response.read()
         except urllib.error.HTTPError as exc:
-            detail = exc.read(1000).decode("utf-8", "replace")
-            raise ProviderError("provider", f"Provider HTTP {exc.code}: {detail}",
+            # Never persist upstream response bodies: providers can echo credentials,
+            # signed URLs, or submitted content in error payloads. Redirects are
+            # returned as sanitized HTTP status failures and are never followed.
+            raise ProviderError("provider", f"Provider HTTP {exc.code}",
                                 retryable=exc.code >= 500 or exc.code == 429)
         except (urllib.error.URLError, TimeoutError) as exc:
             raise ProviderError("provider", f"Provider connection failed: {type(exc).__name__}")
 
     def post(self, stage, payload):
-        if not self.url:
-            raise ProviderError(stage, f"{stage} provider URL is not configured", retryable=False)
+        endpoint_error = provider_endpoint_error(self.url)
+        if endpoint_error:
+            raise ProviderError(
+                stage,
+                f"{stage} provider endpoint is invalid: {endpoint_error}",
+                retryable=False,
+            )
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"

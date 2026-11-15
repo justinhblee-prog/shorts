@@ -1467,3 +1467,17 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Detailed per-second audience-retention curves and causal effect claims remain unavailable; the metrics are rolling 28-day channel reports.
 - GitHub Actions passed at code commit `aeb9a12760ddc1e4ae41cb791d0d8c7fb6e68148`: run [43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969), **490 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
 - Live YouTube Analytics OAuth consent and actual channel report retrieval remain unverified.
+
+
+## BUILD-00077 — provider endpoint transport security and preflight accuracy
+
+- Added shared provider URL validation. Credential-bearing script, voice, render and optional transcription provider calls now require a syntactically valid HTTPS URL with a hostname; embedded userinfo and URL fragments are rejected. Invalid/missing/out-of-range port syntax is rejected before transport invocation.
+- Enforced the same validation at the `JsonProvider.post` boundary, so a caller cannot bypass the configuration preflight and send a bearer token over plaintext HTTP.
+- Updated configuration preflight to distinguish absent and invalid provider endpoint values without returning endpoint URLs, credentials or other secret values. Invalid optional transcription configuration is reported only when that integration is enabled.
+- Removed upstream HTTP error response bodies from persisted provider errors. Only the HTTP status is retained because upstream error payloads may echo bearer tokens, signed URLs or submitted content.
+- Disabled automatic HTTP redirects in the provider adapter. Python's default redirect handler can carry request headers into a redirected request; provider redirects now fail as sanitized status errors and are never followed, preventing credential forwarding to a second host.
+- Added endpoint validation, no-network-before-validation, upstream error-body redaction and preflight regression tests.
+- Added seven tests over the BUILD-00075 baseline. Also stabilized an existing TikTok poll-backoff test fixture: SQLite `datetime('now')` has one-second resolution, so 59/119-second values could cross 60/120-second thresholds before the assertion. The fixture now uses safe 30/90-second pre-threshold margins while retaining 61/121-second post-threshold checks.
+- Final GitHub Actions PR merge-result run [43719815537](https://github.com/justinhblee-prog/shorts/actions/runs/43719815537) passed **497 tests**, with **107 unique IDs / 91 literal selectors**. `scripts/validate.sh` completed successfully, including Python compilation, Compose YAML parsing and frontend validation. The test-fixture adjustment is included in this successful run.
+- This change validates endpoint syntax and transport policy only. It does not prove DNS reachability, TLS trust with a real provider, authentication, provider compatibility, generated media quality, live OAuth, upload, remote visibility or billing. `live_connectivity_verified` remains false.
+- No publishing behavior was enabled or changed. YouTube remains private and TikTok remains SELF_ONLY; PR #36 remains Draft and unmerged.

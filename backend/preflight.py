@@ -1,6 +1,8 @@
 """Configuration-only readiness report; never exposes secret values."""
 import os
 from pathlib import Path
+from provider_endpoint import provider_endpoint_error
+
 
 def build_preflight(env=None):
     source = os.environ if env is None else env
@@ -17,13 +19,29 @@ def build_preflight(env=None):
             "TIKTOK_REDIRECT_URI", "TIKTOK_TOKEN_ENCRYPTION_KEY",
         ],
     }
+    provider_url_keys = {
+        "script_generation": "SCRIPT_PROVIDER_URL",
+        "voice_generation": "VOICE_PROVIDER_URL",
+        "video_rendering": "RENDER_PROVIDER_URL",
+    }
     checks = {}
     missing = []
     for group, keys in requirements.items():
         absent = [key for key in keys if not str(source.get(key, "")).strip()]
-        checks[group] = {"configured": not absent, "missing": absent}
+        invalid = []
+        url_key = provider_url_keys.get(group)
+        if url_key and url_key not in absent:
+            if provider_endpoint_error(str(source.get(url_key, ""))):
+                invalid.append(url_key)
+        unavailable = absent + invalid
+        checks[group] = {
+            "configured": not unavailable,
+            "missing": unavailable,
+            "invalid": invalid,
+        }
         if group != "tiktok_oauth" or not str(source.get("TIKTOK_ACCESS_TOKEN", "")).strip():
-            missing.extend(absent)
+            missing.extend(unavailable)
+
     static_tiktok = bool(str(source.get("TIKTOK_ACCESS_TOKEN", "")).strip())
     oauth_tiktok = checks["tiktok_oauth"]["configured"]
     checks["tiktok_publish"] = {
@@ -34,16 +52,37 @@ def build_preflight(env=None):
         ],
     }
     missing.extend(checks["tiktok_publish"]["missing"])
+
+    transcription_url = str(source.get("TRANSCRIPTION_PROVIDER_URL", "")).strip()
+    transcription_invalid = bool(
+        transcription_url and provider_endpoint_error(transcription_url)
+    )
+    checks["transcription_provider"] = {
+        "enabled": bool(transcription_url),
+        "configured": not transcription_invalid,
+        "missing": ["TRANSCRIPTION_PROVIDER_URL"] if transcription_invalid else [],
+        "invalid": ["TRANSCRIPTION_PROVIDER_URL"] if transcription_invalid else [],
+    }
+    if transcription_invalid:
+        missing.append("TRANSCRIPTION_PROVIDER_URL")
+
     media_dir = Path(source.get("NEXUS_MEDIA_DIR", "data/media"))
     ancestor = media_dir
     while not ancestor.exists() and ancestor != ancestor.parent:
         ancestor = ancestor.parent
-    writable = (not media_dir.exists() or media_dir.is_dir()) and ancestor.is_dir() and os.access(str(ancestor), os.W_OK)
-    checks["media_directory"] = {"configured": writable,
-        "missing": [] if writable else ["NEXUS_MEDIA_DIR (directory/parent must be writable)"]}
-    generation = all(checks[k]["configured"] for k in
-                     ("script_generation","voice_generation","video_rendering"))
-    staging = checks["artifact_staging"]["configured"] and checks["media_directory"]["configured"]
+    writable = ((not media_dir.exists() or media_dir.is_dir())
+                and ancestor.is_dir() and os.access(str(ancestor), os.W_OK))
+    checks["media_directory"] = {
+        "configured": writable,
+        "missing": [] if writable else [
+            "NEXUS_MEDIA_DIR (directory/parent must be writable)"
+        ],
+    }
+    generation = all(checks[key]["configured"] for key in (
+        "script_generation", "voice_generation", "video_rendering"
+    ))
+    staging = (checks["artifact_staging"]["configured"]
+               and checks["media_directory"]["configured"])
     upload = checks["youtube_upload"]["configured"]
     tiktok_upload = checks["tiktok_publish"]["configured"]
     operation = checks["operator_auth"]["configured"]
@@ -60,5 +99,8 @@ def build_preflight(env=None):
         },
         "missing": sorted(set(missing + checks["media_directory"]["missing"])),
         "live_connectivity_verified": False,
-        "note": "Configuration presence only; this endpoint does not call external providers or prove OAuth, quota, rendering, upload or billing works."
+        "note": (
+            "Configuration and HTTPS endpoint syntax only; this endpoint does not call "
+            "external providers or prove OAuth, quota, rendering, upload or billing works."
+        ),
     }
