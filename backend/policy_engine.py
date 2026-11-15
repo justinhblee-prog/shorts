@@ -194,6 +194,12 @@ def evaluate_content_policy(brief):
         "evaluated_at": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "platforms": platforms,
+        "synthetic_media_status": synthetic,
+        "platform_disclosures": {
+            key: disclosures.get(key)
+            for key in ("youtube_altered_content", "tiktok_ai_generated_content")
+            if key in disclosures
+        },
         "blocking_reasons": blocked,
         "required_confirmations": required,
         "approval_blockers": approval_blockers,
