@@ -307,6 +307,35 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(record["video_id"],"yt-video-123")
         self.assertEqual(record["events"][-1]["event_type"],"upload_confirmed")
 
+    def test_concurrent_upload_that_observes_completed_begin_does_not_insert_again(self):
+        first=self.publisher.upload_approved(
+            "job-1",self.media,self.review,"First request"
+        )
+        original_get=self.uploads.get
+        reads={"count":0}
+
+        def miss_initial_read(job_id):
+            reads["count"]+=1
+            if reads["count"]==1:
+                # Simulate the second request reading just before the first
+                # request commits its uploaded state.
+                return None
+            return original_get(job_id)
+
+        with mock.patch.object(self.uploads,"get",side_effect=miss_initial_read):
+            result=self.publisher.upload_approved(
+                "job-1",self.media,self.review,"Concurrent second request"
+            )
+
+        self.assertEqual(result["status"],"uploaded")
+        self.assertEqual(result["video_id"],first["video_id"])
+        self.assertEqual(self.service._videos.body["snippet"]["title"],"First request")
+        self.assertEqual(len(result["events"]),2)
+        self.assertEqual(
+            len([event for event in result["events"]
+                 if event["event_type"]=="upload_attempt_started"]),1
+        )
+
     def test_upload_is_idempotent_after_success(self):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         second=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
