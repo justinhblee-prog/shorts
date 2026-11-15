@@ -86,6 +86,82 @@ class TikTokPublishingTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def _uncertain_tiktok_attempt(self):
+        attempt_id = "uncertain-attempt-001"
+        self.store.begin(
+            "job-1", "Approved caption", True, "operator-1", attempt_id, False, False
+        )
+        self.store.mark_uncertain("job-1", attempt_id, "network timeout during initialization")
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_publications SET updated_at=? WHERE job_id=?",
+                ("2000-01-01T00:00:00+00:00", "job-1"),
+            )
+        return attempt_id
+
+    def test_tiktok_reconciliation_requires_explicit_confirmation(self):
+        self._uncertain_tiktok_attempt()
+        with self.assertRaisesRegex(TikTokPublishError, "Explicit confirmation"):
+            self.store.reconcile(
+                "job-1", "not_published", "operator-1", "Checked account",
+                confirmed=False,
+            )
+        self.assertEqual(self.store.get("job-1")["status"], "reconciliation_required")
+
+    def test_tiktok_reconciliation_published_records_verified_video_id(self):
+        attempt_id = self._uncertain_tiktok_attempt()
+        result = self.store.reconcile(
+            "job-1", "published", "operator-ops",
+            "Verified the private post in the creator account", "verified-video-1",
+            confirmed=True,
+        )
+        self.assertEqual(result["status"], "publish_complete")
+        self.assertEqual(result["video_id"], "verified-video-1")
+        self.assertEqual(result["attempt_id"], attempt_id)
+        self.assertEqual(result["events"][-1]["event_type"], "operator_reconciliation")
+        self.assertEqual(result["events"][-1]["operator_id"], "operator-ops")
+
+    def test_tiktok_reconciliation_not_published_unlocks_safe_retry(self):
+        self._uncertain_tiktok_attempt()
+        result = self.store.reconcile(
+            "job-1", "not_published", "operator-ops",
+            "Verified no post exists in the creator account", confirmed=True,
+        )
+        self.assertEqual(result["status"], "failed")
+        self.assertIsNone(result["video_id"])
+        next_attempt = self.store.begin(
+            "job-1", "Retry after verification", True, "operator-1",
+            "retry-attempt-002", False, False,
+        )
+        self.assertEqual(next_attempt["status"], "initializing")
+        self.assertEqual(next_attempt["attempt_id"], "retry-attempt-002")
+
+    def test_tiktok_reconciliation_rejects_recent_uncertain_attempt(self):
+        self.store.begin(
+            "job-1", "Approved caption", True, "operator-1",
+            "fresh-attempt-003", False, False,
+        )
+        self.store.mark_uncertain("job-1", "fresh-attempt-003", "recent timeout")
+        with self.assertRaisesRegex(TikTokPublishError, "at least 15 minutes"):
+            self.store.reconcile(
+                "job-1", "not_published", "operator-ops",
+                "Checked account", confirmed=True,
+            )
+
+    def test_tiktok_reconciliation_rejects_video_id_owned_by_another_job(self):
+        self._uncertain_tiktok_attempt()
+        with self.store.db() as connection:
+            connection.execute("""INSERT INTO tiktok_publications
+                (job_id,status,privacy_level,title,is_aigc,operator_id,consented_at,
+                 updated_at,attempt_id,policy_version,video_id)
+                VALUES('job-2','publish_complete','SELF_ONLY','Other',0,'operator',
+                 '2026-01-01','2026-01-01','other-attempt','test-policy','duplicate-id')""")
+        with self.assertRaisesRegex(TikTokPublishError, "already associated"):
+            self.store.reconcile(
+                "job-1", "published", "operator-ops", "Verified duplicate",
+                "duplicate-id", confirmed=True,
+            )
+
     def test_publish_rejects_media_mutated_after_human_approval(self):
         Path(self.media).write_bytes(b"mutated-after-approval")
         with self.assertRaisesRegex(TikTokPublishError, "changed after human approval"):
