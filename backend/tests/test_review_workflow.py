@@ -37,6 +37,15 @@ class ReviewWorkflowTests(unittest.TestCase):
                          "https://media.example/video.mp4")
         self.assertEqual(len(self.review.history("job-1")), 1)
 
+
+    def test_approved_queue_contains_only_approved_jobs(self):
+        self.review.decide("job-1", "approved", "operator-1", "Looks good")
+        items = self.review.list_approved()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["job_id"], "job-1")
+        self.assertEqual(items[0]["status"], "approved")
+        self.assertEqual(items[0]["artifacts"][0]["artifact_type"], "video")
+
     def test_rejection_and_revision_require_reason(self):
         with self.assertRaises(ValueError):
             self.review.decide("job-1", "rejected", "operator-1", "")
