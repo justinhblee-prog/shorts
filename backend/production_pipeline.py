@@ -343,10 +343,33 @@ class ProductionPipeline:
             clean["rights"] = brief["rights"]
         if "platforms" in brief:
             clean["platforms"] = brief["platforms"]
-        for key in ("synthetic_media_status", "ai_disclosure_acknowledged",
-                    "factual_claims_verified", "originality_notes"):
+        for key in (
+            "synthetic_media_status", "factual_claims_verified", "originality_notes",
+            "claim_evidence_notes", "transformative_contribution",
+        ):
             if key in brief:
+                if not isinstance(brief[key], str) or len(brief[key]) > 4000:
+                    raise ValueError(f"{key} must be text up to 4000 characters")
+                clean[key] = brief[key].strip()
+        for key in ("platform_disclosures", "risk_flags"):
+            if key in brief:
+                if not isinstance(brief[key], dict):
+                    raise ValueError(f"{key} must be an object")
                 clean[key] = brief[key]
+        for key in (
+            "commercial_relationship_disclosed", "child_safety_review_confirmed",
+        ):
+            if key in brief:
+                if not isinstance(brief[key], bool):
+                    raise ValueError(f"{key} must be a boolean")
+                clean[key] = brief[key]
+        if "source_urls" in brief:
+            if not isinstance(brief["source_urls"], list) or len(brief["source_urls"]) > 30:
+                raise ValueError("source_urls must be a list of up to 30 HTTPS URLs")
+            if any(not isinstance(url, str) or not url.startswith("https://")
+                   for url in brief["source_urls"]):
+                raise ValueError("source_urls entries must be HTTPS URLs")
+            clean["source_urls"] = [url.strip() for url in brief["source_urls"]]
         trend_context = brief.get("trend_context")
         if trend_context is not None:
             if not isinstance(trend_context, dict):
