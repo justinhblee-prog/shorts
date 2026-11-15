@@ -15,7 +15,7 @@ Set `NEXUS_DB_PATH` and `NEXUS_LEASE_SECONDS` as needed. SQLite uses WAL, foreig
 
 API: POST /api/jobs, POST /api/jobs/claim, POST /api/jobs/{id}/heartbeat, POST /api/jobs/{id}/complete, POST /api/jobs/{id}/fail, GET /api/jobs/{id}, GET /api/jobs/{id}/events, GET /api/queue/stats.
 
-Successful generation transitions to `review_pending`, never directly to public publishing. This milestone does not yet include production worker processes, PostgreSQL, OAuth, rendering, or platform publishing.
+Successful generation transitions to `review_pending`, never directly to public publishing. The repository includes a supervised SQLite-backed production worker, provider-backed script/voice/render orchestration, YouTube OAuth upload adapter, and private-upload workflow. PostgreSQL migration and live end-to-end validation with real provider credentials are not included in the current verified scope.
 
 
 ## Global trend and competitor intelligence
@@ -221,7 +221,7 @@ Dashboard supports USD, KRW, JPY and GBP for ledger entries and profitability sc
 - Reconciliation itself now acquires the SQLite write transaction before reading and deciding the upload state, serializing it against finalization and other reconciliation attempts.
 - Added regression coverage for a late upload response after operator reconciliation and for attempts to finalize a missing upload record.
 - If the remote response arrives after reconciliation has already declared no upload, the local record remains failed and the late result is surfaced as an error for manual investigation; operators must check YouTube Studio before any new upload attempt.
-- Tests are committed but remain unexecuted until a GitHub Actions runner or local Python environment is available.
+- These reconciliation tests are included in the current automated suite; the latest verified run is recorded in the validation checkpoint below.
 
 
 ### Review decision concurrency check
@@ -235,7 +235,7 @@ Review decisions are committed in a BEGIN IMMEDIATE transaction. The production 
 - A late YouTube response arriving after an operator marked `not_uploaded` is now persisted as `late_success_review_required`; the video ID is retained and new upload attempts are blocked. The late response cannot be overwritten by the stale request's error handler.
 - Added authenticated `POST /api/youtube/uploads/{job_id}/resolve-late-result`. An operator must acknowledge the preserved video ID and provide an audit note before the upload is finalized as private.
 - The dashboard distinguishes this state from ordinary ambiguous uploads and provides an explicit resolution action. Reconciliation requests include the dashboard reviewer ID; this is caller-supplied identity, not cryptographic user authentication. The shared review token remains a transitional access control.
-- Added regression assertions for preserved late IDs, retry blocking, operator attribution and event timestamps. These tests are committed but have not yet been executed in a Python runtime; do not treat source review as a passing test run.
+- Added regression assertions for preserved late IDs, retry blocking, operator attribution and event timestamps. These are included in the verified automated suite.
 
 
 ### Upload-attempt fencing and late-response quarantine — 2026-11-15
@@ -312,12 +312,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The first real full-suite run exposed test and implementation defects. Corrections included committing SQLite transactions in the scheduler store context manager, fixing API test patch targets to module globals, correcting a ledger ROI expectation, repairing the review-history fixture, and making performance analytics fixtures use the real review-approval flow.
 - The final API test patch correction is in commit `022b823334017f33a2924bd671fd976626416172`. GitHub Actions runs #290 and #291 on this exact commit completed successfully. The latest run #292 also completed successfully: [43665563890](https://github.com/justinhblee-prog/shorts/actions/runs/43665563890). The workflow installed dependencies and `sh scripts/validate.sh` passed; log confirms **113 tests** executed.
 - This verifies the repository's automated Python validation suite only. It does not validate live AI provider credentials, rendered video quality, OAuth, actual YouTube upload, public publishing, revenue collection, or production deployment.
-- PR #3 was subsequently merged into `main`; the follow-on validation fixes and CI checkpoint are on the development branch and should be reconciled with the merged baseline before the next release merge.
+- The fail-closed worker recovery work was merged into `main`; subsequent queue, scheduler, worker, trend and frontend validation changes are committed directly to the current main branch.
 
 
 ### CI green checkpoint — 2026-11-15 02:01 UTC
 
-- GitHub Actions hosted-runner provisioning is now working for this public repository. The latest verified main-branch run is [43670180646](https://github.com/justinhblee-prog/shorts/actions/runs/43668403972), commit `82263617c14f7c2fe6ace864cf5510a0d66fe21d`; checkout, Python 3.11, dependency installation, and `sh scripts/validate.sh` all completed successfully.
+- GitHub Actions hosted-runner provisioning is now working for this public repository. The latest verified main-branch run is [43670180646](https://github.com/justinhblee-prog/shorts/actions/runs/43670180646), commit `82263617c14f7c2fe6ace864cf5510a0d66fe21d`; checkout, Python 3.11, dependency installation, and `sh scripts/validate.sh` all completed successfully.
 - The workflow log confirms **152 tests ran** and the job conclusion is `success`. The validation script also runs `node --check ../frontend/app.js` when Node.js is available.
 - Fixes included: scheduler SQLite context manager now commits successful transactions and rolls back exceptions; API security tests patch module-level symbols rather than attributes on the FastAPI app; ledger ROI expectation corrected to the implementation's percentage formula; YouTube review-history fixture models a subsequent revision correctly; performance analytics fixtures now create actual review approval and attempt-aware upload records.
 - This green CI result establishes that the committed automated backend validation suite passes. It does not establish live AI provider connectivity, actual voice/video generation, YouTube OAuth or private upload, revenue ingestion, frontend browser QA, or deployment readiness. Those remain explicit integration gates.
@@ -332,7 +332,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - This verifies profile propagation through the mocked provider contract and API test boundary. Actual provider prompt adherence, voice characteristics and rendered visual branding still require live provider credentials and real media review.
 
 
-## Latest verified checkpoint — 2026-11-15 (UTC)
+## Historical validation checkpoint — superseded 2026-11-15 (UTC)
 
 - GitHub Actions hosted-runner allocation is operational. This checkpoint supersedes the older historical notes in this document that say Actions has never executed the test suite or that runner allocation is still blocked.
 - Latest run: https://github.com/justinhblee-prog/shorts/actions/runs/43666742044
