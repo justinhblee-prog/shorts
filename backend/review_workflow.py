@@ -286,13 +286,27 @@ class ReviewStore:
               FROM production_artifacts WHERE job_id=? ORDER BY created_at,id
             """, (job_id,)).fetchall()
             policy_report = None
+            quality_report = None
             for artifact in artifacts:
+                metadata = json.loads(artifact["metadata_json"])
                 if artifact["stage"] == "script" and artifact["artifact_type"] == "text":
-                    metadata = json.loads(artifact["metadata_json"])
                     candidate = metadata.get("policy_preflight")
                     if isinstance(candidate, dict):
                         policy_report = candidate
-                        break
+                if artifact["stage"] == "quality_check" and artifact["artifact_type"] == "report":
+                    if isinstance(metadata, dict):
+                        quality_report = metadata
+            if decision == "approved" and quality_report:
+                quality_blockers = quality_report.get("blockers") or []
+                if quality_report.get("status") == "blocked" or quality_blockers:
+                    raise ReviewConflict(
+                        "Quality-blocked content cannot be approved: "
+                        + ", ".join(sorted(str(item) for item in quality_blockers))
+                    )
+                if quality_report.get("status") == "review_required" and not comment:
+                    raise ValueError(
+                        "Quality warnings require an explicit reviewer confirmation note"
+                    )
             if decision == "approved" and policy_report:
                 if policy_report.get("status") == "blocked":
                     raise ReviewConflict("Policy-blocked content cannot be approved")
