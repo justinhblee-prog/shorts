@@ -291,7 +291,7 @@
   $("openSettings").addEventListener("click",()=>$("settingsDialog").showModal());
   $("saveToken").addEventListener("click",async()=>{
     token=$("tokenInput").value.trim();reviewer=$("reviewerInput").value.trim()||"operator";
-    try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await refreshAll();}
+    try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await Promise.all([refreshAll(),refreshTikTokOAuthStatus()]);}
     catch(e){token="";msg("tokenMessage",e.message,true);}
   });
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
