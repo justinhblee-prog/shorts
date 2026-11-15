@@ -1,8 +1,9 @@
 import os
 import unittest
+from unittest import mock
 from fastapi import HTTPException
 from pydantic import ValidationError
-from app import app, require_review_access, YouTubeLateSuccessResolution
+from app import app, require_review_access, YouTubeLateSuccessResolution, Enqueue, enqueue, IdempotencyConflict
 
 class ApiSecurityTests(unittest.TestCase):
     def test_all_operational_routes_require_review_token(self):
@@ -30,6 +31,18 @@ class ApiSecurityTests(unittest.TestCase):
             operator_id="operator",video_id="yt-video-123",note="verified in Studio"
         )
         self.assertEqual(valid.video_id,"yt-video-123")
+
+    def test_queue_idempotency_conflict_returns_http_409(self):
+        body = Enqueue(job_type="render", payload={"topic": "changed"},
+                       idempotency_key="already-used")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app.queue, "enqueue",
+                              side_effect=IdempotencyConflict("different payload")),
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                enqueue(body, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 409)
 
     def test_review_token_fails_closed(self):
         previous = os.environ.get("NEXUS_REVIEW_TOKEN")
