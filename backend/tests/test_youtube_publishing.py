@@ -286,6 +286,26 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(current["status"],"uploaded")
         self.assertEqual(current["events"][-1]["event_type"],"post_confirmation_worker_error")
 
+    def test_post_confirmation_read_failure_does_not_report_uncertain_upload(self):
+        original_get=self.uploads.get
+        calls={"count":0}
+        def fail_followup_read(job_id):
+            calls["count"]+=1
+            if calls["count"]==2:
+                raise RuntimeError("database read unavailable after confirmation")
+            return original_get(job_id)
+        with unittest.mock.patch.object(self.uploads,"get",side_effect=fail_followup_read):
+            with self.assertRaisesRegex(
+                YouTubeUploadError,"upload was confirmed as yt-video-123"
+            ):
+                self.publisher.upload_approved(
+                    "job-1",self.media,self.review,"Confirmed short"
+                )
+        record=original_get("job-1")
+        self.assertEqual(record["status"],"uploaded")
+        self.assertEqual(record["video_id"],"yt-video-123")
+        self.assertEqual(record["events"][-1]["event_type"],"upload_confirmed")
+
     def test_upload_is_idempotent_after_success(self):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         second=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
