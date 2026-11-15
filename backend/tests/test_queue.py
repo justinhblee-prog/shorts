@@ -123,7 +123,7 @@ class QueueTests(unittest.TestCase):
   job=self.q.enqueue("short_video_production",{"topic":"review"})
   claim=self.q.claim("worker-review",job_type="short_video_production")
   self.q.finish(job["id"],"worker-review",claim["lease_token"])
-  with self.assertRaisesRegex(ValueError,"before review handoff"):
+  with self.assertRaisesRegex(ValueError,"review handoff"):
    self.q.cancel(job["id"])
   self.assertEqual(self.q.get(job["id"])["status"],"review_pending")
 

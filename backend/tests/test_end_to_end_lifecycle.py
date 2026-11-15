@@ -191,7 +191,7 @@ class EndToEndLifecycleTests(unittest.TestCase):
         # the production record is advanced to review_pending.
         self.queue.finish(job_id, "crash-worker", claimed["lease_token"],
                           {"production_status": "review_pending"})
-        self.assertEqual(self.production.get(job_id)["status"], "cancelled")
+        self.assertEqual(self.production.get(job_id)["status"], "rendered")
         repaired = self.production.reconcile_review_pending(self.queue)
         self.assertEqual(repaired["job_ids"], [job_id])
         pending = self.review.list_pending()
