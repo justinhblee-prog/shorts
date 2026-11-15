@@ -1,5 +1,6 @@
 import os
 import unittest
+import app as app_module
 from unittest import mock
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -68,7 +69,7 @@ class ApiSecurityTests(unittest.TestCase):
             "job-1", job["payload"], worker_id="worker-1", lease_token="lease-1"
         )
         finish.assert_called_once()
-        reconcile.assert_called_once_with(app.queue)
+        reconcile.assert_called_once_with(app_module.queue)
 
     def test_api_production_execution_rejects_stale_pipeline_lease(self):
         job = {"id": "job-1", "job_type": "short_video_production",
