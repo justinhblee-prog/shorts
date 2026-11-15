@@ -14,7 +14,7 @@ from youtube_publishing import YouTubeUploadStore, YouTubePublisher
 from tiktok_publishing import TikTokPublishStore
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager
 from tiktok_metrics import TikTokMetricsStore, TikTokMetricsCollector
-from youtube_analytics import YouTubeAnalyticsStore, YouTubeAnalyticsCollector
+from youtube_analytics import YouTubeAnalyticsStore, YouTubeAnalyticsCollector, YouTubeAnalyticsError
 
 DB = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
 INTERVAL = max(300, int(os.getenv("NEXUS_METRICS_COLLECTION_INTERVAL_SECONDS", "21600")))
@@ -78,7 +78,10 @@ def run_youtube_analytics_once(store=None, collector=None, upload_store=None):
             result = collector.refresh(limit=BATCH_SIZE, days=28, min_age_seconds=MIN_AGE)
         except Exception as exc:
             reasons = {item.get("reason") for item in (getattr(exc, "error_details", None) or []) if isinstance(item, dict)}
-            status = "scope_missing" if "insufficientPermissions" in reasons else "failed"
+            scope_missing = "insufficientPermissions" in reasons or (
+                isinstance(exc, YouTubeAnalyticsError) and "yt-analytics.readonly" in str(exc)
+            )
+            status = "scope_missing" if scope_missing else "failed"
             error = "permission_denied" if status == "scope_missing" else type(exc).__name__
             store.record_collection(status, error=error)
             raise
