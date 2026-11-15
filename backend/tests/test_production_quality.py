@@ -119,6 +119,42 @@ class ProductionQualityTests(unittest.TestCase):
                      if item["name"] == "speech_script_alignment")
         self.assertEqual(check["status"], "not_configured")
 
+    def test_subtitle_mismatch_requires_human_review_not_auto_rejection(self):
+        report = evaluate_production_quality(
+            "The human brain predicts what happens next using patterns from previous "
+            "experiences. When expectations are violated, attention increases and the "
+            "brain updates its model of the world.",
+            {"factual_claims_verified": True}, {"duration_seconds": 30},
+            {"duration_seconds": 30, "aspect_ratio": "9:16",
+             "audio_track_present": True, "subtitles_enabled": True}, {},
+            caption_report={
+                "status": "material_mismatch", "extraction_status": "extracted",
+                "reference": "independent_asr_transcript",
+                "subtitle_token_count": 24, "word_error_rate": 0.9,
+                "match_rate": 0.1, "threshold_word_error_rate": 0.25,
+            },
+        )
+        self.assertEqual(report["status"], "review_required")
+        self.assertEqual(report["blockers"], [])
+        self.assertIn("subtitle_text_differs_from_speech_or_script",
+                      report["warnings"])
+        self.assertEqual(report["caption_alignment"]["status"], "material_mismatch")
+
+    def test_absent_text_subtitle_stream_is_not_mistaken_for_verified_captions(self):
+        report = evaluate_production_quality(
+            "A clear opening explains the problem. Evidence supports the claim. "
+            "The ending gives viewers a useful next step with a concise summary.",
+            {"factual_claims_verified": True}, {"duration_seconds": 30},
+            {"duration_seconds": 30, "aspect_ratio": "9:16",
+             "audio_track_present": True, "subtitles_enabled": True}, {},
+            caption_report={
+                "status": "not_present", "extraction_status": "not_present",
+                "reference": "generated_script",
+            },
+        )
+        self.assertIn("text_subtitle_stream_not_present_or_burned_in",
+                      report["warnings"])
+
     def test_missing_metadata_is_review_warning_not_false_success_or_block(self):
         report = evaluate_production_quality(
             "A short script with a hook and useful takeaway.",
