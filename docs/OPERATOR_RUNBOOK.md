@@ -355,3 +355,31 @@ Provider JSON responses are limited to 2 MiB. If a provider returns an oversized
 ## 9. Operator audit identity
 
 With `NEXUS_REVIEW_CREDENTIALS_JSON` configured, use a unique token per operator. The API attributes review decisions, policy attestations, queue pause/resume, YouTube reconciliation, TikTok private publishing/reconciliation and recommendation experiment/skip-feedback events to the operator ID mapped to the presented token. Request-body `operator_id` / `reviewer_id` values are retained for client compatibility but do not determine the audit actor. Legacy shared-token deployments are attributed to `legacy-operator`. All configured operators currently share the same permission set; configure a future IdP/RBAC layer before delegating different operational privileges.
+
+
+## Operator role-based access control
+
+Per-operator bearer tokens are resolved by `NEXUS_REVIEW_CREDENTIALS_JSON`. To activate role-based permissions, also configure `NEXUS_REVIEW_ROLE_MAP_JSON` as a JSON object mapping each authenticated operator ID to a non-empty array of roles. Example:
+
+```json
+{
+  "content-producer": ["producer"],
+  "human-reviewer": ["reviewer"],
+  "publishing-operator": ["publisher"],
+  "finance-analyst": ["analyst", "finance"],
+  "system-admin": ["admin"]
+}
+```
+
+Available roles:
+- `admin`: all permissions.
+- `producer`: production creation/execution, trend collection, schedule management, queue enqueue and media staging/cleanup.
+- `reviewer`: pending/approved review reads, policy evidence and approve/reject/revision decisions.
+- `publisher`: YouTube/TikTok publish actions, publication reconciliation and TikTok OAuth lifecycle.
+- `analyst`: analytics and financial report reads.
+- `operator`: operational reads, queue controls, brand/schedule/media management, production creation/execution, trend collection and recommendation experiment management.
+- `finance`: financial ledger writes and report reads.
+
+When the role map is present, authenticated operators omitted from it are denied role-protected actions (HTTP 403); malformed role configuration fails closed (HTTP 503). Multiple roles combine their grants. Do not grant `admin` to service or review accounts unnecessarily. The role map is separate from the token map and must use the exact reviewer IDs configured in `NEXUS_REVIEW_CREDENTIALS_JSON`.
+
+For migration compatibility, if `NEXUS_REVIEW_ROLE_MAP_JSON` is absent or blank, authenticated operators retain the legacy full-access permission set. This is not RBAC enforcement: populate and validate the role map before production use. Token authentication remains bearer-token based; external IdP, user sessions, token expiry/rotation automation and production identity lifecycle are not included.
