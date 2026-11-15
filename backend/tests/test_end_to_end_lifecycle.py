@@ -1,0 +1,181 @@
+"""End-to-end lifecycle contract test using explicitly mocked external providers.
+
+This test validates integration and state transitions, not live AI/CDN/YouTube services.
+"""
+import os
+import tempfile
+import unittest
+from pathlib import Path
+
+from ledger import LedgerStore
+from media_staging import MediaStager
+from production_pipeline import ProductionPipeline, ProductionStore, submit_production
+from queue_store import JobQueue
+from review_workflow import ReviewStore
+from youtube_publishing import YouTubePublisher, YouTubeUploadStore
+
+
+class FakeProvider:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+
+    def post(self, stage, payload):
+        self.calls.append((stage, payload))
+        return dict(self.response)
+
+
+class FakeUploadRequest:
+    def __init__(self, response):
+        self.response = response
+
+    def next_chunk(self):
+        return None, self.response
+
+
+class FakeVideos:
+    def __init__(self):
+        self.upload_body = None
+        self.media_body = None
+
+    def insert(self, **kwargs):
+        self.upload_body = kwargs["body"]
+        self.media_body = kwargs["media_body"]
+        return FakeUploadRequest({"id": "private-video-001"})
+
+    def list(self, **kwargs):
+        return type("Response", (), {"execute": lambda self: {
+            "items": [{"statistics": {"viewCount": "10", "likeCount": "1",
+                                      "commentCount": "0"},
+                       "status": {"privacyStatus": "private"}}]
+        }})()
+
+
+class FakeYouTubeService:
+    def __init__(self):
+        self._videos = FakeVideos()
+
+    def videos(self):
+        return self._videos
+
+
+class EndToEndLifecycleTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.db = str(self.root / "nexus.sqlite3")
+        self.media_dir = self.root / "media"
+        self.previous_media = os.environ.get("NEXUS_MEDIA_DIR")
+        os.environ["NEXUS_MEDIA_DIR"] = str(self.media_dir)
+
+        self.queue = JobQueue(self.db, lease_seconds=90)
+        self.production = ProductionStore(self.db)
+        self.review = ReviewStore(self.db)
+        self.uploads = YouTubeUploadStore(self.db)
+        self.ledger = LedgerStore(self.db)
+
+        self.script = FakeProvider({"script": "Verified hook. Evidence. Practical takeaway."})
+        self.voice = FakeProvider({"audio_url": "https://cdn.example.test/audio.mp3",
+                                   "provider": "test-voice"})
+        self.render = FakeProvider({"video_url": "https://cdn.example.test/video.mp4",
+                                    "duration_seconds": 27,
+                                    "provider": "test-render"})
+        self.pipeline = ProductionPipeline(self.production, self.script,
+                                           self.voice, self.render)
+        self.youtube = FakeYouTubeService()
+        self.publisher = YouTubePublisher(self.uploads, self.youtube)
+
+    def tearDown(self):
+        if self.previous_media is None:
+            os.environ.pop("NEXUS_MEDIA_DIR", None)
+        else:
+            os.environ["NEXUS_MEDIA_DIR"] = self.previous_media
+        self.tmp.cleanup()
+
+    def test_queued_job_to_review_private_upload_and_recorded_finance(self):
+        brief = {"brand": "Brain Glitch", "region": "US",
+                 "language": "English", "topic": "Sleep and memory",
+                 "idempotency_key": "e2e-sleep-001"}
+        submitted = submit_production(self.queue, self.production, brief)
+        job_id = submitted["job"]["id"]
+        self.assertEqual(submitted["job"]["status"], "queued")
+
+        claimed = self.queue.claim("integration-worker", "test-host",
+                                   job_type="short_video_production")
+        self.assertEqual(claimed["id"], job_id)
+        generated = self.pipeline.execute(job_id, claimed["payload"])
+        self.assertEqual(generated["status"], "rendered")
+        self.assertEqual([a["artifact_type"] for a in generated["artifacts"]],
+                         ["text", "audio", "video"])
+
+        self.queue.finish(job_id, "integration-worker", claimed["lease_token"],
+                          {"production_status": "review_pending"})
+        self.production.stage(job_id, "review_pending", "review_pending")
+        pending = self.review.list_pending()
+        self.assertEqual([item["job_id"] for item in pending], [job_id])
+
+        decision = self.review.decide(job_id, "approved", "human-reviewer",
+                                      "Content and rights checked")
+        self.assertEqual(decision["production"]["status"], "approved")
+        self.assertEqual(len(self.review.history(job_id)), 1)
+
+        mp4 = b"0000ftypisom" + b"mock-mp4-payload"
+        stager = MediaStager(
+            media_dir=str(self.media_dir),
+            allowed_hosts="cdn.example.test",
+            max_bytes=1024,
+            resolver=lambda host: ["8.8.8.8"],
+            fetcher=lambda host, ip, path, timeout: (
+                200, {"content-type": "video/mp4",
+                      "content-length": str(len(mp4))}, [mp4]),
+        )
+        staged = stager.stage(job_id, generated["artifacts"][-1]["artifact_url"])
+        self.assertTrue((self.media_dir / staged["media_path"]).is_file())
+
+        uploaded = self.publisher.upload_approved(
+            job_id, staged["media_path"], self.review,
+            "Sleep and Memory: One Useful Fact", "Evidence-led short")
+        self.assertEqual(uploaded["status"], "uploaded")
+        self.assertEqual(uploaded["privacy_status"], "private")
+        self.assertEqual(uploaded["video_id"], "private-video-001")
+        self.assertEqual(self.youtube._videos.upload_body["status"]["privacyStatus"],
+                         "private")
+        self.assertEqual(uploaded["snapshots"][0]["view_count"], 10)
+
+        revenue = self.ledger.record({
+            "job_id": job_id, "brand": brief["brand"], "region": brief["region"],
+            "entry_type": "youtube_ads", "amount": 1.25, "currency": "USD",
+            "source_type": "youtube_analytics", "source_reference": "e2e-revenue-001",
+            "occurred_at": "2026-11-15T00:00:00+00:00",
+            "note": "Explicit test fixture, not actual revenue"
+        })
+        cost = self.ledger.record({
+            "job_id": job_id, "brand": brief["brand"], "region": brief["region"],
+            "entry_type": "production_cost", "amount": 0.40, "currency": "USD",
+            "source_type": "ai_provider", "source_reference": "e2e-cost-001",
+            "occurred_at": "2026-11-15T00:00:00+00:00",
+            "note": "Explicit test fixture, not actual cost"
+        })
+        report = self.ledger.report(brand=brief["brand"], currency="USD")
+        self.assertEqual(revenue["job_id"], job_id)
+        self.assertEqual(cost["job_id"], job_id)
+        self.assertEqual(report["revenue"], 1.25)
+        self.assertEqual(report["costs"], 0.40)
+        self.assertEqual(round(report["net"], 2), 0.85)
+
+    def test_upload_cannot_start_without_human_approval(self):
+        brief = {"brand": "Brain Glitch", "region": "US",
+                 "language": "English", "topic": "Sleep"}
+        submitted = submit_production(self.queue, self.production, brief)
+        job_id = submitted["job"]["id"]
+        self.media_dir.mkdir(parents=True, exist_ok=True)
+        (self.media_dir / "candidate.mp4").write_bytes(b"fake")
+        from youtube_publishing import YouTubeUploadError
+        with self.assertRaises(YouTubeUploadError):
+            self.publisher.upload_approved(job_id, "candidate.mp4",
+                                            self.review, "Unapproved")
+        self.assertIsNone(self.uploads.get(job_id))
+
+
+if __name__ == "__main__":
+    unittest.main()
