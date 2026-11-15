@@ -71,6 +71,22 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(self.schedules.pending_dispatches(), [])
         self.assertEqual(self.queue.stats()["total"], 1)
 
+    def test_paused_production_holds_due_schedule_in_outbox_until_resume(self):
+        now = datetime.now(timezone.utc)
+        item = self.schedule(now - timedelta(minutes=5))
+        self.queue.pause("operator requested pause", actor="operator-1")
+        paused = self.schedules.dispatch_due(self.queue, now=now)
+        self.assertTrue(paused["paused"])
+        self.assertEqual(paused["count"], 0)
+        self.assertEqual(self.queue.stats()["total"], 0)
+        pending = self.schedules.pending_dispatches()
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["schedule_id"], item["id"])
+        self.queue.resume(actor="operator-1", note="Provider state reconciled")
+        resumed = self.schedules.dispatch_due(self.queue, now=now)
+        self.assertEqual(resumed["count"], 1)
+        self.assertEqual(self.queue.stats()["total"], 1)
+        self.assertEqual(self.schedules.pending_dispatches(), [])
     def test_inactive_schedule_does_not_create_outbox(self):
         now = datetime.now(timezone.utc)
         item = self.schedule(now - timedelta(hours=2))
