@@ -864,3 +864,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Comparable cohorts now include median average view percentage and duration when available. The trend recommendation context exposes these values for operator review.
 - No score, rank, production selection or publishing action uses the new metrics. `ranking_score_adjustment=0`; the values are descriptive and observational, not causal or detailed per-second retention curves.
 - GitHub Actions run [43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969) passed **490 tests**, with 107 unique HTML IDs / 91 JS selectors. Live Analytics OAuth/data remains unverified.
+
+
+### Provider endpoint security — BUILD-00077
+- Provider adapters now reject non-HTTPS or malformed endpoint URLs before network access. URLs with embedded credentials or fragments are invalid. Validation is enforced immediately before each credential-bearing provider request, not only in preflight.
+- Preflight identifies missing/invalid provider URL keys without exposing endpoint values or tokens. Optional transcription URL errors are reported only when that integration is configured.
+- Provider HTTP error response bodies are no longer retained; only status codes are recorded to avoid leaking echoed bearer tokens, signed URLs or submitted content.
+- New regression coverage was added, but CI is pending. Do not describe this build as test-passed until GitHub Actions completes successfully.
+- This is transport/configuration hardening only. Live provider connectivity, generation, media inspection, OAuth, remote publishing and monetization remain unverified.
