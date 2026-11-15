@@ -419,8 +419,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertIsNone(_spearman([1, 1, 1], [10, 20, 30]))
 
 
-if __name__ == "__main__":
-    unittest.main()
+
 
 
     def test_shadow_experiment_assignments_are_stable_and_do_not_claim_exposure(self):
@@ -465,3 +464,7 @@ if __name__ == "__main__":
             self.store.assign_shadow(experiment["experiment_id"], "")
         with self.assertRaises(ValueError):
             self.store.assign_shadow(experiment["experiment_id"], "x" * 257)
+
+
+if __name__ == "__main__":
+    unittest.main()
