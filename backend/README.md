@@ -396,3 +396,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 Set `TRANSCRIPTION_PROVIDER_URL` and `TRANSCRIPTION_PROVIDER_TOKEN` to enable independent narration transcription. The pipeline POSTs JSON containing `task=transcribe_audio`, the generated `audio_url`, target `language`, and an instruction to transcribe verbatim. The endpoint must return a JSON object with a non-empty `transcript` string; `provider` is an optional display name. The generated audio URL is sent to this explicitly configured service, so configure only a provider approved for your audio/data handling requirements.
 
 The pipeline compares the ASR transcript with the generated script using normalized token Levenshtein distance. Word error rate above 0.25 is surfaced as a human-review warning; it never auto-rejects a video. Without an ASR endpoint, the report explicitly says `speech_transcription_not_configured`. ASR errors can arise from names, numbers, accents, music, noise and language segmentation. This check does not prove factual correctness, pronunciation quality, or subtitle/caption accuracy.
+
+
+### Text subtitle extraction and alignment
+
+When renderer artifacts are staged and ffprobe inspection is enabled, the media inspector also checks for a text subtitle stream. If one exists, FFmpeg extracts the first text subtitle stream to SRT with a 2 MiB output cap and bounded execution time. The pipeline compares extracted subtitle text with the independent ASR transcript when configured, otherwise with the generated script. WER above 0.25 becomes a reviewer warning, not an automatic rejection.
+
+No text subtitle stream is not proof that captions are absent: captions may be burned into the video. Burned-in caption OCR, timing, placement, font size, contrast, readability and language correctness are not verified. A missing/unextractable stream is explicitly marked unverified for human review.

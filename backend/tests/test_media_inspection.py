@@ -44,6 +44,59 @@ class MediaInspectorTests(unittest.TestCase):
         self.assertTrue(report["audio_track_present"])
         self.assertEqual(report["video_codec"], "h264")
         self.assertFalse(report["subtitle_stream_present"])
+        self.assertEqual(report["subtitle_extraction"]["status"], "not_present")
+        self.assertIsNone(report["subtitle_text"])
+
+    def test_extracts_text_subtitle_stream_with_bounded_ffmpeg_output(self):
+        probe = {
+            "format": {"format_name": "mp4", "duration": "30", "size": "123456"},
+            "streams": [
+                {"index": 0, "codec_type": "video", "codec_name": "h264",
+                 "width": 1080, "height": 1920},
+                {"index": 1, "codec_type": "audio", "codec_name": "aac"},
+                {"index": 2, "codec_type": "subtitle", "codec_name": "mov_text"},
+            ],
+        }
+        calls = []
+        def runner(args, **kwargs):
+            calls.append((args, kwargs))
+            if args[0] == "ffprobe":
+                return SimpleNamespace(returncode=0, stdout=json.dumps(probe), stderr="")
+            return SimpleNamespace(
+                returncode=0,
+                stdout=("1\n00:00:00,000 --> 00:00:02,000\n"
+                        "The human brain predicts what happens next.\n\n"
+                        "2\n00:00:02,000 --> 00:00:04,000\n"
+                        "Patterns help the brain learn.\n"),
+                stderr="",
+            )
+        report = MediaInspector(analyze_signals=False, runner=runner).inspect(self.path)
+        self.assertTrue(report["subtitle_stream_present"])
+        self.assertEqual(report["subtitle_extraction"]["status"], "extracted")
+        self.assertIn("The human brain predicts", report["subtitle_text"])
+        self.assertEqual(len(calls), 2)
+        args, kwargs = calls[1]
+        self.assertIn("0:s:0", args)
+        self.assertIn("-fs", args)
+        self.assertIn("2097152", args)
+        self.assertEqual(kwargs["timeout"], 90)
+
+    def test_subtitle_extraction_failure_is_reported_without_failing_probe(self):
+        probe = {
+            "format": {"format_name": "mp4", "duration": "30", "size": "123456"},
+            "streams": [
+                {"codec_type": "video", "codec_name": "h264", "width": 1080, "height": 1920},
+                {"codec_type": "subtitle", "codec_name": "mov_text"},
+            ],
+        }
+        def runner(args, **kwargs):
+            if args[0] == "ffprobe":
+                return SimpleNamespace(returncode=0, stdout=json.dumps(probe), stderr="")
+            return SimpleNamespace(returncode=1, stdout="", stderr="decoder unavailable")
+        report = MediaInspector(analyze_signals=False, runner=runner).inspect(self.path)
+        self.assertEqual(report["status"], "inspected")
+        self.assertEqual(report["subtitle_extraction"]["status"], "failed")
+        self.assertIsNone(report["subtitle_text"])
 
     def test_analyzes_black_frames_and_audio_silence_as_review_warnings(self):
         probe = {
@@ -65,7 +118,7 @@ class MediaInspectorTests(unittest.TestCase):
                 )
             return SimpleNamespace(
                 returncode=0, stdout="",
-                stderr=("silence_start: 0\\nsilence_end: 2.1 | silence_duration: 2.1\\n"
+                stderr=("silence_start: 0\nsilence_end: 2.1 | silence_duration: 2.1\n"
                         "silence_start: 28.0"),
             )
         report = MediaInspector(runner=runner).inspect(self.path)

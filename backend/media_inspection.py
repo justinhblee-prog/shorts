@@ -44,6 +44,38 @@ class MediaInspector:
                                        (": " + detail if detail else ""))
         return result.stderr or ""
 
+    def _extract_subtitle_text(self, media_path):
+        command = [
+            self.ffmpeg_path, "-hide_banner", "-nostats", "-nostdin", "-v", "error",
+            "-protocol_whitelist", "file,pipe", "-i", str(media_path),
+            "-map", "0:s:0", "-c:s", "srt", "-f", "srt",
+            "-fs", "2097152", "pipe:1",
+        ]
+        try:
+            result = self.runner(
+                command, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=self.signal_timeout_seconds, check=False,
+            )
+        except FileNotFoundError:
+            return {"status": "failed", "error": "ffmpeg_not_installed"}, None
+        except subprocess.TimeoutExpired:
+            return {"status": "failed", "error": "subtitle_extraction_timeout"}, None
+        except OSError:
+            return {"status": "failed", "error": "subtitle_extraction_execution_failed"}, None
+        if result.returncode != 0:
+            detail = (result.stderr or "").strip()[-300:]
+            return {
+                "status": "failed",
+                "error": "subtitle_stream_extraction_failed",
+                "detail": detail,
+            }, None
+        text = result.stdout or ""
+        if len(text.encode("utf-8")) >= 2097152:
+            return {"status": "truncated", "error": "subtitle_output_exceeded_2mb"}, None
+        if not text.strip():
+            return {"status": "empty", "error": "subtitle_stream_contains_no_text"}, None
+        return {"status": "extracted", "method": "ffmpeg_srt_text_extraction"}, text
+
     def _analyze_signals(self, media_path, duration, has_audio):
         video_log = self._run_signal_filter(
             media_path, "blackdetect=d=1.0:pix_th=0.10", "v"
@@ -160,6 +192,16 @@ class MediaInspector:
         format_names = [x.strip().lower() for x in str(fmt.get("format_name", "")).split(",")]
         if not any(x in ("mp4", "mov", "m4a", "3gp", "3g2", "mj2") for x in format_names):
             raise MediaInspectionError("Media container is not a supported MP4-family format")
+        subtitle_stream_present = any(
+            s.get("codec_type") == "subtitle" for s in streams
+        )
+        if subtitle_stream_present:
+            subtitle_extraction, subtitle_text = self._extract_subtitle_text(path)
+        else:
+            subtitle_extraction, subtitle_text = {
+                "status": "not_present",
+                "note": "No extractable text subtitle stream; captions may be burned in.",
+            }, None
         signal_report = (
             self._analyze_signals(path, duration, audio is not None)
             if self.analyze_signals else {"status": "not_run", "signal_warnings": []}
@@ -178,10 +220,12 @@ class MediaInspector:
             "audio_codec": audio.get("codec_name") if audio else None,
             "audio_sample_rate": audio.get("sample_rate") if audio else None,
             "audio_channels": audio.get("channels") if audio else None,
-            "subtitle_stream_present": any(s.get("codec_type") == "subtitle" for s in streams),
+            "subtitle_stream_present": subtitle_stream_present,
+            "subtitle_extraction": subtitle_extraction,
+            "subtitle_text": subtitle_text,
             "subtitle_note": (
-                "Subtitle stream presence is detectable; burned-in subtitle correctness "
-                "and legibility are not verified."
+                "Text subtitle streams are extracted when available. Burned-in subtitle "
+                "correctness, timing, placement and legibility are not verified."
             ),
             "signal_analysis": signal_report,
         }

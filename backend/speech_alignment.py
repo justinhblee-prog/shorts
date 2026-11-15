@@ -11,6 +11,15 @@ def _tokens(value):
 def compare_transcript_to_script(script, transcript, max_word_error_rate=0.25):
     expected = _tokens(script)
     actual = _tokens(transcript)
+    if len(expected) > 5000 or len(actual) > 5000:
+        return {
+            "status": "too_large_to_compare",
+            "script_token_count": len(expected),
+            "transcript_token_count": len(actual),
+            "word_error_rate": None,
+            "match_rate": None,
+            "warning": "Transcript exceeds the 5,000-token safety limit for edit-distance comparison.",
+        }
     if len(expected) < 5 or len(actual) < 5:
         return {
             "status": "insufficient_text",
@@ -48,6 +57,47 @@ def compare_transcript_to_script(script, transcript, max_word_error_rate=0.25):
             "ASR can misrecognize names, numbers, accents, languages and technical terms. "
             "This alignment score is a review signal, not proof of factual correctness, "
             "pronunciation quality, or subtitle accuracy."
+        ),
+    }
+
+
+def _subtitle_payload_to_text(value):
+    text = str(value or "")
+    # Remove SRT cue numbers only when followed by a timecode, preserving
+    # standalone spoken numbers such as years or quantities.
+    text = re.sub(
+        r"^[ \t]*\d+[ \t]*\r?\n(?=[ \t]*\d{2}:\d{2}:\d{2}[,.]\d{3}[ \t]+-->)",
+        "", text, flags=re.MULTILINE,
+    )
+    text = re.sub(
+        r"^[ \t]*\d{2}:\d{2}:\d{2}[,.]\d{3}[ \t]+-->[ \t]+"
+        r"\d{2}:\d{2}:\d{2}[,.]\d{3}.*$",
+        "", text, flags=re.MULTILINE,
+    )
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\{\\an\d+\}", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def build_caption_alignment_report(script, subtitle_text, asr_transcript=None,
+                                   max_word_error_rate=0.25):
+    caption_text = _subtitle_payload_to_text(subtitle_text)
+    asr_available = isinstance(asr_transcript, str) and bool(asr_transcript.strip())
+    reference = asr_transcript if asr_available else script
+    reference_kind = "independent_asr_transcript" if asr_available else "generated_script"
+    result = compare_transcript_to_script(
+        reference, caption_text, max_word_error_rate=max_word_error_rate
+    )
+    return {
+        "version": "caption_alignment_v1",
+        "reference": reference_kind,
+        "subtitle_text_available": bool(caption_text),
+        "subtitle_token_count": len(_tokens(caption_text)),
+        **result,
+        "warning": (
+            "Only an extractable text subtitle stream was compared. Burned-in captions, "
+            "caption timing, on-screen placement, font size, contrast and legibility are "
+            "not verified. ASR/script references can themselves contain errors."
         ),
     }
 

@@ -11,7 +11,7 @@ def _positive_number(value):
 
 def evaluate_production_quality(script_text, script_metadata, voice_metadata,
                                render_metadata, brief, media_inspection=None,
-                               speech_report=None):
+                               speech_report=None, caption_report=None):
     script_metadata = script_metadata if isinstance(script_metadata, dict) else {}
     voice_metadata = voice_metadata if isinstance(voice_metadata, dict) else {}
     render_metadata = render_metadata if isinstance(render_metadata, dict) else {}
@@ -67,6 +67,8 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             warnings.append("spoken_audio_differs_from_generated_script")
         elif speech_status == "insufficient_text":
             warnings.append("speech_transcript_too_short_to_compare")
+        elif speech_status == "too_large_to_compare":
+            warnings.append("speech_transcript_exceeds_comparison_safety_limit")
         checks.append({
             "name": "speech_script_alignment",
             "status": speech_status or "unknown",
@@ -78,6 +80,36 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             "threshold_word_error_rate": speech_report.get("threshold_word_error_rate"),
             "method": speech_report.get("method"),
             "warning": speech_report.get("warning"),
+        })
+
+    caption_report = caption_report if isinstance(caption_report, dict) else None
+    if caption_report is None:
+        warnings.append("text_subtitle_stream_not_inspected")
+        checks.append({
+            "name": "caption_alignment",
+            "status": "not_inspected",
+            "reason": "Actual video bytes were not inspected for extractable text subtitle streams.",
+        })
+    else:
+        caption_status = caption_report.get("status")
+        if caption_status == "material_mismatch":
+            warnings.append("subtitle_text_differs_from_speech_or_script")
+        elif caption_status == "not_present":
+            warnings.append("text_subtitle_stream_not_present_or_burned_in")
+        elif caption_status in ("failed", "truncated", "empty", "insufficient_text",
+                                "too_large_to_compare"):
+            warnings.append("subtitle_text_could_not_be_verified")
+        checks.append({
+            "name": "caption_alignment",
+            "status": caption_status or "unknown",
+            "extraction_status": caption_report.get("extraction_status"),
+            "reference": caption_report.get("reference"),
+            "subtitle_token_count": caption_report.get("subtitle_token_count"),
+            "word_error_rate": caption_report.get("word_error_rate"),
+            "match_rate": caption_report.get("match_rate"),
+            "threshold_word_error_rate": caption_report.get("threshold_word_error_rate"),
+            "method": caption_report.get("method"),
+            "warning": caption_report.get("warning"),
         })
 
     voice_duration = _positive_number(voice_metadata.get("duration_seconds"))
@@ -222,12 +254,15 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             key: value for key, value in (speech_report or {}).items()
             if key != "transcript"
         } if speech_report else None,
+        "caption_alignment": caption_report,
         "verification_boundary": (
             "When configured, staged video bytes are inspected with ffprobe for container, "
             "duration, dimensions, codecs and audio/subtitle streams. This does not verify "
             "spoken narration alignment unless a separately configured transcription "
             "provider is used; even then ASR can misrecognize speech. It does not verify "
-            "burned-in caption text or legibility, visual quality, factual accuracy, rights, "
+            "burned-in caption text or legibility; extractable text subtitle streams are "
+            "compared with ASR/script text but timing, placement and readability remain manual "
+            "checks. It does not verify visual quality, factual accuracy, rights, "
             "music licensing, platform compliance or monetization eligibility. Provider "
             "attestations are not independent verification. Human review remains mandatory."
         ),

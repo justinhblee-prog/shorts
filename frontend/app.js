@@ -82,6 +82,10 @@
       const speechSummary=speechCheck.status
         ? '<p>음성-대본 대조: '+esc(speechCheck.status)+' · '+(speechCheck.match_rate===null||speechCheck.match_rate===undefined?'유사도 산출 불가':esc((Number(speechCheck.match_rate)*100).toFixed(1))+'% 일치 추정')+' · ASR '+esc(speechCheck.provider||"미설정")+'</p>'
         : '';
+      const captionCheck=quality.caption_alignment||{};
+      const captionSummary=captionCheck.status
+        ? '<p>자막-음성/대본 대조: '+esc(captionCheck.status)+' · '+(captionCheck.match_rate===null||captionCheck.match_rate===undefined?'대조 불가':esc((Number(captionCheck.match_rate)*100).toFixed(1))+'% 일치 추정')+' · 추출 '+esc(captionCheck.extraction_status||"미실행")+'</p>'
+        : '';
       const originalityCheck=quality.originality_check||{};
       const similarScripts=Array.isArray(originalityCheck.similar_matches)?originalityCheck.similar_matches:[];
       const originalitySummary=similarScripts.length
@@ -95,6 +99,7 @@
         ? '<section class="review-policy"><strong>자동 제작 품질 검사 · '+esc(qualityLabels[quality.status]||quality.status)+'</strong>'
           +mediaSummary
           +speechSummary
+          +captionSummary
           +originalitySummary
           +(qualityBlocks.length?'<p>차단 사유: '+qualityBlocks.map(esc).join(', ')+'</p>':'')
           +(qualityWarnings.length?'<p>확인 경고: '+qualityWarnings.map(esc).join(', ')+'</p>':'')
