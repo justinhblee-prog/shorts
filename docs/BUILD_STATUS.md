@@ -1017,4 +1017,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Ignore malformed performance rows and require a non-empty production job ID.
 - Make duplicate job outcome handling deterministic: the first valid observation for a job is retained rather than overwritten by payload order.
 - Add a regression test covering invalid values, malformed rows and duplicate outcomes.
-- CI validation pending.
+- CI passed at code commit f616dcc (323 tests).
