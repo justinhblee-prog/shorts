@@ -365,6 +365,67 @@ def get_job_recovery_plan(job_id:str,x_review_token:str|None=Header(default=None
     )
 
 
+@app.get("/api/lifecycle/queue")
+def get_lifecycle_queue(
+    limit:int=50, offset:int=0, status:str|None=None,
+    x_review_token:str|None=Header(default=None),
+):
+    """Bounded, read-only global production queue and lifecycle risk overview."""
+    require_review_access(x_review_token)
+    if status and status not in {
+        "queued","running","review_pending","approved","rejected",
+        "revision_requested","failed_retriable","failed_terminal","cancelled",
+    }:
+        raise HTTPException(422,"Unsupported queue status filter")
+    page=queue.list_jobs(
+        job_type="short_video_production",limit=limit,offset=offset,status=status
+    )
+    items=[]
+    risk_counts={"blocked":0,"attention_required":0,"consistent":0,"missing_production":0}
+    for job in page["items"]:
+        job_id=job["id"]
+        production=production_store.get(job_id)
+        if production is None:
+            consistency={"status":"blocked","findings":[{
+                "code":"production_record_missing","severity":"blocker",
+                "message":"Durable production record is missing","stage":"production",
+            }]}
+            latest=None
+        else:
+            decisions=review_store.history(job_id)
+            latest=decisions[-1] if decisions else None
+            consistency=inspect_lifecycle_consistency(
+                job,production,{"latest":latest},
+                youtube_upload_store.get(job_id),tiktok_publish_store.get(job_id),
+            )
+        risk=consistency["status"]
+        risk_counts[risk]=risk_counts.get(risk,0)+1
+        if production is None:
+            risk_counts["missing_production"]+=1
+        findings=consistency.get("findings",[])
+        items.append({
+            "job_id":job_id,"status":job.get("status"),
+            "production_status":(production or {}).get("status"),
+            "current_stage":(production or {}).get("current_stage"),
+            "brand":(production or {}).get("brand"),
+            "topic":(production or {}).get("topic"),
+            "updated_at":job.get("updated_at"),
+            "attempt":job.get("attempt"),"max_attempts":job.get("max_attempts"),
+            "error_code":job.get("error_code"),
+            "risk_status":risk,
+            "blocker_count":sum(1 for f in findings if f.get("severity")=="blocker"),
+            "warning_count":sum(1 for f in findings if f.get("severity")=="warning"),
+            "findings":findings[:8],
+            "latest_review_decision":(latest or {}).get("decision"),
+        })
+    return {
+        "items":items,"total":page["total"],"limit":page["limit"],
+        "offset":page["offset"],"status_counts":page["status_counts"],
+        "risk_counts":risk_counts,"read_only":True,
+        "automatic_retry_performed":False,
+    }
+
+
 @app.post("/api/production/jobs/{job_id}/execute")
 def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
