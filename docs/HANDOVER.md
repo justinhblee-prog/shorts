@@ -237,3 +237,5 @@ Latest run 115 (2026-11-15) again failed before runner allocation (`runner_id=0`
 New test: `backend/tests/test_end_to_end_lifecycle.py`. It drives a job through durable queue, fake script/voice/render providers, persisted artifacts, human approval, fake allowlisted CDN staging, fake YouTube private upload and ledger records. All provider/CDN/YouTube adapters are mocked; do not treat this as live validation.
 
 Crash recovery: `ProductionStore.reconcile_review_pending(queue)` advances only production records still in `rendered` when the durable queue confirms the matching `short_video_production` job is already `review_pending`. It is called before worker claims and before the API returns pending reviews. This repairs the process-crash window between `queue.finish()` and the production-store status update without promoting a job whose queue state is not complete.
+
+Latest CI run 122 for commit `2eff2834db260134f97ef72a66f54409e406bfbb` did not allocate a runner (`runner_id=0`, no runner name, zero steps). No assertion or test result is available. Source review only; runtime validation is still pending.
