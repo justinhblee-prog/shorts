@@ -149,6 +149,39 @@ class TikTokPublishStore:
                 """, (job_id, attempt_id, event_type, status, str(note)[:2000],
                       _now(), row["policy_version"]))
 
+    def reconcile(self, job_id, outcome, operator_id, note, publish_id=None):
+        operator_id = str(operator_id or "").strip()
+        note = str(note or "").strip()
+        if not operator_id or len(operator_id) > 128 or not note or len(note) > 2000:
+            raise TikTokPublishError("A valid operator ID and reconciliation note are required")
+        if outcome not in ("published", "not_published"):
+            raise TikTokPublishError("Outcome must be published or not_published")
+        if outcome == "published" and (not isinstance(publish_id, str) or not publish_id.strip()):
+            raise TikTokPublishError("A confirmed TikTok publish ID is required")
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
+            ).fetchone()
+            if row is None or row["status"] != "reconciliation_required":
+                raise TikTokPublishError("Only uncertain TikTok publications can be reconciled")
+            if outcome == "published":
+                status, video_id = "published", publish_id.strip()
+            else:
+                status, video_id = "failed", None
+            now = _now()
+            connection.execute("""
+              UPDATE tiktok_publications SET status=?,publish_id=COALESCE(?,publish_id),
+                error=NULL,updated_at=? WHERE job_id=?
+            """, (status, video_id, now, job_id))
+            connection.execute("""
+              INSERT INTO tiktok_publication_events
+                (job_id,attempt_id,event_type,outcome,operator_id,note,created_at,policy_version)
+              VALUES(?,?, 'operator_reconciled', ?,?,?,?,?)
+            """, (job_id, row["attempt_id"], status, operator_id, note, now,
+                  row["policy_version"]))
+        return self.get(job_id)
+
     def get(self, job_id):
         with self.db() as connection:
             row = connection.execute(
