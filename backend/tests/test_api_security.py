@@ -4,7 +4,7 @@ import app as app_module
 from unittest import mock
 from fastapi import HTTPException
 from pydantic import ValidationError
-from app import (app, require_review_access, YouTubeLateSuccessResolution, Enqueue,
+from app import (app, require_review_access, YouTubeLateSuccessResolution, Enqueue, PolicyEvidenceInput,
                  enqueue, IdempotencyConflict, ProductionExecute, execute_production_job,
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
@@ -286,6 +286,14 @@ class ApiSecurityTests(unittest.TestCase):
                 with self.assertRaises(HTTPException) as caught:
                     action(body, x_review_token="test-token")
                 self.assertEqual(caught.exception.status_code, 422)
+    def test_policy_evidence_api_accepts_youtube_realism_classification(self):
+        body = PolicyEvidenceInput(
+            reviewer_id="operator-1",
+            synthetic_media_status="ai_generated",
+            youtube_contains_synthetic_media=True,
+        )
+        self.assertIs(body.youtube_contains_synthetic_media, True)
+
     def test_review_token_fails_closed(self):
         previous = os.environ.get("NEXUS_REVIEW_TOKEN")
         os.environ["NEXUS_REVIEW_TOKEN"] = "unit-test-secret"
