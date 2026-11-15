@@ -175,3 +175,20 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - Repeating a submission with the same idempotency key, job type, channel and JSON payload returns the existing job without creating another queue entry.
 - Reusing that key with a different job type, channel or payload is rejected with HTTP 409. The original job remains unchanged.
 - A client retry must resend the original request body with the original key. Generate a new key only for a genuinely new production request.
+
+
+### Ambiguous production worker loss — fail-closed recovery
+
+- A short-video production job whose worker lease expires is **not automatically requeued**. The provider may have completed an external side effect even if the worker died before persisting its result.
+- Expired production work is moved to `failed_terminal` with `production_lease_expired_ambiguous`; the matching production record is synchronized and the production queue is durably paused.
+- A normal worker interruption (Ctrl+C) during provider execution records a non-retriable ambiguous failure, pauses the production queue, and exits. A hard process/host kill is handled by the lease-expiry path on the next claim/recovery.
+- Operators must inspect the provider's job history and billing/artifact state before deciding whether to create a new production request. Do not simply retry the same ambiguous job.
+- Non-production queue jobs retain their existing lease-expiry retry behavior.
+
+
+### CI recovery and current validation state — 2026-11-15
+
+- The earlier notes in this runbook stating that tests had not executed describe the pre-runner-allocation period and are superseded by the later successful CI checkpoint.
+- Verified GitHub Actions run [43665751844](https://github.com/justinhblee-prog/shorts/actions/runs/43665751844) completed checkout, Python setup, dependency installation and `sh scripts/validate.sh` successfully; the log confirms 113 tests ran.
+- CI success is limited to automated backend tests. It does not verify real AI-provider calls, generated media quality, actual YouTube OAuth/upload, real analytics/revenue ingestion, or deployed service behavior.
+- Before the next release merge, reconcile the post-PR validation-fix branch with the merged `main` baseline and rerun CI on the resulting release head.
