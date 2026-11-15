@@ -129,3 +129,7 @@ Financial records are source-referenced inputs, not inferred earnings. APIs requ
 - GET `/api/finance/report?brand=...&from_date=...&to_date=...&currency=USD` — separate revenue/cost totals, net and ROI.
 
 Use entry types `youtube_ads`, `affiliate`, `sponsor`, `production_cost`, `platform_fee`, `other_cost`. Every entry needs a source type and stable source reference. The same source/type reference cannot be double-counted. Reports are one currency at a time; no FX conversion or automatic revenue import is implemented.
+
+## BUILD-00010 — performance insights
+
+GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports brand-level video snapshot differences and recorded ledger totals. It does not estimate earnings from views or infer trends from a single snapshot. Recommendations are rule-based and include their evidence basis. YouTube retention/watch-time, controlled experiments and autonomous strategy updates are not implemented.
