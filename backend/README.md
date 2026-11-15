@@ -117,7 +117,7 @@ YouTube routes include `POST /api/youtube/upload/{job_id}`, `GET /api/youtube/up
 
 TikTok routes include OAuth start/callback/status/disconnect, `POST /api/tiktok/publish/{job_id}`, `GET /api/tiktok/publications/{job_id}`, operator reconciliation/status refresh, and read-only `GET /api/tiktok/metrics?limit=100`. TikTok Direct Post is fixed to `SELF_ONLY`; public visibility is not enabled. TikTok OAuth requests `video.publish` and `video.list`. Publishing requires `video.publish`; the metrics collector separately requires `video.list`, so existing connected accounts may need to reauthorize. The collector queries only video IDs already confirmed in this account's completed publication records.
 
-The separate metrics service refreshes YouTube and TikTok counters independently. TikTok Display API v2 counters are views, likes, comments and shares; no retention, swipe-away, watch-time or revenue values are fabricated. Dashboard reads are authenticated and read-only. Mocked/automated tests do not validate real OAuth consent, live uploads, actual remote visibility, provider quotas or live metric retrieval.
+The separate metrics service refreshes YouTube Data API counters, YouTube Analytics API v2 reports and TikTok counters independently. YouTube Analytics reports include engaged views, estimated minutes watched, average view duration/percentage, likes, comments, shares and subscribers gained. TikTok Display API v2 counters are views, likes, comments and shares; no TikTok retention, swipe-away or revenue values are fabricated. Dashboard reads are authenticated and read-only. Mocked/automated tests do not validate real OAuth consent, live uploads, actual remote visibility, provider quotas or live metric retrieval.
 
 ## BUILD-00009 — financial ledger
 
@@ -129,7 +129,7 @@ Use entry types `youtube_ads`, `affiliate`, `sponsor`, `production_cost`, `platf
 
 ## BUILD-00010 — performance insights
 
-GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports brand-level video snapshot differences and recorded ledger totals. It does not estimate earnings from views or infer trends from a single snapshot. Recommendations are rule-based and include their evidence basis. YouTube retention/watch-time, controlled experiments and autonomous strategy updates are not implemented.
+GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports brand-level video snapshot differences and recorded ledger totals. It does not estimate earnings from views or infer trends from a single snapshot. Recommendations are rule-based and include their evidence basis. Detailed per-second audience-retention curves, controlled experiments and autonomous strategy updates are not implemented. Aggregate YouTube watch-time and average view duration/percentage are collected separately by BUILD-00074.
 
 ## BUILD-00011 — persistent scheduler
 
