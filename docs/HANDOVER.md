@@ -934,3 +934,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Health metrics now exclude explicitly offline workers from online and stale counts. Online rows with expired heartbeats still raise the stale warning for abrupt exits.
 - Push CI [43728064603](https://github.com/justinhblee-prog/shorts/actions/runs/43728064603) and PR merge-result CI [43728086152](https://github.com/justinhblee-prog/shorts/actions/runs/43728086152) each passed **522 tests**.
 - PR #54 is Open/Draft/unmerged and based on BUILD-00085. No deployment or real worker process supervisor validation was performed.
+
+
+
+### Combined validation evidence — BUILD-00090 through BUILD-00092
+- The independent PR branches for BUILD-00090 (#51), BUILD-00091 (#52) and BUILD-00092 (#54) were combined on `integration/build-00090-00092-parallel`.
+- Full `scripts/validate.sh` run [43728546645](https://github.com/justinhblee-prog/shorts/actions/runs/43728546645) passed **533 tests**.
+- This is separate from the BUILD-00086–00089 integration run [43725622356](https://github.com/justinhblee-prog/shorts/actions/runs/43725622356), which passed 532 tests. The two runs have different bases and are not a single BUILD-00086–00092 integration result.

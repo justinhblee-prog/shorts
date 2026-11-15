@@ -1569,3 +1569,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Push CI [43728064603](https://github.com/justinhblee-prog/shorts/actions/runs/43728064603): 522 tests passed.
 - PR merge-result CI [43728086152](https://github.com/justinhblee-prog/shorts/actions/runs/43728086152): 522 tests passed.
 - Tests cover local registry and health-state behavior; no OS-level SIGKILL or production supervisor behavior is claimed.
+
+
+
+### Combined validation — BUILD-00090 through BUILD-00092
+- Combined branch `integration/build-00090-00092-parallel` contains all three independent workstreams on the common BUILD-00085 base.
+- GitHub Actions run [43728546645](https://github.com/justinhblee-prog/shorts/actions/runs/43728546645) passed **533 tests** using `scripts/validate.sh`.
+- This combined run validates BUILD-00090 through BUILD-00092 together. It does not include BUILD-00086 through BUILD-00089; that earlier integration remains separately validated by run [43725622356](https://github.com/justinhblee-prog/shorts/actions/runs/43725622356), 532 tests.
+- These are two separately validated integration sets; no claim is made that all BUILD-00086 through BUILD-00092 changes have passed one single combined run.
