@@ -769,7 +769,7 @@ class ApiSecurityTests(unittest.TestCase):
                 os.environ["NEXUS_REVIEW_TOKEN"] = previous
 
     def test_metrics_collection_status_is_authenticated_and_discloses_platform_gaps(self):
-        with mock.patch("app.require_review_access") as access, \\
+        with mock.patch("app.require_review_access") as access, \
              mock.patch.object(app_module.youtube_upload_store, "metrics_collection_status",
                                return_value={"platform": "youtube", "status": "succeeded",
                                              "coverage": {}, "read_only": True}):
