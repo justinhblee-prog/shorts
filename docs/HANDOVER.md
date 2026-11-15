@@ -1142,4 +1142,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Legacy-only deployments remain compatible but are recorded as `legacy-operator`, not as a caller-asserted identity.
 - Malformed credential maps fail closed (503); invalid tokens are rejected (401).
 - Per-operator bearer credentials are not a full IdP/RBAC solution. External identity integration, roles, sessions and production rollout remain open.
-- CI evidence pending.
+- Final-head push CI [43773111981](https://github.com/justinhblee-prog/shorts/actions/runs/43773111981) and PR CI [43773117502](https://github.com/justinhblee-prog/shorts/actions/runs/43773117502): **588 tests passed**.
