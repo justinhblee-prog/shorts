@@ -1438,3 +1438,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added tests for latest-snapshot selection, `SELF_ONLY` metadata, endpoint authentication/limit enforcement/read-only behavior, and frontend visibility. Ranking score adjustment remains zero.
 - GitHub Actions passed at code commit `35d4c072e3703b2e197528534cc162ca8af930d5`: run [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), **476 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
 - No real account metrics or live TikTok app approval is implied.
+
+## BUILD-00073 — platform analytics documentation alignment
+
+- Updated the root README to describe the current TikTok Login Kit, Content Posting API and Display API setup, separate `video.list` consent, `SELF_ONLY` visibility, TikTok counters, and the four-service Compose topology.
+- Corrected the metrics description: the dedicated collector refreshes YouTube and TikTok independently; TikTok counters are views, likes, comments and shares only. Retention, swipe-away, watch time and revenue are not inferred.
+- Updated backend/API documentation to reflect the actual approved staged-media and immutable upload-snapshot workflow, YouTube private upload and TikTok private Direct Post APIs, and authenticated read-only TikTok metrics endpoint.
+- Updated the operator runbook launch checklist for TikTok Display API enablement, `video.publish` / `video.list` consent, `SELF_ONLY` test publishing and real counter retrieval. Updated handover documentation with BUILD-00071/00072 boundaries.
+- Corrected the documented validation reference to the latest verified analytics dashboard run: [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), 476 automated tests passed. This is not a live-account verification.
+- Documentation-only changes do not trigger the path-filtered CI workflow; code validation remains the verified run above.
