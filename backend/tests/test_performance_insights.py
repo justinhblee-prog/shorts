@@ -61,6 +61,7 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(cohort["median_average_view_percentage"],65.0)
   self.assertEqual(cohort["median_average_view_duration_seconds"],15.0)
   self.assertEqual(cohort["ranking_score_adjustment"],0)
+  self.assertEqual(result["cohort_insights"][0]["median_average_view_percentage"],65.0)
   self.assertEqual(result["videos"][0]["average_view_percentage"],50.0)
  def test_snapshot_difference_and_recorded_finance(self):
   self.video("j1","Brain Glitch","US","Sleep","vid1")
