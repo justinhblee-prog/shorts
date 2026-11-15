@@ -1492,3 +1492,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions PR merge-result run [43720002960](https://github.com/justinhblee-prog/shorts/actions/runs/43720002960) passed **499 tests**, with **107 unique IDs / 91 literal selectors**. Python compilation, Compose YAML parsing, frontend validation and `scripts/validate.sh` completed successfully.
 - This limit applies to provider JSON response bodies, not rendered media artifacts; media downloads retain their separate byte limits and streaming validation.
 - No external provider request, AI generation, OAuth, platform upload or monetization check is performed by these tests.
+
+
+## BUILD-00079 — bounded TikTok API response handling
+
+- Capped TikTok API response reads at 2 MiB plus one detection byte in the default HTTP transport, including the small JSON response returned by binary media-upload operations.
+- Enforced the same byte cap and binary-type validation at the shared _call boundary so injected/custom transports cannot bypass it.
+- Validated HTTP status values before comparisons or response parsing.
+- Restricted reflected TikTok error codes to short, safe identifier characters; arbitrary upstream text is not copied into durable error messages.
+- Added regression tests for bounded reads, oversized custom-transport responses and unsafe error-code redaction.
+- CI validation is pending for the new branch head. This hardening does not change the SELF_ONLY publishing boundary or enable public posting.

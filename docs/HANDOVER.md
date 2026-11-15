@@ -878,3 +878,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - All JSON provider adapters now cap response bodies at 2 MiB before parsing. The HTTP transport reads only limit + 1 bytes; the adapter also checks custom transport output.
 - Oversized and non-binary responses fail closed without echoing response content. Media artifact downloads remain under the separate media staging limit.
 - Added two regression tests. GitHub Actions PR run [43720002960](https://github.com/justinhblee-prog/shorts/actions/runs/43720002960) passed **499 tests**, with 107 unique HTML IDs / 91 JS selectors.
+
+
+### TikTok API response bounds — BUILD-00079
+- TikTok API responses are limited to 2 MiB at both the HTTP-read and shared transport boundaries. Oversized responses fail closed before JSON parsing.
+- Error codes are reflected only when they match a short safe identifier format; arbitrary provider text is replaced with a generic request failure.
+- Regression tests cover bounded reads, custom transport output and error-code redaction. CI for this branch is pending.
