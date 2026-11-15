@@ -10,6 +10,14 @@ from policy_engine import evaluate_content_policy
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError, _NoRedirectHandler
 
 
+class FakeMediaInspector:
+    def __init__(self, duration_seconds=30):
+        self.duration_seconds = duration_seconds
+
+    def inspect(self, media_path):
+        return {"status": "inspected", "duration_seconds": self.duration_seconds}
+
+
 class TikTokTransport:
     def __init__(self, responses):
         self.responses = list(responses)
@@ -51,16 +59,32 @@ class TikTokPublishingTests(unittest.TestCase):
         Path(self.media).write_bytes(b"test-video-bytes")
         os.environ["NEXUS_MEDIA_DIR"] = self.tmp.name
         self.transport = TikTokTransport([
-            (200, {"data": {"privacy_level_options": ["SELF_ONLY"]},
+            (200, {"data": {"privacy_level_options": ["SELF_ONLY"], "max_video_post_duration_sec": 600},
                    "error": {"code": "ok"}}),
             (200, {"data": {"publish_id": "publish-123",
                             "upload_url": "https://upload.us.tiktokapis.com/video/?token=x"},
                    "error": {"code": "ok"}}),
         ])
-        self.publisher = TikTokPublisher(self.store, "test-token", self.transport)
+        self.publisher = TikTokPublisher(self.store, "test-token", self.transport, media_inspector=FakeMediaInspector())
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_video_exceeding_creator_duration_limit_is_blocked_before_init(self):
+        self.transport.responses[0] = (200, {
+            "data": {
+                "privacy_level_options": ["SELF_ONLY"],
+                "max_video_post_duration_sec": 20,
+            },
+            "error": {"code": "ok"},
+        })
+        with self.assertRaisesRegex(TikTokPublishError, "exceeds this creator's TikTok limit"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True,
+            )
+        self.assertEqual(len(self.transport.calls), 1)
+        self.assertEqual(self.store.get("job-1")["status"], "failed")
 
     def test_api_error_string_is_reported_without_attribute_error(self):
         transport = TikTokTransport([(200, {"error": "access_denied"})])
