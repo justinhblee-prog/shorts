@@ -51,6 +51,9 @@ class MediaStager:
             connection.request("GET", path, headers={"Host": host, "Accept": "video/mp4,application/octet-stream"})
             response = connection.getresponse()
             headers = {k.lower(): v for k, v in response.getheaders()}
+            if response.status != 200:
+                connection.close()
+                return response.status, headers, []
             def chunks():
                 try:
                     while True:
