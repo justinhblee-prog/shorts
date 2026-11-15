@@ -58,6 +58,8 @@ class SchedulerTests(unittest.TestCase):
         now = datetime.now(timezone.utc)
         item = self.schedule(now - timedelta(minutes=5))
         class FailingQueue:
+            def is_paused(self):
+                return False
             def enqueue(self, *args, **kwargs):
                 raise RuntimeError("temporary queue outage")
         first = self.schedules.dispatch_due(FailingQueue(), now=now)
