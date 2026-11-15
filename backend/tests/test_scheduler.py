@@ -45,6 +45,18 @@ class SchedulerTests(unittest.TestCase):
     args[1],90,now),[(stores[0],"scheduler-a"),(stores[1],"scheduler-b")]))
   self.assertEqual(sum(token is not None for token in tokens),1)
 
+ def test_expired_scheduler_lease_reacquisition_by_same_owner_rotates_token(self):
+  now=datetime(2026,11,15,tzinfo=timezone.utc)
+  old=self.s.acquire_scheduler_lease("scheduler-same",15,now)
+  live=self.s.acquire_scheduler_lease("scheduler-same",15,now+timedelta(seconds=5))
+  self.assertEqual(live,old)
+  new=self.s.acquire_scheduler_lease("scheduler-same",30,now+timedelta(seconds=16))
+  self.assertNotEqual(new,old)
+  self.assertFalse(self.s.renew_scheduler_lease("scheduler-same",old,30,now+timedelta(seconds=16)))
+  self.assertFalse(self.s.release_scheduler_lease("scheduler-same",old))
+  self.assertFalse(self.s.scheduler_lease_is_valid("scheduler-same",old,now+timedelta(seconds=16)))
+  self.assertTrue(self.s.scheduler_lease_is_valid("scheduler-same",new,now+timedelta(seconds=16)))
+
  def test_expired_scheduler_lease_can_be_taken_over_and_fences_old_owner(self):
   now=datetime(2026,11,15,tzinfo=timezone.utc)
   old=self.s.acquire_scheduler_lease("scheduler-a",15,now)
