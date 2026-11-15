@@ -67,6 +67,8 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             warnings.append("spoken_audio_differs_from_generated_script")
         elif speech_status == "insufficient_text":
             warnings.append("speech_transcript_too_short_to_compare")
+        elif speech_status == "too_large_to_compare":
+            warnings.append("speech_transcript_exceeds_comparison_safety_limit")
         checks.append({
             "name": "speech_script_alignment",
             "status": speech_status or "unknown",
@@ -94,7 +96,8 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             warnings.append("subtitle_text_differs_from_speech_or_script")
         elif caption_status == "not_present":
             warnings.append("text_subtitle_stream_not_present_or_burned_in")
-        elif caption_status in ("failed", "truncated", "empty", "insufficient_text"):
+        elif caption_status in ("failed", "truncated", "empty", "insufficient_text",
+                                "too_large_to_compare"):
             warnings.append("subtitle_text_could_not_be_verified")
         checks.append({
             "name": "caption_alignment",
