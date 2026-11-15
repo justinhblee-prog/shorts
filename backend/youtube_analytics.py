@@ -215,6 +215,42 @@ class YouTubeAnalyticsStore:
                   normalized["subscribersGained"] if "subscribersGained" in normalized else normalized["subscribers_gained"],
                   SOURCE, now))
 
+    def due_video_ids(self, upload_store, limit=50, min_age_seconds=21600):
+        limit = max(1, min(int(limit), 50))
+        now = datetime.now(timezone.utc)
+        uploads = upload_store.list_recent(200)
+        eligible = [x for x in uploads
+                    if x.get("status") == "uploaded" and x.get("video_id")]
+        # Oldest uploads are considered first; recently refreshed videos are skipped.
+        eligible.sort(key=lambda x: (x.get("uploaded_at") or x.get("updated_at") or "",
+                                     x.get("video_id") or ""))
+        ids = list(dict.fromkeys(x["video_id"] for x in eligible))
+        if not ids:
+            return []
+        placeholders = ",".join("?" for _ in ids)
+        with self.db() as connection:
+            rows = connection.execute(f"""
+              SELECT video_id,MAX(collected_at) AS collected_at
+              FROM youtube_analytics_snapshots WHERE video_id IN ({placeholders})
+              GROUP BY video_id
+            """, ids).fetchall()
+        latest = {row["video_id"]: row["collected_at"] for row in rows}
+        due = []
+        for video_id in ids:
+            collected_at = latest.get(video_id)
+            if not collected_at:
+                due.append(video_id)
+            else:
+                try:
+                    age = (now - datetime.fromisoformat(collected_at)).total_seconds()
+                except (TypeError, ValueError):
+                    age = float("inf")
+                if age >= max(0, int(min_age_seconds)):
+                    due.append(video_id)
+            if len(due) >= limit:
+                break
+        return due
+
     def recent_metrics(self, upload_store, limit=100):
         limit = max(1, min(int(limit), 200))
         uploads = upload_store.list_recent(200)
@@ -278,12 +314,10 @@ class YouTubeAnalyticsCollector:
             raise YouTubeAnalyticsError("YouTube Analytics returned duplicate video rows")
         return parsed
 
-    def refresh(self, limit=50, days=28):
-        uploads = self.upload_store.list_recent(200)
-        video_ids = list(dict.fromkeys(
-            x["video_id"] for x in uploads
-            if x.get("status") == "uploaded" and x.get("video_id")
-        ))[:max(1, min(int(limit), 50))]
+    def refresh(self, limit=50, days=28, min_age_seconds=21600):
+        video_ids = self.store.due_video_ids(
+            self.upload_store, limit=limit, min_age_seconds=min_age_seconds
+        )
         if not video_ids:
             return {"requested": 0, "collected": 0, "missing": [],
                     "source": SOURCE, "start_date": None, "end_date": None}
