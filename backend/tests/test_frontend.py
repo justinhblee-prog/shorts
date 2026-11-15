@@ -112,6 +112,14 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("window.location.assign(result.authorization_url)", app_js)
         self.assertIn('oauthResult==="connected"', app_js)
 
+    def test_tiktok_oauth_disconnect_control_is_wired(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="disconnectTikTok"', html)
+        self.assertIn("/api/tiktok/oauth/disconnect", app_js)
+        self.assertIn("TikTok 앱 권한을 철회", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
