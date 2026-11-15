@@ -379,6 +379,22 @@
     ).join(""):'<div class="empty-state">등록된 실험 초안이 없습니다.</div>';
   }
 
+  async function loadRecommendationExperimentIntegrity(){
+    const target=$("recommendationExperimentIntegrity");
+    target.innerHTML='<div class="empty-state">증거 무결성 검사 중…</div>';
+    const report=await api("/api/recommendations/experiments/integrity");
+    const items=report.items||[];
+    const status=report.status==="integrity_warning"?"무결성 경고":"Shadow 전용 · 실제 실험 증거 없음";
+    target.innerHTML=
+      '<div class="data-item"><b>실험 증거 무결성 · '+esc(status)+'</b>'+
+      '<small>실험 '+Number(report.experiment_count||0)+'개 · Shadow 배정 '+Number(report.shadow_assignment_count||0)+'건 · 화면 표시 확인 '+Number(report.rendered_viewport_acknowledgement_count||0)+'건</small>'+
+      '<small>검증된 무작위 실제 노출 '+Number(report.verified_randomized_served_exposure_count||0)+'건 · 실험군 연결 '+(report.assignment_exposure_join_available?"가능":"불가")+' · 성과 귀속 '+(report.outcome_attribution_to_experiment_arm_available?"가능":"불가")+'</small>'+
+      '<small>외래 키 문제 '+Number(report.foreign_key_issue_count||0)+' · 중복 지문 그룹 '+Number(report.duplicate_fingerprint_group_count||0)+' · 경고 실험 '+Number(report.integrity_warning_experiment_count||0)+'</small>'+
+      '<small>실제 배정 '+(report.live_assignment_enabled?"활성":"비활성")+' · 추천 점수 조정 '+Number(report.ranking_score_adjustment||0)+' · 배포 권한 '+(report.deployment_authorized?"허용":"없음")+'</small>'+
+      (items.map(item=>'<small>'+esc(item.name)+' · '+esc(item.integrity_status)+' · 배정 '+Number(item.assignment_count||0)+' · 중복검사 '+(item.participant_deduplication_ok?"정상":"경고")+'</small>').join(""))+
+      '<div class="notice">'+(report.limitations||[]).map(esc).join(" · ")+'</div></div>';
+  }
+
   async function loadRecommendationExperimentReport(experimentId){
     const report=await api("/api/recommendations/experiments/"+encodeURIComponent(experimentId)+"/report");
     const counts=report.assignment_counts||{};
@@ -534,6 +550,7 @@
     finally{button.disabled=false;}
   });
   $("loadRecommendationExperiments").addEventListener("click",()=>loadRecommendationExperiments().catch(e=>toast(e.message)));
+  $("loadRecommendationExperimentIntegrity").addEventListener("click",()=>loadRecommendationExperimentIntegrity().catch(e=>toast(e.message)));
   $("recommendationExperimentForm").addEventListener("submit",async event=>{
     event.preventDefault();
     if(!requireToken())return;
