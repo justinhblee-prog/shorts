@@ -17,10 +17,14 @@ _T95 = ((1, 12.706), (2, 4.303), (3, 3.182), (4, 2.776),
 
 
 def _critical_95(df):
+    # Round degrees of freedom DOWN to the nearest tabulated value. Using the
+    # next higher row would understate the critical value and narrow the CI.
+    selected = 1.96
     for boundary, value in _T95:
-        if df <= boundary:
-            return value
-    return 1.96
+        if boundary > df:
+            break
+        selected = value
+    return selected
 
 
 def _clean_sample(values, label):
@@ -49,6 +53,8 @@ def compare_experiment_arms(control, treatment, *, randomized_assignment,
     The interval is descriptive/inferential under independent observations and
     approximate Welch assumptions; it does not correct multiple testing.
     """
+    if type(randomized_assignment) is not bool or type(verified_exposure) is not bool:
+        raise ValueError("verification gates must be explicit booleans")
     control_values = _clean_sample(control, "control")
     treatment_values = _clean_sample(treatment, "treatment")
     if isinstance(minimum_per_arm, bool) or not isinstance(minimum_per_arm, int):
