@@ -56,6 +56,18 @@ class YouTubeUploadStore:
 
     def begin(self,job_id,title,description):
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            run=c.execute(
+                "SELECT status FROM production_runs WHERE job_id=?",(job_id,)
+            ).fetchone()
+            latest=c.execute(
+                "SELECT decision FROM review_decisions WHERE job_id=? ORDER BY id DESC LIMIT 1",
+                (job_id,)
+            ).fetchone()
+            if run is None or run["status"]!="approved" or latest is None or latest["decision"]!="approved":
+                raise YouTubeUploadError(
+                    "The production job must remain approved by its latest human review decision"
+                )
             row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
             if row and row["status"]=="uploaded":
                 return dict(row)
