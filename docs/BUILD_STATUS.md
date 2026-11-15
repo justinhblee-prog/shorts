@@ -747,3 +747,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Topic grouping is lexical and exact-signature based, not semantic clustering. The method and its limitations are returned by the API.
 - Added the cohort section to the performance insights workspace.
 - Cohort metrics remain display-only with `ranking_score_adjustment=0`. They must not reorder recommendations until a held-out evaluation demonstrates stable improvement against a baseline.
+
+- Cohort identity also includes brand, preventing one channel/brand's historical performance from contaminating another brand's comparison.
