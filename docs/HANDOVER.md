@@ -154,7 +154,7 @@ Root files: `compose.yaml`, `.env.example`; image: `backend/Dockerfile`; validat
 1. Copy `.env.example` to `.env` and replace the review token and provider/OAuth credentials.
 2. Run `docker compose build` and `docker compose up -d`.
 3. Check `http://localhost:8502/api/health`.
-4. Run `./scripts/validate.sh` in an environment with the backend dependencies installed.
+4. Run `sh scripts/validate.sh` in an environment with the backend dependencies installed.
 
 Compose starts API, one worker and one scheduler sharing a persistent SQLite volume. Keep one scheduler instance. This is a single-host validation baseline, not production-hardened HA. Configure HTTPS reverse proxy, backups/restore, log monitoring, OAuth refresh-token issuance and real provider endpoints before external launch. Never commit `.env`.
 
@@ -163,7 +163,7 @@ Compose starts API, one worker and one scheduler sharing a persistent SQLite vol
 BUILD-00001 through BUILD-00012 have source baselines committed to `main`. This does not establish a tested or revenue-producing production system.
 
 Before live launch:
-1. Resolve GitHub Actions runner allocation or execute `./scripts/validate.sh` in a working Python 3.11+ environment.
+1. Resolve GitHub Actions runner allocation or execute `sh scripts/validate.sh` in a working Python 3.11+ environment.
 2. Configure real script/TTS/render provider endpoints and validate actual generated artifacts.
 3. Add secure download/staging of remote rendered media; YouTube upload currently requires a server-local file path.
 4. Issue YouTube OAuth refresh credentials with upload/read scopes and validate a private test upload.
