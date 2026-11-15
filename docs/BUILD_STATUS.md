@@ -137,15 +137,15 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 ## Remaining blockers before a real revenue-producing launch
 
-1. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
-2. **Media handoff:** current renderer output is a remote artifact URL, while YouTube upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
-4. **YouTube OAuth:** issue and configure a refresh token with `youtube.upload` and `youtube.readonly`; validate channel identity, quota, private upload and processing on a test channel.
-5. **Financial integrations:** connect YouTube Analytics, affiliate networks and sponsor billing to the source-backed ledger. Reconcile actual currency, refunds, taxes and platform adjustments.
-6. **Security/operations:** replace shared review token with real user identity and roles; add HTTPS, secret rotation, audit export, backups/restore, monitoring, rate limits and incident recovery.
-7. **Scale:** migrate SQLite to PostgreSQL and add distributed worker/scheduler coordination before multi-instance deployment.
-8. **Commercial validation:** test one controlled content cohort across the ten brands; compare verified net revenue and costs before increasing production volume. No actual revenue or monetization is established yet.
+1. **Provider credentials and contracts:** configure real script, TTS and renderer providers; validate each vendor's request/response contract, licensing, cost, latency, reliability and output quality.
+2. **Live media handoff validation:** secure renderer artifact download, exact-host allowlisting, byte limits, MP4 validation, atomic staging and ffprobe quality checks are implemented. Still configure the real renderer CDN hostnames and verify real generated files, playback, retention and vendor-side cleanup. Malware scanning is not included.
+3. **YouTube OAuth and channel validation:** issue and configure a refresh token with `youtube.upload`, `youtube.readonly` and `yt-analytics.readonly`; validate channel identity, quota, private test upload, processing and real analytics retrieval.
+4. **Financial integrations:** reconcile YouTube Analytics, affiliate networks and sponsor billing against the source-backed ledger, including actual currency, refunds, taxes, fees and platform adjustments.
+5. **Security and operations:** replace the shared review token with real user identity and roles; configure public HTTPS, secret rotation, audit export, monitoring and alerting. SQLite backup, integrity verification and non-destructive restore tooling are implemented, but encrypted off-host storage and restore drills remain operator tasks. API mutation rate limiting is implemented and must be tuned for the deployment.
+6. **Scale:** migrate SQLite to PostgreSQL and validate distributed worker/scheduler coordination before multi-instance deployment.
+7. **Commercial validation:** test one controlled content cohort across the ten brands; compare verified net revenue and costs before increasing production volume. No actual revenue or monetization is established yet.
 
-BUILD-00001 through BUILD-00023 describe implemented source milestones, but are not equivalent to a tested production system or a completed revenue-generating business. This is **not** equivalent to a tested production system or a completed revenue-generating business. External credentials, real provider execution, YouTube channel authorization and actual financial data remain necessary.
+Automated CI validates source behavior, not a production deployment. Real provider execution, OAuth consent, real-account publishing, production analytics, off-host backup/restore and actual financial reconciliation remain unverified. This repository is not yet a verified production system or a proven revenue-generating business.
 
 ## Versioning
 
