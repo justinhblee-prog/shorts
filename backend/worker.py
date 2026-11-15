@@ -109,7 +109,7 @@ def run_once():
         try:
             # Pause first so the current running job and production record are
             # terminalized atomically before its lease can be released.
-            queue.pause(reason, job["id"])
+            queue.pause(reason, job["id"], worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
         except Exception:
             try:
                 queue.fail(job["id"], WORKER_ID, job["lease_token"],
@@ -132,7 +132,7 @@ def run_once():
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
-            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
+            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"], worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
         except Exception:
             pass
         print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}")
@@ -144,7 +144,7 @@ def run_once():
         except LeaseConflict:
             pass
         try:
-            queue.pause(f"lease/production conflict: {exc}", job["id"])
+            queue.pause(f"lease/production conflict: {exc}", job["id"], worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
         except Exception:
             pass
         print(f"lease_lost job={job['id']}; worker_paused")
@@ -156,7 +156,7 @@ def run_once():
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
-            queue.pause(f"fatal worker error: {type(exc).__name__}: {exc}", job["id"])
+            queue.pause(f"fatal worker error: {type(exc).__name__}: {exc}", job["id"], worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
         except Exception:
             pass
         print(f"worker_failure job={job['id']} error={type(exc).__name__}")
