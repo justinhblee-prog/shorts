@@ -57,6 +57,7 @@ class WorkerFailClosedTests(unittest.TestCase):
         ):
             self.assertTrue(worker.run_once())
         fail.assert_called_once()
+        self.assertIs(fail.call_args.args[-1], False)
         pause.assert_called_once()
         claim.assert_called_once()
         self.assertTrue(worker.stopping.is_set())
