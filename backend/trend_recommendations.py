@@ -112,9 +112,22 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
             continue
         candidates.sort(key=lambda x: (-x["fit_score"], x["brand"] or ""))
         best = candidates[0] if candidates else None
+        trend_region = str(trend.get("region") or "").upper()
+        selected_channels = [
+            channel for channel in competitor_channels
+            if not trend_region or trend_region == "GLOBAL"
+            or str(channel.get("country") or "").upper() == trend_region
+        ]
+        if competitor_store:
+            for channel in selected_channels:
+                channel_id = channel.get("channel_id")
+                if channel_id and channel_id not in videos_by_channel:
+                    videos_by_channel[channel_id] = competitor_store.list_videos(
+                        channel_id, limit=30
+                    )
         competitor_context = _competitor_context(
             title + " " + str(trend.get("summary") or ""), trend.get("region"),
-            competitor_channels, videos_by_channel
+            selected_channels, videos_by_channel
         )
         evidence_gaps = ["search_volume_unavailable", "shorts_demand_unverified",
                          "revenue_and_cost_not_estimated"]
