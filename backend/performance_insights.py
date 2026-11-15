@@ -343,6 +343,61 @@ class PerformanceAnalyzer:
             )
         )
 
+        # Actionable suggestions remain descriptive hypotheses. Compare only
+        # cohorts sharing brand, region, publication-age bucket and format.
+        comparison_groups = {}
+        for cohort in cohorts:
+            key = (cohort["brand"], cohort["region"],
+                   cohort["publication_age_bucket"], cohort["format"])
+            comparison_groups.setdefault(key, []).append(cohort)
+        cohort_insights = []
+        for key, comparable in comparison_groups.items():
+            eligible = [item for item in comparable
+                        if item["sample_count"] >= 3
+                        and item["evidence_status"] == "observed"]
+            if len(eligible) < 2:
+                for item in comparable:
+                    cohort_insights.append({
+                        "brand": item["brand"], "region": item["region"],
+                        "topic_signature": item["topic_signature"],
+                        "sample_count": item["sample_count"],
+                        "status": "insufficient_comparable_cohorts",
+                        "suggested_action": "Keep collecting comparable videos; do not infer a winning topic from sparse data.",
+                        "ranking_score_adjustment": 0,
+                    })
+                continue
+            ordered = sorted(eligible, key=lambda item: item["median_views_per_hour"])
+            median_rates = [item["median_views_per_hour"] for item in eligible]
+            overall_median = statistics.median(median_rates)
+            for item in comparable:
+                if item not in eligible:
+                    status = "limited_evidence"
+                    action = "Collect at least three measured videos in this cohort before comparison."
+                elif item is ordered[-1] and item["median_views_per_hour"] > overall_median:
+                    status = "observed_candidate"
+                    action = "Run a controlled follow-up using this topic signature; preserve the current format and audience region."
+                elif item is ordered[0] and item["median_views_per_hour"] < overall_median:
+                    status = "review_candidate"
+                    action = "Review the opening hook and topic packaging; test one controlled variation before changing the format."
+                else:
+                    status = "no_clear_difference"
+                    action = "Continue collecting comparable samples; no change is justified yet."
+                cohort_insights.append({
+                    "brand": item["brand"], "region": item["region"],
+                    "topic_signature": item["topic_signature"],
+                    "duration_bucket": item["duration_bucket"],
+                    "publication_age_bucket": item["publication_age_bucket"],
+                    "format": item["format"], "sample_count": item["sample_count"],
+                    "median_views_per_hour": item["median_views_per_hour"],
+                    "comparison_cohort_count": len(eligible),
+                    "comparison_median_views_per_hour": round(overall_median, 2),
+                    "status": status, "suggested_action": action,
+                    "ranking_score_adjustment": 0,
+                })
+        cohort_insights.sort(key=lambda item: (
+            item["brand"], item["region"], item["topic_signature"]
+        ))
+
         financial = {}
         for row in ledger:
             key = (row["brand"], row["currency"])
@@ -367,7 +422,9 @@ class PerformanceAnalyzer:
             "regions": list(by_region.values()),
             "videos": video_results,
             "cohorts": cohorts,
-            "cohort_method": "Brand + region + exact normalized topic-token signature + publication-age-at-last-snapshot + duration bucket + format; descriptive only.",
+            "cohort_insights": cohort_insights,
+            "cohort_insight_policy": "Descriptive within-brand/region/publication-age/format comparisons only; minimum three measured videos per cohort; no ranking score adjustment or automated action.",
+            "cohort_method: "Brand + region + exact normalized topic-token signature + publication-age-at-last-snapshot + duration bucket + format; descriptive only.",
             "financial": list(financial.values()),
             "limitations": [
                 "View deltas are differences between stored snapshots, not real-time platform analytics.",
