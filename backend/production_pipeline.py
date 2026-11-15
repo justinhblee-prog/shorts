@@ -301,19 +301,29 @@ class ProductionPipeline:
             raise ValueError("topic must be 500 characters or fewer")
         return {key: brief[key].strip() for key in required}
 
-    def execute(self, job_id, brief, worker_id=None, lease_token=None):
+    @staticmethod
+    def _check_stop(stop_event):
+        if stop_event is not None and stop_event.is_set():
+            raise ProductionLeaseConflict(
+                "Worker heartbeat/stop signal was lost; no further provider calls are allowed"
+            )
+
+    def execute(self, job_id, brief, worker_id=None, lease_token=None, stop_event=None):
         brief = self.validate_brief(brief)
         if (worker_id is None) != (lease_token is None):
             raise ValueError("worker_id and lease_token must be supplied together")
         lease = {"worker_id": worker_id, "lease_token": lease_token}
         try:
+            self._check_stop(stop_event)
             self.store.stage(job_id, "script", **lease)
+            self._check_stop(stop_event)
             script = self.script.post("script", {
                 "task": "create_short_video_script",
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "topic": brief["topic"],
                 "format": "vertical_short", "require_fact_check": True
             })
+            self._check_stop(stop_event)
             script_text = script.get("script")
             if not isinstance(script_text, str) or not script_text.strip():
                 raise ProviderError("script", "Script provider returned no script text", False)
@@ -321,11 +331,14 @@ class ProductionPipeline:
                                 {"script": script_text, "provider": script.get("provider")},
                                 **lease)
 
+            self._check_stop(stop_event)
             self.store.stage(job_id, "voice_generation", **lease)
+            self._check_stop(stop_event)
             voice = self.voice.post("voice_generation", {
                 "script": script_text, "language": brief["language"],
                 "brand": brief["brand"], "format": "narration"
             })
+            self._check_stop(stop_event)
             audio_url = voice.get("audio_url")
             if not isinstance(audio_url, str) or not audio_url.startswith(("https://", "http://")):
                 raise ProviderError("voice_generation", "Voice provider returned no valid audio_url", False)
@@ -333,13 +346,16 @@ class ProductionPipeline:
                                 {k: v for k, v in voice.items() if k != "audio_url"},
                                 **lease)
 
+            self._check_stop(stop_event)
             self.store.stage(job_id, "rendering", **lease)
+            self._check_stop(stop_event)
             rendered = self.render.post("rendering", {
                 "script": script_text, "audio_url": audio_url,
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "aspect_ratio": "9:16",
                 "subtitles": True
             })
+            self._check_stop(stop_event)
             video_url = rendered.get("video_url")
             if not isinstance(video_url, str) or not video_url.startswith(("https://", "http://")):
                 raise ProviderError("rendering", "Renderer returned no valid video_url", False)
