@@ -308,3 +308,10 @@ The upload path now avoids a duplicate-video hazard when a resumable upload has 
 - Added regression coverage for a late upload response after operator reconciliation and for attempts to finalize a missing upload record.
 - If the remote response arrives after reconciliation has already declared no upload, the local record remains failed and the late result is surfaced as an error for manual investigation; operators must check YouTube Studio before any new upload attempt.
 - Tests are committed but remain unexecuted until a GitHub Actions runner or local Python environment is available.
+
+
+## 2026-11-15 — Review/upload state-machine audit
+
+- Fixed the YouTube upload race regression tests to use the actual YouTubeUploadStore fixture (self.uploads), eliminating a test-time AttributeError that static review had missed.
+- Hardened ReviewStore.decide() to verify the guarded production status update via its statement-level rowcount, not SQLite connection-wide cumulative total_changes.
+- No runtime test result is claimed; GitHub Actions runner allocation and local Python execution remain unavailable.
