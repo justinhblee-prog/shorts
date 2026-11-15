@@ -47,6 +47,26 @@ class TimeoutService:
     def videos(self): return self._videos
 
 
+class BatchVideos:
+    def __init__(self):
+        self.calls=[]
+    def list(self,**kwargs):
+        self.calls.append(kwargs)
+        ids=kwargs["id"].split(",")
+        return FakeRequest({"items":[
+            {"id":video_id,"statistics":{"viewCount":"250","likeCount":"12",
+             "commentCount":"3"},"status":{"privacyStatus":"private"}}
+            for video_id in ids
+        ]})
+
+
+class BatchService:
+    def __init__(self):
+        self._videos=BatchVideos()
+    def videos(self):
+        return self._videos
+
+
 class YouTubePublishingTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
@@ -202,6 +222,37 @@ class YouTubePublishingTests(unittest.TestCase):
                 "job-1",self.media,self.review,"Sleep short"
             )
         self.assertIsNone(self.uploads.get("job-1"))
+
+    def test_metrics_collector_lease_is_single_owner_and_releasable(self):
+        second_store=YouTubeUploadStore(self.db)
+        self.assertEqual(self.uploads.acquire_metrics_collector_lease("collector-a"),"collector-a")
+        self.assertIsNone(second_store.acquire_metrics_collector_lease("collector-b"))
+        self.assertTrue(self.uploads.release_metrics_collector_lease("collector-a"))
+        self.assertEqual(second_store.acquire_metrics_collector_lease("collector-b"),"collector-b")
+
+    def test_due_metrics_batch_refreshes_multiple_videos_in_one_api_request(self):
+        self.prod.create("job-2",{"brand":"Future Leak","region":"US",
+                                  "language":"English","topic":"Robotics"})
+        self.prod.stage("job-2","rendered","review_pending")
+        self.review.decide("job-2","approved","reviewer-1")
+        for job_id,video_id in (("job-1","yt-one"),("job-2","yt-two")):
+            attempt=self.uploads.begin(job_id,"Title","")
+            self.uploads.finish(job_id,video_id,attempt["attempt_id"])
+        batch_service=BatchService()
+        publisher=YouTubePublisher(self.uploads,batch_service)
+        result=publisher.refresh_due_metrics(limit=50,min_age_seconds=300)
+        self.assertEqual(result["requested"],2)
+        self.assertEqual(result["collected"],2)
+        self.assertEqual(len(batch_service._videos.calls),1)
+        self.assertEqual(set(batch_service._videos.calls[0]["id"].split(",")),{"yt-one","yt-two"})
+        self.assertEqual(self.uploads.get("job-1")["snapshots"][0]["view_count"],250)
+        self.assertEqual(self.uploads.get("job-2")["snapshots"][0]["like_count"],12)
+
+    def test_recently_collected_video_is_not_due_again(self):
+        attempt=self.uploads.begin("job-1","Title","")
+        self.uploads.finish("job-1","yt-recent",attempt["attempt_id"])
+        self.uploads.snapshot("yt-recent",{"viewCount":"100"})
+        self.assertEqual(self.uploads.due_metric_video_ids(limit=50,min_age_seconds=21600),[])
 
     def test_upload_is_always_private_and_persists_source_stats(self):
         result=self.publisher.upload_approved("job-1",self.media,self.review,
