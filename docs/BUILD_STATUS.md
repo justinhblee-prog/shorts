@@ -332,3 +332,10 @@ Latest test attempt: run 123 (https://github.com/justinhblee-prog/shorts/actions
 - Added regression coverage for a late upload response after operator reconciliation and for attempts to finalize a missing upload record.
 - If the remote response arrives after reconciliation has already declared no upload, the local record remains failed and the late result is surfaced as an error for manual investigation; operators must check YouTube Studio before any new upload attempt.
 - Tests are committed but remain unexecuted until a GitHub Actions runner or local Python environment is available.
+
+
+## Review/upload state-machine audit — 2026-11-15
+
+- Corrected two YouTube publishing regression tests that referenced a nonexistent self.store fixture; they now use the configured self.uploads store.
+- Review decision persistence now checks the affected production-row update count (rowcount) rather than cumulative connection changes, so a decision is accepted only when its guarded state transition actually updates exactly one row.
+- These are source-level corrections. Tests have not been executed because no functioning CI runner or local Python runtime is available in this session.
