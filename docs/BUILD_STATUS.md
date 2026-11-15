@@ -1263,3 +1263,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions run [43702654358](https://github.com/justinhblee-prog/shorts/actions/runs/43702654358) passed **405 tests** at code commit `972395a`; the same result was revalidated after deterministic ordering of same-timestamp exposure runs.
 - No randomized exposure assignment, counterfactual measurement, causal lift estimate, or automatic score adjustment is enabled. Existing selected-only outcome capture remains selection-biased; actual platform reach is not independently verified.
 - Ranking score adjustment remains disabled; no queue, production, approval, retry or publishing behavior changes.
+
+
+## BUILD-00057 — controlled recommendation experiment foundation (shadow-only)
+- Added operator-authenticated experiment definitions with explicit control/treatment labels and bounded treatment allocation (10–90%).
+- Added stable, salted participant assignment using a one-way participant fingerprint; raw participant keys are not persisted. Assignment records are immutable and idempotent per experiment/participant.
+- Added authenticated experiment list, shadow-assignment and report endpoints. Reports separate shadow assignment counts from measured exposures and leave effect estimates/confidence intervals unset.
+- Safety boundary: experiments remain draft; assignment is shadow-only and does not serve a different recommendation, alter production ranking, or change publishing. Live traffic allocation is not implemented or enabled. Ranking score adjustment remains zero.
+- Added unit/API regression coverage for allocation validation, deterministic assignment, idempotency, participant-key minimization, report limitations and route authentication.
+- CI validation pending. Shadow assignments are infrastructure checks, not actual randomized exposure or causal evidence.
