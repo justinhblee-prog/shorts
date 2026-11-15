@@ -2,12 +2,15 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
+from io import BytesIO
+from urllib.error import HTTPError
 from pathlib import Path
 
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore
 from policy_engine import evaluate_content_policy
-from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError, CHUNK_SIZE, _NoRedirectHandler
+from tiktok_publishing import (TikTokPublishStore, TikTokPublisher, TikTokPublishError, CHUNK_SIZE, _NoRedirectHandler, MAX_TIKTOK_RESPONSE_BYTES)
 
 
 class FakeMediaInspector:
@@ -270,6 +273,36 @@ class TikTokPublishingTests(unittest.TestCase):
         publisher = TikTokPublisher(self.store, "test-token", transport)
         with self.assertRaisesRegex(TikTokPublishError, "TikTok HTTP 403: access_denied"):
             publisher._call("https://open.tiktokapis.com/v2/test/")
+
+    def test_tiktok_http_response_read_is_bounded(self):
+        response = mock.MagicMock()
+        response.status = 200
+        response.read.return_value = b"x" * (MAX_TIKTOK_RESPONSE_BYTES + 1)
+        response.__enter__.return_value = response
+        opener = mock.Mock()
+        opener.open.return_value = response
+        with mock.patch("urllib.request.build_opener", return_value=opener):
+            with self.assertRaisesRegex(TikTokPublishError, "2 MiB"):
+                TikTokPublisher._request(
+                    "https://open.tiktokapis.com/v2/test/", {}, b"{}", 1
+                )
+        response.read.assert_called_once_with(MAX_TIKTOK_RESPONSE_BYTES + 1)
+
+    def test_custom_tiktok_transport_response_is_bounded(self):
+        publisher = TikTokPublisher(
+            self.store, "test-token",
+            lambda *args: (200, b"x" * (MAX_TIKTOK_RESPONSE_BYTES + 1)),
+        )
+        with self.assertRaisesRegex(TikTokPublishError, "2 MiB"):
+            publisher._call("https://open.tiktokapis.com/v2/test/")
+
+    def test_untrusted_tiktok_error_code_is_not_reflected_in_exception(self):
+        secret = "token-" + ("x" * 200)
+        transport = TikTokTransport([(403, {"error": {"code": secret}})])
+        publisher = TikTokPublisher(self.store, "test-token", transport)
+        with self.assertRaisesRegex(TikTokPublishError, "request_failed") as caught:
+            publisher._call("https://open.tiktokapis.com/v2/test/")
+        self.assertNotIn(secret, str(caught.exception))
 
     def test_non_object_api_response_is_rejected_cleanly(self):
         transport = TikTokTransport([(200, ["unexpected", "array"])])

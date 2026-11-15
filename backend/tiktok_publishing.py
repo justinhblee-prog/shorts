@@ -6,6 +6,7 @@ It never attempts public posting or automatically retries uncertain uploads.
 """
 import json
 import os
+import re
 import sqlite3
 import threading
 import urllib.error
@@ -25,6 +26,7 @@ from media_inspection import MediaInspector, MediaInspectionError
 API_ROOT = "https://open.tiktokapis.com"
 CHUNK_SIZE = 64 * 1024 * 1024
 MAX_VIDEO_BYTES = 4 * 1024 * 1024 * 1024
+MAX_TIKTOK_RESPONSE_BYTES = 2 * 1024 * 1024
 
 
 class TikTokPublishError(RuntimeError):
@@ -422,8 +424,13 @@ class TikTokPublisher:
         try:
             opener = urllib.request.build_opener(_NoRedirectHandler())
             with opener.open(req, timeout=timeout) as response:
-                return response.status, response.read()
+                raw = response.read(MAX_TIKTOK_RESPONSE_BYTES + 1)
+                if len(raw) > MAX_TIKTOK_RESPONSE_BYTES:
+                    raise TikTokPublishError("TikTok response exceeded the 2 MiB limit")
+                return response.status, raw
         except urllib.error.HTTPError as exc:
+            # The caller extracts only a short, validated error code; never retain
+            # arbitrary upstream response text or credentials.
             return exc.code, exc.read(2000)
         except (urllib.error.URLError, TimeoutError) as exc:
             raise TikTokPublishError("TikTok network request failed: " + type(exc).__name__) from exc
@@ -472,6 +479,12 @@ class TikTokPublisher:
         if extra_headers:
             headers.update(extra_headers)
         status, raw = self.transport(url, headers, body, timeout, method)
+        if isinstance(status, bool) or not isinstance(status, int) or not 100 <= status <= 599:
+            raise TikTokPublishError("TikTok returned an invalid HTTP status")
+        if not isinstance(raw, (bytes, bytearray)):
+            raise TikTokPublishError("TikTok response must be binary data")
+        if len(raw) > MAX_TIKTOK_RESPONSE_BYTES:
+            raise TikTokPublishError("TikTok response exceeded the 2 MiB limit")
         try:
             data = json.loads(raw.decode("utf-8")) if not binary else {}
         except (ValueError, UnicodeDecodeError) as exc:
@@ -484,6 +497,9 @@ class TikTokPublisher:
         elif isinstance(error, str):
             error_code = error.strip() or None
         else:
+            error_code = None
+        if (not isinstance(error_code, str)
+                or not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", error_code)):
             error_code = None
         if status < 200 or status >= 300:
             raise TikTokPublishError(

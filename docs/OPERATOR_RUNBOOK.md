@@ -291,3 +291,11 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 ## BUILD-00078 — provider response limit
 
 Provider JSON responses are limited to 2 MiB. If a provider returns an oversized JSON payload, the stage fails closed; inspect the provider contract and return only the fields required by the NEXUS adapter. Do not raise the limit without a documented payload requirement and a corresponding memory/DoS review. This JSON limit does not change the separate rendered-media staging cap.
+
+
+## BUILD-00079 — TikTok API response size and error sanitization
+
+- TikTok API response bodies are capped at 2 MiB. The default transport reads at most limit + 1 bytes; custom/injected transports are checked again before parsing.
+- Invalid HTTP status values and non-binary response bodies fail closed.
+- Upstream error codes are exposed only when they match a short safe identifier format. Arbitrary text is not persisted in job errors.
+- This does not alter media upload chunking, SELF_ONLY privacy, human approval, or publishing consent requirements.
