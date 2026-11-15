@@ -2,7 +2,7 @@ import unittest
 
 from speech_alignment import (
     compare_transcript_to_script, build_speech_alignment_report,
-    build_caption_alignment_report,
+    build_caption_alignment_report, analyze_srt_timing,
 )
 
 
@@ -44,6 +44,29 @@ class SpeechAlignmentTests(unittest.TestCase):
             self.script.lower(),
         )
         self.assertEqual(report["status"], "aligned")
+
+    def test_srt_timing_reports_overlaps_gaps_and_fast_reading_cues(self):
+        srt = (
+            "1\n00:00:00,000 --> 00:00:02,000\n" + ("A" * 50) + "\n\n"
+            "2\n00:00:01,000 --> 00:00:01,300\n" + ("B" * 100) + "\n\n"
+            "3\n00:00:10,000 --> 00:00:20,000\n" + ("C" * 10) + "\n"
+        )
+        report = analyze_srt_timing(srt)
+        self.assertEqual(report["status"], "analyzed")
+        self.assertEqual(report["cue_count"], 3)
+        self.assertEqual(report["overlap_count"], 1)
+        self.assertEqual(report["long_gap_count"], 1)
+        self.assertEqual(report["short_cue_count"], 1)
+        self.assertEqual(report["long_cue_count"], 1)
+        self.assertEqual(report["fast_reading_count"], 2)
+        self.assertIn("subtitle_cues_overlap", report["warnings"])
+        self.assertIn("subtitle_reading_speed_over_20_characters_per_second",
+                      report["warnings"])
+
+    def test_srt_timing_missing_timecodes_is_not_a_pass(self):
+        report = analyze_srt_timing("Caption text with no timecodes.")
+        self.assertEqual(report["status"], "not_available")
+        self.assertEqual(report["cue_count"], 0)
 
     def test_transcript_token_limit_prevents_unbounded_edit_distance(self):
         long_text = "word " * 5001
