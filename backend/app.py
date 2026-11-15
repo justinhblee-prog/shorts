@@ -302,7 +302,31 @@ def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
         item["upload_reconciliation_required"]=bool(
             upload and upload.get("reconciliation_required")
         )
-        if item["upload_status"]!="uploaded":
+        script=next((artifact for artifact in item.get("artifacts",[])
+                     if artifact.get("stage")=="script"
+                     and artifact.get("artifact_type")=="text"),None)
+        metadata=(script or {}).get("metadata") or {}
+        policy=metadata.get("policy_preflight") or {}
+        tiktok_selected="tiktok" in (policy.get("platforms") or [])
+        tiktok=tiktok_publish_store.get(item["job_id"])
+        item["tiktok_eligible"]=bool(
+            tiktok_selected and policy.get("policy_version")
+            and not policy.get("approval_blockers")
+            and policy.get("status")!="blocked"
+        )
+        item["tiktok_status"]=(tiktok or {}).get("status") if tiktok_selected else "not_selected"
+        if tiktok_selected and not tiktok:
+            item["tiktok_status"]="not_started"
+        item["tiktok_publish_id"]=(tiktok or {}).get("publish_id")
+        item["tiktok_video_id"]=(tiktok or {}).get("video_id")
+        item["tiktok_events"]=(tiktok or {}).get("events",[])
+        item["tiktok_is_aigc"]=(tiktok or {}).get("is_aigc")
+        item["tiktok_reconciliation_required"]=bool(
+            tiktok and tiktok.get("status")=="reconciliation_required"
+        )
+        if item["upload_status"]!="uploaded" or (
+            item["tiktok_eligible"] and item["tiktok_status"]!="publish_complete"
+        ):
             pending.append(item)
     return {"items":pending}
 
