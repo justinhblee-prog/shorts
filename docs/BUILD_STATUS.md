@@ -209,3 +209,12 @@ The latest checked run (run 84) failed before runner allocation: `runner_id=0`, 
 - **Not validated:** actual renderer CDN hosts, live TLS/download, media playback, full test suite and YouTube upload. Configure exact artifact hostnames before use.
 
 Latest observed Actions run: [43656898926](https://github.com/justinhblee-prog/shorts/actions/runs/43656898926). Job metadata: `runner_id=0`, empty runner name, `steps=[]`; no test command executed. Latest media staging changes are committed after this run and have not been executed in CI.
+
+## Single-page operations dashboard
+
+- Added `frontend/index.html`, `frontend/styles.css`, and `frontend/app.js`; FastAPI now serves the dashboard at `/` and static assets at `/assets`.
+- Dashboard sections: production job creation, global trend collection, competitor search, profitability scoring, human review, approved private uploads, interval schedules, financial ledger/report and performance insights.
+- API token is held in browser memory only and cleared on refresh; the user explicitly enters the configured `NEXUS_REVIEW_TOKEN`.
+- Added an approved queue endpoint `GET /api/review/approved`; dashboard supports explicit private upload from approved items.
+- Docker image now includes frontend assets.
+- **Not validated:** browser rendering, cross-device UI, complete user journey, API integration in a live browser or YouTube upload.
