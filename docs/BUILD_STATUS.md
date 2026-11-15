@@ -1136,3 +1136,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - No live provider or platform integration is implied.
 
 - Follow-up hardening: the response now reports queue-state and production-lifecycle-state counts separately; the control center includes a queue-status filter and 50-row previous/next pagination. Per-page risk counts remain explicitly scoped to the displayed page.
+
+### BUILD-00046 — batched lifecycle snapshot and queue dashboard query optimization
+
+- Replaced per-job production/review/YouTube/TikTok store lookups in the global queue dashboard with one bounded SQLite snapshot query for the displayed page.
+- The batch query returns only the compact fields required for consistency evaluation: production status/stage/brand/topic, latest review decision, platform status/attempt/video identifiers, and existence of the specific publication-attempt audit events.
+- Avoids loading production artifact metadata, full review histories, platform event bodies, YouTube metric snapshots, payloads, worker identifiers, and lease tokens for dashboard rows.
+- Preserves the existing lifecycle consistency rules, including unresolved provider outcomes, current-approval checks, missing attempt IDs, and missing confirmed video IDs.
+- Added queue-store tests for duplicate IDs, bounded input, compact result shape, latest review state, and publication-attempt evidence; updated API tests to assert the dashboard consumes the batch snapshot.
+- CI validation pending. The optimization is local database-only and does not contact YouTube or TikTok.
