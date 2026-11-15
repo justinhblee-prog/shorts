@@ -47,4 +47,4 @@ Unknown or unsupported values fail closed. This helper does not upload or publis
 
 ## Validation
 
-The adapter tests cover consent, private-only publishing, AIGC labels, status polling, sponsorship declarations, operator reconciliation, chunk sizing, untrusted upload URLs and retry blocking. Earlier branch CI passed 260 tests on commit b4123f5. The OAuth integration and regression tests are being revalidated in the current branch run; no real TikTok developer app credentials, approved `video.publish` scope, app audit or live channel upload has been used.
+The adapter tests cover consent, private-only publishing, AIGC labels, status polling, sponsorship declarations, operator reconciliation, chunk sizing, untrusted upload URLs and retry blocking. Earlier branch CI passed 260 tests on commit b4123f5. The OAuth integration includes state replay/expiry, encrypted-at-rest token, required scope, HTTPS redirect and current/legacy error-schema tests. Current CI run https://github.com/justinhblee-prog/shorts/actions/runs/43691474527 is pending; no real TikTok developer app credentials, approved `video.publish` scope, app audit or live channel upload has been used.
