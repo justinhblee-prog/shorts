@@ -678,3 +678,16 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression tests for region isolation, topic matching, median calculations, no-score-adjustment and API wiring.
 - GitHub Actions run [43672849832](https://github.com/justinhblee-prog/shorts/actions/runs/43672849832) passed **180 tests** on commit `6a023c5fa39081bdaf83d9c1c663337e4e422aeb`; frontend ID validation passed (84 unique IDs, 69 literal selectors).
 - Next learning milestone: establish comparable cohorts by region, publication-age window, format and topic, then validate a score adjustment against held-out historical outcomes before using it to reorder recommendations.
+
+
+### Platform-specific disclosure and evidence gates — 2026-11-15
+
+- Upgraded the policy pack to `2026-11-15.2` and added official YouTube/TikTok source references for spam/fake engagement, inauthentic/reused content, realistic synthetic-media disclosure, advertiser suitability and TikTok AI-generated content.
+- Realistic AI-generated/altered content now requires a separate disclosure acknowledgement for every selected platform: YouTube altered-content disclosure and TikTok AI-generated-content label. A generic acknowledgement is no longer sufficient.
+- Added explicit elevated-risk declarations for health/medical claims, financial/investment claims, news/current events, third-party clips/music, reused/compiled material, repetitive/mass-produced formats, sponsorship/affiliate content, minors, regulated goods/services and sensitive personal data.
+- High-impact health/financial claims require evidence notes; news/current-events claims require HTTPS source URLs; reused/repetitive material requires a documented transformative contribution; sponsorship and minors require additional declarations.
+- Added non-overridable approval blockers for uncleared visual/audio/likeness rights, unknown synthetic-media status, and missing platform-specific realistic-AI disclosures. A reviewer comment cannot bypass these blockers.
+- The review report now carries source references, risk assessments, evidence-presence flags, policy version and limitations.
+- Added `docs/PLATFORM_POLICY_MATRIX.md` as the source register, decision matrix, data contract and limitation record.
+- **Important boundary:** the policy gate reads operator declarations; it does not inspect video/audio bytes or independently prove rights. Platform disclosure acknowledgements do not apply platform labels automatically. YouTube upload remains private-only and requires human approval; public publishing remains disabled.
+- CI validation for this branch is pending; do not mark this milestone verified until the branch workflow passes.
