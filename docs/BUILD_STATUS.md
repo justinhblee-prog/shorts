@@ -1033,4 +1033,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Treat `SEND_TO_USER_INBOX` as a terminal handoff state for this Direct Post attempt.
 - A slower concurrent status poll returning `PROCESSING_UPLOAD` can no longer downgrade an already-recorded inbox handoff.
 - Add a regression test for stale processing status after inbox handoff.
-- CI validation pending.
+- CI passed at code commit 5b9465a (326 tests).
