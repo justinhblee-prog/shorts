@@ -334,3 +334,16 @@ Provider JSON responses are limited to 2 MiB. If a provider returns an oversized
 - Content-Length is checked for valid nonnegative syntax, configured maximum size, and exact match with the streamed byte count.
 - Streaming byte limits, pinned public-IP TLS connection, MP4 signature check and atomic replacement remain in force.
 - On any failure, temporary staging files are removed. A successful stage still requires subsequent ffprobe media inspection before approval/publishing.
+
+
+## BUILD-00105 — optional ClamAV malware scanning for staged media
+
+- The API image includes `clamscan` and `freshclam`. Enable the gate with `NEXUS_MEDIA_SCAN_ENABLED=true`; set `NEXUS_CLAMSCAN_PATH` only when the executable is installed at a non-default path. The scan timeout defaults to 120 seconds and is controlled by `NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS`.
+- Before enabling the gate, initialize and periodically refresh the ClamAV signatures inside the API container:
+  ```bash
+  docker compose exec api freshclam
+  docker compose exec api clamscan --version
+  ```
+- When enabled, the artifact is scanned after bounded download, Content-Length and MP4 signature checks, but before the atomic move into the final staged filename. An infected result, missing scanner, unavailable/outdated database, scanner error or timeout rejects staging and removes the temporary file. The application never treats a scanner error as a clean result.
+- Staging responses report `malware_scan=clean` when the scan succeeds and `malware_scan=disabled` when the gate is off. The default remains disabled for backward-compatible rollout; operators must explicitly enable it and maintain fresh signatures before claiming malware scanning is active.
+- ClamAV scanning is one layer of defense, not a guarantee that a media file is safe. Keep the renderer host allowlist, size caps, MP4/ffprobe validation and human review in place. No production artifact or live ClamAV database was scanned by CI.
