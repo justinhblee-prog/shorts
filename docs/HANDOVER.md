@@ -207,3 +207,7 @@ Added `backend/tests/test_frontend.py` to check that the three static assets exi
 ## Operator runbook
 
 See `docs/OPERATOR_RUNBOOK.md` for configuration, Docker deployment, production lifecycle, artifact staging security, financial controls, recovery and the external launch validation checklist.
+
+## Integration preflight
+
+Protected `GET /api/preflight` reports which configuration groups are present, without returning secret values. Dashboard displays operator auth, AI provider, renderer artifact allowlist, YouTube OAuth/Data API and media directory readiness. The report is configuration-only and never claims live connectivity. Tests: `backend/tests/test_preflight.py`.
