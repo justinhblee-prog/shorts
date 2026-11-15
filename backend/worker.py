@@ -2,7 +2,7 @@
 
 Run: python worker.py
 The worker only claims short_video_production jobs; it does not consume other queue types.
-A job/provider/lease error is fail-closed: this process stops claiming work and exits.
+A job/provider/lease error is fail-closed: a durable queue pause prevents all workers from claiming work until explicit resume.
 """
 import os
 import socket
