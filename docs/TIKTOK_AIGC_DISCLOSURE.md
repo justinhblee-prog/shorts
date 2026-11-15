@@ -31,6 +31,8 @@ Unknown or unsupported values fail closed. This helper does not upload or publis
 - Until TikTok app audit is completed, the adapter only uses `SELF_ONLY` visibility and disables comments, Duet and Stitch. It checks that `SELF_ONLY` is currently offered by the creator account.
 - Chunk transfer follows TikTok's minimum/maximum chunk and trailing-chunk rules. Unknown outcomes are blocked from retry until an operator reconciles them.
 - The API uses `TIKTOK_ACCESS_TOKEN`; OAuth token issuance/refresh and per-user encrypted token storage are not yet implemented.
+- The API requires explicit paid-partnership and own-brand promotion declarations because TikTok's `brand_content_toggle` is a required request field. Both cannot be true at once.
+- Uncertain initialization or transfer outcomes enter `reconciliation_required`; the authenticated operator reconciliation endpoint records a confirmed published/not-published outcome before any retry.
 
 ## Integration boundary
 
