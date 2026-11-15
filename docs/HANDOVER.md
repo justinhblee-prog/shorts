@@ -586,3 +586,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Corrected trend recommendations so competitor video samples are fetched only for channels eligible for each trend's region, with per-channel caching to avoid duplicate reads across trends.
 - This prevents irrelevant regions from being queried and fixes a regression where the test expected one regional channel but the implementation queried both US and JP channels.
 - GitHub Actions run [43670180646](https://github.com/justinhblee-prog/shorts/actions/runs/43670180646) passed **152 tests**, frontend syntax/DOM validation and Python compilation on commit `82263617c14f7c2fe6ace864cf5510a0d66fe21d`.
+
+
+### Region-scoped competitor evidence in trend recommendations — 2026-11-15
+
+- Reused the existing stored YouTube competitor-channel/video sample to attach an evidence summary to each trend recommendation: selected channels, observed video count, topic-matched count, median observed views and up to five examples.
+- Competitor samples are restricted to the trend's region (or all stored regions for GLOBAL/unscoped trends), with at most 10 recently collected channels and 30 stored videos per channel. Retrieval avoids querying unrelated regions.
+- The evidence is display-only and does **not** alter the editorial recommendation score. It is not market-wide demand, saturation, view velocity, search volume or revenue. Missing samples are explicitly represented in `evidence_gaps`.
+- Dashboard recommendation cards now show observed competitor sample counts and median views, with a caveat explaining the sample boundary.
+- Initial regression test failed because the test expected one channel fetch while the implementation preloaded two regions; retrieval was narrowed to trend-eligible regions. GitHub Actions run [43670200759](https://github.com/justinhblee-prog/shorts/actions/runs/43670200759) passed **152 tests**, including frontend syntax and DOM ID validation.
+- Actual YouTube Data API credentials/live data remain unverified; this feature only summarizes records already stored from prior competitor collection.
