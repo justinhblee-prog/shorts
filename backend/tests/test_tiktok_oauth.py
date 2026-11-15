@@ -117,6 +117,46 @@ class TikTokOAuthTests(unittest.TestCase):
         with self.assertRaisesRegex(TikTokOAuthError, "invalid_grant.*expired"):
             self.store._token_request({"code": "expired-code", "grant_type": "authorization_code"})
 
+    def test_refresh_rotates_tokens_atomically_and_uses_latest_refresh_token(self):
+        auth = self.store.create_authorization("operator-1")
+        state = parse_qs(urlparse(auth["authorization_url"]).query)["state"][0]
+        self.session.responses.append(FakeOAuthResponse({"data": {
+            "access_token": "old-access", "refresh_token": "old-refresh",
+            "open_id": "creator-123", "scope": "user.info.basic,video.publish",
+            "expires_in": 3600, "refresh_expires_in": 86400,
+        }}))
+        self.store.connect("code", state)
+        with self.store.db() as connection:
+            connection.execute("UPDATE tiktok_oauth_tokens SET access_expires_at=0")
+        self.session.responses.append(FakeOAuthResponse({"data": {
+            "access_token": "new-access", "refresh_token": "rotated-refresh",
+            "open_id": "creator-123", "scope": "user.info.basic,video.publish",
+            "expires_in": 7200, "refresh_expires_in": 172800,
+        }}))
+        self.assertEqual(self.store.get_access_token(), "new-access")
+        with self.store.db() as connection:
+            row = connection.execute("SELECT * FROM tiktok_oauth_tokens WHERE id=1").fetchone()
+        cipher = self.store._fernet()
+        self.assertEqual(cipher.decrypt(row["refresh_token_cipher"].encode()).decode(), "rotated-refresh")
+        self.assertEqual(self.session.posts[-1][1]["data"]["refresh_token"], "old-refresh")
+
+    def test_disconnect_revokes_remote_access_and_erases_local_tokens(self):
+        auth = self.store.create_authorization("operator-1")
+        state = parse_qs(urlparse(auth["authorization_url"]).query)["state"][0]
+        self.session.responses.append(FakeOAuthResponse({"data": {
+            "access_token": "revoke-access", "refresh_token": "revoke-refresh",
+            "open_id": "creator-123", "scope": "user.info.basic,video.publish",
+            "expires_in": 3600, "refresh_expires_in": 86400,
+        }}))
+        self.store.connect("code", state)
+        self.session.responses.append(FakeOAuthResponse({}))
+        self.assertEqual(self.store.disconnect(), {"connected": False})
+        self.assertFalse(self.store.status()["connected"])
+        url, kwargs = self.session.posts[-1]
+        self.assertEqual(url, "https://open.tiktokapis.com/v2/oauth/revoke/")
+        self.assertEqual(kwargs["data"]["token"], "revoke-access")
+        self.assertNotIn("revoke-access", str(kwargs["data"]))
+
     def test_access_token_fails_closed_when_creator_is_not_connected(self):
         with mock.patch.dict(os.environ, {"TIKTOK_ACCESS_TOKEN": ""}):
             with self.assertRaisesRegex(TikTokOAuthError, "not connected"):
