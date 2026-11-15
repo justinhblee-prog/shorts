@@ -1233,3 +1233,18 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Regression coverage added for sparse cohort handling and dashboard rendering.
 - CI validation pending.
 
+
+
+## BUILD-00055 — metrics collection freshness, coverage and recommendation evidence boundaries
+
+- Audited the existing periodic YouTube metrics collector and confirmed it is packaged as a separate Docker Compose service. It polls due uploaded videos in batches of up to 50 using one YouTube Data API v3 `videos.list` request per batch and uses a SQLite singleton lease to prevent overlapping collectors.
+- Added durable collection-run state: running/succeeded/failed, last attempt, last successful collection, sanitized error class, and requested/collected/missing counts. A failed attempt preserves the previous successful timestamp.
+- Added authenticated read-only `GET /api/metrics/collection-status` with per-platform availability, last attempt/success timestamps, latest batch counts, uploaded-video snapshot coverage and stale-snapshot counts.
+- Integrated collection freshness and coverage into the performance dashboard.
+- YouTube Data API collection is limited to view, like and comment counters. Audience retention, swipe-away rate, watch time and estimated revenue are explicitly unavailable and are not inferred.
+- TikTok analytics collection is explicitly marked not implemented; no unsupported metric or API scope is assumed.
+- Recommendation scores remain unchanged; `ranking_score_adjustment=0` and holdout evidence remains the gate for future calibration.
+- Regression tests cover persisted success/failure state, preservation of last success, coverage/freshness, collector lease skip/release paths, API authorization and dashboard display.
+- GitHub Actions run [43701730561](https://github.com/justinhblee-prog/shorts/actions/runs/43701730561) passed **400 tests** at code commit `7fd7c5b`.
+- This validates deterministic tests and the collection-state implementation only. Real YouTube OAuth credentials, API quota, live account collection and TikTok analytics access remain unverified.
+- No ranking score, production, approval, queue, retry or publishing behavior is mutated.
