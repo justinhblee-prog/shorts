@@ -133,6 +133,7 @@ The endpoint requires the operator token, an explicit confirmation flag and a no
 
 - `ProductionStore.stage()` and `ProductionStore.artifact()` accept worker identity plus lease token and validate the live `pipeline_jobs` row under `BEGIN IMMEDIATE` before changing production state or artifact records.
 - `ProductionPipeline.execute()` carries the claim's worker ID and token through every stage and artifact write. Lease conflicts are propagated without marking the production run failed, preventing an expired worker from overwriting a replacement worker's state.
+- The authenticated API execution route passes its verified worker ID and lease token into the pipeline and uses durable review-handoff reconciliation after queue completion.
 - The worker now passes its claim token into the pipeline. The end-to-end lifecycle test does the same.
 - Added a regression test that expires and reclaims a job, proves the old token cannot start or write an artifact, and proves the new token can complete production.
 - Existing direct pipeline unit tests remain supported without a lease context for isolated component tests; the production worker always supplies one.
@@ -147,3 +148,30 @@ The endpoint requires the operator token, an explicit confirmation flag and a no
 - Recovery is restricted to `short_video_production` jobs in queued, retryable-failure or running states, uses the same SQLite database and `BEGIN IMMEDIATE`, and is idempotent. Invalid payloads are reported as skipped rather than turned into fabricated production records.
 - Added regression tests for recovery after an enqueue crash and for the race where a worker claims the job before recovery.
 - Tests are committed but not executed; GitHub Actions runner allocation remains an external validation blocker.
+
+
+### Durable production-worker pause — 2026-11-15
+
+- A provider failure, lease conflict, heartbeat/database failure, or unexpected worker exception now persists a short-video production queue pause. Every claim path excludes `short_video_production` jobs while the pause is active, including generic claims and concurrent worker processes.
+- The pause reason, affected job ID and timestamp survive worker/container restarts. Docker's `restart: unless-stopped` policy cannot silently resume queue consumption.
+- On pause, every currently running `short_video_production` job is fenced and moved to `failed_terminal` with a `worker_paused` event; the matching `production_runs` row is synchronized in the same SQLite transaction. This prevents stale workers from writing after the stop. Queued jobs remain untouched, and unrelated queue job types are not paused. A known retryable provider failure is recorded before the pause and remains `failed_retriable`, but it cannot be dispatched until resume.
+- Inspect the durable pause before resuming:
+
+```bash
+docker compose exec worker python -c "from queue_store import JobQueue; print(JobQueue('/app/data/nexus.sqlite3').worker_control())"
+```
+
+- Resume only after the cause and affected job have been investigated and any ambiguous external side effect has been reconciled:
+
+```bash
+docker compose exec worker python -c "from queue_store import JobQueue; print(JobQueue('/app/data/nexus.sqlite3').resume())"
+```
+
+- Resume clears only the global worker pause. It does not automatically change a terminal job state or reconcile an uncertain provider result. Confirm the affected job's queue and production records before allowing it to retry.
+
+
+### Queue idempotency contract — 2026-11-15
+
+- Repeating a submission with the same idempotency key, job type, channel and JSON payload returns the existing job without creating another queue entry.
+- Reusing that key with a different job type, channel or payload is rejected with HTTP 409. The original job remains unchanged.
+- A client retry must resend the original request body with the original key. Generate a new key only for a genuinely new production request.

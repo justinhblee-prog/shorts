@@ -191,6 +191,39 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(result["invalid"], [job["id"]])
         self.assertIsNone(self.store.get(job["id"]))
 
+    def test_worker_pause_mirrors_terminal_state_into_production_record(self):
+        queue = JobQueue(self.store.db_path)
+        submitted = submit_production(queue, self.store, self.brief)
+        job_id = submitted["job"]["id"]
+        queue.claim("worker-paused", job_type="short_video_production")
+
+        queue.pause("provider result uncertain", job_id)
+
+        job = queue.get(job_id)
+        production = self.store.get(job_id)
+        self.assertEqual(job["status"], "failed_terminal")
+        self.assertEqual(job["error_code"], "worker_paused")
+        self.assertEqual(production["status"], "failed_terminal")
+        self.assertEqual(production["current_stage"], "worker_paused")
+
+    def test_lost_worker_signal_stops_before_any_provider_call(self):
+        import threading
+
+        script = FakeProvider({"script": "must not run"})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3"})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4"})
+        pipeline = ProductionPipeline(self.store, script, voice, render)
+        self.store.create("job-stop", self.brief)
+        stop_event = threading.Event()
+        stop_event.set()
+
+        with self.assertRaises(ProductionLeaseConflict):
+            pipeline.execute("job-stop", self.brief, stop_event=stop_event)
+
+        self.assertEqual(script.calls, [])
+        self.assertEqual(voice.calls, [])
+        self.assertEqual(render.calls, [])
+
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
             ProductionPipeline.validate_brief({"brand": "x", "region": "US",

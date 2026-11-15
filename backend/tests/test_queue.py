@@ -2,7 +2,7 @@ import sys, tempfile, unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from queue_store import JobQueue, LeaseConflict
+from queue_store import JobQueue, LeaseConflict, IdempotencyConflict
 
 class QueueTests(unittest.TestCase):
  def setUp(self):
@@ -10,8 +10,12 @@ class QueueTests(unittest.TestCase):
  def tearDown(self): self.tmp.cleanup()
  def test_idempotency(self):
   a=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
-  b=self.q.enqueue("script",{"topic":"y"},idempotency_key="once")
+  b=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
   self.assertEqual(a["id"],b["id"]); self.assertEqual(self.q.stats()["total"],1)
+  with self.assertRaises(IdempotencyConflict):
+   self.q.enqueue("script",{"topic":"y"},idempotency_key="once")
+  with self.assertRaises(IdempotencyConflict):
+   self.q.enqueue("render",{"topic":"x"},idempotency_key="once")
  def test_exclusive_claim_and_fenced_completion(self):
   j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
   self.assertEqual(a["id"],j["id"]); self.assertIsNone(self.q.claim("worker-b"))
@@ -52,4 +56,37 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(retried["id"],j["id"])
   self.assertEqual(retried["attempt"],2)
   self.assertEqual([e["event_type"] for e in self.q.events(j["id"])],["enqueued","claimed","failed","claimed"])
+ def test_paused_queue_refuses_claim_until_resume(self):
+  self.q.enqueue("short_video_production", {"topic": "held"})
+  self.q.pause("operator investigation")
+  self.assertIsNone(self.q.claim("worker-a"))
+  self.q.resume()
+  self.assertIsNotNone(self.q.claim("worker-a"))
+ def test_production_pause_does_not_block_other_queue_types(self):
+  self.q.enqueue("render", {"topic":"other"})
+  self.q.pause("production only")
+  claimed=self.q.claim("worker-other",job_type="render")
+  self.assertEqual(claimed["job_type"],"render")
+ def test_pause_revokes_every_in_flight_lease(self):
+  job=self.q.enqueue("short_video_production", {"topic":"active"})
+  claimed=self.q.claim("worker-active")
+  self.assertEqual(claimed["id"],job["id"])
+  self.q.pause("another worker failed", "job-other")
+  stopped=self.q.get(job["id"])
+  self.assertEqual(stopped["status"],"failed_terminal")
+  self.assertEqual(stopped["error_code"],"worker_paused")
+  self.assertIsNone(stopped["lease_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"worker-active",claimed["lease_token"])
+  self.assertEqual(self.q.events(job["id"])[-1]["event_type"],"worker_pause")
+ def test_worker_pause_persists_until_explicit_resume(self):
+  self.q.pause("provider outcome uncertain", "job-123")
+  self.assertTrue(self.q.is_paused())
+  self.assertEqual(self.q.worker_control()["paused_job_id"], "job-123")
+  reopened=JobQueue(self.q.db_path,10)
+  self.assertTrue(reopened.is_paused())
+  resumed=reopened.resume()
+  self.assertFalse(resumed["paused"])
+  self.assertIsNone(resumed["pause_reason"])
+  self.assertFalse(self.q.is_paused())
 if __name__=="__main__": unittest.main()

@@ -5,11 +5,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from pydantic import BaseModel, Field
-from queue_store import JobQueue, JobNotFound, LeaseConflict
+from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflict
 from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
 from profitability import OpportunityStore, score_opportunity
-from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError
+from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError, ProductionLeaseConflict
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
@@ -156,6 +156,8 @@ def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(de
         brief = body.model_dump()
         brief["brand"] = brand["name"]
         return submit_production(queue,production_store,brief)
+    except IdempotencyConflict as e:
+        raise HTTPException(409,str(e))
     except ValueError as e:
         raise HTTPException(422,str(e))
 
@@ -175,9 +177,11 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
             raise HTTPException(409,"Job is not a short-video production job")
         if job["status"]!="running" or job["worker_id"]!=body.worker_id or job["lease_token"]!=body.lease_token:
             raise HTTPException(409,"Current worker lease is required")
-        result=production_pipeline.execute(job_id,job["payload"])
+        result=production_pipeline.execute(
+            job_id,job["payload"],worker_id=body.worker_id,lease_token=body.lease_token
+        )
         queue.finish(job_id,body.worker_id,body.lease_token,{"production_status":"review_pending"})
-        production_store.stage(job_id,"review_pending","review_pending")
+        production_store.reconcile_review_pending(queue)
         return production_store.get(job_id)
     except ProviderError as e:
         try:
@@ -188,6 +192,8 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
         raise HTTPException(502,{"stage":e.stage,"error":str(e),"retryable":e.retryable})
     except JobNotFound:
         raise HTTPException(404,"Job not found")
+    except ProductionLeaseConflict as e:
+        raise HTTPException(409,str(e))
     except LeaseConflict as e:
         raise HTTPException(409,str(e))
     except HTTPException:
@@ -530,7 +536,10 @@ def stats(x_review_token:str|None=Header(default=None)):
 @app.post("/api/jobs",status_code=201)
 def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    return queue.enqueue(**body.model_dump())
+    try:
+        return queue.enqueue(**body.model_dump())
+    except IdempotencyConflict as e:
+        raise HTTPException(409,str(e))
 @app.post("/api/jobs/claim")
 def claim(body:Claim,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)

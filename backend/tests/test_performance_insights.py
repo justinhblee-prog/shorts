@@ -1,18 +1,20 @@
 import os,tempfile,unittest
 from production_pipeline import ProductionStore
 from youtube_publishing import YouTubeUploadStore
+from review_workflow import ReviewStore
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 
 class PerformanceTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.db=os.path.join(self.tmp.name,"x.db")
-  self.p=ProductionStore(self.db); self.u=YouTubeUploadStore(self.db); self.l=LedgerStore(self.db)
+  self.p=ProductionStore(self.db); self.review=ReviewStore(self.db); self.u=YouTubeUploadStore(self.db); self.l=LedgerStore(self.db)
  def tearDown(self): self.tmp.cleanup()
  def video(self,job,brand,region,topic,video):
   self.p.create(job,{"brand":brand,"region":region,"language":"English","topic":topic})
-  self.p.stage(job,"review","approved")
-  self.u.begin(job,"t","d"); self.u.finish(job,video)
+  self.p.stage(job,"rendered","review_pending")
+  self.review.decide(job,"approved","test-reviewer","Approved for analytics fixture")
+  attempt=self.u.begin(job,"t","d"); self.u.finish(job,video,attempt["attempt_id"])
  def entry(self,brand,currency,kind,ref,amount):
   self.l.record({"brand":brand,"region":"US","entry_type":kind,"amount":amount,
    "currency":currency,"source_type":"operator_receipt","source_reference":ref,

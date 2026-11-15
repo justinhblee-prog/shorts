@@ -23,21 +23,35 @@ pipeline = ProductionPipeline(store)
 stopping = threading.Event()
 
 
-def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop):
-    interval = max(5, LEASE_SECONDS // 3)
+def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
+    interval = max(5, LEASE_SECONDS // 3) if interval is None else max(0, interval)
     while not heartbeat_stop.wait(interval):
         try:
             queue.heartbeat(job_id, WORKER_ID, token)
-        except LeaseConflict:
+        except LeaseConflict as exc:
             lost_lease.set()
+            stopping.set()
+            try:
+                queue.pause(f"heartbeat lease conflict: {exc}", job_id)
+            except Exception:
+                pass
             return
-        except Exception:
-            # A transient DB error is retried on the next heartbeat interval.
-            continue
+        except Exception as exc:
+            # A heartbeat DB failure makes lease ownership uncertain. Persist a
+            # global pause when possible; never silently continue to another job.
+            lost_lease.set()
+            stopping.set()
+            try:
+                queue.pause(f"heartbeat failure: {type(exc).__name__}: {exc}", job_id)
+            except Exception:
+                pass
+            return
 
 
 def run_once():
-    # Recover the cross-store crash window before claiming new work.
+    if queue.is_paused():
+        return False
+    # Recovery failures escape: no claim may occur while state is uncertain.
     store.reconcile_missing_runs(queue)
     store.reconcile_terminal_jobs(queue)
     store.reconcile_review_pending(queue)
@@ -55,7 +69,8 @@ def run_once():
     heartbeat.start()
     try:
         result = pipeline.execute(job["id"], job["payload"],
-                                    worker_id=WORKER_ID, lease_token=job["lease_token"])
+                                  worker_id=WORKER_ID, lease_token=job["lease_token"],
+                                  stop_event=lost_lease)
         if lost_lease.is_set():
             raise LeaseConflict("Worker lease was lost while generating media")
         queue.finish(job["id"], WORKER_ID, job["lease_token"],
@@ -64,20 +79,40 @@ def run_once():
         store.reconcile_review_pending(queue)
         print(f"review_pending job={job['id']}")
     except ProviderError as exc:
+        stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
                        "provider_" + exc.stage, str(exc), exc.retryable)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
+        try:
+            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
+        except Exception:
+            pass
         print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}")
-    except (LeaseConflict, ProductionLeaseConflict):
-        print(f"lease_lost job={job['id']}")
+    except (LeaseConflict, ProductionLeaseConflict) as exc:
+        stopping.set()
+        try:
+            queue.fail(job["id"], WORKER_ID, job["lease_token"],
+                       "worker_interrupted_ambiguous", str(exc), False)
+        except LeaseConflict:
+            pass
+        try:
+            queue.pause(f"lease/production conflict: {exc}", job["id"])
+        except Exception:
+            pass
+        print(f"lease_lost job={job['id']}; worker_paused")
     except Exception as exc:
+        stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
                        "worker_error", str(exc), False)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
+        try:
+            queue.pause(f"fatal worker error: {type(exc).__name__}: {exc}", job["id"])
+        except Exception:
+            pass
         print(f"worker_failure job={job['id']} error={type(exc).__name__}")
     finally:
         heartbeat_stop.set()
@@ -88,11 +123,24 @@ def run_once():
 def main():
     print(f"worker_started id={WORKER_ID} lease_seconds={LEASE_SECONDS}")
     try:
-        while not stopping.is_set():
+        while True:
+            if queue.is_paused():
+                threading.Event().wait(IDLE_SECONDS)
+                continue
+            if stopping.is_set():
+                return
             if not run_once():
                 stopping.wait(IDLE_SECONDS)
     except KeyboardInterrupt:
         print("worker_stopping")
+    except Exception as exc:
+        stopping.set()
+        try:
+            queue.pause(f"fatal worker startup/reconciliation error: {type(exc).__name__}: {exc}")
+        except Exception:
+            pass
+        print(f"worker_fatal error={type(exc).__name__}; worker_paused")
+        raise
 
 
 if __name__ == "__main__":
