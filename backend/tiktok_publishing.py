@@ -476,10 +476,15 @@ class TikTokPublisher:
     def publish_private_approved(
         self, job_id, media_path, review_store, title, operator_id,
         explicit_consent=False, brand_content_toggle=False, brand_organic_toggle=False,
+        privacy_level=None,
     ):
         if explicit_consent is not True:
             raise TikTokPublishError(
                 "Explicit operator consent is required before sending a video to TikTok"
+            )
+        if privacy_level != "SELF_ONLY":
+            raise TikTokPublishError(
+                "The operator must explicitly select SELF_ONLY while public posting is disabled"
             )
         if not isinstance(operator_id, str) or not operator_id.strip():
             raise TikTokPublishError("operator_id is required")
@@ -535,9 +540,9 @@ class TikTokPublisher:
         remote_started = False
         try:
             creator_data = self.creator_info()
-            if "SELF_ONLY" not in creator_data["privacy_level_options"]:
+            if privacy_level not in creator_data["privacy_level_options"]:
                 raise TikTokPublishError(
-                    "TikTok creator settings do not currently offer SELF_ONLY privacy"
+                    "The explicitly selected TikTok privacy level is not available for this creator"
                 )
             max_duration = creator_data.get("max_video_post_duration_sec")
             if isinstance(max_duration, bool) or not isinstance(max_duration, (int, float)) or max_duration <= 0:
@@ -562,7 +567,7 @@ class TikTokPublisher:
                 payload={
                     "post_info": {
                         "title": title,
-                        "privacy_level": "SELF_ONLY",
+                        "privacy_level": privacy_level,
                         "is_aigc": disclosure["is_aigc"],
                         "brand_content_toggle": brand_content_toggle,
                         "brand_organic_toggle": brand_organic_toggle,
