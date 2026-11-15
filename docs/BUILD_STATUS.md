@@ -39,6 +39,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00010 | AI performance analysis and strategy updates | Source implementation expanded: brand/region/video evidence, measurement coverage, reset detection and currency-safe financial grouping; runtime validation pending |
 | BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
+| BUILD-00024 | TikTok private Direct Post integration | Token-protected creator-info/publish/status APIs, SELF_ONLY Direct Post, explicit consent, AIGC and commercial disclosures, chunk transfer and immutable audit; branch CI and live OAuth validation pending |
 
 ## BUILD-00001 — durable queue and Worker Lease
 
@@ -82,12 +83,22 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 - Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.\n\n## Validation — current truth
 
-- Code and tests are committed to the private repository main branch.
-- Latest observed GitHub Actions run before this documentation update: https://github.com/justinhblee-prog/shorts/actions/runs/43654662581
-- Latest inspected job metadata reported `runner_id=0`, empty runner name, and `steps=[]`; the job failed before checkout or dependency installation. This is an environment/runner initialization failure, not evidence of a Python test failure.
-- The suite has not passed or failed on code behavior; it has not executed in a real Python runtime.
-- No production worker, PostgreSQL, external AI generation, OAuth, rendering or YouTube publishing has been validated.
+- YouTube synthetic-media disclosure remains in draft PR #34; latest verified branch run executed 252 tests successfully.
+- TikTok AIGC mapping remains in draft PR #35; latest verified branch run executed 248 tests successfully.
+- TikTok private Direct Post integration is in draft branch `feat/tiktok-private-direct-publish`. CI is being rerun after fixing fixture lifecycle and API contract issues; BUILD-00024 is not complete until the latest run is green.
+- TikTok tests use a deterministic HTTP transport and temporary SQLite database. No live TikTok OAuth, app review, creator authorization or account posting has been performed.
+- No live YouTube OAuth upload, production worker/database, real provider rendering or monetization validation has been performed.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
+
+## BUILD-00024 — TikTok private Direct Post and disclosure lifecycle
+
+- Added `backend/tiktok_publishing.py`: creator-info query, private-only Direct Post initialization, signed media upload, status polling, immutable audit events and duplicate-attempt blocking.
+- Added token-protected routes: `GET /api/tiktok/creator-info`, `POST /api/tiktok/publish/{job_id}`, `GET /api/tiktok/publications/{job_id}`, and `POST /api/tiktok/publications/{job_id}/refresh-status`.
+- Requires the latest human approval snapshot and current policy evidence, explicit operator consent, TikTok platform selection, AIGC label evidence, and explicit branded-content/own-business declarations.
+- Direct Post is fixed to `SELF_ONLY`; public publishing remains disabled. TikTok's creator-info response is exposed so the export workspace can display account capabilities before the operator confirms.
+- Media transfer uses HTTP PUT to TikTok's signed upload URL, omits the OAuth bearer token on that URL, and follows the documented floor-based chunk count with a 64 MiB chunk size and a bounded final remainder.
+- Tracks PROCESSING_UPLOAD, PROCESSING_DOWNLOAD, SEND_TO_USER_INBOX, PUBLISH_COMPLETE and FAILED; uncertain remote outcomes block automatic retries.
+- OAuth authorization-code exchange/token refresh and live account testing remain outside this milestone.
 
 ## Remaining blockers before a real revenue-producing launch
 
