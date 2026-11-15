@@ -123,10 +123,11 @@
     const job=data.job||{},production=data.production||{},review=data.review||{};
     const publishing=data.publishing||{},youtube=publishing.youtube||{},tiktok=publishing.tiktok||{};
     const latest=review.latest||{};
-    const events=(data.queue_events||[]).slice(-8).reverse();
+    const events=(data.timeline||[]).slice(-20).reverse();
+    const stageLabels={queue:"작업 큐",production:"제작",human_review:"사람 검수",youtube:"YouTube",tiktok:"TikTok"};
     const eventHtml=events.length
-      ? '<ol>'+events.map(event=>'<li><strong>'+esc(event.event_type||"event")+'</strong> · '+esc(event.from_status||"—")+' → '+esc(event.to_status||"—")+' <small>'+esc(event.created_at||"")+'</small></li>').join("")+'</ol>'
-      : '<p>기록된 큐 이벤트가 없습니다.</p>';
+      ? '<ol>'+events.map(event=>'<li><strong>'+esc(stageLabels[event.stage]||event.stage)+' · '+esc(event.event||"event")+'</strong> · '+esc(event.outcome||"기록")+(event.attempt_id?' · 시도 '+esc(event.attempt_id):"")+(event.reference_id?' · 참조 '+esc(event.reference_id):"")+' <small>'+esc(event.occurred_at||"")+'</small></li>').join("")+'</ol>'
+      : '<p>아직 통합 이벤트가 없습니다.</p>';
     return '<section class="review-policy lifecycle-trace"><strong>통합 작업 이력</strong>'+
       '<p>큐 · '+esc(job.status||"unknown")+' / 제작 · '+esc(production.status||"unknown")+
       ' ('+esc(production.current_stage||"단계 미기록")+')</p>'+
@@ -138,7 +139,7 @@
       ' / TikTok · '+esc(tiktok.status||"not_started")+
       (tiktok.video_id?' · '+esc(tiktok.video_id):"")+
       (tiktok.publish_id?' · publish '+esc(tiktok.publish_id):"")+'</p>'+
-      '<strong>최근 큐 이벤트</strong>'+eventHtml+'</section>';
+      '<strong>최근 통합 이벤트 (최대 20개)</strong>'+eventHtml+'</section>';
   }
 
   async function loadApproved(){
