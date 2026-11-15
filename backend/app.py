@@ -1134,6 +1134,27 @@ def operational_health(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     return queue.operational_health()
 
+@app.get("/api/ops/recovery-plan")
+def operational_recovery_plan(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    health = queue.operational_health()
+    checks = [
+        {"id":"provider_outcomes","label":"외부 AI·게시 공급자의 이전 작업 결과와 중복 실행 여부 확인","operator_required":True},
+        {"id":"artifacts_and_billing","label":"생성 파일의 존재·무결성과 과금 내역 확인","operator_required":True},
+        {"id":"approval_and_policy","label":"최신 사람 승인 및 플랫폼 정책 증거 확인","operator_required":True},
+        {"id":"worker_state","label":"Worker 프로세스·로그·heartbeat 상태 확인","operator_required":True},
+    ]
+    return {
+        "status":"blocked" if health["blockers"] else ("review_required" if health["queue"]["paused"] else "not_paused"),
+        "queue_paused":health["queue"]["paused"],
+        "health":health,
+        "automatic_checks":{"no_expired_leases":health["leases"]["expired_running"]==0,
+                            "complete_lease_ownership":health["leases"]["running_missing_ownership"]==0},
+        "operator_checks":checks,
+        "resume_allowed":bool(health["queue"]["paused"] and not health["blockers"]),
+        "resume_requires_explicit_operator_confirmation":True,
+        "actions_taken":[],
+    }
 @app.get("/api/queue/stats")
 def stats(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
