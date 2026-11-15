@@ -645,3 +645,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a 45-second Docker Compose `stop_grace_period` for the production worker, allowing its SIGTERM handler to persist the production pause before Docker forcibly terminates the container.
 - Extended `scripts/validate.sh` to parse `compose.yaml` with PyYAML, catching malformed deployment configuration in CI.
 - GitHub Actions run [43670349660](https://github.com/justinhblee-prog/shorts/actions/runs/43670349660) passed **152 tests**, Python compilation, frontend JavaScript syntax/DOM ID checks, and Docker Compose YAML parsing.
+
+
+### Multi-instance scheduler leader election — 2026-11-15
+
+- Added a singleton scheduler leader-lease table to the shared SQLite database. A process acquires a unique fencing token; a live lease prevents another process from dispatching, and an expired lease can be taken over after a crash.
+- Lease renewal is checked before each outbox dispatch, and the lease token is checked again before marking an outbox item dispatched. A stale scheduler cannot renew or release a newer owner's lease.
+- The existing outbox and deterministic queue idempotency key remain the final duplicate-dispatch protection if a process dies after enqueue but before recording the outbox completion.
+- Added regression coverage for competing owners, expiry/takeover, stale-owner fencing, invalid lease rejection and successful dispatch under a valid lease.
+- GitHub Actions run [43670844206](https://github.com/justinhblee-prog/shorts/actions/runs/43670844206) passed **156 tests** on commit `851551896e1bc1b0416427d3a4d6f5964f05862c`. Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing also passed.
+- Calendar/DST recurrence rules and multi-host database deployment remain outside the current SQLite baseline.
