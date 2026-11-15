@@ -135,9 +135,13 @@
         : '<small>경쟁 영상 표본 미수집</small>';
       const history=item.best_brand?.historical_performance||{};
       const historySummary=history.evidence_status==="observed"
-        ? '<small>브랜드 과거 실측 표본 '+Number(history.rate_sample_count)+'개 · 시간당 조회 증가 중앙값 '+Number(history.median_views_per_hour).toLocaleString()+' · 조회 증가 1,000회당 상호작용 '+(history.median_interactions_per_1000_view_delta===null?'—':Number(history.median_interactions_per_1000_view_delta).toFixed(1))+'</small>'
-        : '<small>브랜드 과거 성과 표본 '+Number(history.rate_sample_count||0)+'개 · 추천 점수 미반영(비교 근거 부족)</small>';
-      return '<div class="data-item trend-item"><div class="recommendation-head"><b>'+esc(trend.title||"Untitled trend")+'</b><strong>'+Number(item.recommendation_score||0).toFixed(1)+'/100</strong></div><small>'+esc(trend.region||"")+' · 최신성 '+Number(item.freshness_score||0).toFixed(1)+' · '+esc(item.score_type||"")+'</small>'+(item.best_brand?'<small>최적 브랜드: '+esc(item.best_brand.brand_name)+' · 적합도 '+Number(item.best_brand.fit_score||0).toFixed(1)+'</small>':'<small>적합 브랜드 미확인</small>')+historySummary+competitorSummary+controls+'<small class="recommendation-caveat">과거 성과는 브랜드 전체의 참고 지표이며 이 주제의 성과를 보장하지 않고, 현재 추천 점수에는 반영되지 않습니다. 경쟁 지표도 저장된 최대 10개 채널의 최근 영상 표본으로 시장 전체 수요나 수익을 뜻하지 않습니다.</small></div>';
+        ? '<small>브랜드 과거 실측 표본 '+Number(history.rate_sample_count)+'개 · 시간당 조회 증가 중앙값 '+Number(history.median_views_per_hour).toLocaleString()+'</small>'
+        : '<small>브랜드 과거 성과 표본 '+Number(history.rate_sample_count||0)+'개 · 비교 근거 제한</small>';
+      const topicHistory=item.best_brand?.topic_performance||{};
+      const topicHistorySummary=topicHistory.evidence_status==="observed"
+        ? '<small>동일 주제·시장 실측 '+Number(topicHistory.matched_video_count)+'개 · 시간당 조회 증가 중앙값 '+Number(topicHistory.median_views_per_hour).toLocaleString()+' · 1,000회당 상호작용 '+(topicHistory.median_interactions_per_1000_view_delta===null?'—':Number(topicHistory.median_interactions_per_1000_view_delta).toFixed(1))+'</small>'
+        : '<small>동일 주제·시장 실측 '+Number(topicHistory.matched_video_count||0)+'개 · 추천 점수 미반영(최소 3개 표본 필요)</small>';
+      return '<div class="data-item trend-item"><div class="recommendation-head"><b>'+esc(trend.title||"Untitled trend")+'</b><strong>'+Number(item.recommendation_score||0).toFixed(1)+'/100</strong></div><small>'+esc(trend.region||"")+' · 최신성 '+Number(item.freshness_score||0).toFixed(1)+' · '+esc(item.score_type||"")+'</small>'+(item.best_brand?'<small>최적 브랜드: '+esc(item.best_brand.brand_name)+' · 적합도 '+Number(item.best_brand.fit_score||0).toFixed(1)+'</small>':'<small>적합 브랜드 미확인</small>')+topicHistorySummary+historySummary+competitorSummary+controls+'<small class="recommendation-caveat">과거 실측값은 동일 주제·시장 기준 표본을 별도로 표시하며, 현재 추천 점수에는 반영되지 않습니다. 경쟁 지표도 저장된 최대 10개 채널의 최근 영상 표본으로 시장 전체 수요나 수익을 뜻하지 않습니다.</small></div>';
     }).join("")||'<div class="empty-state">선택한 시장에 추천할 트렌드가 없습니다.</div>';
   }
 
