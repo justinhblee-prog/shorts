@@ -116,7 +116,7 @@ The upload endpoint requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-To
 - `GET /api/youtube/uploads/{job_id}`
 - `POST /api/youtube/videos/{video_id}/refresh-metrics`
 
-Upload body includes a server-local `media_path`, title, description, tags and category ID. The API forces `privacyStatus=private`; there is no public/unlisted override. The server must already have the rendered file at that local path. Current render providers return artifact URLs, so downloading/staging remote artifacts into trusted local storage is a separate deployment integration and is not silently performed by this endpoint.
+Upload body includes a server-local `media_path`, title, description, tags and category ID. The API forces `privacyStatus=private`; there is no public/unlisted override. The server must already have the rendered file at that local path. Render providers return artifact URLs. Use the authenticated `/stage-media` endpoint below to download an allowlisted artifact into trusted local storage before upload.
 
 Uploads use the Google API client resumable media upload interface. The upload record and source-provided view/like/comment counters are persisted. A missing first metrics response does not invalidate a confirmed upload. Data API counters are not revenue; estimated or actual monetization revenue is handled separately in BUILD-00009.
 
