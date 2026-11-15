@@ -10,7 +10,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
                  OpportunityInput, create_opportunity_score, Fail, fail as fail_job,
-                 Complete, complete as complete_job)
+                 Complete, complete as complete_job, Claim, claim as claim_job)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -247,6 +247,18 @@ class ApiSecurityTests(unittest.TestCase):
         pause.assert_called_once_with(
             "API reported production failure; provider outcome may be ambiguous",
             "job-generic-fail",
+        )
+
+    def test_generic_claim_endpoint_excludes_production_jobs(self):
+        body=Claim(worker_id="generic-worker",hostname="test-host")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue,"claim",return_value=None) as claim,
+        ):
+            result=claim_job(body,x_review_token="test-token")
+        self.assertIsNone(result["job"])
+        claim.assert_called_once_with(
+            "generic-worker","test-host",exclude_job_type="short_video_production"
         )
 
     def test_generic_api_completion_cannot_bypass_production_pipeline(self):
