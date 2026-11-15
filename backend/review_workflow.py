@@ -140,7 +140,7 @@ class ReviewStore:
                 error=?,updated_at=? WHERE job_id=? AND status='review_pending'
             """, (decision, comment if decision != "approved" else None,
                   timestamp, job_id))
-            if c.total_changes < 1:
+            if c.rowcount != 1:
                 raise ReviewConflict("Review state changed concurrently")
             row = c.execute(
                 "SELECT * FROM production_runs WHERE job_id=?", (job_id,)
