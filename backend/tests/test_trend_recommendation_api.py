@@ -15,7 +15,7 @@ class TrendRecommendationApiTests(unittest.TestCase):
               mock.patch("app.brand_store.list", return_value=[]),
               mock.patch("app.performance_analyzer.analyze", return_value={"brands": [], "videos": [], "cohorts": []}),
               mock.patch("app.recommendation_evaluation_store.record_run") as record_run):
-            result = capture_trend_recommendations(
+            result = trend_recommendations(
                 region="US", limit=10, x_review_token="valid"
             )
         self.assertEqual(result["count"], 0)
@@ -101,7 +101,9 @@ class TrendRecommendationApiTests(unittest.TestCase):
               mock.patch("app.performance_analyzer.analyze", return_value=performance),
               mock.patch("app.recommendation_evaluation_store.record_run",
                          return_value={"run_id": "run-123", "recorded_candidates": 1}) as record_run):
-            result = trend_recommendations(region="US", limit=10, x_review_token="valid")
+            result = capture_trend_recommendations(
+                region="US", limit=10, x_review_token="valid"
+            )
         self.assertEqual(result["count"], 1)
         self.assertEqual(result["evaluation_run_id"], "run-123")
         self.assertEqual(result["evaluation_candidates_recorded"], 1)
