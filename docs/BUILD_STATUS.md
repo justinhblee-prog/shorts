@@ -1144,4 +1144,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Avoids loading production artifact metadata, full review histories, platform event bodies, YouTube metric snapshots, payloads, worker identifiers, and lease tokens for dashboard rows.
 - Preserves the existing lifecycle consistency rules, including unresolved provider outcomes, current-approval checks, missing attempt IDs, and missing confirmed video IDs.
 - Added queue-store tests for duplicate IDs, bounded input, compact result shape, latest review state, and publication-attempt evidence; updated API tests to assert the dashboard consumes the batch snapshot.
-- CI validation pending. The optimization is local database-only and does not contact YouTube or TikTok.
+- GitHub Actions passed **357 tests** at commit `676a18b` (run `43697822438`). The first run exposed a missing TikTok audit-event fixture in the new unit test; the fixture was corrected and the complete suite then passed.
+- The optimization is local database-only and does not contact YouTube or TikTok.
