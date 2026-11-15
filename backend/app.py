@@ -396,8 +396,10 @@ def get_job_lifecycle_overview(job_id:str,x_review_token:str|None=Header(default
         stage("tiktok",tiktok.get("status"),tiktok.get("updated_at"),
               tiktok.get("video_id") or tiktok.get("publish_id")),
     ]
+    performance=build_stage_performance(job,trace.get("queue_events",[]))
     return {
         "job_id":job_id,
+        "performance":performance,
         "summary":{"brand":production.get("brand"),"topic":production.get("topic"),
                    "queue_status":job.get("status"),"production_status":production.get("status"),
                    "current_stage":production.get("current_stage"),
