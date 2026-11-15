@@ -10,17 +10,13 @@ import uuid
 
 from production_pipeline import ProductionPipeline, ProductionStore, ProductionLeaseConflict, ProviderError
 from queue_store import JobQueue, LeaseConflict
+from worker_runtime import heartbeat_interval
 
 
 DB_PATH = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
 LEASE_SECONDS = max(30, int(os.getenv("NEXUS_LEASE_SECONDS", "300")))
 WORKER_ID = os.getenv("NEXUS_WORKER_ID", "nexus-production-" + str(uuid.uuid4())[:8])
 IDLE_SECONDS = max(1, int(os.getenv("NEXUS_IDLE_SECONDS", "3")))
-
-
-def heartbeat_interval(lease_seconds, configured_seconds=10):
-    """Keep operator pause/lost-lease detection responsive within the lease window."""
-    return max(5, min(int(configured_seconds), max(5, int(lease_seconds) // 3)))
 
 
 HEARTBEAT_SECONDS = heartbeat_interval(
