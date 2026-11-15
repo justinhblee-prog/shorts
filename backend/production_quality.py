@@ -70,8 +70,10 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
     known_nonvertical = render_format in ("horizontal", "horizontal_16_9", "square", "16:9", "1:1")
     if aspect and aspect != "9:16":
         known_nonvertical = True
-    if width and height and (width / height) >= 1:
-        known_nonvertical = True
+    if width and height:
+        measured_ratio = width / height
+        if abs(measured_ratio - (9.0 / 16.0)) > 0.04:
+            known_nonvertical = True
     if known_nonvertical:
         blockers.append("render_format_is_not_vertical_9_16")
     elif not aspect and not (width and height) and render_format not in (
