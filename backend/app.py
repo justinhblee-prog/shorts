@@ -9,6 +9,7 @@ from profitability import OpportunityStore, score_opportunity
 from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
+from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -21,6 +22,8 @@ production_store=ProductionStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3")
 production_pipeline=ProductionPipeline(production_store)
 brand_store=BrandStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+youtube_publisher=YouTubePublisher(youtube_upload_store)
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -196,6 +199,39 @@ def review_history(job_id:str, x_review_token:str|None=Header(default=None)):
         return {"items":review_store.history(job_id)}
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
+
+
+
+@app.post("/api/youtube/upload/{job_id}",status_code=201)
+def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
+                         x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return youtube_publisher.upload_approved(
+            job_id,body.media_path,review_store,body.title,body.description,
+            body.tags,body.category_id)
+    except ReviewNotFound:
+        raise HTTPException(404,"Production job not found")
+    except YouTubeUploadError as e:
+        raise HTTPException(409,str(e))
+
+
+@app.get("/api/youtube/uploads/{job_id}")
+def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    result=youtube_upload_store.get(job_id)
+    if result is None:
+        raise HTTPException(404,"YouTube upload record not found")
+    return result
+
+
+@app.post("/api/youtube/videos/{video_id}/refresh-metrics")
+def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return youtube_publisher.refresh_metrics(video_id)
+    except YouTubeUploadError as e:
+        raise HTTPException(502,str(e))
 
 
 @app.post("/api/trends/collect")
