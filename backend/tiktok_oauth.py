@@ -186,10 +186,12 @@ class TikTokOAuthManager:
         self.client_secret = client_secret or os.getenv("TIKTOK_CLIENT_SECRET")
         self.redirect_uri = redirect_uri or os.getenv("TIKTOK_REDIRECT_URI")
         key = encryption_key or os.getenv("TIKTOK_TOKEN_ENCRYPTION_KEY")
+        self._cipher_invalid = False
         try:
             self.cipher = Fernet(key.encode() if isinstance(key, str) else key) if key else None
-        except (ValueError, TypeError) as exc:
-            raise TikTokOAuthError("TIKTOK_TOKEN_ENCRYPTION_KEY must be a valid Fernet key") from exc
+        except (ValueError, TypeError):
+            self.cipher = None
+            self._cipher_invalid = True
         self.transport = transport or self._request
         self._owner_id = "oauth-" + uuid.uuid4().hex
         self._local_lock = threading.Lock()
@@ -214,7 +216,9 @@ class TikTokOAuthManager:
         if parsed.scheme != "https" or not parsed.netloc or parsed.query or parsed.fragment:
             raise TikTokOAuthError("TikTok web OAuth redirect URI must be an absolute HTTPS URL without query or fragment")
         if self.cipher is None:
-            raise TikTokOAuthError("TIKTOK_TOKEN_ENCRYPTION_KEY is required for encrypted token storage")
+            raise TikTokOAuthError(
+                "TIKTOK_TOKEN_ENCRYPTION_KEY must be a valid Fernet key for encrypted token storage"
+            )
 
     def start_authorization(self, scopes=DEFAULT_SCOPES):
         self._require_config()
@@ -298,7 +302,7 @@ class TikTokOAuthManager:
 
     def get_access_token(self):
         if self.cipher is None:
-            raise TikTokOAuthError("TIKTOK_TOKEN_ENCRYPTION_KEY is required")
+            raise TikTokOAuthError("TIKTOK_TOKEN_ENCRYPTION_KEY must be a valid Fernet key")
         with self._local_lock:
             row = self.store.token_record()
             if not row:
@@ -351,7 +355,7 @@ class TikTokOAuthManager:
         if not self.client_key or not self.client_secret:
             raise TikTokOAuthError("TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET are required to revoke TikTok access")
         if self.cipher is None:
-            raise TikTokOAuthError("TIKTOK_TOKEN_ENCRYPTION_KEY is required to revoke TikTok access")
+            raise TikTokOAuthError("TIKTOK_TOKEN_ENCRYPTION_KEY must be a valid Fernet key to revoke TikTok access")
         row = self.store.token_record()
         if not row:
             return {"connected": False, "status": "disconnected"}
@@ -384,7 +388,7 @@ class TikTokOAuthManager:
         if result.get("connected") and self.cipher is None:
             result.update({
                 "connected": False,
-                "status": "encryption_key_missing",
+                "status": "encryption_key_invalid" if self._cipher_invalid else "encryption_key_missing",
                 "reauthorization_required": True,
             })
         elif result.get("connected") and (
