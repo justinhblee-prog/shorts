@@ -341,4 +341,19 @@ class TikTokOAuthManager:
                 self.store.release_refresh_lease(self._owner_id, lease)
 
     def status(self):
-        return self.store.status()
+        result = self.store.status()
+        if result.get("connected") and self.cipher is None:
+            result.update({
+                "connected": False,
+                "status": "encryption_key_missing",
+                "reauthorization_required": True,
+            })
+        elif result.get("connected") and (
+            not self.client_key or not self.client_secret
+        ):
+            result.update({
+                "connected": False,
+                "status": "oauth_client_config_missing",
+                "reauthorization_required": True,
+            })
+        return result
