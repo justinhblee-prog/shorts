@@ -313,7 +313,10 @@
     const filter=$("lifecycleStatusFilter")?.value||"";
     const params=new URLSearchParams({limit:"50",offset:String(lifecycleOffset)});
     if(filter)params.set("status",filter);
-    const data=await api("/api/lifecycle/queue?"+params.toString());
+    const [data,performance]=await Promise.all([
+      api("/api/lifecycle/queue?"+params.toString()),
+      api("/api/performance/pipeline?limit=100&min_samples=5")
+    ]);
     const counts=data.status_counts||{},productionCounts=data.production_status_counts||{},risks=data.risk_counts||{};
     const summary='<div class="finance-summary"><div><small>전체 제작 작업</small><b>'+Number(data.total||0).toLocaleString()+'</b></div><div><small>차단 위험</small><b>'+Number(risks.blocked||0).toLocaleString()+'</b></div><div><small>확인 필요</small><b>'+Number(risks.attention_required||0).toLocaleString()+'</b></div></div>';
     const rows=(data.items||[]).map(item=>{
@@ -324,7 +327,9 @@
     }).join("");
     const statusSummary=Object.entries(counts).map(([status,count])=>'<span class="tag">큐 '+esc(status)+' '+Number(count).toLocaleString()+'</span>').join(" ");
     const productionSummary=Object.entries(productionCounts).map(([status,count])=>'<span class="tag">제작 '+esc(status)+' '+Number(count).toLocaleString()+'</span>').join(" ");
-    $("lifecycleQueue").innerHTML=summary+'<div class="notice">큐 상태 '+statusSummary+'<br>제작 상태 '+productionSummary+'</div>'+(rows||'<div class="empty-state">표시할 숏폼 제작 작업이 없습니다.</div>')+'<small>읽기 전용 관제 · 자동 재시도·원격 상태 조회·게시 실행 없음 · 페이지 최대 50건 · '+(data.offset+1)+'–'+Math.min(data.offset+(data.items||[]).length,data.total)+' / '+data.total+'</small>';
+    const perfRows=(performance.stages||[]).map(item=>'<div class="data-item"><b>'+esc(item.stage)+' · '+esc(item.status)+'</b><small>표본 '+Number(item.sample_count)+' · 중앙값 '+(item.median_seconds===null?"표본 부족":esc(item.median_seconds+"초"))+' · P90 '+(item.p90_seconds===null?"표본 부족":esc(item.p90_seconds+"초"))+'</small></div>').join("");
+    const perfHtml='<section class="review-policy"><strong>전체 파이프라인 성능 통계</strong><p>분석 작업 '+Number(performance.jobs_with_observations||0)+'/'+Number(performance.cohort_jobs||0)+' · 단계별 최소 표본 '+Number(performance.minimum_samples_per_stage||5)+'</p>'+(performance.bottleneck_candidate?'<p>병목 후보: '+esc(performance.bottleneck_candidate.stage)+' · 중앙값 '+esc(performance.bottleneck_candidate.median_seconds)+'초</p>':'<p>현재는 병목 후보를 확정할 표본이 부족합니다.</p>')+(perfRows||'<small>분석 가능한 단계별 관측치가 없습니다.</small>')+'<small>큐 상태 체류시간 기준이며 공급자 실행·렌더링 시간과 다릅니다. 최근 최대 100개 작업의 읽기 전용 통계입니다.</small></section>';
+    $("lifecycleQueue").innerHTML=perfHtml+summary+'<div class="notice">큐 상태 '+statusSummary+'<br>제작 상태 '+productionSummary+'</div>'+(rows||'<div class="empty-state">표시할 숏폼 제작 작업이 없습니다.</div>')+'<small>읽기 전용 관제 · 자동 재시도·원격 상태 조회·게시 실행 없음 · 페이지 최대 50건 · '+(data.offset+1)+'–'+Math.min(data.offset+(data.items||[]).length,data.total)+' / '+data.total+'</small>';
     $("lifecyclePrev").disabled=data.offset<=0;
     $("lifecycleNext").disabled=data.offset+(data.items||[]).length>=data.total;
   }
