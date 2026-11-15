@@ -177,7 +177,7 @@ All BUILD-00001 through BUILD-00012 source milestones have a committed baseline.
 - Added `backend/scheduler.py` long-running scheduler process; it is separate from API and production worker.
 - APIs: POST/GET `/api/schedules`; PUT `/api/schedules/{id}/activation?active=true|false`; all protected by review token. Creation validates active brand and region/language.
 - Added tests for dispatch, missed interval handling and minimum interval.
-- **Not validated:** runtime tests, process supervision, multi-instance scheduler leadership, timezone/DST calendar schedules or production alerting. Run one scheduler instance until distributed leader election is added.
+- **Still not validated:** live provider/OAuth/upload behavior, timezone/DST calendar schedules and production alerting. Process supervision and multi-instance scheduler leadership have since received automated regression coverage; see the 2026-11-15 scheduler leader-election checkpoint at the end of this document.
 
 ## BUILD-00012 — integrated packaging and validation
 
