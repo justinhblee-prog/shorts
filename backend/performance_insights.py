@@ -1,6 +1,22 @@
 """Evidence-bound performance analysis; no synthetic metrics or predictive claims."""
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
+
+
+def _elapsed_hours(start, end):
+    """Return positive elapsed hours for two timestamps (naive values are assumed UTC)."""
+    try:
+        first = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+        last = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+        if first.tzinfo is None:
+            first = first.replace(tzinfo=timezone.utc)
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        seconds = (last - first).total_seconds()
+        return round(seconds / 3600.0, 4) if seconds > 0 else None
+    except (TypeError, ValueError):
+        return None
 
 
 class PerformanceAnalyzer:
@@ -91,6 +107,9 @@ class PerformanceAnalyzer:
                 result.update(deltas)
                 result["first_snapshot_at"] = first["collected_at"]
                 result["last_snapshot_at"] = last["collected_at"]
+                result["elapsed_hours"] = _elapsed_hours(
+                    first["collected_at"], last["collected_at"]
+                )
                 if deltas["view_delta"] is not None and deltas["view_delta"] >= 0:
                     result["measurement_status"] = "measured"
                     brand_row["measured_videos"] += 1
@@ -98,11 +117,33 @@ class PerformanceAnalyzer:
                     brand_row["view_delta"] += deltas["view_delta"]
                     region_row["view_delta"] += deltas["view_delta"]
                     for field in ("like_delta", "comment_delta"):
-                        if deltas[field] is not None:
+                        if deltas[field] is not None and deltas[field] >= 0:
                             brand_row[field] += deltas[field]
                             region_row[field] += deltas[field]
+                        elif deltas[field] is not None:
+                            # Counter resets are missing evidence, not negative engagement.
+                            deltas[field] = None
+                            result[field] = None
+                    result["views_per_hour"] = (
+                        round(deltas["view_delta"] / result["elapsed_hours"], 2)
+                        if result["elapsed_hours"] is not None else None
+                    )
+                    interaction_delta = (
+                        deltas["like_delta"] + deltas["comment_delta"]
+                        if deltas["like_delta"] is not None and deltas["comment_delta"] is not None
+                        else None
+                    )
+                    result["interaction_delta"] = interaction_delta
+                    result["interactions_per_1000_view_delta"] = (
+                        round(interaction_delta * 1000 / deltas["view_delta"], 2)
+                        if interaction_delta is not None and deltas["view_delta"] > 0
+                        else None
+                    )
                 else:
                     result["measurement_status"] = "counter_reset_or_invalid"
+                    result["views_per_hour"] = None
+                    result["interaction_delta"] = None
+                    result["interactions_per_1000_view_delta"] = None
                     brand_row["unmeasured_videos"] += 1
                     region_row["unmeasured_videos"] += 1
             else:
@@ -162,8 +203,11 @@ class PerformanceAnalyzer:
             "videos": video_results,
             "financial": list(financial.values()),
             "limitations": [
-                "View deltas are differences between stored snapshots, not real-time velocity.",
-                "Negative counter differences are treated as resets or invalid measurements and excluded from aggregate growth.",
+                "View deltas are differences between stored snapshots, not real-time platform analytics.",
+                "Views per hour is normalized between stored snapshots, not a platform-provided velocity metric.",
+                "Interactions per 1000 view delta uses like and comment counter differences only; it is not audience-retention or satisfaction data.",
+                "Negative view-counter differences are treated as resets or invalid measurements and excluded from aggregate growth; negative interaction deltas are omitted.",
+                "Audience retention, average view duration, viewed-versus-swiped-away and subscriber conversion require eligible YouTube Analytics data and are not inferred from Data API counters.",
                 "Recommendations are operational heuristics, not causal claims or forecasts.",
                 "Financial totals include only recorded ledger entries.",
                 "Financials are separated by brand and currency; no implicit foreign-exchange conversion is applied."
