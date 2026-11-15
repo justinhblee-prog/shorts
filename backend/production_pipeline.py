@@ -141,9 +141,9 @@ class ProductionStore:
                 # A fresh attempt invalidates every artifact from the previous attempt.
                 # Keep this in the same transaction as the fenced stage transition.
                 c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
-            c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
+            updated=c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
                          WHERE job_id=?""", (stage, status, error, utc_now(), job_id))
-            if c.total_changes == 0:
+            if updated.rowcount != 1:
                 raise KeyError(job_id)
 
     def artifact(self, job_id, stage, artifact_type, url, metadata,
@@ -199,12 +199,12 @@ class ProductionStore:
                     invalid.append(row["id"])
                     continue
                 timestamp = utc_now()
-                c.execute("""INSERT OR IGNORE INTO production_runs
+                inserted=c.execute("""INSERT OR IGNORE INTO production_runs
                     (job_id,brand,region,language,topic,status,current_stage,created_at,updated_at)
                     VALUES(?,?,?,?,?,'queued','queued',?,?)""",
                     (row["id"], brief["brand"], brief["region"], brief["language"],
                      brief["topic"], timestamp, timestamp))
-                if c.rowcount:
+                if inserted.rowcount:
                     restored.append(row["id"])
         return {"restored": len(restored), "job_ids": restored, "invalid": invalid}
 
@@ -223,12 +223,12 @@ class ProductionStore:
                 ORDER BY j.updated_at LIMIT ?""",
                 (max(1, min(int(limit), 500)),)).fetchall()
             for row in rows:
-                c.execute("""UPDATE production_runs
+                updated=c.execute("""UPDATE production_runs
                     SET status=?,current_stage=?,error=?,updated_at=?
                     WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
                     (row["status"], row["status"], row["error_message"],
                      utc_now(), row["job_id"]))
-                if c.rowcount:
+                if updated.rowcount:
                     changed.append(row["job_id"])
         return {"updated": len(changed), "job_ids": changed}
 
@@ -248,7 +248,7 @@ class ProductionStore:
                 (max(1, min(int(limit), 500)),)).fetchall()
             for row in rows:
                 job_id = row["job_id"]
-                c.execute("""UPDATE production_runs
+                updated=c.execute("""UPDATE production_runs
                     SET status='review_pending',current_stage='review_pending',
                         error=NULL,updated_at=?
                     WHERE job_id=? AND status='rendered'
@@ -258,7 +258,7 @@ class ProductionStore:
                           AND j.job_type='short_video_production'
                           AND j.status='review_pending'
                       )""", (utc_now(), job_id))
-                if c.rowcount:
+                if updated.rowcount:
                     repaired.append(job_id)
         return {"reconciled": len(repaired), "job_ids": repaired}
 
