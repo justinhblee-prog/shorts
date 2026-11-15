@@ -229,3 +229,11 @@ Latest observed Actions run 94: https://github.com/justinhblee-prog/shorts/actio
 - Renderer artifacts can be staged with protected `POST /api/production/jobs/{job_id}/stage-media`; exact host allowlisting and MP4 validation apply.
 - YouTube upload UI calls the private-upload API only.
 - Operator runbook: `docs/OPERATOR_RUNBOOK.md`.
+
+## Integration preflight
+
+- Added protected `GET /api/preflight` and `backend/preflight.py`.
+- Reports presence/absence of operator token, script/voice/render credentials, artifact hostname allowlist, YouTube OAuth/API credentials and writable media directory.
+- Does not expose secret values and explicitly reports that configuration presence is not live connectivity verification.
+- Dashboard includes an external-integration readiness panel.
+- Added unit tests for fail-closed missing configuration and the distinction between configured and live-verified.
