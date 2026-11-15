@@ -22,9 +22,13 @@ def _provider_readiness(source, url_key, token_key):
             host = (parsed.hostname or "").lower() or None
             loopback = host in ("localhost", "127.0.0.1", "::1")
             endpoint_valid = (
-                parsed.scheme == "https" or (parsed.scheme == "http" and loopback)
-            ) and bool(host) and parsed.username is None and parsed.password is None
-                and parsed.query == "" and parsed.fragment == ""
+                (parsed.scheme == "https" or (parsed.scheme == "http" and loopback))
+                and bool(host)
+                and parsed.username is None
+                and parsed.password is None
+                and parsed.query == ""
+                and parsed.fragment == ""
+            )
         except ValueError:
             endpoint_valid = False
     configured = bool(raw_url and token_present and endpoint_valid)
