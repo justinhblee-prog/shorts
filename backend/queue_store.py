@@ -431,11 +431,13 @@ class JobQueue:
             c.commit()
         return {"requeued":recovered,"terminal":terminal}
 
-    def pause(self, reason, job_id=None, actor="system"):
+    def pause(self, reason, job_id=None, actor="system", worker_id=None, instance_token=None):
         """Persist a production pause, fence in-flight leases, and audit the action."""
         n=stamp(now())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if instance_token is not None:
+                self.assert_worker_instance(c,worker_id,instance_token)
             self._pause_production_in_transaction(c, reason, job_id, n, actor)
             c.commit()
             return self.worker_control()
