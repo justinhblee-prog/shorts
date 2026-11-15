@@ -233,6 +233,23 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("작업 연결 재무 기록", app_js)
         self.assertIn("통화 환산·추정 매출은 포함하지 않으며", app_js)
 
+    def test_unified_publishing_dashboard_exposes_separate_platform_states_and_manual_recovery(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("/api/publishing/dashboard?limit=100", app_js)
+        self.assertIn("loadPublishingDashboard()", app_js)
+        self.assertIn("data-pub-refresh", app_js)
+        self.assertIn("data-pub-reconcile", app_js)
+        self.assertIn("/api/tiktok/publications/", app_js)
+        self.assertIn("/api/youtube/uploads/", app_js)
+        self.assertIn("confirmed:true", app_js)
+        self.assertIn("원격 플랫폼에서 결과를 직접 확인", app_js)
+        self.assertIn('id="publishingDashboardPanel"', html)
+        self.assertIn('id="publishingDashboardSummary"', html)
+        self.assertIn('id="publishingDashboardList"', html)
+        self.assertIn("읽기 전용", html)
+        self.assertIn("SELF_ONLY", app_js)
+
     def test_performance_dashboard_displays_metrics_collection_freshness(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertIn("/api/metrics/collection-status", app_js)
