@@ -1025,9 +1025,12 @@ def metrics_collection_status(x_review_token:str|None=Header(default=None)):
         "YOUTUBE_CLIENT_ID","YOUTUBE_CLIENT_SECRET","YOUTUBE_REFRESH_TOKEN"
     ))
     youtube_analytics["scope_authorized"] = bool(
-        youtube_analytics.get("last_success_at") and youtube_analytics.get("requested", 0) > 0
+        youtube_analytics.get("last_success_at")
+        and youtube_analytics["status"] != "scope_missing"
     )
-    if not youtube_analytics["scope_authorized"] and youtube_analytics["status"] == "not_started":
+    if not youtube_analytics["scope_authorized"] and youtube_analytics["status"] in (
+        "not_started", "waiting_for_uploaded_videos"
+    ):
         youtube_analytics["status"] = "scope_unverified"
         youtube_analytics["last_error"] = "yt-analytics.readonly consent has not been verified"
     tiktok = tiktok_metrics_store.status(tiktok_publish_store, interval*2)
