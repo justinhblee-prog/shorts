@@ -83,8 +83,10 @@
         ? '<p>음성-대본 대조: '+esc(speechCheck.status)+' · '+(speechCheck.match_rate===null||speechCheck.match_rate===undefined?'유사도 산출 불가':esc((Number(speechCheck.match_rate)*100).toFixed(1))+'% 일치 추정')+' · ASR '+esc(speechCheck.provider||"미설정")+'</p>'
         : '';
       const captionCheck=quality.caption_alignment||{};
+      const timingCheck=captionCheck.timing_analysis||{};
       const captionSummary=captionCheck.status
         ? '<p>자막-음성/대본 대조: '+esc(captionCheck.status)+' · '+(captionCheck.match_rate===null||captionCheck.match_rate===undefined?'대조 불가':esc((Number(captionCheck.match_rate)*100).toFixed(1))+'% 일치 추정')+' · 추출 '+esc(captionCheck.extraction_status||"미실행")+'</p>'
+          +(timingCheck.status==="analyzed"?'<p>자막 타이밍: '+esc(timingCheck.cue_count)+'개 구간 · 겹침 '+esc(timingCheck.overlap_count)+'개 · 빠른 읽기 '+esc(timingCheck.fast_reading_count)+'개 · 긴 공백 '+esc(timingCheck.long_gap_count)+'개</p>':'')
         : '';
       const originalityCheck=quality.originality_check||{};
       const similarScripts=Array.isArray(originalityCheck.similar_matches)?originalityCheck.similar_matches:[];

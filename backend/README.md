@@ -403,3 +403,8 @@ The pipeline compares the ASR transcript with the generated script using normali
 When renderer artifacts are staged and ffprobe inspection is enabled, the media inspector also checks for a text subtitle stream. If one exists, FFmpeg extracts the first text subtitle stream to SRT with a 2 MiB output cap and bounded execution time. The pipeline compares extracted subtitle text with the independent ASR transcript when configured, otherwise with the generated script. WER above 0.25 becomes a reviewer warning, not an automatic rejection.
 
 No text subtitle stream is not proof that captions are absent: captions may be burned into the video. Burned-in caption OCR, timing, placement, font size, contrast, readability and language correctness are not verified. A missing/unextractable stream is explicitly marked unverified for human review.
+
+
+### Subtitle timing and reading-speed heuristics
+
+Extracted SRT timecodes are analyzed for nonpositive durations, cue overlaps, gaps over five seconds, cue durations below 0.5 seconds or above seven seconds, and character rates above 20 characters/second. The report stores counts and warning codes, not subtitle content. These are broad heuristics, not universal accessibility or platform standards; language, font, contrast, placement and context affect actual readability. Every warning remains a human-review item.

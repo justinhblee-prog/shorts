@@ -49,6 +49,13 @@ class ProductionQualityTests(unittest.TestCase):
                 "reference": "independent_asr_transcript",
                 "subtitle_token_count": 25, "word_error_rate": 0,
                 "match_rate": 1.0, "threshold_word_error_rate": 0.25,
+                "timing_analysis": {
+                    "status": "analyzed", "cue_count": 4,
+                    "valid_cue_count": 4, "invalid_cue_count": 0,
+                    "overlap_count": 0, "long_gap_count": 0,
+                    "fast_reading_count": 0, "short_cue_count": 0,
+                    "long_cue_count": 0, "warnings": [],
+                },
             },
         )
         self.assertEqual(report["status"], "ready_for_human_review")
@@ -145,6 +152,36 @@ class ProductionQualityTests(unittest.TestCase):
         self.assertIn("subtitle_text_differs_from_speech_or_script",
                       report["warnings"])
         self.assertEqual(report["caption_alignment"]["status"], "material_mismatch")
+
+    def test_caption_timing_anomalies_are_review_warnings(self):
+        report = evaluate_production_quality(
+            "A clear opening explains the problem. Evidence supports the claim. "
+            "The ending gives viewers a useful next step with a concise summary.",
+            {"factual_claims_verified": True}, {"duration_seconds": 30},
+            {"duration_seconds": 30, "aspect_ratio": "9:16",
+             "audio_track_present": True, "subtitles_enabled": True}, {},
+            caption_report={
+                "status": "aligned", "extraction_status": "extracted",
+                "reference": "generated_script",
+                "timing_analysis": {
+                    "status": "analyzed", "cue_count": 5,
+                    "valid_cue_count": 5, "invalid_cue_count": 0,
+                    "overlap_count": 2, "long_gap_count": 1,
+                    "fast_reading_count": 3, "short_cue_count": 0,
+                    "long_cue_count": 0,
+                    "warnings": [
+                        "subtitle_cues_overlap",
+                        "subtitle_timing_has_gaps_over_5_seconds",
+                        "subtitle_reading_speed_over_20_characters_per_second",
+                    ],
+                },
+            },
+        )
+        self.assertEqual(report["status"], "review_required")
+        self.assertIn("subtitle_cues_overlap", report["warnings"])
+        timing = next(item for item in report["checks"]
+                      if item["name"] == "caption_timing")
+        self.assertEqual(timing["overlap_count"], 2)
 
     def test_absent_text_subtitle_stream_is_not_mistaken_for_verified_captions(self):
         report = evaluate_production_quality(

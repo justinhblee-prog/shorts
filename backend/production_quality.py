@@ -112,6 +112,40 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             "warning": caption_report.get("warning"),
         })
 
+    timing_report = (
+        caption_report.get("timing_analysis")
+        if isinstance(caption_report, dict) else None
+    )
+    if isinstance(timing_report, dict):
+        timing_status = timing_report.get("status")
+        timing_warnings = timing_report.get("warnings") or []
+        if isinstance(timing_warnings, list):
+            warnings.extend(str(item) for item in timing_warnings)
+        if timing_status == "not_available":
+            warnings.append("subtitle_timing_not_analyzed")
+        elif timing_status == "too_many_cues":
+            warnings.append("subtitle_timing_exceeds_analysis_limit")
+        checks.append({
+            "name": "caption_timing",
+            "status": timing_status or "unknown",
+            "cue_count": timing_report.get("cue_count"),
+            "valid_cue_count": timing_report.get("valid_cue_count"),
+            "invalid_cue_count": timing_report.get("invalid_cue_count"),
+            "overlap_count": timing_report.get("overlap_count"),
+            "long_gap_count": timing_report.get("long_gap_count"),
+            "fast_reading_count": timing_report.get("fast_reading_count"),
+            "short_cue_count": timing_report.get("short_cue_count"),
+            "long_cue_count": timing_report.get("long_cue_count"),
+            "warnings": timing_warnings,
+            "boundary": timing_report.get("boundary"),
+        })
+    else:
+        warnings.append("subtitle_timing_not_analyzed")
+        checks.append({
+            "name": "caption_timing",
+            "status": "not_analyzed",
+        })
+
     voice_duration = _positive_number(voice_metadata.get("duration_seconds"))
     if voice_duration is None:
         warnings.append("voice_duration_metadata_missing_or_invalid")

@@ -79,6 +79,112 @@ def _subtitle_payload_to_text(value):
     return re.sub(r"\s+", " ", text).strip()
 
 
+def analyze_srt_timing(subtitle_text, max_cues=10000):
+    text = str(subtitle_text or "")
+    pattern = re.compile(
+        r"(?m)^[ \t]*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})[ \t]+-->[ \t]+"
+        r"(\d{2}):(\d{2}):(\d{2})[,.](\d{3})"
+    )
+    matches = list(pattern.finditer(text))
+    if not matches:
+        return {
+            "status": "not_available", "cue_count": 0, "warnings": [],
+            "reason": "No SRT timecodes were found in the extracted subtitle text.",
+        }
+    if len(matches) > max_cues:
+        return {
+            "status": "too_many_cues", "cue_count": len(matches), "warnings": [],
+            "reason": f"Subtitle file exceeds the {max_cues}-cue timing analysis limit.",
+        }
+
+    def seconds(hour, minute, second, millis):
+        return (int(hour) * 3600 + int(minute) * 60
+                + int(second) + int(millis) / 1000.0)
+
+    cues = []
+    invalid_count = 0
+    for index, match in enumerate(matches):
+        start = seconds(*match.groups()[:4])
+        end = seconds(*match.groups()[4:])
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        cue_text = text[match.end():next_start]
+        cue_text = re.sub(r"(?m)^[ \t]*\d+[ \t]*$", "", cue_text)
+        cue_text = re.sub(r"<[^>]+>", "", cue_text)
+        cue_text = re.sub(r"\{\\an\d+\}", "", cue_text)
+        char_count = len(re.sub(r"\s+", "", cue_text))
+        if end <= start:
+            invalid_count += 1
+            continue
+        duration = end - start
+        cues.append({
+            "start_seconds": start, "end_seconds": end,
+            "duration_seconds": duration,
+            "characters_per_second": round(char_count / duration, 2),
+        })
+
+    overlap_count = 0
+    long_gap_count = 0
+    short_cue_count = 0
+    long_cue_count = 0
+    fast_reading_count = 0
+    out_of_order_count = 0
+    for index, cue in enumerate(cues):
+        if cue["duration_seconds"] < 0.5:
+            short_cue_count += 1
+        if cue["duration_seconds"] > 7.0:
+            long_cue_count += 1
+        if cue["characters_per_second"] > 20.0:
+            fast_reading_count += 1
+        if index:
+            previous = cues[index - 1]
+            if cue["start_seconds"] < previous["start_seconds"]:
+                out_of_order_count += 1
+            if cue["start_seconds"] < previous["end_seconds"] - 0.05:
+                overlap_count += 1
+            if cue["start_seconds"] - previous["end_seconds"] > 5.0:
+                long_gap_count += 1
+
+    warnings = []
+    if invalid_count:
+        warnings.append("subtitle_timing_contains_invalid_or_nonpositive_cues")
+    if overlap_count:
+        warnings.append("subtitle_cues_overlap")
+    if long_gap_count:
+        warnings.append("subtitle_timing_has_gaps_over_5_seconds")
+    if short_cue_count:
+        warnings.append("subtitle_cues_shorter_than_0_5_seconds")
+    if long_cue_count:
+        warnings.append("subtitle_cues_longer_than_7_seconds")
+    if fast_reading_count:
+        warnings.append("subtitle_reading_speed_over_20_characters_per_second")
+    if out_of_order_count:
+        warnings.append("subtitle_cues_are_out_of_order")
+    return {
+        "status": "analyzed",
+        "cue_count": len(matches),
+        "valid_cue_count": len(cues),
+        "invalid_cue_count": invalid_count,
+        "overlap_count": overlap_count,
+        "long_gap_count": long_gap_count,
+        "short_cue_count": short_cue_count,
+        "long_cue_count": long_cue_count,
+        "fast_reading_count": fast_reading_count,
+        "out_of_order_count": out_of_order_count,
+        "thresholds": {
+            "minimum_duration_seconds": 0.5,
+            "maximum_duration_seconds": 7.0,
+            "maximum_characters_per_second": 20.0,
+            "long_gap_seconds": 5.0,
+        },
+        "warnings": warnings,
+        "boundary": (
+            "Timing and character-rate heuristics only. They do not measure actual reading "
+            "difficulty, font size, contrast, safe-area placement, language-specific reading "
+            "speed, or whether the captions match the video visually."
+        ),
+    }
+
+
 def build_caption_alignment_report(script, subtitle_text, asr_transcript=None,
                                    max_word_error_rate=0.25):
     caption_text = _subtitle_payload_to_text(subtitle_text)
@@ -88,11 +194,13 @@ def build_caption_alignment_report(script, subtitle_text, asr_transcript=None,
     result = compare_transcript_to_script(
         reference, caption_text, max_word_error_rate=max_word_error_rate
     )
+    timing = analyze_srt_timing(subtitle_text)
     return {
         "version": "caption_alignment_v1",
         "reference": reference_kind,
         "subtitle_text_available": bool(caption_text),
         "subtitle_token_count": len(_tokens(caption_text)),
+        "timing_analysis": timing,
         **result,
         "warning": (
             "Only an extractable text subtitle stream was compared. Burned-in captions, "

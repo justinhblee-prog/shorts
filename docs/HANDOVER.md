@@ -806,3 +806,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - No text subtitle stream does not prove captions are absent because captions may be burned in. Burned-in caption OCR, timing, placement, font size, contrast, legibility and factual correctness remain unverified.
 - Raw extracted subtitle text is not copied into the quality report; only comparison metadata is retained.
 - CI validation pending on this branch.
+
+
+### BUILD-00019 — subtitle timing and reading-speed quality signals (2026-11-15)
+
+- Analyze extracted SRT timecodes for invalid/nonpositive durations, overlapping cues, gaps longer than five seconds, cues shorter than 0.5 seconds or longer than seven seconds, and character rates above 20 characters/second.
+- Store timing counts and warning codes in the caption quality report and display them in the human review panel.
+- Bound analysis to 10,000 subtitle cues and preserve raw subtitle text out of quality artifacts.
+- Timing and reading-speed thresholds are heuristic review signals, not universal platform/accessibility standards. They do not evaluate actual font size, contrast, placement, safe areas, language-specific reading speed, or burned-in captions.
+- Validation pending on this branch.
