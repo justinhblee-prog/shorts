@@ -93,6 +93,22 @@ class TikTokOAuthTests(unittest.TestCase):
             self.store.connect("code", state)
         self.assertFalse(self.store.status()["connected"])
 
+    def test_token_request_handles_current_string_error_schema(self):
+        self.session.responses.append(FakeOAuthResponse({
+            "error": "invalid_grant",
+            "error_description": "Authorization code is invalid",
+            "log_id": "oauth-log-123",
+        }))
+        with self.assertRaisesRegex(TikTokOAuthError, "invalid_grant.*Authorization code is invalid"):
+            self.store._token_request({"code": "bad-code", "grant_type": "authorization_code"})
+
+    def test_token_request_accepts_legacy_nested_error_schema(self):
+        self.session.responses.append(FakeOAuthResponse({
+            "error": {"code": "invalid_grant", "message": "expired"}
+        }))
+        with self.assertRaisesRegex(TikTokOAuthError, "invalid_grant.*expired"):
+            self.store._token_request({"code": "expired-code", "grant_type": "authorization_code"})
+
     def test_access_token_fails_closed_when_creator_is_not_connected(self):
         with mock.patch.dict(os.environ, {"TIKTOK_ACCESS_TOKEN": ""}):
             with self.assertRaisesRegex(TikTokOAuthError, "not connected"):
