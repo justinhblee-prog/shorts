@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - "backend/**"
+      - "scripts/validate.sh"
       - ".github/workflows/backend-tests.yml"
   pull_request:
     paths:
@@ -17,5 +18,4 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r backend/requirements.txt
-      - run: python -m unittest discover -s tests -v
-        working-directory: backend
+      - run: sh scripts/validate.sh
