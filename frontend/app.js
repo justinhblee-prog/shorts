@@ -443,6 +443,27 @@
     }catch(err){toast(err.message);}
   });
 
+  async function refreshTikTokOAuthStatus(){
+    try{
+      const status=await api("/api/tiktok/oauth/status");
+      $("tiktokOAuthStatus").textContent=status.connected
+        ? "연결됨 · "+(status.display_name||status.open_id)+" · "+((status.scopes||[]).includes("video.publish")?"게시 권한 확인":"게시 권한 없음")
+        : "연결되지 않음";
+    }catch(err){$("tiktokOAuthStatus").textContent="상태 확인 실패: "+err.message;}
+  }
+  $("connectTikTok").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    try{
+      const result=await api("/api/tiktok/oauth/authorize",{method:"POST",body:JSON.stringify({operator_id:reviewer||"operator"})});
+      if(!result.authorization_url)throw new Error("TikTok authorization URL missing");
+      window.location.assign(result.authorization_url);
+    }catch(err){toast("TikTok 계정 연결 실패: "+err.message);}
+  });
+  const oauthResult=new URLSearchParams(window.location.search).get("tiktok_oauth");
+  if(oauthResult==="connected")toast("TikTok 계정 연결이 완료되었습니다. 운영 인증 후 상태를 확인하세요.");
+  if(oauthResult==="failed")toast("TikTok 계정 연결에 실패했습니다. 앱 설정과 승인 권한을 확인하세요.");
+  refreshTikTokOAuthStatus();
+
   $("approvedList").addEventListener("click",async e=>{
     const ttPublish=e.target.closest("button[data-tiktok-publish-id]");
     if(ttPublish){
