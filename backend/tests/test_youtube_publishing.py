@@ -299,6 +299,17 @@ class YouTubePublishingTests(unittest.TestCase):
         self.prod.create("job-2",{"brand":"Future Leak","region":"US",
                                   "language":"English","topic":"Robotics"})
         self.prod.stage("job-2","rendered","review_pending")
+        policy = evaluate_content_policy({
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "synthetic_media_status": "none",
+            "factual_claims_verified": True,
+            "originality_notes": "Original robotics explainer.",
+        })
+        self.prod.artifact(
+            "job-2", "script", "text", None,
+            {"script": "Robotics explainer", "policy_preflight": policy},
+        )
         self.review.decide("job-2","approved","reviewer-1")
         for job_id,video_id in (("job-1","yt-one"),("job-2","yt-two")):
             attempt=self.uploads.begin(job_id,"Title","")
