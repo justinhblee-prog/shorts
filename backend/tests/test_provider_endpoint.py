@@ -66,7 +66,7 @@ class ProviderEndpointTests(unittest.TestCase):
         )
         opener = unittest.mock.Mock()
         opener.open.side_effect = redirect
-        with patch("urllib.request.build_opener", return_value=opener):
+        with patch("urllib.request.build_opener", return_value=opener) as build_opener:
             with self.assertRaises(ProviderError) as caught:
                 JsonProvider._request(
                     "https://api.example.test/generate",
@@ -75,6 +75,12 @@ class ProviderEndpointTests(unittest.TestCase):
         self.assertIn("302", str(caught.exception))
         self.assertNotIn("secret-value", str(caught.exception))
         opener.open.assert_called_once()
+        build_opener.assert_called_once()
+        redirect_handler = build_opener.call_args.args[0]()
+        self.assertIsNone(redirect_handler.redirect_request(
+            None, None, 302, "Found", {"Location": "http://attacker.example/steal"},
+            "http://attacker.example/steal"
+        ))
 
 
 if __name__ == "__main__":
