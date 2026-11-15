@@ -145,6 +145,22 @@ class RecommendationEvaluationStore:
             CREATE TRIGGER IF NOT EXISTS recommendation_experiments_no_delete
               BEFORE DELETE ON recommendation_experiments
               BEGIN SELECT RAISE(ABORT,'Recommendation experiments are retained'); END;
+
+            CREATE TABLE IF NOT EXISTS recommendation_rendered_exposures(
+              event_id TEXT PRIMARY KEY,
+              run_id TEXT NOT NULL REFERENCES recommendation_runs(id),
+              trend_id TEXT NOT NULL,
+              rendered_at TEXT NOT NULL,
+              visibility_ms INTEGER NOT NULL CHECK(visibility_ms BETWEEN 1000 AND 30000)
+            );
+            CREATE INDEX IF NOT EXISTS idx_recommendation_rendered_exposures_run
+              ON recommendation_rendered_exposures(run_id,trend_id,rendered_at);
+            CREATE TRIGGER IF NOT EXISTS recommendation_rendered_exposures_no_update
+              BEFORE UPDATE ON recommendation_rendered_exposures
+              BEGIN SELECT RAISE(ABORT,'Rendered recommendation exposure events are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS recommendation_rendered_exposures_no_delete
+              BEFORE DELETE ON recommendation_rendered_exposures
+              BEGIN SELECT RAISE(ABORT,'Rendered recommendation exposure events are immutable'); END;
             """)
 
     @contextmanager
@@ -799,4 +815,140 @@ class RecommendationEvaluationStore:
                 "No outcome is attributed and no causal lift is estimated.",
                 "Live traffic allocation and ranking changes are disabled."
             ],
+        }
+
+
+    def record_rendered_exposures(self, run_id, exposures):
+        """Persist client-confirmed viewport impressions for cards in a captured run."""
+        run_id = str(run_id or "").strip()
+        if not run_id or len(run_id) > 128:
+            raise ValueError("A valid recommendation run_id is required")
+        if not isinstance(exposures, list) or not 1 <= len(exposures) <= 100:
+            raise ValueError("Between 1 and 100 rendered exposure events are required")
+        normalized = []
+        seen_event_ids = set()
+        for item in exposures:
+            if not isinstance(item, dict):
+                raise ValueError("Each rendered exposure must be an object")
+            event_id = str(item.get("event_id") or "").strip().lower()
+            trend_id = str(item.get("trend_id") or "").strip()
+            visibility_ms = item.get("visibility_ms")
+            try:
+                if str(uuid.UUID(event_id)) != event_id:
+                    raise ValueError
+            except (ValueError, AttributeError):
+                raise ValueError("event_id must be a canonical UUID")
+            if event_id in seen_event_ids:
+                raise ValueError("Duplicate event_id in exposure batch")
+            seen_event_ids.add(event_id)
+            if not trend_id or len(trend_id) > 256:
+                raise ValueError("A valid trend_id is required")
+            if isinstance(visibility_ms, bool) or not isinstance(visibility_ms, int):
+                raise ValueError("visibility_ms must be an integer")
+            if not 1000 <= visibility_ms <= 30000:
+                raise ValueError("visibility_ms must be between 1000 and 30000")
+            normalized.append((event_id, trend_id, visibility_ms))
+        recorded = duplicates = 0
+        timestamp = _now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            run = c.execute("SELECT id FROM recommendation_runs WHERE id=?", (run_id,)).fetchone()
+            if run is None:
+                return None
+            valid_trends = {row["trend_id"] for row in c.execute(
+                "SELECT DISTINCT trend_id FROM recommendation_candidates WHERE run_id=?",
+                (run_id,)
+            ).fetchall()}
+            for event_id, trend_id, visibility_ms in normalized:
+                if trend_id not in valid_trends:
+                    raise ValueError("trend_id is not part of the captured recommendation run")
+                existing = c.execute(
+                    "SELECT run_id,trend_id,visibility_ms FROM recommendation_rendered_exposures WHERE event_id=?",
+                    (event_id,)
+                ).fetchone()
+                if existing:
+                    if (existing["run_id"] != run_id or existing["trend_id"] != trend_id
+                            or int(existing["visibility_ms"]) != visibility_ms):
+                        raise ValueError("event_id was already used for a different exposure")
+                    duplicates += 1
+                    continue
+                c.execute("""INSERT INTO recommendation_rendered_exposures
+                    (event_id,run_id,trend_id,rendered_at,visibility_ms) VALUES(?,?,?,?,?)""",
+                    (event_id, run_id, trend_id, timestamp, visibility_ms))
+                recorded += 1
+        return {
+            "run_id":run_id,"recorded_count":recorded,"duplicate_count":duplicates,
+            "received_count":len(normalized),"exposure_type":"client_confirmed_viewport_render",
+            "minimum_visibility_ms":1000,"participant_identifier_stored":False,
+            "randomized_assignment":False,"causal_effect_status":"not_estimable_nonrandomized"
+        }
+
+    def rendered_exposure_report(self, run_id, performance=None):
+        run_id = str(run_id or "").strip()
+        if not run_id:
+            raise ValueError("run_id is required")
+        performance = performance if isinstance(performance, dict) else {}
+        measured = {}
+        for item in performance.get("videos", []) or []:
+            if not isinstance(item, dict):
+                continue
+            job_id = str(item.get("job_id") or "").strip()
+            value = item.get("views_per_hour")
+            if (job_id and item.get("measurement_status") == "measured"
+                    and not isinstance(value, bool) and isinstance(value, (int,float))
+                    and math.isfinite(value) and value >= 0):
+                measured.setdefault(job_id, float(value))
+        with self.db() as c:
+            run = c.execute(
+                "SELECT id,region,generated_at,candidate_count FROM recommendation_runs WHERE id=?",
+                (run_id,)
+            ).fetchone()
+            if run is None:
+                return None
+            candidates = c.execute("""SELECT id,trend_id,brand_slug,selected_job_id,selected_at
+                FROM recommendation_candidates WHERE run_id=?
+                ORDER BY trend_id,recommendation_rank,brand_slug""", (run_id,)).fetchall()
+            events = c.execute("""SELECT trend_id,COUNT(*) AS impression_count,
+                MIN(rendered_at) AS first_rendered_at,MAX(rendered_at) AS last_rendered_at
+                FROM recommendation_rendered_exposures WHERE run_id=?
+                GROUP BY trend_id ORDER BY trend_id""", (run_id,)).fetchall()
+        event_by_trend = {row["trend_id"]:dict(row) for row in events}
+        candidates_by_trend = {}
+        for row in candidates:
+            candidates_by_trend.setdefault(row["trend_id"],[]).append(dict(row))
+        items=[]; selected_total=measured_total=0
+        for trend_id,event in event_by_trend.items():
+            group=candidates_by_trend.get(trend_id,[])
+            first=event["first_rendered_at"]
+            selected=[item for item in group if item["selected_job_id"] and
+                      item["selected_at"] and item["selected_at"]>=first]
+            outcomes=[measured[item["selected_job_id"]] for item in selected
+                      if item["selected_job_id"] in measured]
+            selected_total+=len(selected); measured_total+=len(outcomes)
+            items.append({
+                "trend_id":trend_id,"render_impression_count":int(event["impression_count"]),
+                "first_rendered_at":first,"last_rendered_at":event["last_rendered_at"],
+                "candidate_count":len(group),"selected_after_exposure_count":len(selected),
+                "measured_outcome_count":len(outcomes),
+                "median_views_per_hour":round(statistics.median(outcomes),4) if outcomes else None
+            })
+        visible_candidates=sum(item["candidate_count"] for item in items)
+        return {
+            "run_id":run["id"],"region":run["region"],"run_generated_at":run["generated_at"],
+            "candidate_count":len(candidates),"visible_trend_card_count":len(items),
+            "unseen_trend_card_count":len(candidates_by_trend)-len(items),
+            "render_impression_count":sum(item["render_impression_count"] for item in items),
+            "visible_candidate_count":visible_candidates,
+            "selected_after_exposure_count":selected_total,"measured_outcome_count":measured_total,
+            "items":items,
+            "exposure_definition":"At least 50% of a recommendation card intersected the viewport for at least 1000ms; acknowledgement is client-reported.",
+            "outcome_definition":"Only selected production jobs with measured views_per_hour and selection timestamp at or after the first recorded card render are counted.",
+            "randomized_assignment":False,"experiment_arm_delivery":False,
+            "causal_effect_status":"not_estimable_nonrandomized","ranking_score_adjustment":0,
+            "limitations":[
+                "Viewport render acknowledgement is client-reported and is not proof of human attention.",
+                "This recommendation run was not randomized into experiment arms.",
+                "Selection and measured outcomes remain observational and may be affected by selection bias.",
+                "No live recommendation variant, ranking score or publishing behavior was changed."
+            ]
         }
