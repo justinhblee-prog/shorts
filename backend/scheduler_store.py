@@ -151,6 +151,13 @@ class ScheduleStore:
                     WHERE id=? AND next_run_at=?""",
                     (_stamp(next_due), current_s, row["id"], due))
 
+        # A production pause also pauses scheduled dispatch. Due occurrences are
+        # already durable in the outbox, so they remain pending and replay after
+        # an operator explicitly resumes production.
+        if queue.is_paused():
+            return {"dispatched": [], "count": 0,
+                    "pending": len(self.pending_dispatches()) , "paused": True}
+
         # Queue enqueue is idempotent. If the process dies before marking outbox
         # dispatched, the next scheduler loop safely replays the same idempotency key.
         dispatched = []
