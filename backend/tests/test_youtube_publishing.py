@@ -131,6 +131,7 @@ class YouTubePublishingTests(unittest.TestCase):
                    WHERE job_id=? AND stage='script' AND artifact_type='text'""",
                 (json.dumps(metadata), "job-1"),
             )
+        self.prod.stage("job-1", "rendered", "review_pending")
         self.review.decide("job-1", "approved", "reviewer-1")
         self.publisher.upload_approved(
             "job-1", self.media, self.review, "Realistic synthetic scene"
