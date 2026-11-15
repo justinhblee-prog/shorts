@@ -7,7 +7,8 @@ from pydantic import ValidationError
 from app import (app, require_review_access, YouTubeLateSuccessResolution, Enqueue,
                  enqueue, IdempotencyConflict, ProductionExecute, execute_production_job,
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
-                 QueueControlAction, queue_control, pause_queue, resume_queue)
+                 QueueControlAction, queue_control, pause_queue, resume_queue,
+                 TrendProductionDraft, draft_production_from_trend)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
