@@ -13,7 +13,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  OpportunityInput, create_opportunity_score, TikTokPublishRequest,
                  publish_tiktok_video, refresh_tiktok_publication_status,
                  get_tiktok_publication, approved_reviews, start_tiktok_oauth,
-                 tiktok_oauth_status, tiktok_oauth_callback)
+                 tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -71,7 +71,8 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["tiktok_publish_id"], "publish-1")
 
     def test_tiktok_oauth_start_and_status_routes_are_token_protected(self):
-        expected = {"/api/tiktok/oauth/start", "/api/tiktok/oauth/status"}
+        expected = {"/api/tiktok/oauth/start", "/api/tiktok/oauth/status",
+                    "/api/tiktok/oauth/disconnect"}
         found = {getattr(route, "path", ""): route for route in app.routes
                  if getattr(route, "path", "") in expected}
         self.assertEqual(set(found), expected)
@@ -91,6 +92,17 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertIn("tiktok_oauth_state=state-x", response.headers["set-cookie"])
         self.assertIn("httponly", response.headers["set-cookie"].lower())
         self.assertIn("secure", response.headers["set-cookie"].lower())
+
+    def test_tiktok_oauth_disconnect_revokes_connected_account(self):
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.os.getenv", return_value=None),
+            mock.patch("app.tiktok_oauth_manager.disconnect",
+                       return_value={"connected": False, "status": "disconnected"}) as disconnect,
+        ):
+            result = disconnect_tiktok_oauth(x_review_token="test-token")
+        self.assertEqual(result["status"], "disconnected")
+        disconnect.assert_called_once()
 
     def test_tiktok_oauth_callback_consumes_code_and_redirects_back_to_portal(self):
         with mock.patch("app.tiktok_oauth_manager.exchange_code",
