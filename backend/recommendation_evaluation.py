@@ -315,7 +315,7 @@ class RecommendationEvaluationStore:
                 FROM recommendation_candidates c
                 JOIN recommendation_runs r ON r.id=c.run_id
                 WHERE c.selected_job_id IS NOT NULL
-                ORDER BY r.generated_at,c.recommendation_rank,c.selected_job_id""").fetchall()
+                ORDER BY r.generated_at,r.id,c.recommendation_rank,c.selected_job_id""").fetchall()
         # One outcome per production job. A unique constraint also prevents
         # accidentally attaching one job to multiple candidate exposures.
         observations = []
