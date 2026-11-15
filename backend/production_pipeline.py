@@ -21,6 +21,10 @@ class ProviderError(RuntimeError):
         self.retryable = retryable
 
 
+class ProductionLeaseConflict(RuntimeError):
+    """Raised when a stale worker attempts to mutate production state."""
+
+
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -111,14 +115,35 @@ class ProductionStore:
               (job_id, brief["brand"], brief["region"], brief["language"],
                brief["topic"], utc_now(), utc_now()))
 
-    def stage(self, job_id, stage, status="running", error=None):
+    @staticmethod
+    def _assert_worker_lease(c, job_id, worker_id, lease_token):
+        if not worker_id or not lease_token:
+            raise ProductionLeaseConflict("Worker ID and fencing token are required")
+        row = c.execute("""SELECT status,worker_id,lease_token,lease_expires_at
+            FROM pipeline_jobs WHERE id=?""", (job_id,)).fetchone()
+        now = utc_now()
+        if (row is None or row["status"] != "running"
+                or row["worker_id"] != worker_id
+                or row["lease_token"] != lease_token
+                or not row["lease_expires_at"]
+                or row["lease_expires_at"] <= now):
+            raise ProductionLeaseConflict(
+                "Worker lease expired or was replaced; stale production write rejected"
+            )
+
+    def stage(self, job_id, stage, status="running", error=None,
+              worker_id=None, lease_token=None):
         with self.db() as c:
+            if worker_id is not None or lease_token is not None:
+                c.execute("BEGIN IMMEDIATE")
+                self._assert_worker_lease(c, job_id, worker_id, lease_token)
             c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
                          WHERE job_id=?""", (stage, status, error, utc_now(), job_id))
             if c.total_changes == 0:
                 raise KeyError(job_id)
 
-    def artifact(self, job_id, stage, artifact_type, url, metadata):
+    def artifact(self, job_id, stage, artifact_type, url, metadata,
+                 worker_id=None, lease_token=None):
         if artifact_type in ("audio", "video") and (
             not isinstance(url, str) or not url.startswith(("https://", "http://"))
         ):
@@ -126,6 +151,9 @@ class ProductionStore:
         if url is not None and not isinstance(url, str):
             raise ValueError("artifact URL must be a string or null")
         with self.db() as c:
+            if worker_id is not None or lease_token is not None:
+                c.execute("BEGIN IMMEDIATE")
+                self._assert_worker_lease(c, job_id, worker_id, lease_token)
             c.execute("""INSERT INTO production_artifacts
               (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
               VALUES(?,?,?,?,?,?,?)
@@ -207,10 +235,13 @@ class ProductionPipeline:
             raise ValueError("topic must be 500 characters or fewer")
         return {key: brief[key].strip() for key in required}
 
-    def execute(self, job_id, brief):
+    def execute(self, job_id, brief, worker_id=None, lease_token=None):
         brief = self.validate_brief(brief)
+        if (worker_id is None) != (lease_token is None):
+            raise ValueError("worker_id and lease_token must be supplied together")
+        lease = {"worker_id": worker_id, "lease_token": lease_token}
         try:
-            self.store.stage(job_id, "script")
+            self.store.stage(job_id, "script", **lease)
             script = self.script.post("script", {
                 "task": "create_short_video_script",
                 "brand": brief["brand"], "region": brief["region"],
@@ -221,9 +252,10 @@ class ProductionPipeline:
             if not isinstance(script_text, str) or not script_text.strip():
                 raise ProviderError("script", "Script provider returned no script text", False)
             self.store.artifact(job_id, "script", "text", script.get("artifact_url"),
-                                {"script": script_text, "provider": script.get("provider")})
+                                {"script": script_text, "provider": script.get("provider")},
+                                **lease)
 
-            self.store.stage(job_id, "voice_generation")
+            self.store.stage(job_id, "voice_generation", **lease)
             voice = self.voice.post("voice_generation", {
                 "script": script_text, "language": brief["language"],
                 "brand": brief["brand"], "format": "narration"
@@ -232,9 +264,10 @@ class ProductionPipeline:
             if not isinstance(audio_url, str) or not audio_url.startswith(("https://", "http://")):
                 raise ProviderError("voice_generation", "Voice provider returned no valid audio_url", False)
             self.store.artifact(job_id, "voice_generation", "audio", audio_url,
-                                {k: v for k, v in voice.items() if k != "audio_url"})
+                                {k: v for k, v in voice.items() if k != "audio_url"},
+                                **lease)
 
-            self.store.stage(job_id, "rendering")
+            self.store.stage(job_id, "rendering", **lease)
             rendered = self.render.post("rendering", {
                 "script": script_text, "audio_url": audio_url,
                 "brand": brief["brand"], "region": brief["region"],
@@ -245,15 +278,20 @@ class ProductionPipeline:
             if not isinstance(video_url, str) or not video_url.startswith(("https://", "http://")):
                 raise ProviderError("rendering", "Renderer returned no valid video_url", False)
             self.store.artifact(job_id, "rendering", "video", video_url,
-                                {k: v for k, v in rendered.items() if k != "video_url"})
-            self.store.stage(job_id, "rendered", "rendered")
+                                {k: v for k, v in rendered.items() if k != "video_url"},
+                                **lease)
+            self.store.stage(job_id, "rendered", "rendered", **lease)
             return self.store.get(job_id)
+        except ProductionLeaseConflict:
+            # A stale worker must not mark a newer worker's run as failed.
+            raise
         except ProviderError as exc:
-            self.store.stage(job_id, exc.stage, "failed_retriable" if exc.retryable else "failed_terminal",
-                             str(exc))
+            self.store.stage(job_id, exc.stage,
+                             "failed_retriable" if exc.retryable else "failed_terminal",
+                             str(exc), **lease)
             raise
         except Exception as exc:
-            self.store.stage(job_id, "pipeline", "failed_terminal", str(exc))
+            self.store.stage(job_id, "pipeline", "failed_terminal", str(exc), **lease)
             raise
 
 
