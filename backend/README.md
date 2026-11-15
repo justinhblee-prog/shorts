@@ -176,3 +176,7 @@ X-Review-Token: <NEXUS_REVIEW_TOKEN>
 ```
 
 The service retrieves the artifact URL from the production record (the caller cannot supply an arbitrary URL), requires HTTPS and an allowlisted public hostname, rejects redirects, validates MP4 MIME/signature, enforces `NEXUS_MAX_MEDIA_BYTES`, and atomically stores it under `NEXUS_MEDIA_DIR`. Use the returned relative `media_path` in the subsequent YouTube upload request. CDN compatibility must be verified with the actual renderer provider.
+
+### Approved uploads
+
+The protected `GET /api/review/approved` endpoint lists approved productions. The dashboard's approved queue lets the operator explicitly stage the saved render artifact and initiate a YouTube upload. Upload remains private; approval alone does not publish publicly.
