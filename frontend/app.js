@@ -35,9 +35,6 @@
     $("reviewCount").textContent=(r.items||[]).length+" ITEMS";
     const revenue=Number(f.revenue||0),cost=Number(f.costs||f.cost||0),net=Number(f.net_profit??(revenue-cost));
     $("metricRevenue").textContent=money(revenue);
-    $("financeRevenue").textContent=money(revenue);
-    $("financeCosts").textContent=money(cost);
-    $("financeNet").textContent=money(net);
     setConnection(true,"API 연결됨");
   }
 
