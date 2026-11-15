@@ -54,6 +54,31 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(self.schedules.pending_dispatches(), [])
 
 
+    def test_crash_after_queue_acceptance_replays_same_idempotent_job(self):
+        now = datetime.now(timezone.utc)
+        item = self.schedule(now - timedelta(minutes=5))
+        class AcceptThenCrashQueue:
+            def __init__(self, queue):
+                self.queue = queue
+                self.calls = 0
+            def is_paused(self):
+                return self.queue.is_paused()
+            def enqueue(self, *args, **kwargs):
+                self.calls += 1
+                result = self.queue.enqueue(*args, **kwargs)
+                if self.calls == 1:
+                    raise RuntimeError("simulated crash after durable queue acceptance")
+                return result
+        flaky = AcceptThenCrashQueue(self.queue)
+        first = self.schedules.dispatch_due(flaky, now=now)
+        self.assertEqual(first["count"], 0)
+        self.assertEqual(len(self.schedules.pending_dispatches()), 1)
+        self.assertEqual(self.queue.stats()["total"], 1)
+        second = self.schedules.dispatch_due(flaky, now=now)
+        self.assertEqual(second["count"], 1)
+        self.assertEqual(self.queue.stats()["total"], 1)
+        self.assertEqual(self.schedules.pending_dispatches(), [])
+        self.assertEqual(flaky.calls, 2)
     def test_queue_failure_keeps_outbox_pending_for_retry(self):
         now = datetime.now(timezone.utc)
         item = self.schedule(now - timedelta(minutes=5))
