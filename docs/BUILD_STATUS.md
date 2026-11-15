@@ -1083,3 +1083,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Diagnostics are strictly read-only: no remote polling, automatic retry, cancellation, or publication action is performed.
 - Added deterministic regression tests for consistent state, queue/production drift, approval mismatch, unresolved YouTube/TikTok attempts, inbox handoff semantics, and terminal cancellation drift.
 - Unit/CI validation pending for this commit. Live platform state reconciliation remains an operator task and real account behavior is not validated.
+
+## BUILD-00043 — operator-guided cross-platform recovery workflow
+
+- Added authenticated read-only `GET /api/lifecycle/jobs/{job_id}/recovery`.
+- Produces a deterministic operator checklist from queue, production, latest human-review decision, YouTube upload state, and TikTok publication state.
+- Ambiguous YouTube uploads route operators to explicit Studio verification and the existing reconciliation endpoint; preserved late successes route to the dedicated late-result resolution action.
+- Ambiguous TikTok attempts route operators to official status refresh and creator-account verification; inbox handoff is explicitly distinguished from published status.
+- Failed platform attempts require evidence that no remote post exists before a new attempt is considered.
+- No automatic retry, upload, publication, or remote mutation is performed by the recovery-plan endpoint.
+- Added regression tests for ambiguous YouTube outcomes, late success, TikTok inbox handoff, missing current approval, and retry prohibition.
+- Automated CI validation pending. Live YouTube/TikTok account recovery remains unverified and requires an authorized operator.
