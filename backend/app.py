@@ -207,7 +207,7 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
     except ProviderError as e:
         try:
             queue.fail(job_id,body.worker_id,body.lease_token,
-                       "provider_"+e.stage,str(e),e.retryable)
+                       "provider_"+e.stage,str(e),False)
         except Exception:
             pass
         try:
