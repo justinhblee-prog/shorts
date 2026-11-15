@@ -1122,3 +1122,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - SQLite transactions run off the ASGI event loop. Added concurrency, window reset, hashed identity, middleware and health-bypass tests.
 - Final-head push CI [43738239941](https://github.com/justinhblee-prog/shorts/actions/runs/43738239941) and PR merge-result CI [43738249951](https://github.com/justinhblee-prog/shorts/actions/runs/43738249951): **570 tests passed**.
 - Rate limiting uses the ASGI peer IP; proxy deployments must configure the trusted proxy boundary. No production deployment was performed.
+
+
+## Handover — BUILD-00105 (2026-11-16)
+
+- PR #72: optional ClamAV malware scanning for renderer media staging.
+- Added a no-shell ClamAV subprocess adapter with timeout, explicit exit-code mapping, regular-file/symlink checks and fail-closed behavior.
+- Media staging scans the fully downloaded and signature-checked temporary file before atomic publication. Infected or unavailable scanners block staging and clean the temporary file.
+- Docker image includes `clamav` and `clamav-freshclam`; operators initialize signatures with `docker compose exec api freshclam` and verify `clamscan --version` before enabling `NEXUS_MEDIA_SCAN_ENABLED=true`.
+- PR CI [43771112826](https://github.com/justinhblee-prog/shorts/actions/runs/43771112826): **577 tests passed**.
+- The scanner is opt-in by default. Real signature freshness, real media scanning, production deployment and publishing remain unverified.

@@ -1763,3 +1763,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - SQLite transactions run off the ASGI event loop. Added concurrency, window reset, hashed identity, middleware and health-bypass tests.
 - Final-head push CI [43738239941](https://github.com/justinhblee-prog/shorts/actions/runs/43738239941) and PR merge-result CI [43738249951](https://github.com/justinhblee-prog/shorts/actions/runs/43738249951): **570 tests passed**.
 - Rate limiting uses the ASGI peer IP; proxy deployments must configure the trusted proxy boundary. No production deployment was performed.
+
+
+## BUILD-00105 — optional ClamAV media scanning (2026-11-16)
+
+- PR #72 adds a ClamAV CLI scanner for renderer artifacts and gates the atomic media-staging publish step when explicitly enabled.
+- Scanner exit code 0 is clean; infected results, scanner errors, missing executable, timeout and symlink targets fail closed. Failed scans remove the temporary artifact.
+- Added `NEXUS_MEDIA_SCAN_ENABLED`, `NEXUS_CLAMSCAN_PATH` and `NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS`; included ClamAV/freshclam in the shared container image and documented signature refresh.
+- GitHub Actions PR run [43771112826](https://github.com/justinhblee-prog/shorts/actions/runs/43771112826): **577 tests passed**.
+- Scanning remains opt-in and disabled by default. Operators must initialize and refresh the ClamAV database before enabling it. CI uses fake scanner results; no real artifact, database, deployment or platform upload was validated.
