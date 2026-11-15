@@ -1286,4 +1286,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Operators can create draft experiments, inspect control/treatment shadow counts, generate an opaque random sample assignment, and view the experiment report.
 - The browser creates a short-lived random sample key; it does not ask for a real customer identifier. The backend stores only an experiment-scoped HMAC fingerprint.
 - The workspace explicitly shows zero real exposures, no measured outcomes, no causal estimate, and zero ranking-score adjustment. No live variant delivery or production behavior is enabled.
-- Added frontend integration regression coverage. CI validation pending.
+- Added frontend integration regression coverage. GitHub Actions run [43703819165](https://github.com/justinhblee-prog/shorts/actions/runs/43703819165) passed **412 tests** at branch head; frontend ID validation, JavaScript syntax check, Python compileall, YAML validation and full unittest discovery succeeded.
