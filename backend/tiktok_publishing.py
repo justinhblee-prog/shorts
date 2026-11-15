@@ -248,6 +248,26 @@ class TikTokPublisher:
             raise TikTokPublishError("TIKTOK_ACCESS_TOKEN is not configured")
         return token
 
+    def creator_info(self):
+        response = self._call(
+            API_ROOT + "/v2/post/publish/creator_info/query/"
+        )
+        data = response.get("data") or {}
+        options = data.get("privacy_level_options")
+        if not isinstance(options, list) or not options:
+            raise TikTokPublishError("TikTok creator privacy options are unavailable")
+        return {
+            "creator_username": data.get("creator_username"),
+            "creator_nickname": data.get("creator_nickname"),
+            "privacy_level_options": options,
+            "comment_disabled": data.get("comment_disabled"),
+            "duet_disabled": data.get("duet_disabled"),
+            "stitch_disabled": data.get("stitch_disabled"),
+            "max_video_post_duration_sec": data.get("max_video_post_duration_sec"),
+            "product_privacy_mode": "SELF_ONLY",
+            "public_publishing_enabled": False,
+        }
+
     def _call(self, url, payload=None, method="POST", binary=False, extra_headers=None):
         body = payload if binary else json.dumps(payload or {}).encode("utf-8")
         headers = {"Accept": "application/json"}
@@ -415,10 +435,8 @@ class TikTokPublisher:
                          brand_content_toggle, brand_organic_toggle)
         remote_started = False
         try:
-            creator = self._call(API_ROOT + "/v2/post/publish/creator_info/query/")
-            creator_data = creator.get("data") or {}
-            options = creator_data.get("privacy_level_options") or []
-            if "SELF_ONLY" not in options:
+            creator_data = self.creator_info()
+            if "SELF_ONLY" not in creator_data["privacy_level_options"]:
                 raise TikTokPublishError(
                     "TikTok creator settings do not currently offer SELF_ONLY privacy"
                 )
