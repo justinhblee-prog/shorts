@@ -10,7 +10,7 @@ def _positive_number(value):
 
 
 def evaluate_production_quality(script_text, script_metadata, voice_metadata,
-                               render_metadata, brief):
+                               render_metadata, brief, media_inspection=None):
     script_metadata = script_metadata if isinstance(script_metadata, dict) else {}
     voice_metadata = voice_metadata if isinstance(voice_metadata, dict) else {}
     render_metadata = render_metadata if isinstance(render_metadata, dict) else {}
@@ -119,19 +119,69 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
         "subtitles_enabled": render_metadata.get("subtitles_enabled"),
     })
 
+    media_inspection = media_inspection if isinstance(media_inspection, dict) else None
+    if media_inspection is None:
+        warnings.append("actual_media_bytes_not_inspected")
+        checks.append({
+            "name": "media_bytes",
+            "status": "not_inspected",
+            "reason": "Renderer URL has not been staged and inspected with ffprobe.",
+        })
+    else:
+        media_blockers = []
+        actual_duration = _positive_number(media_inspection.get("duration_seconds"))
+        actual_width = _positive_number(media_inspection.get("width"))
+        actual_height = _positive_number(media_inspection.get("height"))
+        actual_audio = media_inspection.get("audio_track_present")
+        actual_ratio = (
+            actual_width / actual_height if actual_width and actual_height else None
+        )
+        if media_inspection.get("status") != "inspected":
+            media_blockers.append("actual_media_inspection_did_not_complete")
+        if actual_ratio is not None and abs(actual_ratio - (9.0 / 16.0)) > 0.04:
+            media_blockers.append("actual_media_dimensions_are_not_vertical_9_16")
+        if actual_audio is False:
+            media_blockers.append("actual_media_contains_no_audio_track")
+        if actual_duration is not None and actual_duration > 180:
+            media_blockers.append("actual_media_duration_exceeds_180_seconds")
+        if actual_duration is None or actual_width is None or actual_height is None:
+            media_blockers.append("actual_media_probe_missing_required_stream_metadata")
+        blockers.extend(media_blockers)
+        checks.append({
+            "name": "media_bytes",
+            "status": "blocked" if media_blockers else "inspected",
+            "inspection_method": media_inspection.get("inspection_method"),
+            "duration_seconds": actual_duration,
+            "width": actual_width,
+            "height": actual_height,
+            "aspect_ratio": actual_ratio,
+            "audio_track_present": actual_audio,
+            "video_codec": media_inspection.get("video_codec"),
+            "audio_codec": media_inspection.get("audio_codec"),
+            "subtitle_stream_present": media_inspection.get("subtitle_stream_present"),
+            "subtitle_note": media_inspection.get("subtitle_note"),
+            "blockers": media_blockers,
+        })
+        warnings = [
+            item for item in warnings
+            if item != "actual_media_bytes_not_inspected"
+        ]
+        if media_inspection.get("subtitle_stream_present") is False:
+            warnings.append("no_subtitle_stream_detected_burned_in_captions_not_verified")
     status = "blocked" if blockers else "review_required" if warnings else "ready_for_human_review"
     return {
-        "version": "production_quality_metadata_v1",
+        "version": "production_quality_media_v2",
         "status": status,
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "checks": checks,
         "script_word_count": words,
         "verification_boundary": (
-            "This gate evaluates provider-returned metadata and basic script length only. "
-            "It does not download or inspect audio/video bytes, verify captions, prove factual "
-            "accuracy, confirm rights, assess visual quality, or establish platform compliance. "
-            "Human review remains mandatory."
+            "When configured, staged video bytes are inspected with ffprobe for container, "
+            "duration, dimensions, codecs and audio/subtitle streams. This does not verify "
+            "burned-in caption text or legibility, visual quality, factual accuracy, rights, "
+            "music licensing, platform compliance or monetization eligibility. Provider "
+            "attestations are not independent verification. Human review remains mandatory."
         ),
         "score_adjustment": 0,
         "automatic_publication": False,
