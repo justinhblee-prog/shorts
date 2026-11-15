@@ -749,3 +749,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Cohort metrics remain display-only with `ranking_score_adjustment=0`. They must not reorder recommendations until a held-out evaluation demonstrates stable improvement against a baseline.
 
 - Cohort identity also includes brand, preventing one channel/brand's historical performance from contaminating another brand's comparison.
+
+
+### Comparable cohort context in trend recommendations — 2026-11-15
+
+- The trend recommendation endpoint now passes measured performance cohorts into the ranker.
+- Each brand candidate exposes up to five same-brand, same-region, lexical-topic-matched vertical-Short cohorts, including publication-age and duration buckets, sample counts, and observed median rates.
+- Other brands and other regions are excluded. Nonmatching topic signatures are excluded.
+- Cohort context is displayed in the recommendation workspace beside existing brand-level and topic-level history.
+- **No score adjustment:** `ranking_score_adjustment=0`; the 100-point editorial rubric remains unchanged until a held-out evaluation validates a stable ranking improvement.
