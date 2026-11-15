@@ -265,3 +265,5 @@ Latest CI run 115: https://github.com/justinhblee-prog/shorts/actions/runs/43658
 - Added an integration test simulating that exact crash boundary and asserting the job reappears in the review queue.
 - All external AI/CDN/YouTube interactions in the new lifecycle test are mocked; this validates state integration only, not live provider connectivity or actual revenue.
 - GitHub Actions runner allocation remains blocked; tests have not been executed in CI or a local Python runtime.
+
+Latest BUILD-00012 validation attempt: run 122 (https://github.com/justinhblee-prog/shorts/actions/runs/43658445925) failed before runner allocation (`runner_id=0`, empty runner name, `steps=[]`). The integration tests were not executed. The latest source commit is `2eff2834db260134f97ef72a66f54409e406bfbb`.
