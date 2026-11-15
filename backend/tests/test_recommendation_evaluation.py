@@ -120,6 +120,17 @@ class RecommendationEvaluationTests(unittest.TestCase):
             "trend-1", "future-leak", "job-1", run_id=first["run_id"]
         )
         self.assertTrue(linked["linked"])
+        repeated = self.store.link_production(
+            "trend-1", "future-leak", "job-1", run_id=first["run_id"]
+        )
+        self.assertTrue(repeated["linked"])
+        self.assertTrue(repeated["already_linked"])
+        self.assertEqual(repeated["candidate_id"], linked["candidate_id"])
+        conflicting = self.store.link_production(
+            "trend-1", "future-leak", "job-1", run_id=second["run_id"]
+        )
+        self.assertFalse(conflicting["linked"])
+        self.assertEqual(conflicting["reason"], "job_already_attributed")
         with self.store.db() as c:
             selected = c.execute(
                 "SELECT run_id,selected_job_id FROM recommendation_candidates WHERE selected_job_id='job-1'"
