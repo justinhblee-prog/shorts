@@ -1481,3 +1481,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Final GitHub Actions PR merge-result run [43719815537](https://github.com/justinhblee-prog/shorts/actions/runs/43719815537) passed **497 tests**, with **107 unique IDs / 91 literal selectors**. `scripts/validate.sh` completed successfully, including Python compilation, Compose YAML parsing and frontend validation. The test-fixture adjustment is included in this successful run.
 - This change validates endpoint syntax and transport policy only. It does not prove DNS reachability, TLS trust with a real provider, authentication, provider compatibility, generated media quality, live OAuth, upload, remote visibility or billing. `live_connectivity_verified` remains false.
 - No publishing behavior was enabled or changed. YouTube remains private and TikTok remains SELF_ONLY; PR #36 remains Draft and unmerged.
+
+
+## BUILD-00078 — bounded provider response buffering
+
+- Added a 2 MiB maximum JSON response size for script, voice, render and optional transcription provider adapters.
+- The default HTTP transport reads at most limit + 1 bytes and fails closed before retaining an oversized body. The shared `JsonProvider.post` boundary enforces the same cap for injected/custom transports before JSON decoding.
+- Non-binary provider response bodies are rejected explicitly. No oversized response content is included in error messages or durable job errors.
+- Added regression tests for bounded socket reads and custom transport size enforcement.
+- CI validation is pending on the BUILD-00078 branch. The expected test total is 499 if the 497-test BUILD-00077 suite remains unchanged; this is not a test result.
+- This limit applies to provider JSON response bodies, not rendered media artifacts; media downloads retain their separate byte limits and streaming validation.
+- No external provider request, AI generation, OAuth, platform upload or monetization check is performed by these tests.
