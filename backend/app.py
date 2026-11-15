@@ -659,7 +659,11 @@ def approve_review(job_id:str, body:ReviewDecision,
                    x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     try:
-        return review_store.decide(job_id,"approved",body.reviewer_id,body.comment)
+        staged_path=media_stager.staged_path(job_id)
+        return review_store.decide(
+            job_id,"approved",body.reviewer_id,body.comment,
+            staged_media_path=staged_path
+        )
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -729,15 +733,15 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
     production=production_store.get(job_id)
     if production is None:
         raise HTTPException(404,"Production job not found")
-    if production["status"] not in ("rendered","review_pending","approved"):
+    if production["status"] not in ("rendered","review_pending"):
         raise HTTPException(409,"Only rendered production jobs can be staged")
     video=next((item for item in production["artifacts"]
                 if item["artifact_type"]=="video" and item["artifact_url"]),None)
     if video is None:
         raise HTTPException(409,"Rendered video artifact is not available")
     try:
-        # Always fetch the currently approved renderer artifact. Reusing a
-        # job-named file can silently upload stale bytes after a renderer revision.
+        # Stage the exact renderer artifact before human approval so its bytes
+        # can be fingerprinted and bound into the approval record.
         return media_stager.stage(job_id,video["artifact_url"])
     except MediaStagingError as e:
         raise HTTPException(502,str(e))
