@@ -40,7 +40,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Open `http://localhost:8502/`. The API, worker and scheduler use the same persistent SQLite volume. Run exactly one scheduler instance. The dashboard's token is held in browser memory only; refreshing the browser clears it.
+Open `http://localhost:8502/`. The API, worker and scheduler use the same persistent SQLite volume. The scheduler uses a shared-database leader lease; multiple instances may run safely, with one active dispatcher at a time. The dashboard's token is held in browser memory only; refreshing the browser clears it.
 
 ## 3. Production lifecycle
 
