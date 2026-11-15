@@ -17,7 +17,7 @@ The operator must send \`explicit_consent=true\` on each publish request. The ad
 
 All routes require the existing \`X-Review-Token\`.
 
-- \`POST /api/tiktok/publish/{job_id}\`: send the approved video to TikTok using SELF_ONLY.
+- \`POST /api/tiktok/publish/{job_id}\`: send the approved video to TikTok using SELF_ONLY only.
 - \`GET /api/tiktok/publications/{job_id}\`: retrieve the local publish record and immutable event history.
 - \`POST /api/tiktok/publications/{job_id}/refresh-status\`: query TikTok's publish status endpoint and append the result.
 
@@ -28,8 +28,8 @@ The publish body contains \`media_path\`, \`title\`, \`operator_id\`, and \`expl
 1. Query creator info and confirm SELF_ONLY is available.
 2. Initialize Direct Post with \`privacy_level=SELF_ONLY\` and the explicit \`is_aigc\` disclosure.
 3. Upload the staged media to TikTok's returned HTTPS upload URL in byte-range chunks.
-4. Persist the publish ID and local audit events.
-5. Poll the status endpoint through the explicit refresh route. Supported statuses include PROCESSING_UPLOAD, PROCESSING_DOWNLOAD, SEND_TO_INBOX, PUBLISH_COMPLETE and FAILED.
+4. Persist the publish ID, operator consent, AIGC declaration, commercial-content declarations and local audit events.
+5. Poll the status endpoint through the explicit refresh route. Supported statuses include PROCESSING_UPLOAD, PROCESSING_DOWNLOAD, SEND_TO_USER_INBOX, PUBLISH_COMPLETE and FAILED.
 
 A network failure after a remote request begins is marked \`reconciliation_required\`. The adapter blocks duplicate retries. An operator must investigate the TikTok creator inbox/status before any future retry.
 
