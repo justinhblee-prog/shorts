@@ -274,9 +274,46 @@ def get_job_lifecycle(job_id:str,x_review_token:str|None=Header(default=None)):
     latest_review=decisions[-1] if decisions else None
     youtube=youtube_upload_store.get(job_id)
     tiktok=tiktok_publish_store.get(job_id)
+    queue_events=queue.events(job_id)
+    timeline=[]
+    for event in queue_events:
+        timeline.append({
+            "stage":"queue","event":event.get("event_type"),
+            "outcome":event.get("to_status"),"occurred_at":event.get("created_at"),
+            "attempt_id":None,"reference_id":None,
+        })
+    for artifact in production.get("artifacts",[]):
+        timeline.append({
+            "stage":"production","event":"artifact_created",
+            "outcome":artifact.get("stage") or artifact.get("artifact_type"),
+            "occurred_at":artifact.get("created_at"),"attempt_id":None,
+            "reference_id":artifact.get("id"),
+        })
+    for decision in decisions:
+        timeline.append({
+            "stage":"human_review","event":"review_decision",
+            "outcome":decision.get("decision"),"occurred_at":decision.get("created_at"),
+            "attempt_id":None,"reference_id":decision.get("id"),
+        })
+    for event in (youtube or {}).get("events",[]):
+        timeline.append({
+            "stage":"youtube","event":event.get("event_type"),
+            "outcome":event.get("resulting_status") or event.get("outcome"),
+            "occurred_at":event.get("created_at"),"attempt_id":event.get("attempt_id"),
+            "reference_id":event.get("video_id"),
+        })
+    for event in (tiktok or {}).get("events",[]):
+        timeline.append({
+            "stage":"tiktok","event":event.get("event_type"),
+            "outcome":event.get("outcome"),"occurred_at":event.get("created_at"),
+            "attempt_id":event.get("attempt_id"),
+            "reference_id":event.get("video_id") or event.get("publish_id"),
+        })
+    timeline.sort(key=lambda item:str(item.get("occurred_at") or ""))
     return {
         "job":job,
-        "queue_events":queue.events(job_id),
+        "queue_events":queue_events,
+        "timeline":timeline,
         "production":production,
         "review":{"history":decisions,"latest":latest_review},
         "publishing":{"youtube":youtube,"tiktok":tiktok},
