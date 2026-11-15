@@ -201,7 +201,7 @@
     if(!button)return;
     if(!requireToken())return;
     const trendId=button.dataset.trendDraft;
-    const selector=$("[data-trend-brand='"+CSS.escape(trendId)+"']");
+    const selector=button.parentElement.querySelector("select[data-trend-brand]");
     if(!selector)return;
     button.disabled=true;
     try{
