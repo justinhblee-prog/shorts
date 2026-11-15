@@ -185,3 +185,7 @@ All operational endpoints now require `X-Review-Token`: brand activation, produc
 ## Renderer artifact staging
 
 Configure `RENDER_ARTIFACT_HOSTS` with comma-separated exact CDN hostnames returned by the renderer. After a production job reaches `rendered` / `review_pending`, call POST `/api/production/jobs/{job_id}/stage-media` with `X-Review-Token`. The endpoint reads the saved artifact URL, downloads only HTTPS MP4 from allowlisted public hosts, rejects redirects/private DNS/IPs, enforces the configured size cap and writes atomically to `NEXUS_MEDIA_DIR`. The response returns a relative `media_path` suitable for the YouTube upload request. Live CDN compatibility and video playback remain unverified.
+
+## CI state after API security and media staging changes
+
+Latest observed run 84 (2026-11-15) failed before runner allocation: `runner_id=0`, empty runner name, `steps=[]`. This is not a test failure and not a test pass. API security and media-staging regression tests are committed but unexecuted. Latest run: https://github.com/justinhblee-prog/shorts/actions/runs/43656898926.
