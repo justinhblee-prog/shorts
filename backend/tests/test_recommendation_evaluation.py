@@ -546,5 +546,40 @@ class RecommendationEvaluationTests(unittest.TestCase):
                 connection.execute("DELETE FROM recommendation_rendered_exposures")
         self.assertIsNone(self.store.rendered_exposure_report("missing-run"))
 
+    def test_experiment_integrity_report_distinguishes_shadow_and_viewport_events(self):
+        experiment = self.store.create_experiment("integrity", "operator")
+        self.store.assign_shadow(experiment["experiment_id"], "opaque-participant")
+        run = self.store.record_run("US", [self.item(1)])
+        self.store.record_rendered_exposures(run["run_id"], [{
+            "event_id": "b8d6f5e4-73b0-4f6d-91ab-2d5e5a1c0f06",
+            "trend_id": "trend-1", "visibility_ms": 1500
+        }])
+        report = self.store.experiment_integrity_report()
+        self.assertEqual(report["status"], "shadow_only_no_verified_exposure")
+        self.assertEqual(report["shadow_assignment_count"], 1)
+        self.assertEqual(report["rendered_viewport_acknowledgement_count"], 1)
+        self.assertEqual(report["verified_randomized_served_exposure_count"], 0)
+        self.assertFalse(report["assignment_exposure_join_available"])
+        self.assertFalse(report["outcome_attribution_to_experiment_arm_available"])
+        self.assertFalse(report["live_assignment_enabled"])
+        self.assertEqual(report["ranking_score_adjustment"], 0)
+        self.assertEqual(report["items"][0]["integrity_status"], "shadow_records_consistent")
+
+    def test_experiment_integrity_report_flags_unexpected_assignment_mode(self):
+        experiment = self.store.create_experiment("tamper audit", "operator")
+        self.store.assign_shadow(experiment["experiment_id"], "opaque-participant")
+        with self.store.db() as connection:
+            connection.execute(
+                "DROP TRIGGER recommendation_experiment_assignments_no_update"
+            )
+            connection.execute(
+                "UPDATE recommendation_experiment_assignments SET assignment_mode='live'"
+            )
+        report = self.store.experiment_integrity_report()
+        self.assertEqual(report["status"], "integrity_warning")
+        self.assertEqual(report["integrity_warning_experiment_count"], 1)
+        self.assertEqual(report["items"][0]["unexpected_mode_count"], 1)
+        self.assertEqual(report["verified_randomized_served_exposure_count"], 0)
+
 if __name__ == "__main__":
     unittest.main()
