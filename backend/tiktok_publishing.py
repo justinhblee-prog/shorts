@@ -178,7 +178,7 @@ class TikTokPublishStore:
             if not row or row["attempt_id"] != attempt_id:
                 raise TikTokPublishError("TikTok status belongs to an unknown or superseded attempt")
             # A slower concurrent poll must never downgrade a terminal outcome.
-            if row["status"] in ("publish_complete", "failed"):
+            if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
                 return dict(row)
             c.execute("""
               UPDATE tiktok_publications SET status=?,video_id=COALESCE(?,video_id),
