@@ -202,7 +202,7 @@ UI integration and responsive browser behavior have not yet been tested in a liv
 
 ## Dashboard packaging test
 
-Added `backend/tests/test_frontend.py` to check that the three static assets exist, FastAPI exposes the dashboard and asset mount, and all four primary workspaces are present. This is a packaging/static test, not browser automation. Latest Actions run 94 had no allocated runner and no steps; a rerun was requested but not yet verified.
+Added `backend/tests/test_frontend.py` to check that the three static assets exist, FastAPI exposes the dashboard and asset mount, and all four primary workspaces are present. This is a packaging/static test, not browser automation. Latest Actions run 103 had no allocated runner and no steps; a rerun was requested but not yet verified.
 
 ## Operator runbook
 
@@ -211,3 +211,5 @@ See `docs/OPERATOR_RUNBOOK.md` for configuration, Docker deployment, production 
 ## Integration preflight
 
 Protected `GET /api/preflight` reports which configuration groups are present, without returning secret values. Dashboard displays operator auth, AI provider, renderer artifact allowlist, YouTube OAuth/Data API and media directory readiness. The report is configuration-only and never claims live connectivity. Tests: `backend/tests/test_preflight.py`.
+
+Latest checked CI run 103 (2026-11-15): https://github.com/justinhblee-prog/shorts/actions/runs/43657516480. Job has `runner_id=0`, no runner name and no steps. The newest security, media staging, dashboard, Docker layout and preflight changes have not executed under CI. Do not mark tests passed.
