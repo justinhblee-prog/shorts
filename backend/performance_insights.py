@@ -424,7 +424,7 @@ class PerformanceAnalyzer:
             "cohorts": cohorts,
             "cohort_insights": cohort_insights,
             "cohort_insight_policy": "Descriptive within-brand/region/publication-age/format comparisons only; minimum three measured videos per cohort; no ranking score adjustment or automated action.",
-            "cohort_method: "Brand + region + exact normalized topic-token signature + publication-age-at-last-snapshot + duration bucket + format; descriptive only.",
+            "cohort_method": "Brand + region + exact normalized topic-token signature + publication-age-at-last-snapshot + duration bucket + format; descriptive only.",
             "financial": list(financial.values()),
             "limitations": [
                 "View deltas are differences between stored snapshots, not real-time platform analytics.",
