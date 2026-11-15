@@ -17,6 +17,7 @@ The operator must send `explicit_consent=true` on each publish request. The adap
 
 All routes require the existing `X-Review-Token`.
 
+- `GET /api/tiktok/creator-info`: query and expose the creator's current privacy and capability options before the export/consent step.
 - `POST /api/tiktok/publish/{job_id}`: send the approved video to TikTok using SELF_ONLY only.
 - `GET /api/tiktok/publications/{job_id}`: retrieve the local publish record and immutable event history.
 - `POST /api/tiktok/publications/{job_id}/refresh-status`: query TikTok's publish status endpoint and append the result.
@@ -26,8 +27,8 @@ The publish body contains `media_path`, `title`, `operator_id`, `explicit_consen
 ## Remote flow
 
 1. Query creator info and confirm SELF_ONLY is available.
-2. Initialize Direct Post with `privacy_level=SELF_ONLY` and the explicit `is_aigc` disclosure.
-3. Upload the staged media to TikTok's returned HTTPS upload URL in byte-range chunks.
+2. Initialize Direct Post with `privacy_level=SELF_ONLY`, the explicit `is_aigc` disclosure, and both commercial-content declarations.
+3. Upload the staged media to TikTok's returned HTTPS upload URL using HTTP PUT in byte-range chunks. Do not forward the OAuth bearer token to the signed upload URL.
 4. Persist the publish ID, operator consent, AIGC declaration, commercial-content declarations and local audit events.
 5. Poll the status endpoint through the explicit refresh route. Supported statuses include PROCESSING_UPLOAD, PROCESSING_DOWNLOAD, SEND_TO_USER_INBOX, PUBLISH_COMPLETE and FAILED.
 
@@ -44,6 +45,6 @@ TikTok may require app review, creator authorization, posting caps, and addition
 Unit tests use a deterministic HTTP transport and temporary SQLite database. They verify request shape, privacy, consent, AIGC label, chunk transfer, status tracking, and fail-closed behavior. They do not constitute a live TikTok account upload test.
 
 Official references:
-- https://developers.tiktok.com/docs/en/content-posting-api-reference-direct-post
-- https://developers.tiktok.com/docs/en/content-posting-api-reference-upload-video
-- https://developers.tiktok.com/docs/en/content-posting-api-reference-query-video-status
+- https://developers.tiktok.com/doc/content-posting-api-reference-direct-post
+- https://developers.tiktok.com/doc/content-posting-api-media-transfer-guide
+- https://developers.tiktok.com/doc/content-posting-api-reference-get-video-status
