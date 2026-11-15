@@ -174,6 +174,7 @@ class YouTubeUploadStore:
 
     def mark_reconciliation_required(self,job_id,error,attempt_id=None):
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
             row=c.execute("SELECT status,attempt_id FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
             if row is None or row["status"]=="late_success_review_required":
                 return
