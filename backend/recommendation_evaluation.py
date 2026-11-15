@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import sqlite3
+import statistics
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -184,11 +185,13 @@ class RecommendationEvaluationStore:
             and item.get("views_per_hour") >= 0
         }
         with self.db() as c:
-            rows = c.execute("""SELECT selected_job_id,selected_at,created_at,
-                recommendation_rank,recommendation_score,trend_id,brand_slug
-                FROM recommendation_candidates
-                WHERE selected_job_id IS NOT NULL
-                ORDER BY COALESCE(selected_at,created_at),selected_job_id""").fetchall()
+            rows = c.execute("""SELECT c.run_id,r.generated_at AS run_generated_at,
+                c.selected_job_id,c.selected_at,c.created_at,
+                c.recommendation_rank,c.recommendation_score,c.trend_id,c.brand_slug
+                FROM recommendation_candidates c
+                JOIN recommendation_runs r ON r.id=c.run_id
+                WHERE c.selected_job_id IS NOT NULL
+                ORDER BY r.generated_at,c.recommendation_rank,c.selected_job_id""").fetchall()
         # One outcome per production job. A unique constraint also prevents
         # accidentally attaching one job to multiple candidate exposures.
         observations = []
@@ -200,15 +203,122 @@ class RecommendationEvaluationStore:
             seen.add(job_id)
             observations.append({
                 "job_id": job_id,
+                "run_id": row["run_id"],
+                "run_generated_at": row["run_generated_at"],
                 "observed_at": row["selected_at"] or row["created_at"],
                 "recommendation_rank": int(row["recommendation_rank"]),
                 "recommendation_score": float(row["recommendation_score"]),
                 "views_per_hour": float(measured[job_id]["views_per_hour"]),
+                "outcome_brand": measured[job_id].get("brand"),
+                "outcome_region": measured[job_id].get("region"),
+                "publication_age_bucket": measured[job_id].get("publication_age_bucket"),
+                "duration_bucket": measured[job_id].get("duration_bucket"),
+                "format": measured[job_id].get("format"),
                 "brand": row["brand_slug"],
                 "trend_id": row["trend_id"],
             })
         total_selected = len(rows)
         total_measured = len(observations)
+        # Compare candidates within the same exposure and comparable outcome cohort.
+        # Raw scores from different API runs, brands, regions, ages or formats are
+        # not directly comparable.
+        grouped = {}
+        for item in observations:
+            run_id = item["run_id"]
+            cohort_key = (
+                item.get("outcome_brand"), item.get("outcome_region"),
+                item.get("publication_age_bucket"), item.get("duration_bucket"),
+                item.get("format"),
+            )
+            if not all(value and value != "unknown" for value in cohort_key):
+                continue
+            grouped.setdefault(run_id, {}).setdefault(cohort_key, []).append(item)
+        run_diagnostics = []
+        eligible_cohort_count = 0
+        for run_id, cohorts in grouped.items():
+            cohort_score_rhos = []
+            cohort_rank_rhos = []
+            cohort_sample_count = 0
+            for cohort_items in cohorts.values():
+                if len(cohort_items) < 3:
+                    continue
+                score_rho = _spearman(
+                    [item["recommendation_score"] for item in cohort_items],
+                    [item["views_per_hour"] for item in cohort_items],
+                )
+                rank_rho = _spearman(
+                    [-item["recommendation_rank"] for item in cohort_items],
+                    [item["views_per_hour"] for item in cohort_items],
+                )
+                if score_rho is None or rank_rho is None:
+                    continue
+                cohort_score_rhos.append(score_rho)
+                cohort_rank_rhos.append(rank_rho)
+                cohort_sample_count += len(cohort_items)
+                eligible_cohort_count += 1
+            if cohort_score_rhos:
+                run_diagnostics.append({
+                    "run_id": run_id,
+                    "generated_at": next(iter(cohorts.values()))[0]["run_generated_at"],
+                    "eligible_cohort_count": len(cohort_score_rhos),
+                    "selected_measured_count": cohort_sample_count,
+                    "median_score_views_spearman": round(
+                        statistics.median(cohort_score_rhos), 4
+                    ),
+                    "median_rank_views_spearman": round(
+                        statistics.median(cohort_rank_rhos), 4
+                    ),
+                })
+        run_diagnostics.sort(key=lambda item: item["generated_at"])
+        within_run = {
+            "status": "insufficient_run_coverage",
+            "method": "within_exposure_comparable_cohort_spearman_chronological_holdout",
+            "eligible_run_count": len(run_diagnostics),
+            "eligible_cohort_count": eligible_cohort_count,
+            "minimum_selected_measured_per_cohort": 3,
+            "pre_holdout_run_count": 0,
+            "holdout_run_count": 0,
+            "holdout_median_score_views_spearman": None,
+            "holdout_median_rank_views_spearman": None,
+            "holdout_positive_score_association_share": None,
+            "score_adjustment_enabled": False,
+            "reason": (
+                "At least five recommendation exposure runs with one comparable "
+                "brand/region/publication-age/duration/format cohort containing three "
+                "or more selected and measured candidates each are required."
+            ),
+        }
+        if len(run_diagnostics) >= 5:
+            run_split = max(2, int(math.ceil(len(run_diagnostics) * 0.30)))
+            run_split = min(run_split, len(run_diagnostics) - 2)
+            run_holdout = run_diagnostics[-run_split:]
+            score_values = [
+                item["median_score_views_spearman"] for item in run_holdout
+            ]
+            rank_values = [
+                item["median_rank_views_spearman"] for item in run_holdout
+            ]
+            within_run.update({
+                "status": "holdout_available",
+                "pre_holdout_run_count": len(run_diagnostics) - run_split,
+                "holdout_run_count": run_split,
+                "holdout_start": run_holdout[0]["generated_at"],
+                "holdout_end": run_holdout[-1]["generated_at"],
+                "holdout_median_score_views_spearman": round(
+                    statistics.median(score_values), 4
+                ),
+                "holdout_median_rank_views_spearman": round(
+                    statistics.median(rank_values), 4
+                ),
+                "holdout_positive_score_association_share": round(
+                    sum(value > 0 for value in score_values) / len(score_values), 4
+                ),
+                "reason": (
+                    "Within-run, comparable-cohort holdout compares selected measured "
+                    "candidates only. It remains observational and selection-biased; "
+                    "no score change is enabled."
+                ),
+            })
         result = {
             "status": "insufficient_data",
             "method": "chronological_70_30_holdout_spearman",
@@ -220,7 +330,13 @@ class RecommendationEvaluationStore:
             "holdout_score_views_spearman": None,
             "holdout_rank_views_spearman": None,
             "ranking_score_adjustment_enabled": False,
+            "within_run_validation": within_run,
             "minimum_total_observations": 10,
+            "pooled_metric_boundary": (
+                "The pooled chronological Spearman metric mixes different exposure runs "
+                "and is a coarse diagnostic only; within-run validation is the preferred "
+                "comparison because candidates share one captured ranking context."
+            ),
             "warning": (
                 "Observational only: outcomes exist only for recommendations selected "
                 "for production. selection bias and unobserved candidates prevent "

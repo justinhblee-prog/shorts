@@ -408,3 +408,8 @@ No text subtitle stream is not proof that captions are absent: captions may be b
 ### Subtitle timing and reading-speed heuristics
 
 Extracted SRT timecodes are analyzed for nonpositive durations, cue overlaps, gaps over five seconds, cue durations below 0.5 seconds or above seven seconds, and character rates above 20 characters/second. The report stores counts and warning codes, not subtitle content. These are broad heuristics, not universal accessibility or platform standards; language, font, contrast, placement and context affect actual readability. Every warning remains a human-review item.
+
+
+### Recommendation evaluation: within-exposure comparable cohorts
+
+The evaluation endpoint retains the existing chronological pooled Spearman value only as a coarse diagnostic because raw scores from different recommendation runs are not directly comparable. Its preferred diagnostic now groups selected, measured outcomes by the same recommendation exposure and outcome cohort: brand, region, publication-age bucket, duration bucket and format. Each cohort needs at least three selected measured videos; at least five eligible exposure runs are required before a 70/30 chronological holdout is reported. Per-run cohort correlations are summarized by medians. Selection bias remains because only operator-selected recommendations have outcomes; score adjustment stays disabled.
