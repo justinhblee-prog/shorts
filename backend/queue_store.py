@@ -441,6 +441,63 @@ class JobQueue:
                 row["status"] = "offline"
         return rows
 
+    def operational_health(self):
+        """Read-only operational safety snapshot; never requeues, pauses or contacts providers."""
+        current = stamp(now())
+        stale_cutoff = stamp(now() - timedelta(seconds=max(30, self.lease_seconds)))
+        with self.db() as c:
+            status_rows = c.execute(
+                "SELECT status,COUNT(*) AS n FROM pipeline_jobs GROUP BY status"
+            ).fetchall()
+            control = c.execute(
+                "SELECT paused,pause_reason,paused_job_id,updated_at FROM worker_control WHERE id=1"
+            ).fetchone()
+            expired = c.execute("""SELECT COUNT(*) AS n FROM pipeline_jobs
+                WHERE status='running' AND lease_expires_at IS NOT NULL
+                  AND lease_expires_at<=?""", (current,)).fetchone()["n"]
+            missing_lease = c.execute("""SELECT COUNT(*) AS n FROM pipeline_jobs
+                WHERE status='running' AND
+                  (worker_id IS NULL OR worker_id='' OR lease_token IS NULL OR lease_token=''
+                   OR lease_expires_at IS NULL OR lease_expires_at='')""").fetchone()["n"]
+            worker_rows = c.execute("""SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN last_seen_at>=? THEN 1 ELSE 0 END) AS online,
+                SUM(CASE WHEN last_seen_at<? THEN 1 ELSE 0 END) AS stale
+                FROM worker_registry""", (stale_cutoff, stale_cutoff)).fetchone()
+        statuses = {row["status"]: row["n"] for row in status_rows}
+        control = dict(control) if control else {
+            "paused": 0, "pause_reason": None, "paused_job_id": None, "updated_at": None
+        }
+        blockers = []
+        warnings = []
+        if control["paused"]:
+            blockers.append({"code":"production_queue_paused","message":"Production queue is paused"})
+        if expired:
+            blockers.append({"code":"worker_lease_expired","message":"One or more running jobs have expired worker leases","count":expired})
+        if missing_lease:
+            blockers.append({"code":"worker_lease_incomplete","message":"One or more running jobs have incomplete lease ownership fields","count":missing_lease})
+        stale_workers = int(worker_rows["stale"] or 0)
+        if stale_workers:
+            warnings.append({"code":"workers_stale","message":"One or more registered workers have stale heartbeats","count":stale_workers})
+        retryable = int(statuses.get("failed_retriable", 0))
+        if retryable:
+            warnings.append({"code":"retryable_failures","message":"Jobs are waiting for an eligible retry","count":retryable})
+        return {
+            "status": "blocked" if blockers else ("attention_required" if warnings else "healthy"),
+            "checked_at": current,
+            "read_only": True,
+            "queue": {"total":sum(statuses.values()),"status_counts":statuses,
+                      "paused":bool(control["paused"])},
+            "workers": {"total":int(worker_rows["total"] or 0),
+                        "online":int(worker_rows["online"] or 0),"stale":stale_workers,
+                        "stale_after_seconds":max(30,self.lease_seconds)},
+            "leases": {"expired_running":int(expired),"running_missing_ownership":int(missing_lease)},
+            "control": control,
+            "blockers": blockers,
+            "warnings": warnings,
+            "actions_taken": [],
+        }
+
     def stats(self):
         with self.db() as c:
             d={r["status"]:r["n"] for r in c.execute("SELECT status,COUNT(*) n FROM pipeline_jobs GROUP BY status")}
