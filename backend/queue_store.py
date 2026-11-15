@@ -108,7 +108,8 @@ class JobQueue:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             control=c.execute("SELECT paused FROM worker_control WHERE id=1").fetchone()
-            if control and control["paused"]:
+            production_paused=bool(control and control["paused"])
+            if production_paused and job_type == "short_video_production":
                 c.commit()
                 return None
             c.execute("""INSERT INTO worker_registry VALUES(?,?,?,'online') ON CONFLICT(worker_id)
@@ -124,6 +125,11 @@ class JobQueue:
                 row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
                   AND available_at<=? AND attempt<max_attempts AND job_type=?
                   ORDER BY priority,created_at LIMIT 1""",(n,job_type)).fetchone()
+            elif production_paused:
+                row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
+                  AND available_at<=? AND attempt<max_attempts
+                  AND job_type!='short_video_production'
+                  ORDER BY priority,created_at LIMIT 1""",(n,)).fetchone()
             else:
                 row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
                   AND available_at<=? AND attempt<max_attempts
@@ -224,7 +230,7 @@ class JobQueue:
             c.execute("""UPDATE worker_control SET paused=1,pause_reason=?,
               paused_job_id=?,updated_at=? WHERE id=1""", (reason, job_id, n))
             running=c.execute("""SELECT id,worker_id FROM pipeline_jobs
-                WHERE status='running'""").fetchall()
+                WHERE status='running' AND job_type='short_video_production'""").fetchall()
             for row in running:
                 c.execute("""UPDATE pipeline_jobs SET status='failed_terminal',
                     worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
