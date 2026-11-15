@@ -42,10 +42,12 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
         age = _age_hours(trend.get("published_at") or trend.get("collected_at"), now)
         freshness = 0.0 if age is None else round(40 * max(0.0, 1.0 - min(age, 168.0) / 168.0), 2)
         candidates = []
+        region_eligible = 0
         for brand, config, tokens in brand_rows:
             region = str(trend.get("region") or "").upper()
             if region and region != "GLOBAL" and region not in config.get("regions", []):
                 continue
+            region_eligible += 1
             overlap = len(tokens & trend_tokens) / len(trend_tokens) if trend_tokens else 0.0
             fit = round(40 * min(1.0, overlap * 2.0), 2)
             if fit <= 0:
@@ -54,6 +56,8 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
                 "brand": brand.get("slug"), "brand_name": brand.get("name"),
                 "fit_score": fit, "supported_languages": config.get("languages", [])
             })
+        if region and region != "GLOBAL" and region_eligible == 0:
+            continue
         candidates.sort(key=lambda x: (-x["fit_score"], x["brand"] or ""))
         best = candidates[0] if candidates else None
         # The remaining 20 points are deliberately unallocated: trend feeds do not
