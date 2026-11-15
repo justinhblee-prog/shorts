@@ -66,17 +66,17 @@ def _subtitle_payload_to_text(value):
     # Remove SRT cue numbers only when followed by a timecode, preserving
     # standalone spoken numbers such as years or quantities.
     text = re.sub(
-        r"^[ \\t]*\\d+[ \\t]*\\r?\\n(?=[ \\t]*\\d{2}:\\d{2}:\\d{2}[,.]\\d{3}[ \\t]+-->)",
+        r"^[ \t]*\d+[ \t]*\r?\n(?=[ \t]*\d{2}:\d{2}:\d{2}[,.]\d{3}[ \t]+-->)",
         "", text, flags=re.MULTILINE,
     )
     text = re.sub(
-        r"^[ \\t]*\\d{2}:\\d{2}:\\d{2}[,.]\\d{3}[ \\t]+-->[ \\t]+"
-        r"\\d{2}:\\d{2}:\\d{2}[,.]\\d{3}.*$",
+        r"^[ \t]*\d{2}:\d{2}:\d{2}[,.]\d{3}[ \t]+-->[ \t]+"
+        r"\d{2}:\d{2}:\d{2}[,.]\d{3}.*$",
         "", text, flags=re.MULTILINE,
     )
     text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\\{\\\\an\\d+\\}", " ", text)
-    return re.sub(r"\\s+", " ", text).strip()
+    text = re.sub(r"\{\\an\d+\}", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def build_caption_alignment_report(script, subtitle_text, asr_transcript=None,
