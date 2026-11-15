@@ -313,9 +313,10 @@
     const filter=$("lifecycleStatusFilter")?.value||"";
     const params=new URLSearchParams({limit:"50",offset:String(lifecycleOffset)});
     if(filter)params.set("status",filter);
-    const [data,performance]=await Promise.all([
+    const [data,performance,economics]=await Promise.all([
       api("/api/lifecycle/queue?"+params.toString()),
-      api("/api/performance/pipeline?limit=100&min_samples=5")
+      api("/api/performance/pipeline?limit=100&min_samples=5"),
+      api("/api/analytics/operations-economics?limit=500")
     ]);
     const counts=data.status_counts||{},productionCounts=data.production_status_counts||{},risks=data.risk_counts||{};
     const summary='<div class="finance-summary"><div><small>전체 제작 작업</small><b>'+Number(data.total||0).toLocaleString()+'</b></div><div><small>차단 위험</small><b>'+Number(risks.blocked||0).toLocaleString()+'</b></div><div><small>확인 필요</small><b>'+Number(risks.attention_required||0).toLocaleString()+'</b></div></div>';
@@ -329,7 +330,11 @@
     const productionSummary=Object.entries(productionCounts).map(([status,count])=>'<span class="tag">제작 '+esc(status)+' '+Number(count).toLocaleString()+'</span>').join(" ");
     const perfRows=(performance.stages||[]).map(item=>'<div class="data-item"><b>'+esc(item.stage)+' · '+esc(item.status)+'</b><small>표본 '+Number(item.sample_count)+' · 중앙값 '+(item.median_seconds===null?"표본 부족":esc(item.median_seconds+"초"))+' · P90 '+(item.p90_seconds===null?"표본 부족":esc(item.p90_seconds+"초"))+'</small></div>').join("");
     const perfHtml='<section class="review-policy"><strong>전체 파이프라인 성능 통계</strong><p>분석 작업 '+Number(performance.jobs_with_observations||0)+'/'+Number(performance.cohort_jobs||0)+' · 단계별 최소 표본 '+Number(performance.minimum_samples_per_stage||5)+'</p>'+(performance.bottleneck_candidate?'<p>병목 후보: '+esc(performance.bottleneck_candidate.stage)+' · 중앙값 '+esc(performance.bottleneck_candidate.median_seconds)+'초</p>':'<p>현재는 병목 후보를 확정할 표본이 부족합니다.</p>')+(perfRows||'<small>분석 가능한 단계별 관측치가 없습니다.</small>')+'<small>큐 상태 체류시간 기준이며 공급자 실행·렌더링 시간과 다릅니다. 최근 최대 100개 작업의 읽기 전용 통계입니다.</small></section>';
-    $("lifecycleQueue").innerHTML=perfHtml+summary+'<div class="notice">큐 상태 '+statusSummary+'<br>제작 상태 '+productionSummary+'</div>'+(rows||'<div class="empty-state">표시할 숏폼 제작 작업이 없습니다.</div>')+'<small>읽기 전용 관제 · 자동 재시도·원격 상태 조회·게시 실행 없음 · 페이지 최대 50건 · '+(data.offset+1)+'–'+Math.min(data.offset+(data.items||[]).length,data.total)+' / '+data.total+'</small>';
+    const brandRows=(economics.brands||[]).map(item=>'<div class="data-item"><b>'+esc(item.brand)+'</b><small>작업 '+Number(item.jobs)+' · 실패율 '+(item.failure_rate_percent===null?"표본 없음":esc(item.failure_rate_percent+"%"))+' · 승인율 '+(item.approval_rate_percent===null?"검수 표본 없음":esc(item.approval_rate_percent+"%"))+' · YouTube '+Number(item.youtube_published)+' · TikTok '+Number(item.tiktok_published)+'</small></div>').join("");
+    const financeRows=(economics.financial_by_currency||[]).map(item=>'<div class="data-item"><b>'+esc(item.currency)+' · 기록 매출 '+esc(item.recorded_revenue)+' · 기록 비용 '+esc(item.recorded_costs)+' · 순액 '+esc(item.recorded_net)+'</b><small>재무 기록 작업 '+Number(item.jobs_with_financial_records)+' · 비용-매출 상관 '+(item.cost_revenue_correlation.value===null?esc(item.cost_revenue_correlation.assessment):esc(item.cost_revenue_correlation.value)+' (탐색용)')+'</small></div>').join("");
+    const stageFailureRows=(economics.stages||[]).map(item=>'<span class="tag">'+esc(item.stage)+' 실패율 '+(item.failure_rate_percent===null?"—":esc(item.failure_rate_percent+"%"))+' ('+Number(item.failed)+'/'+Number(item.jobs)+')</span>').join(" ");
+    const economicsHtml='<section class="review-policy"><strong>제작 품질·검수·게시·기록 재무 분석</strong><p>최근 '+Number(economics.cohort_jobs||0)+'건 · 재무 연결 '+Number(economics.data_quality?.jobs_with_recorded_financials||0)+'건</p><div class="finance-summary"><div><small>브랜드별 실패·승인</small><b>'+Number((economics.brands||[]).length)+'</b></div><div><small>실패 유형</small><b>'+Object.keys(economics.failure_codes||{}).length+'</b></div><div><small>통화별 재무 집계</small><b>'+(economics.financial_by_currency||[]).length+'</b></div></div>'+(brandRows||'<small>브랜드별 집계 자료가 없습니다.</small>')+'<p><b>단계별 실패율</b></p>'+stageFailureRows+'<p><b>작업 연결 재무 기록</b></p>'+(financeRows||'<small>작업 ID에 연결된 재무 원장이 아직 없습니다. 매출은 추정하지 않습니다.</small>')+'<small>원장에 기록된 수치만 사용합니다. 통화 환산·추정 매출은 포함하지 않으며, 상관관계는 인과관계를 의미하지 않습니다.</small></section>';
+    $("lifecycleQueue").innerHTML=economicsHtml+perfHtml+summary+'<div class="notice">큐 상태 '+statusSummary+'<br>제작 상태 '+productionSummary+'</div>'+(rows||'<div class="empty-state">표시할 숏폼 제작 작업이 없습니다.</div>')+'<small>읽기 전용 관제 · 자동 재시도·원격 상태 조회·게시 실행 없음 · 페이지 최대 50건 · '+(data.offset+1)+'–'+Math.min(data.offset+(data.items||[]).length,data.total)+' / '+data.total+'</small>';
     $("lifecyclePrev").disabled=data.offset<=0;
     $("lifecycleNext").disabled=data.offset+(data.items||[]).length>=data.total;
   }
