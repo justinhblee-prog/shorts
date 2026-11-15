@@ -9,7 +9,9 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
-                 OpportunityInput, create_opportunity_score, TikTokPublishRequest,\n                 publish_tiktok_video, refresh_tiktok_publication_status,\n                 get_tiktok_publication)
+                 OpportunityInput, create_opportunity_score, TikTokPublishRequest,
+                 publish_tiktok_video, refresh_tiktok_publication_status,
+                 get_tiktok_publication)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
