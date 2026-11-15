@@ -418,3 +418,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression tests for provider-stage propagation, malformed-profile fail-closed validation, and API-level profile snapshotting at submission.
 - GitHub Actions run [43666178495](https://github.com/justinhblee-prog/shorts/actions/runs/43666178495) on commit `f7d7c20c396d8ea05fb60ed8414b84d5301e63d8` completed successfully. The full validation script passed and the log confirms **116 tests ran**.
 - This verifies profile propagation through the mocked provider contract and API test boundary. Actual provider prompt adherence, voice characteristics and rendered visual branding still require live provider credentials and real media review.
+
+
+### Ambiguous production lease expiry — fail-closed recovery — 2026-11-15
+
+- A production worker lease expiry is now treated as an ambiguous external side effect, not a safe retry signal. The queue job becomes `failed_terminal`, its production record is synchronized, and the durable production pause is set in the same SQLite transaction.
+- Both generic claim-time lease recovery and explicit `recover()` apply this rule. Other queue job types retain their existing retry policy.
+- Ctrl+C during provider execution records a non-retriable ambiguous outcome, pauses production, and exits. A hard kill is handled by lease expiry on the next claim/recovery.
+- Regression coverage verifies that no replacement worker is issued the ambiguous production job, stale workers cannot write, and the operator pause persists.
+- GitHub Actions run [43666476125](https://github.com/justinhblee-prog/shorts/actions/runs/43666476125) completed successfully: **119 tests passed**.
+- Live provider reconciliation remains an operator task because a lost response cannot establish whether the remote service completed the request.
