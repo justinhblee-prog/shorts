@@ -70,6 +70,34 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(duplicate["score_type"],
                          "editorial_signal_not_profitability")
 
+    def test_brand_fit_uses_weighted_profile_terms_and_explicit_exclusions(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        brands = [
+            {"slug": "future", "name": "Future Leak", "active": True,
+             "config": {"vertical": "ai_future_technology",
+                        "positioning": "AI technology explainers",
+                        "keywords": ["machine learning", "robotics"],
+                        "exclude_keywords": ["cryptocurrency"],
+                        "regions": ["US"]}},
+            {"slug": "money", "name": "Money Glitch", "active": True,
+             "config": {"vertical": "economics_finance",
+                        "positioning": "financial literacy and markets",
+                        "regions": ["US"]}},
+        ]
+        trends = [
+            {"id": "ai", "title": "AI technology and robotics", "region": "US",
+             "published_at": now.isoformat()},
+            {"id": "excluded", "title": "AI technology cryptocurrency", "region": "US",
+             "published_at": now.isoformat()},
+        ]
+        ranked = rank_trend_candidates(trends, brands, now=now)
+        ai = next(item for item in ranked if item["trend"]["id"] == "ai")
+        self.assertEqual(ai["best_brand"]["brand"], "future")
+        self.assertEqual(ai["best_brand"]["match_method"], "weighted_profile_term_coverage")
+        self.assertIn("ai", ai["best_brand"]["matched_terms"])
+        excluded = next(item for item in ranked if item["trend"]["id"] == "excluded")
+        self.assertNotIn("future", [item["brand"] for item in excluded["brand_candidates"]])
+
     def test_competitor_evidence_is_region_scoped_and_does_not_change_editorial_score(self):
         store = Mock()
         store.list_channels.return_value = [
