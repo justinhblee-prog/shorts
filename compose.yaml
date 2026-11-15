@@ -1,0 +1,53 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["uvicorn","app:app","--host","0.0.0.0","--port","8502"]
+    env_file: .env
+    environment:
+      NEXUS_DB_PATH: /app/data/nexus.sqlite3
+    ports:
+      - "8502:8502"
+    volumes:
+      - nexus_data:/app/data
+    healthcheck:
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8502/api/health',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python","worker.py"]
+    env_file: .env
+    environment:
+      NEXUS_DB_PATH: /app/data/nexus.sqlite3
+    volumes:
+      - nexus_data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python","scheduler.py"]
+    env_file: .env
+    environment:
+      NEXUS_DB_PATH: /app/data/nexus.sqlite3
+    volumes:
+      - nexus_data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  nexus_data:
