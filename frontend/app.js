@@ -64,6 +64,7 @@
       const status=item.upload_status||"not_uploaded";
       const lateIds=(item.upload_events||[]).filter(event=>event.event_type==="late_remote_success"&&event.video_id).map(event=>event.video_id);
       const lateIdSummary=lateIds.length?'<p>늦게 확인된 영상 ID: '+lateIds.map(esc).join(" · ")+'</p>':"";
+      const existingIdSummary=item.upload_video_id?'<p>현재 기록된 영상 ID: '+esc(item.upload_video_id)+'</p>':"";
       const action=status==="late_success_review_required"
         ? '<button class="button button-outline" data-resolve-late-id="'+esc(item.job_id)+'">늦은 업로드 결과 확정</button>'
         : (uncertain
@@ -72,7 +73,7 @@
             ? '<button class="button button-quiet" disabled>업로드 진행 중 · 대기</button>'
             : '<button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">비공개 업로드</button>'));
       const statusText=status==="late_success_review_required"?"늦은 업로드 성공 · 운영자 확인 필요":(uncertain?"업로드 결과 확인 필요":(status==="uploading"?"업로드 진행 중":(status==="failed"?"이전 업로드 실패 · 재시도 가능":(status==="uploaded"?"업로드 완료":"업로드 대기"))));
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+lateIdSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+'</div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+'</div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
   }
   async function loadTrends(){
