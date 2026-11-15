@@ -209,6 +209,11 @@ class JobQueue:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); self.assert_lease(row,worker,token,n)
+            if instance_token is not None:
+                owner = c.execute("SELECT instance_token FROM worker_registry WHERE worker_id=?",
+                                  (worker,)).fetchone()
+                if owner is None or owner["instance_token"] != instance_token:
+                    raise LeaseConflict("Worker process instance no longer owns this worker ID")
             c.execute("UPDATE pipeline_jobs SET lease_expires_at=?,updated_at=? WHERE id=?",(expiry,n,jid))
             if instance_token is None:
                 c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",(n,worker))
@@ -502,7 +507,7 @@ class JobQueue:
         cutoff = stamp(now() - timedelta(seconds=threshold))
         with self.db() as c:
             rows = [dict(r) for r in c.execute(
-                "SELECT * FROM worker_registry ORDER BY last_seen_at DESC")]
+                "SELECT worker_id,hostname,last_seen_at,status FROM worker_registry ORDER BY last_seen_at DESC")]
         for row in rows:
             if row["last_seen_at"] < cutoff:
                 row["status"] = "offline"
