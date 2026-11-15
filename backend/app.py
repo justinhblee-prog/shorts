@@ -116,14 +116,16 @@ def get_brand(slug:str):
     return result
 
 @app.put("/api/brands/{slug}/activation")
-def set_brand_activation(slug:str,body:BrandActivation):
+def set_brand_activation(slug:str,body:BrandActivation,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try:
         return brand_store.set_active(slug,body.active)
     except BrandNotFound:
         raise HTTPException(404,"Brand not found")
 
 @app.post("/api/production/jobs",status_code=201)
-def create_production_job(body:ProductionBrief):
+def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try:
         brand = next((b for b in brand_store.list(active_only=True)
                       if body.brand in (b["slug"], b["name"])), None)
@@ -139,13 +141,15 @@ def create_production_job(body:ProductionBrief):
         raise HTTPException(422,str(e))
 
 @app.get("/api/production/jobs/{job_id}")
-def get_production_job(job_id:str):
+def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     result=production_store.get(job_id)
     if result is None: raise HTTPException(404,"Production job not found")
     return result
 
 @app.post("/api/production/jobs/{job_id}/execute")
-def execute_production_job(job_id:str,body:ProductionExecute):
+def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try:
         job=queue.get(job_id)
         if job["job_type"]!="short_video_production":
@@ -332,7 +336,8 @@ def activate_schedule(schedule_id:str,active:bool,
 
 
 @app.post("/api/trends/collect")
-def collect_trends(body:TrendCollect):
+def collect_trends(body:TrendCollect,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try:
         return trend_ingestor.collect(body.region,body.query,body.limit,body.include_hacker_news)
     except ValueError as e:
@@ -341,7 +346,8 @@ def collect_trends(body:TrendCollect):
         raise HTTPException(502,"Trend provider request failed: "+type(e).__name__)
 
 @app.get("/api/trends")
-def list_trends(region:str|None=None,source:str|None=None,q:str|None=None,limit:int=50):
+def list_trends(region:str|None=None,source:str|None=None,q:str|None=None,limit:int=50,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try:
         return {"items":trend_store.list(region,source,q,limit)}
     except ValueError as e:
@@ -349,7 +355,8 @@ def list_trends(region:str|None=None,source:str|None=None,q:str|None=None,limit:
 
 
 @app.get("/api/competitors/search")
-def search_competitors(q:str,limit:int=5):
+def search_competitors(q:str,limit:int=5,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     if len(q)<2 or len(q)>100: raise HTTPException(422,"q must contain 2-100 characters")
     try:
         return competitor_intel.search(q,limit)
@@ -359,11 +366,13 @@ def search_competitors(q:str,limit:int=5):
         raise HTTPException(502,"YouTube Data API request failed: "+type(e).__name__)
 
 @app.get("/api/competitors")
-def list_competitors(limit:int=50):
+def list_competitors(limit:int=50,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     return {"channels":competitor_store.list_channels(limit)}
 
 @app.get("/api/competitors/{channel_id}")
-def inspect_competitor(channel_id:str,video_limit:int=10):
+def inspect_competitor(channel_id:str,video_limit:int=10,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try:
         result=competitor_intel.inspect(channel_id,video_limit)
         if result is None: raise HTTPException(404,"Channel not found")
@@ -397,7 +406,8 @@ class OpportunityInput(BaseModel):
 
 
 @app.post("/api/opportunities/score",status_code=201)
-def create_opportunity_score(body:OpportunityInput):
+def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try:
         result=score_opportunity(body.model_dump())
         return opportunity_store.save(result)
@@ -405,47 +415,64 @@ def create_opportunity_score(body:OpportunityInput):
         raise HTTPException(422,str(e))
 
 @app.get("/api/opportunities")
-def list_opportunities(limit:int=50):
+def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     return {"opportunities":opportunity_store.list(limit)}
 
 @app.get("/api/health")
 def health(): return {"status":"ok","service":"nexus-studio-pro"}
 @app.get("/api/queue/stats")
-def stats(): return queue.stats()
+def stats(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return queue.stats()
 @app.post("/api/jobs",status_code=201)
-def enqueue(body:Enqueue): return queue.enqueue(**body.model_dump())
+def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return queue.enqueue(**body.model_dump())
 @app.post("/api/jobs/claim")
-def claim(body:Claim): return {"job":queue.claim(body.worker_id,body.hostname)}
+def claim(body:Claim,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return {"job":queue.claim(body.worker_id,body.hostname)}
 @app.post("/api/jobs/{jid}/heartbeat")
-def heartbeat(jid:str,body:Lease):
+def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try: return queue.heartbeat(jid,body.worker_id,body.lease_token)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/complete")
-def complete(jid:str,body:Complete):
+def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try: return queue.finish(jid,body.worker_id,body.lease_token,body.result)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/fail")
-def fail(jid:str,body:Fail):
+def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try: return queue.fail(jid,body.worker_id,body.lease_token,body.error_code,body.error_message,body.retryable)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/cancel")
-def cancel(jid:str):
+def cancel(jid:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try: return queue.cancel(jid)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except ValueError as e: raise HTTPException(409,str(e))
 @app.post("/api/queue/recover")
-def recover(): return queue.recover()
+def recover(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return queue.recover()
 @app.get("/api/workers")
-def workers(): return {"workers":queue.workers()}
+def workers(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return {"workers":queue.workers()}
 @app.get("/api/jobs/{jid}")
-def get_job(jid:str):
+def get_job(jid:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try: return queue.get(jid)
     except JobNotFound: raise HTTPException(404,"Job not found")
 @app.get("/api/jobs/{jid}/events")
-def get_events(jid:str):
+def get_events(jid:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
     try: queue.get(jid); return {"events":queue.events(jid)}
     except JobNotFound: raise HTTPException(404,"Job not found")
 
