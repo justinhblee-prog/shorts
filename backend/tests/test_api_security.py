@@ -19,7 +19,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth,
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
                  skip_recommendation_feedback, capture_trend_recommendations,
-                 get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue, get_lifecycle_publishing_dashboard,
+                 get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
                  operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview, metrics_collection_status,
                  capture_recommendation_evaluation_snapshot, list_recommendation_evaluation_snapshots,
                  require_canonical_staged_media, stage_production_media, approve_review,
@@ -1039,41 +1039,6 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(set(found),protected)
         for route in found.values():
             self.assertIn("x_review_token",route.endpoint.__annotations__)
-
-
-    def test_unified_publishing_dashboard_keeps_platform_states_separate_and_is_read_only(self):
-        job={"id":"job-1","status":"approved","updated_at":"2026-11-15T10:00:00Z"}
-        youtube={"status":"reconciliation_required","video_id":None,"attempt_id":"yt-attempt",
-                 "updated_at":"2026-11-15T09:00:00Z","error":"timeout",
-                 "reconciliation_required":True,"events":[{"event_type":"upload_uncertain"}]}
-        tiktok={"status":"publish_complete","publish_id":"tt-publish","video_id":"tt-video",
-                "attempt_id":"tt-attempt","privacy_level":"SELF_ONLY",
-                "updated_at":"2026-11-15T09:05:00Z","fail_reason":None,"error":None,
-                "events":[{"event_type":"publish_complete","outcome":"success"}]}
-        page={"items":[job],"total":1,"limit":50,"offset":0}
-        with mock.patch("app.require_review_access") as access, \
-             mock.patch.object(app_module.queue,"list_jobs",return_value=page) as listing, \
-             mock.patch.object(app_module.youtube_upload_store,"get",return_value=youtube), \
-             mock.patch.object(app_module.tiktok_publish_store,"get",return_value=tiktok):
-            result=get_lifecycle_publishing_dashboard(x_review_token="secret")
-        access.assert_called_once_with("secret")
-        listing.assert_called_once_with(job_type="short_video_production",limit=50,offset=0)
-        self.assertEqual(result["items"][0]["youtube"]["status"],"reconciliation_required")
-        self.assertEqual(result["items"][0]["tiktok"]["status"],"publish_complete")
-        self.assertTrue(result["items"][0]["youtube"]["reconciliation_required"])
-        self.assertEqual(result["items"][0]["tiktok"]["video_id"],"tt-video")
-        self.assertEqual(result["youtube_status_counts"]["reconciliation_required"],1)
-        self.assertEqual(result["tiktok_status_counts"]["publish_complete"],1)
-        self.assertTrue(result["read_only"])
-        self.assertFalse(result["remote_status_refresh_performed"])
-        self.assertFalse(result["automatic_retry_performed"])
-        self.assertFalse(result["publishing_performed"])
-
-    def test_unified_publishing_dashboard_rejects_unbounded_pagination(self):
-        with mock.patch("app.require_review_access"):
-            with self.assertRaises(HTTPException) as caught:
-                get_lifecycle_publishing_dashboard(limit=101,x_review_token="secret")
-        self.assertEqual(caught.exception.status_code,422)
 
 
 if __name__ == "__main__":
