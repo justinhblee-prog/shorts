@@ -41,7 +41,8 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
 | BUILD-00023 | Platform AI disclosure enforcement | YouTube API disclosure mapping implemented and branch CI passed; TikTok adapter isolated in PR #35; live platform authorization/publish validation pending |
 | BUILD-00024 | TikTok private Direct Post integration | Portal controls, creator-info, SELF_ONLY Direct Post, explicit consent, AIGC/commercial disclosures, chunk transfer, background status polling and immutable audit; 290 tests passed; live posting pending |
-| BUILD-00025 | TikTok OAuth lifecycle and account security | Web OAuth, browser-bound one-time state, Fernet token encryption, distributed refresh lease, refresh-token rotation, revocation, preflight and log redaction implemented; 290 tests passed; live app authorization pending |
+| BUILD-00025 | TikTok OAuth lifecycle and account security | Web OAuth, browser-bound one-time state, Fernet token encryption, distributed refresh lease, refresh-token rotation, revocation, preflight and log redaction implemented; 293 tests passed; live app authorization pending |
+| BUILD-00026 | Recommendation ranking integrity | Publisher-time-only freshness, case-insensitive region/language eligibility, evidence-bounded scoring and ranking methodology documentation implemented; 293 tests passed |
 
 ## BUILD-00001 — durable queue and Worker Lease
 
@@ -90,9 +91,9 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Baseline main commit `dc98712` reports a successful 245-test CI run.
 - YouTube disclosure branch `0c4b352`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685657932 passed **252 tests**.
 - TikTok AIGC mapping branch `6e80f7c`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685373875 passed **248 tests**.
-- Integrated TikTok Direct Post, portal and OAuth branch `77c236f`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43687960278 passed **290 tests**.
+- Integrated TikTok Direct Post, OAuth, portal and recommendation branch `da09da1`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43688223171 passed **293 tests**.
 - PR #36 remains draft and is not merged to main. It integrates the YouTube disclosure foundation from PR #34 and TikTok AIGC mapper from PR #35.
-- Tests use deterministic HTTP transports and temporary SQLite. No live TikTok developer app authorization, creator OAuth, account posting, production worker/database, external AI generation or renderer has been validated.
+- Tests use deterministic HTTP transports and temporary SQLite. No live TikTok developer-app authorization, account posting, production worker/database, external AI generation or renderer has been validated.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
 
 ## BUILD-00023 — platform AI-generated and synthetic-media disclosure
@@ -124,6 +125,15 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Portal supports account connection, connection status and remote token revocation on disconnect. Static access-token fallback remains optional and must be removed separately to disconnect.
 - Preflight supports either connected OAuth or the static-token fallback. One TikTok creator account per installation is supported; multi-account/per-brand routing remains future work.
 - Live developer-app approval, production HTTPS callback, scope grant, account authorization and real publish remain pending.
+
+## BUILD-00026 — recommendation ranking integrity
+
+- Freshness uses only the source publisher's `published_at` timestamp. Collection time no longer makes an old item appear new; missing/invalid publisher time receives zero freshness and an explicit evidence gap.
+- Region and language eligibility matching is case-insensitive; language tags are matched by family (for example, `en-US` to `en`).
+- The editorial score remains explainable: freshness 40, brand fit 40, source provenance 10, topic distinctiveness 10.
+- Competitor views, historical performance and comparable cohorts remain context-only and do not change ranking until a held-out evaluation demonstrates value.
+- Added `docs/RECOMMENDATION_RANKING.md` with scoring formula, evidence boundaries, limitations and a future calibration protocol.
+- This is an editorial topic-prioritization heuristic, not a replica of YouTube/TikTok proprietary recommendation systems or a revenue forecast.
 
 ## Remaining blockers before a real revenue-producing launch
 
