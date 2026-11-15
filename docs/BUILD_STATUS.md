@@ -1184,3 +1184,19 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added API coverage for stage ordering, platform handoff state, and read-only guarantees; added frontend integration assertions.
 - The overview does not refresh remote provider state, retry work, or publish content. TikTok inbox handoff is still not represented as public publication.
 - CI validation pending.
+
+## BUILD-00049 / BUILD-00050 — validation evidence correction
+
+- The branch-head GitHub Actions run `43699350193` completed successfully and executed `scripts/validate.sh`; its log reports **373 tests passed**.
+- This run validates the integrated branch head containing BUILD-00049 and BUILD-00050, not 372 or 373 tests separately for each milestone.
+- External AI providers, real media rendering, production workers, platform OAuth/account posting, and monetization remain unverified.
+
+## BUILD-00051 — per-job stage dwell-time diagnostics
+
+- Added `backend/stage_performance.py` to derive per-state dwell durations from durable queue transition events and job timestamps.
+- Added authenticated read-only `GET /api/jobs/{jid}/stage-performance`; unified lifecycle overview now includes the same `performance` snapshot.
+- Approved-workspace lifecycle diagnostics display observed state durations and the longest observed queue state.
+- Metrics explicitly describe queue-state dwell time, not provider execution time, rendering CPU time, or platform latency. They do not claim statistically significant throughput percentiles from a single job.
+- Invalid/out-of-order event timestamps are surfaced as data-quality warnings. No queue, worker, provider, retry, or publishing state is mutated.
+- Added unit/API/frontend regression coverage. CI validation for this milestone is pending.
+
