@@ -67,6 +67,44 @@ class LifecycleConsistencyTests(unittest.TestCase):
         self.assertEqual(result["status"], "consistent")
         self.assertFalse(result["automatic_retry_performed"])
 
+    def test_blocker_findings_set_top_level_status_to_blocked(self):
+        result = inspect_lifecycle_consistency(
+            self.job, self.production, self.review,
+            {"status": "reconciliation_required", "attempt_id": "yt-1"},
+            {"status": "processing", "attempt_id": "tt-1"},
+        )
+        self.assertEqual(result["status"], "blocked")
+
+    def test_confirmed_success_without_video_id_is_blocked(self):
+        youtube = inspect_lifecycle_consistency(
+            self.job, self.production, self.review,
+            {"status": "uploaded", "video_id": None}, {},
+        )
+        tiktok = inspect_lifecycle_consistency(
+            self.job, self.production, self.review,
+            {}, {"status": "publish_complete", "video_id": None},
+        )
+        self.assertIn(
+            "youtube_success_missing_video_id",
+            {item["code"] for item in youtube["findings"]},
+        )
+        self.assertIn(
+            "tiktok_success_missing_video_id",
+            {item["code"] for item in tiktok["findings"]},
+        )
+        self.assertEqual(youtube["status"], "blocked")
+        self.assertEqual(tiktok["status"], "blocked")
+
+    def test_running_queue_without_lease_is_blocked(self):
+        result = inspect_lifecycle_consistency(
+            {"status": "running"}, self.production, self.review,
+        )
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn(
+            "queue_running_without_lease",
+            {item["code"] for item in result["findings"]},
+        )
+
     def test_cancelled_queue_must_match_production_terminal_state(self):
         result = inspect_lifecycle_consistency(
             {"status": "cancelled"}, {"status": "review_pending"}, self.review
