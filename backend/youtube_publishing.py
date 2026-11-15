@@ -529,6 +529,16 @@ class YouTubeUploadStore:
               VALUES(?,?,?,?,?)""",(video_id,count("viewCount"),count("likeCount"),
                                      count("commentCount"),_now()))
 
+    def list_recent(self, limit=100):
+        """Return bounded upload records with their immutable event histories."""
+        limit = max(1, min(int(limit), 200))
+        with self.db() as c:
+            rows = c.execute(
+                "SELECT job_id FROM youtube_uploads ORDER BY updated_at DESC, job_id LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [item for row in rows if (item := self.get(row["job_id"])) is not None]
+
     def get(self,job_id):
         with self.db() as c:
             row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
