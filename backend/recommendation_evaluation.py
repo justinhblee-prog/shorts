@@ -165,9 +165,18 @@ class RecommendationEvaluationStore:
                 ORDER BY generated_at DESC LIMIT 1""",
                 (region, signature, cutoff)).fetchone()
             if previous:
+                candidate_rows = c.execute("""
+                    SELECT id,trend_id,brand_slug FROM recommendation_candidates
+                    WHERE run_id=? ORDER BY recommendation_rank,brand_slug
+                """, (previous["id"],)).fetchall()
                 return {
                     "run_id": previous["id"],
                     "recorded_candidates": int(previous["candidate_count"]),
+                    "candidate_ids": [
+                        {"candidate_id": row["id"], "trend_id": row["trend_id"],
+                         "brand_slug": row["brand_slug"]}
+                        for row in candidate_rows
+                    ],
                     "deduplicated": True,
                 }
             c.execute("""INSERT INTO recommendation_runs
@@ -189,19 +198,25 @@ class RecommendationEvaluationStore:
                 )""", (retention_cutoff,))
         return {
             "run_id": run_id, "recorded_candidates": len(rows),
+            "candidate_ids": [
+                {"candidate_id": row[0], "trend_id": row[2], "brand_slug": row[5]}
+                for row in rows
+            ],
             "deduplicated": False,
         }
 
-    def link_production(self, trend_id, brand_slug, job_id, selected_at=None):
+    def link_production(self, trend_id, brand_slug, job_id, selected_at=None,
+                        candidate_id=None):
         timestamp = selected_at or _now()
+        if not candidate_id:
+            return {"linked": False, "reason": "explicit_recommendation_candidate_id_required"}
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute("""SELECT id FROM recommendation_candidates
-                WHERE trend_id=? AND brand_slug=? AND selected_job_id IS NULL
-                ORDER BY created_at DESC LIMIT 1""",
-                (str(trend_id), str(brand_slug))).fetchone()
+                WHERE id=? AND trend_id=? AND brand_slug=? AND selected_job_id IS NULL""",
+                (str(candidate_id), str(trend_id), str(brand_slug))).fetchone()
             if row is None:
-                return {"linked": False, "reason": "no_matching_recommendation_exposure"}
+                return {"linked": False, "reason": "exposed_recommendation_candidate_not_found"}
             changed = c.execute("""UPDATE recommendation_candidates
                 SET selected_job_id=?,selected_at=?,decision='selected',
                     decision_reason=NULL,reviewer_id='operator',decided_at=?
@@ -214,17 +229,19 @@ class RecommendationEvaluationStore:
                     (str(uuid.uuid4()), row["id"], timestamp))
             return {"linked": bool(changed), "candidate_id": row["id"] if changed else None}
 
-    def record_skip(self, trend_id, brand_slug, reviewer_id, reason="", decided_at=None):
+    def record_skip(self, trend_id, brand_slug, reviewer_id, reason="", decided_at=None,
+                    candidate_id=None):
         timestamp = decided_at or _now()
         reviewer = str(reviewer_id or "").strip()
         if not reviewer:
             raise ValueError("reviewer_id is required")
+        if not candidate_id:
+            return {"recorded": False, "reason": "explicit_recommendation_candidate_id_required"}
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute("""SELECT id,decision FROM recommendation_candidates
-                WHERE trend_id=? AND brand_slug=? AND selected_job_id IS NULL
-                ORDER BY created_at DESC LIMIT 1""",
-                (str(trend_id), str(brand_slug))).fetchone()
+                WHERE id=? AND trend_id=? AND brand_slug=? AND selected_job_id IS NULL""",
+                (str(candidate_id), str(trend_id), str(brand_slug))).fetchone()
             if row is None:
                 return {"recorded": False, "reason": "no_matching_recommendation_exposure"}
             if row["decision"] == "skipped":
