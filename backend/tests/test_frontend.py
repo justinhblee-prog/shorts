@@ -38,6 +38,15 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("audio controls", app_js)
         self.assertIn("esc(scriptText)", app_js)
 
+    def test_trend_signals_can_be_converted_into_production_drafts(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/trends?limit=12", app_js)
+        self.assertIn("data-trend-draft", app_js)
+        self.assertIn("/draft-production", app_js)
+        self.assertIn("제작 기획 등록 완료", app_js)
+        self.assertIn("data-trend-brand", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
