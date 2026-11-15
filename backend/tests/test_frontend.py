@@ -47,7 +47,17 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("제작 기획 등록 완료", app_js)
         self.assertIn("data-trend-brand", app_js)
 
-    def test_competitor_evidence_can_adjust_opportunity_priority(self):
+
+    def test_trend_recommendation_ranking_is_rendered_and_can_create_drafts(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        self.assertIn("/api/trends/recommendations", app_js)
+        self.assertIn("data-recommend-draft", app_js)
+        self.assertIn("EDITORIAL MATCH", html)
+        self.assertIn("trendRecommendations", html)
+        self.assertIn("수익성이나 조회수 예측 점수가 아닙니다", html)
+\n    def test_competitor_evidence_can_adjust_opportunity_priority(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertIn("data-inspect-channel", app_js)
         self.assertIn("data-competitor-select", app_js)
