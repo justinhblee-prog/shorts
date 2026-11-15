@@ -26,6 +26,14 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("/resolve-late-result", app_js)
         self.assertIn("lateIdSummary", app_js)
         self.assertIn("existingIdSummary", app_js)
+    def test_review_workspace_shows_frozen_brand_editorial_guidance(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        self.assertIn("item.brand_profile", app_js)
+        self.assertIn("profile.review_rules", app_js)
+        self.assertIn("review-guidance", app_js)
+        self.assertIn("risk-level", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
