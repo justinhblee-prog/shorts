@@ -132,7 +132,7 @@
 
   async function loadTrendRecommendations(){
     const region=$("trendRegion").value;
-    const data=await api("/api/trends/recommendations?region="+encodeURIComponent(region)+"&limit=20");
+    const data=await api("/api/trends/recommendations/snapshot?region="+encodeURIComponent(region)+"&limit=20",{method:"POST"});
     const items=data.items||[];
     $("trendRecommendations").innerHTML=items.map(item=>{
       const trend=item.trend||{};
