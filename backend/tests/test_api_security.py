@@ -1,5 +1,6 @@
 import os
 import unittest
+import logging
 import app as app_module
 from unittest import mock
 from fastapi import HTTPException, Response
@@ -13,7 +14,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  OpportunityInput, create_opportunity_score, TikTokPublishRequest,
                  publish_tiktok_video, refresh_tiktok_publication_status,
                  get_tiktok_publication, approved_reviews, start_tiktok_oauth,
-                 tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth)
+                 tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth,\n                 TikTokOAuthAccessLogRedaction)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -114,6 +115,21 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result.status_code, 303)
         self.assertIn("tiktok_oauth=connected", result.headers["location"])
         exchange.assert_called_once_with("code-1", "state-1")
+
+    def test_tiktok_oauth_callback_query_is_redacted_from_access_logs(self):
+        record = logging.LogRecord(
+            "uvicorn.access", logging.INFO, __file__, 1,
+            '%s - "%s %s HTTP/%s" %s',
+            ("127.0.0.1", "GET",
+             "/api/tiktok/oauth/callback?code=secret-code&state=secret-state",
+             "1.1", 303),
+            None,
+        )
+        self.assertTrue(TikTokOAuthAccessLogRedaction().filter(record))
+        message = record.getMessage()
+        self.assertNotIn("secret-code", message)
+        self.assertNotIn("secret-state", message)
+        self.assertIn("[REDACTED]", message)
 
     def test_tiktok_oauth_callback_rejects_state_not_bound_to_browser_cookie(self):
         with mock.patch("app.tiktok_oauth_manager.exchange_code") as exchange:
