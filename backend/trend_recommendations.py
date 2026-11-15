@@ -85,6 +85,51 @@ def _brand_fit_score(trend_tokens, brand, config):
     return score, matched, excluded_matches
 
 
+def _topic_performance_context(trend_tokens, brand_name, region, videos):
+    """Match measured historical production topics to this trend without causal claims."""
+    matched = []
+    region = str(region or "").upper()
+    for video in videos or []:
+        if video.get("brand") != brand_name:
+            continue
+        if region and region != "GLOBAL" and str(video.get("region") or "").upper() != region:
+            continue
+        if video.get("measurement_status") != "measured":
+            continue
+        rate = video.get("views_per_hour")
+        if not isinstance(rate, (int, float)) or rate < 0:
+            continue
+        topic_tokens = _tokens(video.get("topic"))
+        overlap = len(trend_tokens & topic_tokens) / len(trend_tokens) if trend_tokens else 0.0
+        if overlap >= 0.25:
+            matched.append({
+                "views_per_hour": float(rate),
+                "interaction_rate": video.get("interactions_per_1000_view_delta"),
+                "topic": video.get("topic"),
+                "region": video.get("region"),
+                "overlap": round(overlap, 3)
+            })
+    rates = [item["views_per_hour"] for item in matched]
+    interaction_rates = [
+        item["interaction_rate"] for item in matched
+        if isinstance(item["interaction_rate"], (int, float))
+        and item["interaction_rate"] >= 0
+    ]
+    count = len(matched)
+    return {
+        "matched_video_count": count,
+        "median_views_per_hour": round(statistics.median(rates), 2) if rates else None,
+        "interaction_rate_sample_count": len(interaction_rates),
+        "median_interactions_per_1000_view_delta": (
+            round(statistics.median(interaction_rates), 2) if interaction_rates else None
+        ),
+        "evidence_status": "no_data" if count == 0 else "limited" if count < 3 else "observed",
+        "match_method": "measured_production_topic_token_overlap_at_least_25_percent",
+        "ranking_score_adjustment": 0,
+        "reason": "Topic-matched historical measurements are shown for review only; they do not change ranking."
+    }
+
+
 def _source_evidence_score(trend, age):
     """Score source provenance completeness, not source popularity or trustworthiness."""
     score = 0.0
@@ -117,10 +162,11 @@ def _novelty_scores(trends):
 
 
 def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=None,
-                          performance_by_brand=None):
+                          performance_by_brand=None, performance_videos=None):
     """Rank collected trends for editorial review; never fabricate demand or revenue."""
     now = now or datetime.now(timezone.utc)
     performance_by_brand = performance_by_brand or {}
+    performance_videos = performance_videos or []
     brand_rows = []
     for brand in brands:
         if not brand.get("active", True):
@@ -191,6 +237,9 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
                     "ranking_score_adjustment": 0,
                     "reason": "Historical brand-level signal is shown for review only; it is not yet topic-matched or used to alter ranking."
                 },
+                "topic_performance": _topic_performance_context(
+                    trend_tokens, brand.get("name"), trend.get("region"), performance_videos
+                ),
                 "supported_languages": config.get("languages", [])
             })
         if region and region != "GLOBAL" and region_eligible == 0:
