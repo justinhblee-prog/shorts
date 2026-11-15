@@ -48,6 +48,21 @@ class ProductionQualityTests(unittest.TestCase):
 
 
 
+
+    def test_explicit_string_false_audio_flag_blocks_review(self):
+        report = evaluate_production_quality(
+            "A clear opening explains the problem. Evidence supports the claim. "
+            "The ending gives viewers a useful next step with a concise summary.",
+            {"factual_claims_verified": True},
+            {"duration_seconds": 30},
+            {"duration_seconds": 30, "aspect_ratio": "9:16",
+             "audio_track_present": "false", "subtitles_enabled": "false"},
+            {},
+        )
+        self.assertEqual(report["status"], "blocked")
+        self.assertIn("rendered_video_reports_no_audio_track", report["blockers"])
+        self.assertIn("rendered_subtitles_reported_disabled", report["warnings"])
+
     def test_decimal_vertical_aspect_ratio_is_normalized(self):
         report = evaluate_production_quality(
             "A clear opening explains the problem. Evidence supports the claim. "
