@@ -81,8 +81,9 @@ def run_youtube_analytics_once(store=None, collector=None, upload_store=None):
             error = "permission_denied" if status == "scope_missing" else type(exc).__name__
             store.record_collection(status, error=error)
             raise
+        collection_status = "succeeded" if result["requested"] else "waiting_for_uploaded_videos"
         store.record_collection(
-            "succeeded", requested=result["requested"],
+            collection_status, requested=result["requested"],
             collected=result["collected"], missing=len(result["missing"]),
         )
         logger.info("youtube_analytics_collection_completed requested=%s collected=%s missing=%s",
