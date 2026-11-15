@@ -1370,4 +1370,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression coverage for canonical-path acceptance, cross-job rejection, symlink rejection, and refreshing an existing staged file from the current renderer URL.
 - Direct publisher unit tests remain available for isolated adapter validation; the production API boundary enforces canonical staging.
 - External platform posting remains unperformed. This does not independently prove that the renderer URL itself is immutable; a content-hash approval binding remains a follow-on hardening item.
-- CI validation for BUILD-00066 is pending.
+- GitHub Actions passed **445 tests** at code commit `940bd62` (run [43709319386](https://github.com/justinhblee-prog/shorts/actions/runs/43709319386)).
