@@ -140,6 +140,13 @@ class QueueTests(unittest.TestCase):
   self.assertEqual([e["event_type"] for e in events[:2]],["resumed","paused"])
   self.assertEqual(events[0]["actor"],"operator-1")
   self.assertIn("Checked provider history",events[0]["reason"])
+ def test_generic_claim_excludes_production_jobs(self):
+  production=self.q.enqueue("short_video_production", {"topic":"pipeline"})
+  ordinary=self.q.enqueue("thumbnail_task", {"image":"x"})
+  claimed=self.q.claim("generic-worker",exclude_job_type="short_video_production")
+  self.assertEqual(claimed["id"],ordinary["id"])
+  self.assertEqual(self.q.get(production["id"])["status"],"queued")
+
  def test_terminal_production_failure_atomically_syncs_production_run(self):
   job=self.q.enqueue("short_video_production", {"topic":"provider timeout"})
   claimed=self.q.claim("worker-a",job_type="short_video_production")
