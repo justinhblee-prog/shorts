@@ -991,4 +991,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Extend ffprobe evidence with measured average frame rate and recognize WebM/Matroska containers, which TikTok officially supports alongside MP4/MOV.
 - Before Direct Post initialization, enforce TikTok's published video constraints: 23–60 FPS, 360–4096 pixels on each dimension, H.264/H.265/VP8/VP9, supported container matching the file type, 4GB file cap, and the lower of the creator limit or 10-minute developer-upload ceiling.
 - Add regression tests for unsupported frame rate, dimensions, codecs, WebM inspection, and measured frame rate.
-- CI validation pending. These are local ffprobe-based checks; no live TikTok upload has been performed.
+- CI passed at code commit f195aef (319 tests). These are local ffprobe-based checks; no live TikTok upload has been performed.
