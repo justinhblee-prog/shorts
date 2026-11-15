@@ -26,4 +26,41 @@ class SchedulerTests(unittest.TestCase):
  def test_minimum_interval(self):
   with self.assertRaises(ValueError):
    self.s.create("too frequent",60,{"brand":"B","region":"US","language":"English","topic":"x"})
+
+ def test_only_one_scheduler_owner_can_hold_live_lease(self):
+  now=datetime(2026,11,15,tzinfo=timezone.utc)
+  first=self.s.acquire_scheduler_lease("scheduler-a",90,now)
+  second=self.s.acquire_scheduler_lease("scheduler-b",90,now+timedelta(seconds=10))
+  self.assertIsNotNone(first)
+  self.assertIsNone(second)
+  self.assertTrue(self.s.scheduler_lease_is_valid("scheduler-a",first,now))
+  self.assertFalse(self.s.scheduler_lease_is_valid("scheduler-b","missing",now))
+
+ def test_expired_scheduler_lease_can_be_taken_over_and_fences_old_owner(self):
+  now=datetime(2026,11,15,tzinfo=timezone.utc)
+  old=self.s.acquire_scheduler_lease("scheduler-a",15,now)
+  takeover_at=now+timedelta(seconds=16)
+  new=self.s.acquire_scheduler_lease("scheduler-b",30,takeover_at)
+  self.assertIsNotNone(new)
+  self.assertNotEqual(old,new)
+  self.assertFalse(self.s.renew_scheduler_lease("scheduler-a",old,30,takeover_at))
+  self.assertFalse(self.s.release_scheduler_lease("scheduler-a",old))
+  self.assertTrue(self.s.scheduler_lease_is_valid("scheduler-b",new,takeover_at))
+
+ def test_dispatch_requires_current_scheduler_fencing_token(self):
+  now=datetime(2026,11,15,tzinfo=timezone.utc)
+  item=self.s.create("hourly",3600,{"brand":"B","region":"US","language":"English","topic":"x"},now.isoformat())
+  result=self.s.dispatch_due(self.q,now,lease_owner="stale",lease_token="bad")
+  self.assertTrue(result["lease_lost"])
+  self.assertEqual(self.s.get(item["id"])["next_run_at"],now.isoformat())
+  self.assertEqual(self.s.pending_dispatches(),[])
+
+ def test_dispatch_runs_only_under_acquired_scheduler_lease(self):
+  now=datetime(2026,11,15,tzinfo=timezone.utc)
+  self.s.create("hourly",3600,{"brand":"B","region":"US","language":"English","topic":"x"},now.isoformat())
+  token=self.s.acquire_scheduler_lease("scheduler-a",90,now)
+  result=self.s.dispatch_due(self.q,now,lease_owner="scheduler-a",
+                             lease_token=token,lease_seconds=90)
+  self.assertEqual(result["count"],1)
+  self.assertFalse(result.get("lease_lost",False))
 if __name__=="__main__":unittest.main()
