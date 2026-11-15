@@ -68,7 +68,7 @@ class YouTubePublishingTests(unittest.TestCase):
     def tearDown(self): self.tmp.cleanup()
 
     def test_late_upload_completion_cannot_override_reconciled_not_uploaded(self):
-        self.store.begin("job-1", "Title", "Description")
+        self.uploads.begin("job-1", "Title", "Description")
         self.store.mark_reconciliation_required("job-1", "timeout")
         self.store.reconcile("job-1", "not_uploaded", note="Checked YouTube Studio")
         with self.assertRaises(YouTubeUploadError):
