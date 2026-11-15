@@ -225,3 +225,5 @@ Latest observed run 106 (commit `efa84562519ea814f9f10d5e030c8c3b5f2f131e`) fail
 ## BUILD-00011 — scheduler outbox recovery
 
 The scheduler atomically reserves due occurrences and writes them to `schedule_dispatch_outbox`. Queue enqueue uses `schedule:{schedule_id}:{scheduled_for}` idempotency. Pending outbox records are replayed on each poll; a crash between queue enqueue and outbox acknowledgement cannot duplicate the job. Failures remain pending with attempt count and bounded error text. Test file: `backend/tests/test_scheduler_store.py`.
+
+Scheduler observability endpoint: authenticated `GET /api/schedules/outbox` returns pending/dispatched counts and recent occurrence attempts/errors. It is diagnostic only; the scheduler process retries pending records on its normal polling loop.
