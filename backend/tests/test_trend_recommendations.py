@@ -31,7 +31,7 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertIn("competitor_video_sample_unavailable", ranked[0]["evidence_gaps"])
         self.assertIn("trend_source_provenance_incomplete", ranked[0]["evidence_gaps"])
         self.assertEqual(ranked[0]["recommendation_score"],
-                         sum(ranked[0]["score_breakdown"].values()))
+                         round(sum(ranked[0]["score_breakdown"].values()), 2))
 
     def test_no_brand_match_is_not_invented(self):
         result = rank_trend_candidates(
@@ -66,7 +66,7 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertLess(duplicate["topic_distinctiveness_score"],
                         distinct["topic_distinctiveness_score"])
         self.assertEqual(duplicate["recommendation_score"],
-                         sum(duplicate["score_breakdown"].values()))
+                         round(sum(duplicate["score_breakdown"].values()), 2))
         self.assertEqual(duplicate["score_type"],
                          "editorial_signal_not_profitability")
 
@@ -93,7 +93,7 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(context["topic_matched_videos"], 1)
         self.assertEqual(context["median_matched_views"], 1200)
         self.assertEqual(result["recommendation_score"],
-                         sum(result["score_breakdown"].values()))
+                         round(sum(result["score_breakdown"].values()), 2))
         self.assertNotIn("competitor_video_sample_unavailable", result["evidence_gaps"])
         store.list_channels.assert_called_once_with(limit=200)
         store.list_videos.assert_called_once_with("us-channel", limit=30)
