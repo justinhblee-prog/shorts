@@ -1043,3 +1043,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Publishing states remain platform-specific and are returned independently; a YouTube upload or TikTok inbox handoff is not collapsed into a generic "published" state.
 - Added API regression tests for joined lifecycle data and non-production job rejection.
 - GitHub Actions passed **328 tests** at code commit `e695a0a`; no live platform posting or external service validation is implied.
+
+
+### BUILD-00040 — approved-workspace lifecycle trace UI (2026-11-15)
+
+- Added a per-job `작업 전체 이력` control to approved content cards. It loads the authenticated lifecycle endpoint on demand rather than expanding every card with large event payloads.
+- Displays queue status, production status/current stage, latest human review decision, separate YouTube and TikTok states/IDs, and the latest eight queue events.
+- All dynamic values are escaped before insertion into the dashboard; API failures remain local to the selected card.
+- GitHub Actions passed **329 tests** at code commit `bdb230a`, including the lifecycle API and frontend wiring regressions.
+- This is an audit/visibility feature only. It does not alter approval, retry, publishing, privacy or recommendation-ranking behavior.
