@@ -861,3 +861,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Provider HTTP error bodies are no longer copied into durable job errors or API responses. Upstream response bodies can contain echoed prompts, identifiers or secret-bearing diagnostics.
 - Only the HTTP status is retained; HTTP 429 remains retryable and other HTTP statuses retain the existing fail-closed behavior.
 - Regression coverage asserts provider error bodies are not exposed. GitHub Actions [run 43681021764](https://github.com/justinhblee-prog/shorts/actions/runs/43681021764) passed **239 backend tests**, Python compilation, Compose YAML validation and frontend syntax/DOM-ID checks.
+
+
+### Renderer artifact URL validation hardening — implementation added 2026-11-15
+
+- Malformed URLs and invalid/out-of-range ports are now normalized to a controlled MediaStagingError, preventing an uncaught ValueError from surfacing as an API 500.
+- Negative Content-Length values are rejected as malformed metadata. The streaming byte counter remains authoritative and independently enforces NEXUS_MAX_MEDIA_BYTES.
+- Added regression tests for malformed/out-of-range ports and negative content length.
+- Commit: c425ee909dff2ab92e24c8151f28cf7677c7572e.
+- CI for this exact commit has not yet been observed; these new tests are committed but not yet verified by a hosted runner.
+- Current PR #22 remains draft and is 30 commits ahead / 5 commits behind main; GitHub reports it as not mergeable. No merge or deployment was performed.
