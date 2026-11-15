@@ -152,7 +152,7 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(claimed["job_type"], "short_video_production")
         self.assertEqual(queue.get(claimed["id"])["status"], "running")
 
-    def test_stale_worker_cannot_write_after_lease_is_reclaimed(self):
+    def test_stale_worker_cannot_write_after_ambiguous_lease_expiry(self):
         db = self.store.db_path
         queue = JobQueue(db, lease_seconds=10)
         submitted = submit_production(queue, self.store, self.brief)
@@ -166,31 +166,26 @@ class ProductionTests(unittest.TestCase):
             )
         new_claim = queue.claim("worker-new", "host-new",
                                 job_type="short_video_production")
-        self.assertEqual(new_claim["id"], job_id)
-        self.assertNotEqual(old_claim["lease_token"], new_claim["lease_token"])
+        self.assertIsNone(new_claim)
+        self.assertTrue(queue.is_paused())
+        failed_job = queue.get(job_id)
+        self.assertEqual(failed_job["status"], "failed_terminal")
+        self.assertEqual(failed_job["error_code"], "production_lease_expired_ambiguous")
+        self.assertEqual(self.store.get(job_id)["status"], "failed_terminal")
 
-        script = FakeProvider({"script": "Fresh worker script"})
+        script = FakeProvider({"script": "Must never be called"})
         voice = FakeProvider({"audio_url": "https://media.example/audio.mp3"})
         render = FakeProvider({"video_url": "https://media.example/video.mp4"})
         pipeline = ProductionPipeline(self.store, script, voice, render)
-
         with self.assertRaises(ProductionLeaseConflict):
             pipeline.execute(job_id, self.brief, worker_id="worker-old",
                              lease_token=old_claim["lease_token"])
         self.assertEqual(script.calls, [])
-        self.assertEqual(self.store.get(job_id)["status"], "queued")
-
         with self.assertRaises(ProductionLeaseConflict):
             self.store.artifact(job_id, "rendering", "video",
                                 "https://media.example/stale.mp4", {},
                                 worker_id="worker-old",
                                 lease_token=old_claim["lease_token"])
-
-        fresh = pipeline.execute(job_id, self.brief, worker_id="worker-new",
-                                 lease_token=new_claim["lease_token"])
-        self.assertEqual(fresh["status"], "rendered")
-        self.assertEqual(len(fresh["artifacts"]), 3)
-
     def test_queue_job_without_production_row_is_recovered_after_enqueue_crash(self):
         queue = JobQueue(self.store.db_path)
         job = queue.enqueue("short_video_production", self.brief,

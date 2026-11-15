@@ -79,6 +79,27 @@ class QueueTests(unittest.TestCase):
   with self.assertRaises(LeaseConflict):
    self.q.finish(job["id"],"worker-active",claimed["lease_token"])
   self.assertEqual(self.q.events(job["id"])[-1]["event_type"],"worker_pause")
+ def test_expired_production_lease_is_terminal_and_pauses_queue(self):
+  job=self.q.enqueue("short_video_production", {"topic":"ambiguous"})
+  claimed=self.q.claim("worker-lost")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(job["id"],))
+  self.assertIsNone(self.q.claim("worker-recovery",job_type="short_video_production"))
+  recovered=self.q.get(job["id"])
+  self.assertEqual(recovered["status"],"failed_terminal")
+  self.assertEqual(recovered["error_code"],"production_lease_expired_ambiguous")
+  self.assertTrue(self.q.is_paused())
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"worker-lost",claimed["lease_token"])
+ def test_recover_does_not_requeue_ambiguous_production_lease(self):
+  job=self.q.enqueue("short_video_production", {"topic":"ambiguous"})
+  self.q.claim("worker-crashed")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(job["id"],))
+  result=self.q.recover()
+  self.assertEqual(result["requeued"],0)
+  self.assertEqual(self.q.get(job["id"])["status"],"failed_terminal")
+  self.assertTrue(self.q.is_paused())
  def test_worker_pause_persists_until_explicit_resume(self):
   self.q.pause("provider outcome uncertain", "job-123")
   self.assertTrue(self.q.is_paused())
