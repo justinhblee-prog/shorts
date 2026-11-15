@@ -9,7 +9,8 @@ Global short-form content operations platform. The system coordinates topic disc
 3. Configure the script, voice and render provider endpoints/tokens.
 4. Set `RENDER_ARTIFACT_HOSTS` to the exact HTTPS CDN hostnames returned by your renderer.
 5. Add YouTube OAuth refresh credentials and YouTube Data API key when ready.
-6. Start the services:
+6. Register TikTok Login Kit and Content Posting API, configure the exact HTTPS callback URI, set TikTok client credentials, and generate a stable Fernet encryption key as shown in `.env.example`.
+7. Start the services:
 
 ```bash
 docker compose build
