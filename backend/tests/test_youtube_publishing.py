@@ -69,7 +69,7 @@ class YouTubePublishingTests(unittest.TestCase):
 
     def test_late_upload_completion_cannot_override_reconciled_not_uploaded(self):
         first_attempt=self.uploads.begin("job-1", "Title", "Description")
-        self.uploads.mark_reconciliation_required("job-1", "timeout")
+        self.uploads.mark_reconciliation_required("job-1", "timeout",first_attempt["attempt_id"])
         self.uploads.reconcile("job-1", "not_uploaded", note="Checked YouTube Studio")
         # A retry can begin after explicit no-upload confirmation. The stale
         # request must not finalize or overwrite that newer attempt.
@@ -181,7 +181,7 @@ class YouTubePublishingTests(unittest.TestCase):
         self.uploads.begin("job-1","Sleep short","")
         with self.assertRaises(YouTubeUploadError):
             self.uploads.reconcile("job-1","uploaded","yt-video-1","checked too early")
-        self.uploads.mark_reconciliation_required("job-1","Simulated stale upload")
+        self.uploads.mark_reconciliation_required("job-1","Simulated stale upload",active["attempt_id"])
         with self.assertRaises(YouTubeUploadError):
             self.uploads.reconcile("job-1","uploaded",None,"checked")
         reconciled=self.uploads.reconcile(
