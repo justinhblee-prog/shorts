@@ -1429,3 +1429,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Official API contract: https://developers.tiktok.com/docs/en/tiktok-api-v2-video-query (up to 20 owned video IDs, `video.list` scope, requested counter fields); scope reference: https://developers.tiktok.com/docs/en/tiktok-api-scopes.
 - GitHub Actions passed at code commit `9c747dd9394241a13ebe15f83525049af9954d92`: run [43715389255](https://github.com/justinhblee-prog/shorts/actions/runs/43715389255), **474 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
 - No live TikTok credentials, developer-product approval, `video.list` consent, or real-account metric collection have been verified. Existing `SELF_ONLY` privacy behavior is unchanged; no public posting is enabled.
+
+## BUILD-00072 — TikTok performance snapshots in the operator dashboard
+
+- Added authenticated read-only `GET /api/tiktok/metrics?limit=100`, bounded to 200 records and sourced only from the latest snapshots for this account's confirmed `publish_complete` video IDs.
+- Added a latest-snapshot query that keeps historical rows intact and returns the associated job ID and publication privacy level; no remote calls or state mutations occur during dashboard reads.
+- Integrated TikTok views, likes, comments, and shares into the existing performance insights workspace, separately labeled from YouTube metrics. Empty state explains that TikTok `video.list` authorization and collection are prerequisites.
+- Added tests for latest-snapshot selection, `SELF_ONLY` metadata, endpoint authentication/limit enforcement/read-only behavior, and frontend visibility. Ranking score adjustment remains zero.
+- Validation pending for the latest dashboard integration commit. No real account metrics or live TikTok app approval is implied.
