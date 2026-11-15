@@ -191,3 +191,11 @@ All BUILD-00001 through BUILD-00012 source milestones have a committed baseline.
 ## Latest CI observation
 
 The latest checked run (run 74) failed before runner allocation: `runner_id=0`, `runner_name` empty, and `steps=[]`. It did not execute checkout, dependency installation, compilation or tests. A local clone attempt from this execution environment also could not resolve github.com, so no alternate local test run was possible. Do not interpret this as code passing or failing.
+
+## API security hardening (follow-up)
+
+- Added fail-closed `X-Review-Token` checks to all operational endpoints: brand activation, production job create/execute/read, trend collection/read, competitor search/read, opportunity scoring/read and generic queue/worker/job operations.
+- Health and read-only brand catalog/detail remain public. Review, YouTube, finance, performance and schedule endpoints were already token-protected.
+- Added route-audit tests that fail if a future operational endpoint omits the token parameter, plus token acceptance/rejection checks.
+- Shared token remains a single-operator transitional control; it is not user identity/role authorization.
+- Tests have not been executed because GitHub Actions currently fails before runner allocation.
