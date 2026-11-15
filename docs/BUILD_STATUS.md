@@ -1402,4 +1402,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - An operator-confirmed published result requires a verified video ID and rejects IDs already assigned to another job. A verified not-published result is recorded as failed, preserving the audit trail and allowing a new attempt only after that explicit confirmation.
 - Terminal states cannot be overwritten by conflicting reconciliation. Every resolution is written to the immutable TikTok publication event history with operator identity and attempt ID.
 - Added regression coverage for confirmation requirement, published/not-published outcomes, cooldown, duplicate video IDs, and safe retry after verified non-publication.
+- Regression suite: **460 tests passed** at final code commit `44b70d6` (run [43710459521](https://github.com/justinhblee-prog/shorts/actions/runs/43710459521)).
 - External TikTok account verification and actual publishing are not performed by CI; the endpoint only records an operator attestation and cannot independently prove the remote account state.
