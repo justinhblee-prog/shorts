@@ -126,7 +126,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("data-lifecycle-id", app_js)
         self.assertIn("/api/lifecycle/jobs/", app_js)
         self.assertIn("renderLifecycleTrace", app_js)
-        self.assertIn("queue_events", app_js)
+        self.assertIn("data.timeline", app_js)
         self.assertIn("통합 작업 이력", app_js)
         self.assertIn("최근 큐 이벤트", app_js)
 
