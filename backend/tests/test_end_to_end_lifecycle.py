@@ -205,6 +205,17 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.assertEqual(result["reconciled"], 0)
         self.assertEqual(self.production.get(job_id)["status"], "rendered")
 
+    def test_cancelled_queue_job_is_reflected_in_production_record(self):
+        brief = {"brand": "Brain Glitch", "region": "US",
+                 "language": "English", "topic": "Cancelled job"}
+        submitted = submit_production(self.queue, self.production, brief)
+        job_id = submitted["job"]["id"]
+        self.queue.cancel(job_id, "Operator cancellation")
+        result = self.production.reconcile_terminal_jobs(self.queue)
+        self.assertEqual(result["job_ids"], [job_id])
+        self.assertEqual(self.production.get(job_id)["status"], "cancelled")
+        self.assertEqual(self.production.get(job_id)["current_stage"], "cancelled")
+
     def test_reconciliation_never_promotes_a_job_before_queue_completion(self):
         brief = {"brand": "Brain Glitch", "region": "US",
                  "language": "English", "topic": "Not complete"}
