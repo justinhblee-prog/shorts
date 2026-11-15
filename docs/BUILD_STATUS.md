@@ -1752,3 +1752,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Updated `docs/OPERATOR_RUNBOOK.md` with backup, verification and restore-drill commands.
 - Final-head PR CI [43738024437](https://github.com/justinhblee-prog/shorts/actions/runs/43738024437): **565 tests passed**.
 - The utility does not encrypt backups or upload them off-host; operators must provide encrypted, access-controlled external storage. No production database was backed up or restored.
+
+
+## BUILD-00104 — persistent API mutation rate limiting (2026-11-15)
+
+- Pull request: [#71](https://github.com/justinhblee-prog/shorts/pull/71), merged into the integration-only branch at `dbfc69d4da79b546035ea298f15d1610c4548c20`.
+- Added SQLite-backed fixed-window rate limits shared by processes using the same database.
+- Applied configurable per-client limits to OAuth callbacks/start, publishing mutations, queue controls, review actions, production mutations and other API writes; read-only health/GET endpoints remain unthrottled.
+- Rate-limited responses return HTTP 429 with `Retry-After` and `X-RateLimit-*` headers. Client identifiers are hashed before persistence; caller-supplied `X-Forwarded-For` is not trusted.
+- SQLite transactions run off the ASGI event loop. Added concurrency, window reset, hashed identity, middleware and health-bypass tests.
+- Final-head push CI [43738239941](https://github.com/justinhblee-prog/shorts/actions/runs/43738239941) and PR merge-result CI [43738249951](https://github.com/justinhblee-prog/shorts/actions/runs/43738249951): **570 tests passed**.
+- Rate limiting uses the ASGI peer IP; proxy deployments must configure the trusted proxy boundary. No production deployment was performed.
