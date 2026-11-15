@@ -227,6 +227,78 @@ class TikTokPublishStore:
                 """, (job_id, attempt_id, row["publish_id"], row["operator_id"],
                       message[:1000], now, row["policy_version"]))
 
+    def reconcile(self, job_id, outcome, operator_id, note, video_id=None, confirmed=False):
+        """Resolve an uncertain TikTok attempt only after explicit operator verification."""
+        operator_id = str(operator_id or "").strip()
+        note = str(note or "").strip()
+        if not operator_id or len(operator_id) > 128:
+            raise TikTokPublishError("A valid operator ID is required")
+        if not note or len(note) > 2000:
+            raise TikTokPublishError("A reconciliation note is required (max 2000 characters)")
+        if confirmed is not True:
+            raise TikTokPublishError("Explicit confirmation of the TikTok account's remote result is required")
+        if outcome not in ("published", "not_published"):
+            raise TikTokPublishError("Outcome must be published or not_published")
+        if outcome == "published" and (
+            not isinstance(video_id, str) or not video_id.strip() or len(video_id) > 128
+        ):
+            raise TikTokPublishError("A verified TikTok video ID is required for a published outcome")
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row = c.execute(
+                "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
+            ).fetchone()
+            if row is None:
+                raise TikTokPublishError("TikTok publication record not found")
+            if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
+                if outcome == "published" and row["status"] == "publish_complete" and row["video_id"] == video_id:
+                    return dict(row)
+                if outcome == "not_published" and row["status"] == "failed":
+                    return dict(row)
+                raise TikTokPublishError("TikTok attempt is already terminal; conflicting reconciliation rejected")
+            if row["status"] != "reconciliation_required":
+                raise TikTokPublishError("Only an uncertain TikTok publication can be reconciled")
+            try:
+                updated_at = datetime.fromisoformat(row["updated_at"])
+                if updated_at.tzinfo is None:
+                    updated_at = updated_at.replace(tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                raise TikTokPublishError("Uncertain attempt timestamp is invalid; manual database review required")
+            if (datetime.now(timezone.utc) - updated_at).total_seconds() < 900:
+                raise TikTokPublishError("Wait at least 15 minutes after the uncertain attempt before reconciliation")
+            if outcome == "published":
+                duplicate = c.execute(
+                    "SELECT job_id FROM tiktok_publications WHERE video_id=? AND job_id<>? LIMIT 1",
+                    (video_id.strip(), job_id),
+                ).fetchone()
+                if duplicate:
+                    raise TikTokPublishError("TikTok video ID is already associated with another job")
+                resulting_status = "publish_complete"
+                c.execute("""UPDATE tiktok_publications SET status='publish_complete',
+                    video_id=?,fail_reason=NULL,error=NULL,updated_at=?
+                    WHERE job_id=? AND status='reconciliation_required' AND attempt_id=?""",
+                    (video_id.strip(), _now(), job_id, row["attempt_id"]))
+            else:
+                resulting_status = "failed"
+                c.execute("""UPDATE tiktok_publications SET status='failed',error=?,
+                    updated_at=? WHERE job_id=? AND status='reconciliation_required'
+                    AND attempt_id=?""",
+                    ("Operator verified no matching TikTok post. " + note, _now(),
+                     job_id, row["attempt_id"]))
+            if c.execute("SELECT changes()").fetchone()[0] != 1:
+                raise TikTokPublishError("TikTok publication state changed during reconciliation")
+            c.execute("""INSERT INTO tiktok_publication_events
+                (job_id,attempt_id,event_type,outcome,publish_id,video_id,operator_id,
+                 note,created_at,policy_version)
+                VALUES(?,?,'operator_reconciliation',?,?,?,?,?,?,?)""",
+                (job_id, row["attempt_id"], outcome, row["publish_id"],
+                 video_id.strip() if isinstance(video_id, str) else None,
+                 operator_id, note, _now(), row["policy_version"]))
+            result = c.execute(
+                "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
+            ).fetchone()
+            return dict(result)
+
     def mark_failed_before_remote(self, job_id, attempt_id, message):
         with self.db() as c:
             c.execute("""
