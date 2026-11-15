@@ -8,6 +8,19 @@ from app import trend_recommendations
 
 
 class TrendRecommendationApiTests(unittest.TestCase):
+    def test_holdout_evaluation_endpoint_is_review_protected_and_delegates_report(self):
+        route = next(r for r in app_module.app.routes
+                     if getattr(r, "path", None) == "/api/recommendations/evaluation")
+        self.assertIn("x_review_token", route.endpoint.__annotations__)
+        expected = {"status": "insufficient_data", "ranking_score_adjustment_enabled": False}
+        with (mock.patch("app.require_review_access"),
+              mock.patch("app.recommendation_evaluation_store.evaluate",
+                         return_value=expected) as evaluate,
+              mock.patch("app.performance_analyzer.analyze", return_value={"videos": []})):
+            result = app_module.recommendation_evaluation(x_review_token="valid")
+        self.assertEqual(result, expected)
+        evaluate.assert_called_once_with({"videos": []})
+
     def test_endpoint_requires_review_token_and_returns_explained_editorial_rank(self):
         route = next(r for r in app_module.app.routes
                      if getattr(r, "path", None) == "/api/trends/recommendations")
@@ -41,9 +54,14 @@ class TrendRecommendationApiTests(unittest.TestCase):
         with (mock.patch("app.require_review_access"),
               mock.patch("app.trend_store.list", return_value=[trend]),
               mock.patch("app.brand_store.list", return_value=[brand]),
-              mock.patch("app.performance_analyzer.analyze", return_value=performance)):
+              mock.patch("app.performance_analyzer.analyze", return_value=performance),
+              mock.patch("app.recommendation_evaluation_store.record_run",
+                         return_value={"run_id": "run-123", "recorded_candidates": 1}) as record_run):
             result = trend_recommendations(region="US", limit=10, x_review_token="valid")
         self.assertEqual(result["count"], 1)
+        self.assertEqual(result["evaluation_run_id"], "run-123")
+        self.assertEqual(result["evaluation_candidates_recorded"], 1)
+        record_run.assert_called_once_with("US", result["items"])
         self.assertEqual(result["items"][0]["best_brand"]["brand"], "future-leak")
         historical = result["items"][0]["best_brand"]["historical_performance"]
         self.assertEqual(historical["median_views_per_hour"], 90.0)

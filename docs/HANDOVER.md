@@ -717,3 +717,17 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Other brands and other regions are excluded. Nonmatching topic signatures are excluded.
 - Cohort context is displayed in the recommendation workspace beside existing brand-level and topic-level history.
 - **No score adjustment:** `ranking_score_adjustment=0`; the 100-point editorial rubric remains unchanged until a held-out evaluation validates a stable ranking improvement.
+
+
+### Recommendation outcome capture and chronological holdout diagnostics — 2026-11-15
+
+- Added `backend/recommendation_evaluation.py` with durable recommendation-run and candidate records. Each recommendation API response stores the returned trend rank, editorial score, selected best-brand identity, score breakdown, and contemporaneous cohort context.
+- When an operator submits a trend candidate for production, the API links that production job to the most recent matching recommendation record. No production job is created automatically by this capture mechanism.
+- Added authenticated `GET /api/recommendations/evaluation`. It joins selected production jobs to valid snapshot-derived measured video outcomes and reports a chronological pre-holdout/holdout split plus Spearman rank association between the editorial score and observed views/hour.
+- Minimum diagnostic threshold is 10 distinct selected and measured production jobs; the holdout contains at least five observations. Sparse samples or constant ranks remain inconclusive.
+- The dashboard now displays measured/selected counts, pre-holdout and holdout sizes, and holdout score/outcome association.
+- **Strict interpretation boundary:** this is an observational diagnostic among recommendations that operators actually selected for production. It does not observe unseen candidates, correct selection bias, establish causality, or validate a new score adjustment. It is not model training. `ranking_score_adjustment_enabled=false` remains enforced.
+- Recommendation API retrievals are stored as candidate snapshots, not proof that a human viewed a card. Actual UI impression tracking and randomized exploration remain future work.
+- CI validation pending on this branch; do not mark verified until GitHub Actions passes.
+
+- Repeated identical recommendation responses within 60 seconds reuse the same snapshot run to avoid noisy duplicate records. Unselected candidate snapshots older than 180 days are pruned; selected production-linked evidence is retained for longitudinal diagnostics.
