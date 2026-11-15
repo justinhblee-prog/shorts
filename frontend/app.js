@@ -68,6 +68,7 @@
           +(policyBlocks.length?'<p>차단 사유: '+policyBlocks.map(esc).join(', ')+'</p>':'')
           +(policyApprovalBlocks.length?'<p><strong>승인 차단(해결 전 승인 불가):</strong> '+policyApprovalBlocks.map(esc).join(', ')+'</p>':'')
           +(policyItems.length?'<p>추가 확인: '+policyItems.map(esc).join(', ')+'</p>':'')
+          +(policyApprovalBlocks.length?'<button class="button button-outline" data-action="policy-evidence" data-id="'+esc(item.job_id)+'">필수 정책 정보 입력</button>':'')
           +'<small>YouTube / TikTok 사전 위험 점검입니다. 영상 전체 검사나 플랫폼 승인·수익화 보증이 아니며, 게시 전 최신 공식 정책과 사용 권리를 확인해야 합니다.</small></section>'
         : '<section class="review-policy"><strong>정책 사전검사 자료 없음</strong><small>게시 전 권리·AI 표시·사실성·독창성을 직접 확인하세요.</small></section>';
       const audioPreview=audioArtifact?.artifact_url
@@ -322,6 +323,38 @@
         const r=await api("/api/production/jobs/"+encodeURIComponent(id)+"/stage-media",{method:"POST"});
         $("stage-"+CSS.escape(id)).textContent="스테이징 완료 · "+r.media_path+" · "+r.size_bytes+" bytes";
         toast("미디어 스테이징 완료. 검수 승인 후 YouTube 업로드를 진행할 수 있습니다.");
+      }else if(action==="policy-evidence"){
+        const synthetic=prompt(
+          "실제 생성된 영상의 유형을 선택해 입력하세요: none / ai_assisted_nonrealistic / ai_generated / realistic_alteration",
+          "ai_generated"
+        );
+        if(synthetic===null)return;
+        if(!["none","ai_assisted_nonrealistic","ai_generated","realistic_alteration"].includes(synthetic.trim())) {
+          toast("지원하지 않는 합성 미디어 유형입니다.");return;
+        }
+        const declarations={
+          reviewer_id:reviewer,
+          platforms:["youtube","tiktok"],
+          rights:{
+            visuals_cleared:confirm("영상·이미지 등 시각 자료의 사용 권리가 확인되었습니까?"),
+            audio_cleared:confirm("음악·효과음·음성 등 오디오 권리가 확인되었습니까?"),
+            likeness_authorized:confirm("식별 가능한 인물의 초상·음성 사용 권한이 있거나 해당 인물이 포함되지 않습니까?")
+          },
+          synthetic_media_status:synthetic.trim(),
+          factual_claims_verified:confirm("대본의 사실·통계·인용 주장을 신뢰할 수 있는 자료로 검증했습니까?"),
+          originality_notes:prompt("이번 영상만의 독창적인 설명·분석·구성 차이를 기록하세요.","독창적 설명과 편집 구성을 검토함")||""
+        };
+        if(["ai_generated","realistic_alteration"].includes(declarations.synthetic_media_status)){
+          declarations.platform_disclosures={
+            youtube_altered_content:confirm("YouTube 업로드 시 실제와 같이 보이는 AI 생성·변형 콘텐츠 표시를 적용할 준비가 되었습니까?"),
+            tiktok_ai_generated_content:confirm("TikTok 게시 시 AI 생성 콘텐츠 라벨을 적용할 준비가 되었습니까?")
+          };
+        }
+        const result=await api("/api/review/"+encodeURIComponent(id)+"/policy-evidence",{
+          method:"POST",body:JSON.stringify(declarations)
+        });
+        toast("정책 정보가 감사 기록과 함께 저장되었습니다 · "+result.policy_preflight.status);
+        await loadReviews();
       }else{
         let comment;
         if(action==="approve"){
