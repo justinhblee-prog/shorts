@@ -624,14 +624,20 @@ def queue_control(x_review_token:str|None=Header(default=None)):
 @app.post("/api/queue/pause")
 def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    control=queue.pause(body.note,actor=body.operator_id)
+    operator_id=body.operator_id.strip()
+    note=body.note.strip()
+    if not operator_id or not note:
+        raise HTTPException(422,"operator_id and note must not be blank")
+    control=queue.pause(note,actor=operator_id)
     return {"control":control,"events":queue.worker_control_events(30)}
 
 @app.post("/api/queue/resume")
 def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
+    if not body.operator_id.strip() or not body.note.strip():
+        raise HTTPException(422,"operator_id and note must not be blank")
     try:
-        control=queue.resume(actor=body.operator_id,note=body.note)
+        control=queue.resume(actor=body.operator_id.strip(),note=body.note.strip())
         return {"control":control,"events":queue.worker_control_events(30)}
     except ValueError as e:
         raise HTTPException(409,str(e))
