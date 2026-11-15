@@ -77,7 +77,8 @@ def run_youtube_analytics_once(store=None, collector=None, upload_store=None):
         try:
             result = collector.refresh(limit=BATCH_SIZE, days=28)
         except Exception as exc:
-            status = "scope_missing" if getattr(getattr(exc, "resp", None), "status", None) == 403 else "failed"
+            reasons = {item.get("reason") for item in (getattr(exc, "error_details", None) or []) if isinstance(item, dict)}
+            status = "scope_missing" if "insufficientPermissions" in reasons else "failed"
             error = "permission_denied" if status == "scope_missing" else type(exc).__name__
             store.record_collection(status, error=error)
             raise
