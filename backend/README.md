@@ -180,3 +180,13 @@ The service retrieves the artifact URL from the production record (the caller ca
 ### Approved uploads
 
 The protected `GET /api/review/approved` endpoint lists approved productions. The dashboard's approved queue lets the operator explicitly stage the saved render artifact and initiate a YouTube upload. Upload remains private; approval alone does not publish publicly.
+
+## Web operations portal
+
+The integrated single-page control center is served from the backend:
+
+```text
+http://localhost:8502/
+```
+
+The UI includes production job intake, trends, competitors, profitability scoring, human review, approved/private upload, schedules, financial ledger and performance insights. Enter the configured `NEXUS_REVIEW_TOKEN` using the settings button. The token is kept in browser memory only and is cleared on reload. Public publishing is not offered by the UI; YouTube uploads remain private.
