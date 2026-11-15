@@ -14,6 +14,7 @@ from production_pipeline import ProductionStore, ProductionPipeline, submit_prod
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
+from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
@@ -34,6 +35,8 @@ brand_store=BrandStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_publisher=YouTubePublisher(youtube_upload_store)
+tiktok_publish_store=TikTokPublishStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+tiktok_publisher=TikTokPublisher(tiktok_publish_store)
 ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
@@ -94,6 +97,12 @@ class YouTubeUploadRequest(BaseModel):
     description:str=Field(default="",max_length=5000)
     tags:list[str]=Field(default_factory=list,max_length=30)
     category_id:str=Field(default="22",min_length=1,max_length=4)
+
+class TikTokPublishRequest(BaseModel):
+    media_path:str=Field(min_length=1,max_length=2000)
+    title:str=Field(min_length=1,max_length=2200)
+    operator_id:str=Field(min_length=1,max_length=128)
+    explicit_consent:bool
 
 
 class YouTubeUploadReconciliation(BaseModel):
@@ -457,6 +466,38 @@ def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=
         return youtube_publisher.refresh_metrics(video_id)
     except YouTubeUploadError as e:
         raise HTTPException(502,str(e))
+
+@app.post("/api/tiktok/publish/{job_id}",status_code=201)
+def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
+                         x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_publisher.publish_private_approved(
+            job_id,body.media_path,review_store,body.title,body.operator_id,
+            explicit_consent=body.explicit_consent
+        )
+    except ReviewNotFound:
+        raise HTTPException(404,"Production job not found")
+    except TikTokPublishError as e:
+        raise HTTPException(409,str(e))
+
+
+@app.get("/api/tiktok/publications/{job_id}")
+def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    result=tiktok_publish_store.get(job_id)
+    if result is None:
+        raise HTTPException(404,"TikTok publication record not found")
+    return result
+
+
+@app.post("/api/tiktok/publications/{job_id}/refresh-status")
+def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_publisher.refresh_status(job_id)
+    except TikTokPublishError as e:
+        raise HTTPException(409,str(e))
 
 
 
