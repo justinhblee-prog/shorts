@@ -80,6 +80,36 @@ def score_opportunity(data):
                  "note":"Scenario estimate from supplied assumptions, not measured earnings or a guaranteed outcome."}
  }
 
+
+def analyze_competition(topic, channel_ids, competitor_store):
+ """Summarize observed competitor video evidence; never infer revenue or growth."""
+ import re, statistics
+ ids=list(dict.fromkeys(str(x).strip() for x in channel_ids if str(x).strip()))[:10]
+ words={w for w in re.findall(r"[a-z0-9가-힣]{2,}",str(topic).lower())}
+ stop={"the","and","for","with","why","how","what","this","that","your","from","into"}
+ words-=stop
+ samples=[]; matched=[]
+ for channel_id in ids:
+  for video in competitor_store.list_videos(channel_id,limit=30):
+   views=video.get("view_count")
+   if not isinstance(views,int) or views<0: continue
+   samples.append(video)
+   title_words={w for w in re.findall(r"[a-z0-9가-힣]{2,}",str(video.get("title","")).lower())}-stop
+   overlap=(len(words & title_words)/len(words)) if words else 0
+   if overlap>=0.25:
+    matched.append({**video,"topic_overlap":round(overlap,3)})
+ matched_views=[x["view_count"] for x in matched]
+ return {
+  "selected_channels":len(ids),"observed_videos":len(samples),
+  "topic_matched_videos":len(matched),
+  "median_matched_views":int(statistics.median(matched_views)) if matched_views else None,
+  "matched_examples":[{"title":x.get("title"),"views":x.get("view_count"),
+                       "channel_id":x.get("channel_id"),"published_at":x.get("published_at")}
+                      for x in sorted(matched,key=lambda x:x.get("view_count",0),reverse=True)[:5]],
+  "method":"Token overlap >= 25% of topic terms; median is observed public view counters only.",
+  "limitations":"Selected channels and currently stored recent videos only; no market-wide saturation, view velocity, causal demand or revenue inference."
+ }
+
 class OpportunityStore:
  def __init__(self,path="data/nexus.sqlite3"):
   self.path=path
