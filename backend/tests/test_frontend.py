@@ -198,6 +198,15 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("공급자 실행시간이나 렌더링 CPU 시간과 동일하지 않습니다", app_js)
         self.assertIn('"/overview"', app_js)
 
+    def test_global_lifecycle_dashboard_displays_cohort_performance(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/performance/pipeline?limit=100&min_samples=5", app_js)
+        self.assertIn("전체 파이프라인 성능 통계", app_js)
+        self.assertIn("bottleneck_candidate", app_js)
+        self.assertIn("중앙값", app_js)
+        self.assertIn("P90", app_js)
+        self.assertIn("최근 최대 100개 작업", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
