@@ -105,6 +105,80 @@ class ApiRateLimitTests(unittest.TestCase):
         self.assertEqual(response[0]["status"], 200)
         self.assertEqual(response[0]["headers"], [])
 
+    def test_forwarded_for_is_ignored_without_trusted_proxy_configuration(self):
+        middleware = ApiRateLimitMiddleware(lambda *args: None, self.store)
+        scope = {
+            "client": ("192.0.2.10", 4321),
+            "headers": [(b"x-forwarded-for", b"198.51.100.44")],
+        }
+        self.assertEqual(middleware._client_identity(scope), "192.0.2.10")
+
+    def test_untrusted_peer_cannot_spoof_forwarded_identity(self):
+        middleware = ApiRateLimitMiddleware(
+            lambda *args: None, self.store,
+            trusted_proxy_cidrs="10.0.0.0/8",
+        )
+        scope = {
+            "client": ("192.0.2.10", 4321),
+            "headers": [(b"x-forwarded-for", b"198.51.100.44")],
+        }
+        self.assertEqual(middleware._client_identity(scope), "192.0.2.10")
+
+    def test_trusted_proxy_uses_forwarded_client_address(self):
+        middleware = ApiRateLimitMiddleware(
+            lambda *args: None, self.store,
+            trusted_proxy_cidrs="10.0.0.0/8",
+        )
+        scope = {
+            "client": ("10.0.0.8", 4321),
+            "headers": [(b"x-forwarded-for", b"198.51.100.44")],
+        }
+        self.assertEqual(middleware._client_identity(scope), "198.51.100.44")
+
+    def test_forwarded_chain_walks_right_to_left_and_ignores_untrusted_prefix(self):
+        middleware = ApiRateLimitMiddleware(
+            lambda *args: None, self.store,
+            trusted_proxy_cidrs="10.0.0.0/8,192.168.0.0/16",
+        )
+        scope = {
+            "client": ("10.0.0.8", 4321),
+            "headers": [(b"x-forwarded-for",
+                         b"203.0.113.200, 198.51.100.44, 192.168.1.2")],
+        }
+        self.assertEqual(middleware._client_identity(scope), "198.51.100.44")
+
+    def test_malformed_or_ambiguous_forwarded_headers_fall_back_to_proxy_peer(self):
+        middleware = ApiRateLimitMiddleware(
+            lambda *args: None, self.store,
+            trusted_proxy_cidrs="10.0.0.0/8",
+        )
+        for headers in (
+            [(b"x-forwarded-for", b"not-an-ip")],
+            [(b"x-forwarded-for", b"198.51.100.1"),
+             (b"x-forwarded-for", b"198.51.100.2")],
+            [(b"x-forwarded-for", b"198.51.100.1,,198.51.100.2")],
+            [(b"x-forwarded-for", b"198.51.100.1, " + b"198.51.100.2," * 25)],
+        ):
+            with self.subTest(headers=headers):
+                self.assertEqual(
+                    middleware._client_identity({"client": ("10.0.0.8", 4321), "headers": headers}),
+                    "10.0.0.8",
+                )
+
+    def test_trusted_proxy_supports_ipv6_and_validates_network_configuration(self):
+        middleware = ApiRateLimitMiddleware(
+            lambda *args: None, self.store,
+            trusted_proxy_cidrs="2001:db8:abcd::/48",
+        )
+        scope = {
+            "client": ("2001:db8:abcd::8", 4321),
+            "headers": [(b"x-forwarded-for", b"2001:db8:ffff::44")],
+        }
+        self.assertEqual(middleware._client_identity(scope), "2001:db8:ffff::44")
+        with self.assertRaises(ValueError):
+            ApiRateLimitMiddleware(lambda *args: None, self.store,
+                                   trusted_proxy_cidrs="not-a-network")
+
 
 if __name__ == "__main__":
     unittest.main()
