@@ -1,7 +1,7 @@
 import os
 from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Header
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -15,6 +15,7 @@ from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
+from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
@@ -37,7 +38,11 @@ review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_publisher=YouTubePublisher(youtube_upload_store)
 tiktok_publish_store=TikTokPublishStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
-tiktok_publisher=TikTokPublisher(tiktok_publish_store)
+tiktok_oauth_store=TikTokOAuthStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+tiktok_oauth_manager=TikTokOAuthManager(tiktok_oauth_store)
+tiktok_publisher=TikTokPublisher(
+    tiktok_publish_store,token_provider=tiktok_oauth_manager.get_access_token
+)
 ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
@@ -494,6 +499,38 @@ def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=
     except YouTubeUploadError as e:
         raise HTTPException(502,str(e))
 
+@app.get("/api/tiktok/oauth/start")
+def start_tiktok_oauth(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_oauth_manager.start_authorization()
+    except TikTokOAuthError as e:
+        raise HTTPException(503,str(e))
+
+
+@app.get("/api/tiktok/oauth/callback")
+def tiktok_oauth_callback(
+    code:str|None=None,state:str|None=None,
+    error:str|None=None,error_description:str|None=None
+):
+    if error:
+        return RedirectResponse(url="/?tiktok_oauth=denied",status_code=303)
+    try:
+        tiktok_oauth_manager.exchange_code(code,state)
+        return RedirectResponse(url="/?tiktok_oauth=connected",status_code=303)
+    except TikTokOAuthError:
+        return RedirectResponse(url="/?tiktok_oauth=error",status_code=303)
+
+
+@app.get("/api/tiktok/oauth/status")
+def tiktok_oauth_status(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    result=tiktok_oauth_manager.status()
+    if not result.get("connected") and os.getenv("TIKTOK_ACCESS_TOKEN"):
+        result={"connected":True,"status":"static_token_configured","mode":"static_env"}
+    return result
+
+
 @app.get("/api/tiktok/creator-info")
 def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
@@ -893,7 +930,23 @@ def get_events(jid:str,x_review_token:str|None=Header(default=None)):
 @app.get("/api/preflight")
 def preflight(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    return build_preflight()
+    result=build_preflight()
+    oauth_status=tiktok_oauth_manager.status()
+    tiktok_connected=bool(oauth_status.get("connected") or os.getenv("TIKTOK_ACCESS_TOKEN"))
+    result["checks"]["tiktok_publish"]={
+        "configured":tiktok_connected,
+        "missing":[] if tiktok_connected else [
+            "TikTok OAuth account connection or TIKTOK_ACCESS_TOKEN"
+        ],
+    }
+    result["capabilities"]["tiktok_private_publish_configured"]=tiktok_connected
+    result["tiktok_oauth"]=oauth_status
+    if tiktok_connected:
+        result["missing"]=[item for item in result["missing"]
+                           if item!="TIKTOK_ACCESS_TOKEN"]
+    elif "TikTok OAuth account connection or TIKTOK_ACCESS_TOKEN" not in result["missing"]:
+        result["missing"].append("TikTok OAuth account connection or TIKTOK_ACCESS_TOKEN")
+    return result
 
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
