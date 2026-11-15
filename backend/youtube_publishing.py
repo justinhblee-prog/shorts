@@ -162,9 +162,17 @@ class YouTubeUploadStore:
 
     def fail(self,job_id,error,attempt_id=None):
         with self.db() as c:
-            c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
+            now=_now()
+            updated=c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
                          WHERE job_id=? AND status='uploading' AND attempt_id=?""",
-                      (str(error)[:2000],_now(),job_id,attempt_id))
+                      (str(error)[:2000],now,job_id,attempt_id))
+            if updated.rowcount==1:
+                c.execute("""INSERT INTO youtube_upload_events
+                  (job_id,attempt_id,event_type,outcome,operator_id,note,
+                   previous_status,resulting_status,created_at)
+                  VALUES(?,?,'upload_preflight_failed','failed','system:upload_worker',?,
+                    'uploading','failed',?)""",
+                  (job_id,attempt_id,str(error)[:2000],now))
 
     @staticmethod
     def upload_stale_seconds():
@@ -211,12 +219,19 @@ class YouTubeUploadStore:
                   error=?,updated_at=? WHERE job_id=? AND status IN ('uploading','failed','reconciliation_required')""",
                   ("A superseded upload attempt ended with an uncertain remote outcome. "+str(error)[:1500],now,job_id))
                 return
+            previous_status=row["status"]
             updated=c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',
               error=?,updated_at=? WHERE job_id=? AND status IN ('uploading','reconciliation_required')
               AND attempt_id=?""",
               (str(error)[:2000],now,job_id,attempt_id))
             if updated.rowcount != 1:
                 raise YouTubeUploadError("Upload record is not in a reconcilable state")
+            c.execute("""INSERT INTO youtube_upload_events
+              (job_id,attempt_id,event_type,outcome,operator_id,note,
+               previous_status,resulting_status,created_at)
+              VALUES(?,?,'upload_outcome_uncertain','uncertain','system:upload_worker',?,
+                ?,'reconciliation_required',?)""",
+              (job_id,attempt_id,str(error)[:2000],previous_status,now))
 
     def reconcile(self,job_id,outcome,video_id=None,note="",operator_id="unspecified"):
         """Resolve an ambiguous remote upload only after explicit operator verification."""
