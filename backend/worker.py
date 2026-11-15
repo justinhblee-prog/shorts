@@ -94,12 +94,13 @@ def run_once():
             raise LeaseConflict("Worker lease was lost before provider execution")
         result = pipeline.execute(job["id"], job["payload"],
                                   worker_id=WORKER_ID, lease_token=job["lease_token"],
-                                  stop_event=lost_lease)
+                                  instance_token=INSTANCE_TOKEN, stop_event=lost_lease)
         if lost_lease.is_set():
             raise LeaseConflict("Worker lease was lost while generating media")
         queue.finish(job["id"], WORKER_ID, job["lease_token"],
                      {"production_status": "review_pending",
-                      "artifact_count": len(result["artifacts"])})
+                      "artifact_count": len(result["artifacts"])},
+                     instance_token=INSTANCE_TOKEN)
         store.reconcile_review_pending(queue)
         print(f"review_pending job={job['id']}")
     except KeyboardInterrupt:
@@ -112,14 +113,14 @@ def run_once():
         except Exception:
             try:
                 queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                           "worker_interrupted_ambiguous", reason, False)
+                           "worker_interrupted_ambiguous", reason, False, instance_token=INSTANCE_TOKEN)
             except LeaseConflict:
                 pass
         raise
     except PolicyBlocked as exc:
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "policy_blocked", str(exc), False)
+                       "policy_blocked", str(exc), False, instance_token=INSTANCE_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         print(f"policy_blocked job={job['id']} stage={exc.stage}")
@@ -127,7 +128,7 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "provider_" + exc.stage, str(exc), exc.retryable)
+                       "provider_" + exc.stage, str(exc), exc.retryable, instance_token=INSTANCE_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
@@ -139,7 +140,7 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "worker_interrupted_ambiguous", str(exc), False)
+                       "worker_interrupted_ambiguous", str(exc), False, instance_token=INSTANCE_TOKEN)
         except LeaseConflict:
             pass
         try:
@@ -151,7 +152,7 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "worker_error", str(exc), False)
+                       "worker_error", str(exc), False, instance_token=INSTANCE_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
