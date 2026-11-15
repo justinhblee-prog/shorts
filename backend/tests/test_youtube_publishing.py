@@ -422,6 +422,7 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(result["events"][-1]["attempt_id"],result["attempt_id"])
         self.assertEqual(result["events"][0]["event_type"],"upload_attempt_started")
         self.assertEqual(self.service._videos.body["status"]["privacyStatus"],"private")
+        self.assertNotIn("selfDeclaredMadeForKids",self.service._videos.body["status"])
         self.assertFalse(self.service._videos.body["status"]["containsSyntheticMedia"])
         self.assertEqual(result["snapshots"][0]["view_count"],123)
 
