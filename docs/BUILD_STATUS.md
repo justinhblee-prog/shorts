@@ -96,6 +96,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 ## BUILD-00023 — platform AI-generated and synthetic-media disclosure
 
 - YouTube Data API v3 `videos.insert` supports `status.containsSyntheticMedia`; the upload adapter now sends this field alongside the existing private-only status.
+- The upload request no longer hard-codes `selfDeclaredMadeForKids=false`; because no explicit audience classification is collected yet, the field is omitted rather than asserting an unverified child-directed-content declaration.
 - Policy preflight preserves the explicit YouTube realism classification. For generic AI-generated content, the classification must resolve to a boolean; realistic alteration forces true and non-realistic classes force false.
 - The upload is blocked before the remote API call if the current script artifact lacks a valid disclosure classification.
 - TikTok Direct Post documents `is_aigc`; an isolated fail-closed mapping helper and tests are in PR #35. The TikTok publisher client is not yet implemented.
