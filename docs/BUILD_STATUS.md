@@ -1198,5 +1198,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Approved-workspace lifecycle diagnostics display observed state durations and the longest observed queue state.
 - Metrics explicitly describe queue-state dwell time, not provider execution time, rendering CPU time, or platform latency. They do not claim statistically significant throughput percentiles from a single job.
 - Invalid/out-of-order event timestamps are surfaced as data-quality warnings. No queue, worker, provider, retry, or publishing state is mutated.
-- Added unit/API/frontend regression coverage. CI validation for this milestone is pending.
+- Added unit/API/frontend regression coverage. GitHub Actions passed **379 tests** at commit `b942371` (run `43699702448`).
 
