@@ -81,8 +81,13 @@ def run_youtube_analytics_once(store=None, collector=None, upload_store=None):
             scope_missing = "insufficientPermissions" in reasons or (
                 isinstance(exc, YouTubeAnalyticsError) and "yt-analytics.readonly" in str(exc)
             )
-            status = "scope_missing" if scope_missing else "failed"
-            error = "permission_denied" if status == "scope_missing" else type(exc).__name__
+            http_status = getattr(getattr(exc, "resp", None), "status", None)
+            status = "scope_missing" if scope_missing else (
+                "authorization_failed" if http_status == 401 else "failed"
+            )
+            error = "permission_denied" if status == "scope_missing" else (
+                "invalid_credentials" if status == "authorization_failed" else type(exc).__name__
+            )
             store.record_collection(status, error=error)
             raise
         collection_status = "succeeded" if result["requested"] else "waiting_for_uploaded_videos"
