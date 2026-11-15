@@ -572,7 +572,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The score is explicitly an editorial discovery signal, **not** a profitability forecast. The remaining 20 score points are intentionally unallocated because the current trend feeds do not supply comparable search volume, Shorts demand, verified RPM, or production cost.
 - Each result carries evidence-gap flags. No trend is automatically sent to production; the operator still selects a brand and uses the existing draft-production and human-review gates.
 - Regression tests cover freshness ordering, region eligibility, missing brand matches, evidence caveats and route authentication.
-- **Validation:** GitHub Actions run `43669273892` completed successfully at source commit `01c0a927b7dc38a2d6f7125c8e37caacc1aa4af0`; `144` tests passed, including the new ranking and authenticated API regressions. Earlier failed runs exposed a region-eligibility edge case; the implementation was corrected and the successful run is on the corrected commit.
+- **Validation:** GitHub Actions run `43669583140` completed successfully at source commit `8efee96c92fc4e9102512513bb04fc9ae2c44335`; `149` tests passed, including ranking, authenticated API and frontend integration regressions. Earlier failed runs exposed a region-eligibility edge case and literal-newline formatting errors; both were corrected before this successful run.
 
 
 ### Faster production lease-loss detection — 2026-11-15
@@ -581,3 +581,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - This reduces the delay before a worker detects an operator pause or lease revocation. An in-flight provider HTTP request cannot be forcibly cancelled by the current synchronous transport; it runs until its configured timeout, after which the stop signal prevents the next pipeline stage.
 - Extracted the heartbeat interval policy into a pure helper and added boundary tests for the lease cap and minimum interval.
 - GitHub Actions run [43669352365](https://github.com/justinhblee-prog/shorts/actions/runs/43669352365) passed **148 tests** on commit `5b1aa3d0d1993176c4d135abf581e101f3113efe`; Python compilation and JavaScript syntax validation passed.
+
+
+### Dashboard integration
+
+- Added a brand recommendation panel to the global intelligence workspace. It refreshes for the selected market and shows freshness, editorial-fit score, top brand candidate and missing-evidence caveat.
+- Operators can select one of the region/language-compatible suggested brands and create a production draft. This still uses the existing authenticated draft endpoint and human review gate; it does not auto-generate or publish.
+- Frontend static syntax check and complete regression suite passed in the validation run above.
