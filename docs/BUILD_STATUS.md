@@ -1132,3 +1132,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The dashboard performs no automatic retry, remote platform polling, approval, or publishing. Platform outcomes remain distinct; TikTok inbox handoff is not described as published.
 - Added API coverage for auth gating, pagination/filter forwarding, missing-record blockers, and invalid status filters, plus frontend wiring regression coverage.
 - CI validation pending for this commit. The dashboard is bounded to the latest 50 records by default; operators can request subsequent pages through the API. No live provider or platform integration is implied.
+
+- Follow-up hardening: the response now reports queue-state and production-lifecycle-state counts separately; the control center includes a queue-status filter and 50-row previous/next pagination. Per-page risk counts remain explicitly scoped to the displayed page.
