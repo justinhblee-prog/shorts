@@ -20,8 +20,10 @@ def build_preflight(env=None):
         checks[group] = {"configured": not absent, "missing": absent}
         missing.extend(absent)
     media_dir = Path(source.get("NEXUS_MEDIA_DIR", "data/media"))
-    parent = media_dir if media_dir.exists() else media_dir.parent
-    writable = parent.exists() and os.access(str(parent), os.W_OK)
+    ancestor = media_dir
+    while not ancestor.exists() and ancestor != ancestor.parent:
+        ancestor = ancestor.parent
+    writable = (not media_dir.exists() or media_dir.is_dir()) and ancestor.is_dir() and os.access(str(ancestor), os.W_OK)
     checks["media_directory"] = {"configured": writable,
         "missing": [] if writable else ["NEXUS_MEDIA_DIR (directory/parent must be writable)"]}
     generation = all(checks[k]["configured"] for k in
