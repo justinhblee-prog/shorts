@@ -360,7 +360,11 @@ class PerformanceAnalyzer:
                     cohort_insights.append({
                         "brand": item["brand"], "region": item["region"],
                         "topic_signature": item["topic_signature"],
+                        "duration_bucket": item["duration_bucket"],
+                        "publication_age_bucket": item["publication_age_bucket"],
+                        "format": item["format"],
                         "sample_count": item["sample_count"],
+                        "comparison_cohort_count": len(eligible),
                         "status": "insufficient_comparable_cohorts",
                         "suggested_action": "Keep collecting comparable videos; do not infer a winning topic from sparse data.",
                         "ranking_score_adjustment": 0,
