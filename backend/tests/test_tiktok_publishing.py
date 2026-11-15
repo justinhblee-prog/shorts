@@ -176,13 +176,13 @@ class TikTokPublishingTests(unittest.TestCase):
 
     def test_unknown_upload_url_host_is_rejected_and_attempt_not_retried(self):
         transport = TikTokTransport([
-            (200, {"data": {"privacy_level_options": ["SELF_ONLY"]},
+            (200, {"data": {"privacy_level_options": ["SELF_ONLY"], "max_video_post_duration_sec": 600},
                    "error": {"code": "ok"}}),
             (200, {"data": {"publish_id": "publish-123",
                             "upload_url": "https://evil.example/upload"},
                    "error": {"code": "ok"}}),
         ])
-        publisher = TikTokPublisher(self.store, "test-token", transport)
+        publisher = TikTokPublisher(self.store, "test-token", transport, media_inspector=FakeMediaInspector())
         with self.assertRaisesRegex(TikTokPublishError, "outcome is uncertain"):
             publisher.publish_private_approved(
                 "job-1", self.media, self.review, "Caption", "operator-1",
