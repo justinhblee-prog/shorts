@@ -98,6 +98,31 @@ class TrendRecommendationTests(unittest.TestCase):
         excluded = next(item for item in ranked if item["trend"]["id"] == "excluded")
         self.assertNotIn("future", [item["brand"] for item in excluded["brand_candidates"]])
 
+    def test_historical_performance_is_exposed_but_does_not_change_recommendation_score(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        trend = {"id": "ai", "title": "AI technology explained", "region": "US",
+                 "published_at": now.isoformat()}
+        brand = {"slug": "future-leak", "name": "Future Leak", "active": True,
+                 "config": {"positioning": "AI technology", "regions": ["US"]}}
+        baseline = rank_trend_candidates(
+            [trend], [brand], now=now
+        )[0]
+        enriched = rank_trend_candidates(
+            [trend], [brand], now=now,
+            performance_by_brand={"Future Leak": {
+                "measured_videos": 5, "rate_sample_count": 4,
+                "median_views_per_hour": 125.5,
+                "interaction_rate_sample_count": 3,
+                "median_interactions_per_1000_view_delta": 18.2
+            }}
+        )[0]
+        historical = enriched["best_brand"]["historical_performance"]
+        self.assertEqual(enriched["recommendation_score"], baseline["recommendation_score"])
+        self.assertEqual(historical["evidence_status"], "observed")
+        self.assertEqual(historical["median_views_per_hour"], 125.5)
+        self.assertEqual(historical["ranking_score_adjustment"], 0)
+        self.assertIn("not yet topic-matched", historical["reason"])
+
     def test_competitor_evidence_is_region_scoped_and_does_not_change_editorial_score(self):
         store = Mock()
         store.list_channels.return_value = [
