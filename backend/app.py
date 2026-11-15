@@ -10,6 +10,7 @@ from production_pipeline import ProductionStore, ProductionPipeline, submit_prod
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
+from ledger import LedgerStore
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -24,6 +25,7 @@ brand_store=BrandStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_publisher=YouTubePublisher(youtube_upload_store)
+ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -48,6 +50,19 @@ class Fail(Lease):
 class ReviewDecision(BaseModel):
     reviewer_id:str=Field(min_length=1,max_length=128)
     comment:str=Field(default="",max_length=4000)
+
+
+class LedgerEntry(BaseModel):
+    job_id:str|None=None
+    brand:str=Field(min_length=1,max_length=100)
+    region:str=Field(min_length=2,max_length=8)
+    entry_type:str
+    amount:float=Field(ge=0)
+    currency:str=Field(min_length=3,max_length=3)
+    source_type:str
+    source_reference:str=Field(min_length=1,max_length=300)
+    occurred_at:str=Field(min_length=10,max_length=40)
+    note:str=Field(default="",max_length=2000)
 
 class BrandActivation(BaseModel):
     active:bool
@@ -236,6 +251,26 @@ def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=
         return youtube_publisher.refresh_metrics(video_id)
     except YouTubeUploadError as e:
         raise HTTPException(502,str(e))
+
+
+
+@app.post("/api/finance/ledger",status_code=201)
+def record_financial_entry(body:LedgerEntry,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return ledger_store.record(body.model_dump())
+    except (ValueError,KeyError) as e:
+        raise HTTPException(422,str(e))
+
+
+@app.get("/api/finance/report")
+def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|None=None,
+                     currency:str="USD",x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return ledger_store.report(brand,from_date,to_date,currency)
+    except ValueError as e:
+        raise HTTPException(422,str(e))
 
 
 @app.post("/api/trends/collect")
