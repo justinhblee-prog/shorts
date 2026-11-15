@@ -57,7 +57,7 @@ class LifecycleConsistencyTests(unittest.TestCase):
         codes = {item["code"] for item in result["findings"]}
         self.assertIn("youtube_manual_reconciliation_required", codes)
         self.assertIn("tiktok_manual_reconciliation_required", codes)
-        self.assertEqual(result["status"], "attention_required")
+        self.assertEqual(result["status"], "blocked")
 
     def test_tiktok_inbox_handoff_is_not_misreported_as_published(self):
         result = inspect_lifecycle_consistency(
