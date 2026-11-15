@@ -96,6 +96,16 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("commercial_relationship_disclosed", app_js)
         self.assertIn("SELF_ONLY", app_js)
 
+    def test_tiktok_oauth_connection_is_available_from_integration_readiness(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="connectTikTok"', html)
+        self.assertIn("/api/tiktok/oauth/start", app_js)
+        self.assertIn("window.location.assign", app_js)
+        self.assertIn("tiktok_oauth=connected", app_js)
+        self.assertIn("/api/tiktok/oauth/status", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
