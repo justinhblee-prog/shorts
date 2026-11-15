@@ -976,3 +976,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression coverage proving missing privacy selection is rejected before any remote request.
 - Current UX uses a constrained prompt rather than a native dropdown; improve to a dedicated selector before product audit.
 - CI passed at commit aad8f0e (314 tests).
+
+
+### BUILD-00032 — TikTok concurrent idempotency race (2026-11-15)
+
+- Close a time-of-check/time-of-use race where a second worker could read a non-terminal state, then observe a completed publication from the atomic BEGIN IMMEDIATE operation, but ignore that completed row and issue a second remote Direct Post initialization.
+- The publisher now returns the authoritative completed row from the atomic begin operation without making another TikTok request.
+- Add a regression test simulating the race and asserting that no network request is sent.
+- CI validation pending.
