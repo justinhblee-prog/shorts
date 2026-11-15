@@ -450,3 +450,8 @@ GitHub Actions PR run [43719673855](https://github.com/justinhblee-prog/shorts/a
 Provider JSON adapters read no more than 2 MiB plus one detection byte and reject oversized responses before JSON parsing. The same limit is enforced after custom/injected transports return, preventing a custom adapter from bypassing the boundary. This protects worker memory from unexpectedly large or malformed provider responses. Renderer media artifacts are separate binary downloads and continue to use the media staging size limit.
 
 GitHub Actions PR run [43720002960](https://github.com/justinhblee-prog/shorts/actions/runs/43720002960) passed **499 tests** and frontend validation passed with **107 unique IDs / 91 literal selectors**.
+
+
+## Trusted reverse proxies for API rate limits
+
+By default, rate-limit buckets use the direct ASGI peer IP and ignore `X-Forwarded-For`. When operating behind a reverse proxy, configure `NEXUS_TRUSTED_PROXY_CIDRS` with only the exact proxy IPv4/IPv6 CIDRs you control. Forwarded addresses are honored only when the direct peer is trusted; the middleware walks the chain right-to-left and stops at the first untrusted hop. Invalid, duplicate, oversized or malformed headers fall back to the proxy peer. Ensure your proxy appends or overwrites forwarding metadata safely. Never trust all public addresses or allow direct untrusted traffic to supply forwarding headers. Invalid CIDR configuration fails API startup.
