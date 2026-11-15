@@ -983,7 +983,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Close a time-of-check/time-of-use race where a second worker could read a non-terminal state, then observe a completed publication from the atomic BEGIN IMMEDIATE operation, but ignore that completed row and issue a second remote Direct Post initialization.
 - The publisher now returns the authoritative completed row from the atomic begin operation without making another TikTok request.
 - Add a regression test simulating the race and asserting that no network request is sent.
-- CI validation pending.
+- CI passed at code commit d06d940 (320 tests).
 
 
 ### BUILD-00033 — TikTok media-spec byte inspection (2026-11-15)
