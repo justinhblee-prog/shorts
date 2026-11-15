@@ -67,3 +67,13 @@ This runs Python bytecode compilation, unittest discovery, and (when Node.js is 
 - Forecasts are estimates, not actual earnings.
 - Missing source metrics remain missing; no fabricated views, RPM, trend volume or revenue.
 - Real AI generation, OAuth, YouTube upload, and real financial reconciliation require external credentials and validation.
+
+
+### Recommendation experiments (shadow-only)
+Authenticated operator endpoints:
+- `POST /api/recommendations/experiments` creates a draft control/treatment experiment.
+- `GET /api/recommendations/experiments` lists definitions and shadow assignment counts.
+- `POST /api/recommendations/experiments/{experiment_id}/shadow-assignment` computes a stable assignment without serving a variant.
+- `GET /api/recommendations/experiments/{experiment_id}/report` reports assignment counts and explicit evidence gaps.
+
+Live assignment, recommendation changes, causal-effect claims and ranking-score adjustments are disabled. Shadow assignment is not an exposure.
