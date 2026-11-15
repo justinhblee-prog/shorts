@@ -178,7 +178,7 @@ class YouTubePublishingTests(unittest.TestCase):
     def test_reconciliation_requires_a_note_and_rejects_conflicting_outcome(self):
         with self.assertRaises(YouTubeUploadError):
             self.uploads.reconcile("missing","uploaded","video-id","checked")
-        self.uploads.begin("job-1","Sleep short","")
+        active=self.uploads.begin("job-1","Sleep short","")
         with self.assertRaises(YouTubeUploadError):
             self.uploads.reconcile("job-1","uploaded","yt-video-1","checked too early")
         self.uploads.mark_reconciliation_required("job-1","Simulated stale upload",active["attempt_id"])
