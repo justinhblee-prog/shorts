@@ -134,6 +134,8 @@ class QueueTests(unittest.TestCase):
      (job["id"],"video-1","uploaded","private","title","desc","now",None,"now","attempt-yt","v1","now"))
    c.execute("INSERT INTO youtube_upload_events(job_id,event_type,operator_id,created_at) VALUES(?,?,?,?)",
      (job["id"],"upload_attempt_started","operator","now"))
+   c.execute("INSERT INTO tiktok_publication_events(job_id,event_type,operator_id,created_at) VALUES(?,?,?,?)",
+     (job["id"],"publication_attempt_started","operator","now"))
    c.execute("INSERT INTO tiktok_publications VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
      (job["id"],"pub-1","processing","SELF_ONLY","title",1,None,None,None,None,None,0,0,"operator","now","now","attempt-tt","v1"))
   result=self.q.lifecycle_summaries([job["id"],job["id"]])
