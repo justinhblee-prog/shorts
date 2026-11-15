@@ -80,7 +80,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 - Keep YouTube ad revenue, affiliate income, sponsorship income and costs distinct.
 - Use the correct ISO currency code. Reports are currency-filtered; do not add currencies together.
 - Profitability scoring is a scenario estimate based on operator-supplied assumptions. It is not an earnings forecast or guarantee.
-- Performance insights compare stored counter snapshots; they are not causal attribution, detailed per-second audience-retention curves or real-time view velocity. YouTube Analytics provides aggregate watch time and average view duration/percentage over a rolling 28-day window.
+- Performance insights compare stored counter snapshots; they are not causal attribution, detailed per-second audience-retention curves or real-time view velocity. YouTube Analytics provides aggregate watch time and average view duration/percentage over a rolling 28-day window. These are surfaced as descriptive cohort evidence only; they do not change recommendation ranking.
 - The metrics-collector service refreshes YouTube and TikTok independently. TikTok requires `video.list` consent and collects only views, likes, comments and shares for completed owned publications. Reauthorize an existing TikTok connection if that scope is missing. The dashboard status distinguishes missing authorization from collection errors.
 
 ## 7. Recovery and operations
@@ -110,7 +110,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 
 ## 9. Current known blockers
 
-- Latest verified YouTube Analytics/TikTok performance dashboard code validation: [GitHub Actions run 43716302094](https://github.com/justinhblee-prog/shorts/actions/runs/43716302094), **489 tests passed**. This is automated validation only; live TikTok app approval, OAuth scope consent, publication and analytics remain external checks.
+- Latest verified YouTube Analytics/TikTok performance dashboard code validation: [GitHub Actions run 43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969), **490 tests passed**. This is automated validation only; live TikTok app approval, OAuth scope consent, publication and analytics remain external checks.
 - Real provider credentials, renderer CDN hostnames, YouTube OAuth and financial integrations remain external dependencies. CI does not establish live provider compatibility, actual media generation, private YouTube upload, revenue ingestion or deployment readiness.
 - The application still uses a single-host SQLite architecture; multi-host distributed worker/scheduler operation is not established.
 
