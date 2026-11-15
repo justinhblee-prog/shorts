@@ -864,6 +864,27 @@ class ApiSecurityTests(unittest.TestCase):
             self.assertEqual(list_recommendation_experiments(x_review_token="token")["count"],0)
             self.assertFalse(recommendation_experiment_report("exp-1",x_review_token="token")["live_assignment_enabled"])
 
+    def test_recommendation_experiment_integrity_route_is_authenticated_and_read_only(self):
+        from app import recommendation_experiment_integrity_report
+        expected = {
+            "status": "shadow_only_no_verified_exposure",
+            "verified_randomized_served_exposure_count": 0,
+            "ranking_score_adjustment": 0,
+            "deployment_authorized": False,
+        }
+        with mock.patch("app.require_review_access") as access, \
+             mock.patch.object(app_module.recommendation_evaluation_store,
+                               "experiment_integrity_report",return_value=expected) as audit:
+            result = recommendation_experiment_integrity_report(x_review_token="token")
+        access.assert_called_once_with("token")
+        audit.assert_called_once_with()
+        self.assertEqual(result, expected)
+
+    def test_recommendation_experiment_integrity_route_is_included_in_auth_audit(self):
+        route = next(route for route in app.routes
+                     if getattr(route,"path","") == "/api/recommendations/experiments/integrity")
+        self.assertIn("x_review_token",route.endpoint.__annotations__)
+
     def test_recommendation_experiment_routes_are_included_in_auth_audit(self):
         protected = {
             "/api/recommendations/experiments",
