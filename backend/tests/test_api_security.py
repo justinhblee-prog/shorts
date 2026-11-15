@@ -31,6 +31,7 @@ class ApiSecurityTests(unittest.TestCase):
 
     def test_tiktok_publish_and_status_routes_are_token_protected(self):
         expected = {
+            "/api/tiktok/creator-info",
             "/api/tiktok/publish/{job_id}",
             "/api/tiktok/publications/{job_id}",
             "/api/tiktok/publications/{job_id}/refresh-status",
@@ -40,6 +41,15 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(set(found), expected)
         for route in found.values():
             self.assertIn("x_review_token", route.endpoint.__annotations__)
+
+    def test_tiktok_creator_info_route_returns_available_privacy_options(self):
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.tiktok_publisher.creator_info",
+                       return_value={"privacy_level_options": ["SELF_ONLY"]}),
+        ):
+            result = app_module.get_tiktok_creator_info(x_review_token="test-token")
+        self.assertEqual(result["privacy_level_options"], ["SELF_ONLY"])
 
     def test_tiktok_publish_requires_explicit_consent_and_passes_it_through(self):
         body = TikTokPublishRequest(
