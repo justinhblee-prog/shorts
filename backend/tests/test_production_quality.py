@@ -34,6 +34,18 @@ class ProductionQualityTests(unittest.TestCase):
         self.assertIn("does not download or inspect audio/video bytes",
                       report["verification_boundary"])
 
+    def test_reported_dimensions_must_match_vertical_short_ratio(self):
+        report = evaluate_production_quality(
+            "A clear opening explains the problem with enough words for a short video.",
+            {"factual_claims_verified": True},
+            {"duration_seconds": 30},
+            {"duration_seconds": 30, "width": 1080, "height": 1350,
+             "audio_track_present": True, "subtitles_enabled": True},
+            {},
+        )
+        self.assertEqual(report["status"], "blocked")
+        self.assertIn("render_format_is_not_vertical_9_16", report["blockers"])
+
     def test_explicit_wrong_format_or_missing_audio_blocks_review_handoff(self):
         report = evaluate_production_quality(
             "A sufficiently long script explains the subject with an opening and ending.",
