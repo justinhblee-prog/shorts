@@ -186,11 +186,44 @@ class ApiSecurityTests(unittest.TestCase):
             result = execute_production_job("job-1", body, x_review_token="test-token")
 
         self.assertEqual(result, response)
-        execute.assert_called_once_with(
-            "job-1", job["payload"], worker_id="worker-1", lease_token="lease-1"
-        )
+        execute.assert_called_once()
+        self.assertEqual(execute.call_args.args,
+                         ("job-1", job["payload"]))
+        self.assertEqual(execute.call_args.kwargs["worker_id"], "worker-1")
+        self.assertEqual(execute.call_args.kwargs["lease_token"], "lease-1")
+        self.assertIsInstance(execute.call_args.kwargs["stop_event"], app_module.threading.Event)
         finish.assert_called_once()
         reconcile.assert_called_once_with(app_module.queue)
+
+    def test_api_production_execution_stops_when_heartbeat_loses_lease(self):
+        job = {"id": "job-heartbeat", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+
+        def wait_for_lease_loss(*args, **kwargs):
+            stop_event = kwargs["stop_event"]
+            self.assertTrue(stop_event.wait(3))
+            return {"artifacts": []}
+
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "lease_seconds", 1),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "heartbeat",
+                              side_effect=app_module.LeaseConflict("lease lost")),
+            mock.patch.object(app_module.queue, "pause") as pause,
+            mock.patch.object(app_module.production_pipeline, "execute",
+                              side_effect=wait_for_lease_loss) as execute,
+            mock.patch.object(app_module.queue, "finish") as finish,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job("job-heartbeat", body, x_review_token="test-token")
+
+        self.assertEqual(caught.exception.status_code, 409)
+        self.assertTrue(execute.call_args.kwargs["stop_event"].is_set())
+        finish.assert_not_called()
+        pause.assert_called()
 
     def test_api_production_execution_rejects_stale_pipeline_lease(self):
         job = {"id": "job-1", "job_type": "short_video_production",
