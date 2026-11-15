@@ -33,6 +33,10 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("profile.review_rules", app_js)
         self.assertIn("review-guidance", app_js)
         self.assertIn("risk-level", app_js)
+        self.assertIn("생성 대본 검수", app_js)
+        self.assertIn("내레이션 미리 듣기", app_js)
+        self.assertIn("audio controls", app_js)
+        self.assertIn("esc(scriptText)", app_js)
 
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
