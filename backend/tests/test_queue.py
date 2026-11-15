@@ -42,6 +42,18 @@ class QueueTests(unittest.TestCase):
    self.q.heartbeat(job["id"],"worker-reused",claimed["lease_token"],"instance-old")
   self.assertEqual(self.q.get(job["id"])["lease_expires_at"],claimed["lease_expires_at"])
 
+ def test_stale_worker_instance_cannot_reclaim_or_steal_registry_ownership(self):
+  self.q.register_worker("worker-reused","host-new","instance-new")
+  self.q.enqueue("render",{})
+  with self.assertRaises(LeaseConflict):
+   self.q.claim("worker-reused","host-old",job_type="render",instance_token="instance-old")
+  with self.q.db() as c:
+   owner=c.execute("SELECT instance_token FROM worker_registry WHERE worker_id=?",
+                   ("worker-reused",)).fetchone()[0]
+  self.assertEqual(owner,"instance-new")
+  claimed=self.q.claim("worker-reused","host-new",job_type="render",instance_token="instance-new")
+  self.assertIsNotNone(claimed)
+
  def test_stale_worker_instance_cannot_finish_or_fail_job(self):
   job=self.q.enqueue("render",{})
   old=self.q.claim("worker-reused",instance_token="instance-old")
