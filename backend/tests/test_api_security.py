@@ -17,7 +17,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth,
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
                  skip_recommendation_feedback, capture_trend_recommendations,
-                 get_job_lifecycle)
+                 get_job_lifecycle, get_job_lifecycle_consistency)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -117,6 +117,44 @@ class ApiSecurityTests(unittest.TestCase):
                          ["queue","production","human_review","youtube","tiktok"])
         self.assertEqual(timeline[-1]["attempt_id"],"tt-attempt-1")
         self.assertEqual(timeline[-1]["outcome"],"SEND_TO_USER_INBOX")
+
+    def test_lifecycle_consistency_endpoint_returns_read_only_report(self):
+        job = {
+            "id": "job-1", "job_type": "short_video_production",
+            "status": "review_pending", "worker_id": None,
+            "lease_token": None, "lease_expires_at": None,
+        }
+        with (
+            mock.patch("app.require_review_access") as access,
+            mock.patch("app.queue.get", return_value=job),
+            mock.patch("app.production_store.get", return_value={"status": "approved"}),
+            mock.patch("app.review_store.history", return_value=[
+                {"decision": "approved", "id": 1}
+            ]),
+            mock.patch("app.youtube_upload_store.get", return_value=None),
+            mock.patch("app.tiktok_publish_store.get", return_value=None),
+        ):
+            result = get_job_lifecycle_consistency(
+                "job-1", x_review_token="test-token"
+            )
+        access.assert_called_once_with("test-token")
+        self.assertEqual(result["status"], "consistent")
+        self.assertTrue(result["read_only"])
+        self.assertFalse(result["automatic_retry_performed"])
+        self.assertEqual(result["findings"], [])
+
+    def test_lifecycle_consistency_endpoint_rejects_nonproduction_jobs(self):
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.queue.get", return_value={
+                "id": "job-2", "job_type": "other", "status": "completed"
+            }),
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                get_job_lifecycle_consistency(
+                    "job-2", x_review_token="test-token"
+                )
+        self.assertEqual(caught.exception.status_code, 409)
 
     def test_lifecycle_endpoint_rejects_nonproduction_queue_jobs(self):
         with (
