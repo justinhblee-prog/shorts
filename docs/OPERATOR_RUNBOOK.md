@@ -92,7 +92,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 
 ## 8. Validation checklist before launch
 
-- [ ] Complete `./scripts/validate.sh` successfully in a real Python 3.11+ environment.
+- [ ] Complete `sh scripts/validate.sh` successfully in a real Python 3.11+ environment.
 - [ ] Build and start Docker Compose; confirm all three services stay healthy.
 - [ ] Verify each provider's real script, voice and video output, including licensing and costs.
 - [ ] Verify renderer CDN host allowlisting and staged MP4 playback.
