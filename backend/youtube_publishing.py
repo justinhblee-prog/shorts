@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import uuid
 from contextlib import contextmanager
-from policy_engine import POLICY_VERSION
+from policy_engine import POLICY_VERSION, POLICY_CHECKED_ON
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -32,7 +32,7 @@ class YouTubeUploadStore:
               privacy_status TEXT NOT NULL DEFAULT 'private',
               title TEXT NOT NULL, description TEXT NOT NULL,
               uploaded_at TEXT, error TEXT, updated_at TEXT NOT NULL,
-              attempt_id TEXT
+              attempt_id TEXT, policy_version TEXT, policy_checked_on TEXT
             );
             CREATE TABLE IF NOT EXISTS youtube_video_snapshots(
               id INTEGER PRIMARY KEY AUTOINCREMENT, video_id TEXT NOT NULL,
@@ -44,7 +44,8 @@ class YouTubeUploadStore:
               id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
               attempt_id TEXT, event_type TEXT NOT NULL, outcome TEXT, video_id TEXT,
               operator_id TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
-              previous_status TEXT, resulting_status TEXT, created_at TEXT NOT NULL
+              previous_status TEXT, resulting_status TEXT, created_at TEXT NOT NULL,
+              policy_version TEXT, policy_checked_on TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_youtube_upload_events_job ON youtube_upload_events(job_id,id);
             CREATE TRIGGER IF NOT EXISTS youtube_upload_events_no_update
@@ -63,9 +64,17 @@ class YouTubeUploadStore:
             upload_columns={r["name"] for r in c.execute("PRAGMA table_info(youtube_uploads)")}
             if "attempt_id" not in upload_columns:
                 c.execute("ALTER TABLE youtube_uploads ADD COLUMN attempt_id TEXT")
+            if "policy_version" not in upload_columns:
+                c.execute("ALTER TABLE youtube_uploads ADD COLUMN policy_version TEXT")
+            if "policy_checked_on" not in upload_columns:
+                c.execute("ALTER TABLE youtube_uploads ADD COLUMN policy_checked_on TEXT")
             event_columns={r["name"] for r in c.execute("PRAGMA table_info(youtube_upload_events)")}
             if "attempt_id" not in event_columns:
                 c.execute("ALTER TABLE youtube_upload_events ADD COLUMN attempt_id TEXT")
+            if "policy_version" not in event_columns:
+                c.execute("ALTER TABLE youtube_upload_events ADD COLUMN policy_version TEXT")
+            if "policy_checked_on" not in event_columns:
+                c.execute("ALTER TABLE youtube_upload_events ADD COLUMN policy_checked_on TEXT")
     @contextmanager
     def db(self):
         c=sqlite3.connect(self.db_path,timeout=30)
@@ -147,18 +156,27 @@ class YouTubeUploadStore:
                 )
             attempt_id=uuid.uuid4().hex
             c.execute("""INSERT INTO youtube_uploads
-              (job_id,status,privacy_status,title,description,updated_at,attempt_id)
-              VALUES(?,'uploading','private',?,?,?,?)
+              (job_id,status,privacy_status,title,description,updated_at,attempt_id,
+               policy_version,policy_checked_on)
+              VALUES(?,'uploading','private',?,?,?,?,?,?)
               ON CONFLICT(job_id) DO UPDATE SET status='uploading',
                 privacy_status='private',title=excluded.title,
                 description=excluded.description,error=NULL,updated_at=excluded.updated_at,
-                video_id=NULL,uploaded_at=NULL,attempt_id=excluded.attempt_id
-            """,(job_id,title,description,_now(),attempt_id))
+                video_id=NULL,uploaded_at=NULL,attempt_id=excluded.attempt_id,
+                policy_version=excluded.policy_version,
+                policy_checked_on=excluded.policy_checked_on
+            """,(job_id,title,description,_now(),attempt_id,
+                  current_policy["policy_version"],current_policy.get("policy_checked_on")))
             c.execute("""INSERT INTO youtube_upload_events
-              (job_id,attempt_id,event_type,outcome,operator_id,note,previous_status,resulting_status,created_at)
+              (job_id,attempt_id,event_type,outcome,operator_id,note,previous_status,
+               resulting_status,created_at,policy_version,policy_checked_on)
               VALUES(?,?,'upload_attempt_started','started','system:upload_worker',
-                'Upload attempt initialized with private visibility',?,'uploading',?)""",
-              (job_id,attempt_id,row["status"] if row else None,_now()))
+                ?,?,'uploading',?,?,?)""",
+              (job_id,attempt_id,
+               "Upload attempt initialized with private visibility; policy version "
+               + str(current_policy["policy_version"]),
+               row["status"] if row else None,_now(),
+               current_policy["policy_version"],current_policy.get("policy_checked_on")))
             return dict(c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone())
 
     def finish(self,job_id,video_id,attempt_id=None):
