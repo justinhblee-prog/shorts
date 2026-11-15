@@ -34,7 +34,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00005 | AI script, voice and video pipeline | Provider orchestration, lease-aware worker and API implemented; mocked tests committed; runtime/live-provider validation pending |
 | BUILD-00006 | Ten-brand operations | Persistent 10-brand registry, activation controls and production market validation implemented; runtime validation pending |
 | BUILD-00007 | Review and approval workflow | Decision store, authenticated APIs, audit snapshots and tests committed; runtime validation pending |
-| BUILD-00008 | YouTube publishing and tracking | Not started |
+| BUILD-00008 | YouTube publishing and tracking | OAuth refresh-token adapter, approval-gated private resumable upload, upload ledger and Data API counter snapshots committed; live validation pending |
 | BUILD-00009 | Revenue, cost and ROI analytics | Not started |
 | BUILD-00010 | AI performance analysis and strategy updates | Not started |
 | BUILD-00011 | Scheduling and recovery operations | Not started |
@@ -136,3 +136,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - APIs: GET `/api/review/pending`; POST `/api/review/{job_id}/approve`; POST `/api/review/{job_id}/reject`; POST `/api/review/{job_id}/request-revision`; GET `/api/review/{job_id}/history`.
 - Added SQLite tests for pending items, decision audit, artifact snapshots, mandatory reasons, immutable decision state and fail-closed token validation.
 - **Not validated:** test execution, deployment security, reviewer identity integration or connection to a public publishing workflow.
+
+## BUILD-00008 — YouTube private publishing and counter tracking
+
+- Added `backend/youtube_publishing.py`: refresh-token OAuth client, resumable media upload, persistent upload state and source-backed video counter snapshots.
+- Upload requires a prior recorded human approval decision for the exact production job.
+- Privacy is hard-coded to `private`; callers cannot request public or unlisted status.
+- APIs: POST `/api/youtube/upload/{job_id}`; GET `/api/youtube/uploads/{job_id}`; POST `/api/youtube/videos/{video_id}/refresh-metrics`. All require `NEXUS_REVIEW_TOKEN`.
+- Runtime secrets: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN`; OAuth scopes: `youtube.upload` and `youtube.readonly`.
+- The upload endpoint accepts a server-local media path. Remote artifact URL download/staging and multi-channel OAuth are not yet implemented.
+- Added mocked tests for approval gating, private-only metadata, idempotent successful upload and source metrics persistence.
+- **Not validated:** Python test execution, real OAuth, real media upload, YouTube processing, live counter retrieval or production quota.
