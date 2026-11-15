@@ -18,7 +18,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
                  skip_recommendation_feedback, capture_trend_recommendations,
                  get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
-                 operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview)
+                 operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview, metrics_collection_status)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -767,6 +767,18 @@ class ApiSecurityTests(unittest.TestCase):
                 os.environ.pop("NEXUS_REVIEW_TOKEN", None)
             else:
                 os.environ["NEXUS_REVIEW_TOKEN"] = previous
+
+    def test_metrics_collection_status_is_authenticated_and_discloses_platform_gaps(self):
+        with mock.patch("app.require_review_access") as access, \\
+             mock.patch.object(app_module.youtube_upload_store, "metrics_collection_status",
+                               return_value={"platform": "youtube", "status": "succeeded",
+                                             "coverage": {}, "read_only": True}):
+            result = metrics_collection_status(x_review_token="test-token")
+        access.assert_called_once_with("test-token")
+        self.assertTrue(result["read_only"])
+        self.assertEqual(result["platforms"]["tiktok"]["status"], "not_implemented")
+        self.assertIn("swipe_away_rate",
+                      result["platforms"]["youtube"]["unavailable_metrics"])
 
 if __name__ == "__main__":
     unittest.main()
