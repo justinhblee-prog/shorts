@@ -351,5 +351,33 @@ class TikTokOAuthTests(unittest.TestCase):
 
 
 
+    def test_exchange_code_rejects_oversized_or_controlled_code_before_consuming_state(self):
+        auth = self.manager.start_authorization()
+        state = parse_qs(urlparse(auth["authorization_url"]).query)["state"][0]
+        for code in ("", " leading", "line\nbreak", "x" * 4097):
+            with self.subTest(code_length=len(code)):
+                with self.assertRaises(TikTokOAuthError):
+                    self.manager.exchange_code(code, state)
+        with self.store.db() as connection:
+            row = connection.execute(
+                "SELECT used_at FROM tiktok_oauth_states"
+            ).fetchone()
+        self.assertIsNone(row["used_at"])
+        self.assertEqual(self.transport.calls, [])
+
+    def test_exchange_code_rejects_malformed_or_oversized_state(self):
+        for state in ("", "short", "bad state value", "x" * 257, "x" * 16 + "/"):
+            with self.subTest(state_length=len(state)):
+                with self.assertRaises(TikTokOAuthError):
+                    self.manager.exchange_code("valid-code", state)
+        self.assertEqual(self.transport.calls, [])
+        with self.store.db() as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM tiktok_oauth_states"
+            ).fetchone()[0]
+        self.assertEqual(count, 0)
+
+
+
 if __name__ == "__main__":
     unittest.main()

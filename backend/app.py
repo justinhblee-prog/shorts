@@ -2,8 +2,8 @@ import os
 import sqlite3
 import secrets
 import logging
-from typing import Any, Literal
-from fastapi import FastAPI, HTTPException, Header, Request, Response
+from typing import Any, Literal, Annotated
+from fastapi import FastAPI, HTTPException, Header, Request, Response, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -848,8 +848,11 @@ def start_tiktok_oauth(
 
 @app.get("/api/tiktok/oauth/callback")
 def tiktok_oauth_callback(
-    request:Request,code:str|None=None,state:str|None=None,
-    error:str|None=None,error_description:str|None=None
+    request:Request,
+    code:Annotated[str|None,Query(max_length=4096)]=None,
+    state:Annotated[str|None,Query(max_length=256)]=None,
+    error:Annotated[str|None,Query(max_length=128)]=None,
+    error_description:Annotated[str|None,Query(max_length=1024)]=None
 ):
     cookie_state=request.cookies.get("tiktok_oauth_state")
     if error or not state or not cookie_state or not secrets.compare_digest(cookie_state,state):

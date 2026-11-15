@@ -25,6 +25,8 @@ MAX_TIKTOK_OPEN_ID_CHARS = 256
 MAX_TIKTOK_SCOPE_CHARS = 4096
 MAX_TIKTOK_ACCESS_TTL_SECONDS = 31_536_000
 MAX_TIKTOK_REFRESH_TTL_SECONDS = 315_360_000
+MAX_TIKTOK_AUTH_CODE_CHARS = 4096
+MAX_TIKTOK_STATE_CHARS = 256
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -358,10 +360,20 @@ class TikTokOAuthManager:
 
     def exchange_code(self, code, state):
         self._require_config()
-        if not isinstance(code, str) or not code.strip():
-            raise TikTokOAuthError("TikTok authorization code is required")
-        if not isinstance(state, str) or not state:
-            raise TikTokOAuthError("TikTok OAuth state is required")
+        if (
+            not isinstance(code, str)
+            or not code
+            or len(code) > MAX_TIKTOK_AUTH_CODE_CHARS
+            or code != code.strip()
+            or any(ord(char) < 33 or ord(char) > 126 for char in code)
+        ):
+            raise TikTokOAuthError("TikTok authorization code is missing or invalid")
+        if (
+            not isinstance(state, str)
+            or not 16 <= len(state) <= MAX_TIKTOK_STATE_CHARS
+            or re.fullmatch(r"[A-Za-z0-9_-]+", state) is None
+        ):
+            raise TikTokOAuthError("TikTok OAuth state is missing or invalid")
         state_hash = hashlib.sha256(state.encode()).hexdigest()
         self.store.consume_state(state_hash)
         data = self._post_token({
