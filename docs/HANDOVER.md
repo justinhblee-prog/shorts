@@ -1166,3 +1166,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Configure dedicated `NEXUS_BACKUP_ENCRYPTION_KEY` (generate via Fernet.generate_key); do not reuse the TikTok token key. Preserve it separately from backup media.
 - Encrypted backups are `.sqlite3.enc`; CLI verify and restore use the configured key. Wrong key or tampering fails closed; plaintext temporary files are cleaned.
 - Existing plaintext mode remains supported. Key custody, off-host copy and real restore drills are still operator tasks. Final-head push CI [43774559417](https://github.com/justinhblee-prog/shorts/actions/runs/43774559417) and PR CI [43774562521](https://github.com/justinhblee-prog/shorts/actions/runs/43774562521): **609 tests passed**.
+
+
+## Handover — BUILD-00110 (2026-11-16)
+
+- Added `backend/operator_rbac.py` and role checks for sensitive operator API actions.
+- Configure `NEXUS_REVIEW_CREDENTIALS_JSON` and `NEXUS_REVIEW_ROLE_MAP_JSON` with matching reviewer IDs. Roles: admin, producer, reviewer, publisher, analyst, operator, finance.
+- When the role map is set, unmapped identities have no role permissions; malformed config returns 503. Without it, legacy authenticated full-access remains for compatibility, so RBAC is not yet active.
+- Read `docs/BUILD_00110.md`, `backend/README.md` and `docs/OPERATOR_RUNBOOK.md` before deployment. External IdP/OIDC, token expiry/rotation automation and production deployment remain outstanding. CI pending.
