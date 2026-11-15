@@ -142,6 +142,19 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(self.service._videos.body["status"]["privacyStatus"],"private")
         self.assertEqual(result["snapshots"][0]["view_count"],123)
 
+    def test_stale_error_cannot_downgrade_confirmed_upload(self):
+        uploaded=self.publisher.upload_approved(
+            "job-1",self.media,self.review,"Confirmed short"
+        )
+        self.assertEqual(uploaded["status"],"uploaded")
+        self.uploads.mark_reconciliation_required(
+            "job-1","late stale worker exception","obsolete-attempt-token"
+        )
+        current=self.uploads.get("job-1")
+        self.assertEqual(current["status"],"uploaded")
+        self.assertEqual(current["video_id"],"yt-video-123")
+        self.assertEqual(current["events"][-1]["resulting_status"],"uploaded")
+
     def test_upload_is_idempotent_after_success(self):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         second=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
