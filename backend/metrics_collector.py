@@ -75,7 +75,7 @@ def run_youtube_analytics_once(store=None, collector=None, upload_store=None):
     try:
         store.record_collection("running")
         try:
-            result = collector.refresh(limit=BATCH_SIZE, days=28)
+            result = collector.refresh(limit=BATCH_SIZE, days=28, min_age_seconds=MIN_AGE)
         except Exception as exc:
             reasons = {item.get("reason") for item in (getattr(exc, "error_details", None) or []) if isinstance(item, dict)}
             status = "scope_missing" if "insufficientPermissions" in reasons else "failed"
