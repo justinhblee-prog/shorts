@@ -54,7 +54,7 @@ def main():
                     if os.getenv("TIKTOK_ACCESS_TOKEN"):
                         try:
                             poll = tiktok_publisher.refresh_due_statuses(
-                                limit=5, min_age_seconds=60
+                                limit=2, min_age_seconds=60
                             )
                             if poll.get("checked"):
                                 logger.info(
