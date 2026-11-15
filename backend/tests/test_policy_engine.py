@@ -62,6 +62,21 @@ class PolicyEngineTests(unittest.TestCase):
         })
         self.assertIn("youtube_contains_synthetic_media", report["approval_blockers"])
 
+    def test_nonrealistic_youtube_ai_does_not_trigger_realistic_media_label(self):
+        report = evaluate_content_policy({
+            "platforms": ["youtube"],
+            "synthetic_media_status": "ai_generated",
+            "youtube_contains_synthetic_media": False,
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "factual_claims_verified": True,
+            "originality_notes": "Stylized non-photorealistic animation.",
+        })
+        self.assertNotIn("platform_disclosures.youtube_altered_content",
+                         report["approval_blockers"])
+        self.assertNotIn("youtube_contains_synthetic_media",
+                         report["approval_blockers"])
+
     def test_tiktok_ai_generated_disclosure_is_separate_from_youtube_realism_field(self):
         report = evaluate_content_policy({
             "platforms": ["tiktok"],
