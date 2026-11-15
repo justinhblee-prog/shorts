@@ -18,7 +18,8 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
                  skip_recommendation_feedback, capture_trend_recommendations,
                  get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
-                 operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview, metrics_collection_status)
+                 operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview, metrics_collection_status,
+                 capture_recommendation_evaluation_snapshot, list_recommendation_evaluation_snapshots)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -360,6 +361,47 @@ class ApiSecurityTests(unittest.TestCase):
             "candidate-1",
         )
         self.assertEqual(result["evaluation_run_id"], "run-1")
+
+    def test_evaluation_snapshot_capture_requires_review_access_and_persists(self):
+        evaluation = {
+            "status": "holdout_available", "selected_production_count": 12,
+            "measured_outcome_count": 12, "holdout_run_count": 2,
+            "holdout_score_views_spearman": 0.75,
+            "ranking_score_adjustment_enabled": False,
+        }
+        snapshot = {
+            "snapshot_id": "snapshot-1", "created_at": "2026-11-15T00:00:00+00:00",
+            "deduplicated": False, "input_fingerprint": "fingerprint-1",
+        }
+        with (
+            mock.patch("app.require_review_access") as access,
+            mock.patch.object(app_module.performance_analyzer, "analyze",
+                              return_value=evaluation),
+            mock.patch.object(app_module.recommendation_evaluation_store,
+                              "evaluate", return_value=evaluation),
+            mock.patch.object(app_module.recommendation_evaluation_store,
+                              "record_evaluation_snapshot", return_value=snapshot) as record,
+        ):
+            result = capture_recommendation_evaluation_snapshot(x_review_token="test-token")
+        access.assert_called_once_with("test-token")
+        record.assert_called_once_with(evaluation)
+        self.assertEqual(result["snapshot_id"], "snapshot-1")
+        self.assertFalse(result["ranking_score_adjustment_enabled"])
+
+    def test_evaluation_snapshot_history_is_authenticated_and_bounded(self):
+        with (
+            mock.patch("app.require_review_access") as access,
+            mock.patch.object(app_module.recommendation_evaluation_store,
+                              "list_evaluation_snapshots",
+                              return_value={"items": [], "count": 0, "limit": 20,
+                                            "immutable": True}) as listing,
+        ):
+            result = list_recommendation_evaluation_snapshots(
+                limit=500, x_review_token="test-token"
+            )
+        access.assert_called_once_with("test-token")
+        listing.assert_called_once_with(500)
+        self.assertTrue(result["immutable"])
 
     def test_recommendation_skip_feedback_is_token_protected(self):
         route = next(route for route in app.routes
