@@ -84,6 +84,17 @@ class ReviewStore:
         } for x in rows]
         return run
 
+
+    def list_approved(self, limit=50):
+        limit = max(1, min(int(limit), 200))
+        with self.db() as c:
+            rows = c.execute("""
+              SELECT r.* FROM production_runs r
+              WHERE r.status='approved'
+              ORDER BY r.updated_at DESC LIMIT ?
+            """, (limit,)).fetchall()
+            return [self._with_artifacts(c, dict(row)) for row in rows]
+
     def decide(self, job_id, decision, reviewer_id, comment=""):
         if decision not in self.DECISIONS:
             raise ValueError("Unsupported review decision")
