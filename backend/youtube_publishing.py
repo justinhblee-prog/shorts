@@ -83,6 +83,28 @@ class YouTubeUploadStore:
             c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
                          WHERE job_id=? AND status='uploading'""",(str(error)[:2000],_now(),job_id))
 
+    @staticmethod
+    def upload_stale_seconds():
+        return max(60,int(os.getenv("NEXUS_UPLOAD_STALE_SECONDS","900")))
+
+    @classmethod
+    def is_stale_upload(cls,row):
+        if row is None or row["status"]!="uploading":
+            return False
+        try:
+            updated=datetime.fromisoformat(row["updated_at"])
+            if updated.tzinfo is None:
+                updated=updated.replace(tzinfo=timezone.utc)
+            return (datetime.now(timezone.utc)-updated).total_seconds() >= cls.upload_stale_seconds()
+        except (TypeError,ValueError):
+            return False
+
+    def touch_upload(self,job_id):
+        with self.db() as c:
+            c.execute("""UPDATE youtube_uploads SET updated_at=?
+              WHERE job_id=? AND status='uploading'""",(_now(),job_id))
+            return c.rowcount==1
+
     def mark_reconciliation_required(self,job_id,error):
         with self.db() as c:
             c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',
@@ -108,6 +130,10 @@ class YouTubeUploadStore:
                 if outcome=="uploaded" and row["video_id"]==video_id:
                     return self.get(job_id)
                 raise YouTubeUploadError("Upload is already finalized; conflicting reconciliation rejected")
+            if row["status"]=="uploading" and not self.is_stale_upload(row):
+                raise YouTubeUploadError(
+                    "Upload is still within its active window; wait for completion or timeout before reconciliation"
+                )
             if row["status"] not in ("uploading","reconciliation_required"):
                 raise YouTubeUploadError("Only an ambiguous upload can be reconciled")
             if outcome=="uploaded":
@@ -143,6 +169,9 @@ class YouTubeUploadStore:
                     "SELECT * FROM youtube_video_snapshots WHERE video_id=? ORDER BY id",
                     (row["video_id"],)).fetchall()]
             else: result["snapshots"]=[]
+            result["reconciliation_required"]=(
+                row["status"]=="reconciliation_required" or self.is_stale_upload(row)
+            )
             return result
 
 
@@ -232,6 +261,8 @@ class YouTubePublisher:
             response=None
             while response is None:
                 _,response=request.next_chunk()
+                if response is None:
+                    self.store.touch_upload(job_id)
             video_id=response.get("id")
             if not video_id:
                 raise YouTubeUploadError("YouTube response did not contain a video ID")
