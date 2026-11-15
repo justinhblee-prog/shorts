@@ -877,4 +877,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 ### Bounded provider responses — BUILD-00078
 - All JSON provider adapters now cap response bodies at 2 MiB before parsing. The HTTP transport reads only limit + 1 bytes; the adapter also checks custom transport output.
 - Oversized and non-binary responses fail closed without echoing response content. Media artifact downloads remain under the separate media staging limit.
-- Added two regression tests. GitHub Actions validation is pending; do not claim this build is tested until the branch-head run passes.
+- Added two regression tests. GitHub Actions PR run [43720002960](https://github.com/justinhblee-prog/shorts/actions/runs/43720002960) passed **499 tests**, with 107 unique HTML IDs / 91 JS selectors.
