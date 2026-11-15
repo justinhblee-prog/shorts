@@ -330,7 +330,7 @@ class JobQueue:
             if row["status"] in ("uploaded","cancelled","failed_terminal"):
                 raise ValueError("Job is already terminal")
             is_production = row["job_type"] == "short_video_production"
-            if is_production and row["status"] not in ("queued","failed_retriable","running"):
+            if is_production and row["status"] not in ("queued","failed_retriable","running","review_pending"):
                 raise ValueError("Production jobs can only be cancelled before review handoff")
             production_table = c.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
@@ -342,6 +342,10 @@ class JobQueue:
                 ).fetchone()
                 if production and production["status"] in ("approved","uploaded"):
                     raise ValueError("Approved or uploaded production cannot be cancelled")
+                if row["status"] == "review_pending" and (
+                    production is None or production["status"] != "rendered"
+                ):
+                    raise ValueError("Production has already completed the review handoff")
             ambiguous = is_production and row["status"] == "running"
             error_code = "cancelled_external_outcome_ambiguous" if ambiguous else "cancelled"
             error_message = (

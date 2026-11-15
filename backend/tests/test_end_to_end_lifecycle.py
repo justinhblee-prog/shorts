@@ -220,8 +220,10 @@ class EndToEndLifecycleTests(unittest.TestCase):
         submitted = submit_production(self.queue, self.production, brief)
         job_id = submitted["job"]["id"]
         self.queue.cancel(job_id, "Operator cancellation")
+        # Queue cancellation now updates the production record in the same
+        # SQLite transaction; the reconciliation pass has nothing left to repair.
         result = self.production.reconcile_terminal_jobs(self.queue)
-        self.assertEqual(result["job_ids"], [job_id])
+        self.assertEqual(result["job_ids"], [])
         self.assertEqual(self.production.get(job_id)["status"], "cancelled")
         self.assertEqual(self.production.get(job_id)["current_stage"], "cancelled")
 
