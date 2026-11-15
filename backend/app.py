@@ -214,7 +214,7 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
             queue.pause(f"API provider failure at {e.stage}: {e}", job_id)
         except Exception:
             pass
-        raise HTTPException(502,{"stage":e.stage,"error":str(e),"retryable":e.retryable})
+        raise HTTPException(502,{"stage":e.stage,"error":str(e),"retryable":False})
     except JobNotFound:
         raise HTTPException(404,"Job not found")
     except ProductionLeaseConflict as e:
