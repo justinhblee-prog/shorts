@@ -60,7 +60,13 @@
     const items=data.items||[];
     $("approvedList").innerHTML=items.length?items.map(item=>{
       const video=(item.artifacts||[]).find(a=>a.artifact_type==="video");
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">비공개 업로드</button></div></article>';
+      const uncertain=!!item.upload_reconciliation_required;
+      const status=item.upload_status||"not_uploaded";
+      const action=uncertain
+        ? '<button class="button button-outline" data-reconcile-id="'+esc(item.job_id)+'">업로드 결과 대조</button>'
+        : '<button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">비공개 업로드</button>';
+      const statusText=uncertain?"업로드 결과 확인 필요":(status==="failed"?"이전 업로드 실패 · 재시도 가능":(status==="uploaded"?"업로드 완료":"업로드 대기"));
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+'</div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
   }
   async function loadTrends(){
@@ -152,6 +158,29 @@
   });
 
   $("approvedList").addEventListener("click",async e=>{
+    const reconcileButton=e.target.closest("button[data-reconcile-id]");
+    if(reconcileButton){
+      if(!requireToken())return;
+      const id=reconcileButton.dataset.reconcileId;
+      const outcome=prompt("YouTube Studio에서 해당 작업의 업로드 결과를 확인한 뒤 입력하세요: uploaded 또는 not_uploaded");
+      if(outcome===null)return;
+      const normalized=outcome.trim().toLowerCase();
+      if(!["uploaded","not_uploaded"].includes(normalized)){toast("uploaded 또는 not_uploaded만 입력할 수 있습니다.");return;}
+      let videoId=null;
+      if(normalized==="uploaded"){
+        videoId=prompt("YouTube Studio에서 확인한 영상 ID를 입력하세요.");
+        if(videoId===null||!videoId.trim())return;
+      }else if(!confirm("YouTube Studio에서 해당 영상이 업로드되지 않았음을 직접 확인하셨습니까? 확인 후에만 재시도를 허용합니다.")){
+        return;
+      }
+      const note=prompt("대조 근거 또는 확인 메모를 입력하세요.");
+      if(note===null||!note.trim())return;
+      try{
+        await api("/api/youtube/uploads/"+encodeURIComponent(id)+"/reconcile",{method:"POST",body:JSON.stringify({outcome:normalized,confirmed:true,video_id:videoId,note:note.trim()})});
+        toast("업로드 상태 대조가 기록되었습니다.");await refreshAll();
+      }catch(err){$("upload-"+CSS.escape(id)).textContent=err.message;toast(err.message);}
+      return;
+    }
     const b=e.target.closest("button[data-upload-id]");if(!b)return;if(!requireToken())return;
     const id=b.dataset.uploadId;
     const title=prompt("YouTube 영상 제목 (최대 100자)", "Shorts · "+id.slice(0,8));
