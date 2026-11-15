@@ -209,6 +209,8 @@ class TrendRecommendationTests(unittest.TestCase):
              "publication_age_bucket": "under_24h", "duration_bucket": "20_40s",
              "format": "vertical_short", "topic_signature": "ai explained robotics",
              "sample_count": 4, "median_views_per_hour": 150.0,
+             "analytics_sample_count": 3, "median_average_view_percentage": 72.5,
+             "median_average_view_duration_seconds": 18.0,
              "interaction_rate_sample_count": 3,
              "median_interactions_per_1000_view_delta": 22.0,
              "evidence_status": "observed"},
@@ -237,6 +239,8 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(context["matched_cohort_count"], 1)
         self.assertEqual(context["cohorts"][0]["sample_count"], 4)
         self.assertEqual(context["cohorts"][0]["median_views_per_hour"], 150.0)
+        self.assertEqual(context["cohorts"][0]["median_average_view_percentage"], 72.5)
+        self.assertEqual(context["cohorts"][0]["analytics_sample_count"], 3)
         self.assertEqual(context["ranking_score_adjustment"], 0)
 
     def test_competitor_evidence_is_region_scoped_and_does_not_change_editorial_score(self):
