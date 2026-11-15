@@ -106,3 +106,18 @@ Configure a strong `NEXUS_REVIEW_TOKEN` secret in the API environment. Review en
 - `GET /api/review/{job_id}/history`
 
 Request body: `{"reviewer_id":"operator-1","comment":"Optional approval note"}`. Rejection and revision requests require a comment. Decisions record the reviewed artifact snapshot and are append-only; a decision cannot be overwritten. Approval does not trigger upload or public publishing. The current reviewer ID is asserted by the caller; integrate a real identity provider and role-based authorization before multi-user production deployment.
+
+## BUILD-00008 — YouTube private publishing and counters
+
+Configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REFRESH_TOKEN` as runtime secrets. The refresh token must be granted `youtube.upload` and `youtube.readonly` scopes. Never commit credentials or token files.
+
+The upload endpoint requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-Token` and a job with a recorded `approved` human decision:
+- `POST /api/youtube/upload/{job_id}`
+- `GET /api/youtube/uploads/{job_id}`
+- `POST /api/youtube/videos/{video_id}/refresh-metrics`
+
+Upload body includes a server-local `media_path`, title, description, tags and category ID. The API forces `privacyStatus=private`; there is no public/unlisted override. The server must already have the rendered file at that local path. Current render providers return artifact URLs, so downloading/staging remote artifacts into trusted local storage is a separate deployment integration and is not silently performed by this endpoint.
+
+Uploads use the Google API client resumable media upload interface. The upload record and source-provided view/like/comment counters are persisted. A missing first metrics response does not invalidate a confirmed upload. Data API counters are not revenue; estimated or actual monetization revenue is handled separately in BUILD-00009.
+
+OAuth credentials are supplied through environment secrets; an interactive OAuth consent UI/token provisioning flow is not included. The initial adapter supports one authenticated YouTube channel per runtime. Mocked tests are committed; real OAuth, upload quota, media processing and live metrics have not been validated.
