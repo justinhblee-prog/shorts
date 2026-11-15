@@ -14,6 +14,7 @@ from youtube_publishing import YouTubeUploadStore, YouTubePublisher
 from tiktok_publishing import TikTokPublishStore
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager
 from tiktok_metrics import TikTokMetricsStore, TikTokMetricsCollector
+from youtube_analytics import YouTubeAnalyticsStore, YouTubeAnalyticsCollector
 
 DB = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
 INTERVAL = max(300, int(os.getenv("NEXUS_METRICS_COLLECTION_INTERVAL_SECONDS", "21600")))
@@ -62,6 +63,35 @@ def run_once(store=None, publisher=None):
 
 
 
+
+def run_youtube_analytics_once(store=None, collector=None, upload_store=None):
+    store = store or YouTubeAnalyticsStore(DB)
+    upload_store = upload_store or YouTubeUploadStore(DB)
+    collector = collector or YouTubeAnalyticsCollector(store, upload_store)
+    token = store.acquire_lease(OWNER_ID, lease_seconds=300)
+    if token is None:
+        logger.info("youtube_analytics_collection_skipped reason=another_collector_holds_lease")
+        return {"skipped": True, "requested": 0, "collected": 0}
+    try:
+        store.record_collection("running")
+        try:
+            result = collector.refresh(limit=BATCH_SIZE, days=28)
+        except Exception as exc:
+            status = "scope_missing" if getattr(getattr(exc, "resp", None), "status", None) == 403 else "failed"
+            error = "permission_denied" if status == "scope_missing" else type(exc).__name__
+            store.record_collection(status, error=error)
+            raise
+        store.record_collection(
+            "succeeded", requested=result["requested"],
+            collected=result["collected"], missing=len(result["missing"]),
+        )
+        logger.info("youtube_analytics_collection_completed requested=%s collected=%s missing=%s",
+                    result["requested"], result["collected"], len(result["missing"]))
+        return result
+    finally:
+        store.release_lease(OWNER_ID, token)
+
+
 def run_tiktok_once(store=None, collector=None, publication_store=None, token_manager=None):
     store = store or TikTokMetricsStore(DB)
     publication_store = publication_store or TikTokPublishStore(DB)
@@ -104,7 +134,9 @@ def main():
         # Keep provider failures isolated: a YouTube outage must not suppress
         # TikTok collection, and vice versa.
         for provider_name, collector_run in (
-            ("youtube", run_once), ("tiktok", run_tiktok_once)
+            ("youtube", run_once),
+            ("youtube_analytics", run_youtube_analytics_once),
+            ("tiktok", run_tiktok_once),
         ):
             try:
                 collector_run()
