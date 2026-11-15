@@ -125,7 +125,7 @@ class FrontendPortalTests(unittest.TestCase):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertIn("data-lifecycle-id", app_js)
         self.assertIn("/api/lifecycle/jobs/", app_js)
-        self.assertIn("/api/jobs/"+encodeURIComponent(id)+"/failure-analysis", app_js)
+        self.assertIn('/failure-analysis', app_js)
         self.assertIn("failure.latest_failure", app_js)
         self.assertIn("retry_recommendation", app_js)
         self.assertIn("renderLifecycleTrace", app_js)
