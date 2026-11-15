@@ -201,17 +201,30 @@ class TikTokPublishStore:
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
             if row and row["attempt_id"] == attempt_id:
+                now = _now()
+                # A late timeout from a concurrent status poll must not erase
+                # a terminal result already confirmed by another poll.
+                if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
+                    c.execute("""
+                      INSERT INTO tiktok_publication_events
+                        (job_id,attempt_id,event_type,outcome,publish_id,video_id,
+                         operator_id,note,created_at,policy_version)
+                      VALUES(?,?,'post_terminal_poll_error','informational',?,?,?,?,?,?)
+                    """, (job_id, attempt_id, row["publish_id"], row["video_id"],
+                          row["operator_id"], message[:1000], now, row["policy_version"]))
+                    return
                 c.execute("""
                   UPDATE tiktok_publications SET status='reconciliation_required',
-                    error=?,updated_at=? WHERE job_id=?
-                """, (message[:1000], _now(), job_id))
+                    error=?,updated_at=? WHERE job_id=? AND attempt_id=?
+                    AND status NOT IN ('publish_complete','failed','send_to_inbox')
+                """, (message[:1000], now, job_id, attempt_id))
                 c.execute("""
                   INSERT INTO tiktok_publication_events
                     (job_id,attempt_id,event_type,outcome,publish_id,operator_id,
                      note,created_at,policy_version)
                   VALUES(?,?,'remote_outcome_uncertain','unknown',?,?,?,?,?)
                 """, (job_id, attempt_id, row["publish_id"], row["operator_id"],
-                      message[:1000], _now(), row["policy_version"]))
+                      message[:1000], now, row["policy_version"]))
 
     def mark_failed_before_remote(self, job_id, attempt_id, message):
         with self.db() as c:
