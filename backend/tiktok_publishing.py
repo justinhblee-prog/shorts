@@ -118,7 +118,7 @@ class TikTokPublishStore:
             """, (job_id, attempt_id, operator_id,
                   "Explicit consent to send this approved video to TikTok; SELF_ONLY only",
                   _now(), POLICY_VERSION))
-            return self.get(job_id)
+        return self.get(job_id)
 
     def set_initialized(self, job_id, attempt_id, publish_id, creator):
         with self.db() as c:
@@ -176,7 +176,7 @@ class TikTokPublishStore:
             """, (job_id, attempt_id, "status_refreshed", status,
                   row["publish_id"], video_id, row["operator_id"],
                   fail_reason or "", _now(), row["policy_version"]))
-            return self.get(job_id)
+        return self.get(job_id)
 
     def mark_uncertain(self, job_id, attempt_id, message):
         with self.db() as c:
