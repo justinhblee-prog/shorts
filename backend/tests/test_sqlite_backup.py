@@ -120,7 +120,7 @@ class SQLiteBackupTests(unittest.TestCase):
             self.source, self.backups, keep=1, encryption_key=Fernet.generate_key()
         )
         files = [p for p in self.backups.iterdir() if p.name.startswith("nexus-")]
-        self.assertEqual(len(files), 1)
+        self.assertEqual(len(files), 1, [item.name for item in files])
         self.assertTrue(files[0].name.endswith(".sqlite3.enc"))
         self.assertEqual(encrypted["retained"], 1)
 
