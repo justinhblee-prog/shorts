@@ -1,6 +1,7 @@
 import os
+import secrets
 from typing import Any, Literal
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -500,26 +501,43 @@ def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=
         raise HTTPException(502,str(e))
 
 @app.get("/api/tiktok/oauth/start")
-def start_tiktok_oauth(x_review_token:str|None=Header(default=None)):
+def start_tiktok_oauth(
+    response:Response,x_review_token:str|None=Header(default=None)
+):
     require_review_access(x_review_token)
     try:
-        return tiktok_oauth_manager.start_authorization()
+        result=tiktok_oauth_manager.start_authorization()
+        response.set_cookie(
+            "tiktok_oauth_state",result["state"],max_age=600,
+            httponly=True,secure=True,samesite="lax",
+            path="/api/tiktok/oauth/callback"
+        )
+        result.pop("state",None)
+        return result
     except TikTokOAuthError as e:
         raise HTTPException(503,str(e))
 
 
 @app.get("/api/tiktok/oauth/callback")
 def tiktok_oauth_callback(
-    code:str|None=None,state:str|None=None,
+    request:Request,code:str|None=None,state:str|None=None,
     error:str|None=None,error_description:str|None=None
 ):
-    if error:
-        return RedirectResponse(url="/?tiktok_oauth=denied",status_code=303)
+    cookie_state=request.cookies.get("tiktok_oauth_state")
+    if error or not state or not cookie_state or not secrets.compare_digest(cookie_state,state):
+        redirect=RedirectResponse(
+            url="/?tiktok_oauth=denied" if error else "/?tiktok_oauth=error",
+            status_code=303
+        )
+        redirect.delete_cookie("tiktok_oauth_state",path="/api/tiktok/oauth/callback")
+        return redirect
     try:
         tiktok_oauth_manager.exchange_code(code,state)
-        return RedirectResponse(url="/?tiktok_oauth=connected",status_code=303)
+        redirect=RedirectResponse(url="/?tiktok_oauth=connected",status_code=303)
     except TikTokOAuthError:
-        return RedirectResponse(url="/?tiktok_oauth=error",status_code=303)
+        redirect=RedirectResponse(url="/?tiktok_oauth=error",status_code=303)
+    redirect.delete_cookie("tiktok_oauth_state",path="/api/tiktok/oauth/callback")
+    return redirect
 
 
 @app.get("/api/tiktok/oauth/status")
