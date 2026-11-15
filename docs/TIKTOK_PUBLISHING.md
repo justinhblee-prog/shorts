@@ -44,6 +44,7 @@ Preferred setup is the server-side TikTok Login Kit web OAuth flow:
 4. In the portal, select **TikTok 계정 연결**. The server creates a one-time ten-minute OAuth state, stores its hash, and binds it to a Secure, HttpOnly, SameSite=Lax browser cookie. The callback checks both cookie and server-side one-time state before exchanging the code.
 5. The server stores access and refresh tokens encrypted with Fernet. Access tokens are refreshed proactively; each successful refresh replaces the rotated refresh token. The scheduler and API share a SQLite refresh lease to prevent concurrent rotation.
 6. Required scopes are `user.info.basic` and `video.publish`. TikTok app review and creator authorization are external requirements; the code cannot grant these scopes itself.
+7. The portal's disconnect action calls TikTok's revoke endpoint before clearing the encrypted local token record. A static `TIKTOK_ACCESS_TOKEN` fallback must be removed from the runtime separately.
 
 TikTok access tokens are valid for two hours and refresh tokens for 180 days according to the current developer documentation. If the refresh token expires or is revoked, reconnect the account. Never expose client secrets or tokens in the browser or logs.
 
@@ -62,3 +63,4 @@ Official references:
 - https://developers.tiktok.com/docs/en/oauth-get-a-user-access-token
 - https://developers.tiktok.com/docs/en/oauth-refresh-a-user-access-token
 - https://developers.tiktok.com/docs/en/oauth-user-access-token-management
+- https://developers.tiktok.com/docs/en/oauth-revoke-a-user-access-token
