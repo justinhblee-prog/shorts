@@ -666,3 +666,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression coverage for policy decisions, blocked queue submissions, direct-worker blocking, provider prompt context and review UI visibility.
 - GitHub Actions run [43671183060](https://github.com/justinhblee-prog/shorts/actions/runs/43671183060) passed **166 tests** on commit `57878e3b99e03bc1e1e420c600e68d27f9b161e2`; Python compilation, frontend syntax/DOM checks and Compose YAML validation passed.
 - **Validation boundary:** this is a deterministic preflight and metadata-driven checklist, not frame-by-frame audiovisual moderation, legal advice, platform approval, monetization eligibility or a guarantee against enforcement. Platform-specific rule packs and live policy refresh, actual rights evidence verification, media-content scanning and upload-time disclosure enforcement remain future work.
+
+
+## Weighted and explainable brand relevance — 2026-11-15
+
+- Replaced the flat token-overlap brand-fit heuristic in `backend/trend_recommendations.py` with weighted profile-term coverage. Explicit `keywords` and the brand's vertical carry the highest weight, positioning is secondary, brand name is supporting evidence, and broad audience wording has deliberately low weight.
+- Added optional `exclude_keywords`; a trend matching an explicit exclusion is not recommended for that brand even if other terms overlap.
+- Each brand candidate now exposes matched terms, exclusion matches, and `match_method=weighted_profile_term_coverage` so operators can inspect why a brand was selected. Existing profiles remain compatible when optional keyword fields are absent.
+- The ranking remains an editorial relevance signal, not a demand, virality, monetization or revenue forecast. Freshness, source provenance and topic distinctiveness remain separately visible.
+- Added regression tests for weighted relevance, explainable match terms and explicit exclusions. CI runs [43671711293](https://github.com/justinhblee-prog/shorts/actions/runs/43671711293) and [43671727149](https://github.com/justinhblee-prog/shorts/actions/runs/43671727149) were triggered for the two source/test commits; validation result is pending at the time of this note.
