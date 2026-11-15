@@ -1008,4 +1008,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Carry the exact candidate ID through the brand selector, production-draft request, and skip-feedback request.
 - Link production outcomes and skip decisions only to the exact exposed candidate matching both trend and brand; generic trend drafts no longer get silently attributed to whichever matching recommendation happened to be newest.
 - Add tests for exact candidate linkage, stale/wrong trend or brand IDs, deduplicated snapshot IDs, API payload propagation, and frontend wiring.
-- CI validation pending.
+- CI passed at commit 770a88e (321 tests).
