@@ -52,12 +52,21 @@ class JsonProvider:
     @staticmethod
     def _request(url, headers, body, timeout):
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+
+        class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, response_headers, newurl):
+                # urllib's default handler can carry Authorization headers to a
+                # redirected host. Provider endpoints must not redirect credentials.
+                return None
+
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
+            opener = urllib.request.build_opener(NoRedirectHandler)
+            with opener.open(req, timeout=timeout) as response:
                 return response.status, response.read()
         except urllib.error.HTTPError as exc:
             # Never persist upstream response bodies: providers can echo credentials,
-            # signed URLs, or submitted content in error payloads.
+            # signed URLs, or submitted content in error payloads. Redirects are
+            # returned as sanitized HTTP status failures and are never followed.
             raise ProviderError("provider", f"Provider HTTP {exc.code}",
                                 retryable=exc.code >= 500 or exc.code == 429)
         except (urllib.error.URLError, TimeoutError) as exc:
