@@ -5,6 +5,7 @@ are eligible outcomes. This is an observational, selection-biased evaluation, no
 a causal estimate or a counterfactual test of unseen recommendations.
 """
 import hashlib
+import hmac
 import json
 import math
 import sqlite3
@@ -728,9 +729,6 @@ class RecommendationEvaluationStore:
         participant_key = str(participant_key or "").strip()
         if not participant_key or len(participant_key) > 256:
             raise ValueError("A non-empty participant key of at most 256 characters is required")
-        participant_fingerprint = hashlib.sha256(
-            participant_key.encode("utf-8")
-        ).hexdigest()
         timestamp = _now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
@@ -738,6 +736,10 @@ class RecommendationEvaluationStore:
                 WHERE id=?""", (str(experiment_id),)).fetchone()
             if experiment is None:
                 return None
+            participant_fingerprint = hmac.new(
+                experiment["assignment_salt"].encode("utf-8"),
+                participant_key.encode("utf-8"), hashlib.sha256
+            ).hexdigest()
             existing = c.execute("""SELECT id,arm,assigned_at FROM
                 recommendation_experiment_assignments
                 WHERE experiment_id=? AND participant_fingerprint=?""",
