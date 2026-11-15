@@ -603,3 +603,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Integrated the check into `scripts/validate.sh` alongside Python compilation, JavaScript syntax checking and the unittest suite.
 - CI path filters now include all `frontend/**` and `scripts/**` changes, so dashboard and validation-tool changes cannot silently bypass the workflow.
 - GitHub Actions run [43669754936](https://github.com/justinhblee-prog/shorts/actions/runs/43669754936) passed **149 tests**, JavaScript syntax checking and the new frontend ID validator.
+
+
+### CI path-filter parity for push and pull requests — 2026-11-15
+
+- The initial DOM-validation integration expanded push path filters to `scripts/**`, but the pull-request filter still listed only `scripts/validate.sh`. That left changes to other validation scripts able to bypass pull-request CI.
+- Updated both push and pull-request filters to cover `backend/**`, `frontend/**`, `scripts/**` and the workflow file.
+- Verified GitHub Actions run [43669862254](https://github.com/justinhblee-prog/shorts/actions/runs/43669862254) on commit `6b8807068363dcb6fb639b4c1c0b5e4643b3e8aa`: success, **149 tests passed**, JavaScript syntax validation passed, and the DOM validator reported **84 unique HTML IDs / 69 literal selectors**.
+- This validates the repository's automated checks only; live YouTube OAuth/upload, external AI rendering and real financial ingestion remain unverified.
