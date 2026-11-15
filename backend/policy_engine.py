@@ -145,14 +145,16 @@ def evaluate_content_policy(brief):
         required.append("synthetic_media_status")
         approval_blockers.append("synthetic_media_status")
     elif synthetic in ("ai_generated", "realistic_alteration"):
-        disclosure_fields = {
-            "youtube": "youtube_altered_content",
-            "tiktok": "tiktok_ai_generated_content",
-        }
-        for platform in platforms:
-            field = disclosure_fields[platform]
-            key = f"platform_disclosures.{field}"
-            if disclosures.get(field) is not True:
+        # YouTube's containsSyntheticMedia is specifically for realistic A/S
+        # content. TikTok's is_aigc field labels AI-generated content generally.
+        if "youtube" in platforms and youtube_contains_synthetic_media is True:
+            key = "platform_disclosures.youtube_altered_content"
+            if disclosures.get("youtube_altered_content") is not True:
+                required.append(key)
+                approval_blockers.append(key)
+        if "tiktok" in platforms:
+            key = "platform_disclosures.tiktok_ai_generated_content"
+            if disclosures.get("tiktok_ai_generated_content") is not True:
                 required.append(key)
                 approval_blockers.append(key)
 
