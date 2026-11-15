@@ -142,6 +142,12 @@ class JobQueue:
             c.execute("BEGIN IMMEDIATE")
             control=c.execute("SELECT paused FROM worker_control WHERE id=1").fetchone()
             production_paused=bool(control and control["paused"])
+            if instance_token is not None:
+                owner=c.execute("SELECT instance_token FROM worker_registry WHERE worker_id=?",
+                                (worker_id,)).fetchone()
+                if owner is None or owner["instance_token"] != instance_token:
+                    c.rollback()
+                    raise LeaseConflict("Worker process instance no longer owns this worker ID")
             if production_paused and job_type == "short_video_production":
                 c.commit()
                 return None
@@ -483,6 +489,14 @@ class JobQueue:
                 (worker_id, hostname, n, instance_token))
         return {"worker_id": worker_id, "hostname": hostname,
                 "last_seen_at": n, "status": "online"}
+
+    def touch_worker(self, worker_id, instance_token):
+        with self.db() as c:
+            updated=c.execute(
+                "UPDATE worker_registry SET last_seen_at=? WHERE worker_id=? AND instance_token=? AND status='online'",
+                (stamp(now()),worker_id,instance_token),
+            )
+            return updated.rowcount == 1
 
     def mark_worker_offline(self, worker_id, instance_token=None):
         """Persist a graceful worker shutdown; stale heartbeats still cover hard crashes."""
