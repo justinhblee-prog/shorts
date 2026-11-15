@@ -45,6 +45,24 @@ class SpeechAlignmentTests(unittest.TestCase):
         )
         self.assertEqual(report["status"], "aligned")
 
+    def test_transcript_token_limit_prevents_unbounded_edit_distance(self):
+        long_text = "word " * 5001
+        report = compare_transcript_to_script(long_text, long_text)
+        self.assertEqual(report["status"], "too_large_to_compare")
+        self.assertIsNone(report["word_error_rate"])
+
+    def test_srt_cleanup_preserves_standalone_spoken_numbers(self):
+        srt = (
+            "1\n00:00:00,000 --> 00:00:02,000\n"
+            "2026\n"
+            "2\n00:00:02,000 --> 00:00:04,000\n"
+            "The future starts now with new technology and ideas.\n"
+        )
+        report = build_caption_alignment_report(
+            "2026 The future starts now with new technology and ideas.", srt
+        )
+        self.assertEqual(report["status"], "aligned")
+
     def test_short_text_is_not_given_a_false_pass(self):
         report = compare_transcript_to_script("Hello world", "Hello world")
         self.assertEqual(report["status"], "insufficient_text")
