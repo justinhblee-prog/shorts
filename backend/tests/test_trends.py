@@ -32,6 +32,12 @@ class TrendTests(unittest.TestCase):
   self.assertEqual(ing.collect("US","AI")["fetched"],1)
   self.assertEqual(ing.collect("US","AI")["fetched"],1)
   self.assertEqual(len(self.store.list()),1)
+ def test_direct_lookup_returns_only_exact_signal(self):
+  xml=b'<rss><channel><item><title>Exact signal</title><link>https://example.com/exact</link></item></channel></rss>'
+  TrendIngestor(self.store,google=GoogleNewsRSS(lambda url:xml)).collect("US","AI")
+  item=self.store.list()[0]
+  self.assertEqual(self.store.get(item["id"])["title"],"Exact signal")
+  self.assertIsNone(self.store.get("not-a-real-trend"))
  def test_rejects_unknown_region(self):
   with self.assertRaises(ValueError): GoogleNewsRSS(lambda url:b"").collect("XX","test")
 if __name__=="__main__": unittest.main()
