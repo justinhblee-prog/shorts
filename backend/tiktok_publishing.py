@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from policy_engine import POLICY_VERSION
+from approval_integrity import approval_snapshot_matches_current_artifacts
 from tiktok_disclosure import build_tiktok_disclosure, TikTokDisclosureError
 from media_inspection import MediaInspector, MediaInspectionError
 
@@ -528,6 +529,14 @@ class TikTokPublisher:
         if not history or history[-1]["decision"] != "approved":
             raise TikTokPublishError("The latest human review decision must be approved")
         snapshot = history[-1].get("artifact_snapshot") or []
+        with review_store.db() as connection:
+            snapshot_matches, snapshot_error = approval_snapshot_matches_current_artifacts(
+                connection, job_id, snapshot
+            )
+        if not snapshot_matches:
+            raise TikTokPublishError(
+                snapshot_error or "Production artifacts changed after approval; return to review"
+            )
         approved_script = next((
             item for item in snapshot if isinstance(item, dict)
             and item.get("stage") == "script" and item.get("artifact_type") == "text"
