@@ -1265,6 +1265,14 @@ def recommendation_rendered_exposure_report(
     return result
 
 
+@app.get("/api/recommendations/experiments/integrity")
+def recommendation_experiment_integrity_report(
+    x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    return recommendation_evaluation_store.experiment_integrity_report()
+
+
 @app.post("/api/recommendations/experiments")
 def create_recommendation_experiment(
     body:RecommendationExperimentCreate,
