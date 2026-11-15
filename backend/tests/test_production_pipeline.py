@@ -131,6 +131,35 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(fresh["status"], "rendered")
         self.assertEqual(len(fresh["artifacts"]), 3)
 
+    def test_queue_job_without_production_row_is_recovered_after_enqueue_crash(self):
+        queue = JobQueue(self.store.db_path)
+        job = queue.enqueue("short_video_production", self.brief,
+                            idempotency_key="crash-window")
+        self.assertIsNone(self.store.get(job["id"]))
+
+        result = self.store.reconcile_missing_runs(queue)
+        self.assertEqual(result["restored"], 1)
+        self.assertEqual(result["job_ids"], [job["id"]])
+        restored = self.store.get(job["id"])
+        self.assertEqual(restored["status"], "queued")
+        self.assertEqual(restored["topic"], self.brief["topic"])
+
+        # Reconciliation is idempotent and does not replace an existing run.
+        again = self.store.reconcile_missing_runs(queue)
+        self.assertEqual(again["restored"], 0)
+        self.assertEqual(self.store.get(job["id"])["status"], "queued")
+
+    def test_recovery_can_target_a_job_claimed_during_enqueue_race(self):
+        queue = JobQueue(self.store.db_path)
+        job = queue.enqueue("short_video_production", self.brief)
+        claimed = queue.claim("worker-race", "test-host",
+                              job_type="short_video_production")
+        self.assertEqual(claimed["id"], job["id"])
+
+        result = self.store.reconcile_missing_runs(queue, job_ids=[claimed["id"]])
+        self.assertEqual(result["restored"], 1)
+        self.assertEqual(self.store.get(job["id"])["status"], "queued")
+
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
             ProductionPipeline.validate_brief({"brand": "x", "region": "US",
