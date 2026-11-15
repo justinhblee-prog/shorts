@@ -52,6 +52,43 @@ def compare_transcript_to_script(script, transcript, max_word_error_rate=0.25):
     }
 
 
+def _subtitle_payload_to_text(value):
+    text = str(value or "")
+    text = re.sub(
+        r"^\\s*\\d+\\s*$", "", text, flags=re.MULTILINE
+    )
+    text = re.sub(
+        r"^\\s*\\d{2}:\\d{2}:\\d{2}[,.]\\d{3}\\s+-->\\s+"
+        r"\\d{2}:\\d{2}:\\d{2}[,.]\\d{3}.*$",
+        "", text, flags=re.MULTILINE,
+    )
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\\{\\\\an\\d+\\}", " ", text)
+    return re.sub(r"\\s+", " ", text).strip()
+
+
+def build_caption_alignment_report(script, subtitle_text, asr_transcript=None,
+                                   max_word_error_rate=0.25):
+    caption_text = _subtitle_payload_to_text(subtitle_text)
+    reference = asr_transcript if isinstance(asr_transcript, str) and asr_transcript.strip() else script
+    reference_kind = "independent_asr_transcript" if reference is not script and asr_transcript else "generated_script"
+    result = compare_transcript_to_script(
+        reference, caption_text, max_word_error_rate=max_word_error_rate
+    )
+    return {
+        "version": "caption_alignment_v1",
+        "reference": reference_kind,
+        "subtitle_text_available": bool(caption_text),
+        "subtitle_token_count": len(_tokens(caption_text)),
+        **result,
+        "warning": (
+            "Only an extractable text subtitle stream was compared. Burned-in captions, "
+            "caption timing, on-screen placement, font size, contrast and legibility are "
+            "not verified. ASR/script references can themselves contain errors."
+        ),
+    }
+
+
 def build_speech_alignment_report(script, transcript, provider=None,
                                   max_word_error_rate=0.25):
     result = compare_transcript_to_script(
