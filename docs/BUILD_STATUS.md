@@ -1360,4 +1360,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression tests for exact match, metadata mutation, added artifact, removed artifact, and malformed snapshot.
 - This prevents approval from silently carrying forward when the rendered media, script, quality report, or policy metadata changes after review.
 - No external publish was performed. Human approval remains mandatory; YouTube remains private and TikTok remains SELF_ONLY. Recommendation score changes remain disabled.
-- CI validation for this change is pending; live provider/OAuth/account posting and monetization remain unverified.
+- GitHub Actions passed **442 tests** at code commit `191cd1d` (run [43709004157](https://github.com/justinhblee-prog/shorts/actions/runs/43709004157)). Live provider/OAuth/account posting and monetization remain unverified.
