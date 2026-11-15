@@ -8,7 +8,8 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  enqueue, IdempotencyConflict, ProductionExecute, execute_production_job,
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
-                 TrendProductionDraft, draft_production_from_trend)
+                 TrendProductionDraft, draft_production_from_trend,
+                 OpportunityInput, create_opportunity_score)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -80,6 +81,33 @@ class ApiSecurityTests(unittest.TestCase):
             "risk_level": "elevated",
             "review_rules": ["Label speculation"],
         })
+
+    def test_opportunity_score_includes_selected_competitor_evidence(self):
+        body = OpportunityInput(
+            title="AI agents explained", currency="USD",
+            forecast_source="planning assumptions",
+            forecast_views_low=10000, forecast_views_high=30000,
+            rpm_low=1, rpm_high=3, cost_low=10, cost_high=20,
+            monetization_eligible=True,
+            competitor_channel_ids=["channel-1"],
+        )
+        videos = [
+            {"channel_id":"channel-1","title":"AI agents explained for beginners",
+             "view_count":9000,"published_at":"2026-11-14"},
+            {"channel_id":"channel-1","title":"AI agents change the workplace",
+             "view_count":11000,"published_at":"2026-11-13"},
+        ]
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.competitor_store.list_videos", return_value=videos),
+            mock.patch("app.opportunity_store.save", side_effect=lambda result: result),
+        ):
+            result = create_opportunity_score(body, x_review_token="test-token")
+        self.assertEqual(result["competitive_context"]["observed_videos"], 2)
+        self.assertEqual(result["competitive_context"]["topic_matched_videos"], 2)
+        self.assertEqual(result["competitive_context"]["median_matched_views"], 10000)
+        self.assertEqual(result["score_breakdown"]["competitor_pressure_penalty"], 6.67)
+        self.assertLessEqual(result["priority_score"], 100)
 
     def test_trend_signal_creates_brand_aware_production_draft(self):
         trend = {
