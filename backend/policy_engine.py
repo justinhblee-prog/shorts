@@ -122,7 +122,7 @@ def evaluate_content_policy(brief):
     )):
         raise ValueError("platform_disclosures contains an unsupported field or non-boolean value")
 
-    required = []
+    required = list(missing_rights)
     approval_blockers = list(missing_rights)
     if synthetic == "unknown":
         required.append("synthetic_media_status")
