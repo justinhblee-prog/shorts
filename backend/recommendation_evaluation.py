@@ -221,12 +221,14 @@ class RecommendationEvaluationStore:
             raise ValueError("reviewer_id is required")
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            row = c.execute("""SELECT id FROM recommendation_candidates
+            row = c.execute("""SELECT id,decision FROM recommendation_candidates
                 WHERE trend_id=? AND brand_slug=? AND selected_job_id IS NULL
                 ORDER BY created_at DESC LIMIT 1""",
                 (str(trend_id), str(brand_slug))).fetchone()
             if row is None:
                 return {"recorded": False, "reason": "no_matching_recommendation_exposure"}
+            if row["decision"] == "skipped":
+                return {"recorded": False, "reason": "already_skipped"}
             c.execute("""UPDATE recommendation_candidates
                 SET decision='skipped',decision_reason=?,reviewer_id=?,decided_at=?
                 WHERE id=? AND selected_job_id IS NULL""",
@@ -237,6 +239,15 @@ class RecommendationEvaluationStore:
                 (str(uuid.uuid4()), row["id"], reviewer[:128],
                  str(reason or "")[:1000], timestamp))
             return {"recorded": True, "candidate_id": row["id"]}
+
+    def latest_decision(self, trend_id, brand_slug):
+        with self.db() as c:
+            row = c.execute("""SELECT decision,decision_reason,reviewer_id,decided_at
+                FROM recommendation_candidates
+                WHERE trend_id=? AND brand_slug=?
+                ORDER BY created_at DESC LIMIT 1""",
+                (str(trend_id), str(brand_slug))).fetchone()
+            return dict(row) if row else None
 
     def evaluate(self, performance):
         measured = {
