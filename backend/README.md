@@ -148,7 +148,7 @@ docker compose up -d
 docker compose ps
 ```
 
-API health: `http://localhost:8502/api/health`. Compose starts the API, one production worker and one scheduler, all using a persistent shared SQLite volume. Run only one scheduler. This is a single-host baseline; do not treat it as HA production infrastructure.
+API health: `http://localhost:8502/api/health`. Compose starts the API, one production worker and one scheduler, all using a persistent shared SQLite volume. The scheduler's fenced singleton lease permits safe multiple-instance operation on the shared SQLite database. This remains a single-host baseline; do not treat it as multi-host HA production infrastructure.
 
 Run the validation script with Python dependencies installed:
 
