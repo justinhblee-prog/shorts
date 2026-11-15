@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from experiment_statistics import compare_experiment_arms
+from experiment_statistics import _critical_95, compare_experiment_arms
 
 
 class ExperimentStatisticsTests(unittest.TestCase):
@@ -62,6 +62,23 @@ class ExperimentStatisticsTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "inconclusive_zero_variance")
         self.assertIsNone(result["effect_estimate"])
+
+    def test_critical_value_rounds_degrees_of_freedom_down_conservatively(self):
+        # At df=11, use the df=10 critical value, not the smaller df=12 value.
+        self.assertEqual(_critical_95(11), 2.228)
+        self.assertEqual(_critical_95(14), 2.179)
+        self.assertEqual(_critical_95(16), 2.131)
+        self.assertGreaterEqual(_critical_95(11), _critical_95(12))
+
+    def test_verification_gates_must_be_explicit_booleans(self):
+        for invalid in (1, "yes", None):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    compare_experiment_arms(
+                        [1, 2], [2, 3],
+                        randomized_assignment=invalid, verified_exposure=True,
+                        minimum_per_arm=2,
+                    )
 
     def test_minimum_sample_configuration_is_bounded(self):
         for invalid in (True, 1, 10001, 2.5):
