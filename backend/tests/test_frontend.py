@@ -152,6 +152,19 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("필요 증거", app_js)
         self.assertIn("map(esc)", app_js)
 
+    def test_global_lifecycle_risk_dashboard_is_integrated(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("/api/lifecycle/queue?limit=50&offset=0", app_js)
+        self.assertIn("loadLifecycleQueue()", app_js)
+        self.assertIn("risk_counts", app_js)
+        self.assertIn("data-queue-lifecycle-id", app_js)
+        self.assertIn("/api/lifecycle/jobs/", app_js)
+        self.assertIn('id="globalLifecyclePanel"', html)
+        self.assertIn('id="loadLifecycleQueue"', html)
+        self.assertIn('id="lifecycleQueue"', html)
+        self.assertIn("읽기 전용 관제", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
