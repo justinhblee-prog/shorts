@@ -30,7 +30,7 @@ def main():
     collector.feed(html)
     counts = Counter(collector.ids)
     duplicates = sorted(key for key, count in counts.items() if count > 1)
-    selectors = set(re.findall(r"\\$\\(['\\"]([^'\\"]+)['\\"]\\)", js))
+    selectors = set(re.findall(r"\$\(['\"]([^'\"]+)['\"]\)", js))
     missing = sorted(selectors - set(counts))
     if duplicates or missing:
         if duplicates:
