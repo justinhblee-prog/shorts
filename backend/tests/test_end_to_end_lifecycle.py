@@ -129,7 +129,7 @@ class EndToEndLifecycleTests(unittest.TestCase):
                 200, {"content-type": "video/mp4",
                       "content-length": str(len(mp4))}, [mp4]),
         )
-        staged = stager.stage(job_id, generated["artifacts"][-1]["artifact_url"])
+        video_artifact = next(item for item in generated["artifacts"]\n                              if item["artifact_type"] == "video")\n        staged = stager.stage(job_id, video_artifact["artifact_url"])
         self.assertTrue((self.media_dir / staged["media_path"]).is_file())
 
         uploaded = self.publisher.upload_approved(
