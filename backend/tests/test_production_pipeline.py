@@ -197,8 +197,8 @@ class ProductionTests(unittest.TestCase):
                     "audio_codec": "aac", "subtitle_stream_present": True,
                     "subtitle_extraction": {"status": "extracted"},
                     "subtitle_text": (
-                        "1\\n00:00:00,000 --> 00:00:05,000\\n"
-                        + script_text + "\\n"
+                        "1\n00:00:00,000 --> 00:00:05,000\n"
+                        + script_text + "\n"
                     ),
                 }
         pipeline = ProductionPipeline(
