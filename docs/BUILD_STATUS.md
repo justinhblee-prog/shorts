@@ -1382,3 +1382,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Regression tests cover approval fingerprint persistence, missing staged media, exact-byte acceptance, post-approval mutation, and rejection before either platform makes a network request.
 - Human approval remains mandatory; TikTok remains SELF_ONLY and YouTube remains private. No external publishing was performed.
 - GitHub Actions passed **453 tests** at code commit `7dfa9d6` (run [43709886701](https://github.com/justinhblee-prog/shorts/actions/runs/43709886701)).
+
+
+## BUILD-00068 — immutable upload snapshots and publish-attempt serialization
+
+- Added a no-follow, regular-file-only media snapshot routine. It opens the approved staging file without following symlinks where supported, compares the opened file identity to the current path, streams and hashes the bytes into a private temporary snapshot, and checks the approved digest and byte length before returning it.
+- YouTube `MediaFileUpload` now receives the verified snapshot path, not the mutable canonical staging path. The snapshot is retained for the entire resumable upload attempt and removed in a `finally` block.
+- TikTok media inspection and chunk upload now use the same verified snapshot. Replacing or mutating the staged path after snapshot creation cannot change the bytes sent during the upload.
+- Both platform stores already serialize per-job attempt creation with SQLite `BEGIN IMMEDIATE` and reject active or unresolved attempts; this remains the authoritative duplicate-initiation gate. Concurrent attempts cannot both obtain an active upload attempt for the same job.
+- Added tests proving the snapshot remains byte-identical after the source path is overwritten and that symlink sources are rejected.
+- GitHub Actions passed **455 tests** at code commit `a18013c` (run [43710116070](https://github.com/justinhblee-prog/shorts/actions/runs/43710116070)).
+- No external platform publishing was performed. PR remains Draft/open/unmerged.
