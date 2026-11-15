@@ -141,7 +141,8 @@ class ProductionTests(unittest.TestCase):
         result = pipeline.execute("job-quality-ready", self.brief)
         quality = next(item for item in result["artifacts"]
                        if item["stage"] == "quality_check")
-        self.assertEqual(quality["metadata"]["status"], "ready_for_human_review")
+        self.assertEqual(quality["metadata"]["status"], "review_required")
+        self.assertIn("actual_media_bytes_not_inspected", quality["metadata"]["warnings"])
         self.assertEqual(result["status"], "rendered")
 
     def test_pipeline_inspects_actual_staged_media_before_review_handoff(self):
