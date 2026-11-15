@@ -33,6 +33,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    # Allow SIGTERM handler to persist the production pause before Docker SIGKILL.
+    stop_grace_period: 45s
     restart: unless-stopped
 
   scheduler:
