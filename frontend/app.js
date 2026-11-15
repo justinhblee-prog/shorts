@@ -184,8 +184,10 @@
       const trend=item.trend||{};
       const candidates=item.brand_candidates||[];
       const language=region==="KR"?"ko":(region==="JP"?"ja":"en");
-      const options=candidates.filter(x=>(x.supported_languages||[]).includes(language))
-        .map(x=>{
+      const languageFamily=language.toLowerCase().split("-")[0];
+      const options=candidates.filter(x=>(x.supported_languages||[]).some(value=>
+        String(value).toLowerCase().split("-")[0]===languageFamily
+      )).map(x=>{
           const decision=x.human_decision?.decision;
           const suffix=decision==="skipped"?" · 이전 제외":(decision==="selected"?" · 기획 등록":"");
           return '<option value="'+esc(x.brand)+'">'+esc(x.brand_name+suffix)+'</option>';
