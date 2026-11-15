@@ -131,6 +131,43 @@ class TikTokOAuthTests(unittest.TestCase):
         )
         self.assertFalse(missing_client.status()["connected"])
 
+    def test_disconnect_revokes_remote_token_then_clears_encrypted_storage(self):
+        self.manager._save_token_response({
+            "access_token": "access-to-revoke",
+            "refresh_token": "refresh-to-revoke",
+            "open_id": "creator-123",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        self.transport.responses.clear()
+        self.transport.responses.append((200, {}))
+        result = self.manager.disconnect()
+        self.assertFalse(result["connected"])
+        self.assertIsNone(self.store.token_record())
+        self.assertEqual(self.transport.calls[-1][0],
+                         "https://open.tiktokapis.com/v2/oauth/revoke/")
+        body = parse_qs(self.transport.calls[-1][2].decode("utf-8"))
+        self.assertEqual(body["token"], ["access-to-revoke"])
+        self.assertEqual(body["client_secret"], ["client-secret"])
+
+    def test_failed_remote_revoke_keeps_local_tokens(self):
+        self.manager._save_token_response({
+            "access_token": "access-still-connected",
+            "refresh_token": "refresh-still-connected",
+            "open_id": "creator-123",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        self.transport.responses.clear()
+        self.transport.responses.append((400, {"error": "invalid_request"}))
+        with self.assertRaisesRegex(TikTokOAuthError, "revocation failed"):
+            self.manager.disconnect()
+        self.assertIsNotNone(self.store.token_record())
+
     def test_refresh_lease_fences_concurrent_processes(self):
         first = self.store.acquire_refresh_lease("process-a", 60)
         second = self.store.acquire_refresh_lease("process-b", 60)
