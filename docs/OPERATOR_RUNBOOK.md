@@ -103,7 +103,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 
 ## 9. Current known blockers
 
-- GitHub Actions hosted-runner allocation is operational. Latest full backend validation on this branch is pending.
+- Latest fail-closed recovery branch validation: [GitHub Actions run 43667201896](https://github.com/justinhblee-prog/shorts/actions/runs/43667201896), **121 tests passed**.
 - Real provider credentials, renderer CDN hostnames, YouTube OAuth and financial integrations remain external dependencies. CI does not establish live provider compatibility, actual media generation, private YouTube upload, revenue ingestion or deployment readiness.
 - The application still uses a single-host SQLite architecture; multi-host distributed worker/scheduler operation is not established.
 
