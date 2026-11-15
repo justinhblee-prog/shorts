@@ -307,6 +307,12 @@ class TikTokOAuthManager:
             row = self.store.token_record()
             if not row:
                 return None
+            if "video.publish" not in {
+                scope.strip() for scope in str(row.get("scope") or "").split(",")
+            }:
+                raise TikTokOAuthError(
+                    "TikTok account authorization is missing the required video.publish scope"
+                )
             now = _now()
             access_expiry = datetime.fromisoformat(row["access_expires_at"])
             if access_expiry > now + timedelta(minutes=10):
@@ -385,7 +391,15 @@ class TikTokOAuthManager:
 
     def status(self):
         result = self.store.status()
-        if result.get("connected") and self.cipher is None:
+        if result.get("connected") and "video.publish" not in {
+            scope.strip() for scope in str(result.get("scope") or "").split(",")
+        }:
+            result.update({
+                "connected": False,
+                "status": "required_scope_missing",
+                "reauthorization_required": True,
+            })
+        elif result.get("connected") and self.cipher is None:
             result.update({
                 "connected": False,
                 "status": "encryption_key_invalid" if self._cipher_invalid else "encryption_key_missing",
