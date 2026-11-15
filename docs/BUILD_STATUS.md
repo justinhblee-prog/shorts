@@ -156,3 +156,12 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - APIs: POST `/api/finance/ledger`; GET `/api/finance/report`; both require `NEXUS_REVIEW_TOKEN`.
 - Added tests for totals, idempotency and mandatory source reference.
 - **Not validated:** runtime tests, automated YouTube Analytics ingestion, affiliate-network integrations, sponsor invoice imports, FX conversion or tax/accounting reconciliation. Reports are single-currency and must not sum different currencies.
+
+## BUILD-00010 — performance analysis
+
+- Added `backend/performance_insights.py` to correlate uploaded-video snapshots, production brand/topic metadata and recorded financial ledger entries.
+- Snapshot differences are explicitly labeled as differences, not view velocity. Fewer than two snapshots produce an insufficient-evidence recommendation.
+- Recommendations are transparent operational heuristics; no causal claims, fabricated trends or AI-generated performance assertions.
+- API: GET `/api/performance/insights?brand=...`, protected by `NEXUS_REVIEW_TOKEN`.
+- Added tests for insufficient evidence, snapshot differences and ledger integration.
+- **Not validated:** runtime tests, long-term cohorts, controlled experiments, YouTube Analytics watch-time/retention data, or automated strategy execution.
