@@ -26,6 +26,10 @@ class TikTokPublishError(RuntimeError):
     pass
 
 
+class TikTokPublishUncertainError(TikTokPublishError):
+    pass
+
+
 def _now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -181,7 +185,7 @@ class TikTokPublisher:
                 json=payload, timeout=(10, 60),
             )
         except requests.RequestException as exc:
-            raise TikTokPublishError("TikTok API network outcome is uncertain: " + type(exc).__name__) from exc
+            raise TikTokPublishUncertainError("TikTok API network outcome is uncertain: " + type(exc).__name__) from exc
         if response.status_code < 200 or response.status_code >= 300:
             raise TikTokPublishError(_safe_api_error(response))
         try:
@@ -314,22 +318,27 @@ class TikTokPublisher:
             total_chunks = max(1, size // chunk_size)
             if total_chunks > 1000:
                 raise TikTokPublishError("TikTok upload exceeds the 1000-chunk limit")
-            remote_started = True
-            body = self._api_post("/post/publish/video/init/", {
-                "post_info": {
-                    "title": title, "privacy_level": "SELF_ONLY",
-                    "disable_duet": True, "disable_comment": True, "disable_stitch": True,
-                    "brand_content_toggle": brand_content_toggle,
-                    "brand_organic_toggle": brand_organic_toggle,
-                    "is_aigc": is_aigc,
-                },
-                "source_info": {
-                    "source": "FILE_UPLOAD", "video_size": size,
-                    "chunk_size": chunk_size, "total_chunk_count": total_chunks,
-                },
-            })
+            try:
+                body = self._api_post("/post/publish/video/init/", {
+                    "post_info": {
+                        "title": title, "privacy_level": "SELF_ONLY",
+                        "disable_duet": True, "disable_comment": True, "disable_stitch": True,
+                        "brand_content_toggle": brand_content_toggle,
+                        "brand_organic_toggle": brand_organic_toggle,
+                        "is_aigc": is_aigc,
+                    },
+                    "source_info": {
+                        "source": "FILE_UPLOAD", "video_size": size,
+                        "chunk_size": chunk_size, "total_chunk_count": total_chunks,
+                    },
+                })
+            except TikTokPublishUncertainError:
+                remote_started = True
+                raise
             data = body.get("data") or {}
             publish_id = data.get("publish_id")
+            if isinstance(publish_id, str) and publish_id:
+                remote_started = True
             upload_url = self._upload_url_allowed(data.get("upload_url"))
             if not publish_id or len(publish_id) > 64 or not upload_url:
                 raise TikTokPublishError("TikTok did not return a valid publish ID and upload URL")
