@@ -1103,3 +1103,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added API-level coverage for authenticated consistency-report behavior and rejection of non-production queue jobs.
 - GitHub Actions passed **341 tests** at code commit `75d9e3a`.
 - Diagnostics remain read-only and never retry, cancel, poll, or publish. Live external platform reconciliation remains outside automated validation.
+
+## BUILD-00044 — approved-workspace lifecycle recovery integration
+
+- Extended each approved production card's on-demand lifecycle panel to fetch the lifecycle trace, consistency report, and operator recovery plan together.
+- Replaced the history-only action label with `상태·복구 진단`; the expanded panel now displays queue/production/review/platform timeline, blocker/warning findings, operator recovery steps, required evidence, referenced endpoint/method, and the no-automatic-retry policy.
+- All server-provided values are HTML-escaped before rendering. The diagnostics remain read-only and do not execute any remote action.
+- Added frontend regression coverage for the integrated API calls, combined rendering, operator evidence and retry-policy display.
+- CI validation pending. The workspace currently exposes per-job diagnostics on approved production cards; it does not claim a complete all-queue global risk dashboard.
