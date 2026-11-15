@@ -1052,3 +1052,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - All dynamic values are escaped before insertion into the dashboard; API failures remain local to the selected card.
 - GitHub Actions passed **329 tests** at code commit `bdb230a`, including the lifecycle API and frontend wiring regressions.
 - This is an audit/visibility feature only. It does not alter approval, retry, publishing, privacy or recommendation-ranking behavior.
+
+
+### BUILD-00041 — unified cross-platform lifecycle timeline (2026-11-15)
+
+- Extended `GET /api/lifecycle/jobs/{job_id}` with one chronological `timeline` assembled from durable queue events, production artifact creation, immutable human-review decisions, YouTube upload audit events, and TikTok publication audit events.
+- Each timeline item identifies its stage, event, outcome, timestamp, attempt ID where available, and platform artifact reference where available. The source-specific records remain included for detailed inspection.
+- Approved-workspace trace now renders the latest 20 cross-system events, not only queue events; platform outcomes remain distinct (for example, TikTok `SEND_TO_USER_INBOX` is not mislabeled as published).
+- GitHub Actions passed **330 tests** at commit `670344a`.
+- One intermediate CI failure was caused by stale frontend assertions expecting the old queue-only label; assertions were updated to the unified timeline and the latest run is green.
+- Read-only audit visibility only: no automatic retry, publishing, approval, or recommendation-ranking behavior changed. No live platform integration was exercised.
