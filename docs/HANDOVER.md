@@ -903,3 +903,34 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Malformed URLs/ports are rejected before DNS/network activity. HTTPS, allowlisted hostname and public-IP checks remain required.
 - Content-Length must be a valid nonnegative integer within the configured size cap and must match the bytes actually downloaded.
 - Failed or truncated downloads clean up their temporary `.part` files. CI pending; no live renderer download is claimed.
+
+
+
+## Handover update — parallel BUILD-00083 through BUILD-00089 (2026-11-15)
+
+### Work completed
+- BUILD-00083 / PR #44: bounded and typed TikTok OAuth token fields and expiry values; malformed refresh responses cannot replace the last known-good token.
+- BUILD-00084 / PR #45: capped Google News RSS and Hacker News response bodies at 512 KiB, validated Content-Length and disabled redirects.
+- BUILD-00085 / PR #46: bounded TikTok OAuth callback code/state inputs at both HTTP and manager boundaries.
+- BUILD-00086 / PR #47: strict YouTube Analytics response shape, column, row, video ID and metric validation.
+- BUILD-00087 / PR #48: validates all TikTok metrics records before one atomic SQLite batch write.
+- BUILD-00088 / PR #49: restricts audio/video media URL rendering to absolute HTTPS URLs without embedded credentials.
+- BUILD-00089 / PR #50: cancellation is synchronized across queue and production rows; running-provider cancellation is marked ambiguous, lease-fenced and pauses production.
+
+### CI evidence
+- Individual PR push validations: #44 515, #45 519, #46 521, #47 525, #48 524, #49 522, #50 524 tests passed.
+- Combined BUILD-00086–00088 integration: [run 43724721236](https://github.com/justinhblee-prog/shorts/actions/runs/43724721236), 529 tests passed.
+- Combined BUILD-00086–00089 integration: [run 43725622356](https://github.com/justinhblee-prog/shorts/actions/runs/43725622356), **532 tests passed**.
+- All corresponding PR merge-result CI runs passed.
+
+### Branch / merge discipline
+- PR #44 targets BUILD-00082; #45 targets #44; #46 targets #45.
+- PRs #47, #48, #49 and #50 each target the BUILD-00085 branch independently.
+- All are still Open/Draft and have not been merged. Do not merge the stacked #44–#46 chain out of order. Review and merge the independent #47–#50 tracks only after their common base is integrated, or retarget them after the base chain is merged.
+- The branch `integration/build-00086-00089-parallel` is for combined CI evidence only, not production deployment.
+
+### Not yet proven in a live environment
+- TikTok/YouTube OAuth consent and token refresh with actual accounts.
+- Real AI-provider generation, media staging from the production renderer and actual platform uploads.
+- Remote visibility/status polling, analytics scope approval and live metric retrieval.
+- Production hosting, observability, backup/restore, quota/billing and revenue.

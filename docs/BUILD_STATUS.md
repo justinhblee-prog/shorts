@@ -1531,3 +1531,40 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Preserve pinned-IP TLS validation, public-address checks, streaming byte caps and atomic temporary-file cleanup.
 - Added regression tests for malformed URLs/ports, negative and mismatched Content-Length, and temporary-file cleanup.
 - CI validation is pending. No real renderer artifact download is claimed.
+
+
+
+## Parallel development update — BUILD-00083 through BUILD-00089 (2026-11-15)
+
+### Independent workstreams and pull requests
+
+| Build | Workstream | Pull request | Push CI |
+|---|---|---|---:|
+| BUILD-00083 | TikTok OAuth token field/type/expiry validation; preserve last-known-good token on malformed refresh | [#44](https://github.com/justinhblee-prog/shorts/pull/44) | 515 tests |
+| BUILD-00084 | 512 KiB trend-source HTTP cap, strict Content-Length checks and redirect blocking | [#45](https://github.com/justinhblee-prog/shorts/pull/45) | 519 tests |
+| BUILD-00085 | OAuth callback code/state bounds and query parameter limits | [#46](https://github.com/justinhblee-prog/shorts/pull/46) | 521 tests |
+| BUILD-00086 | YouTube Analytics response schema, row/column, ID and numeric-value validation | [#47](https://github.com/justinhblee-prog/shorts/pull/47) | 525 tests |
+| BUILD-00087 | TikTok metrics whole-batch validation and atomic SQLite persistence | [#48](https://github.com/justinhblee-prog/shorts/pull/48) | 524 tests |
+| BUILD-00088 | HTTPS-only external media links/audio preview; reject unsafe URL schemes and embedded credentials | [#49](https://github.com/justinhblee-prog/shorts/pull/49) | 522 tests |
+| BUILD-00089 | Queue/production cancellation consistency; running provider outcome ambiguity fences lease and pauses production | [#50](https://github.com/justinhblee-prog/shorts/pull/50) | 524 tests |
+
+### Parallel and combined validation
+
+- BUILD-00086 through BUILD-00088 were developed in three independent branches from the BUILD-00085 base. Their combined integration branch passed [GitHub Actions run 43724721236](https://github.com/justinhblee-prog/shorts/actions/runs/43724721236): **529 tests**.
+- BUILD-00089 was then added to the combined integration branch. The combined BUILD-00086 through BUILD-00089 validation passed [GitHub Actions run 43725622356](https://github.com/justinhblee-prog/shorts/actions/runs/43725622356): **532 tests**.
+- The individual PR merge-result runs also passed: #44 [43722318163](https://github.com/justinhblee-prog/shorts/actions/runs/43722318163), #45 [43722648853](https://github.com/justinhblee-prog/shorts/actions/runs/43722648853), #46 [43723078854](https://github.com/justinhblee-prog/shorts/actions/runs/43723078854), #47 [43724017312](https://github.com/justinhblee-prog/shorts/actions/runs/43724017312), #48 [43724268889](https://github.com/justinhblee-prog/shorts/actions/runs/43724268889), #49 [43724029320](https://github.com/justinhblee-prog/shorts/actions/runs/43724029320), #50 [43725451910](https://github.com/justinhblee-prog/shorts/actions/runs/43725451910).
+- The 532-test combined run is the strongest available local/CI integration evidence for these four new tracks. It does not prove real external platform behavior.
+
+### Current PR and deployment state
+
+- PRs #44–#46 form the sequential BUILD-00083 → BUILD-00085 chain.
+- PRs #47–#50 are separate workstreams based on the BUILD-00085 branch; they are not stacked on one another.
+- All seven PRs remain **Open / Draft / unmerged**. No production deployment was performed.
+- The combined integration branch is a validation branch; it is not the production branch and does not replace the individual reviewable PRs.
+
+### Remaining external validation
+
+- Live TikTok OAuth authorization/refresh, real Display API collection and real account posting remain unverified.
+- Live YouTube OAuth, Data API upload and Analytics API report retrieval remain unverified.
+- Real provider generation, real rendered artifact delivery, remote platform visibility, quotas/billing, production hosting, backup/restore and revenue remain unverified.
+- Unit and mocked transport tests must not be represented as successful live integration or revenue validation.
