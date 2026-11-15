@@ -485,6 +485,7 @@ class RecommendationEvaluationStore:
             {
                 "selected_count": total_selected,
                 "measured_count": total_measured,
+                "feedback_summary": feedback_summary,
                 "observations": fingerprint_payload,
             },
             ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -622,7 +623,7 @@ class RecommendationEvaluationStore:
                  str(result.get("status") or "unknown"),
                  int(result.get("selected_production_count") or 0),
                  int(result.get("measured_outcome_count") or 0),
-                 int(within.get("holdout_run_count") or result.get("holdout_run_count") or 0),
+                 int(result.get("holdout_run_count") or within.get("holdout_run_count") or 0),
                  result.get("holdout_score_views_spearman"),
                  result.get("holdout_rank_views_spearman"), payload))
         return {"snapshot_id": snapshot_id, "created_at": created_at,
