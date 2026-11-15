@@ -73,7 +73,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.store.record_skip("trend-1", "future-leak", "reviewer-1", "Not suitable today")
         linked = self.store.link_production("trend-1", "future-leak", "job-after-reconsideration")
         self.assertTrue(linked["linked"])
-        evaluation = self.store.evaluate()
+        evaluation = self.store.evaluate({"videos": []})
         self.assertEqual(evaluation["feedback_summary"]["selected_count"], 1)
         self.assertEqual(evaluation["feedback_summary"]["skipped_count"], 0)
         with self.store.db() as connection:
