@@ -203,7 +203,8 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.queue.cancel(job_id, "Operator cancelled before review handoff")
         result = self.production.reconcile_review_pending(self.queue)
         self.assertEqual(result["reconciled"], 0)
-        self.assertEqual(self.production.get(job_id)["status"], "rendered")
+        self.assertEqual(self.production.get(job_id)["status"], "cancelled")
+        self.assertEqual(self.production.get(job_id)["current_stage"], "cancelled")
 
     def test_cancelled_queue_job_is_reflected_in_production_record(self):
         brief = {"brand": "Brain Glitch", "region": "US",
