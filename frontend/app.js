@@ -449,6 +449,8 @@
       $("tiktokOAuthStatus").textContent=status.connected
         ? "연결됨 · "+(status.display_name||status.open_id)+" · "+((status.scopes||[]).includes("video.publish")?"게시 권한 확인":"게시 권한 없음")
         : "연결되지 않음";
+      $("connectTikTok").hidden=Boolean(status.connected);
+      $("disconnectTikTok").hidden=!status.connected;
     }catch(err){$("tiktokOAuthStatus").textContent="상태 확인 실패: "+err.message;}
   }
   $("connectTikTok").addEventListener("click",async()=>{
@@ -458,6 +460,15 @@
       if(!result.authorization_url)throw new Error("TikTok authorization URL missing");
       window.location.assign(result.authorization_url);
     }catch(err){toast("TikTok 계정 연결 실패: "+err.message);}
+  });
+  $("disconnectTikTok").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    if(!confirm("TikTok 앱 권한을 철회하고 서버에 저장된 토큰을 삭제하시겠습니까?"))return;
+    try{
+      await api("/api/tiktok/oauth/disconnect",{method:"POST"});
+      toast("TikTok 연결이 해제되었습니다.");
+      await refreshTikTokOAuthStatus();
+    }catch(err){toast("TikTok 연결 해제 실패: "+err.message);}
   });
   const oauthResult=new URLSearchParams(window.location.search).get("tiktok_oauth");
   if(oauthResult==="connected")toast("TikTok 계정 연결이 완료되었습니다. 운영 인증 후 상태를 확인하세요.");
