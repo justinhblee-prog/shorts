@@ -9,7 +9,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
-                 OpportunityInput, create_opportunity_score)
+                 OpportunityInput, create_opportunity_score, TikTokPublishRequest,\n                 publish_tiktok_video, refresh_tiktok_publication_status,\n                 get_tiktok_publication)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -26,6 +26,42 @@ class ApiSecurityTests(unittest.TestCase):
             if "x_review_token" not in endpoint.__annotations__:
                 unprotected.append(path)
         self.assertEqual(unprotected, [])
+
+    def test_tiktok_publish_and_status_routes_are_token_protected(self):
+        expected = {
+            "/api/tiktok/publish/{job_id}",
+            "/api/tiktok/publications/{job_id}",
+            "/api/tiktok/publications/{job_id}/refresh-status",
+        }
+        found = {getattr(route, "path", ""): route for route in app.routes
+                 if getattr(route, "path", "") in expected}
+        self.assertEqual(set(found), expected)
+        for route in found.values():
+            self.assertIn("x_review_token", route.endpoint.__annotations__)
+
+    def test_tiktok_publish_requires_explicit_consent_and_passes_it_through(self):
+        body = TikTokPublishRequest(
+            media_path="video.mp4", title="Test AI short",
+            operator_id="operator-1", explicit_consent=True
+        )
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.tiktok_publisher.publish_private_approved",
+                       return_value={"status": "uploading"}) as publish,
+        ):
+            result = publish_tiktok_video("job-1", body, x_review_token="test-token")
+        self.assertEqual(result["status"], "uploading")
+        self.assertTrue(publish.call_args.kwargs["explicit_consent"])
+        self.assertEqual(publish.call_args.args[0], "job-1")
+
+    def test_tiktok_publication_status_endpoints_return_missing_record_as_404(self):
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.tiktok_publish_store.get", return_value=None),
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                get_tiktok_publication("missing", x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 404)
 
     def test_late_upload_resolution_route_is_registered_and_token_protected(self):
         route = next((r for r in app.routes
