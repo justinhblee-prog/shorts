@@ -940,3 +940,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression coverage for documented hosts, unapproved subdomains, URL credentials, nonstandard ports, fragments, and redirect rejection.
 - Official reference: https://developers.tiktok.com/docs/en/content-posting-api-media-transfer-guide
 - CI validation pending for the latest commit; no live TikTok upload has been performed.
+
+
+### BUILD-00028 — TikTok status-poll retry backoff (2026-11-15)
+
+- Add per-publication exponential backoff after consecutive Fetch Status errors: 60s, 120s, 240s and onward, capped at one hour.
+- A successful status refresh resets the consecutive failure count; the initial poll remains eligible on the normal scheduler interval.
+- Backoff state is derived from immutable publication audit events, avoiding a destructive schema migration.
+- Regression tests cover first and second failure thresholds, successful reset, and scheduler polling.
+- TikTok's current Fetch Status reference documents a 30 requests/minute per-user limit and the available terminal/intermediate statuses.
+- CI validation pending for the latest commit. No live TikTok account polling or posting has been performed.
