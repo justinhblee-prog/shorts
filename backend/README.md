@@ -165,3 +165,14 @@ YouTube upload accepts only staged files resolved inside `NEXUS_MEDIA_DIR` (defa
 ### API authentication
 
 Operational endpoints require `X-Review-Token: <NEXUS_REVIEW_TOKEN>`. This includes production, trends, competitor intelligence, opportunities, schedules, review, YouTube, finance, performance, queue and worker operations, plus brand activation. Public endpoints are limited to health and read-only brand catalog/detail. Configure a long random secret and protect it; the shared token is not multi-user authentication.
+
+### Secure renderer artifact staging
+
+Set `RENDER_ARTIFACT_HOSTS` to exact comma-separated hostnames used by the configured render provider. After rendering completes, call:
+
+```http
+POST /api/production/jobs/{job_id}/stage-media
+X-Review-Token: <NEXUS_REVIEW_TOKEN>
+```
+
+The service retrieves the artifact URL from the production record (the caller cannot supply an arbitrary URL), requires HTTPS and an allowlisted public hostname, rejects redirects, validates MP4 MIME/signature, enforces `NEXUS_MAX_MEDIA_BYTES`, and atomically stores it under `NEXUS_MEDIA_DIR`. Use the returned relative `media_path` in the subsequent YouTube upload request. CDN compatibility must be verified with the actual renderer provider.
