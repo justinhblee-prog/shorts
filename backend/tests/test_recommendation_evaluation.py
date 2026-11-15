@@ -38,6 +38,21 @@ class RecommendationEvaluationTests(unittest.TestCase):
             },
         }
 
+    def test_identical_api_result_is_deduplicated_within_one_minute(self):
+        first = self.store.record_run(
+            "US", [self.item(1, 82.5)], "2026-11-01T00:00:00+00:00"
+        )
+        repeated = self.store.record_run(
+            "US", [self.item(1, 82.5)], "2026-11-01T00:00:45+00:00"
+        )
+        later = self.store.record_run(
+            "US", [self.item(1, 82.5)], "2026-11-01T00:02:00+00:00"
+        )
+        self.assertEqual(first["run_id"], repeated["run_id"])
+        self.assertTrue(repeated["deduplicated"])
+        self.assertNotEqual(first["run_id"], later["run_id"])
+        self.assertFalse(later["deduplicated"])
+
     def test_records_exposure_and_links_selected_production_job(self):
         self.store.record_run("US", [self.item(1, 82.5)],
                               "2026-11-01T00:00:00+00:00")
