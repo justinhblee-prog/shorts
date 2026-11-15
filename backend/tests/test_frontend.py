@@ -259,6 +259,16 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("ranking_score_adjustment", app_js) if "ranking_score_adjustment" in app_js else self.assertIn("추천 점수 조정", app_js)
 
 
+    def test_experiment_integrity_audit_is_visible_in_control_workspace(self):
+        app_js = (ROOT / "frontend/app.js").read_text()
+        html = (ROOT / "frontend/index.html").read_text()
+        self.assertIn('id="loadRecommendationExperimentIntegrity"', html)
+        self.assertIn('id="recommendationExperimentIntegrity"', html)
+        self.assertIn("/api/recommendations/experiments/integrity", app_js)
+        self.assertIn("verified_randomized_served_exposure_count", app_js)
+        self.assertIn("assignment_exposure_join_available", app_js)
+        self.assertIn("ranking_score_adjustment", app_js)
+
     def test_recommendation_cards_record_viewport_exposures_and_report_evidence(self):
         html=(ROOT/"frontend"/"index.html").read_text(encoding="utf-8")
         app_js=(ROOT/"frontend"/"app.js").read_text(encoding="utf-8")
