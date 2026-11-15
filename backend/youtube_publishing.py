@@ -138,10 +138,36 @@ class YouTubePublisher:
         approvals=[item for item in history if item["decision"]=="approved"]
         if not approvals:
             raise YouTubeUploadError("A recorded human approval is required before upload")
-        if not isinstance(media_path,str) or not Path(media_path).is_file():
-            raise YouTubeUploadError("A readable local rendered video file is required")
-        if Path(media_path).stat().st_size <= 0:
+        if not isinstance(media_path,str) or not media_path.strip():
+            raise YouTubeUploadError("A staged media path is required")
+        media_root=Path(os.getenv("NEXUS_MEDIA_DIR","data/media")).resolve()
+        candidate=Path(media_path)
+        if not candidate.is_absolute():
+            candidate=media_root/candidate
+        try:
+            resolved=candidate.resolve(strict=True)
+            resolved.relative_to(media_root)
+        except (OSError,ValueError):
+            raise YouTubeUploadError("Media path must resolve to an existing file inside NEXUS_MEDIA_DIR")
+        if not resolved.is_file():
+            raise YouTubeUploadError("Staged media path is not a regular file")
+        allowed={".mp4": "video/mp4", ".m4v": "video/x-m4v",
+                 ".mov": "video/quicktime", ".webm": "video/webm"}
+        media_type=allowed.get(resolved.suffix.lower())
+        if not media_type:
+            raise YouTubeUploadError("Unsupported media extension; use MP4, M4V, MOV or WebM")
+        max_bytes=max(1,int(os.getenv("NEXUS_MAX_MEDIA_BYTES",str(256*1024*1024))))
+        size=resolved.stat().st_size
+        if size<=0:
             raise YouTubeUploadError("Rendered video file is empty")
+        if size>max_bytes:
+            raise YouTubeUploadError("Rendered video exceeds NEXUS_MAX_MEDIA_BYTES")
+        if not isinstance(title,str) or not title.strip() or len(title)>100:
+            raise YouTubeUploadError("Video title must contain 1 to 100 characters")
+        if not isinstance(description,str) or len(description)>5000:
+            raise YouTubeUploadError("Video description exceeds 5000 characters")
+        if len(tags or [])>30 or any(not isinstance(tag,str) or len(tag)>500 for tag in (tags or [])):
+            raise YouTubeUploadError("At most 30 valid tags are allowed")
         existing=self.store.get(job_id)
         if existing and existing["status"]=="uploaded":
             return existing
@@ -156,7 +182,7 @@ class YouTubePublisher:
             }
             request=service.videos().insert(
                 part="snippet,status",body=body,
-                media_body=MediaFileUpload(media_path,mimetype="video/*",
+                media_body=MediaFileUpload(str(resolved),mimetype=media_type,
                                            chunksize=8*1024*1024,resumable=True))
             response=None
             while response is None:
