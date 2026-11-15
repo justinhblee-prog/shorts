@@ -68,8 +68,10 @@
     $("trendList").innerHTML=(data.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.title||x.query||"Untitled signal")+'</b><small>'+esc(x.region||"")+' · '+esc(x.source||"")+' · '+esc(x.published_at||x.collected_at||"")+'</small></div>').join("")||'<div class="empty-state">저장된 트렌드 신호가 없습니다.</div>';
   }
   async function loadSchedules(){
-    const data=await api("/api/schedules");
-    $("scheduleList").innerHTML=(data.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.name)+' · '+(x.active?"활성":"중지")+'</b><small>'+esc(x.payload.brand)+' · '+esc(x.payload.region)+' · 다음 실행 '+esc(x.next_run_at)+'</small></div>').join("")||'<div class="empty-state">등록된 예약이 없습니다.</div>';
+    const [data,outbox]=await Promise.all([api("/api/schedules"),api("/api/schedules/outbox")]);
+    const schedules=(data.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.name)+' · '+(x.active?"활성":"중지")+'</b><small>'+esc(x.payload.brand)+' · '+esc(x.payload.region)+' · 다음 실행 '+esc(x.next_run_at)+'</small></div>').join("")||'<div class="empty-state">등록된 예약이 없습니다.</div>';
+    const dispatches=(outbox.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.schedule_id)+'</b><small>'+esc(x.scheduled_for)+' · attempts '+x.attempts+(x.last_error?' · '+esc(x.last_error):'')+'</small></div>').join("");
+    $("scheduleList").innerHTML='<div class="notice">Outbox pending/retry: '+Number(outbox.pending_retries||0)+' · dispatched: '+Number((outbox.counts||{}).dispatched||0)+'</div>'+schedules+'<h4>예약 실행 복구 로그</h4>'+(dispatches||'<div class="empty-state">예약 실행 이력이 없습니다.</div>');
   }
   async function loadInsights(){
     const data=await api("/api/performance/insights");
