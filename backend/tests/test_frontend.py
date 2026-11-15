@@ -59,6 +59,9 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("EDITORIAL MATCH", html)
         self.assertIn("trendRecommendations", html)
         self.assertIn("수익성이나 조회수 예측 점수가 아닙니다", html)
+        self.assertIn("competitor_context", app_js)
+        self.assertIn("median_matched_views", app_js)
+        self.assertIn("경쟁 영상 표본 미수집", app_js)
 
     def test_competitor_evidence_can_adjust_opportunity_priority(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
