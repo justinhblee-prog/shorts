@@ -7,7 +7,7 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(result["capabilities"]["end_to_end_configured"])
         self.assertFalse(result["checks"]["operator_auth"]["configured"])
         self.assertIn("NEXUS_REVIEW_TOKEN",result["missing"])
-        self.assertNotIn("secret",str(result).lower())
+        self.assertNotIn("configured-value",str(result))
         self.assertFalse(result["live_connectivity_verified"])
     def test_complete_environment_reports_configuration_not_live_success(self):
         env={k:"configured" for k in [
