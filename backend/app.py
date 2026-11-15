@@ -1128,6 +1128,11 @@ def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None)
 
 @app.get("/api/health")
 def health(): return {"status":"ok","service":"nexus-studio-pro"}
+@app.get("/api/ops/health")
+def operational_health(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return queue.operational_health()
+
 @app.get("/api/queue/stats")
 def stats(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
