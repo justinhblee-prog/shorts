@@ -62,6 +62,23 @@ class TikTokPublishingTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_api_error_string_is_reported_without_attribute_error(self):
+        transport = TikTokTransport([(200, {"error": "access_denied"})])
+        publisher = TikTokPublisher(self.store, "test-token", transport)
+        with self.assertRaisesRegex(TikTokPublishError, "TikTok API error: access_denied"):
+            publisher._call("https://open.tiktokapis.com/v2/test/")
+
+    def test_http_error_string_is_reported_without_attribute_error(self):
+        transport = TikTokTransport([(403, {"error": "access_denied"})])
+        publisher = TikTokPublisher(self.store, "test-token", transport)
+        with self.assertRaisesRegex(TikTokPublishError, "TikTok HTTP 403: access_denied"):
+            publisher._call("https://open.tiktokapis.com/v2/test/")
+
+    def test_success_accepts_string_ok_error_envelope(self):
+        transport = TikTokTransport([(200, {"data": {"ready": True}, "error": "ok"})])
+        publisher = TikTokPublisher(self.store, "test-token", transport)
+        self.assertTrue(publisher._call("https://open.tiktokapis.com/v2/test/")["data"]["ready"])
+
     def test_publish_approved_video_as_private_with_aigc_label(self):
         result = self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
