@@ -428,3 +428,9 @@ The dedicated `metrics_collector.py` process also runs a separate, read-only You
 The collector stores snapshots for views, Shorts engaged views, estimated minutes watched, average view duration, average view percentage, likes, comments, shares and subscribers gained. It uses a separate SQLite lease and collection state from the YouTube Data API and TikTok collectors. Due-video selection is freshness-aware and rotates across the full bounded uploaded-video inventory rather than repeatedly querying only the newest batch. API reads are authenticated, bounded and read-only; no monetary metrics are requested.
 
 The refresh token must include `https://www.googleapis.com/auth/yt-analytics.readonly` in addition to the existing YouTube upload/read scopes. Reauthorize the channel after enabling the YouTube Analytics API and granting this scope. Missing scope, invalid credentials and ordinary API failures are reported separately. Automated tests do not verify real account authorization or live report availability.
+
+## BUILD-00075 — Analytics-informed comparable recommendation evidence
+
+The performance analyzer now joins the latest YouTube Analytics snapshot to each confirmed uploaded video and includes average view percentage, average view duration, estimated minutes watched and Shorts engaged views in the operator performance response. Comparable brand/region/topic/age/duration/format cohorts report median average view percentage and duration when those observations exist.
+
+The trend recommendation context exposes these metrics as descriptive evidence only. They do not enter the editorial recommendation score, do not reorder candidates, and do not trigger production or publishing actions. Cohorts still require at least three measured videos for observed status; sparse data remains explicitly limited. This is not a causal estimate and does not claim per-second audience-retention curves.
