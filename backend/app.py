@@ -1026,7 +1026,7 @@ def metrics_collection_status(x_review_token:str|None=Header(default=None)):
     ))
     youtube_analytics["scope_authorized"] = bool(
         youtube_analytics.get("last_success_at")
-        and youtube_analytics["status"] != "scope_missing"
+        and youtube_analytics["status"] not in ("scope_missing", "authorization_failed")
     )
     if not youtube_analytics["scope_authorized"] and youtube_analytics["status"] in (
         "not_started", "waiting_for_uploaded_videos"
