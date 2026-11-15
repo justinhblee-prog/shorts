@@ -399,6 +399,10 @@ class ProductionPipeline:
                 if not isinstance(brief[key], dict):
                     raise ValueError(f"{key} must be an object")
                 clean[key] = brief[key]
+        if "youtube_contains_synthetic_media" in brief:
+            if not isinstance(brief["youtube_contains_synthetic_media"], bool):
+                raise ValueError("youtube_contains_synthetic_media must be a boolean")
+            clean["youtube_contains_synthetic_media"] = brief["youtube_contains_synthetic_media"]
         if "factual_claims_verified" in brief:
             if not isinstance(brief["factual_claims_verified"], bool):
                 raise ValueError("factual_claims_verified must be a boolean")
