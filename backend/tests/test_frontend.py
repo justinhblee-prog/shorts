@@ -110,7 +110,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("/api/tiktok/oauth/authorize", app_js)
         self.assertIn("/api/tiktok/oauth/status", app_js)
         self.assertIn("window.location.assign(result.authorization_url)", app_js)
-        self.assertIn("tiktok_oauth=connected", app_js)
+        self.assertIn('oauthResult==="connected"', app_js)
 
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
