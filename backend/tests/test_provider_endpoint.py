@@ -60,7 +60,7 @@ class ProviderEndpointTests(unittest.TestCase):
         opener.open.assert_called_once()
 
     def test_provider_response_read_is_bounded_before_buffering(self):
-        response = unittest.mock.Mock()
+        response = unittest.mock.MagicMock()
         response.status = 200
         response.read.return_value = b"x" * (MAX_PROVIDER_RESPONSE_BYTES + 1)
         response.__enter__.return_value = response
