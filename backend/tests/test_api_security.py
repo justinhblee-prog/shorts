@@ -142,6 +142,7 @@ class ApiSecurityTests(unittest.TestCase):
     def test_recommendation_skip_feedback_records_operator_decision(self):
         body = RecommendationSkipFeedback(
             trend_id="trend-1", brand_slug="alpha",
+            recommendation_candidate_id="candidate-1",
             reviewer_id="reviewer-1", reason="Already covered",
         )
         with (
@@ -151,7 +152,10 @@ class ApiSecurityTests(unittest.TestCase):
         ):
             result = skip_recommendation_feedback(body, x_review_token="test-token")
         self.assertTrue(result["recorded"])
-        record.assert_called_once_with("trend-1", "alpha", "reviewer-1", "Already covered")
+        record.assert_called_once_with(
+            "trend-1", "alpha", "reviewer-1", "Already covered",
+            candidate_id="candidate-1",
+        )
 
     def test_tiktok_oauth_callback_query_is_redacted_from_access_logs(self):
         record = logging.LogRecord(
@@ -324,12 +328,17 @@ class ApiSecurityTests(unittest.TestCase):
                 "regions": ["US"], "languages": ["en"],
             },
         }
-        body = TrendProductionDraft(brand="future-leak", language="en")
+        body = TrendProductionDraft(
+            brand="future-leak", language="en",
+            recommendation_candidate_id="exposure-candidate-1",
+        )
         with (
             mock.patch("app.require_review_access"),
             mock.patch("app.trend_store.get", return_value=trend),
             mock.patch("app.brand_store.list", return_value=[brand]),
             mock.patch("app.submit_production", return_value={"job": {"id": "job-from-trend"}}) as submit,
+            mock.patch("app.recommendation_evaluation_store.link_production",
+                       return_value={"linked": True, "candidate_id": "exposure-candidate-1"}) as link,
         ):
             result = draft_production_from_trend("trend-abc", body, x_review_token="test-token")
         self.assertEqual(result["job"]["id"], "job-from-trend")
@@ -340,6 +349,11 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(brief["brand_profile"]["review_rules"],
                          ["Distinguish demos from shipped products"])
         self.assertEqual(brief["idempotency_key"], "trend:trend-abc:future-leak:en")
+        link.assert_called_once_with(
+            "trend-abc", "future-leak", "job-from-trend",
+            candidate_id="exposure-candidate-1",
+        )
+        self.assertTrue(result["recommendation_evaluation_link"]["linked"])
 
     def test_trend_production_draft_rejects_missing_trend_and_unsupported_region(self):
         body = TrendProductionDraft(brand="future-leak", language="en")
