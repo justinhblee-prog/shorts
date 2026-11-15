@@ -82,12 +82,12 @@ def run_once(store=None, publisher=None):
         logger.info("metrics_collection_skipped reason=another_collector_holds_lease")
         return {"skipped": True, "requested": 0, "collected": 0}
     heartbeat = LeaseHeartbeat(
-        lambda: store.renew_metrics_collector_lease(OWNER_ID, lease_seconds=300)
+        lambda: store.renew_metrics_collector_lease(OWNER_ID, token, lease_seconds=300)
     )
     heartbeat.start()
     try:
         heartbeat.assert_owned()
-        store.record_metrics_collection("running", source="YouTube Data API v3", lease_owner=OWNER_ID)
+        store.record_metrics_collection("running", source="YouTube Data API v3", lease_owner=OWNER_ID, lease_token=token)
         try:
             result = publisher.refresh_due_metrics(
                 limit=BATCH_SIZE, min_age_seconds=MIN_AGE
@@ -96,14 +96,14 @@ def run_once(store=None, publisher=None):
             heartbeat.assert_owned()
             store.record_metrics_collection(
                 "failed", error=type(exc).__name__,
-                source="YouTube Data API v3", lease_owner=OWNER_ID
+                source="YouTube Data API v3", lease_owner=OWNER_ID, lease_token=token
             )
             raise
         heartbeat.assert_owned()
         store.record_metrics_collection(
             "succeeded", requested=result["requested"],
             collected=result["collected"], missing=len(result["missing"]),
-            source=result.get("source", "YouTube Data API v3"), lease_owner=OWNER_ID
+            source=result.get("source", "YouTube Data API v3"), lease_owner=OWNER_ID, lease_token=token
         )
         logger.info(
             "metrics_collection_completed requested=%s collected=%s missing=%s",
@@ -112,7 +112,7 @@ def run_once(store=None, publisher=None):
         return result
     finally:
         heartbeat.close()
-        store.release_metrics_collector_lease(OWNER_ID)
+        store.release_metrics_collector_lease(OWNER_ID, token)
 
 
 

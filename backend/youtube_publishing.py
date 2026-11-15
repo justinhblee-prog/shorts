@@ -59,7 +59,7 @@ class YouTubeUploadStore:
               ON youtube_video_snapshots(video_id,collected_at);
             CREATE TABLE IF NOT EXISTS youtube_metrics_collector_lease(
               id INTEGER PRIMARY KEY CHECK(id=1), owner_id TEXT NOT NULL,
-              lease_until REAL NOT NULL, updated_at TEXT NOT NULL
+              lease_token TEXT NOT NULL, lease_until REAL NOT NULL, updated_at TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS youtube_metrics_collection_state(
               id INTEGER PRIMARY KEY CHECK(id=1), status TEXT NOT NULL,
@@ -83,6 +83,9 @@ class YouTubeUploadStore:
                 c.execute("ALTER TABLE youtube_upload_events ADD COLUMN policy_version TEXT")
             if "policy_checked_on" not in event_columns:
                 c.execute("ALTER TABLE youtube_upload_events ADD COLUMN policy_checked_on TEXT")
+            lease_columns={r["name"] for r in c.execute("PRAGMA table_info(youtube_metrics_collector_lease)")}
+            if "lease_token" not in lease_columns:
+                c.execute("ALTER TABLE youtube_metrics_collector_lease ADD COLUMN lease_token TEXT NOT NULL DEFAULT ''")
     @contextmanager
     def db(self):
         c=sqlite3.connect(self.db_path,timeout=30)
@@ -416,51 +419,64 @@ class YouTubeUploadStore:
         return [row["video_id"] for row in rows]
 
     def acquire_metrics_collector_lease(self, owner_id, lease_seconds=300, now=None):
-        """Acquire a database-backed singleton lease for the periodic metrics collector."""
+        """Acquire a singleton lease with a unique per-acquisition fencing token."""
         owner_id = str(owner_id or "").strip()
         if not owner_id or len(owner_id) > 200:
             raise ValueError("A valid metrics collector owner ID is required")
         now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
+        lease_token = uuid.uuid4().hex
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute(
-                "SELECT owner_id,lease_until FROM youtube_metrics_collector_lease WHERE id=1"
+                "SELECT lease_until FROM youtube_metrics_collector_lease WHERE id=1"
             ).fetchone()
-            if row and row["owner_id"] != owner_id and float(row["lease_until"]) > now:
+            # An unexpired lease blocks every acquisition, including the same owner.
+            if row and float(row["lease_until"]) > now:
                 return None
             c.execute("""
-                INSERT INTO youtube_metrics_collector_lease(id,owner_id,lease_until,updated_at)
-                VALUES(1,?,?,?)
+                INSERT INTO youtube_metrics_collector_lease
+                  (id,owner_id,lease_token,lease_until,updated_at)
+                VALUES(1,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET owner_id=excluded.owner_id,
-                  lease_until=excluded.lease_until,updated_at=excluded.updated_at
-            """, (owner_id, now + max(30, int(lease_seconds)), _now()))
-        return owner_id
+                  lease_token=excluded.lease_token,lease_until=excluded.lease_until,
+                  updated_at=excluded.updated_at
+            """, (owner_id, lease_token, now + max(30, int(lease_seconds)), _now()))
+        return lease_token
 
-    def renew_metrics_collector_lease(self, owner_id, lease_seconds=300, now=None):
-        """Extend only a still-live lease owned by this collector instance."""
+    def renew_metrics_collector_lease(self, owner_id, lease_token, lease_seconds=300, now=None):
+        """Renew only the current unexpired owner/token pair; stale tokens cannot revive it."""
+        owner_id = str(owner_id or "").strip()
+        lease_token = str(lease_token or "").strip()
+        if not owner_id or not lease_token:
+            return False
         now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             updated = c.execute(
                 """UPDATE youtube_metrics_collector_lease
                    SET lease_until=?,updated_at=?
-                   WHERE id=1 AND owner_id=? AND lease_until>?""",
+                   WHERE id=1 AND owner_id=? AND lease_token=? AND lease_until>?""",
                 (now + max(30, int(lease_seconds)),
-                 datetime.fromtimestamp(now, timezone.utc).isoformat(), owner_id, now),
+                 datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                 owner_id, lease_token, now),
             )
             return updated.rowcount == 1
 
-    def release_metrics_collector_lease(self, owner_id):
+    def release_metrics_collector_lease(self, owner_id, lease_token):
+        owner_id = str(owner_id or "").strip()
+        lease_token = str(lease_token or "").strip()
+        if not owner_id or not lease_token:
+            return False
         with self.db() as c:
             updated = c.execute(
-                "DELETE FROM youtube_metrics_collector_lease WHERE id=1 AND owner_id=?",
-                (owner_id,)
+                "DELETE FROM youtube_metrics_collector_lease WHERE id=1 AND owner_id=? AND lease_token=?",
+                (owner_id, lease_token)
             )
             return updated.rowcount == 1
 
     def record_metrics_collection(self, status, requested=0, collected=0,
                                    missing=0, error=None, source="YouTube Data API v3",
-                                   lease_owner=None):
+                                   lease_owner=None, lease_token=None):
         """Persist collector health without converting provider errors into metric values."""
         if status not in ("running", "succeeded", "failed"):
             raise ValueError("Invalid metrics collection status")
@@ -468,10 +484,13 @@ class YouTubeUploadStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             if lease_owner is not None:
+                if not lease_token:
+                    raise RuntimeError("Metrics collector lease token is required for state writes")
                 lease = c.execute(
-                    "SELECT owner_id,lease_until FROM youtube_metrics_collector_lease WHERE id=1"
+                    "SELECT owner_id,lease_token,lease_until FROM youtube_metrics_collector_lease WHERE id=1"
                 ).fetchone()
                 if (lease is None or lease["owner_id"] != lease_owner
+                        or lease["lease_token"] != lease_token
                         or float(lease["lease_until"]) <= datetime.now(timezone.utc).timestamp()):
                     raise RuntimeError("Metrics collector lease lost; collection state write rejected")
             c.execute("""
