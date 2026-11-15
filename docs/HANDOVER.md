@@ -177,3 +177,7 @@ Latest checked CI run 74: runner_id=0, no runner name and no steps. Tests have n
 ## YouTube upload media-path hardening
 
 Upload paths are now constrained to `NEXUS_MEDIA_DIR` (default `data/media`), canonicalized to prevent traversal/symlink escape, restricted to MP4/M4V/MOV/WebM, and bounded by `NEXUS_MAX_MEDIA_BYTES` (default 256 MiB). This reduces arbitrary local-file upload exposure. It does not implement remote renderer artifact download; an authenticated allowlisted staging service remains a launch blocker.
+
+## Operational API token coverage
+
+All operational endpoints now require `X-Review-Token`: brand activation, production job creation/execution/inspection, trend and competitor operations, opportunity scoring, queue/worker/job operations, review, YouTube, finance, performance and schedules. Public exceptions are health and read-only brand catalog/detail. Regression test `backend/tests/test_api_security.py` checks route coverage and token validation. The shared token remains a transitional single-operator control; do not expose the service publicly without TLS and real user/role authentication.
