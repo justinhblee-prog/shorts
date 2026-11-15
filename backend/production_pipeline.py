@@ -331,6 +331,22 @@ class ProductionPipeline:
                 "risk_level": risk,
                 "review_rules": clean_list(profile.get("review_rules", []), "review_rules"),
             }
+        # Preserve and validate policy attestations so the preflight cannot
+        # silently lose operator-supplied rights/disclosure evidence.
+        if "policy_flags" in brief:
+            if not isinstance(brief["policy_flags"], dict):
+                raise ValueError("policy_flags must be an object")
+            clean["policy_flags"] = brief["policy_flags"]
+        if "rights" in brief:
+            if not isinstance(brief["rights"], dict):
+                raise ValueError("rights must be an object")
+            clean["rights"] = brief["rights"]
+        if "platforms" in brief:
+            clean["platforms"] = brief["platforms"]
+        for key in ("synthetic_media_status", "ai_disclosure_acknowledged",
+                    "factual_claims_verified", "originality_notes"):
+            if key in brief:
+                clean[key] = brief[key]
         trend_context = brief.get("trend_context")
         if trend_context is not None:
             if not isinstance(trend_context, dict):
