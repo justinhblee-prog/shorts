@@ -1183,7 +1183,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Consolidated the control-center job detail from four separate requests into one overview request and added a compact end-to-end stage panel.
 - Added API coverage for stage ordering, platform handoff state, and read-only guarantees; added frontend integration assertions.
 - The overview does not refresh remote provider state, retry work, or publish content. TikTok inbox handoff is still not represented as public publication.
-- CI validation pending.
+- GitHub Actions passed **391 tests** at code commit `94e8ef1` (run `43700449940`).
 
 ## BUILD-00049 / BUILD-00050 — validation evidence correction
 
