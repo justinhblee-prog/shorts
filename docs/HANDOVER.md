@@ -1143,3 +1143,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Malformed credential maps fail closed (503); invalid tokens are rejected (401).
 - Per-operator bearer credentials are not a full IdP/RBAC solution. External identity integration, roles, sessions and production rollout remain open.
 - Final-head push CI [43773111981](https://github.com/justinhblee-prog/shorts/actions/runs/43773111981) and PR CI [43773117502](https://github.com/justinhblee-prog/shorts/actions/runs/43773117502): **588 tests passed**.
+
+
+## Handover — BUILD-00107 (2026-11-16)
+
+- Trusted proxy-aware rate-limit identity is implemented behind `NEXUS_TRUSTED_PROXY_CIDRS`; with no configured CIDRs, the ASGI peer address is used and all forwarded headers are ignored.
+- Only explicitly trusted proxy peers can supply a bounded XFF chain; malformed or ambiguous chains fall back to the direct peer. CIDR errors fail startup.
+- Updated operator and backend runbooks. Corrected literal escaped newlines in `.env.example`.
+- Added IPv4/IPv6 and XFF spoof-resistance regression tests. CI evidence pending.
