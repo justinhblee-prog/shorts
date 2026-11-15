@@ -393,13 +393,16 @@
     if(!requireToken())return;
     const id=button.dataset.queueLifecycleId;button.disabled=true;
     try{
-      const [trace,consistency,recovery]=await Promise.all([
+      const [trace,consistency,recovery,failure]=await Promise.all([
         api("/api/lifecycle/jobs/"+encodeURIComponent(id)),
         api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/consistency"),
-        api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/recovery")
+        api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/recovery"),
+        api("/api/jobs/"+encodeURIComponent(id)+"/failure-analysis")
       ]);
       const detail=document.createElement("div");detail.className="review-policy lifecycle-operations";
-      detail.innerHTML=renderLifecycleTrace(trace)+renderLifecycleOperations(consistency,recovery);
+      const analysis=failure.latest_failure;
+      const failurePanel=analysis?'<div class="data-item"><b>실패 원인 · '+esc(analysis.category)+' · '+esc(analysis.severity)+'</b><small>'+esc(analysis.error_code)+' · '+esc(analysis.message||"상세 오류 메시지 없음")+'</small><p>'+esc(analysis.rationale)+'</p><p><b>권장 조치:</b> '+esc(analysis.recommended_operator_action)+'</p><p><b>재처리 판정:</b> '+esc(analysis.retry_recommendation)+' (자동 재시도 권한 없음)</p></div>':'<div class="data-item"><b>실패 원인 분석</b><small>기록된 실패 이벤트가 없습니다.</small></div>';
+      detail.innerHTML=renderLifecycleTrace(trace)+failurePanel+renderLifecycleOperations(consistency,recovery);
       button.insertAdjacentElement("afterend",detail);
     }catch(err){toast(err.message);}
     finally{button.disabled=false;}
