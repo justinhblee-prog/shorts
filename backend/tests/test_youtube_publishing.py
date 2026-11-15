@@ -370,43 +370,96 @@ class YouTubePublishingTests(unittest.TestCase):
 
     def test_metrics_collector_lease_is_single_owner_and_releasable(self):
         second_store=YouTubeUploadStore(self.db)
-        self.assertEqual(self.uploads.acquire_metrics_collector_lease("collector-a"),"collector-a")
+        first = self.uploads.acquire_metrics_collector_lease("collector-a")
+        self.assertTrue(first)
         self.assertIsNone(second_store.acquire_metrics_collector_lease("collector-b"))
-        self.assertTrue(self.uploads.release_metrics_collector_lease("collector-a"))
-        self.assertEqual(second_store.acquire_metrics_collector_lease("collector-b"),"collector-b")
+        self.assertTrue(self.uploads.release_metrics_collector_lease("collector-a", first))
+        second = second_store.acquire_metrics_collector_lease("collector-b")
+        self.assertTrue(second)
+        self.assertNotEqual(first, second)
 
     def test_metrics_collector_lease_can_be_renewed_but_not_revived_after_expiry(self):
-        self.assertEqual(
-            self.uploads.acquire_metrics_collector_lease("collector-a", 60, now=1000),
-            "collector-a",
-        )
+        token = self.uploads.acquire_metrics_collector_lease("collector-a", 60, now=1000)
+        self.assertTrue(token)
         self.assertTrue(self.uploads.renew_metrics_collector_lease(
-            "collector-a", 60, now=1040
+            "collector-a", token, 60, now=1040
         ))
         self.assertIsNone(self.uploads.acquire_metrics_collector_lease(
             "collector-b", 60, now=1090
         ))
         self.assertFalse(self.uploads.renew_metrics_collector_lease(
-            "collector-a", 60, now=1101
+            "collector-a", token, 60, now=1101
         ))
-        self.assertEqual(self.uploads.acquire_metrics_collector_lease(
+        replacement = self.uploads.acquire_metrics_collector_lease(
             "collector-b", 60, now=1101
-        ), "collector-b")
+        )
+        self.assertTrue(replacement)
+        self.assertFalse(self.uploads.renew_metrics_collector_lease(
+            "collector-a", token, 60, now=1102
+        ))
 
-    def test_collection_state_write_rejects_a_replaced_collector_lease(self):
-        self.uploads.acquire_metrics_collector_lease("collector-a")
+    def test_same_owner_cannot_reacquire_or_renew_a_replaced_token(self):
+        first = self.uploads.acquire_metrics_collector_lease("collector-a", 60, now=1000)
+        self.assertIsNone(self.uploads.acquire_metrics_collector_lease(
+            "collector-a", 60, now=1001
+        ))
+        replacement = self.uploads.acquire_metrics_collector_lease(
+            "collector-a", 60, now=1101
+        )
+        self.assertTrue(replacement)
+        self.assertNotEqual(first, replacement)
+        self.assertFalse(self.uploads.renew_metrics_collector_lease(
+            "collector-a", first, 60, now=1102
+        ))
+        self.assertTrue(self.uploads.renew_metrics_collector_lease(
+            "collector-a", replacement, 60, now=1102
+        ))
+        self.assertFalse(self.uploads.release_metrics_collector_lease(
+            "collector-a", first
+        ))
+        self.assertTrue(self.uploads.release_metrics_collector_lease(
+            "collector-a", replacement
+        ))
+
+    def test_collection_state_write_rejects_a_replaced_token_for_same_owner(self):
+        token = self.uploads.acquire_metrics_collector_lease("collector-a")
         with self.uploads.db() as connection:
             connection.execute(
-                "UPDATE youtube_metrics_collector_lease SET owner_id=?,lease_until=? WHERE id=1",
-                ("collector-b", 4102444800),
+                "UPDATE youtube_metrics_collector_lease SET lease_token=?,lease_until=? WHERE id=1",
+                ("replacement-token", 4102444800),
             )
         with self.assertRaisesRegex(RuntimeError, "lease lost"):
             self.uploads.record_metrics_collection(
-                "succeeded", requested=1, collected=1, lease_owner="collector-a"
+                "succeeded", requested=1, collected=1,
+                lease_owner="collector-a", lease_token=token,
             )
         self.assertEqual(
             self.uploads.metrics_collection_status()["status"], "not_started"
         )
+
+    def test_existing_metrics_lease_schema_migrates_fencing_token(self):
+        legacy_db = os.path.join(self.tmp.name, "legacy-metrics.sqlite3")
+        with sqlite3.connect(legacy_db) as connection:
+            connection.execute("""CREATE TABLE youtube_metrics_collector_lease(
+                id INTEGER PRIMARY KEY CHECK(id=1), owner_id TEXT NOT NULL,
+                lease_until REAL NOT NULL, updated_at TEXT NOT NULL)""")
+            connection.execute(
+                "INSERT INTO youtube_metrics_collector_lease VALUES(1,?,?,?)",
+                ("legacy-owner", 4102444800, "2026-11-15T00:00:00+00:00"),
+            )
+        migrated = YouTubeUploadStore(legacy_db)
+        with migrated.db() as connection:
+            columns = {row["name"] for row in connection.execute(
+                "PRAGMA table_info(youtube_metrics_collector_lease)"
+            )}
+            row = connection.execute(
+                "SELECT lease_token FROM youtube_metrics_collector_lease WHERE id=1"
+            ).fetchone()
+        self.assertIn("lease_token", columns)
+        self.assertEqual(row["lease_token"], "")
+        self.assertFalse(migrated.renew_metrics_collector_lease(
+            "legacy-owner", "", now=4102444700
+        ))
 
     def test_due_metrics_batch_refreshes_multiple_videos_in_one_api_request(self):
         self.prod.create("job-2",{"brand":"Future Leak","region":"US",
