@@ -234,7 +234,7 @@ class ApiSecurityTests(unittest.TestCase):
     def test_generic_api_failure_forces_production_job_terminal_and_pauses(self):
         job = {"id": "job-generic-fail", "job_type": "short_video_production"}
         body = Fail(worker_id="worker-1", lease_token="lease-1",
-                    error_code="provider_timeout", error_message="timeout",
+                    error_code="operator_failure", error_message="manual failure",
                     retryable=True)
         with (
             mock.patch("app.require_review_access"),
