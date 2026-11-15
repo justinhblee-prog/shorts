@@ -1,7 +1,7 @@
 import os
 from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Header
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -14,7 +14,8 @@ from production_pipeline import ProductionStore, ProductionPipeline, submit_prod
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
-from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
+from tiktok_publishing import (TikTokPublishStore, TikTokPublisher, TikTokPublishError,
+                               TikTokOAuthStore, TikTokOAuthError)
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
@@ -36,7 +37,8 @@ review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_publisher=YouTubePublisher(youtube_upload_store)
 tiktok_publish_store=TikTokPublishStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
-tiktok_publisher=TikTokPublisher(tiktok_publish_store)
+tiktok_oauth_store=TikTokOAuthStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+tiktok_publisher=TikTokPublisher(tiktok_publish_store,token_provider=tiktok_oauth_store.get_access_token)
 ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
@@ -90,6 +92,10 @@ class PolicyEvidenceInput(BaseModel):
     transformative_contribution:str|None=Field(default=None,max_length=4000)
     commercial_relationship_disclosed:bool|None=None
     child_safety_review_confirmed:bool|None=None
+
+
+class TikTokOAuthAuthorizationRequest(BaseModel):
+    operator_id:str=Field(min_length=1,max_length=128)
 
 
 class TikTokPublishReconciliation(BaseModel):
@@ -438,6 +444,33 @@ def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
         raise HTTPException(404,"Production job not found")
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
+
+
+@app.get("/api/tiktok/oauth/status")
+def tiktok_oauth_status(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return tiktok_oauth_store.status()
+
+
+@app.post("/api/tiktok/oauth/authorize")
+def tiktok_oauth_authorize(body:TikTokOAuthAuthorizationRequest,
+                           x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_oauth_store.create_authorization(body.operator_id)
+    except TikTokOAuthError as e:
+        raise HTTPException(503,str(e))
+
+
+@app.get("/api/tiktok/oauth/callback")
+def tiktok_oauth_callback(code:str|None=None,state:str|None=None,error:str|None=None):
+    if error or not code or not state:
+        return RedirectResponse(url="/?tiktok_oauth=failed",status_code=303)
+    try:
+        tiktok_oauth_store.connect(code,state)
+        return RedirectResponse(url="/?tiktok_oauth=connected",status_code=303)
+    except TikTokOAuthError:
+        return RedirectResponse(url="/?tiktok_oauth=failed",status_code=303)
 
 
 @app.post("/api/tiktok/publish/{job_id}",status_code=202)
