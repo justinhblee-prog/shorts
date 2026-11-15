@@ -1,5 +1,8 @@
+import io
 import tempfile
 import unittest
+import urllib.error
+from unittest import mock
 from pathlib import Path
 
 from production_pipeline import (
@@ -106,6 +109,7 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(len(script.calls), 1)
         self.assertEqual(len(voice.calls), 1)
         self.assertEqual(len(render.calls), 1)
+
 
     def test_pipeline_blocks_explicitly_nonvertical_render_before_review(self):
         script = FakeProvider({"script": "This script has enough words to explain the topic clearly and give viewers a useful takeaway."})
@@ -252,6 +256,32 @@ class ProductionTests(unittest.TestCase):
         provider = JsonProvider("")
         with self.assertRaises(ProviderError) as caught:
             provider.post("script", {"topic": "test"})
+        self.assertFalse(caught.exception.retryable)
+
+    def test_provider_http_5xx_is_not_retryable(self):
+        error=urllib.error.HTTPError(
+            "https://provider.example",503,"Service unavailable",{},
+            io.BytesIO(b"upstream failure")
+        )
+        with mock.patch("urllib.request.urlopen",side_effect=error):
+            with self.assertRaises(ProviderError) as caught:
+                JsonProvider._request("https://provider.example",{},b"{}",1)
+        self.assertFalse(caught.exception.retryable)
+
+    def test_provider_http_429_is_retryable(self):
+        error=urllib.error.HTTPError(
+            "https://provider.example",429,"Rate limited",{},
+            io.BytesIO(b"try later")
+        )
+        with mock.patch("urllib.request.urlopen",side_effect=error):
+            with self.assertRaises(ProviderError) as caught:
+                JsonProvider._request("https://provider.example",{},b"{}",1)
+        self.assertTrue(caught.exception.retryable)
+
+    def test_provider_timeout_is_not_retryable(self):
+        with mock.patch("urllib.request.urlopen",side_effect=TimeoutError("request timed out")):
+            with self.assertRaises(ProviderError) as caught:
+                JsonProvider._request("https://provider.example",{},b"{}",1)
         self.assertFalse(caught.exception.retryable)
 
     def test_queue_claim_filters_by_job_type(self):

@@ -2,6 +2,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from production_pipeline import ProductionStore
@@ -286,6 +287,55 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(current["status"],"uploaded")
         self.assertEqual(current["events"][-1]["event_type"],"post_confirmation_worker_error")
 
+    def test_post_confirmation_read_failure_does_not_report_uncertain_upload(self):
+        original_get=self.uploads.get
+        calls={"count":0}
+        def fail_followup_read(job_id):
+            calls["count"]+=1
+            if calls["count"]==2:
+                raise RuntimeError("database read unavailable after confirmation")
+            return original_get(job_id)
+        with mock.patch.object(self.uploads,"get",side_effect=fail_followup_read):
+            with self.assertRaisesRegex(
+                YouTubeUploadError,"upload was confirmed as yt-video-123"
+            ):
+                self.publisher.upload_approved(
+                    "job-1",self.media,self.review,"Confirmed short"
+                )
+        record=original_get("job-1")
+        self.assertEqual(record["status"],"uploaded")
+        self.assertEqual(record["video_id"],"yt-video-123")
+        self.assertEqual(record["events"][-1]["event_type"],"upload_confirmed")
+
+    def test_concurrent_upload_that_observes_completed_begin_does_not_insert_again(self):
+        first=self.publisher.upload_approved(
+            "job-1",self.media,self.review,"First request"
+        )
+        original_get=self.uploads.get
+        reads={"count":0}
+
+        def miss_initial_read(job_id):
+            reads["count"]+=1
+            if reads["count"]==1:
+                # Simulate the second request reading just before the first
+                # request commits its uploaded state.
+                return None
+            return original_get(job_id)
+
+        with mock.patch.object(self.uploads,"get",side_effect=miss_initial_read):
+            result=self.publisher.upload_approved(
+                "job-1",self.media,self.review,"Concurrent second request"
+            )
+
+        self.assertEqual(result["status"],"uploaded")
+        self.assertEqual(result["video_id"],first["video_id"])
+        self.assertEqual(self.service._videos.body["snippet"]["title"],"First request")
+        self.assertEqual(len(result["events"]),2)
+        self.assertEqual(
+            len([event for event in result["events"]
+                 if event["event_type"]=="upload_attempt_started"]),1
+        )
+
     def test_upload_is_idempotent_after_success(self):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         second=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
@@ -365,6 +415,30 @@ class YouTubePublishingTests(unittest.TestCase):
                 connection.execute(
                     "DELETE FROM youtube_upload_events WHERE id=?",(event_id,)
                 )
+
+    def test_upload_stops_after_attempt_lease_is_lost_between_chunks(self):
+        class TwoChunkRequest:
+            def __init__(self):
+                self.calls=0
+            def next_chunk(self):
+                self.calls+=1
+                if self.calls==1:
+                    return None,None
+                return None,{"id":"should-not-upload"}
+
+        request=TwoChunkRequest()
+        videos=mock.Mock()
+        videos.insert.return_value=request
+        service=mock.Mock()
+        service.videos.return_value=videos
+        publisher=YouTubePublisher(self.uploads,service)
+        with mock.patch.object(self.uploads,"touch_upload",return_value=False):
+            with self.assertRaisesRegex(YouTubeUploadError,"superseded"):
+                publisher.upload_approved(
+                    "job-1",self.media,self.review,"Sleep short"
+                )
+        self.assertEqual(request.calls,1)
+        self.assertEqual(self.uploads.get("job-1")["status"],"reconciliation_required")
 
     def test_active_upload_cannot_be_reconciled_early(self):
         self.uploads.begin("job-1","Sleep short","")

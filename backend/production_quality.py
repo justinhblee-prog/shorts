@@ -1,12 +1,54 @@
 """Deterministic metadata-level production QA; never claims to inspect media bytes."""
 
+import math
+from urllib.parse import urlsplit
+
 
 def _positive_number(value):
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
-    return number if number > 0 else None
+    return number if math.isfinite(number) and number > 0 else None
+
+
+def _reported_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("true", "yes", "1"):
+            return True
+        if normalized in ("false", "no", "0"):
+            return False
+    return None
+
+
+def _is_http_source(value):
+    if not isinstance(value, str) or not value.strip() or any(ch.isspace() for ch in value.strip()):
+        return False
+    try:
+        parsed = urlsplit(value.strip())
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    except ValueError:
+        return False
+
+
+def _is_vertical_aspect(value):
+    try:
+        text = str(value).strip()
+        if ":" in text:
+            numerator, denominator = text.split(":", 1)
+            ratio = float(numerator) / float(denominator)
+        else:
+            ratio = float(text)
+    except (TypeError, ValueError, ZeroDivisionError, OverflowError):
+        return False
+    return math.isfinite(ratio) and abs(ratio - (9.0 / 16.0)) <= 0.01
 
 
 def evaluate_production_quality(script_text, script_metadata, voice_metadata,
@@ -35,6 +77,8 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
         sources = script_metadata.get("source_urls")
         if not isinstance(sources, list) or not sources:
             warnings.append("trend_source_citations_not_returned_by_script_provider")
+        elif not any(_is_http_source(source) for source in sources):
+            warnings.append("trend_source_citations_invalid_or_empty")
     if script_metadata.get("factual_claims_verified") is not True:
         warnings.append("script_provider_did_not_attest_fact_check")
     checks.append({
@@ -67,8 +111,11 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
     render_format = str(render_metadata.get("format") or "").strip().lower()
     width = _positive_number(render_metadata.get("width"))
     height = _positive_number(render_metadata.get("height"))
-    known_nonvertical = render_format in ("horizontal", "horizontal_16_9", "square", "16:9", "1:1")
-    if aspect and aspect != "9:16":
+    known_nonvertical = render_format in (
+        "horizontal", "horizontal_16_9", "landscape", "landscape_16_9",
+        "square", "16:9", "1:1",
+    )
+    if aspect and not _is_vertical_aspect(aspect):
         known_nonvertical = True
     if width and height:
         measured_ratio = width / height
@@ -76,19 +123,19 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             known_nonvertical = True
     if known_nonvertical:
         blockers.append("render_format_is_not_vertical_9_16")
-    elif not aspect and not (width and height) and render_format not in (
-        "vertical", "vertical_short", "9:16"
-    ):
+    elif not aspect and not (width and height) and render_format != "9:16":
         warnings.append("render_aspect_ratio_not_reported")
 
-    if render_metadata.get("audio_track_present") is False:
+    audio_track_present = _reported_bool(render_metadata.get("audio_track_present"))
+    if audio_track_present is False:
         blockers.append("rendered_video_reports_no_audio_track")
-    elif render_metadata.get("audio_track_present") is not True:
+    elif audio_track_present is None:
         warnings.append("render_audio_track_presence_not_reported")
 
-    if render_metadata.get("subtitles_enabled") is False:
+    subtitles_enabled = _reported_bool(render_metadata.get("subtitles_enabled"))
+    if subtitles_enabled is False:
         warnings.append("rendered_subtitles_reported_disabled")
-    elif render_metadata.get("subtitles_enabled") is not True:
+    elif subtitles_enabled is None:
         warnings.append("render_subtitle_presence_not_reported")
 
     if voice_duration and render_duration:
@@ -115,8 +162,8 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
         "aspect_ratio": aspect or None,
         "width": width,
         "height": height,
-        "audio_track_present": render_metadata.get("audio_track_present"),
-        "subtitles_enabled": render_metadata.get("subtitles_enabled"),
+        "audio_track_present": audio_track_present,
+        "subtitles_enabled": subtitles_enabled,
     })
 
     status = "blocked" if blockers else "review_required" if warnings else "ready_for_human_review"

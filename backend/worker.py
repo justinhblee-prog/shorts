@@ -122,17 +122,23 @@ def run_once():
             print(f"lease_lost job={job['id']}")
         print(f"policy_blocked job={job['id']} stage={exc.stage}")
     except ProviderError as exc:
-        stopping.set()
+        failure_recorded=False
+        failed_job=None
         try:
-            queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "provider_" + exc.stage, str(exc), exc.retryable)
+            failed_job=queue.fail(job["id"], WORKER_ID, job["lease_token"],
+                                  "provider_" + exc.stage, str(exc), exc.retryable)
+            failure_recorded=True
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
-        try:
-            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
-        except Exception:
-            pass
-        print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}")
+        if not failure_recorded:
+            stopping.set()
+            try:
+                queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
+            except Exception:
+                pass
+        elif failed_job.get("status") != "failed_retriable":
+            stopping.set()
+        print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable and failed_job and failed_job.get('status') == 'failed_retriable'}")
     except (LeaseConflict, ProductionLeaseConflict) as exc:
         stopping.set()
         try:
@@ -160,7 +166,7 @@ def run_once():
     finally:
         heartbeat_stop.set()
         if heartbeat.is_alive():
-            heartbeat.join(timeout=5)
+            heartbeat.join()
         active_job_id = None
         active_lost_lease_event = None
     return True

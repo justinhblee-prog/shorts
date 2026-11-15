@@ -53,9 +53,9 @@ class JsonProvider:
         except urllib.error.HTTPError as exc:
             detail = exc.read(1000).decode("utf-8", "replace")
             raise ProviderError("provider", f"Provider HTTP {exc.code}: {detail}",
-                                retryable=exc.code >= 500 or exc.code == 429)
+                                retryable=exc.code == 429)
         except (urllib.error.URLError, TimeoutError) as exc:
-            raise ProviderError("provider", f"Provider connection failed: {type(exc).__name__}")
+            raise ProviderError("provider", f"Provider connection failed: {type(exc).__name__}", retryable=False)
 
     def post(self, stage, payload):
         if not self.url:
@@ -69,7 +69,7 @@ class JsonProvider:
                 self.timeout)
             if status < 200 or status >= 300:
                 raise ProviderError(stage, f"{stage} provider returned HTTP {status}",
-                                    retryable=status >= 500 or status == 429)
+                                    retryable=status == 429)
             data = json.loads(raw.decode("utf-8"))
             if not isinstance(data, dict):
                 raise ValueError("Provider response must be a JSON object")

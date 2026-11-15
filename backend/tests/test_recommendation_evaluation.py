@@ -54,15 +54,17 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertFalse(later["deduplicated"])
 
     def test_records_exposure_and_links_selected_production_job(self):
-        self.store.record_run("US", [self.item(1, 82.5)],
-                              "2026-11-01T00:00:00+00:00")
+        exposure = self.store.record_run("US", [self.item(1, 82.5)],
+                                         "2026-11-01T00:00:00+00:00")
         linked = self.store.link_production(
             "trend-1", "future-leak", "job-1",
-            "2026-11-01T01:00:00+00:00"
+            run_id=exposure["run_id"],
+            selected_at="2026-11-01T01:00:00+00:00"
         )
         self.assertTrue(linked["linked"])
         self.assertFalse(self.store.link_production(
-            "trend-1", "future-leak", "job-2"
+            "trend-1", "future-leak", "job-2",
+            run_id=exposure["run_id"]
         )["linked"])
 
     def test_holdout_is_chronological_and_reports_score_outcome_association(self):
@@ -70,11 +72,12 @@ class RecommendationEvaluationTests(unittest.TestCase):
         for index in range(10):
             timestamp = (datetime(2026, 11, 1, tzinfo=timezone.utc)
                          + timedelta(days=index)).isoformat()
-            self.store.record_run("US", [self.item(index, 50 + index * 2)],
-                                  timestamp)
+            exposure = self.store.record_run(
+                "US", [self.item(index, 50 + index * 2)], timestamp
+            )
             self.store.link_production(
                 f"trend-{index}", "future-leak", f"job-{index}",
-                timestamp
+                run_id=exposure["run_id"], selected_at=timestamp
             )
             videos.append({
                 "job_id": f"job-{index}",
@@ -92,14 +95,48 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertIn("selection bias", result["warning"])
 
     def test_insufficient_or_unmeasured_outcomes_never_claim_validation(self):
-        self.store.record_run("US", [self.item(1, 80)],
-                              "2026-11-01T00:00:00+00:00")
-        self.store.link_production("trend-1", "future-leak", "job-1")
+        exposure = self.store.record_run("US", [self.item(1, 80)],
+                                         "2026-11-01T00:00:00+00:00")
+        self.store.link_production("trend-1", "future-leak", "job-1",
+                                   run_id=exposure["run_id"])
         result = self.store.evaluate({"videos": []})
         self.assertEqual(result["status"], "insufficient_data")
         self.assertEqual(result["selected_production_count"], 1)
         self.assertEqual(result["unmeasured_selected_count"], 1)
         self.assertFalse(result["ranking_score_adjustment_enabled"])
+
+
+    def test_production_link_requires_exact_exposure_run(self):
+        first = self.store.record_run(
+            "US", [self.item(1, 70)], "2026-11-01T00:00:00+00:00"
+        )
+        second = self.store.record_run(
+            "US", [self.item(1, 90)], "2026-11-01T00:02:00+00:00"
+        )
+        missing = self.store.link_production("trend-1", "future-leak", "job-missing")
+        self.assertFalse(missing["linked"])
+        self.assertEqual(missing["reason"], "recommendation_run_id_required")
+        linked = self.store.link_production(
+            "trend-1", "future-leak", "job-1", run_id=first["run_id"]
+        )
+        self.assertTrue(linked["linked"])
+        repeated = self.store.link_production(
+            "trend-1", "future-leak", "job-1", run_id=first["run_id"]
+        )
+        self.assertTrue(repeated["linked"])
+        self.assertTrue(repeated["already_linked"])
+        self.assertEqual(repeated["candidate_id"], linked["candidate_id"])
+        conflicting = self.store.link_production(
+            "trend-1", "future-leak", "job-1", run_id=second["run_id"]
+        )
+        self.assertFalse(conflicting["linked"])
+        self.assertEqual(conflicting["reason"], "job_already_attributed")
+        with self.store.db() as c:
+            selected = c.execute(
+                "SELECT run_id,selected_job_id FROM recommendation_candidates WHERE selected_job_id='job-1'"
+            ).fetchone()
+        self.assertEqual(selected["run_id"], first["run_id"])
+        self.assertNotEqual(selected["run_id"], second["run_id"])
 
     def test_spearman_handles_ties_and_constant_values(self):
         self.assertEqual(_spearman([1, 2, 3], [10, 20, 30]), 1.0)

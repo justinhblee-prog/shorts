@@ -141,7 +141,7 @@
       const options=candidates.filter(x=>(x.supported_languages||[]).includes(language))
         .map(x=>'<option value="'+esc(x.brand)+'">'+esc(x.brand_name)+'</option>').join("");
       const controls=trend.id&&options
-        ? '<div class="trend-actions"><select aria-label="추천 제작 브랜드" data-recommend-brand="'+esc(trend.id)+'">'+options+'</select><button type="button" class="button button-secondary" data-recommend-draft="'+esc(trend.id)+'" data-recommend-language="'+language+'">추천 브랜드로 기획</button></div>'
+        ? '<div class="trend-actions"><select aria-label="추천 제작 브랜드" data-recommend-brand="'+esc(trend.id)+'">'+options+'</select><button type="button" class="button button-secondary" data-recommend-draft="'+esc(trend.id)+'" data-recommend-language="'+language+'" data-recommend-run="'+esc(data.evaluation_run_id||"")+'">추천 브랜드로 기획</button></div>'
         : '<small class="trend-unavailable">현재 시장·언어에 맞는 활성 브랜드가 없습니다.</small>';
       const competitor=item.competitor_context||{};
       const competitorSummary=Number(competitor.observed_videos||0)>0
@@ -283,7 +283,7 @@
     button.disabled=true;
     try{
       const result=await api("/api/trends/"+encodeURIComponent(button.dataset.recommendDraft)+"/draft-production",{
-        method:"POST",body:JSON.stringify({brand:selector.value,language:button.dataset.recommendLanguage})
+        method:"POST",body:JSON.stringify({brand:selector.value,language:button.dataset.recommendLanguage,recommendation_run_id:button.dataset.recommendRun})
       });
       toast("추천 후보 제작 기획 등록 완료 · "+result.job.id);
       await loadMetrics();

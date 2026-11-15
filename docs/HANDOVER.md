@@ -732,6 +732,28 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - Repeated identical recommendation responses within 60 seconds reuse the same snapshot run to avoid noisy duplicate records. Unselected candidate snapshots older than 180 days are pruned; selected production-linked evidence is retained for longitudinal diagnostics.
 
+### Production replay, API lease and YouTube upload race hardening — 2026-11-15
+
+- Consolidates production safety changes on the latest main base, preserving the latest recommendation-evaluation API, its tests, and frontend changes.
+- Provider HTTP 5xx, network failures and timeouts are non-retryable ambiguous outcomes; explicit HTTP 429 rate-limit rejection remains retryable.
+- Terminal production failures synchronize queue and production-run state transactionally. Ambiguous provider failures pause production and fence other running production leases; non-provider policy failures remain job-local.
+- Generic job APIs cannot create, claim, heartbeat, or complete production jobs. Production-aware paths are required.
+- Queued production cancellation synchronizes production state. Running cancellation and expired production leases are treated as ambiguous and fenced.
+- API-triggered production execution renews its lease during provider calls. Lost heartbeat signals stop the pipeline and prevent completion. API and worker heartbeat threads fully exit before lease completion to avoid late heartbeat races.
+- Confirmed YouTube uploads remain confirmed after follow-up read failures. A concurrent request that sees an upload complete between its initial read and transactional begin returns the existing result rather than sending a duplicate remote insert.
+- Regression tests cover API bypasses, lease loss, provider retryability, atomic state transitions, cancellation, YouTube upload confirmation and concurrent upload idempotency.
+- Previous implementation CI passed all 206 backend unit tests with Python compileall, Compose YAML validation and frontend syntax/ID checks. The current latest-main rebased branch has its own CI pending.
+- Not merged or deployed. External provider and production environment validation remain outstanding.
+
+
+### Recommendation exposure attribution integrity — 2026-11-15
+
+- Production selections now carry the exact `evaluation_run_id` returned with the recommendation list.
+- The dashboard sends that run ID with the selected trend/brand. The API persists the selection against a candidate from that exact run.
+- If the run ID is absent, the system records no recommendation attribution rather than guessing from the latest matching trend/brand. This prevents refreshes and repeated recommendation runs from silently assigning an outcome to the wrong exposure.
+- Regression coverage verifies exact-run linking, rejects missing run IDs, and checks API propagation.
+- GitHub Actions run [43675694608](https://github.com/justinhblee-prog/shorts/actions/runs/43675694608) passed `sh scripts/validate.sh` on commit `7013f2c970eaac47a2f37ac011238c7400d4342a`, including **214 backend tests**, Python compilation, Compose YAML validation and frontend syntax/ID checks.
+
 
 ### Production artifact metadata quality gate — 2026-11-15
 
@@ -740,13 +762,28 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Explicit known non-vertical output, a reported missing audio track, or a reported duration over 180 seconds blocks the production handoff. Missing metadata produces a visible `review_required` warning rather than fabricated success.
 - Persists a `quality_check` report artifact and shows blockers/warnings and verification limitations in the human review workspace. Human approval remains mandatory; no score changes or public publication are enabled.
 - **Boundary:** the gate evaluates provider-returned metadata and basic script length only. It does not download or inspect media bytes, verify captions, prove factual accuracy or rights, assess visual quality, or establish platform compliance. Provider attestations are not independent verification.
-- CI validation pending on this branch; do not mark verified until GitHub Actions passes.
-
-- Approval enforcement is server-side: quality blockers cannot be overridden by a reviewer comment, and `review_required` warnings require an explicit reviewer confirmation note. The review UI requests that note and displays the recorded quality report.
+- Approval enforcement is server-side: quality blockers cannot be overridden by a reviewer comment, and `review_required` warnings require an explicit reviewer confirmation note.
 
 
 ### Recommendation exposure capture uses explicit POST — 2026-11-15
 
-- Kept `GET /api/trends/recommendations` read-only.
+- Kept `GET /api/trends/recommendations` read-only; routine browsing no longer creates evaluation exposure records.
 - Added `POST /api/trends/recommendations/snapshot` for the production workspace to explicitly capture the candidate set it receives for later outcome linkage.
 - Updated the workspace to call the POST endpoint. Identical snapshots remain deduplicated within 60 seconds.
+- Exact `evaluation_run_id` is propagated into production drafting, so measured outcomes can only be linked to the recommendation set explicitly captured for that workspace view.
+
+
+### Latest production QA hardening and verification — 2026-11-15
+
+- Provider-supplied numeric measurements now reject booleans, NaN and infinity rather than treating them as valid duration/dimension evidence.
+- Vertical aspect ratios accept equivalent numeric 9:16 values, but a generic `vertical` label alone is not proof of the exact 9:16 target.
+- Trend source metadata must contain at least one syntactically valid absolute HTTP(S) URL; malformed source entries remain a human-review warning, not a claim that sources were independently verified.
+- Audio/subtitle flags are normalized from explicit JSON booleans and common string/0/1 values; explicit audio absence blocks handoff.
+- GitHub Actions [run 43676820374](https://github.com/justinhblee-prog/shorts/actions/runs/43676820374) passed `sh scripts/validate.sh` on `3a4cce45764c637c534bc5d9d3ca315bbf160db7`, including **230 backend tests**, Python compileall, Compose YAML validation and frontend syntax/DOM-ID checks.
+
+
+### Recommendation attribution idempotency — 2026-11-15
+
+- Linking a production job to its originating recommendation exposure is now idempotent: repeating the same job/run/trend/brand link returns the existing candidate.
+- A job already attributed to a different recommendation exposure is rejected with a stable conflict reason instead of raising a database uniqueness error or being reassigned.
+- GitHub Actions [run 43676956985](https://github.com/justinhblee-prog/shorts/actions/runs/43676956985) passed `sh scripts/validate.sh` on `deb635f37b85e6149413bd6e2e719e29efd4fee7`, including **230 backend tests**.

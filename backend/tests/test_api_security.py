@@ -9,7 +9,9 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
-                 OpportunityInput, create_opportunity_score)
+                 OpportunityInput, create_opportunity_score, Fail, fail as fail_job,
+                 Complete, complete as complete_job, Claim, claim as claim_job,
+                 Enqueue, enqueue as enqueue_job, Lease, heartbeat as heartbeat_job)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -184,11 +186,73 @@ class ApiSecurityTests(unittest.TestCase):
             result = execute_production_job("job-1", body, x_review_token="test-token")
 
         self.assertEqual(result, response)
-        execute.assert_called_once_with(
-            "job-1", job["payload"], worker_id="worker-1", lease_token="lease-1"
-        )
+        execute.assert_called_once()
+        self.assertEqual(execute.call_args.args,
+                         ("job-1", job["payload"]))
+        self.assertEqual(execute.call_args.kwargs["worker_id"], "worker-1")
+        self.assertEqual(execute.call_args.kwargs["lease_token"], "lease-1")
+        self.assertIsInstance(execute.call_args.kwargs["stop_event"], app_module.threading.Event)
         finish.assert_called_once()
         reconcile.assert_called_once_with(app_module.queue)
+
+    def test_api_production_execution_stops_when_heartbeat_loses_lease(self):
+        job = {"id": "job-heartbeat", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+
+        def wait_for_lease_loss(*args, **kwargs):
+            stop_event = kwargs["stop_event"]
+            self.assertTrue(stop_event.wait(3))
+            return {"artifacts": []}
+
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "lease_seconds", 1),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "heartbeat",
+                              side_effect=app_module.LeaseConflict("lease lost")),
+            mock.patch.object(app_module.queue, "pause") as pause,
+            mock.patch.object(app_module.production_pipeline, "execute",
+                              side_effect=wait_for_lease_loss) as execute,
+            mock.patch.object(app_module.queue, "finish") as finish,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job("job-heartbeat", body, x_review_token="test-token")
+
+        self.assertEqual(caught.exception.status_code, 409)
+        self.assertTrue(execute.call_args.kwargs["stop_event"].is_set())
+        finish.assert_not_called()
+        pause.assert_called()
+
+    def test_api_production_heartbeat_renews_short_lease_before_expiry(self):
+        import time
+        job = {"id": "job-short-lease", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+
+        def brief_execution(*args, **kwargs):
+            time.sleep(0.55)
+            return {"artifacts": []}
+
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "lease_seconds", 1),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "heartbeat", return_value=job) as heartbeat,
+            mock.patch.object(app_module.production_pipeline, "execute",
+                              side_effect=brief_execution),
+            mock.patch.object(app_module.queue, "finish"),
+            mock.patch.object(app_module.production_store, "reconcile_review_pending"),
+            mock.patch.object(app_module.production_store, "get",
+                              return_value={"status": "review_pending"}),
+        ):
+            result = execute_production_job("job-short-lease", body,
+                                            x_review_token="test-token")
+
+        self.assertEqual(result["status"], "review_pending")
+        heartbeat.assert_called()
 
     def test_api_production_execution_rejects_stale_pipeline_lease(self):
         job = {"id": "job-1", "job_type": "short_video_production",
@@ -217,15 +281,104 @@ class ApiSecurityTests(unittest.TestCase):
             mock.patch("app.require_review_access"),
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(app_module.production_pipeline, "execute",
-                              side_effect=ProviderError("script", "provider timeout", True)),
+                              side_effect=ProviderError("script", "provider timeout", False)),
             mock.patch.object(app_module.queue, "fail") as fail,
             mock.patch.object(app_module.queue, "pause") as pause,
         ):
             with self.assertRaises(HTTPException) as caught:
                 execute_production_job("job-provider", body, x_review_token="test-token")
         self.assertEqual(caught.exception.status_code, 502)
+        self.assertFalse(caught.exception.detail["retryable"])
         fail.assert_called_once()
-        pause.assert_called_once()
+        self.assertIs(fail.call_args.args[-1], False)
+        pause.assert_not_called()
+
+    def test_api_http_429_provider_rejection_is_retryable(self):
+        job = {"id": "job-provider-429", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.production_pipeline, "execute",
+                              side_effect=ProviderError("provider", "HTTP 429 rate limited", True)),
+            mock.patch.object(app_module.queue, "fail",
+                              return_value={"status": "failed_retriable"}) as fail,
+            mock.patch.object(app_module.queue, "pause") as pause,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job("job-provider-429", body, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 502)
+        self.assertTrue(caught.exception.detail["retryable"])
+        self.assertIs(fail.call_args.args[-1], True)
+        pause.assert_not_called()
+
+    def test_generic_api_failure_forces_production_job_terminal_and_pauses(self):
+        job = {"id": "job-generic-fail", "job_type": "short_video_production"}
+        body = Fail(worker_id="worker-1", lease_token="lease-1",
+                    error_code="operator_failure", error_message="manual failure",
+                    retryable=True)
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "fail", return_value={"status": "failed_terminal"}) as fail,
+            mock.patch.object(app_module.queue, "pause") as pause,
+        ):
+            result = fail_job("job-generic-fail", body, x_review_token="test-token")
+        self.assertEqual(result["status"], "failed_terminal")
+        self.assertIs(fail.call_args.args[-1], False)
+        pause.assert_called_once_with(
+            "API reported terminal production failure",
+            "job-generic-fail",
+        )
+
+    def test_generic_heartbeat_cannot_extend_production_lease(self):
+        job={"id":"job-production-heartbeat","job_type":"short_video_production"}
+        body=Lease(worker_id="generic-worker",lease_token="lease-token")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue,"get",return_value=job),
+            mock.patch.object(app_module.queue,"heartbeat") as heartbeat,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                heartbeat_job("job-production-heartbeat",body,x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code,409)
+        heartbeat.assert_not_called()
+
+    def test_generic_enqueue_rejects_production_jobs(self):
+        body=Enqueue(job_type="short_video_production",payload={"topic":"bypass"})
+        with mock.patch("app.require_review_access"):
+            with self.assertRaises(HTTPException) as caught:
+                enqueue_job(body,x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code,409)
+        self.assertIn("/api/production/jobs",str(caught.exception.detail))
+
+    def test_generic_claim_endpoint_excludes_production_jobs(self):
+        body=Claim(worker_id="generic-worker",hostname="test-host")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue,"claim",return_value=None) as claim,
+        ):
+            result=claim_job(body,x_review_token="test-token")
+        self.assertIsNone(result["job"])
+        claim.assert_called_once_with(
+            "generic-worker","test-host",exclude_job_type="short_video_production"
+        )
+
+    def test_generic_api_completion_cannot_bypass_production_pipeline(self):
+        job = {"id": "job-generic-complete", "job_type": "short_video_production"}
+        body = Complete(worker_id="worker-1", lease_token="lease-1",
+                        result={"production_status": "review_pending"})
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "finish") as finish,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                complete_job("job-generic-complete", body, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 409)
+        finish.assert_not_called()
 
     def test_api_internal_error_records_failure_and_pauses_production(self):
         job = {"id": "job-internal", "job_type": "short_video_production",

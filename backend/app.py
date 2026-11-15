@@ -1,4 +1,5 @@
 import os
+import threading
 from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import FileResponse
@@ -154,6 +155,7 @@ class TrendProductionDraft(BaseModel):
     brand:str=Field(min_length=1,max_length=100)
     language:str=Field(min_length=2,max_length=40)
     idempotency_key:str|None=None
+    recommendation_run_id:str|None=Field(default=None,min_length=1,max_length=64)
 
 @app.get("/api/brands")
 def list_brands(active_only:bool=False):
@@ -212,36 +214,74 @@ def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
 @app.post("/api/production/jobs/{job_id}/execute")
 def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
+    heartbeat_pause_recorded=threading.Event()
     try:
         job=queue.get(job_id)
         if job["job_type"]!="short_video_production":
             raise HTTPException(409,"Job is not a short-video production job")
         if job["status"]!="running" or job["worker_id"]!=body.worker_id or job["lease_token"]!=body.lease_token:
             raise HTTPException(409,"Current worker lease is required")
-        result=production_pipeline.execute(
-            job_id,job["payload"],worker_id=body.worker_id,lease_token=body.lease_token
-        )
+        # Renew the API-owned production lease while providers are running.
+        lost_lease=threading.Event()
+        heartbeat_stop=threading.Event()
+        def renew_api_lease():
+            interval=max(0.1,queue.lease_seconds/3.0)
+            while not heartbeat_stop.wait(interval):
+                try:
+                    queue.heartbeat(job_id,body.worker_id,body.lease_token)
+                except Exception as exc:
+                    lost_lease.set()
+                    try:
+                        queue.pause(
+                            f"API production heartbeat failed: {type(exc).__name__}: {exc}",
+                            job_id,
+                        )
+                        heartbeat_pause_recorded.set()
+                    except Exception:
+                        pass
+                    return
+        heartbeat=threading.Thread(target=renew_api_lease,daemon=True)
+        heartbeat.start()
+        try:
+            result=production_pipeline.execute(
+                job_id,job["payload"],worker_id=body.worker_id,
+                lease_token=body.lease_token,stop_event=lost_lease
+            )
+        finally:
+            heartbeat_stop.set()
+            heartbeat.join()
+        if lost_lease.is_set():
+            raise ProductionLeaseConflict(
+                "Production lease heartbeat was lost during API execution"
+            )
         queue.finish(job_id,body.worker_id,body.lease_token,{"production_status":"review_pending"})
         production_store.reconcile_review_pending(queue)
         return production_store.get(job_id)
     except ProviderError as e:
+        failure_recorded=False
+        retry_scheduled=False
         try:
-            queue.fail(job_id,body.worker_id,body.lease_token,
-                       "provider_"+e.stage,str(e),e.retryable)
+            failed_job=queue.fail(job_id,body.worker_id,body.lease_token,
+                                  "provider_"+e.stage,str(e),e.retryable)
+            failure_recorded=True
+            retry_scheduled=failed_job.get("status")=="failed_retriable"
         except Exception:
             pass
-        try:
-            queue.pause(f"API provider failure at {e.stage}: {e}", job_id)
-        except Exception:
-            pass
-        raise HTTPException(502,{"stage":e.stage,"error":str(e),"retryable":e.retryable})
+        if not failure_recorded:
+            try:
+                queue.pause(f"API provider failure at {e.stage}: {e}", job_id)
+            except Exception:
+                pass
+        raise HTTPException(502,{"stage":e.stage,"error":str(e),
+                                 "retryable":retry_scheduled})
     except JobNotFound:
         raise HTTPException(404,"Job not found")
     except ProductionLeaseConflict as e:
-        try:
-            queue.pause(f"API production lease conflict: {e}", job_id)
-        except Exception:
-            pass
+        if not heartbeat_pause_recorded.is_set():
+            try:
+                queue.pause(f"API production lease conflict: {e}", job_id)
+            except Exception:
+                pass
         raise HTTPException(409,str(e))
     except LeaseConflict as e:
         try:
@@ -580,7 +620,8 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
         }
         submitted=submit_production(queue,production_store,brief)
         recommendation_evaluation_store.link_production(
-            trend_id,brand["slug"],submitted["job"]["id"]
+            trend_id,brand["slug"],submitted["job"]["id"],
+            run_id=body.recommendation_run_id,
         )
         return submitted
     except IdempotencyConflict as e:
@@ -754,6 +795,8 @@ def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=
 @app.post("/api/jobs",status_code=201)
 def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
+    if body.job_type=="short_video_production":
+        raise HTTPException(409,"Use /api/production/jobs so the production record and queue job are created together")
     try:
         return queue.enqueue(**body.model_dump())
     except IdempotencyConflict as e:
@@ -761,25 +804,47 @@ def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
 @app.post("/api/jobs/claim")
 def claim(body:Claim,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    return {"job":queue.claim(body.worker_id,body.hostname)}
+    # Production jobs must be claimed by the production-aware worker path.
+    return {"job":queue.claim(body.worker_id,body.hostname,
+                              exclude_job_type="short_video_production")}
 @app.post("/api/jobs/{jid}/heartbeat")
 def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    try: return queue.heartbeat(jid,body.worker_id,body.lease_token)
+    try:
+        job=queue.get(jid)
+        if job["job_type"]=="short_video_production":
+            raise HTTPException(409,"Production leases must be maintained by the production-aware worker")
+        return queue.heartbeat(jid,body.worker_id,body.lease_token)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/complete")
 def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    try: return queue.finish(jid,body.worker_id,body.lease_token,body.result)
+    try:
+        job=queue.get(jid)
+        if job["job_type"]=="short_video_production":
+            raise HTTPException(409,"Production jobs must complete through the production execution endpoint")
+        return queue.finish(jid,body.worker_id,body.lease_token,body.result)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/fail")
 def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    try: return queue.fail(jid,body.worker_id,body.lease_token,body.error_code,body.error_message,body.retryable)
+    production_job=False
+    try:
+        job=queue.get(jid)
+        production_job=job["job_type"]=="short_video_production"
+        retryable=False if production_job else body.retryable
+        result=queue.fail(jid,body.worker_id,body.lease_token,
+                           body.error_code,body.error_message,retryable)
+        if production_job and not str(body.error_code).startswith("provider_"):
+            queue.pause("API reported terminal production failure",jid)
+        return result
     except JobNotFound: raise HTTPException(404,"Job not found")
-    except LeaseConflict as e: raise HTTPException(409,str(e))
+    except LeaseConflict as e:
+        if production_job:
+            queue.pause("API production failure could not be recorded under the current lease",jid)
+        raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/cancel")
 def cancel(jid:str,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)

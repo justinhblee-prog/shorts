@@ -8,6 +8,13 @@ class QueueTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.q=JobQueue(Path(self.tmp.name)/"test.db",10)
  def tearDown(self): self.tmp.cleanup()
+ def create_production_run(self, job_id, status="queued"):
+  with self.q.db() as c:
+   c.execute("""CREATE TABLE IF NOT EXISTS production_runs (
+    job_id TEXT PRIMARY KEY, status TEXT NOT NULL, current_stage TEXT,
+    error TEXT, updated_at TEXT)""")
+   c.execute("""INSERT INTO production_runs(job_id,status,current_stage,error,updated_at)
+    VALUES(?,?,?,?,?)""",(job_id,status,status,None,"2026-01-01T00:00:00+00:00"))
  def test_idempotency(self):
   a=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
   b=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
@@ -133,4 +140,70 @@ class QueueTests(unittest.TestCase):
   self.assertEqual([e["event_type"] for e in events[:2]],["resumed","paused"])
   self.assertEqual(events[0]["actor"],"operator-1")
   self.assertIn("Checked provider history",events[0]["reason"])
+ def test_generic_claim_excludes_production_jobs(self):
+  production=self.q.enqueue("short_video_production", {"topic":"pipeline"})
+  ordinary=self.q.enqueue("thumbnail_task", {"image":"x"})
+  claimed=self.q.claim("generic-worker",exclude_job_type="short_video_production")
+  self.assertEqual(claimed["id"],ordinary["id"])
+  self.assertEqual(self.q.get(production["id"])["status"],"queued")
+
+ def test_terminal_production_failure_atomically_syncs_and_pauses(self):
+  job=self.q.enqueue("short_video_production", {"topic":"provider timeout"})
+  other=self.q.enqueue("short_video_production", {"topic":"parallel work"})
+  claimed=self.q.claim("worker-a",job_type="short_video_production")
+  other_claimed=self.q.claim("worker-b",job_type="short_video_production")
+  self.create_production_run(job["id"],"failed_retriable")
+  self.create_production_run(other["id"],"running")
+  failed=self.q.fail(job["id"],"worker-a",claimed["lease_token"],
+                     "provider_timeout","provider outcome uncertain",False)
+  self.assertEqual(failed["status"],"failed_terminal")
+  self.assertTrue(self.q.is_paused())
+  self.assertEqual(self.q.get(other["id"])["status"],"failed_terminal")
+  with self.q.db() as c:
+   run=c.execute("SELECT * FROM production_runs WHERE job_id=?",(job["id"],)).fetchone()
+   other_run=c.execute("SELECT * FROM production_runs WHERE job_id=?",(other["id"],)).fetchone()
+  self.assertEqual(run["status"],"failed_terminal")
+  self.assertEqual(run["current_stage"],"failed_terminal")
+  self.assertEqual(run["error"],"provider outcome uncertain")
+  self.assertEqual(other_run["status"],"failed_terminal")
+  self.assertEqual(other_run["current_stage"],"worker_paused")
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(other["id"],"worker-b",other_claimed["lease_token"])
+
+ def test_non_provider_terminal_failure_does_not_pause_production(self):
+  job=self.q.enqueue("short_video_production", {"topic":"policy blocked"})
+  claimed=self.q.claim("worker-a",job_type="short_video_production")
+  self.create_production_run(job["id"],"running")
+  failed=self.q.fail(job["id"],"worker-a",claimed["lease_token"],
+                     "policy_blocked","content policy blocked",False)
+  self.assertEqual(failed["status"],"failed_terminal")
+  self.assertFalse(self.q.is_paused())
+  with self.q.db() as c:
+   run=c.execute("SELECT * FROM production_runs WHERE job_id=?",(job["id"],)).fetchone()
+  self.assertEqual(run["status"],"failed_terminal")
+
+ def test_cancel_queued_production_atomically_syncs_production_run(self):
+  job=self.q.enqueue("short_video_production", {"topic":"cancel"})
+  self.create_production_run(job["id"],"queued")
+  cancelled=self.q.cancel(job["id"],"operator cancelled before start")
+  self.assertEqual(cancelled["status"],"cancelled")
+  with self.q.db() as c:
+   run=c.execute("SELECT * FROM production_runs WHERE job_id=?",(job["id"],)).fetchone()
+  self.assertEqual(run["status"],"cancelled")
+  self.assertEqual(run["current_stage"],"cancelled")
+
+ def test_cancel_running_production_pauses_instead_of_claiming_clean_cancel(self):
+  job=self.q.enqueue("short_video_production", {"topic":"ambiguous"})
+  claimed=self.q.claim("worker-a",job_type="short_video_production")
+  self.create_production_run(job["id"],"running")
+  result=self.q.cancel(job["id"],"operator requested cancellation")
+  self.assertEqual(result["status"],"failed_terminal")
+  self.assertEqual(result["error_code"],"worker_paused")
+  self.assertTrue(self.q.is_paused())
+  with self.q.db() as c:
+   run=c.execute("SELECT * FROM production_runs WHERE job_id=?",(job["id"],)).fetchone()
+  self.assertEqual(run["status"],"failed_terminal")
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"worker-a",claimed["lease_token"])
+
 if __name__=="__main__": unittest.main()
