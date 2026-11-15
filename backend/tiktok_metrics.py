@@ -123,11 +123,21 @@ class TikTokMetricsStore:
             return cur.rowcount == 1
 
     def record_collection(self, status, requested=0, collected=0, missing=0,
-                          error=None, source="TikTok Display API v2"):
+                          error=None, source="TikTok Display API v2",
+                          lease_owner=None, lease_token=None):
         if status not in {"running", "succeeded", "failed", "not_configured", "scope_missing"}:
             raise ValueError("Invalid TikTok metrics collection status")
         stamp = _stamp()
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            if lease_owner is not None:
+                lease = c.execute(
+                    "SELECT owner_id,lease_token,expires_at FROM tiktok_metrics_collector_lease WHERE id=1"
+                ).fetchone()
+                if (lease is None or lease["owner_id"] != lease_owner
+                        or lease["lease_token"] != lease_token
+                        or datetime.fromisoformat(lease["expires_at"]) <= _now()):
+                    raise RuntimeError("TikTok metrics lease lost; collection state write rejected")
             c.execute("""
               INSERT INTO tiktok_metrics_collection_state
                 (id,status,last_attempt_at,last_success_at,last_error,requested,

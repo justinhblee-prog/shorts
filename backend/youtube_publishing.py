@@ -459,12 +459,21 @@ class YouTubeUploadStore:
             return updated.rowcount == 1
 
     def record_metrics_collection(self, status, requested=0, collected=0,
-                                   missing=0, error=None, source="YouTube Data API v3"):
+                                   missing=0, error=None, source="YouTube Data API v3",
+                                   lease_owner=None):
         """Persist collector health without converting provider errors into metric values."""
         if status not in ("running", "succeeded", "failed"):
             raise ValueError("Invalid metrics collection status")
         now = _now()
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            if lease_owner is not None:
+                lease = c.execute(
+                    "SELECT owner_id,lease_until FROM youtube_metrics_collector_lease WHERE id=1"
+                ).fetchone()
+                if (lease is None or lease["owner_id"] != lease_owner
+                        or float(lease["lease_until"]) <= datetime.now(timezone.utc).timestamp()):
+                    raise RuntimeError("Metrics collector lease lost; collection state write rejected")
             c.execute("""
                 INSERT INTO youtube_metrics_collection_state
                   (id,status,last_attempt_at,last_success_at,last_error,requested,

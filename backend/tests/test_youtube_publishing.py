@@ -392,6 +392,21 @@ class YouTubePublishingTests(unittest.TestCase):
             "collector-b", 60, now=1101
         ), "collector-b")
 
+    def test_collection_state_write_rejects_a_replaced_collector_lease(self):
+        self.uploads.acquire_metrics_collector_lease("collector-a")
+        with self.uploads.db() as connection:
+            connection.execute(
+                "UPDATE youtube_metrics_collector_lease SET owner_id=?,lease_until=? WHERE id=1",
+                ("collector-b", 4102444800),
+            )
+        with self.assertRaisesRegex(RuntimeError, "lease lost"):
+            self.uploads.record_metrics_collection(
+                "succeeded", requested=1, collected=1, lease_owner="collector-a"
+            )
+        self.assertEqual(
+            self.uploads.metrics_collection_status()["status"], "not_started"
+        )
+
     def test_due_metrics_batch_refreshes_multiple_videos_in_one_api_request(self):
         self.prod.create("job-2",{"brand":"Future Leak","region":"US",
                                   "language":"English","topic":"Robotics"})

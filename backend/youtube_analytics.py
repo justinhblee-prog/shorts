@@ -148,9 +148,19 @@ class YouTubeAnalyticsStore:
                 (owner_id, token),
             )
 
-    def record_collection(self, status, requested=0, collected=0, missing=0, error=None):
+    def record_collection(self, status, requested=0, collected=0, missing=0, error=None,
+                          lease_owner=None, lease_token=None):
         now = datetime.now(timezone.utc).isoformat()
         with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if lease_owner is not None:
+                lease = connection.execute(
+                    "SELECT owner_id,token,lease_until FROM youtube_analytics_lease WHERE id=1"
+                ).fetchone()
+                if (lease is None or lease["owner_id"] != lease_owner
+                        or lease["token"] != lease_token
+                        or lease["lease_until"] <= datetime.now(timezone.utc).timestamp()):
+                    raise RuntimeError("YouTube Analytics lease lost; collection state write rejected")
             connection.execute("""
               INSERT INTO youtube_analytics_collection_state
                 (id,status,last_attempt_at,last_success_at,last_error,requested,collected,
