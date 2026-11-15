@@ -76,7 +76,11 @@ class ProductionTests(unittest.TestCase):
         render = FakeProvider({"video_url": "https://media.example/video.mp4"})
         brief = {**self.brief,
             "rights": {"visuals_cleared": True, "audio_cleared": True, "likeness_authorized": True},
-            "synthetic_media_status": "ai_generated", "ai_disclosure_acknowledged": True,
+            "synthetic_media_status": "ai_generated",
+            "platform_disclosures": {
+                "youtube_altered_content": True,
+                "tiktok_ai_generated_content": True,
+            },
             "factual_claims_verified": True, "originality_notes": "Distinct narrative."}
         self.store.create("job-policy", brief)
         result = ProductionPipeline(self.store, script, voice, render).execute("job-policy", brief)
