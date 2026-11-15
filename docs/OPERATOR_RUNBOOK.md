@@ -122,7 +122,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 
 ## 9. Current known blockers
 
-- Latest integrated code validation for BUILD-00103: [GitHub Actions PR run 43738024437](https://github.com/justinhblee-prog/shorts/actions/runs/43738024437), **565 tests passed**. This is automated validation only; live provider credentials, OAuth consent, real generation, publication, analytics and revenue remain external checks.
+- Latest integrated code validation for BUILD-00104: [GitHub Actions PR run 43738249951](https://github.com/justinhblee-prog/shorts/actions/runs/43738249951), **570 tests passed**. This is automated validation only; live provider credentials, OAuth consent, real generation, publication, analytics and revenue remain external checks.
 - Real provider credentials, renderer CDN hostnames, YouTube OAuth and financial integrations remain external dependencies. CI does not establish live provider compatibility, actual media generation, private YouTube upload, revenue ingestion or deployment readiness.
 - The application still uses a single-host SQLite architecture; multi-host distributed worker/scheduler operation is not established.
 
