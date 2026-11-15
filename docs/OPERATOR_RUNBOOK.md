@@ -101,7 +101,8 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 - [ ] Build and start Docker Compose; confirm all three services stay healthy.
 - [ ] Verify each provider's real script, voice and video output, including licensing and costs.
 - [ ] Verify renderer CDN host allowlisting and staged MP4 playback.
-- [ ] Verify YouTube OAuth scopes and one private test upload on the intended channel.
+- [ ] Verify YouTube OAuth scopes (`youtube.upload`, `youtube.readonly`, `yt-analytics.readonly`) and one private test upload on the intended channel.
+- [ ] Enable YouTube Analytics API, reauthorize the channel with `yt-analytics.readonly`, and verify a real 28-day video report is collected.
 - [ ] Enable TikTok Login Kit, Content Posting API and Display API; grant `video.publish` and `video.list` consent, then verify one `SELF_ONLY` test publication and real counter retrieval.
 - [ ] Verify YouTube Analytics and external affiliate/sponsor statements against ledger entries.
 - [ ] Configure HTTPS, secret rotation, backups, restore drills, monitoring and alerting.
