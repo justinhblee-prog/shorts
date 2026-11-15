@@ -119,6 +119,28 @@
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
 
+  function renderLifecycleTrace(data){
+    const job=data.job||{},production=data.production||{},review=data.review||{};
+    const publishing=data.publishing||{},youtube=publishing.youtube||{},tiktok=publishing.tiktok||{};
+    const latest=review.latest||{};
+    const events=(data.queue_events||[]).slice(-8).reverse();
+    const eventHtml=events.length
+      ? '<ol>'+events.map(event=>'<li><strong>'+esc(event.event_type||"event")+'</strong> · '+esc(event.from_status||"—")+' → '+esc(event.to_status||"—")+' <small>'+esc(event.created_at||"")+'</small></li>').join("")+'</ol>'
+      : '<p>기록된 큐 이벤트가 없습니다.</p>';
+    return '<section class="review-policy lifecycle-trace"><strong>통합 작업 이력</strong>'+
+      '<p>큐 · '+esc(job.status||"unknown")+' / 제작 · '+esc(production.status||"unknown")+
+      ' ('+esc(production.current_stage||"단계 미기록")+')</p>'+
+      '<p>최근 검수 · '+esc(latest.decision||"검수 기록 없음")+
+      (latest.reviewer_id?' · '+esc(latest.reviewer_id):"")+
+      (latest.created_at?' · '+esc(latest.created_at):"")+'</p>'+
+      '<p>YouTube · '+esc(youtube.status||"not_started")+
+      (youtube.video_id?' · '+esc(youtube.video_id):"")+
+      ' / TikTok · '+esc(tiktok.status||"not_started")+
+      (tiktok.video_id?' · '+esc(tiktok.video_id):"")+
+      (tiktok.publish_id?' · publish '+esc(tiktok.publish_id):"")+'</p>'+
+      '<strong>최근 큐 이벤트</strong>'+eventHtml+'</section>';
+  }
+
   async function loadApproved(){
     const data=await api("/api/review/approved?limit=100");
     const items=data.items||[];
@@ -158,7 +180,7 @@
           tiktokAction='<button class="button button-secondary" data-tiktok-publish-id="'+esc(item.job_id)+'">TikTok 비공개 게시</button>';
         }
       }
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · YouTube '+esc(statusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · YouTube '+esc(statusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div><div id="lifecycle-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'<button class="button button-quiet" data-lifecycle-id="'+esc(item.job_id)+'">작업 전체 이력</button></div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 게시 대기 중인 콘텐츠가 없습니다.</div>';
   }
   async function loadTrends(){
@@ -512,6 +534,22 @@
   });
 
   $("approvedList").addEventListener("click",async e=>{
+    const lifecycleButton=e.target.closest("button[data-lifecycle-id]");
+    if(lifecycleButton){
+      if(!requireToken())return;
+      const id=lifecycleButton.dataset.lifecycleId;
+      lifecycleButton.disabled=true;
+      try{
+        const data=await api("/api/lifecycle/jobs/"+encodeURIComponent(id));
+        const target=$("lifecycle-"+id);
+        if(target)target.innerHTML=renderLifecycleTrace(data);
+      }catch(err){
+        const target=$("lifecycle-"+id);
+        if(target)target.textContent=err.message;
+        toast(err.message);
+      }finally{lifecycleButton.disabled=false;}
+      return;
+    }
     const tiktokRefresh=e.target.closest("button[data-tiktok-refresh-id]");
     if(tiktokRefresh){
       if(!requireToken())return;
