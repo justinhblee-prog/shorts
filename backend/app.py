@@ -24,6 +24,7 @@ from recommendation_evaluation import RecommendationEvaluationStore
 from lifecycle_consistency import inspect_lifecycle_consistency
 from operator_recovery import build_operator_recovery_plan
 from failure_analysis import classify_failure
+from stage_performance import build_stage_performance
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
@@ -1304,6 +1305,18 @@ def get_job_failure_analysis(jid:str,x_review_token:str|None=Header(default=None
                 "event_type":event.get("event_type"),"created_at":event.get("created_at"),
                 "from_status":event.get("from_status"),"to_status":event.get("to_status")},
             "latest_failure":analysis,"read_only":True,"actions_taken":[]}
+@app.get("/api/jobs/{jid}/stage-performance")
+def get_job_stage_performance(jid:str,x_review_token:str|None=Header(default=None)):
+    """Return read-only observed queue-state dwell times for one job."""
+    require_review_access(x_review_token)
+    try:
+        job=queue.get(jid)
+    except JobNotFound:
+        raise HTTPException(404,"Job not found")
+    events=queue.events(jid)
+    return build_stage_performance(job,events)
+
+
 @app.get("/api/jobs/{jid}")
 def get_job(jid:str,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
