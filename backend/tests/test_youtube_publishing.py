@@ -136,7 +136,7 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertNotIn("youtube_contains_synthetic_media", result["approval_blockers"])
 
     def test_upload_fails_closed_when_youtube_disclosure_classification_is_missing(self):
-        with self.store.db() as connection:
+        with self.prod.db() as connection:
             row = connection.execute(
                 """SELECT metadata_json FROM production_artifacts
                    WHERE job_id=? AND stage='script' AND artifact_type='text'""",
