@@ -965,4 +965,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Query the creator's current max_video_post_duration_sec and inspect the staged media's actual duration with ffprobe before Direct Post initialization.
 - Reject missing/invalid creator duration limits, unavailable ffprobe, uninspectable media, and videos exceeding the creator-specific limit before the first remote publishing request.
 - Add a regression test proving an over-limit video is blocked before the init endpoint is called.
-- CI validation pending for the latest implementation; live creator account behavior remains unverified.
+- CI passed at commit c49afcf (312 tests); live creator account behavior remains unverified.
