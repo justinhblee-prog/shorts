@@ -413,6 +413,80 @@
     return Array.from(bytes,value=>value.toString(16).padStart(2,"0")).join("");
   }
 
+  async function loadPublishingDashboard(){
+    const target=$("publishingDashboardList");
+    target.innerHTML='<div class="empty-state">YouTube·TikTok 게시 이력을 조회하고 있습니다…</div>';
+    const data=await api("/api/publishing/dashboard?limit=100");
+    const platforms=data.platforms||{};
+    const youtube=platforms.youtube||{},tiktok=platforms.tiktok||{};
+    const attention=(data.summary||{}).attention_required||0;
+    $("publishingDashboardSummary").innerHTML=
+      '<div><small>YouTube 게시 기록</small><b>'+Number(youtube.count||0)+'</b><small>'+Object.entries(youtube.status_counts||{}).map(([k,v])=>esc(k)+' '+Number(v)).join(' · ')+'</small></div>'+
+      '<div><small>TikTok 게시 기록 · SELF_ONLY</small><b>'+Number(tiktok.count||0)+'</b><small>'+Object.entries(tiktok.status_counts||{}).map(([k,v])=>esc(k)+' '+Number(v)).join(' · ')+'</small></div>'+
+      '<div><small>운영자 확인 필요</small><b class="'+(attention?"missing-text":"ready-text")+'">'+Number(attention)+'</b><small>재조정 '+Number(data.summary?.reconciliation_required||0)+' · 오류 '+Number(data.summary?.errors_present||0)+'</small></div>';
+    const statusLabels={uploaded:"업로드 완료",failed:"실패",uploading:"업로드 중",reconciliation_required:"결과 확인 필요",late_success_review_required:"지연 성공 확인 필요",initializing:"초기화 중",processing:"처리 중",send_to_inbox:"받은편지함 전송",publish_complete:"게시 완료",not_started:"미시작"};
+    const rows=(data.items||[]).map(item=>{
+      const platform=item.platform==="youtube"?"YouTube":"TikTok";
+      const events=(item.events||[]).slice(-4).reverse();
+      const eventHtml=events.map(event=>'<small>['+esc(event.created_at||"시간 미상")+'] '+esc(event.event_type||"event")+' · '+esc(event.outcome||"")+(event.note?' · '+esc(event.note):"")+'</small>').join("");
+      const error=item.error||item.fail_reason;
+      const refresh=item.platform==="tiktok"&&["processing","uploading","send_to_inbox"].includes(item.status)
+        ?'<button class="button button-quiet button-small" data-pub-refresh="tiktok" data-job-id="'+esc(item.job_id)+'">원격 상태 조회</button>':"";
+      const reconcile=item.reconciliation_required&&item.status!=="late_success_review_required"
+        ?'<button class="button button-secondary button-small" data-pub-reconcile="'+esc(item.platform)+'" data-job-id="'+esc(item.job_id)+'">운영자 확인·조정</button>':"";
+      const late=item.status==="late_success_review_required"
+        ?'<small class="missing-text">지연 성공은 별도 지연 결과 해결 절차가 필요합니다. 기존 업로드 결과를 확인하세요.</small>':"";
+      return '<article class="data-item"><div class="recommendation-head"><b>'+platform+' · '+esc(item.job_id||"작업 ID 없음")+'</b><strong class="'+(item.reconciliation_required||error?"missing-text":"")+'">'+esc(statusLabels[item.status]||item.status)+'</strong></div>'+
+        '<small>원격 ID · '+esc(item.remote_id||"미확인")+' · 시도 '+esc(item.attempt_id||"기록 없음")+' · 갱신 '+esc(item.updated_at||"시간 미상")+'</small>'+
+        (item.privacy_level?'<small>공개 범위 · '+esc(item.privacy_level)+'</small>':'')+
+        (error?'<small class="missing-text">오류 · '+esc(error)+'</small>':'')+late+
+        (eventHtml||'<small>감사 이벤트 없음</small>')+
+        '<div class="field-row">'+refresh+reconcile+'</div></article>';
+    }).join("");
+    target.innerHTML=(rows||'<div class="empty-state">게시 이력이 없습니다. 이 조회는 게시를 실행하지 않습니다.</div>')+
+      '<div class="notice">'+(data.limitations||[]).map(esc).join(" · ")+'</div>'+
+      '<small>읽기 전용 통합 현황 · 플랫폼별 상태 독립 유지 · 감사 이벤트 최대 4건 표시</small>';
+  }
+  $("publishingDashboardPanel").addEventListener("click",async event=>{
+    const refresh=event.target.closest("[data-pub-refresh]");
+    const reconcile=event.target.closest("[data-pub-reconcile]");
+    if(!refresh&&!reconcile)return;
+    if(!requireToken())return;
+    const button=refresh||reconcile,jobId=button.dataset.jobId;
+    button.disabled=true;
+    try{
+      if(refresh){
+        const result=await api("/api/tiktok/publications/"+encodeURIComponent(jobId)+"/refresh-status",{method:"POST"});
+        toast("TikTok 원격 상태 확인 완료 · "+result.status);
+      }else{
+        const platform=reconcile.dataset.pubReconcile;
+        const operatorId=$("reviewerInput").value.trim()||$("queueOperator").value.trim();
+        const outcome=prompt(platform==="youtube"?"YouTube 결과를 확인하세요: uploaded 또는 not_uploaded":"TikTok 결과를 확인하세요: published 또는 not_published");
+        if(outcome===null)return;
+        const allowed=platform==="youtube"?["uploaded","not_uploaded"]:["published","not_published"];
+        if(!allowed.includes(outcome.trim()))throw new Error("허용된 확인 결과를 정확히 입력하세요.");
+        const videoId=outcome.trim()===(platform==="youtube"?"uploaded":"published")
+          ?prompt("해당 플랫폼에서 직접 확인한 원격 영상 ID를 입력하세요."):null;
+        if(videoId===null&&outcome.trim()!==(platform==="youtube"?"not_uploaded":"not_published"))return;
+        const note=prompt("직접 확인한 근거와 조치 내용을 감사 메모로 입력하세요.");
+        if(note===null||!note.trim())return;
+        if(!confirm("원격 플랫폼에서 결과를 직접 확인했으며, 이 운영자 확인을 감사 기록에 남기시겠습니까?"))return;
+        const body={outcome:outcome.trim(),confirmed:true,video_id:videoId||undefined,note:note.trim(),operator_id:operatorId};
+        await api("/api/"+platform+"/publications/"+encodeURIComponent(jobId)+"/reconcile",{
+          method:"POST",body:JSON.stringify(body)
+        });
+        toast(platform+" 게시 결과 운영자 확인 기록 완료");
+      }
+      await loadPublishingDashboard();
+    }catch(error){toast(error.message);}
+    finally{button.disabled=false;}
+  });
+  $("loadPublishingDashboard").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    try{await loadPublishingDashboard();toast("통합 게시 현황 갱신 완료");}
+    catch(error){toast(error.message);}
+  });
+
   async function loadPreflight(){
     const [data,tiktok]=await Promise.all([
       api("/api/preflight"),api("/api/tiktok/oauth/status")
@@ -475,7 +549,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTrends(),loadTrendRecommendations(),loadSchedules(),loadInsights(),loadRecommendationExperiments(),loadOpportunities(),loadQueue(),loadLifecycleQueue(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTrends(),loadTrendRecommendations(),loadSchedules(),loadInsights(),loadRecommendationExperiments(),loadOpportunities(),loadQueue(),loadLifecycleQueue(),loadPublishingDashboard(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
