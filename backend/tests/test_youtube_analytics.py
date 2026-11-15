@@ -37,6 +37,8 @@ class FakeUploads:
         self.records = records or []
     def list_recent(self, limit=100):
         return self.records[:limit]
+    def list_uploaded_video_ids(self, limit=10000):
+        return [x for x in self.records if x.get("status") == "uploaded"][:limit]
 
 
 class YouTubeAnalyticsTests(unittest.TestCase):
@@ -122,6 +124,7 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         first = self.store.acquire_lease("worker-a", lease_seconds=300, now=1000)
         self.assertTrue(first)
         self.assertIsNone(self.store.acquire_lease("worker-b", lease_seconds=300, now=1100))
+        self.assertIsNone(self.store.acquire_lease("worker-a", lease_seconds=300, now=1100))
         replacement = self.store.acquire_lease("worker-a", lease_seconds=300, now=1400)
         self.assertTrue(replacement)
         self.store.release_lease("worker-a", first)
