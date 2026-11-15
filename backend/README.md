@@ -190,3 +190,7 @@ http://localhost:8502/
 ```
 
 The UI includes production job intake, trends, competitors, profitability scoring, human review, approved/private upload, schedules, financial ledger and performance insights. Enter the configured `NEXUS_REVIEW_TOKEN` using the settings button. The token is kept in browser memory only and is cleared on reload. Public publishing is not offered by the UI; YouTube uploads remain private.
+
+### Integration preflight
+
+Use protected `GET /api/preflight` (header `X-Review-Token`) or the dashboard readiness panel to identify missing environment settings. It checks configuration presence only; it does not make provider, OAuth or YouTube API calls.
