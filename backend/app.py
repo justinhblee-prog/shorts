@@ -17,6 +17,7 @@ from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
+from preflight import build_preflight
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -506,6 +507,13 @@ def get_events(jid:str,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     try: queue.get(jid); return {"events":queue.events(jid)}
     except JobNotFound: raise HTTPException(404,"Job not found")
+
+
+
+@app.get("/api/preflight")
+def preflight(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return build_preflight()
 
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
