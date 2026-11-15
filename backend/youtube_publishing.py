@@ -9,7 +9,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from policy_engine import POLICY_VERSION, POLICY_CHECKED_ON
-from approval_integrity import approval_snapshot_matches_current_artifacts, verify_staged_media_hash
+from approval_integrity import approval_snapshot_matches_current_artifacts, create_verified_media_snapshot
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -598,14 +598,6 @@ class YouTubePublisher:
             raise YouTubeUploadError("Media path must resolve to an existing file inside NEXUS_MEDIA_DIR")
         if not resolved.is_file():
             raise YouTubeUploadError("Staged media path is not a regular file")
-        media_matches, media_error = verify_staged_media_hash(
-            resolved, history[-1].get("staged_media_sha256"),
-            history[-1].get("staged_media_size_bytes")
-        )
-        if not media_matches:
-            raise YouTubeUploadError(
-                media_error or "Staged media does not match the approved video fingerprint"
-            )
         allowed={".mp4": "video/mp4", ".m4v": "video/x-m4v",
                  ".mov": "video/quicktime", ".webm": "video/webm"}
         media_type=allowed.get(resolved.suffix.lower())
@@ -646,7 +638,23 @@ class YouTubePublisher:
         existing=self.store.get(job_id)
         if existing and existing["status"]=="uploaded":
             return existing
-        upload_attempt=self.store.begin(job_id,title,description)
+        try:
+            snapshot_path, snapshot_size = create_verified_media_snapshot(
+                resolved, history[-1].get("staged_media_sha256"),
+                history[-1].get("staged_media_size_bytes")
+            )
+        except (OSError, ValueError) as exc:
+            raise YouTubeUploadError(str(exc)) from exc
+        resolved = Path(snapshot_path)
+        size = snapshot_size
+        try:
+            upload_attempt=self.store.begin(job_id,title,description)
+        except Exception:
+            try:
+                os.unlink(snapshot_path)
+            except OSError:
+                pass
+            raise
         remote_request_started=False
         heartbeat_stop=threading.Event()
         heartbeat_thread=None
@@ -713,6 +721,10 @@ class YouTubePublisher:
             heartbeat_stop.set()
             if heartbeat_thread is not None:
                 heartbeat_thread.join(timeout=2)
+            try:
+                os.unlink(snapshot_path)
+            except OSError:
+                pass
 
     def refresh_due_metrics(self, limit=50, min_age_seconds=21600):
         """Refresh due uploaded videos in one quota-efficient videos.list request."""
