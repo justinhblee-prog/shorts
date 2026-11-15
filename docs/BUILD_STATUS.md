@@ -675,3 +675,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Each brand candidate now exposes matched terms, exclusion matches, and `match_method=weighted_profile_term_coverage` so operators can inspect why a brand was selected. Existing profiles remain compatible when optional keyword fields are absent.
 - The ranking remains an editorial relevance signal, not a demand, virality, monetization or revenue forecast. Freshness, source provenance and topic distinctiveness remain separately visible.
 - Added regression tests for weighted relevance, explainable match terms and explicit exclusions. CI runs [43671711293](https://github.com/justinhblee-prog/shorts/actions/runs/43671711293) and [43671727149](https://github.com/justinhblee-prog/shorts/actions/runs/43671727149) were triggered for the two source/test commits; validation result is pending at the time of this note.
+
+
+### Curated brand taxonomy for recommendation ranking — verified 2026-11-15
+
+- Added focused topic keywords to all ten brand profiles so the recommendation engine can distinguish editorial domains more accurately than generic positioning/audience text alone.
+- Existing profile rows receive missing default taxonomy fields at startup; operator-customized positioning, custom fields, existing keywords and activation state are preserved.
+- Added migration regression tests proving the taxonomy is populated and operator customization survives upgrade.
+- Weighted brand-fit scoring now uses explicit keywords and vertical at highest weight, positioning next, brand name as supporting context and broad audience wording at low weight. Explicit exclude_keywords suppresses a brand match.
+- Candidate output includes matched terms and the scoring method for auditability.
+- GitHub Actions run [43671850512](https://github.com/justinhblee-prog/shorts/actions/runs/43671850512) passed **172 tests** on source commit `7a2c1a3e7a36e3fe13fd7e3754fe2eddd4a2719a`, including Python compilation, frontend syntax/DOM validation and Compose YAML parsing.
+- **Boundary:** this improves editorial topic-to-brand relevance; it is not a trained semantic model and does not predict views, virality, watch time, platform recommendation outcomes or revenue. Actual channel performance feedback remains the next major ranking input.
