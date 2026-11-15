@@ -950,3 +950,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Regression tests cover first and second failure thresholds, successful reset, and scheduler polling.
 - TikTok's current Fetch Status reference documents a 30 requests/minute per-user limit and the available terminal/intermediate statuses.
 - CI validation pending for the latest commit. No live TikTok account polling or posting has been performed.
+
+
+### BUILD-00029 — TikTok status monotonicity and response validation (2026-11-15)
+
+- Reject malformed nested data, status, and post-ID response shapes from Fetch Status instead of allowing attribute/type errors.
+- Prevent a slower, stale concurrent poll from downgrading a confirmed PUBLISH_COMPLETE or FAILED terminal result.
+- Add regression tests for terminal-state monotonicity and malformed nested status responses.
+- CI validation pending; live TikTok API concurrency has not been exercised.
