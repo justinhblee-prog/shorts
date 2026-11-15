@@ -78,10 +78,12 @@ class TikTokMetricsStore:
         finally:
             c.close()
 
-    def acquire_lease(self, owner_id, lease_seconds=300):
+    def acquire_lease(self, owner_id, lease_seconds=300, now=None):
         if not isinstance(owner_id, str) or not owner_id.strip():
             raise ValueError("A valid TikTok metrics collector owner ID is required")
-        now = _now()
+        now = now or _now()
+        if isinstance(now, (int, float)):
+            now = datetime.fromtimestamp(float(now), timezone.utc)
         token = uuid.uuid4().hex
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
@@ -93,8 +95,24 @@ class TikTokMetricsStore:
               VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET
               owner_id=excluded.owner_id,lease_token=excluded.lease_token,
               expires_at=excluded.expires_at
-            """, (owner_id, token, _stamp(now + timedelta(seconds=lease_seconds))))
+            """, (owner_id, token, _stamp(now + timedelta(seconds=max(30, int(lease_seconds))))))
         return token
+
+    def renew_lease(self, owner_id, lease_token, lease_seconds=300, now=None):
+        """Renew only the current, unexpired TikTok collector lease."""
+        now = now or _now()
+        if isinstance(now, (int, float)):
+            now = datetime.fromtimestamp(float(now), timezone.utc)
+        stamp = _stamp(now)
+        expires = _stamp(now + timedelta(seconds=max(30, int(lease_seconds))))
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            cur = c.execute(
+                """UPDATE tiktok_metrics_collector_lease SET expires_at=?
+                   WHERE id=1 AND owner_id=? AND lease_token=? AND expires_at>?""",
+                (expires, owner_id, lease_token, stamp),
+            )
+            return cur.rowcount == 1
 
     def release_lease(self, owner_id, lease_token):
         with self.db() as c:
@@ -105,11 +123,21 @@ class TikTokMetricsStore:
             return cur.rowcount == 1
 
     def record_collection(self, status, requested=0, collected=0, missing=0,
-                          error=None, source="TikTok Display API v2"):
+                          error=None, source="TikTok Display API v2",
+                          lease_owner=None, lease_token=None):
         if status not in {"running", "succeeded", "failed", "not_configured", "scope_missing"}:
             raise ValueError("Invalid TikTok metrics collection status")
         stamp = _stamp()
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            if lease_owner is not None:
+                lease = c.execute(
+                    "SELECT owner_id,lease_token,expires_at FROM tiktok_metrics_collector_lease WHERE id=1"
+                ).fetchone()
+                if (lease is None or lease["owner_id"] != lease_owner
+                        or lease["lease_token"] != lease_token
+                        or datetime.fromisoformat(lease["expires_at"]) <= _now()):
+                    raise RuntimeError("TikTok metrics lease lost; collection state write rejected")
             c.execute("""
               INSERT INTO tiktok_metrics_collection_state
                 (id,status,last_attempt_at,last_success_at,last_error,requested,

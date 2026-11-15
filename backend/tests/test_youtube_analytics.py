@@ -170,6 +170,30 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.store.release_lease("worker-a", replacement)
         self.assertTrue(self.store.acquire_lease("worker-b", lease_seconds=300, now=1450))
 
+    def test_analytics_lease_renews_only_for_current_unexpired_token(self):
+        first = self.store.acquire_lease("worker-a", lease_seconds=300, now=1000)
+        self.assertTrue(self.store.renew_lease("worker-a", first, 300, now=1200))
+        self.assertIsNone(self.store.acquire_lease("worker-b", lease_seconds=300, now=1400))
+        self.assertFalse(self.store.renew_lease("worker-a", "stale-token", 300, now=1401))
+        self.assertFalse(self.store.renew_lease("worker-a", first, 300, now=1501))
+        replacement = self.store.acquire_lease("worker-b", lease_seconds=300, now=1501)
+        self.assertIsNotNone(replacement)
+        self.assertFalse(self.store.renew_lease("worker-a", first, 300, now=1502))
+
+    def test_collection_state_write_rejects_a_replaced_lease_token(self):
+        token = self.store.acquire_lease("worker-a", lease_seconds=300)
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE youtube_analytics_lease SET token=?,lease_until=? WHERE id=1",
+                ("replacement-token", 4102444800),
+            )
+        with self.assertRaisesRegex(RuntimeError, "lease lost"):
+            self.store.record_collection(
+                "succeeded", requested=1, collected=1,
+                lease_owner="worker-a", lease_token=token,
+            )
+        self.assertEqual(self.store.status()["status"], "not_started")
+
     def test_collection_status_is_read_only_and_discloses_required_scope(self):
         status = self.store.status()
         self.assertEqual(status["platform"], "youtube_analytics")
@@ -189,6 +213,8 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                 self.released = False
             def acquire_lease(self, owner_id, lease_seconds=300):
                 return "analytics-lease"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return True
             def release_lease(self, owner_id, token):
                 self.released = token == "analytics-lease"
             def record_collection(self, status, **kwargs):
@@ -214,6 +240,8 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                 self.released = False
             def acquire_lease(self, owner_id, lease_seconds=300):
                 return "analytics-lease"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return True
             def release_lease(self, owner_id, token):
                 self.released = True
             def record_collection(self, status, **kwargs):
@@ -271,6 +299,8 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                 self.released = False
             def acquire_lease(self, owner_id, lease_seconds=300):
                 return "analytics-lease"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return True
             def release_lease(self, owner_id, token):
                 self.released = True
             def record_collection(self, status, **kwargs):

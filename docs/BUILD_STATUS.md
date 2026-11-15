@@ -1568,3 +1568,41 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Live YouTube OAuth, Data API upload and Analytics API report retrieval remain unverified.
 - Real provider generation, real rendered artifact delivery, remote platform visibility, quotas/billing, production hosting, backup/restore and revenue remain unverified.
 - Unit and mocked transport tests must not be represented as successful live integration or revenue validation.
+
+
+
+## Parallel development update — BUILD-00090 and BUILD-00091 (2026-11-15)
+
+| Build | Workstream | Pull request | Push CI | PR CI |
+|---|---|---|---:|---:|
+| BUILD-00090 | Renewable and transaction-fenced leases for YouTube Data API counters, YouTube Analytics and TikTok metrics collectors | [#51](https://github.com/justinhblee-prog/shorts/pull/51) | 528 tests | passed |
+| BUILD-00091 | Require scheduler leadership renewal and post-poll validation before/after TikTok status polling | [#52](https://github.com/justinhblee-prog/shorts/pull/52) | 525 tests | passed |
+
+### BUILD-00090 validation
+- Push CI [43727205026](https://github.com/justinhblee-prog/shorts/actions/runs/43727205026): **528 tests passed**.
+- Final-head PR merge-result CI [43727332336](https://github.com/justinhblee-prog/shorts/actions/runs/43727332336): passed.
+- Lease renewal is expiry-aware and fenced by owner/token. Collection-state writes verify the same live lease inside the write transaction to prevent stale collectors from overwriting newer state.
+- Tests are deterministic SQLite/runner tests, not live provider latency or remote API validation.
+
+### BUILD-00091 validation
+- Push CI [43727567497](https://github.com/justinhblee-prog/shorts/actions/runs/43727567497): **525 tests passed**.
+- PR merge-result CI [43727592372](https://github.com/justinhblee-prog/shorts/actions/runs/43727592372): passed.
+- Scheduler TikTok status polling now requires a live leadership token, renews before polling and checks ownership after the poll. Losing leadership prevents further polling and returns the scheduler to standby.
+- Tests use a fake publisher and do not call TikTok.
+
+### Current state
+- PR #51 and #52 are Open / Draft / unmerged, based independently on BUILD-00085.
+- No production deployment, OAuth consent or live platform request was performed.
+- Existing BUILD-00086 through BUILD-00089 integration evidence remains the 532-test run [43725622356](https://github.com/justinhblee-prog/shorts/actions/runs/43725622356). BUILD-00090 and BUILD-00091 have passed individual CI but have not yet been combined with that integration branch.
+
+
+
+## BUILD-00092 — explicit worker offline lifecycle (2026-11-15)
+
+- Pull request: [#54](https://github.com/justinhblee-prog/shorts/pull/54), Open / Draft / unmerged.
+- Workers now persist a graceful offline transition from the worker main loop's `finally` block.
+- Operational health counts only fresh `status='online'` workers as online; stale-heartbeat warnings apply only to online records whose heartbeat expired.
+- Abrupt process termination remains detected through the existing stale-heartbeat threshold.
+- Push CI [43728064603](https://github.com/justinhblee-prog/shorts/actions/runs/43728064603): 522 tests passed.
+- PR merge-result CI [43728086152](https://github.com/justinhblee-prog/shorts/actions/runs/43728086152): 522 tests passed.
+- Tests cover local registry and health-state behavior; no OS-level SIGKILL or production supervisor behavior is claimed.

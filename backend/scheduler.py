@@ -30,6 +30,21 @@ logging.basicConfig(
 logger = logging.getLogger("nexus.scheduler")
 
 
+def poll_tiktok_status_if_leader(scheduler_store, publisher, owner_id, lease_token,
+                                 connected, lease_seconds=LEASE_SECONDS):
+    """Run read-only TikTok status polling only while this scheduler owns its lease."""
+    empty = {"skipped": True, "checked": 0, "updated": 0, "errors": []}
+    if not connected:
+        return {**empty, "reason": "tiktok_not_connected"}
+    if not lease_token or not scheduler_store.renew_scheduler_lease(
+            owner_id, lease_token, lease_seconds=lease_seconds):
+        return {**empty, "reason": "scheduler_lease_lost"}
+    result = publisher.refresh_due_statuses(limit=2, min_age_seconds=60)
+    if not scheduler_store.scheduler_lease_is_valid(owner_id, lease_token):
+        return {**result, "lease_lost": True}
+    return result
+
+
 def main():
     logger.info("scheduler_started interval_seconds=%s lease_seconds=%s owner=%s",
                 INTERVAL, LEASE_SECONDS, OWNER_ID)
@@ -56,12 +71,17 @@ def main():
                     elif result.get("paused"):
                         logger.warning("scheduled_dispatch_held queue_paused pending=%s",
                                        result["pending"])
-                    if os.getenv("TIKTOK_ACCESS_TOKEN") or tiktok_oauth_manager.status().get("connected"):
+                    if token and (os.getenv("TIKTOK_ACCESS_TOKEN") or
+                                  tiktok_oauth_manager.status().get("connected")):
                         try:
-                            poll = tiktok_publisher.refresh_due_statuses(
-                                limit=2, min_age_seconds=60
+                            poll = poll_tiktok_status_if_leader(
+                                schedules, tiktok_publisher, OWNER_ID, token, True,
+                                lease_seconds=LEASE_SECONDS,
                             )
-                            if poll.get("checked"):
+                            if poll.get("lease_lost"):
+                                logger.warning("scheduler_leadership_lost_during_tiktok_status_poll")
+                                token = None
+                            elif poll.get("checked"):
                                 logger.info(
                                     "tiktok_status_poll_completed checked=%s updated=%s errors=%s",
                                     poll["checked"], poll["updated"], len(poll["errors"])
