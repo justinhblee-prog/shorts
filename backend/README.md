@@ -317,8 +317,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 ### CI green checkpoint — 2026-11-15 02:01 UTC
 
-- GitHub Actions hosted-runner provisioning is now working for this public repository. The latest verified main-branch run is [43668403972](https://github.com/justinhblee-prog/shorts/actions/runs/43668403972), commit `3c067bb0c075cb492e7a5559232538929f793310`; checkout, Python 3.11, dependency installation, and `sh scripts/validate.sh` all completed successfully.
-- The workflow log confirms **133 tests ran** and the job conclusion is `success`. The validation script also runs `node --check ../frontend/app.js` when Node.js is available.
+- GitHub Actions hosted-runner provisioning is now working for this public repository. The latest verified main-branch run is [43668701509](https://github.com/justinhblee-prog/shorts/actions/runs/43668403972), commit `77aa3e2fbfd6ed874a55f57d35f17d49b712fb0d`; checkout, Python 3.11, dependency installation, and `sh scripts/validate.sh` all completed successfully.
+- The workflow log confirms **137 tests ran** and the job conclusion is `success`. The validation script also runs `node --check ../frontend/app.js` when Node.js is available.
 - Fixes included: scheduler SQLite context manager now commits successful transactions and rolls back exceptions; API security tests patch module-level symbols rather than attributes on the FastAPI app; ledger ROI expectation corrected to the implementation's percentage formula; YouTube review-history fixture models a subsequent revision correctly; performance analytics fixtures now create actual review approval and attempt-aware upload records.
 - This green CI result establishes that the committed automated backend validation suite passes. It does not establish live AI provider connectivity, actual voice/video generation, YouTube OAuth or private upload, revenue ingestion, frontend browser QA, or deployment readiness. Those remain explicit integration gates.
 
