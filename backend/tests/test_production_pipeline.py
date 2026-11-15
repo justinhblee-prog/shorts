@@ -204,6 +204,44 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(len(result["artifacts"]), 1)
         self.assertEqual(render.calls, [])
 
+    def test_provider_5xx_is_not_automatically_retryable(self):
+        import io
+        import urllib.error
+        from unittest.mock import patch
+
+        error = urllib.error.HTTPError(
+            "https://provider.example/jobs", 503, "Unavailable", {},
+            io.BytesIO(b"temporary outage"))
+        with patch("urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(ProviderError) as caught:
+                JsonProvider("https://provider.example/jobs").post("rendering", {})
+        self.assertEqual(caught.exception.stage, "rendering")
+        self.assertFalse(caught.exception.retryable)
+
+    def test_provider_429_is_retryable_rate_limit_rejection(self):
+        import io
+        import urllib.error
+        from unittest.mock import patch
+
+        error = urllib.error.HTTPError(
+            "https://provider.example/jobs", 429, "Rate limited", {},
+            io.BytesIO(b"try later"))
+        with patch("urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(ProviderError) as caught:
+                JsonProvider("https://provider.example/jobs").post("rendering", {})
+        self.assertEqual(caught.exception.stage, "rendering")
+        self.assertTrue(caught.exception.retryable)
+
+    def test_provider_timeout_is_not_automatically_retryable(self):
+        import urllib.error
+        from unittest.mock import patch
+
+        with patch("urllib.request.urlopen", side_effect=TimeoutError()):
+            with self.assertRaises(ProviderError) as caught:
+                JsonProvider("https://provider.example/jobs").post("rendering", {})
+        self.assertEqual(caught.exception.stage, "rendering")
+        self.assertFalse(caught.exception.retryable)
+
     def test_missing_provider_url_fails_closed(self):
         provider = JsonProvider("")
         with self.assertRaises(ProviderError) as caught:
