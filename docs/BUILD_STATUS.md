@@ -1156,3 +1156,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added tests for stale workers, expired and incomplete leases, paused state, non-mutating diagnostics, and authenticated API access; frontend regression assertions cover visibility and read-only messaging.
 - GitHub Actions passed **361 tests** at commit `4981053` (run `43698181905`).
 - Diagnostics are limited to data persisted in the local queue database; they do not prove external worker process or provider availability.
+
+### BUILD-00048 — operator recovery checklist and guarded queue resume
+
+- Added authenticated `GET /api/ops/recovery-plan`, combining current read-only queue/worker/lease diagnostics with a deterministic recovery checklist.
+- Checklist explicitly calls for external provider outcome and duplicate-work reconciliation, output artifact integrity and billing review, latest human approval and platform policy evidence, and worker process/log/heartbeat review.
+- Queue resume now requires an explicit `recovery_confirmed` attestation and is rejected while operational blockers remain. A paused queue cannot be resumed merely by supplying a free-text note.
+- Integrated the checklist into the control center with an explicit operator checkbox and confirmation dialog. Pause remains independently available and audited.
+- The checklist is guidance/attestation, not automated proof that external provider, billing, artifact, or policy evidence was actually inspected. No automatic recovery, retry, or publishing is performed.
+- CI validation pending.
