@@ -116,9 +116,11 @@ def _novelty_scores(trends):
     return scores
 
 
-def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=None):
+def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=None,
+                          performance_by_brand=None):
     """Rank collected trends for editorial review; never fabricate demand or revenue."""
     now = now or datetime.now(timezone.utc)
+    performance_by_brand = performance_by_brand or {}
     brand_rows = []
     for brand in brands:
         if not brand.get("active", True):
@@ -165,11 +167,30 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
             )
             if fit <= 0:
                 continue
+            observed = performance_by_brand.get(brand.get("name"), {})
+            rate_samples = int(observed.get("rate_sample_count") or 0)
             candidates.append({
                 "brand": brand.get("slug"), "brand_name": brand.get("name"),
                 "fit_score": fit, "matched_terms": matched_terms,
                 "excluded_terms": excluded_terms,
                 "match_method": "weighted_profile_term_coverage",
+                "historical_performance": {
+                    "measured_videos": int(observed.get("measured_videos") or 0),
+                    "rate_sample_count": rate_samples,
+                    "median_views_per_hour": observed.get("median_views_per_hour"),
+                    "interaction_rate_sample_count": int(
+                        observed.get("interaction_rate_sample_count") or 0
+                    ),
+                    "median_interactions_per_1000_view_delta": observed.get(
+                        "median_interactions_per_1000_view_delta"
+                    ),
+                    "evidence_status": (
+                        "no_data" if rate_samples == 0
+                        else "limited" if rate_samples < 3 else "observed"
+                    ),
+                    "ranking_score_adjustment": 0,
+                    "reason": "Historical brand-level signal is shown for review only; it is not yet topic-matched or used to alter ranking."
+                },
                 "supported_languages": config.get("languages", [])
             })
         if region and region != "GLOBAL" and region_eligible == 0:
