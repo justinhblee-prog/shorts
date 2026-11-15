@@ -34,8 +34,13 @@ class WorkerFailClosedTests(unittest.TestCase):
     def test_heartbeat_database_error_marks_lease_uncertain_and_stops_worker(self):
         lost_lease = worker.threading.Event()
         heartbeat_stop = worker.threading.Event()
-        with mock.patch.object(worker.queue, "heartbeat", side_effect=RuntimeError("db unavailable")):
+        with (
+            mock.patch.object(worker.queue, "heartbeat", side_effect=RuntimeError("db unavailable")),
+            mock.patch.object(worker.queue, "pause") as pause,
+        ):
             worker.heartbeat_loop("job-1", "token-1", lost_lease, heartbeat_stop, interval=0)
+
+        pause.assert_called_once()
 
         self.assertTrue(lost_lease.is_set())
         self.assertTrue(worker.stopping.is_set())
@@ -48,12 +53,14 @@ class WorkerFailClosedTests(unittest.TestCase):
             mock.patch.object(worker.store, "reconcile_review_pending"),
             mock.patch.object(worker.queue, "claim", return_value=job) as claim,
             mock.patch.object(worker.queue, "fail") as fail,
+            mock.patch.object(worker.queue, "pause") as pause,
             mock.patch.object(worker.pipeline, "execute",
                               side_effect=ProviderError("script", "provider unavailable", True)),
         ):
             self.assertTrue(worker.run_once())
 
         fail.assert_called_once()
+        pause.assert_called_once()
         claim.assert_called_once()
         self.assertTrue(worker.stopping.is_set())
 
