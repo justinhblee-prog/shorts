@@ -173,6 +173,11 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('id="lifecyclePrev"', html)
         self.assertIn('id="lifecycleNext"', html)
         self.assertIn("읽기 전용 관제", app_js)
+        self.assertIn("/api/ops/health", app_js)
+        self.assertIn("운영 안전 진단", app_js)
+        self.assertIn("health.blockers", app_js)
+        self.assertIn("health.warnings", app_js)
+        self.assertIn("자동 복구·중지·재개를 실행하지 않습니다", html)
 
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
