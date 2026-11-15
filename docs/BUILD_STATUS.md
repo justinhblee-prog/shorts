@@ -939,7 +939,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Disable HTTP redirects in the TikTok transport so staged video bytes cannot be forwarded to a redirect destination outside the allowlist.
 - Add regression coverage for documented hosts, unapproved subdomains, URL credentials, nonstandard ports, fragments, and redirect rejection.
 - Official reference: https://developers.tiktok.com/docs/en/content-posting-api-media-transfer-guide
-- CI validation pending for the latest commit; no live TikTok upload has been performed.
+- CI passed for the implementation at commit d9e038f; no live TikTok upload has been performed.
 
 
 ### BUILD-00028 — TikTok status-poll retry backoff (2026-11-15)
@@ -957,4 +957,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Reject malformed nested data, status, and post-ID response shapes from Fetch Status instead of allowing attribute/type errors.
 - Prevent a slower, stale concurrent poll from downgrading a confirmed PUBLISH_COMPLETE or FAILED terminal result.
 - Add regression tests for terminal-state monotonicity and malformed nested status responses.
-- CI validation pending; live TikTok API concurrency has not been exercised.
+- CI passed at commit d714fff; live TikTok API concurrency has not been exercised.
+
+
+### BUILD-00030 — TikTok creator-specific media duration gate (2026-11-15)
+
+- Query the creator's current max_video_post_duration_sec and inspect the staged media's actual duration with ffprobe before Direct Post initialization.
+- Reject missing/invalid creator duration limits, unavailable ffprobe, uninspectable media, and videos exceeding the creator-specific limit before the first remote publishing request.
+- Add a regression test proving an over-limit video is blocked before the init endpoint is called.
+- CI validation pending for the latest implementation; live creator account behavior remains unverified.
