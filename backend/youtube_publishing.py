@@ -139,6 +139,14 @@ class YouTubeUploadStore:
                   (video_id.strip(),_now(),_now(),job_id,attempt_id))
                 if c.rowcount != 1:
                     state_error="Upload attempt was replaced before finalization"
+                else:
+                    c.execute("""INSERT INTO youtube_upload_events
+                      (job_id,event_type,outcome,video_id,operator_id,note,
+                       previous_status,resulting_status,created_at)
+                      VALUES(?,'upload_confirmed','uploaded',?,'system:youtube_response',
+                       'YouTube returned a video ID for the active upload attempt',
+                       'uploading','uploaded',?)""",
+                      (job_id,video_id.strip(),_now()))
         if late_conflict:
             raise YouTubeUploadError("Late YouTube success detected for a superseded attempt. Retry is blocked; all returned video IDs are preserved for operator review.")
         if state_error:
