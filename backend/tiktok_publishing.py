@@ -226,7 +226,7 @@ class TikTokPublisher:
         except ValueError as exc:
             raise TikTokPublishError("TikTok API returned invalid JSON") from exc
         error = body.get("error", {}) if isinstance(body, dict) else {}
-        if error.get("code") not in (None, "ok"):
+        if error.get("code") != "ok":
             raise TikTokPublishError(
                 f"TikTok API error ({error.get('code')}): {str(error.get('message') or '')[:500]}"
             )
@@ -370,14 +370,14 @@ class TikTokPublisher:
                 raise
             data = body.get("data") or {}
             publish_id = data.get("publish_id")
-            if isinstance(publish_id, str) and publish_id:
+            if isinstance(publish_id, str) and publish_id and len(publish_id) <= 64:
                 remote_started = True
+                self.store.update(job_id, attempt["attempt_id"], "uploading",
+                                  publish_id=publish_id, event_type="upload_initialized",
+                                  note="Direct Post initialized with SELF_ONLY privacy and is_aigc declaration")
             upload_url = self._upload_url_allowed(data.get("upload_url"))
             if not publish_id or len(publish_id) > 64 or not upload_url:
                 raise TikTokPublishError("TikTok did not return a valid publish ID and upload URL")
-            self.store.update(job_id, attempt["attempt_id"], "uploading",
-                              publish_id=publish_id, event_type="upload_initialized",
-                              note="Direct Post initialized with SELF_ONLY privacy and is_aigc declaration")
             with resolved.open("rb") as media:
                 offset = 0
                 while offset < size:
