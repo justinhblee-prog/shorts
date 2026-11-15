@@ -1094,3 +1094,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - No automatic retry, upload, publication, or remote mutation is performed by the recovery-plan endpoint.
 - Added regression tests for ambiguous YouTube outcomes, late success, TikTok inbox handoff, missing current approval, and retry prohibition.
 - Automated CI validation pending. Live YouTube/TikTok account recovery remains unverified and requires an authorized operator.
+
+
+### BUILD-00043 — lifecycle consistency false-positive correction (2026-11-15)
+
+- Corrected the consistency diagnostic so a queue job in `review_pending` is also considered valid after the human review decision moves the production record to `approved`, `rejected`, or `revision_requested`. The queue intentionally remains at the review handoff state; it is not advanced by the review decision.
+- Added regressions proving approved and rejected post-handoff records do not produce false warnings.
+- Added API-level coverage for authenticated consistency-report behavior and rejection of non-production queue jobs.
+- GitHub Actions passed **341 tests** at code commit `75d9e3a`.
+- Diagnostics remain read-only and never retry, cancel, poll, or publish. Live external platform reconciliation remains outside automated validation.
