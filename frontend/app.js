@@ -323,8 +323,8 @@
   }
 
   async function loadQueue(){
-    const [q,w,control]=await Promise.all([
-      api("/api/queue/stats"),api("/api/workers"),api("/api/queue/control")
+    const [q,w,control,health]=await Promise.all([
+      api("/api/queue/stats"),api("/api/workers"),api("/api/queue/control"),api("/api/ops/health")
     ]);
     const state=control.control||{};
     $("pauseQueue").disabled=!!state.paused;
@@ -332,10 +332,11 @@
     const status=state.paused
       ? '<span class="missing-text">중지됨</span> · '+esc(state.pause_reason||"사유 없음")
       : '<span class="ready-text">정상 운영</span>';
+    const signal=(health.blockers||[]).map(x=>'<div class="data-item missing-text"><b>차단 · '+esc(x.code)+'</b><small>'+esc(x.message)+' · '+esc(x.count??"") +'</small></div>').join("")+(health.warnings||[]).map(x=>'<div class="data-item"><b>주의 · '+esc(x.code)+'</b><small>'+esc(x.message)+' · '+esc(x.count??"") +'</small></div>').join("");
     const events=(control.events||[]).slice(0,8).map(x=>'<div class="data-item"><b>'+esc(x.event_type)+' · '+esc(x.actor)+'</b><small>'+esc(x.created_at)+' · '+esc(x.reason)+'</small></div>').join("");
     $("queueDetails").innerHTML=
       '<div class="data-item"><b>생산 큐 제어 · '+status+'</b><small>중지 작업: '+esc(state.paused_job_id||"없음")+' · 갱신 '+esc(state.updated_at||"")+'</small></div>'+
-      '<div class="data-item"><b>Queue status</b><small>'+esc(JSON.stringify(q))+'</small></div>'+
+      '<div class="data-item"><b>운영 안전 진단 · '+esc(health.status||"unknown")+'</b><small>작업자 '+esc(health.workers?.online??0)+' 온라인 / '+esc(health.workers?.stale??0)+' 지연 · 만료 lease '+esc(health.leases?.expired_running??0)+' · 소유권 누락 '+esc(health.leases?.running_missing_ownership??0)+'</small></div>'+(signal||'<div class="data-item"><b>안전 신호 없음</b><small>진단 기준에서 차단·주의 항목이 발견되지 않았습니다.</small></div>')+\n      '<div class="data-item"><b>Queue status</b><small>'+esc(JSON.stringify(q))+'</small></div>'+
       (w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status)+'</b><small>'+esc(x.hostname||"")+' · '+esc(x.last_seen_at||"")+'</small></div>').join("")+
       '<h4>운영 중지·재개 감사 기록</h4>'+(events||'<div class="empty-state">아직 제어 이력이 없습니다.</div>');
   }
