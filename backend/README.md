@@ -137,3 +137,23 @@ GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports 
 ## BUILD-00011 — persistent scheduler
 
 Run `python scheduler.py` as a separate supervised process from the API and production worker. It dispatches due interval schedules to the durable queue with deterministic idempotency keys. API endpoints POST/GET `/api/schedules` and PUT `/api/schedules/{id}/activation?active=true|false` require `X-Review-Token`. Schedules are hourly or less frequent and validate active brand/market settings. Operate one scheduler instance only; distributed scheduler locking and calendar/DST rules are not implemented.
+
+## Integrated Docker Compose deployment
+
+At repository root, copy `.env.example` to `.env`, set a long random `NEXUS_REVIEW_TOKEN`, configure provider URLs/tokens and YouTube OAuth secrets. Then run:
+
+```bash
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+API health: `http://localhost:8502/api/health`. Compose starts the API, one production worker and one scheduler, all using a persistent shared SQLite volume. Run only one scheduler. This is a single-host baseline; do not treat it as HA production infrastructure.
+
+Run the validation script with Python dependencies installed:
+
+```bash
+./scripts/validate.sh
+```
+
+It performs bytecode compilation and discovers all unittest cases. A successful mocked test suite still does not validate real AI providers, OAuth, upload, monetization, or live revenue.
