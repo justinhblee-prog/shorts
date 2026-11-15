@@ -82,6 +82,7 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(result["status"], "late_success_review_required")
         self.assertEqual(result["video_id"], "late-video-id")
         self.assertEqual(result["events"][-1]["event_type"], "late_remote_success")
+        self.assertEqual(result["events"][-1]["attempt_id"],first_attempt["attempt_id"])
         with self.assertRaisesRegex(YouTubeUploadError, "blocked"):
             self.uploads.begin("job-1", "Retry", "")
         resolved=self.uploads.resolve_late_success(
@@ -109,6 +110,9 @@ class YouTubePublishingTests(unittest.TestCase):
         late_ids=[event["video_id"] for event in pending["events"]
                   if event["event_type"]=="late_remote_success"]
         self.assertEqual(late_ids,["late-duplicate-video"])
+        late_event=next(event for event in pending["events"]
+                        if event["event_type"]=="late_remote_success")
+        self.assertEqual(late_event["attempt_id"],first["attempt_id"])
         with self.assertRaisesRegex(YouTubeUploadError,"Choose the currently recorded"):
             self.uploads.resolve_late_success(
                 "job-1","reviewer","invalid unrecorded ID","not-a-video"
@@ -132,6 +136,32 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(result["events"][-1]["event_type"],"superseded_attempt_uncertain")
         with self.assertRaises(YouTubeUploadError):
             self.uploads.begin("job-1","Third attempt","")
+
+    def test_existing_upload_tables_migrate_attempt_audit_columns(self):
+        legacy_db=os.path.join(self.tmp.name,"legacy.sqlite3")
+        import sqlite3
+        with sqlite3.connect(legacy_db) as connection:
+            connection.executescript("""
+              CREATE TABLE youtube_uploads(
+                job_id TEXT PRIMARY KEY,video_id TEXT,status TEXT NOT NULL,
+                privacy_status TEXT NOT NULL DEFAULT 'private',title TEXT NOT NULL,
+                description TEXT NOT NULL,uploaded_at TEXT,error TEXT,updated_at TEXT NOT NULL
+              );
+              CREATE TABLE youtube_upload_events(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,outcome TEXT,video_id TEXT,
+                operator_id TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',
+                previous_status TEXT,resulting_status TEXT,created_at TEXT NOT NULL
+              );
+              CREATE TABLE production_runs(job_id TEXT PRIMARY KEY,status TEXT);
+              CREATE TABLE review_decisions(id INTEGER PRIMARY KEY,job_id TEXT,decision TEXT);
+            """)
+        migrated=YouTubeUploadStore(legacy_db)
+        with migrated.db() as connection:
+            upload_columns={row["name"] for row in connection.execute("PRAGMA table_info(youtube_uploads)")}
+            event_columns={row["name"] for row in connection.execute("PRAGMA table_info(youtube_upload_events)")}
+        self.assertIn("attempt_id",upload_columns)
+        self.assertIn("attempt_id",event_columns)
 
     def test_finish_requires_active_upload_state(self):
         with self.assertRaises(YouTubeUploadError):
@@ -169,6 +199,8 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(result["video_id"],"yt-video-123")
         self.assertEqual(result["events"][-1]["event_type"],"upload_confirmed")
         self.assertEqual(result["events"][-1]["video_id"],"yt-video-123")
+        self.assertEqual(result["events"][-1]["attempt_id"],result["attempt_id"])
+        self.assertEqual(result["events"][0]["event_type"],"upload_attempt_started")
         self.assertEqual(self.service._videos.body["status"]["privacyStatus"],"private")
         self.assertEqual(result["snapshots"][0]["view_count"],123)
 
