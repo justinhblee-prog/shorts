@@ -1,6 +1,6 @@
 import os
 import unittest
-from fastapi import Header
+from fastapi import HTTPException
 from app import app, require_review_access
 
 class ApiSecurityTests(unittest.TestCase):
@@ -22,10 +22,12 @@ class ApiSecurityTests(unittest.TestCase):
         previous = os.environ.get("NEXUS_REVIEW_TOKEN")
         os.environ["NEXUS_REVIEW_TOKEN"] = "unit-test-secret"
         try:
-            with self.assertRaises(Exception):
+            with self.assertRaises(HTTPException) as missing:
                 require_review_access(None)
-            with self.assertRaises(Exception):
+            self.assertEqual(missing.exception.status_code, 401)
+            with self.assertRaises(HTTPException) as invalid:
                 require_review_access("wrong-secret")
+            self.assertEqual(invalid.exception.status_code, 401)
             self.assertIsNone(require_review_access("unit-test-secret"))
         finally:
             if previous is None:
