@@ -535,8 +535,14 @@ class TikTokPublisher:
         if existing and existing["status"] == "publish_complete":
             return existing
         attempt_id = uuid.uuid4().hex
-        self.store.begin(job_id, title, disclosure["is_aigc"], operator_id.strip(), attempt_id,
-                         brand_content_toggle, brand_organic_toggle)
+        begun = self.store.begin(
+            job_id, title, disclosure["is_aigc"], operator_id.strip(), attempt_id,
+            brand_content_toggle, brand_organic_toggle,
+        )
+        # The preflight read above can race with another worker completing this
+        # same job. Respect the authoritative row returned under BEGIN IMMEDIATE.
+        if begun and begun.get("status") == "publish_complete":
+            return begun
         remote_started = False
         try:
             creator_data = self.creator_info()
