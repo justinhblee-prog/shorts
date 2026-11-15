@@ -222,3 +222,8 @@ Dashboard supports USD, KRW, JPY and GBP for ledger entries and profitability sc
 - Added regression coverage for a late upload response after operator reconciliation and for attempts to finalize a missing upload record.
 - If the remote response arrives after reconciliation has already declared no upload, the local record remains failed and the late result is surfaced as an error for manual investigation; operators must check YouTube Studio before any new upload attempt.
 - Tests are committed but remain unexecuted until a GitHub Actions runner or local Python environment is available.
+
+
+### Review decision concurrency check
+
+Review decisions are committed in a BEGIN IMMEDIATE transaction. The production status transition is checked using the UPDATE statement's affected-row count; if the row is no longer review_pending, the decision transaction is rolled back rather than accepted as successful.
