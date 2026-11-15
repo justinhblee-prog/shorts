@@ -7,6 +7,7 @@ from pathlib import Path
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
+from policy_engine import evaluate_content_policy, POLICY_VERSION
 
 
 class FakeRequest:
@@ -79,6 +80,18 @@ class YouTubePublishingTests(unittest.TestCase):
         self.prod.stage("job-1","rendered","review_pending")
         self.prod.artifact("job-1","rendering","video",
                            "https://media.example/video.mp4",{})
+        policy_brief = {
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "synthetic_media_status": "none",
+            "factual_claims_verified": True,
+            "originality_notes": "Original educational narration.",
+        }
+        self.prod.artifact(
+            "job-1", "script", "text", None,
+            {"script": "Approved test script",
+             "policy_preflight": evaluate_content_policy(policy_brief)},
+        )
         self.review.decide("job-1","approved","reviewer-1")
         os.environ["NEXUS_MEDIA_DIR"]=self.tmp.name
         self.media=os.path.join(self.tmp.name,"video.mp4")
