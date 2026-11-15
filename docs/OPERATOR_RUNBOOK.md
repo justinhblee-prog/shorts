@@ -92,7 +92,17 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 - The production worker heartbeats active job leases every 10 seconds by default (configurable with `NEXUS_HEARTBEAT_SECONDS`, capped at one-third of the lease). This reduces the delay before a worker detects an operator pause or lost lease. In-flight provider HTTP requests still run until their configured timeout; the stop signal prevents the worker from starting the next stage once the request returns. Worker presence is refreshed on every idle/paused polling cycle, not only during a leased job. The API reports workers as offline when their last heartbeat exceeds the queue lease window (minimum 30 seconds), so dead worker records do not remain falsely online.
 - Worker leases are fenced; stale workers cannot complete a job after losing ownership.
 - Scheduler dispatch uses deterministic idempotency keys. Run one scheduler process until distributed leadership is implemented.
-- Back up the persistent SQLite volume and test restoration before real operation.
+- Use the online SQLite backup utility for a consistent snapshot (including WAL data), integrity check and bounded retention. Set the backup directory to an encrypted, access-controlled off-host mount:
+  ```bash
+  BACKUP_DIR=/secure/off-host/nexus-backups
+  python backend/sqlite_backup.py backup --source data/nexus.sqlite3 --backup-dir "$BACKUP_DIR" --keep 14
+  LATEST_BACKUP="$(ls -1t "$BACKUP_DIR"/nexus-*.sqlite3 | head -n 1)"
+  python backend/sqlite_backup.py verify --path "$LATEST_BACKUP"
+  python backend/sqlite_backup.py restore --backup "$LATEST_BACKUP" --target data/nexus-restore-check.sqlite3
+  python backend/sqlite_backup.py verify --path data/nexus-restore-check.sqlite3
+  ```
+  Restore always creates a new file and refuses to overwrite an existing database. For a real cutover, stop all services, preserve the original database, and explicitly configure the restored file as `NEXUS_DB_PATH`. The utility does not encrypt backups; encryption and off-host retention must be provided by the mounted storage.
+
 - Do not scale multiple API/worker/scheduler instances on shared SQLite as if it were a production distributed database.
 
 ## 8. Validation checklist before launch
