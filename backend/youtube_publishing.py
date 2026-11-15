@@ -466,6 +466,11 @@ class YouTubePublisher:
         if existing and existing["status"]=="uploaded":
             return existing
         upload_attempt=self.store.begin(job_id,title,description)
+        # Another request may have completed after our initial read but before
+        # begin() acquired its write lock. In that race begin() returns the
+        # already-confirmed row; never issue a second remote insert.
+        if upload_attempt.get("status")=="uploaded":
+            return self.store.get(job_id) or upload_attempt
         remote_request_started=False
         upload_confirmed=False
         confirmed_video_id=None
