@@ -225,6 +225,13 @@ class JobQueue:
             c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
               available_at=?,updated_at=?,error_code=?,error_message=? WHERE id=?""",(status,n,n,error_code,error_message[:2000],jid))
             self.event(c,jid,"failed","running",status,worker,{"error_code":error_code,"retryable":retry})
+            if status == "failed_terminal" and row["job_type"] == "short_video_production":
+                has_runs = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'").fetchone()
+                if has_runs:
+                    c.execute("""UPDATE production_runs SET status='failed_terminal',
+                        current_stage='failed_terminal',error=?,updated_at=?
+                        WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                        (error_message[:2000],n,jid))
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
     def get(self,jid):
@@ -245,10 +252,27 @@ class JobQueue:
             if row is None: raise JobNotFound()
             if row["status"] in ("uploaded","cancelled","failed_terminal"):
                 raise ValueError("Job is already terminal")
+            if row["job_type"] == "short_video_production" and row["status"] == "running":
+                self._pause_production_in_transaction(
+                    c,
+                    "Running production job cancellation requested; provider outcome may be ambiguous",
+                    jid,
+                    n,
+                )
+                out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+                c.commit()
+                return self.decode(out)
             c.execute("""UPDATE pipeline_jobs SET status='cancelled',worker_id=NULL,lease_token=NULL,
               lease_expires_at=NULL,updated_at=?,error_code='cancelled',error_message=? WHERE id=?""",
               (n,reason[:2000],jid))
             self.event(c,jid,"cancelled",row["status"],"cancelled",None,{"reason":reason})
+            if row["job_type"] == "short_video_production":
+                has_runs = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'").fetchone()
+                if has_runs:
+                    c.execute("""UPDATE production_runs SET status='cancelled',
+                        current_stage='cancelled',error=?,updated_at=?
+                        WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                        (reason[:2000],n,jid))
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             c.commit()
             return self.decode(out)
