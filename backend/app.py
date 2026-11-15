@@ -627,12 +627,17 @@ def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|N
     require_review_access(x_review_token)
     trends=trend_store.list(region=region,limit=200)
     brands=brand_store.list(active_only=True)
-    ranked=rank_trend_candidates(trends,brands,competitor_store,limit)
+    performance=performance_analyzer.analyze()
+    performance_by_brand={item["brand"]:item for item in performance.get("brands",[])}
+    ranked=rank_trend_candidates(
+        trends,brands,competitor_store,limit,
+        performance_by_brand=performance_by_brand
+    )
     return {
         "items":ranked,
         "count":len(ranked),
         "method":"Freshness (0-40) plus editorial brand fit (0-40); remaining 20 points are unallocated because comparable demand and monetization evidence are unavailable.",
-        "warning":"Editorial recommendation score only. It is not a profitability forecast, search-volume estimate, or automatic production approval."
+        "warning":"Editorial recommendation score only. Historical brand-level performance is displayed as context but does not alter ranking until topic-matched evidence is sufficient. This is not a profitability forecast, search-volume estimate, or automatic production approval."
     }
 
 @app.get("/api/opportunities")
