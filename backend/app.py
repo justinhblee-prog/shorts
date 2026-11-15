@@ -11,6 +11,7 @@ from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from ledger import LedgerStore
+from performance_insights import PerformanceAnalyzer
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -26,6 +27,7 @@ review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_publisher=YouTubePublisher(youtube_upload_store)
 ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -271,6 +273,13 @@ def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|Non
         return ledger_store.report(brand,from_date,to_date,currency)
     except ValueError as e:
         raise HTTPException(422,str(e))
+
+
+
+@app.get("/api/performance/insights")
+def performance_insights(brand:str|None=None,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return performance_analyzer.analyze(brand)
 
 
 @app.post("/api/trends/collect")
