@@ -5,6 +5,7 @@ Uploads require a prior human approval record. This module never publishes publi
 import json
 import os
 import sqlite3
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -245,6 +246,8 @@ class YouTubePublisher:
             return existing
         self.store.begin(job_id,title,description)
         remote_request_started=False
+        heartbeat_stop=threading.Event()
+        heartbeat_thread=None
         try:
             from googleapiclient.http import MediaFileUpload
             service=self._service()
@@ -258,6 +261,16 @@ class YouTubePublisher:
                 media_body=MediaFileUpload(str(resolved),mimetype=media_type,
                                            chunksize=8*1024*1024,resumable=True))
             remote_request_started=True
+            heartbeat_interval=max(5,min(30,self.store.upload_stale_seconds()//3))
+            def refresh_upload_activity():
+                while not heartbeat_stop.wait(heartbeat_interval):
+                    try:
+                        self.store.touch_upload(job_id)
+                    except Exception:
+                        # The upload itself remains authoritative; a later poll can retry.
+                        continue
+            heartbeat_thread=threading.Thread(target=refresh_upload_activity,daemon=True)
+            heartbeat_thread.start()
             response=None
             while response is None:
                 _,response=request.next_chunk()
@@ -292,6 +305,10 @@ class YouTubePublisher:
                     "this job before retrying; duplicate uploads are blocked."
                 ) from exc
             raise YouTubeUploadError("YouTube upload failed before remote upload started: "+type(exc).__name__) from exc
+        finally:
+            heartbeat_stop.set()
+            if heartbeat_thread is not None:
+                heartbeat_thread.join(timeout=2)
 
     def refresh_metrics(self,video_id):
         service=self._service()
