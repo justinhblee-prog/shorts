@@ -34,6 +34,49 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(r["financial"][0]["revenue"],12)
   self.assertEqual(r["regions"][0]["view_delta"],80)
   self.assertEqual(r["videos"][0]["measurement_status"],"measured")
+ def test_snapshot_rates_and_interaction_ratio_are_time_normalized(self):
+  self.video("j1","Brain Glitch","US","Sleep","vid1")
+  self.u.snapshot("vid1",{"viewCount":"100","likeCount":"10","commentCount":"2"})
+  self.u.snapshot("vid1",{"viewCount":"700","likeCount":"40","commentCount":"8"})
+  with self.u.db() as connection:
+   ids=[row["id"] for row in connection.execute(
+    "SELECT id FROM youtube_video_snapshots WHERE video_id='vid1' ORDER BY id"
+   )]
+   connection.execute("UPDATE youtube_video_snapshots SET collected_at=? WHERE id=?",
+    ("2026-11-15T00:00:00+00:00",ids[0]))
+   connection.execute("UPDATE youtube_video_snapshots SET collected_at=? WHERE id=?",
+    ("2026-11-15T06:00:00+00:00",ids[1]))
+  result=PerformanceAnalyzer(self.db).analyze()
+  video=result["videos"][0]
+  self.assertEqual(video["elapsed_hours"],6.0)
+  self.assertEqual(video["views_per_hour"],100.0)
+  self.assertEqual(video["interaction_delta"],36)
+  self.assertEqual(video["interactions_per_1000_view_delta"],60.0)
+
+ def test_negative_interaction_counter_is_omitted_not_counted_as_negative(self):
+  self.video("j1","Brain Glitch","US","Sleep","vid1")
+  self.u.snapshot("vid1",{"viewCount":"100","likeCount":"10","commentCount":"2"})
+  self.u.snapshot("vid1",{"viewCount":"200","likeCount":"4","commentCount":"5"})
+  result=PerformanceAnalyzer(self.db).analyze()
+  video=result["videos"][0]
+  self.assertEqual(video["view_delta"],100)
+  self.assertIsNone(video["like_delta"])
+  self.assertIsNone(video["interaction_delta"])
+  self.assertEqual(result["brands"][0]["like_delta"],0)
+
+ def test_nonpositive_snapshot_interval_does_not_create_rate(self):
+  self.video("j1","Brain Glitch","US","Sleep","vid1")
+  self.u.snapshot("vid1",{"viewCount":"100","likeCount":"2","commentCount":"1"})
+  self.u.snapshot("vid1",{"viewCount":"200","likeCount":"4","commentCount":"2"})
+  with self.u.db() as connection:
+   connection.execute(
+    "UPDATE youtube_video_snapshots SET collected_at='2026-11-15T00:00:00+00:00' "
+    "WHERE video_id='vid1'"
+   )
+  result=PerformanceAnalyzer(self.db).analyze()
+  self.assertIsNone(result["videos"][0]["elapsed_hours"])
+  self.assertIsNone(result["videos"][0]["views_per_hour"])
+
  def test_financials_never_mix_currencies_and_brand_filter_applies(self):
   self.entry("Brain Glitch","USD","youtube_ads","usd-rev",100)
   self.entry("Brain Glitch","KRW","production_cost","krw-cost",20000)
