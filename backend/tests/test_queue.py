@@ -8,6 +8,17 @@ class QueueTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.q=JobQueue(Path(self.tmp.name)/"test.db",10)
  def tearDown(self): self.tmp.cleanup()
+
+ def test_stale_worker_instance_cannot_mark_restarted_instance_offline(self):
+  self.q.register_worker("worker-reused","host-a","instance-old")
+  self.q.register_worker("worker-reused","host-b","instance-new")
+  self.assertFalse(self.q.mark_worker_offline("worker-reused","instance-old"))
+  row=self.q.workers()[0]
+  self.assertEqual(row["status"],"online")
+  self.assertEqual(row["instance_token"],"instance-new")
+  self.assertTrue(self.q.mark_worker_offline("worker-reused","instance-new"))
+  self.assertEqual(self.q.workers()[0]["status"],"offline")
+
  def test_graceful_worker_shutdown_is_persisted_as_offline_not_stale(self):
   self.q.register_worker("worker-clean","host-a")
   self.assertTrue(self.q.mark_worker_offline("worker-clean"))
