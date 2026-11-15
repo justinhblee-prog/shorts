@@ -189,3 +189,7 @@ Configure `RENDER_ARTIFACT_HOSTS` with comma-separated exact CDN hostnames retur
 ## CI state after API security and media staging changes
 
 Latest observed run 84 (2026-11-15) failed before runner allocation: `runner_id=0`, empty runner name, `steps=[]`. This is not a test failure and not a test pass. API security and media-staging regression tests are committed but unexecuted. Latest run: https://github.com/justinhblee-prog/shorts/actions/runs/43656898926.
+
+## Approved queue and private upload UI
+
+The dashboard now includes an approved-production list backed by `GET /api/review/approved`. An operator can explicitly stage the saved artifact and initiate private YouTube upload from that list. Media staging accepts the `approved` state so a previously approved job can be staged and retried. Public publishing is not exposed.
