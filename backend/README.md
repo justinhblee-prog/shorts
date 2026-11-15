@@ -196,3 +196,11 @@ The UI includes production job intake, trends, competitors, profitability scorin
 Use protected `GET /api/preflight` (header `X-Review-Token`) or the dashboard readiness panel to identify missing environment settings. It checks configuration presence only; it does not make provider, OAuth or YouTube API calls.
 
 Dashboard supports USD, KRW, JPY and GBP for ledger entries and profitability scenarios. Financial reports filter by one currency at a time; currency conversion is not inferred or applied.
+
+
+### Staged media retention and cleanup
+
+- A staged MP4 is retained when upload fails, is active, or requires reconciliation. Do not delete it while the remote upload outcome is uncertain.
+- After the upload ledger reports `status=uploaded` with a confirmed YouTube video ID, an operator may call `POST /api/production/jobs/{job_id}/cleanup-media` with `X-Review-Token`. The endpoint deletes only the deterministic staged file belonging to that job; repeated calls are safe.
+- Abandoned atomic-write `.part` files can be pruned with `MediaStager.prune_temporary_files()` after a minimum one-hour age threshold. It never scans or deletes completed media files. No automatic retention job is enabled by default.
+- Keep the renderer's remote artifact until upload is confirmed and your provider's retention policy permits deletion. Remote artifact deletion is not implemented.
