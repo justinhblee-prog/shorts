@@ -1308,3 +1308,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - No automated decision, recommendation score adjustment, variant delivery, publication or production behavior is enabled. Ranking score adjustment remains zero.
 - Added regression tests for shadow-only blocking, client-render-only blocking, minimum sample size, finite numeric validation, Welch interval, and zero-variance inconclusiveness.
 - CI validation is pending for this commit; do not claim test success until the branch-head Actions run completes.
+
+## BUILD-00061 — conservative confidence-interval and evidence-gate correction
+
+- Corrected Welch 95% confidence critical-value lookup to round degrees of freedom DOWN to the nearest tabulated row. The previous upward lookup could select a smaller critical value than warranted and understate interval width for degrees of freedom between table rows.
+- Added strict boolean type validation for randomized-assignment and served-exposure verification gates; truthy strings/numbers can no longer be accepted as verification.
+- Added regression tests for df=11/14/16 boundary behavior, conservative monotonicity and malformed verification flags.
+- Statistical calculations remain internal only. There is still no verified randomized served-exposure ledger, trusted outcome join, public experiment-effect API or automatic ranking adjustment.
+- CI validation is pending for the branch-head commit; test success is not claimed until GitHub Actions confirms it.
