@@ -102,6 +102,25 @@ class RecommendationEvaluationStore:
               BEFORE DELETE ON recommendation_feedback_events
               BEGIN SELECT RAISE(ABORT,'Recommendation feedback events are immutable'); END;
             """)
+            c.executescript("""
+            CREATE TABLE IF NOT EXISTS recommendation_evaluation_snapshots(
+              id TEXT PRIMARY KEY, created_at TEXT NOT NULL,
+              evaluation_version TEXT NOT NULL, input_fingerprint TEXT NOT NULL,
+              status TEXT NOT NULL, selected_count INTEGER NOT NULL,
+              measured_count INTEGER NOT NULL, holdout_run_count INTEGER NOT NULL,
+              holdout_score_spearman REAL, holdout_rank_spearman REAL,
+              result_json TEXT NOT NULL,
+              UNIQUE(evaluation_version,input_fingerprint)
+            );
+            CREATE INDEX IF NOT EXISTS idx_recommendation_evaluation_created
+              ON recommendation_evaluation_snapshots(created_at DESC);
+            CREATE TRIGGER IF NOT EXISTS recommendation_evaluation_snapshots_no_update
+              BEFORE UPDATE ON recommendation_evaluation_snapshots
+              BEGIN SELECT RAISE(ABORT,'Recommendation evaluation snapshots are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS recommendation_evaluation_snapshots_no_delete
+              BEFORE DELETE ON recommendation_evaluation_snapshots
+              BEGIN SELECT RAISE(ABORT,'Recommendation evaluation snapshots are immutable'); END;
+            """)
 
     @contextmanager
     def db(self):
@@ -448,8 +467,28 @@ class RecommendationEvaluationStore:
             ),
             "interpretation": "Human selection/skip feedback only; not a platform performance metric.",
         }
+        fingerprint_payload = [
+            {
+                "job_id": item["job_id"], "run_id": item["run_id"],
+                "run_generated_at": item["run_generated_at"],
+                "recommendation_rank": item["recommendation_rank"],
+                "recommendation_score": item["recommendation_score"],
+                "views_per_hour": item["views_per_hour"],
+                "brand": item["brand"], "region": item.get("outcome_region"),
+                "publication_age_bucket": item.get("publication_age_bucket"),
+                "duration_bucket": item.get("duration_bucket"),
+                "format": item.get("format"),
+            }
+            for item in observations
+        ]
+        input_fingerprint = hashlib.sha256(json.dumps(
+            fingerprint_payload, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":")
+        ).encode("utf-8")).hexdigest()
         result = {
             "feedback_summary": feedback_summary,
+            "evaluation_version": "run_isolated_holdout_v2",
+            "input_fingerprint": input_fingerprint,
             "status": "insufficient_data",
             "method": "chronological_70_30_holdout_spearman",
             "selected_production_count": total_selected,
@@ -476,25 +515,68 @@ class RecommendationEvaluationStore:
         if total_measured < 10:
             result["reason"] = "At least 10 distinct selected and measured production outcomes are required."
             return result
-        split = max(5, int(math.ceil(total_measured * 0.30)))
-        split = min(split, total_measured - 5)
-        pre_holdout = observations[:-split]
-        holdout = observations[-split:]
+        run_groups = {}
+        for item in observations:
+            run_groups.setdefault(item["run_id"], []).append(item)
+        ordered_runs = list(run_groups.items())
+        if len(ordered_runs) < 5:
+            result.update({
+                "status": "insufficient_run_coverage",
+                "reason": (
+                    "At least five distinct recommendation exposure runs are required; "
+                    "an exposure run is never split between training and holdout."
+                ),
+                "distinct_exposure_run_count": len(ordered_runs),
+                "ranking_score_adjustment_enabled": False,
+            })
+            return result
+        holdout_run_count = max(2, int(math.ceil(len(ordered_runs) * 0.30)))
+        holdout_run_count = min(holdout_run_count, len(ordered_runs) - 2)
+        pre_holdout_runs = ordered_runs[:-holdout_run_count]
+        holdout_runs = ordered_runs[-holdout_run_count:]
+        pre_holdout = [item for _, items in pre_holdout_runs for item in items]
+        holdout = [item for _, items in holdout_runs for item in items]
+        pre_score_rho = _spearman(
+            [item["recommendation_score"] for item in pre_holdout],
+            [item["views_per_hour"] for item in pre_holdout],
+        )
+        holdout_score_rho = _spearman(
+            [item["recommendation_score"] for item in holdout],
+            [item["views_per_hour"] for item in holdout],
+        )
+        pre_rank_rho = _spearman(
+            [-item["recommendation_rank"] for item in pre_holdout],
+            [item["views_per_hour"] for item in pre_holdout],
+        )
+        holdout_rank_rho = _spearman(
+            [-item["recommendation_rank"] for item in holdout],
+            [item["views_per_hour"] for item in holdout],
+        )
+        direction = (
+            "consistent_positive" if pre_score_rho is not None and holdout_score_rho is not None
+            and pre_score_rho > 0 and holdout_score_rho > 0
+            else "direction_changed" if pre_score_rho is not None and holdout_score_rho is not None
+            and (pre_score_rho > 0) != (holdout_score_rho > 0)
+            else "inconclusive"
+        )
         result.update({
             "status": "holdout_available",
+            "distinct_exposure_run_count": len(ordered_runs),
+            "pre_holdout_run_count": len(pre_holdout_runs),
+            "holdout_run_count": len(holdout_runs),
             "pre_holdout_count": len(pre_holdout),
             "holdout_count": len(holdout),
+            "pre_holdout_start": pre_holdout[0]["observed_at"],
+            "pre_holdout_end": pre_holdout[-1]["observed_at"],
             "holdout_start": holdout[0]["observed_at"],
             "holdout_end": holdout[-1]["observed_at"],
-            "holdout_score_views_spearman": _spearman(
-                [item["recommendation_score"] for item in holdout],
-                [item["views_per_hour"] for item in holdout],
-            ),
-            "holdout_rank_views_spearman": _spearman(
-                [-item["recommendation_rank"] for item in holdout],
-                [item["views_per_hour"] for item in holdout],
-            ),
-            "holdout_scope": "Selected recommendations with measured snapshot-derived views/hour only.",
+            "pre_holdout_score_views_spearman": pre_score_rho,
+            "holdout_score_views_spearman": holdout_score_rho,
+            "pre_holdout_rank_views_spearman": pre_rank_rho,
+            "holdout_rank_views_spearman": holdout_rank_rho,
+            "score_association_stability": direction,
+            "holdout_run_ids": [run_id for run_id, _ in holdout_runs],
+            "holdout_scope": "Selected recommendations with measured snapshot-derived views/hour; complete exposure runs held out chronologically.",
             "ranking_score_adjustment_enabled": False,
         })
         if result["holdout_score_views_spearman"] is None:
@@ -507,3 +589,49 @@ class RecommendationEvaluationStore:
                 "coverage, stability and selection bias."
             )
         return result
+
+    def record_evaluation_snapshot(self, result):
+        """Persist one immutable evaluation result per distinct measured input set."""
+        if not isinstance(result, dict) or not result.get("input_fingerprint"):
+            raise ValueError("A fingerprinted evaluation result is required")
+        version = str(result.get("evaluation_version") or "run_isolated_holdout_v2")
+        fingerprint = str(result["input_fingerprint"])
+        snapshot_id = str(uuid.uuid4())
+        created_at = _now()
+        payload = json.dumps(result, ensure_ascii=False, sort_keys=True,
+                             separators=(",", ":"), allow_nan=False)
+        within = result.get("within_run_validation") or {}
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            existing = c.execute("""SELECT id,created_at FROM recommendation_evaluation_snapshots
+                WHERE evaluation_version=? AND input_fingerprint=?""",
+                (version, fingerprint)).fetchone()
+            if existing:
+                return {"snapshot_id": existing["id"], "created_at": existing["created_at"],
+                        "deduplicated": True, "input_fingerprint": fingerprint}
+            c.execute("""INSERT INTO recommendation_evaluation_snapshots
+                (id,created_at,evaluation_version,input_fingerprint,status,
+                 selected_count,measured_count,holdout_run_count,
+                 holdout_score_spearman,holdout_rank_spearman,result_json)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                (snapshot_id, created_at, version, fingerprint,
+                 str(result.get("status") or "unknown"),
+                 int(result.get("selected_production_count") or 0),
+                 int(result.get("measured_outcome_count") or 0),
+                 int(within.get("holdout_run_count") or result.get("holdout_run_count") or 0),
+                 result.get("holdout_score_views_spearman"),
+                 result.get("holdout_rank_views_spearman"), payload))
+        return {"snapshot_id": snapshot_id, "created_at": created_at,
+                "deduplicated": False, "input_fingerprint": fingerprint}
+
+    def list_evaluation_snapshots(self, limit=20):
+        bounded = max(1, min(50, int(limit)))
+        with self.db() as c:
+            rows = c.execute("""SELECT id,created_at,evaluation_version,
+                input_fingerprint,status,selected_count,measured_count,
+                holdout_run_count,holdout_score_spearman,holdout_rank_spearman
+                FROM recommendation_evaluation_snapshots
+                ORDER BY created_at DESC,id DESC LIMIT ?""", (bounded,)).fetchall()
+        return {"items": [dict(row) for row in rows], "count": len(rows),
+                "limit": bounded, "immutable": True}
+
