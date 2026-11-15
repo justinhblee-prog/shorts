@@ -7,7 +7,7 @@ from pathlib import Path
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore
 from policy_engine import evaluate_content_policy
-from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError, _NoRedirectHandler
+from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError, CHUNK_SIZE, _NoRedirectHandler
 
 
 class FakeMediaInspector:
@@ -140,6 +140,36 @@ class TikTokPublishingTests(unittest.TestCase):
                 privacy_level="SELF_ONLY",
             )
         self.assertEqual(len(self.transport.calls), 1)
+
+    def test_file_just_over_64_mib_uses_two_valid_sequential_chunks(self):
+        path = Path(self.tmp.name) / "large.mp4"
+        size = CHUNK_SIZE + 17
+        with path.open("wb") as media:
+            media.truncate(size)
+        calls = []
+
+        def transport(url, headers, body, timeout, method="POST"):
+            calls.append({
+                "method": method,
+                "length": len(body),
+                "range": headers.get("Content-Range"),
+            })
+            return (206 if len(calls) == 1 else 201), b""
+
+        publisher = TikTokPublisher(
+            self.store, "test-token", transport,
+            media_inspector=FakeMediaInspector(),
+        )
+        publisher._upload_chunks(
+            "https://upload.us.tiktokapis.com/video/?token=test",
+            str(path), "video/mp4", size,
+        )
+        self.assertEqual(len(calls), 2)
+        base = size // 2
+        self.assertEqual(calls[0]["length"], base)
+        self.assertEqual(calls[1]["length"], size - base)
+        self.assertEqual(calls[0]["range"], f"bytes 0-{base - 1}/{size}")
+        self.assertEqual(calls[1]["range"], f"bytes {base}-{size - 1}/{size}")
 
     def test_api_error_string_is_reported_without_attribute_error(self):
         transport = TikTokTransport([(200, {"error": "access_denied"})])
