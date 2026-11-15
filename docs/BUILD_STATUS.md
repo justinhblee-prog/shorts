@@ -1316,3 +1316,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression tests for df=11/14/16 boundary behavior, conservative monotonicity and malformed verification flags.
 - Statistical calculations remain internal only. There is still no verified randomized served-exposure ledger, trusted outcome join, public experiment-effect API or automatic ranking adjustment.
 - CI validation is pending for the branch-head commit; test success is not claimed until GitHub Actions confirms it.
+
+## BUILD-00062 — pre-registered practical-effect and guardrail decision gate
+
+- Added an internal decision evaluator that requires a verified randomized served-exposure comparison, a predeclared expected direction and a finite positive minimum practically meaningful effect.
+- A primary result is eligible for human review only when the full approximate 95% confidence interval exceeds the pre-registered practical-effect threshold in the expected direction.
+- Optional guardrail metrics require verified comparisons and predeclared non-negative degradation margins. A confidence interval allowing worse-than-permitted degradation blocks the candidate.
+- Outcomes are limited to blocked, inconclusive, guardrail-blocked or review-candidate states. Even a review candidate explicitly does not authorize deployment, variant rollout or recommendation score changes; ranking adjustment remains zero.
+- Added regression tests for successful review-candidate gating, practical-effect uncertainty, guardrail regression, shadow/unverified evidence and invalid thresholds.
+- CI validation pending for this branch-head commit. No live randomized experiment or outcome pipeline is enabled.
