@@ -43,10 +43,16 @@ def _safe_api_error(response):
         body = response.json()
     except Exception:
         body = {}
-    error = body.get("error") if isinstance(body, dict) else {}
-    code = error.get("code") if isinstance(error, dict) else None
-    message = error.get("message") if isinstance(error, dict) else None
-    return f"TikTok API error ({code or response.status_code}): {str(message or 'request failed')[:500]}"
+    error = body.get("error") if isinstance(body, dict) else None
+    if isinstance(error, dict):
+        code = error.get("code")
+        message = error.get("message")
+    else:
+        code = error
+        message = body.get("error_description") if isinstance(body, dict) else None
+    log_id = body.get("log_id") if isinstance(body, dict) else None
+    suffix = f" · log_id={str(log_id)[:80]}" if log_id else ""
+    return f"TikTok API error ({code or response.status_code}): {str(message or 'request failed')[:500]}{suffix}"
 
 
 class TikTokOAuthError(TikTokPublishError):
@@ -175,10 +181,18 @@ class TikTokOAuthStore:
             result = response.json()
         except ValueError as exc:
             raise TikTokOAuthError("TikTok OAuth returned invalid JSON") from exc
-        error = result.get("error", {}) if isinstance(result, dict) else {}
-        if error.get("code") not in (None, "ok"):
+        error = result.get("error") if isinstance(result, dict) else None
+        if isinstance(error, dict):
+            error_code = error.get("code")
+            error_message = error.get("message")
+        else:
+            error_code = error
+            error_message = result.get("error_description") if isinstance(result, dict) else None
+        if error_code not in (None, "", "ok"):
+            log_id = result.get("log_id") if isinstance(result, dict) else None
+            suffix = f" · log_id={str(log_id)[:80]}" if log_id else ""
             raise TikTokOAuthError(
-                f"TikTok OAuth error ({error.get('code')}): {str(error.get('message') or '')[:500]}"
+                f"TikTok OAuth error ({error_code}): {str(error_message or '')[:500]}{suffix}"
             )
         data = result.get("data") if isinstance(result, dict) else None
         if not isinstance(data, dict):
