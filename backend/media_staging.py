@@ -112,11 +112,20 @@ class MediaStager:
         return {"removed": removed, "count": len(removed)}
 
     def stage(self, job_id, artifact_url):
-        parsed = urlsplit(artifact_url or "")
-        host = (parsed.hostname or "").lower().rstrip(".")
-        if parsed.scheme != "https" or not host or parsed.username or parsed.password:
+        if (not isinstance(artifact_url, str) or not artifact_url
+                or any(ord(character) <= 32 or ord(character) == 127
+                       for character in artifact_url)):
+            raise MediaStagingError("Artifact URL is malformed")
+        try:
+            parsed = urlsplit(artifact_url)
+            host = (parsed.hostname or "").lower().rstrip(".")
+            port = parsed.port
+        except (TypeError, ValueError) as exc:
+            raise MediaStagingError("Artifact URL is malformed") from exc
+        if (parsed.scheme.lower() != "https" or not host
+                or parsed.username is not None or parsed.password is not None):
             raise MediaStagingError("Artifact URL must be HTTPS without embedded credentials")
-        if parsed.port not in (None, 443) or parsed.fragment:
+        if port not in (None, 443) or parsed.fragment:
             raise MediaStagingError("Artifact URL uses an unsupported port or fragment")
         if host not in self.allowed_hosts:
             raise MediaStagingError("Artifact hostname is not in RENDER_ARTIFACT_HOSTS")
@@ -142,12 +151,16 @@ class MediaStager:
         if content_type not in ("video/mp4", "application/octet-stream"):
             raise MediaStagingError("Artifact response is not an MP4 media type")
         declared = headers.get("content-length")
-        if declared:
+        declared_length = None
+        if declared is not None:
             try:
-                if int(declared) > self.max_bytes:
-                    raise MediaStagingError("Artifact exceeds NEXUS_MAX_MEDIA_BYTES")
-            except ValueError as exc:
+                declared_length = int(declared)
+            except (TypeError, ValueError) as exc:
                 raise MediaStagingError("Artifact has an invalid Content-Length") from exc
+            if declared_length < 0:
+                raise MediaStagingError("Artifact has an invalid Content-Length")
+            if declared_length > self.max_bytes:
+                raise MediaStagingError("Artifact exceeds NEXUS_MAX_MEDIA_BYTES")
         self.media_dir.mkdir(parents=True, exist_ok=True)
         filename = hashlib.sha256(str(job_id).encode("utf-8")).hexdigest() + ".mp4"
         destination = (self.media_dir / filename).resolve()
@@ -172,6 +185,8 @@ class MediaStager:
                     out.write(chunk)
                 out.flush()
                 os.fsync(out.fileno())
+            if declared_length is not None and total != declared_length:
+                raise MediaStagingError("Artifact byte count does not match Content-Length")
             if total < 12 or prefix[4:8] != b"ftyp":
                 raise MediaStagingError("Downloaded artifact does not contain an MP4 file signature")
             os.replace(str(temporary), str(destination))
