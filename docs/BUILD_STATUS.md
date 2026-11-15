@@ -220,3 +220,12 @@ Latest observed Actions run: [43656898926](https://github.com/justinhblee-prog/s
 - **Not validated:** browser rendering, cross-device UI, complete user journey, API integration in a live browser or YouTube upload.
 
 Latest observed Actions run 94: https://github.com/justinhblee-prog/shorts/actions/runs/43657260929. It failed before runner allocation (`runner_id=0`, empty runner name, `steps=[]`). A rerun was requested; its result is not yet established. No tests have been executed by CI.
+
+## Web operations portal and approved upload workflow
+
+- Single-page portal served at `/`; assets at `/assets`.
+- Studio, intelligence, review, approved/private upload, schedule, finance and performance sections are integrated with protected APIs.
+- Approved queue endpoint: `GET /api/review/approved`.
+- Renderer artifacts can be staged with protected `POST /api/production/jobs/{job_id}/stage-media`; exact host allowlisting and MP4 validation apply.
+- YouTube upload UI calls the private-upload API only.
+- Operator runbook: `docs/OPERATOR_RUNBOOK.md`.
