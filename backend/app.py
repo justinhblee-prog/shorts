@@ -124,6 +124,11 @@ class TrendCollect(BaseModel):
     limit:int=30
     include_hacker_news:bool=False
 
+class TrendProductionDraft(BaseModel):
+    brand:str=Field(min_length=1,max_length=100)
+    language:str=Field(min_length=2,max_length=40)
+    idempotency_key:str|None=None
+
 @app.get("/api/brands")
 def list_brands(active_only:bool=False):
     return {"brands":brand_store.list(active_only)}
@@ -484,6 +489,54 @@ def list_trends(region:str|None=None,source:str|None=None,q:str|None=None,limit:
     require_review_access(x_review_token)
     try:
         return {"items":trend_store.list(region,source,q,limit)}
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+
+@app.post("/api/trends/{trend_id}/draft-production",status_code=201)
+def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
+                                x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        trend=next((item for item in trend_store.list(limit=200)
+                    if item.get("id")==trend_id),None)
+        if trend is None:
+            raise HTTPException(404,"Trend signal not found")
+        brand=next((item for item in brand_store.list(active_only=True)
+                    if body.brand in (item["slug"],item["name"])),None)
+        if brand is None:
+            raise HTTPException(422,"Unknown or inactive brand")
+        config=brand["config"]
+        region=trend.get("region")
+        if region not in config.get("regions",[]):
+            raise HTTPException(422,"Trend region is not enabled for this brand")
+        if body.language not in config.get("languages",[]):
+            raise HTTPException(422,"Language is not enabled for this brand")
+        title=(trend.get("title") or "").strip()
+        if not title:
+            raise HTTPException(422,"Trend signal has no usable title")
+        profile=config
+        brief={
+            "brand":brand["name"],"region":region,"language":body.language,
+            "topic":title[:500],
+            "idempotency_key":body.idempotency_key or
+                f"trend:{trend_id}:{brand['slug']}:{body.language}",
+            "brand_profile":{
+                "positioning":profile.get("positioning",""),
+                "audience":profile.get("audience",""),
+                "tone":profile.get("tone",[]),
+                "risk_level":profile.get("risk_level","standard"),
+                "review_rules":profile.get("review_rules",[]),
+            },
+            "trend_context":{
+                "source":trend.get("source"),"title":title,
+                "url":trend.get("url"),"summary":trend.get("summary"),
+                "published_at":trend.get("published_at"),"region":region,
+            },
+        }
+        return submit_production(queue,production_store,brief)
+    except IdempotencyConflict as e:
+        raise HTTPException(409,str(e))
     except ValueError as e:
         raise HTTPException(422,str(e))
 
