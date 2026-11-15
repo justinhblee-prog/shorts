@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - "backend/**"
+      - "frontend/**"
       - "scripts/validate.sh"
       - ".github/workflows/backend-tests.yml"
   pull_request:
