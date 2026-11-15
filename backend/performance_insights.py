@@ -1,89 +1,171 @@
-"""Evidence-bound performance summaries; recommendations are heuristics, not predictions."""
+"""Evidence-bound performance analysis; no synthetic metrics or predictive claims."""
 import sqlite3
 from contextlib import contextmanager
-from pathlib import Path
 
 
 class PerformanceAnalyzer:
-    def __init__(self,db_path="data/nexus.sqlite3"):
-        self.db_path=str(db_path)
+    def __init__(self, db_path="data/nexus.sqlite3"):
+        self.db_path = str(db_path)
+
     @contextmanager
     def db(self):
-        c=sqlite3.connect(self.db_path,timeout=30); c.row_factory=sqlite3.Row
+        c = sqlite3.connect(self.db_path, timeout=30)
+        c.row_factory = sqlite3.Row
         c.execute("PRAGMA busy_timeout=30000")
-        try: yield c
-        finally: c.close()
-    def analyze(self,brand=None):
+        try:
+            yield c
+        finally:
+            c.close()
+
+    def analyze(self, brand=None):
         with self.db() as c:
-            where="WHERE r.status IN ('uploaded','approved')"
-            args=[]
-            if brand: where+=" AND r.brand=?"; args.append(brand)
-            videos=c.execute("""
-              SELECT r.job_id,r.brand,r.region,r.topic,u.video_id,
-                     s.view_count,s.like_count,s.comment_count,s.collected_at
-              FROM production_runs r
-              JOIN youtube_uploads u ON u.job_id=r.job_id AND u.status='uploaded'
-              LEFT JOIN youtube_video_snapshots s ON s.video_id=u.video_id
-            """+where+" ORDER BY r.brand,r.job_id,s.collected_at",args).fetchall()
-            ledger=c.execute("SELECT brand,entry_type,currency,SUM(amount) amount,COUNT(*) n "
-                             "FROM financial_ledger GROUP BY brand,entry_type,currency").fetchall()
-        groups={}
+            where = "WHERE r.status IN ('uploaded','approved')"
+            args = []
+            if brand:
+                where += " AND r.brand=?"
+                args.append(brand)
+            videos = c.execute("""
+                SELECT r.job_id,r.brand,r.region,r.topic,u.video_id,
+                       s.view_count,s.like_count,s.comment_count,s.collected_at
+                FROM production_runs r
+                JOIN youtube_uploads u ON u.job_id=r.job_id AND u.status='uploaded'
+                LEFT JOIN youtube_video_snapshots s ON s.video_id=u.video_id
+            """ + where + " ORDER BY r.brand,r.region,r.job_id,s.collected_at", args).fetchall()
+
+            ledger_where = "WHERE 1=1"
+            ledger_args = []
+            if brand:
+                ledger_where += " AND brand=?"
+                ledger_args.append(brand)
+            ledger = c.execute("""
+                SELECT brand,currency,entry_type,SUM(amount) amount,COUNT(*) entries
+                FROM financial_ledger
+            """ + ledger_where + " GROUP BY brand,currency,entry_type ORDER BY brand,currency,entry_type",
+                ledger_args).fetchall()
+
+        groups = {}
         for row in videos:
-            key=row["job_id"]
-            groups.setdefault(key,{"job_id":key,"brand":row["brand"],"region":row["region"],
-                "topic":row["topic"],"video_id":row["video_id"],"snapshots":[]})
+            key = row["job_id"]
+            item = groups.setdefault(key, {
+                "job_id": key, "brand": row["brand"], "region": row["region"],
+                "topic": row["topic"], "video_id": row["video_id"], "snapshots": []
+            })
             if row["collected_at"] is not None:
-                groups[key]["snapshots"].append({
-                    "views":row["view_count"],"likes":row["like_count"],
-                    "comments":row["comment_count"],"collected_at":row["collected_at"]})
-        by_brand={}
-        for v in groups.values():
-            b=by_brand.setdefault(v["brand"],{"brand":v["brand"],"videos":0,
-                "measured_videos":0,"view_delta":0,"like_delta":0,"comment_delta":0,
-                "recommendations":[]})
-            b["videos"]+=1
-            snaps=v["snapshots"]
-            if len(snaps)>=2:
-                first,last=snaps[0],snaps[-1]
-                if first["views"] is not None and last["views"] is not None:
-                    b["view_delta"]+=last["views"]-first["views"]
-                    b["measured_videos"]+=1
-                for field in ("likes","comments"):
-                    if first[field] is not None and last[field] is not None:
-                        b[field[:-1]+"_delta"]+=last[field]-first[field]
+                item["snapshots"].append({
+                    "views": row["view_count"], "likes": row["like_count"],
+                    "comments": row["comment_count"], "collected_at": row["collected_at"]
+                })
+
+        by_brand = {}
+        by_region = {}
+        video_results = []
+        for video in groups.values():
+            brand_row = by_brand.setdefault(video["brand"], {
+                "brand": video["brand"], "videos": 0, "measured_videos": 0,
+                "unmeasured_videos": 0, "view_delta": 0, "like_delta": 0,
+                "comment_delta": 0, "recommendations": []
+            })
+            region_key = (video["brand"], video["region"])
+            region_row = by_region.setdefault(region_key, {
+                "brand": video["brand"], "region": video["region"],
+                "videos": 0, "measured_videos": 0, "unmeasured_videos": 0,
+                "view_delta": 0, "like_delta": 0, "comment_delta": 0
+            })
+            brand_row["videos"] += 1
+            region_row["videos"] += 1
+            snaps = video["snapshots"]
+            result = {
+                "job_id": video["job_id"], "brand": video["brand"],
+                "region": video["region"], "topic": video["topic"],
+                "video_id": video["video_id"], "snapshot_count": len(snaps),
+                "measurement_status": "insufficient_snapshots"
+            }
+            if len(snaps) >= 2:
+                first, last = snaps[0], snaps[-1]
+                deltas = {}
+                for source, target in (("views", "view_delta"),
+                                       ("likes", "like_delta"),
+                                       ("comments", "comment_delta")):
+                    a, b = first[source], last[source]
+                    deltas[target] = (b - a) if a is not None and b is not None else None
+                result.update(deltas)
+                result["first_snapshot_at"] = first["collected_at"]
+                result["last_snapshot_at"] = last["collected_at"]
+                if deltas["view_delta"] is not None and deltas["view_delta"] >= 0:
+                    result["measurement_status"] = "measured"
+                    brand_row["measured_videos"] += 1
+                    region_row["measured_videos"] += 1
+                    brand_row["view_delta"] += deltas["view_delta"]
+                    region_row["view_delta"] += deltas["view_delta"]
+                    for field in ("like_delta", "comment_delta"):
+                        if deltas[field] is not None:
+                            brand_row[field] += deltas[field]
+                            region_row[field] += deltas[field]
+                else:
+                    result["measurement_status"] = "counter_reset_or_invalid"
+                    brand_row["unmeasured_videos"] += 1
+                    region_row["unmeasured_videos"] += 1
             else:
-                b["recommendations"].append({
-                    "type":"measurement_gap","basis":"fewer_than_two_counter_snapshots",
-                    "action":"Collect another YouTube Data API snapshot before judging growth",
-                    "job_id":v["job_id"]})
-        for b in by_brand.values():
-            if b["measured_videos"]==0:
-                b["recommendations"].append({
-                    "type":"insufficient_evidence","basis":"no_comparable_view_snapshots",
-                    "action":"Do not rank this brand's performance until comparable snapshots exist"})
-            elif b["view_delta"]<0:
-                b["recommendations"].append({
-                    "type":"review_topic_and_packaging","basis":"negative_observed_view_delta",
-                    "action":"Review topic selection, title and opening hook; test one change at a time"})
-            elif b["view_delta"]>0:
-                b["recommendations"].append({
-                    "type":"retain_and_test","basis":"positive_observed_view_delta",
-                    "action":"Preserve the current format while testing one controlled variation"})
-            b["view_delta_is_snapshot_difference"]=True
-        financial={}
+                brand_row["unmeasured_videos"] += 1
+                region_row["unmeasured_videos"] += 1
+            video_results.append(result)
+
+        for item in by_brand.values():
+            if item["measured_videos"] == 0:
+                item["recommendations"].append({
+                    "type": "insufficient_evidence",
+                    "basis": "no_valid_comparable_view_snapshots",
+                    "action": "Collect at least two valid YouTube counter snapshots per video before ranking performance"
+                })
+            elif item["unmeasured_videos"]:
+                item["recommendations"].append({
+                    "type": "measurement_coverage",
+                    "basis": "some_videos_lack_valid_comparable_snapshots",
+                    "action": "Collect missing snapshots and verify counter resets before comparing all videos"
+                })
+            if item["view_delta"] < 0:
+                item["recommendations"].append({
+                    "type": "review_topic_and_packaging",
+                    "basis": "negative_observed_view_delta",
+                    "action": "Review topic selection, title and opening hook; test one controlled change"
+                })
+            elif item["view_delta"] > 0:
+                item["recommendations"].append({
+                    "type": "retain_and_test",
+                    "basis": "positive_observed_view_delta",
+                    "action": "Retain the observed format as a hypothesis and test one controlled variation"
+                })
+            item["view_delta_is_snapshot_difference"] = True
+
+        financial = {}
         for row in ledger:
-            b=financial.setdefault(row["brand"],{"currency":row["currency"],"revenue":0,
-                                                  "costs":0,"net":0,"entries":0})
-            if b["currency"]!=row["currency"]:
-                b["currency"]="MIXED"
-                continue
-            amount=float(row["amount"]); b["entries"]+=row["n"]
-            if row["entry_type"] in ("youtube_ads","affiliate","sponsor"): b["revenue"]+=amount
-            else: b["costs"]+=amount
-            b["net"]=round(b["revenue"]-b["costs"],2)
-        return {"method":"rule_based_source_evidence_only","brands":list(by_brand.values()),
-                "financial":financial,
-                "limitations":["View deltas are differences between stored snapshots, not real-time velocity.",
+            key = (row["brand"], row["currency"])
+            item = financial.setdefault(key, {
+                "brand": row["brand"], "currency": row["currency"],
+                "revenue": 0.0, "costs": 0.0, "net": 0.0, "entries": 0
+            })
+            amount = float(row["amount"])
+            item["entries"] += int(row["entries"])
+            if row["entry_type"] in ("youtube_ads", "affiliate", "sponsor"):
+                item["revenue"] += amount
+            else:
+                item["costs"] += amount
+        for item in financial.values():
+            item["revenue"] = round(item["revenue"], 2)
+            item["costs"] = round(item["costs"], 2)
+            item["net"] = round(item["revenue"] - item["costs"], 2)
+
+        return {
+            "method": "rule_based_source_evidence_only",
+            "brands": list(by_brand.values()),
+            "regions": list(by_region.values()),
+            "videos": video_results,
+            "financial": list(financial.values()),
+            "limitations": [
+                "View deltas are differences between stored snapshots, not real-time velocity.",
+                "Negative counter differences are treated as resets or invalid measurements and excluded from aggregate growth.",
                 "Recommendations are operational heuristics, not causal claims or forecasts.",
-                "Financial totals include only manually/source-integrated ledger entries.",
-                "Mixed currencies are not combined."]}
+                "Financial totals include only recorded ledger entries.",
+                "Financials are separated by brand and currency; no implicit foreign-exchange conversion is applied."
+            ]
+        }
