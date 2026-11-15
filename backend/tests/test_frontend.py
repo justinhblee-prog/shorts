@@ -59,6 +59,9 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("data-recommend-draft", app_js)
         self.assertIn("loadTrendRecommendations()", app_js)
         self.assertIn("data-recommend-brand", app_js)
+        self.assertIn("evaluation_candidate_id", app_js)
+        self.assertIn("recommendation_candidate_id", app_js)
+        self.assertIn("data-candidate-id", app_js)
         self.assertIn("EDITORIAL MATCH", html)
         self.assertIn("trendRecommendations", html)
         self.assertIn("수익성이나 조회수 예측 점수가 아닙니다", html)
@@ -102,6 +105,8 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("/api/recommendations/feedback/skip", app_js)
         self.assertIn("이번 후보 제외", app_js)
         self.assertIn("reviewer_id:reviewer||\"operator\"", app_js)
+        self.assertIn("recommendation_candidate_id:candidateId", app_js)
+        self.assertIn("selectedOption?.dataset.candidateId", app_js)
 
     def test_tiktok_oauth_connection_is_available_from_integration_readiness(self):
         frontend = ROOT / "frontend"
