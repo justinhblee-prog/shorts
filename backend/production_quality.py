@@ -14,6 +14,20 @@ def _positive_number(value):
     return number if math.isfinite(number) and number > 0 else None
 
 
+def _reported_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("true", "yes", "1"):
+            return True
+        if normalized in ("false", "no", "0"):
+            return False
+    return None
+
+
 def _is_http_source(value):
     if not isinstance(value, str) or not value.strip() or any(ch.isspace() for ch in value.strip()):
         return False
@@ -114,14 +128,16 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
     ):
         warnings.append("render_aspect_ratio_not_reported")
 
-    if render_metadata.get("audio_track_present") is False:
+    audio_track_present = _reported_bool(render_metadata.get("audio_track_present"))
+    if audio_track_present is False:
         blockers.append("rendered_video_reports_no_audio_track")
-    elif render_metadata.get("audio_track_present") is not True:
+    elif audio_track_present is None:
         warnings.append("render_audio_track_presence_not_reported")
 
-    if render_metadata.get("subtitles_enabled") is False:
+    subtitles_enabled = _reported_bool(render_metadata.get("subtitles_enabled"))
+    if subtitles_enabled is False:
         warnings.append("rendered_subtitles_reported_disabled")
-    elif render_metadata.get("subtitles_enabled") is not True:
+    elif subtitles_enabled is None:
         warnings.append("render_subtitle_presence_not_reported")
 
     if voice_duration and render_duration:
@@ -148,8 +164,8 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
         "aspect_ratio": aspect or None,
         "width": width,
         "height": height,
-        "audio_track_present": render_metadata.get("audio_track_present"),
-        "subtitles_enabled": render_metadata.get("subtitles_enabled"),
+        "audio_track_present": audio_track_present,
+        "subtitles_enabled": subtitles_enabled,
     })
 
     status = "blocked" if blockers else "review_required" if warnings else "ready_for_human_review"
