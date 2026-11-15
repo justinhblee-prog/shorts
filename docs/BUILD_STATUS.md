@@ -294,3 +294,4 @@ Latest test attempt: run 123 (https://github.com/justinhblee-prog/shorts/actions
 - Added a regression test that expires and reclaims a job, proves the old token cannot start or write an artifact, and proves the new token can complete production.
 - Existing direct pipeline unit tests remain supported without a lease context for isolated component tests; the production worker always supplies one.
 - Tests are committed but not executed because GitHub Actions jobs continue to fail before runner allocation (no steps/logs available).
+- Review handoff recovery now performs a single SQLite `BEGIN IMMEDIATE` transaction joining `production_runs` to `pipeline_jobs`; it promotes only jobs whose durable queue status is still `review_pending`. A cancellation between queue completion and review handoff therefore cannot be overwritten by a stale worker.
