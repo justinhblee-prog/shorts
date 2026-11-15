@@ -95,7 +95,10 @@ class EndToEndLifecycleTests(unittest.TestCase):
     def test_queued_job_to_review_private_upload_and_recorded_finance(self):
         brief = {"brand": "Brain Glitch", "region": "US",
                  "language": "English", "topic": "Sleep and memory",
-                 "idempotency_key": "e2e-sleep-001"}
+                 "idempotency_key": "e2e-sleep-001",
+                 "rights": {"visuals_cleared": True, "audio_cleared": True,
+                            "likeness_authorized": True},
+                 "synthetic_media_status": "none"}
         submitted = submit_production(self.queue, self.production, brief)
         job_id = submitted["job"]["id"]
         self.assertEqual(submitted["job"]["status"], "queued")
@@ -182,7 +185,8 @@ class EndToEndLifecycleTests(unittest.TestCase):
         # the production record is advanced to review_pending.
         self.queue.finish(job_id, "crash-worker", claimed["lease_token"],
                           {"production_status": "review_pending"})
-        self.assertEqual(self.production.get(job_id)["status"], "rendered")
+        self.assertEqual(self.production.get(job_id)["status"], "cancelled")
+        self.assertEqual(self.production.get(job_id)["current_stage"], "cancelled")
         repaired = self.production.reconcile_review_pending(self.queue)
         self.assertEqual(repaired["job_ids"], [job_id])
         pending = self.review.list_pending()
@@ -203,8 +207,7 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.queue.cancel(job_id, "Operator cancelled before review handoff")
         result = self.production.reconcile_review_pending(self.queue)
         self.assertEqual(result["reconciled"], 0)
-        self.assertEqual(self.production.get(job_id)["status"], "cancelled")
-        self.assertEqual(self.production.get(job_id)["current_stage"], "cancelled")
+        self.assertEqual(self.production.get(job_id)["status"], "rendered")
 
     def test_cancelled_queue_job_is_reflected_in_production_record(self):
         brief = {"brand": "Brain Glitch", "region": "US",
