@@ -74,10 +74,10 @@ The generated policy report is stored with the script artifact and included in t
 1. The preflight is metadata-based. Automated frame/audio/transcript scanning and asset-level copyright matching are not implemented.
 2. Rights, consent, and factuality declarations are not independently verified.
 3. YouTube Data API v3 supports `status.containsSyntheticMedia` on `videos.insert` and `videos.update`; the YouTube upload branch now maps the explicit policy classification to this field and blocks unresolved classifications. See https://developers.google.com/youtube/data/reference/rest/v3/videos and https://developers.google.com/youtube/v3/revision_history.
-4. TikTok Content Posting API documents `is_aigc` for Direct Post and labels the post when true. TikTok publishing automation is not yet implemented; until it is, the operator must apply/check the AI-generated label in TikTok's publishing flow. See https://developers.tiktok.com/docs/en/content-posting-api-reference-direct-post.
+4. TikTok Content Posting API documents `is_aigc` for Direct Post and labels the post when true. The private Direct Post adapter maps the approved classification to this field, enforces `SELF_ONLY`, and tracks status. Live developer-app audit, creator authorization and account-level label verification remain pending. See https://developers.tiktok.com/doc/content-posting-api-reference-direct-post.
 5. Monetization eligibility is channel- and content-level. A per-video checklist cannot certify YouTube Partner Program eligibility.
 6. Regional legal review is still required for privacy, publicity/likeness, health, financial, advertising, and regulated-goods topics.
-7. Public publishing remains disabled by default. YouTube upload remains private-only and requires explicit human approval.
+7. Public publishing remains disabled by default. YouTube upload remains private-only and requires explicit human approval. TikTok Direct Post is restricted to `SELF_ONLY`, requires per-post operator consent, and uses server-side OAuth tokens encrypted at rest.
 
 ## Validation
 
