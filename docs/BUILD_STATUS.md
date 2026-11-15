@@ -323,3 +323,12 @@ Latest test attempt: run 123 (https://github.com/justinhblee-prog/shorts/actions
 - Added regression tests for retry invalidation and cancellation-state synchronization.
 - This does **not** delete remote renderer artifacts; provider-side cleanup is not implemented because ownership and retention guarantees depend on the configured renderer.
 - Tests are committed but have not been executed in a Python runtime. GitHub Actions currently fails before allocating a runner; no assertion result is available.
+
+
+## YouTube upload/reconciliation race protection — 2026-11-15
+
+- YouTube upload finalization now uses `BEGIN IMMEDIATE` and updates only a row still in `uploading`. A late remote completion cannot overwrite an operator's `not_uploaded` reconciliation or another terminal state.
+- Reconciliation itself now acquires the SQLite write transaction before reading and deciding the upload state, serializing it against finalization and other reconciliation attempts.
+- Added regression coverage for a late upload response after operator reconciliation and for attempts to finalize a missing upload record.
+- If the remote response arrives after reconciliation has already declared no upload, the local record remains failed and the late result is surfaced as an error for manual investigation; operators must check YouTube Studio before any new upload attempt.
+- Tests are committed but remain unexecuted until a GitHub Actions runner or local Python environment is available.
