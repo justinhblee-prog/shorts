@@ -21,6 +21,7 @@ from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
+from lifecycle_consistency import inspect_lifecycle_consistency
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
@@ -318,6 +319,28 @@ def get_job_lifecycle(job_id:str,x_review_token:str|None=Header(default=None)):
         "review":{"history":decisions,"latest":latest_review},
         "publishing":{"youtube":youtube,"tiktok":tiktok},
     }
+
+
+@app.get("/api/lifecycle/jobs/{job_id}/consistency")
+def get_job_lifecycle_consistency(job_id:str,x_review_token:str|None=Header(default=None)):
+    """Read-only cross-platform consistency diagnostics; never retries or mutates."""
+    require_review_access(x_review_token)
+    try:
+        job=queue.get(job_id)
+    except JobNotFound:
+        raise HTTPException(404,"Job not found")
+    if job.get("job_type")!="short_video_production":
+        raise HTTPException(409,"Job is not a short-video production job")
+    production=production_store.get(job_id)
+    if production is None:
+        raise HTTPException(404,"Production record not found")
+    decisions=review_store.history(job_id)
+    latest=decisions[-1] if decisions else None
+    result=inspect_lifecycle_consistency(
+        job,production,{"latest":latest},
+        youtube_upload_store.get(job_id),tiktok_publish_store.get(job_id),
+    )
+    return {"job_id":job_id,**result}
 
 
 @app.post("/api/production/jobs/{job_id}/execute")
