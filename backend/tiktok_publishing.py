@@ -560,11 +560,37 @@ class TikTokPublisher:
             duration = media_report.get("duration_seconds")
             if not isinstance(duration, (int, float)) or duration <= 0:
                 raise TikTokPublishError("TikTok media duration could not be verified")
-            if duration > max_duration:
+            effective_max_duration = min(float(max_duration), 600.0)
+            if duration > effective_max_duration:
                 raise TikTokPublishError(
-                    "Video duration exceeds this creator's TikTok limit of "
-                    + str(max_duration) + " seconds"
+                    "Video duration exceeds the TikTok limit of "
+                    + str(effective_max_duration) + " seconds"
                 )
+            width, height = media_report.get("width"), media_report.get("height")
+            if (
+                isinstance(width, bool) or not isinstance(width, int)
+                or isinstance(height, bool) or not isinstance(height, int)
+                or not (360 <= width <= 4096 and 360 <= height <= 4096)
+            ):
+                raise TikTokPublishError(
+                    "TikTok video dimensions must each be between 360 and 4096 pixels"
+                )
+            frame_rate = media_report.get("frame_rate")
+            if (
+                isinstance(frame_rate, bool) or not isinstance(frame_rate, (int, float))
+                or not 23 <= frame_rate <= 60
+            ):
+                raise TikTokPublishError("TikTok video frame rate must be between 23 and 60 FPS")
+            codec = str(media_report.get("video_codec") or "").lower()
+            if codec not in {"h264", "hevc", "vp8", "vp9"}:
+                raise TikTokPublishError("TikTok video codec must be H.264, H.265, VP8, or VP9")
+            formats = {str(value).lower() for value in (media_report.get("format_names") or [])}
+            if mime == "video/webm":
+                supported_container = bool(formats.intersection({"webm", "matroska"}))
+            else:
+                supported_container = bool(formats.intersection({"mp4", "mov", "m4a", "3gp", "3g2", "mj2"}))
+            if not supported_container:
+                raise TikTokPublishError("TikTok video container does not match its supported file format")
             remote_started = True
             chunk_size = min(CHUNK_SIZE, size)
             chunk_count = max(1, size // chunk_size)
