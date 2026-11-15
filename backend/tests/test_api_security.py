@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from app import (app, require_review_access, YouTubeLateSuccessResolution, Enqueue,
                  enqueue, IdempotencyConflict, ProductionExecute, execute_production_job,
-                 ProductionLeaseConflict)
+                 ProductionLeaseConflict, ProductionBrief, create_production_job)
 
 class ApiSecurityTests(unittest.TestCase):
     def test_all_operational_routes_require_review_token(self):
@@ -46,6 +46,37 @@ class ApiSecurityTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as caught:
                 enqueue(body, x_review_token="test-token")
         self.assertEqual(caught.exception.status_code, 409)
+
+    def test_production_submission_freezes_selected_brand_profile_into_job(self):
+        config = {
+            "positioning": "Grounded AI explainers",
+            "audience": "technology-curious adults",
+            "tone": ["clear", "skeptical"],
+            "risk_level": "elevated",
+            "review_rules": ["Label speculation"],
+            "regions": ["US"],
+            "languages": ["en"],
+        }
+        brand = {"slug": "future-leak", "name": "Future Leak",
+                 "active": True, "config": config}
+        body = ProductionBrief(brand="future-leak", region="US",
+                              language="en", topic="AI agents")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.brand_store.list", return_value=[brand]),
+            mock.patch("app.submit_production", return_value={"job": {"id": "job-brand"}}) as submit,
+        ):
+            result = create_production_job(body, x_review_token="test-token")
+        self.assertEqual(result["job"]["id"], "job-brand")
+        submitted_brief = submit.call_args.args[2]
+        self.assertEqual(submitted_brief["brand"], "Future Leak")
+        self.assertEqual(submitted_brief["brand_profile"], {
+            "positioning": "Grounded AI explainers",
+            "audience": "technology-curious adults",
+            "tone": ["clear", "skeptical"],
+            "risk_level": "elevated",
+            "review_rules": ["Label speculation"],
+        })
 
     def test_api_production_execution_passes_worker_lease_and_reconciles_handoff(self):
         job = {"id": "job-1", "job_type": "short_video_production",
