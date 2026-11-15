@@ -155,7 +155,9 @@ class FrontendPortalTests(unittest.TestCase):
     def test_global_lifecycle_risk_dashboard_is_integrated(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
-        self.assertIn("/api/lifecycle/queue?limit=50&offset=0", app_js)
+        self.assertIn('"/api/lifecycle/queue?"', app_js)
+        self.assertIn('limit:"50"', app_js)
+        self.assertIn('offset:String(lifecycleOffset)', app_js)
         self.assertIn("loadLifecycleQueue()", app_js)
         self.assertIn("risk_counts", app_js)
         self.assertIn("production_status_counts", app_js)
