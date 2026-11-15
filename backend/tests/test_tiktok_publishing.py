@@ -367,6 +367,15 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(after["video_id"], "video-123")
         self.assertEqual(after["events"][-1]["event_type"], "post_terminal_poll_error")
         self.assertEqual(after["events"][-1]["outcome"], "informational")
+        self.store.record_status_poll_error(
+            "job-1", attempt_id, "another late scheduler poll failed",
+        )
+        after_scheduler_error = self.store.get("job-1")
+        self.assertEqual(after_scheduler_error["status"], "publish_complete")
+        self.assertEqual(
+            after_scheduler_error["events"][-1]["event_type"],
+            "post_terminal_poll_error",
+        )
 
     def test_late_processing_status_cannot_downgrade_inbox_handoff(self):
         self.publisher.publish_private_approved(
