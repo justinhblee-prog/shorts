@@ -130,7 +130,7 @@ class JobQueue:
                     current_stage='worker_paused',error=?,updated_at=?
                     WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
                     (("Queue paused: " + reason)[:2000], timestamp, row["id"]))
-    def claim(self,worker_id,hostname=None,job_type=None):
+    def claim(self,worker_id,hostname=None,job_type=None,exclude_job_type=None):
         if not worker_id.strip(): raise ValueError("worker_id required")
         dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds)); token=str(uuid.uuid4())
         with self.db() as c:
@@ -174,6 +174,10 @@ class JobQueue:
                 row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
                   AND available_at<=? AND attempt<max_attempts AND job_type=?
                   ORDER BY priority,created_at LIMIT 1""",(n,job_type)).fetchone()
+            elif exclude_job_type:
+                row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
+                  AND available_at<=? AND attempt<max_attempts AND job_type!=?
+                  ORDER BY priority,created_at LIMIT 1""",(n,exclude_job_type)).fetchone()
             elif production_paused:
                 row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
                   AND available_at<=? AND attempt<max_attempts
