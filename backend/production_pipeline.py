@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from policy_engine import evaluate_content_policy
 from production_quality import evaluate_production_quality
+from media_staging import MediaStager, MediaStagingError
+from media_inspection import MediaInspector, MediaInspectionError
 
 
 class ProviderError(RuntimeError):
@@ -287,8 +289,14 @@ class ProductionStore:
 
 class ProductionPipeline:
     """Executes script -> voice -> render using configured real provider endpoints."""
-    def __init__(self, store, script_provider=None, voice_provider=None, render_provider=None):
+    def __init__(self, store, script_provider=None, voice_provider=None, render_provider=None,
+                 media_stager=None, media_inspector=None):
         self.store = store
+        configured_hosts = os.getenv("RENDER_ARTIFACT_HOSTS", "").strip()
+        self.media_stager = media_stager or (MediaStager() if configured_hosts else None)
+        self.media_inspector = media_inspector or (
+            MediaInspector() if self.media_stager is not None else None
+        )
         self.script = script_provider or JsonProvider(
             os.getenv("SCRIPT_PROVIDER_URL"), os.getenv("SCRIPT_PROVIDER_TOKEN"))
         self.voice = voice_provider or JsonProvider(
@@ -488,13 +496,31 @@ class ProductionPipeline:
             if not isinstance(video_url, str) or not video_url.startswith(("https://", "http://")):
                 raise ProviderError("rendering", "Renderer returned no valid video_url", False)
             render_metadata = {k: v for k, v in rendered.items() if k != "video_url"}
+            media_inspection = None
+            if self.media_stager is not None and self.media_inspector is not None:
+                try:
+                    staged = self.media_stager.stage(job_id, video_url)
+                    inspected = self.media_inspector.inspect(
+                        self.media_stager.media_dir / staged["media_path"]
+                    )
+                    media_inspection = {**inspected, "media_path": staged["media_path"],
+                                        "size_bytes": staged["size_bytes"]}
+                    render_metadata["media_staging"] = staged
+                except (MediaStagingError, MediaInspectionError) as exc:
+                    raise ProviderError(
+                        "media_inspection",
+                        "Actual media inspection failed: " + str(exc),
+                        retryable=False,
+                    ) from exc
             self.store.artifact(job_id, "rendering", "video", video_url,
                                 render_metadata, **lease)
             quality_report = evaluate_production_quality(
                 script_text, script_metadata,
                 {k: v for k, v in voice.items() if k != "audio_url"},
-                render_metadata, brief,
+                render_metadata, brief, media_inspection=media_inspection,
             )
+            if media_inspection is not None:
+                quality_report["media_inspection"] = media_inspection
             self.store.artifact(job_id, "quality_check", "report", None,
                                 quality_report, **lease)
             if quality_report["status"] == "blocked":
