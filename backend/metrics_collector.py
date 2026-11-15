@@ -40,7 +40,7 @@ def run_once(store=None, publisher=None):
             )
         except Exception as exc:
             store.record_metrics_collection(
-                "failed", error=type(exc).__name__ + ": " + str(exc),
+                "failed", error=type(exc).__name__,
                 source="YouTube Data API v3"
             )
             raise
