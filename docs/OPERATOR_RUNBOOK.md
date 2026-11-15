@@ -284,4 +284,4 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - Configure `SCRIPT_PROVIDER_URL`, `VOICE_PROVIDER_URL`, `RENDER_PROVIDER_URL` and optional `TRANSCRIPTION_PROVIDER_URL` as HTTPS endpoints with valid hostnames and ports.
 - Do not embed usernames, passwords, access tokens or API keys in provider URLs. Keep credentials in their dedicated environment variables / secret store.
 - The API preflight rejects malformed or non-HTTPS provider URLs without displaying their values. It performs no network request; a configured result is not a live connectivity or provider compatibility test.
-- Provider HTTP error response bodies are not retained. Diagnose provider failures using the sanitized stage and HTTP status, then consult the provider console with appropriate access controls.
+- Provider HTTP error response bodies are not retained. Automatic redirects are disabled; configure the final HTTPS provider URL directly. Diagnose provider failures using the sanitized stage and HTTP status, then consult the provider console with appropriate access controls.
