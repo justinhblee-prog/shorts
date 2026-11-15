@@ -58,8 +58,11 @@ class YouTubeUploadStore:
             row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
             if row and row["status"]=="uploaded":
                 return dict(row)
-            if row and row["status"]=="uploading":
-                raise YouTubeUploadError("An upload is already in progress for this job")
+            if row and row["status"] in ("uploading", "reconciliation_required"):
+                raise YouTubeUploadError(
+                    "Upload outcome requires reconciliation in YouTube Studio before retry; "
+                    "automatic retry is blocked to prevent duplicate videos"
+                )
             c.execute("""INSERT INTO youtube_uploads
               (job_id,status,privacy_status,title,description,updated_at)
               VALUES(?,'uploading','private',?,?,?)
@@ -79,6 +82,46 @@ class YouTubeUploadStore:
         with self.db() as c:
             c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
                          WHERE job_id=? AND status='uploading'""",(str(error)[:2000],_now(),job_id))
+
+    def mark_reconciliation_required(self,job_id,error):
+        with self.db() as c:
+            c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',
+              error=?,updated_at=? WHERE job_id=? AND status IN ('uploading','reconciliation_required')""",
+              (str(error)[:2000],_now(),job_id))
+            if c.rowcount != 1:
+                raise YouTubeUploadError("Upload record is not in a reconcilable state")
+
+    def reconcile(self,job_id,outcome,video_id=None,note=""):
+        """Resolve an ambiguous remote upload only after explicit operator verification."""
+        note=str(note or "").strip()
+        if not note or len(note)>2000:
+            raise YouTubeUploadError("A reconciliation note is required (max 2000 characters)")
+        if outcome not in ("uploaded","not_uploaded"):
+            raise YouTubeUploadError("Outcome must be uploaded or not_uploaded")
+        if outcome=="uploaded" and (not isinstance(video_id,str) or not video_id.strip()):
+            raise YouTubeUploadError("A confirmed YouTube video ID is required")
+        with self.db() as c:
+            row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
+            if row is None:
+                raise YouTubeUploadError("Upload record not found")
+            if row["status"]=="uploaded":
+                if outcome=="uploaded" and row["video_id"]==video_id:
+                    return self.get(job_id)
+                raise YouTubeUploadError("Upload is already finalized; conflicting reconciliation rejected")
+            if row["status"] not in ("uploading","reconciliation_required"):
+                raise YouTubeUploadError("Only an ambiguous upload can be reconciled")
+            if outcome=="uploaded":
+                c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
+                  privacy_status='private',uploaded_at=?,updated_at=?,error=NULL
+                  WHERE job_id=? AND status IN ('uploading','reconciliation_required')""",
+                  (video_id.strip(),_now(),_now(),job_id))
+            else:
+                c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
+                  WHERE job_id=? AND status IN ('uploading','reconciliation_required')""",
+                  ("Operator verified no matching remote upload. "+note,_now(),job_id))
+            if c.rowcount != 1:
+                raise YouTubeUploadError("Upload state changed during reconciliation")
+        return self.get(job_id)
 
     def snapshot(self,video_id,stats):
         def count(key):
@@ -172,6 +215,7 @@ class YouTubePublisher:
         if existing and existing["status"]=="uploaded":
             return existing
         self.store.begin(job_id,title,description)
+        remote_request_started=False
         try:
             from googleapiclient.http import MediaFileUpload
             service=self._service()
@@ -184,6 +228,7 @@ class YouTubePublisher:
                 part="snippet,status",body=body,
                 media_body=MediaFileUpload(str(resolved),mimetype=media_type,
                                            chunksize=8*1024*1024,resumable=True))
+            remote_request_started=True
             response=None
             while response is None:
                 _,response=request.next_chunk()
@@ -201,10 +246,21 @@ class YouTubePublisher:
                 pass
             return self.store.get(job_id)
         except Exception as exc:
-            self.store.fail(job_id,type(exc).__name__+": "+str(exc))
+            detail=type(exc).__name__+": "+str(exc)
+            if remote_request_started:
+                self.store.mark_reconciliation_required(
+                    job_id,"Remote upload outcome is uncertain. "+detail
+                )
+            else:
+                self.store.fail(job_id,detail)
             if isinstance(exc,YouTubeUploadError):
                 raise
-            raise YouTubeUploadError("YouTube upload failed: "+type(exc).__name__) from exc
+            if remote_request_started:
+                raise YouTubeUploadError(
+                    "YouTube upload outcome is uncertain. Check YouTube Studio and reconcile "
+                    "this job before retrying; duplicate uploads are blocked."
+                ) from exc
+            raise YouTubeUploadError("YouTube upload failed before remote upload started: "+type(exc).__name__) from exc
 
     def refresh_metrics(self,video_id):
         service=self._service()
