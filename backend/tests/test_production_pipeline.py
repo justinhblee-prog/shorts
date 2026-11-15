@@ -191,6 +191,21 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(result["invalid"], [job["id"]])
         self.assertIsNone(self.store.get(job["id"]))
 
+    def test_worker_pause_mirrors_terminal_state_into_production_record(self):
+        queue = JobQueue(self.store.db_path)
+        submitted = submit_production(queue, self.store, self.brief)
+        job_id = submitted["job"]["id"]
+        queue.claim("worker-paused", job_type="short_video_production")
+
+        queue.pause("provider result uncertain", job_id)
+
+        job = queue.get(job_id)
+        production = self.store.get(job_id)
+        self.assertEqual(job["status"], "failed_terminal")
+        self.assertEqual(job["error_code"], "worker_paused")
+        self.assertEqual(production["status"], "failed_terminal")
+        self.assertEqual(production["current_stage"], "worker_paused")
+
     def test_lost_worker_signal_stops_before_any_provider_call(self):
         import threading
 
