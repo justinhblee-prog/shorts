@@ -171,13 +171,18 @@
   }
 
   async function loadInsights(){
-    const data=await api("/api/performance/insights");
+    const [data,evaluation]=await Promise.all([
+      api("/api/performance/insights"),
+      api("/api/recommendations/evaluation")
+    ]);
     const brands=(data.brands||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+Number(x.view_delta||0).toLocaleString()+' views (snapshot delta)</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+' · 미측정 '+x.unmeasured_videos+' · '+esc((x.recommendations||[]).map(r=>r.action).join(" / "))+'</small></div>').join("");
     const regions=(data.regions||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+Number(x.view_delta||0).toLocaleString()+' views</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+'</small></div>').join("");
     const videos=(data.videos||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+esc(x.topic)+'</b><small>'+esc(x.measurement_status)+' · snapshots '+x.snapshot_count+(x.view_delta===undefined?"":" · Δ "+Number(x.view_delta).toLocaleString())+'</small></div>').join("");
     const cohorts=(data.cohorts||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+esc(x.topic_signature)+' · '+esc(x.duration_bucket)+' · '+esc(x.publication_age_bucket)+'</b><small>'+esc(x.format)+' · 비교 표본 '+Number(x.sample_count||0)+'개 · 중앙값 '+Number(x.median_views_per_hour||0).toLocaleString()+' views/hour · '+esc(x.evidence_status)+' · 추천 점수 반영 안 함</small></div>').join("");
     const finance=(data.financial||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+esc(x.currency)+' · net '+money(x.net,x.currency)+'</b><small>매출 '+money(x.revenue,x.currency)+' · 비용 '+money(x.costs,x.currency)+' · '+x.entries+'건</small></div>').join("");
-    $("insightList").innerHTML='<h4>브랜드 성과</h4>'+(brands||'<div class="empty-state">업로드된 영상 데이터가 없습니다.</div>')+'<h4>지역별 성과</h4>'+(regions||'<div class="empty-state">지역별 데이터가 없습니다.</div>')+'<h4>비교 가능한 성과 코호트</h4>'+(cohorts||'<div class="empty-state">비교 조건을 만족하는 측정 표본이 아직 없습니다.</div>')+'<h4>영상별 측정 상태</h4>'+(videos||'<div class="empty-state">영상 측정 데이터가 없습니다.</div>')+'<h4>실제 기록 금융 데이터 (통화별)</h4>'+(finance||'<div class="empty-state">기록된 금융 데이터가 없습니다.</div>')+'<div class="notice">'+(data.limitations||[]).map(esc).join(" · ")+'</div>';
+    const evalStatus=evaluation.status==="holdout_available"?"시계열 홀드아웃 진단 가능":evaluation.status==="holdout_inconclusive"?"홀드아웃 결과 불충분":"검증 표본 수집 중";
+    const evaluationPanel='<h4>추천 알고리즘 홀드아웃 검증</h4><div class="data-item"><b>'+esc(evalStatus)+' · '+Number(evaluation.measured_outcome_count||0)+'개 실측 / 선택 제작 '+Number(evaluation.selected_production_count||0)+'개</b><small>학습 구간 '+Number(evaluation.training_count||0)+'개 · 홀드아웃 '+Number(evaluation.holdout_count||0)+'개 · 추천 점수와 시간당 조회의 Spearman ρ '+(evaluation.holdout_score_views_spearman===null||evaluation.holdout_score_views_spearman===undefined?"—":Number(evaluation.holdout_score_views_spearman).toFixed(3))+'</small><small>'+esc(evaluation.reason||"")+'</small><small class="recommendation-caveat">'+esc(evaluation.warning||"")+' 점수 자동 조정은 비활성 상태입니다.</small></div>';
+    $("insightList").innerHTML=evaluationPanel+'<h4>브랜드 성과</h4>'+(brands||'<div class="empty-state">업로드된 영상 데이터가 없습니다.</div>')+'<h4>지역별 성과</h4>'+(regions||'<div class="empty-state">지역별 데이터가 없습니다.</div>')+'<h4>비교 가능한 성과 코호트</h4>'+(cohorts||'<div class="empty-state">비교 조건을 만족하는 측정 표본이 아직 없습니다.</div>')+'<h4>영상별 측정 상태</h4>'+(videos||'<div class="empty-state">영상 측정 데이터가 없습니다.</div>')+'<h4>실제 기록 금융 데이터 (통화별)</h4>'+(finance||'<div class="empty-state">기록된 금융 데이터가 없습니다.</div>')+'<div class="notice">'+(data.limitations||[]).map(esc).join(" · ")+'</div>';
   }
 
   async function loadPreflight(){
