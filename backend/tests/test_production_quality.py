@@ -46,6 +46,26 @@ class ProductionQualityTests(unittest.TestCase):
         self.assertEqual(report["status"], "blocked")
         self.assertIn("render_format_is_not_vertical_9_16", report["blockers"])
 
+
+    def test_nonfinite_and_boolean_measurements_are_treated_as_missing(self):
+        report = evaluate_production_quality(
+            "A script with enough words to explain the subject clearly and provide a useful next step.",
+            {"factual_claims_verified": True},
+            {"duration_seconds": True},
+            {"duration_seconds": float("nan"), "width": float("inf"),
+             "height": float("inf"), "audio_track_present": True,
+             "subtitles_enabled": True},
+            {},
+        )
+        self.assertEqual(report["status"], "review_required")
+        self.assertIn("voice_duration_metadata_missing_or_invalid", report["warnings"])
+        self.assertIn("render_duration_metadata_missing_or_invalid", report["warnings"])
+        self.assertIn("render_aspect_ratio_not_reported", report["warnings"])
+        render_check = next(item for item in report["checks"]
+                            if item["name"] == "render_metadata")
+        self.assertIsNone(render_check["width"])
+        self.assertIsNone(render_check["height"])
+
     def test_explicit_wrong_format_or_missing_audio_blocks_review_handoff(self):
         report = evaluate_production_quality(
             "A sufficiently long script explains the subject with an opening and ending.",
