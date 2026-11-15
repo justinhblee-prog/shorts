@@ -51,10 +51,14 @@ class JsonProvider:
                 return response.status, response.read()
         except urllib.error.HTTPError as exc:
             detail = exc.read(1000).decode("utf-8", "replace")
+            # A 5xx response can arrive after the provider accepted work; do not
+            # automatically replay it. A 429 is an explicit rate-limit rejection.
             raise ProviderError("provider", f"Provider HTTP {exc.code}: {detail}",
-                                retryable=exc.code >= 500 or exc.code == 429)
+                                retryable=exc.code == 429)
         except (urllib.error.URLError, TimeoutError) as exc:
-            raise ProviderError("provider", f"Provider connection failed: {type(exc).__name__}")
+            # A lost connection/timeout cannot prove whether the remote side effect ran.
+            raise ProviderError("provider", f"Provider connection failed: {type(exc).__name__}",
+                                retryable=False)
 
     def post(self, stage, payload):
         if not self.url:
