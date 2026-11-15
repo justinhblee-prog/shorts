@@ -25,7 +25,7 @@ class MediaInspectorTests(unittest.TestCase):
         return runner
 
     def test_inspects_actual_dimensions_duration_codecs_and_audio_stream(self):
-        inspector = MediaInspector(runner=self.runner_for({
+        inspector = MediaInspector(analyze_signals=False, runner=self.runner_for({
             "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2",
                        "duration": "29.75", "size": "123456"},
             "streams": [
@@ -44,6 +44,42 @@ class MediaInspectorTests(unittest.TestCase):
         self.assertTrue(report["audio_track_present"])
         self.assertEqual(report["video_codec"], "h264")
         self.assertFalse(report["subtitle_stream_present"])
+
+    def test_analyzes_black_frames_and_audio_silence_as_review_warnings(self):
+        probe = {
+            "format": {"format_name": "mp4", "duration": "30", "size": "123456"},
+            "streams": [
+                {"codec_type": "video", "codec_name": "h264", "width": 1080, "height": 1920},
+                {"codec_type": "audio", "codec_name": "aac", "sample_rate": "48000", "channels": 2},
+            ],
+        }
+        calls = []
+        def runner(args, **kwargs):
+            calls.append(args)
+            if args[0] == "ffprobe":
+                return SimpleNamespace(returncode=0, stdout=json.dumps(probe), stderr="")
+            if "-vf" in args:
+                return SimpleNamespace(
+                    returncode=0, stdout="",
+                    stderr="black_start:0 black_end:2.5 black_duration:2.5",
+                )
+            return SimpleNamespace(
+                returncode=0, stdout="",
+                stderr=("silence_start: 0\\nsilence_end: 2.1 | silence_duration: 2.1\\n"
+                        "silence_start: 28.0"),
+            )
+        report = MediaInspector(runner=runner).inspect(self.path)
+        signals = report["signal_analysis"]
+        self.assertEqual(signals["status"], "analyzed")
+        self.assertEqual(len(signals["black_segments"]), 1)
+        self.assertEqual(len(signals["silence_segments"]), 2)
+        self.assertIn("black_frame_segment_at_least_2_seconds_detected",
+                      signals["signal_warnings"])
+        self.assertIn("audio_starts_with_extended_silence", signals["signal_warnings"])
+        self.assertIn("audio_ends_with_extended_silence", signals["signal_warnings"])
+        self.assertEqual(len(calls), 3)
+        self.assertIn("-vf", calls[1])
+        self.assertIn("-af", calls[2])
 
     def test_rejects_media_without_video_stream(self):
         inspector = MediaInspector(runner=self.runner_for({
