@@ -88,6 +88,7 @@ class ReviewWorkflowTests(unittest.TestCase):
                 "likeness_authorized": True,
             },
             "synthetic_media_status": "realistic_alteration",
+            "youtube_contains_synthetic_media": True,
             "platform_disclosures": {"youtube_altered_content": True},
         })
         self.assertIn(
