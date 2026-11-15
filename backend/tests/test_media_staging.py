@@ -72,5 +72,19 @@ class MediaStagerTests(unittest.TestCase):
             with self.assertRaises(MediaStagingError):
                 self.stager.stage("job-1",url)
 
+    def test_rejects_malformed_port_as_staging_error(self):
+        for url in ("https://cdn.example.test:invalid/video.mp4",
+                    "https://cdn.example.test:99999/video.mp4"):
+            with self.assertRaises(MediaStagingError):
+                self.stager.stage("job-port",url)
+        self.assertEqual(self.calls, [])
+
+    def test_rejects_negative_content_length(self):
+        self.stager.fetcher=lambda *args:(200, {
+            "content-type":"video/mp4", "content-length":"-1"
+        }, [self.payload])
+        with self.assertRaises(MediaStagingError):
+            self.stager.stage("job-negative-length","https://cdn.example.test/video.mp4")
+
 if __name__ == "__main__":
     unittest.main()

@@ -112,11 +112,15 @@ class MediaStager:
         return {"removed": removed, "count": len(removed)}
 
     def stage(self, job_id, artifact_url):
-        parsed = urlsplit(artifact_url or "")
-        host = (parsed.hostname or "").lower().rstrip(".")
+        try:
+            parsed = urlsplit(artifact_url or "")
+            host = (parsed.hostname or "").lower().rstrip(".")
+            port = parsed.port
+        except (TypeError, ValueError) as exc:
+            raise MediaStagingError("Artifact URL is malformed") from exc
         if parsed.scheme != "https" or not host or parsed.username or parsed.password:
             raise MediaStagingError("Artifact URL must be HTTPS without embedded credentials")
-        if parsed.port not in (None, 443) or parsed.fragment:
+        if port not in (None, 443) or parsed.fragment:
             raise MediaStagingError("Artifact URL uses an unsupported port or fragment")
         if host not in self.allowed_hosts:
             raise MediaStagingError("Artifact hostname is not in RENDER_ARTIFACT_HOSTS")
@@ -144,7 +148,10 @@ class MediaStager:
         declared = headers.get("content-length")
         if declared:
             try:
-                if int(declared) > self.max_bytes:
+                declared_bytes = int(declared)
+                if declared_bytes < 0:
+                    raise ValueError("negative Content-Length")
+                if declared_bytes > self.max_bytes:
                     raise MediaStagingError("Artifact exceeds NEXUS_MAX_MEDIA_BYTES")
             except ValueError as exc:
                 raise MediaStagingError("Artifact has an invalid Content-Length") from exc
