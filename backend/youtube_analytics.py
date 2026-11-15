@@ -116,7 +116,7 @@ class YouTubeAnalyticsStore:
             row = connection.execute(
                 "SELECT owner_id,lease_until FROM youtube_analytics_lease WHERE id=1"
             ).fetchone()
-            if row and row["lease_until"] > now and row["owner_id"] != owner_id:
+            if row and row["lease_until"] > now:
                 return None
             connection.execute("""
               INSERT INTO youtube_analytics_lease(id,owner_id,token,lease_until,updated_at)
@@ -218,7 +218,7 @@ class YouTubeAnalyticsStore:
     def due_video_ids(self, upload_store, limit=50, min_age_seconds=21600):
         limit = max(1, min(int(limit), 50))
         now = datetime.now(timezone.utc)
-        uploads = upload_store.list_recent(200)
+        uploads = upload_store.list_uploaded_video_ids(10000)
         eligible = [x for x in uploads
                     if x.get("status") == "uploaded" and x.get("video_id")]
         # Oldest uploads are considered first; recently refreshed videos are skipped.
