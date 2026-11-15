@@ -37,6 +37,9 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("내레이션 미리 듣기", app_js)
         self.assertIn("audio controls", app_js)
         self.assertIn("esc(scriptText)", app_js)
+        self.assertIn("policy_preflight", app_js)
+        self.assertIn("policySummary", app_js)
+        self.assertIn("영상 전체 검사나 플랫폼 승인", app_js)
 
     def test_trend_signals_can_be_converted_into_production_drafts(self):
         frontend = ROOT / "frontend"
