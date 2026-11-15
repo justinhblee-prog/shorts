@@ -1073,3 +1073,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions passed **331 tests** at code commit `6e44c4b`.
 - The earlier intermediate failing run exposed a test-fixture issue (multiple terminal outcomes attempted on one already-terminal job); the test was isolated per outcome and the final run passed.
 - No automatic republishing/retry was introduced; ambiguous non-terminal outcomes still require reconciliation.
+
+## BUILD-00042 — read-only cross-platform lifecycle consistency diagnostics
+
+- Added `GET /api/lifecycle/jobs/{job_id}/consistency`, protected by the existing review-access gate.
+- Compares durable queue and production handoff/terminal states, latest immutable human-review decision, and YouTube/TikTok publication audit evidence.
+- Reports structured blocker/warning findings for incomplete review handoffs, terminal-state drift, publication attempts without current approval, and unresolved platform outcomes.
+- Treats TikTok `send_to_inbox` as a distinct terminal handoff rather than claiming the video was published.
+- Diagnostics are strictly read-only: no remote polling, automatic retry, cancellation, or publication action is performed.
+- Added deterministic regression tests for consistent state, queue/production drift, approval mismatch, unresolved YouTube/TikTok attempts, inbox handoff semantics, and terminal cancellation drift.
+- Unit/CI validation pending for this commit. Live platform state reconciliation remains an operator task and real account behavior is not validated.
