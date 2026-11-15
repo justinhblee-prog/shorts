@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -206,6 +207,18 @@ class YouTubePublishingTests(unittest.TestCase):
                 "job-1","not_uploaded",None,"conflicting operator decision"
             )
         self.assertEqual(reconciled["video_id"],"yt-video-1")
+        event_id=reconciled["events"][-1]["id"]
+        with self.assertRaises(sqlite3.IntegrityError):
+            with self.uploads.db() as connection:
+                connection.execute(
+                    "UPDATE youtube_upload_events SET note='tampered' WHERE id=?",
+                    (event_id,)
+                )
+        with self.assertRaises(sqlite3.IntegrityError):
+            with self.uploads.db() as connection:
+                connection.execute(
+                    "DELETE FROM youtube_upload_events WHERE id=?",(event_id,)
+                )
 
     def test_active_upload_cannot_be_reconciled_early(self):
         self.uploads.begin("job-1","Sleep short","")
