@@ -11,6 +11,15 @@ def _tokens(value):
 def compare_transcript_to_script(script, transcript, max_word_error_rate=0.25):
     expected = _tokens(script)
     actual = _tokens(transcript)
+    if len(expected) > 5000 or len(actual) > 5000:
+        return {
+            "status": "too_large_to_compare",
+            "script_token_count": len(expected),
+            "transcript_token_count": len(actual),
+            "word_error_rate": None,
+            "match_rate": None,
+            "warning": "Transcript exceeds the 5,000-token safety limit for edit-distance comparison.",
+        }
     if len(expected) < 5 or len(actual) < 5:
         return {
             "status": "insufficient_text",
