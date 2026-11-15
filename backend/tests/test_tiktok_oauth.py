@@ -31,7 +31,7 @@ class TikTokOAuthTests(unittest.TestCase):
                 "access_token": "access-secret-1",
                 "refresh_token": "refresh-secret-1",
                 "open_id": "creator-123",
-                "scope": "user.info.basic,video.publish",
+                "scope": "user.info.basic,video.publish,video.list",
                 "token_type": "Bearer",
                 "expires_in": 7200,
                 "refresh_expires_in": 15552000,
@@ -52,7 +52,7 @@ class TikTokOAuthTests(unittest.TestCase):
         state = query["state"][0]
         self.assertEqual(query["client_key"], ["client-key"])
         self.assertEqual(query["response_type"], ["code"])
-        self.assertEqual(query["scope"], ["user.info.basic,video.publish"])
+        self.assertEqual(query["scope"], ["user.info.basic,video.publish,video.list"])
         self.assertEqual(result["expires_in"], 600)
         with self.store.db() as connection:
             row = connection.execute("SELECT * FROM tiktok_oauth_states").fetchone()
@@ -74,13 +74,14 @@ class TikTokOAuthTests(unittest.TestCase):
         self.assertNotIn("access_token", status)
         self.assertNotIn("refresh_token", status)
         self.assertEqual(self.manager.get_access_token(), "access-secret-1")
+        self.assertEqual(self.manager.get_access_token(required_scope="video.list"), "access-secret-1")
 
     def test_refresh_rotates_and_persists_the_new_refresh_token(self):
         self.manager._save_token_response({
             "access_token": "access-old",
             "refresh_token": "refresh-old",
             "open_id": "creator-123",
-            "scope": "user.info.basic,video.publish",
+            "scope": "user.info.basic,video.publish,video.list",
             "token_type": "Bearer",
             "expires_in": 7200,
             "refresh_expires_in": 15552000,
@@ -95,7 +96,7 @@ class TikTokOAuthTests(unittest.TestCase):
             "access_token": "access-new",
             "refresh_token": "refresh-new",
             "open_id": "creator-123",
-            "scope": "user.info.basic,video.publish",
+            "scope": "user.info.basic,video.publish,video.list",
             "token_type": "Bearer",
             "expires_in": 7200,
             "refresh_expires_in": 15552000,
@@ -199,6 +200,17 @@ class TikTokOAuthTests(unittest.TestCase):
         self.assertEqual(self.manager.status()["status"], "required_scope_missing")
         with self.assertRaisesRegex(TikTokOAuthError, "video.publish scope"):
             self.manager.get_access_token()
+
+    def test_video_list_scope_is_required_only_for_metrics_access(self):
+        self.manager._save_token_response({
+            "access_token": "publish-only", "refresh_token": "refresh-only",
+            "open_id": "creator-123", "scope": "user.info.basic,video.publish",
+            "token_type": "Bearer", "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        self.assertEqual(self.manager.get_access_token(), "publish-only")
+        with self.assertRaisesRegex(TikTokOAuthError, "video.list scope"):
+            self.manager.get_access_token(required_scope="video.list")
 
     def test_refresh_lease_fences_concurrent_processes(self):
         first = self.store.acquire_refresh_lease("process-a", 60)
