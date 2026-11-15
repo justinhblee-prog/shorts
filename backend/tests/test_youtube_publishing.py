@@ -3,6 +3,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from production_pipeline import ProductionStore
@@ -497,14 +498,16 @@ class YouTubePublishingTests(unittest.TestCase):
         first = self.publisher.upload_approved(
             "job-1", self.media, self.review, "Title"
         )
-        calls_before = self.service._videos.insert_calls
         os.unlink(self.media)
-        second = self.publisher.upload_approved(
-            "job-1", self.media, self.review, "Title"
-        )
+        with mock.patch.object(
+            self.service._videos, "insert", wraps=self.service._videos.insert
+        ) as insert:
+            second = self.publisher.upload_approved(
+                "job-1", self.media, self.review, "Title"
+            )
+            insert.assert_not_called()
         self.assertEqual(second["status"], "uploaded")
         self.assertEqual(first["video_id"], second["video_id"])
-        self.assertEqual(self.service._videos.insert_calls, calls_before)
 
 
     def test_ambiguous_timeout_blocks_duplicate_retry_until_operator_reconciles(self):
