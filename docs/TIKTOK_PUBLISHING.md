@@ -73,3 +73,7 @@ TikTok documents both hostnames in its media transfer guide, including the regio
 - https://developers.tiktok.com/docs/en/content-posting-api-media-transfer-guide
 - https://developers.tiktok.com/docs/en/content-posting-api-reference-direct-post
 
+## Status polling and retry behavior
+
+The scheduler polls only unresolved publication records and stops polling terminal states. The first status request can run on the normal scheduler interval; after consecutive polling errors, retries use exponential backoff (60 seconds, 120 seconds, 240 seconds, up to a one-hour cap). A successful status response resets the consecutive-failure window. Every failed poll is recorded as an immutable audit event. TikTok currently documents a per-user limit of 30 Fetch Status requests per minute, so the scheduler's small batch size remains intentionally conservative.
+
