@@ -339,3 +339,12 @@ Latest test attempt: run 123 (https://github.com/justinhblee-prog/shorts/actions
 - Corrected two YouTube publishing regression tests that referenced a nonexistent self.store fixture; they now use the configured self.uploads store.
 - Review decision persistence now checks the affected production-row update count (rowcount) rather than cumulative connection changes, so a decision is accepted only when its guarded state transition actually updates exactly one row.
 - These are source-level corrections. Tests have not been executed because no functioning CI runner or local Python runtime is available in this session.
+
+
+## 2026-11-15 — YouTube late-success preservation and reconciliation audit
+
+- Added append-only `youtube_upload_events` records for operator reconciliation, late remote success, and operator resolution. Each record includes job ID, outcome, returned video ID where available, operator ID, note, previous/resulting state and UTC timestamp.
+- A late YouTube response arriving after an operator marked `not_uploaded` is now persisted as `late_success_review_required`; the video ID is retained and new upload attempts are blocked. The late response cannot be overwritten by the stale request's error handler.
+- Added authenticated `POST /api/youtube/uploads/{job_id}/resolve-late-result`. An operator must acknowledge the preserved video ID and provide an audit note before the upload is finalized as private.
+- The dashboard distinguishes this state from ordinary ambiguous uploads and provides an explicit resolution action. Reconciliation requests include the dashboard reviewer ID; this is caller-supplied identity, not cryptographic user authentication. The shared review token remains a transitional access control.
+- Added regression assertions for preserved late IDs, retry blocking, operator attribution and event timestamps. These tests are committed but have not yet been executed in a Python runtime; do not treat source review as a passing test run.
