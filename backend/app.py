@@ -12,6 +12,7 @@ from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_r
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
+from scheduler_store import ScheduleStore
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
@@ -28,6 +29,7 @@ youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sq
 youtube_publisher=YouTubePublisher(youtube_upload_store)
 ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -65,6 +67,16 @@ class LedgerEntry(BaseModel):
     source_reference:str=Field(min_length=1,max_length=300)
     occurred_at:str=Field(min_length=10,max_length=40)
     note:str=Field(default="",max_length=2000)
+
+
+class ScheduleInput(BaseModel):
+    name:str=Field(min_length=1,max_length=120)
+    interval_seconds:int=Field(ge=3600,le=31536000)
+    brand:str=Field(min_length=1,max_length=100)
+    region:str=Field(min_length=2,max_length=8)
+    language:str=Field(min_length=2,max_length=40)
+    topic:str=Field(min_length=1,max_length=500)
+    start_at:str|None=None
 
 class BrandActivation(BaseModel):
     active:bool
@@ -280,6 +292,36 @@ def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|Non
 def performance_insights(brand:str|None=None,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     return performance_analyzer.analyze(brand)
+
+
+
+@app.post("/api/schedules",status_code=201)
+def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    brand=next((b for b in brand_store.list(active_only=True)
+                if body.brand in (b["slug"],b["name"])),None)
+    if brand is None: raise HTTPException(422,"Unknown or inactive brand")
+    if body.region not in brand["config"]["regions"] or body.language not in brand["config"]["languages"]:
+        raise HTTPException(422,"Region or language is not enabled for this brand")
+    payload={"brand":brand["name"],"region":body.region,
+             "language":body.language,"topic":body.topic}
+    try:return schedule_store.create(body.name,body.interval_seconds,payload,body.start_at)
+    except ValueError as e:raise HTTPException(422,str(e))
+
+
+@app.get("/api/schedules")
+def list_schedules(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return {"items":schedule_store.list()}
+
+
+@app.put("/api/schedules/{schedule_id}/activation")
+def activate_schedule(schedule_id:str,active:bool,
+                      x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    result=schedule_store.set_active(schedule_id,active)
+    if result is None:raise HTTPException(404,"Schedule not found")
+    return result
 
 
 @app.post("/api/trends/collect")
