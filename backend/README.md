@@ -460,3 +460,8 @@ By default, rate-limit buckets use the direct ASGI peer IP and ignore `X-Forward
 ## Authenticated operator audit attribution
 
 When `NEXUS_REVIEW_CREDENTIALS_JSON` is configured, the token-resolved operator identity is used for human-review decisions, policy-evidence events, queue pause/resume events, YouTube upload reconciliation and late-success resolution, TikTok publishing/reconciliation, recommendation experiment creation and recommendation-skip feedback. Client-supplied `reviewer_id` and `operator_id` body fields remain for compatibility but are not trusted for these audit records. The legacy shared-token fallback maps all requests to `legacy-operator`. Tokens currently grant the same operational permissions; role separation and external identity-provider integration remain future work.
+
+
+## Encrypted SQLite backups
+
+Set a dedicated `NEXUS_BACKUP_ENCRYPTION_KEY` using a URL-safe base64 32-byte key generated with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Do not reuse the TikTok token-encryption key. With the variable set, `sqlite_backup.py backup` emits authenticated AES-256-GCM `.sqlite3.enc` files; `verify` and `restore` automatically use the same key. The encryption/decryption path streams in bounded chunks, validates the GCM authentication tag, refuses overwrite, and removes temporary plaintext on failure. Without the key, the tool retains its legacy plaintext backup behavior. Keep the key separately and securely backed up; loss of the key makes encrypted backups unrecoverable. Encrypted backup files still need off-host replication and retention controls.

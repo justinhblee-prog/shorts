@@ -1158,3 +1158,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Authenticated operator identity now flows into queue control, YouTube/TikTok reconciliation and publishing, and recommendation experiment/skip-feedback audit records.
 - Request body actor IDs are compatibility-only and are not trusted for audit attribution.
 - Added endpoint-level forged-identity regression tests. All configured tokens currently have the same permissions; this is not RBAC. Final-head push CI [43773950141](https://github.com/justinhblee-prog/shorts/actions/runs/43773950141) and PR CI [43773953927](https://github.com/justinhblee-prog/shorts/actions/runs/43773953927): **603 tests passed**.
+
+
+## Handover — BUILD-00109 (2026-11-16)
+
+- SQLite backup utility now supports optional AES-256-GCM encrypted backup files with streaming IO and authenticated verify/restore.
+- Configure dedicated `NEXUS_BACKUP_ENCRYPTION_KEY` (generate via Fernet.generate_key); do not reuse the TikTok token key. Preserve it separately from backup media.
+- Encrypted backups are `.sqlite3.enc`; CLI verify and restore use the configured key. Wrong key or tampering fails closed; plaintext temporary files are cleaned.
+- Existing plaintext mode remains supported. Key custody, off-host copy and real restore drills are still operator tasks. Final-head push CI [43774559417](https://github.com/justinhblee-prog/shorts/actions/runs/43774559417) and PR CI [43774562521](https://github.com/justinhblee-prog/shorts/actions/runs/43774562521): **609 tests passed**.
