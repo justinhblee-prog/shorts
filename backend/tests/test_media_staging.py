@@ -67,6 +67,37 @@ class MediaStagerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.stager.prune_temporary_files(older_than_seconds=60)
 
+    def test_rejects_malformed_urls_and_ports_before_network(self):
+        for url in (
+            "https://cdn.example.test:invalid/video.mp4",
+            "https://cdn.example.test:99999/video.mp4",
+            "https://[invalid-ipv6/video.mp4",
+            "https://@cdn.example.test/video.mp4",
+            "https://cdn.example.test/video.mp4\n",
+            None,
+        ):
+            with self.subTest(url=url):
+                with self.assertRaises(MediaStagingError):
+                    self.stager.stage("job-malformed", url)
+        self.assertEqual(self.calls, [])
+
+    def test_rejects_negative_or_mismatched_content_length(self):
+        for value in ("-1", "not-a-number"):
+            self.stager.fetcher = lambda *args, value=value: (
+                200, {"content-type": "video/mp4", "content-length": value},
+                [self.payload],
+            )
+            with self.subTest(content_length=value):
+                with self.assertRaises(MediaStagingError):
+                    self.stager.stage("job-length", "https://cdn.example.test/video.mp4")
+        self.stager.fetcher = lambda *args: (
+            200, {"content-type": "video/mp4", "content-length": "999"},
+            [self.payload],
+        )
+        with self.assertRaisesRegex(MediaStagingError, "does not match"):
+            self.stager.stage("job-length-mismatch", "https://cdn.example.test/video.mp4")
+        self.assertFalse(any(name.endswith(".part") for name in os.listdir(self.tmp.name)))
+
     def test_rejects_http_and_embedded_credentials(self):
         for url in ("http://cdn.example.test/a.mp4","https://user:pass@cdn.example.test/a.mp4"):
             with self.assertRaises(MediaStagingError):

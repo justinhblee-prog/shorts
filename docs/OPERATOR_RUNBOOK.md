@@ -314,3 +314,11 @@ Provider JSON responses are limited to 2 MiB. If a provider returns an oversized
 - TikTok Display API collector: maximum 2 MiB JSON response, bounded default reads, custom-transport size checks, and no automatic redirects for bearer-token requests.
 - YouTube competitor intelligence: maximum 1 MiB JSON response and no automatic redirects for API-key-bearing requests.
 - These limits apply to read-only analytics API responses, not video media uploads or downloads. Do not increase limits without documented API payload needs and a memory/credential-forwarding review.
+
+
+## BUILD-00082 — media staging input integrity
+
+- Renderer artifact URLs are validated before resolution: HTTPS only, no embedded credentials, fragments, whitespace/control characters, malformed ports or unapproved hosts.
+- Content-Length is checked for valid nonnegative syntax, configured maximum size, and exact match with the streamed byte count.
+- Streaming byte limits, pinned public-IP TLS connection, MP4 signature check and atomic replacement remain in force.
+- On any failure, temporary staging files are removed. A successful stage still requires subsequent ffprobe media inspection before approval/publishing.

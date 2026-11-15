@@ -897,3 +897,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - TikTok Display API responses are capped at 2 MiB; bearer-token requests do not follow redirects, and unsafe error codes are not reflected in errors.
 - YouTube competitor-intelligence responses are capped at 1 MiB; API-key-bearing requests do not follow redirects.
 - Regression coverage added for bounded reads and malformed response handling. CI pending.
+
+
+### Renderer media staging validation — BUILD-00082
+- Malformed URLs/ports are rejected before DNS/network activity. HTTPS, allowlisted hostname and public-IP checks remain required.
+- Content-Length must be a valid nonnegative integer within the configured size cap and must match the bytes actually downloaded.
+- Failed or truncated downloads clean up their temporary `.part` files. CI pending; no live renderer download is claimed.

@@ -1521,3 +1521,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Capped public YouTube Data API competitor-intelligence JSON responses at 1 MiB and disabled redirects so the API-key query parameter is not forwarded to a redirected host.
 - Added regression tests for oversized response handling and malformed YouTube JSON response shapes.
 - CI validation is pending for the new branch head. These are read-only analytics integrations; no publishing or recommendation score behavior changes.
+
+
+## BUILD-00082 — renderer artifact URL and length validation
+
+- Convert malformed artifact URL parsing, IPv6 syntax and invalid/out-of-range ports into a controlled MediaStagingError before DNS or network access.
+- Reject non-string URLs, whitespace/control characters, empty embedded credentials, non-HTTPS URLs, non-allowlisted hosts and unsupported ports.
+- Parse Content-Length strictly; reject negative, malformed or over-limit values and verify the downloaded byte count exactly matches the declared length when present.
+- Preserve pinned-IP TLS validation, public-address checks, streaming byte caps and atomic temporary-file cleanup.
+- Added regression tests for malformed URLs/ports, negative and mismatched Content-Length, and temporary-file cleanup.
+- CI validation is pending. No real renderer artifact download is claimed.
