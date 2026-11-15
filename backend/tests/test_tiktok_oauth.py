@@ -110,6 +110,27 @@ class TikTokOAuthTests(unittest.TestCase):
         self.assertEqual(self.transport.calls[-1][0],
                          "https://open.tiktokapis.com/v2/oauth/token/")
 
+    def test_connection_status_requires_encryption_key_and_client_credentials(self):
+        self.manager._save_token_response({
+            "access_token": "access-secret",
+            "refresh_token": "refresh-secret",
+            "open_id": "creator-123",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        missing_key = TikTokOAuthManager(
+            self.store, "client-key", "client-secret",
+            "https://example.test/callback", None, self.transport
+        )
+        self.assertFalse(missing_key.status()["connected"])
+        missing_client = TikTokOAuthManager(
+            self.store, None, None,
+            "https://example.test/callback", self.key, self.transport
+        )
+        self.assertFalse(missing_client.status()["connected"])
+
     def test_refresh_lease_fences_concurrent_processes(self):
         first = self.store.acquire_refresh_lease("process-a", 60)
         second = self.store.acquire_refresh_lease("process-b", 60)
