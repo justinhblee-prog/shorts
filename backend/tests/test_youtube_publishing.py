@@ -139,6 +139,8 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(result["status"],"uploaded")
         self.assertEqual(result["privacy_status"],"private")
         self.assertEqual(result["video_id"],"yt-video-123")
+        self.assertEqual(result["events"][-1]["event_type"],"upload_confirmed")
+        self.assertEqual(result["events"][-1]["video_id"],"yt-video-123")
         self.assertEqual(self.service._videos.body["status"]["privacyStatus"],"private")
         self.assertEqual(result["snapshots"][0]["view_count"],123)
 
