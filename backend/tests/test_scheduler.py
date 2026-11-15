@@ -1,4 +1,5 @@
 import os,tempfile,unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime,timezone,timedelta
 from scheduler_store import ScheduleStore
 from queue_store import JobQueue
@@ -36,6 +37,14 @@ class SchedulerTests(unittest.TestCase):
   self.assertTrue(self.s.scheduler_lease_is_valid("scheduler-a",first,now))
   self.assertFalse(self.s.scheduler_lease_is_valid("scheduler-b","missing",now))
 
+ def test_concurrent_scheduler_startup_elects_exactly_one_leader(self):
+  now=datetime.now(timezone.utc)
+  stores=[ScheduleStore(self.db),ScheduleStore(self.db)]
+  with ThreadPoolExecutor(max_workers=2) as pool:
+   tokens=list(pool.map(lambda args: args[0].acquire_scheduler_lease(
+    args[1],90,now),[(stores[0],"scheduler-a"),(stores[1],"scheduler-b")]))
+  self.assertEqual(sum(token is not None for token in tokens),1)
+
  def test_expired_scheduler_lease_can_be_taken_over_and_fences_old_owner(self):
   now=datetime(2026,11,15,tzinfo=timezone.utc)
   old=self.s.acquire_scheduler_lease("scheduler-a",15,now)
@@ -54,6 +63,37 @@ class SchedulerTests(unittest.TestCase):
   self.assertTrue(result["lease_lost"])
   self.assertEqual(self.s.get(item["id"])["next_run_at"],now.isoformat())
   self.assertEqual(self.s.pending_dispatches(),[])
+
+ def test_stale_dispatcher_cannot_finalize_outbox_after_takeover(self):
+  now=datetime.now(timezone.utc)
+  self.s.create("hourly",3600,{"brand":"B","region":"US","language":"English","topic":"x"},now.isoformat())
+  old=self.s.acquire_scheduler_lease("scheduler-a",90,now)
+  store=self.s
+  queue=self.q
+
+  class TakeoverQueue:
+   def is_paused(self):
+    return False
+   def enqueue(self,*args,**kwargs):
+    with store.db() as db:
+     db.execute("UPDATE scheduler_leader_lease SET expires_at=? WHERE id=1",
+                ("2000-01-01T00:00:00+00:00",))
+    new=store.acquire_scheduler_lease("scheduler-b",90)
+    self.assert_token=new
+    return queue.enqueue(*args,**kwargs)
+
+  takeover_queue=TakeoverQueue()
+  first=store.dispatch_due(takeover_queue,now,lease_owner="scheduler-a",
+                           lease_token=old,lease_seconds=90)
+  self.assertTrue(first["lease_lost"])
+  self.assertEqual(store.outbox_status()["counts"].get("pending"),1)
+  second=store.dispatch_due(queue,datetime.now(timezone.utc),
+                            lease_owner="scheduler-b",lease_token=takeover_queue.assert_token,
+                            lease_seconds=90)
+  self.assertEqual(second["count"],1)
+  with queue.db() as db:
+   count=db.execute("SELECT COUNT(*) FROM pipeline_jobs WHERE idempotency_key LIKE 'schedule:%'").fetchone()[0]
+  self.assertEqual(count,1)
 
  def test_dispatch_runs_only_under_acquired_scheduler_lease(self):
   now=datetime.now(timezone.utc)
