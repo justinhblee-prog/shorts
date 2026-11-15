@@ -1077,3 +1077,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a regression test proving an old instance cannot refresh presence after the worker ID is reassigned.
 - Final-head push CI [43737410463](https://github.com/justinhblee-prog/shorts/actions/runs/43737410463) and PR merge-result CI [43737420594](https://github.com/justinhblee-prog/shorts/actions/runs/43737420594): passed.
 - Validation uses local SQLite and GitHub Actions; no production deployment, live OAuth, AI generation or platform publishing was performed.
+
+
+## BUILD-00101 — scheduler same-owner lease epoch fencing (2026-11-15)
+
+- Pull request: [#68](https://github.com/justinhblee-prog/shorts/pull/68), merged into the integration-only branch at `054d49be6c1cc2ed6b6c33dd575b42763aeb7e36`.
+- Found that an expired scheduler lease reacquired by the same owner ID reused its previous fencing token.
+- Live same-owner renewals continue to retain the active token; reacquisition after expiry now always creates a new UUID token, including when the owner ID is unchanged.
+- A delayed operation holding the prior token can no longer renew, release or validate against the new lease epoch.
+- Regression coverage verifies live renewal stability, same-owner expired reacquisition token rotation, and stale-token rejection.
+- Final-head push CI [43737597720](https://github.com/justinhblee-prog/shorts/actions/runs/43737597720) and PR merge-result CI [43737605403](https://github.com/justinhblee-prog/shorts/actions/runs/43737605403): passed.
+- No production deployment or live provider request was performed.
