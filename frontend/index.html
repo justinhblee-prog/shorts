@@ -79,10 +79,10 @@
         <article class="panel"><div class="panel-title"><div><span class="panel-kicker">PROFIT PRIORITY</span><h3>수익성 평가</h3></div><span class="icon-chip">◇</span></div>
           <p class="panel-description">예상 조회수·RPM·제작비·제휴·협찬 수익을 범위로 입력하고, 근거 품질을 반영해 우선순위를 계산합니다.</p>
           <form id="opportunityForm" class="compact-form">
-            <label>콘텐츠 기회명<input id="oppTitle" required placeholder="Sleep and memory"></label>
+            <label>콘텐츠 기회명<input id="oppTitle" required placeholder="Sleep and memory"></label><label>평가 통화<select id="oppCurrency"><option>USD</option><option>KRW</option><option>JPY</option><option>GBP</option></select></label>
             <div class="field-row"><label>예상 조회수 (하한)<input id="viewsLow" type="number" min="0" value="10000"></label><label>예상 조회수 (상한)<input id="viewsHigh" type="number" min="0" value="50000"></label></div>
-            <div class="field-row"><label>RPM 하한 (USD)<input id="rpmLow" type="number" min="0" step=".01" value="0.5"></label><label>RPM 상한 (USD)<input id="rpmHigh" type="number" min="0" step=".01" value="2"></label></div>
-            <div class="field-row"><label>비용 하한 (USD)<input id="costLow" type="number" min="0" value="10"></label><label>비용 상한 (USD)<input id="costHigh" type="number" min="0" value="30"></label></div>
+            <div class="field-row"><label>RPM 하한<input id="rpmLow" type="number" min="0" step=".01" value="0.5"></label><label>RPM 상한<input id="rpmHigh" type="number" min="0" step=".01" value="2"></label></div>
+            <div class="field-row"><label>비용 하한<input id="costLow" type="number" min="0" value="10"></label><label>비용 상한<input id="costHigh" type="number" min="0" value="30"></label></div>
             <label class="check-line"><input id="monetizationEligible" type="checkbox"> YouTube 수익 창출 자격 확인됨</label>
             <label>예상치 근거<input id="forecastSource" required placeholder="Source URL, cohort or explicit assumption"></label>
             <button class="button button-secondary button-wide">수익성 점수 계산</button>
