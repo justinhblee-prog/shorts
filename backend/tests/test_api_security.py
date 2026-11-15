@@ -778,8 +778,10 @@ class ApiSecurityTests(unittest.TestCase):
 
         self.assertEqual(result, response)
         execute.assert_called_once_with(
-            "job-1", job["payload"], worker_id="worker-1", lease_token="lease-1"
+            "job-1", job["payload"], worker_id="worker-1",
+            lease_token="lease-1", stop_event=mock.ANY
         )
+        self.assertIsInstance(execute.call_args.kwargs["stop_event"], __import__("threading").Event)
         finish.assert_called_once()
         reconcile.assert_called_once_with(app_module.queue)
 
@@ -811,14 +813,16 @@ class ApiSecurityTests(unittest.TestCase):
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProviderError("script", "provider timeout", True)),
-            mock.patch.object(app_module.queue, "fail") as fail,
+            mock.patch.object(app_module.queue, "fail",
+                              return_value={"status": "failed_retriable"}) as fail,
             mock.patch.object(app_module.queue, "pause") as pause,
         ):
             with self.assertRaises(HTTPException) as caught:
                 execute_production_job("job-provider", body, x_review_token="test-token")
         self.assertEqual(caught.exception.status_code, 502)
         fail.assert_called_once()
-        pause.assert_called_once()
+        self.assertTrue(caught.exception.detail["retryable"])
+        pause.assert_not_called()
 
     def test_api_internal_error_records_failure_and_pauses_production(self):
         job = {"id": "job-internal", "job_type": "short_video_production",
