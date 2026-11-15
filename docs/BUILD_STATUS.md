@@ -772,3 +772,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - CI validation pending on this branch; do not mark verified until GitHub Actions passes.
 
 - Repeated identical recommendation responses within 60 seconds reuse the same snapshot run to avoid noisy duplicate records. Unselected candidate snapshots older than 180 days are pruned; selected production-linked evidence is retained for longitudinal diagnostics.
+
+
+### Production artifact metadata quality gate — 2026-11-15
+
+- Added `backend/production_quality.py` and run it after the renderer returns a video artifact but before the production job can enter `review_pending`.
+- Checks script length, provider-attested fact-check/source metadata, voice duration, render duration, reported aspect ratio/dimensions, audio-track presence, subtitle status and voice/video duration mismatch.
+- Explicit known non-vertical output, a reported missing audio track, or a reported duration over 180 seconds blocks the production handoff. Missing metadata produces a visible `review_required` warning rather than fabricated success.
+- Persists a `quality_check` report artifact and shows blockers/warnings and verification limitations in the human review workspace. Human approval remains mandatory; no score changes or public publication are enabled.
+- **Boundary:** the gate evaluates provider-returned metadata and basic script length only. It does not download or inspect media bytes, verify captions, prove factual accuracy or rights, assess visual quality, or establish platform compliance. Provider attestations are not independent verification.
+- CI validation pending on this branch; do not mark verified until GitHub Actions passes.
+
+- Approval enforcement is server-side: quality blockers cannot be overridden by a reviewer comment, and `review_required` warnings require an explicit reviewer confirmation note. The review UI requests that note and displays the recorded quality report.

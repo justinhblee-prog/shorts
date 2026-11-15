@@ -98,11 +98,51 @@ class ProductionTests(unittest.TestCase):
         result = pipeline.execute("job-1", self.brief)
         self.assertEqual(result["status"], "rendered")
         self.assertEqual([a["stage"] for a in result["artifacts"]],
-                         ["script", "voice_generation", "rendering"])
+                         ["script", "voice_generation", "rendering", "quality_check"])
+        quality = result["artifacts"][-1]["metadata"]
+        self.assertEqual(quality["status"], "review_required")
+        self.assertFalse(quality["automatic_publication"])
         self.assertIsNone(result["artifacts"][0]["artifact_url"])
         self.assertEqual(len(script.calls), 1)
         self.assertEqual(len(voice.calls), 1)
         self.assertEqual(len(render.calls), 1)
+
+    def test_pipeline_blocks_explicitly_nonvertical_render_before_review(self):
+        script = FakeProvider({"script": "This script has enough words to explain the topic clearly and give viewers a useful takeaway."})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3", "duration_seconds": 30})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4",
+                               "duration_seconds": 30, "aspect_ratio": "16:9",
+                               "audio_track_present": True})
+        pipeline = ProductionPipeline(self.store, script, voice, render)
+        self.store.create("job-bad-format", self.brief)
+        with self.assertRaisesRegex(ProviderError, "quality gate blocked"):
+            pipeline.execute("job-bad-format", self.brief)
+        result = self.store.get("job-bad-format")
+        self.assertEqual(result["status"], "failed_terminal")
+        quality = next(item for item in result["artifacts"]
+                       if item["stage"] == "quality_check")
+        self.assertEqual(quality["metadata"]["status"], "blocked")
+        self.assertIn("render_format_is_not_vertical_9_16",
+                      quality["metadata"]["blockers"])
+
+    def test_pipeline_records_provider_attested_quality_before_human_review(self):
+        script = FakeProvider({
+            "script": "A clear opening explains the problem. Evidence supports the claim. "
+                      "The ending gives viewers a useful next step with a concise summary.",
+            "factual_claims_verified": True,
+        })
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3",
+                              "duration_seconds": 30})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4",
+                               "duration_seconds": 30, "aspect_ratio": "9:16",
+                               "audio_track_present": True, "subtitles_enabled": True})
+        pipeline = ProductionPipeline(self.store, script, voice, render)
+        self.store.create("job-quality-ready", self.brief)
+        result = pipeline.execute("job-quality-ready", self.brief)
+        quality = next(item for item in result["artifacts"]
+                       if item["stage"] == "quality_check")
+        self.assertEqual(quality["metadata"]["status"], "ready_for_human_review")
+        self.assertEqual(result["status"], "rendered")
 
     def test_brand_profile_is_applied_to_script_voice_and_render_provider_payloads(self):
         profile = {
@@ -180,7 +220,7 @@ class ProductionTests(unittest.TestCase):
             FakeProvider({"video_url": "https://media.example/old.mp4"}),
         )
         first.execute("job-1", self.brief)
-        self.assertEqual(len(self.store.get("job-1")["artifacts"]), 3)
+        self.assertEqual(len(self.store.get("job-1")["artifacts"]), 4)
 
         retry = ProductionPipeline(
             self.store,

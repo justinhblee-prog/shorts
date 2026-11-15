@@ -134,6 +134,31 @@ class ReviewWorkflowTests(unittest.TestCase):
             self.review.decide("job-1", "approved", "operator-1", "Reviewed")
         self.assertEqual(self.production.get("job-1")["status"], "review_pending")
 
+    def test_quality_blockers_cannot_be_overridden_by_reviewer_comment(self):
+        self.production.artifact("job-1", "quality_check", "report", None, {
+            "status": "blocked",
+            "blockers": ["render_format_is_not_vertical_9_16"],
+            "warnings": [],
+        })
+        with self.assertRaisesRegex(ReviewConflict, "Quality-blocked"):
+            self.review.decide("job-1", "approved", "operator-1",
+                               "I reviewed it; approve despite quality blocker")
+        self.assertEqual(self.production.get("job-1")["status"], "review_pending")
+
+    def test_quality_warnings_require_explicit_reviewer_confirmation(self):
+        self.production.artifact("job-1", "quality_check", "report", None, {
+            "status": "review_required",
+            "blockers": [],
+            "warnings": ["render_aspect_ratio_not_reported"],
+        })
+        with self.assertRaisesRegex(ValueError, "Quality warnings"):
+            self.review.decide("job-1", "approved", "operator-1", "")
+        result = self.review.decide(
+            "job-1", "approved", "operator-1",
+            "Reviewed actual rendered dimensions and captions manually"
+        )
+        self.assertEqual(result["production"]["status"], "approved")
+
     def test_approval_is_explicit_and_audited_with_snapshot(self):
         result = self.review.decide("job-1", "approved", "operator-1", "Looks good")
         self.assertEqual(result["production"]["status"], "approved")

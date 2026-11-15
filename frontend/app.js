@@ -54,6 +54,10 @@
       const video=artifacts.find(a=>a.artifact_type==="video");
       const scriptArtifact=artifacts.find(a=>a.artifact_type==="text"&&a.stage==="script");
       const audioArtifact=artifacts.find(a=>a.artifact_type==="audio");
+      const qualityArtifact=artifacts.find(a=>a.stage==="quality_check"&&a.artifact_type==="report");
+      const quality=qualityArtifact?.metadata||{};
+      const qualityBlocks=Array.isArray(quality.blockers)?quality.blockers:[];
+      const qualityWarnings=Array.isArray(quality.warnings)?quality.warnings:[];
       const scriptText=scriptArtifact?.metadata?.script;
       const scriptPreview=typeof scriptText==="string"&&scriptText.trim()
         ? '<details class="review-script"><summary>생성 대본 검수</summary><pre>'+esc(scriptText)+'</pre></details>'
@@ -71,6 +75,13 @@
           +(policyApprovalBlocks.length?'<button class="button button-outline" data-action="policy-evidence" data-id="'+esc(item.job_id)+'">필수 정책 정보 입력</button>':'')
           +'<small>YouTube / TikTok 사전 위험 점검입니다. 영상 전체 검사나 플랫폼 승인·수익화 보증이 아니며, 게시 전 최신 공식 정책과 사용 권리를 확인해야 합니다.</small></section>'
         : '<section class="review-policy"><strong>정책 사전검사 자료 없음</strong><small>게시 전 권리·AI 표시·사실성·독창성을 직접 확인하세요.</small></section>';
+      const qualityLabels={blocked:"품질 게이트 차단",review_required:"사람 확인 필요",ready_for_human_review:"메타데이터 검사 통과 · 사람 승인 필요"};
+      const qualitySummary=qualityArtifact
+        ? '<section class="review-policy"><strong>자동 제작 품질 검사 · '+esc(qualityLabels[quality.status]||quality.status)+'</strong>'
+          +(qualityBlocks.length?'<p>차단 사유: '+qualityBlocks.map(esc).join(', ')+'</p>':'')
+          +(qualityWarnings.length?'<p>확인 경고: '+qualityWarnings.map(esc).join(', ')+'</p>':'')
+          +'<small>'+esc(quality.verification_boundary||"메타데이터 기반 검사이며 실제 미디어 검증은 아닙니다.")+'</small></section>'
+        : '<section class="review-policy"><strong>자동 제작 품질 검사 자료 없음</strong><small>영상·음성·자막·대본을 직접 확인하세요.</small></section>';
       const audioPreview=audioArtifact?.artifact_url
         ? '<div class="review-audio"><label>내레이션 미리 듣기</label><audio controls preload="metadata" src="'+esc(audioArtifact.artifact_url)+'"></audio></div>'
         : '';
@@ -79,7 +90,7 @@
       const guidance=profile.risk_level
         ? '<section class="review-guidance"><div><strong>브랜드 검수 기준</strong><span class="risk-level risk-'+esc(profile.risk_level)+'">위험도 '+esc(profile.risk_level)+'</span></div>'+(profile.positioning?'<p>'+esc(profile.positioning)+'</p>':'')+(rules.length?'<ul>'+rules.map(rule=>'<li>'+esc(rule)+'</li>').join('')+'</ul>':'')+'</section>'
         : '';
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+scriptPreview+audioPreview+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" '+(policyApprovalBlocks.length?'disabled title="필수 정책 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
 
@@ -370,8 +381,9 @@
         let comment;
         if(action==="approve"){
           const policyStatus=b.dataset.policyStatus||"missing";
-          comment=policyStatus==="review_required"
-            ? prompt("정책 추가 확인 항목을 실제 자료로 확인한 뒤 근거를 승인 메모에 기록하세요: "+(b.dataset.policyRequired||"추가 확인 항목"),"권리·AI 표시·사실성·독창성 확인 완료")
+          const qualityStatus=b.dataset.qualityStatus||"missing";
+          comment=(policyStatus==="review_required"||qualityStatus==="review_required")
+            ? prompt("정책·품질 경고를 실제 자료로 확인한 뒤 근거를 승인 메모에 기록하세요. 정책: "+(b.dataset.policyRequired||"없음")+" / 품질: "+(b.dataset.qualityWarnings||"없음"),"영상·음성·자막·대본 및 정책 경고를 실제 자료로 확인 완료")
             : "Approved after human review";
           if(comment===null||!String(comment).trim())return;
         }else{

@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from policy_engine import evaluate_content_policy
+from production_quality import evaluate_production_quality
 
 
 class ProviderError(RuntimeError):
@@ -444,8 +445,14 @@ class ProductionPipeline:
             script_text = script.get("script")
             if not isinstance(script_text, str) or not script_text.strip():
                 raise ProviderError("script", "Script provider returned no script text", False)
+            script_metadata = {
+                key: script.get(key) for key in (
+                    "source_urls", "factual_claims_verified", "fact_check_notes"
+                ) if key in script
+            }
             self.store.artifact(job_id, "script", "text", script.get("artifact_url"),
                                 {"script": script_text, "provider": script.get("provider"),
+                                 "provider_quality_metadata": script_metadata,
                                  "policy_preflight": policy_report},
                                 **lease)
 
@@ -480,9 +487,22 @@ class ProductionPipeline:
             video_url = rendered.get("video_url")
             if not isinstance(video_url, str) or not video_url.startswith(("https://", "http://")):
                 raise ProviderError("rendering", "Renderer returned no valid video_url", False)
+            render_metadata = {k: v for k, v in rendered.items() if k != "video_url"}
             self.store.artifact(job_id, "rendering", "video", video_url,
-                                {k: v for k, v in rendered.items() if k != "video_url"},
-                                **lease)
+                                render_metadata, **lease)
+            quality_report = evaluate_production_quality(
+                script_text, script_metadata,
+                {k: v for k, v in voice.items() if k != "audio_url"},
+                render_metadata, brief,
+            )
+            self.store.artifact(job_id, "quality_check", "report", None,
+                                quality_report, **lease)
+            if quality_report["status"] == "blocked":
+                raise ProviderError(
+                    "quality_check",
+                    "Production quality gate blocked: " + ", ".join(quality_report["blockers"]),
+                    retryable=False,
+                )
             self.store.stage(job_id, "rendered", "rendered", **lease)
             return self.store.get(job_id)
         except ProductionLeaseConflict:
