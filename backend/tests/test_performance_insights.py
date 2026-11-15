@@ -47,6 +47,15 @@ class PerformanceTests(unittest.TestCase):
   for video in ("vid1","vid2"):
    self.u.snapshot(video,{"viewCount":"100","likeCount":"5","commentCount":"1"})
    self.u.snapshot(video,{"viewCount":"180","likeCount":"9","commentCount":"2"})
+   with self.u.db() as connection:
+    connection.execute("UPDATE youtube_uploads SET uploaded_at=? WHERE video_id=?",
+                       ("2026-09-30T00:00:00+00:00",video))
+    rows=connection.execute("SELECT id FROM youtube_video_snapshots WHERE video_id=? ORDER BY id",
+                            (video,)).fetchall()
+    connection.execute("UPDATE youtube_video_snapshots SET collected_at=? WHERE id=?",
+                       ("2026-10-01T00:00:00+00:00",rows[0]["id"]))
+    connection.execute("UPDATE youtube_video_snapshots SET collected_at=? WHERE id=?",
+                       ("2026-10-02T00:00:00+00:00",rows[1]["id"]))
   first={key:1 for key in NUMERIC_FIELDS}
   first["averageViewPercentage"]=50.0
   first["averageViewDuration"]=12.0
