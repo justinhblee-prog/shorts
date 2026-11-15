@@ -138,6 +138,9 @@ def main():
     print(f"worker_started id={WORKER_ID} lease_seconds={LEASE_SECONDS}")
     try:
         while True:
+            # Keep idle and paused workers visible; job heartbeats alone only
+            # refresh registry timestamps while a production lease is running.
+            queue.register_worker(WORKER_ID, socket.gethostname())
             if queue.is_paused():
                 threading.Event().wait(IDLE_SECONDS)
                 continue
