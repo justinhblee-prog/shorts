@@ -389,3 +389,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Each row shows rank, title, priority score, estimated net-profit range, competitor adjustment, sample counts and timestamp. The list refreshes after scoring and via a manual refresh control.
 - This is an estimate/ranking view only. It does not represent actual earnings, guaranteed performance or a market-wide competitive assessment.
 - Latest source HEAD: `0b32d5ca12aea5c2580264665c4fd3d7cbfe7cf0`. GitHub Actions: https://github.com/justinhblee-prog/shorts/actions/runs/43668889808 — success; **139 tests passed**, including JavaScript syntax validation.
+
+
+### Optional speech transcription provider
+
+Set `TRANSCRIPTION_PROVIDER_URL` and `TRANSCRIPTION_PROVIDER_TOKEN` to enable independent narration transcription. The pipeline POSTs JSON containing `task=transcribe_audio`, the generated `audio_url`, target `language`, and an instruction to transcribe verbatim. The endpoint must return a JSON object with a non-empty `transcript` string; `provider` is an optional display name. The generated audio URL is sent to this explicitly configured service, so configure only a provider approved for your audio/data handling requirements.
+
+The pipeline compares the ASR transcript with the generated script using normalized token Levenshtein distance. Word error rate above 0.25 is surfaced as a human-review warning; it never auto-rejects a video. Without an ASR endpoint, the report explicitly says `speech_transcription_not_configured`. ASR errors can arise from names, numbers, accents, music, noise and language segmentation. This check does not prove factual correctness, pronunciation quality, or subtitle/caption accuracy.
