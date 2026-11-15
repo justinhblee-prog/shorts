@@ -1,6 +1,7 @@
 """Deterministic metadata-level production QA; never claims to inspect media bytes."""
 
 import math
+from urllib.parse import urlsplit
 
 
 def _positive_number(value):
@@ -11,6 +12,29 @@ def _positive_number(value):
     except (TypeError, ValueError, OverflowError):
         return None
     return number if math.isfinite(number) and number > 0 else None
+
+
+def _is_http_source(value):
+    if not isinstance(value, str) or not value.strip() or any(ch.isspace() for ch in value.strip()):
+        return False
+    try:
+        parsed = urlsplit(value.strip())
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    except ValueError:
+        return False
+
+
+def _is_vertical_aspect(value):
+    try:
+        text = str(value).strip()
+        if ":" in text:
+            numerator, denominator = text.split(":", 1)
+            ratio = float(numerator) / float(denominator)
+        else:
+            ratio = float(text)
+    except (TypeError, ValueError, ZeroDivisionError, OverflowError):
+        return False
+    return math.isfinite(ratio) and abs(ratio - (9.0 / 16.0)) <= 0.01
 
 
 def evaluate_production_quality(script_text, script_metadata, voice_metadata,
@@ -39,6 +63,8 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
         sources = script_metadata.get("source_urls")
         if not isinstance(sources, list) or not sources:
             warnings.append("trend_source_citations_not_returned_by_script_provider")
+        elif not any(_is_http_source(source) for source in sources):
+            warnings.append("trend_source_citations_invalid_or_empty")
     if script_metadata.get("factual_claims_verified") is not True:
         warnings.append("script_provider_did_not_attest_fact_check")
     checks.append({
@@ -71,8 +97,11 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
     render_format = str(render_metadata.get("format") or "").strip().lower()
     width = _positive_number(render_metadata.get("width"))
     height = _positive_number(render_metadata.get("height"))
-    known_nonvertical = render_format in ("horizontal", "horizontal_16_9", "square", "16:9", "1:1")
-    if aspect and aspect != "9:16":
+    known_nonvertical = render_format in (
+        "horizontal", "horizontal_16_9", "landscape", "landscape_16_9",
+        "square", "16:9", "1:1",
+    )
+    if aspect and not _is_vertical_aspect(aspect):
         known_nonvertical = True
     if width and height:
         measured_ratio = width / height
