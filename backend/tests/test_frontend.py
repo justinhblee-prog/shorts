@@ -101,6 +101,8 @@ class FrontendPortalTests(unittest.TestCase):
         app_js = (frontend / "app.js").read_text(encoding="utf-8")
         html = (frontend / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="connectTikTok"', html)
+        self.assertIn('id="disconnectTikTok"', html)
+        self.assertIn("/api/tiktok/oauth/disconnect", app_js)
         self.assertIn("/api/tiktok/oauth/start", app_js)
         self.assertIn("window.location.assign", app_js)
         self.assertIn("tiktok_oauth=connected", app_js)
