@@ -225,6 +225,16 @@ class JobQueue:
             c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
               available_at=?,updated_at=?,error_code=?,error_message=? WHERE id=?""",(status,n,n,error_code,error_message[:2000],jid))
             self.event(c,jid,"failed","running",status,worker,{"error_code":error_code,"retryable":retry})
+            if row["job_type"] == "short_video_production" and status == "failed_terminal":
+                has_runs = c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+                ).fetchone()
+                if has_runs:
+                    c.execute("""UPDATE production_runs
+                        SET status='failed_terminal',current_stage='failed_terminal',
+                            error=?,updated_at=?
+                        WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                        (error_message[:2000], n, jid))
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
     def get(self,jid):
