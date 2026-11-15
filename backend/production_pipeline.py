@@ -137,6 +137,39 @@ class ProductionStore:
               (str(uuid.uuid4()), job_id, stage, artifact_type, url,
                json.dumps(metadata, ensure_ascii=False), utc_now()))
 
+
+    def reconcile_review_pending(self, queue, limit=100):
+        """Repair the crash window after queue.finish and before DB review-state update.
+
+        The durable queue transition is authoritative. Only a queue job already in
+        review_pending may advance a rendered production record into review_pending.
+        """
+        with self.db() as c:
+            rows = c.execute("""SELECT job_id FROM production_runs
+                WHERE status='rendered' ORDER BY updated_at LIMIT ?""",
+                (max(1, min(int(limit), 500)),)).fetchall()
+        repaired = []
+        for row in rows:
+            job_id = row["job_id"]
+            try:
+                job = queue.get(job_id)
+            except Exception as exc:
+                from queue_store import JobNotFound
+                if isinstance(exc, JobNotFound):
+                    continue
+                raise
+            if job.get("job_type") != "short_video_production" or job.get("status") != "review_pending":
+                continue
+            with self.db() as c:
+                c.execute("""UPDATE production_runs
+                    SET status='review_pending',current_stage='review_pending',
+                        error=NULL,updated_at=?
+                    WHERE job_id=? AND status='rendered'""",
+                    (utc_now(), job_id))
+                if c.rowcount:
+                    repaired.append(job_id)
+        return {"reconciled": len(repaired), "job_ids": repaired}
+
     def get(self, job_id):
         with self.db() as c:
             run = c.execute("SELECT * FROM production_runs WHERE job_id=?", (job_id,)).fetchone()
