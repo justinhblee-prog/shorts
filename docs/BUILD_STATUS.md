@@ -273,7 +273,7 @@ Latest test attempt: run 123 (https://github.com/justinhblee-prog/shorts/actions
 
 - Upload attempts now distinguish failures before the remote request starts from uncertain outcomes after the resumable YouTube request begins.
 - A network timeout, process interruption surfaced as an exception, or missing final video ID after request start is recorded as `reconciliation_required`; automatic retry is blocked to prevent duplicate uploads.
-- Active resumable uploads refresh their local activity timestamp after each completed chunk. A still-`uploading` record becomes eligible for manual reconciliation only after `NEXUS_UPLOAD_STALE_SECONDS` (default 900 seconds; minimum 60 seconds).
+- Active resumable uploads refresh their local activity timestamp in a background heartbeat and after completed chunks. A still-`uploading` record becomes eligible for manual reconciliation only after `NEXUS_UPLOAD_STALE_SECONDS` (default 900 seconds; minimum 60 seconds).
 - Added authenticated `POST /api/youtube/uploads/{job_id}/reconcile`. An operator must explicitly confirm the outcome, provide a YouTube video ID if uploaded, and record a note.
 - If the operator verifies a matching private video, the record is finalized against that video ID. If the operator verifies no remote upload exists, the record becomes retryable. No automatic remote retry occurs while the outcome is ambiguous.
 - Dashboard approved-upload queue distinguishes active uploads from stale/uncertain uploads and exposes the reconciliation action only when eligible.
