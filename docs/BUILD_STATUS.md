@@ -1350,3 +1350,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added API authorization/read-only regression coverage and frontend integration assertions.
 - The preceding BUILD-00063 documentation-only head CI run [43707877471](https://github.com/justinhblee-prog/shorts/actions/runs/43707877471) completed successfully.
 - BUILD-00064 GitHub Actions run [43708236894](https://github.com/justinhblee-prog/shorts/actions/runs/43708236894) passed **437 tests**; `scripts/validate.sh` completed successfully.
+
+
+## BUILD-00065 — post-approval artifact integrity gate
+
+- Added shared `backend/approval_integrity.py` validation that compares the complete current production artifact set against the immutable human-review snapshot.
+- Comparison covers ordered stage, artifact type, artifact URL, and parsed metadata. Added, removed, replaced, or modified artifacts invalidate the approval; malformed snapshots fail closed.
+- YouTube upload initialization and TikTok private-post initialization now reject artifacts that no longer exactly match the latest approved snapshot, before any external upload initialization.
+- Added regression tests for exact match, metadata mutation, added artifact, removed artifact, and malformed snapshot.
+- This prevents approval from silently carrying forward when the rendered media, script, quality report, or policy metadata changes after review.
+- No external publish was performed. Human approval remains mandatory; YouTube remains private and TikTok remains SELF_ONLY. Recommendation score changes remain disabled.
+- CI validation for this change is pending; live provider/OAuth/account posting and monetization remain unverified.
