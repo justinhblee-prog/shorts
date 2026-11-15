@@ -213,3 +213,5 @@ See `docs/OPERATOR_RUNBOOK.md` for configuration, Docker deployment, production 
 Protected `GET /api/preflight` reports which configuration groups are present, without returning secret values. Dashboard displays operator auth, AI provider, renderer artifact allowlist, YouTube OAuth/Data API and media directory readiness. The report is configuration-only and never claims live connectivity. Tests: `backend/tests/test_preflight.py`.
 
 Latest checked CI run 103 (2026-11-15): https://github.com/justinhblee-prog/shorts/actions/runs/43657516480. Job has `runner_id=0`, no runner name and no steps. The newest security, media staging, dashboard, Docker layout and preflight changes have not executed under CI. Do not mark tests passed.
+
+Dashboard currency selectors support USD/KRW/JPY/GBP for financial ledger entries and profitability scenarios. The reporting API remains currency-filtered; no implicit FX conversion is performed.
