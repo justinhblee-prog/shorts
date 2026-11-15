@@ -78,8 +78,10 @@ def _encrypt_file(source: Path, destination: Path, key: str | bytes) -> None:
         raise FileExistsError(f"Encryption destination already exists: {destination}")
     nonce = os.urandom(ENCRYPTED_NONCE_BYTES)
     encryptor = Cipher(algorithms.AES(key_bytes), modes.GCM(nonce)).encryptor()
+    created = False
     try:
         with source.open("rb") as input_file, destination.open("xb") as output_file:
+            created = True
             output_file.write(ENCRYPTED_MAGIC + nonce)
             while True:
                 chunk = input_file.read(CHUNK_BYTES)
@@ -91,7 +93,8 @@ def _encrypt_file(source: Path, destination: Path, key: str | bytes) -> None:
             output_file.flush()
             os.fsync(output_file.fileno())
     except Exception:
-        destination.unlink(missing_ok=True)
+        if created:
+            destination.unlink(missing_ok=True)
         raise
 
 
@@ -108,6 +111,7 @@ def _decrypt_file(source: Path, destination: Path, key: str | bytes) -> None:
     size = source.stat().st_size
     if size < minimum_size:
         raise ValueError("Encrypted backup is truncated")
+    created = False
     try:
         with source.open("rb") as input_file:
             magic = input_file.read(len(ENCRYPTED_MAGIC))
@@ -120,6 +124,7 @@ def _decrypt_file(source: Path, destination: Path, key: str | bytes) -> None:
             input_file.seek(len(ENCRYPTED_MAGIC) + ENCRYPTED_NONCE_BYTES)
             decryptor = Cipher(algorithms.AES(key_bytes), modes.GCM(nonce, tag)).decryptor()
             with destination.open("xb") as output_file:
+                created = True
                 remaining = ciphertext_bytes
                 while remaining:
                     chunk = input_file.read(min(CHUNK_BYTES, remaining))
@@ -134,7 +139,8 @@ def _decrypt_file(source: Path, destination: Path, key: str | bytes) -> None:
                 output_file.flush()
                 os.fsync(output_file.fileno())
     except Exception:
-        destination.unlink(missing_ok=True)
+        if created:
+            destination.unlink(missing_ok=True)
         raise
 
 
@@ -214,16 +220,16 @@ def create_backup(source: str | Path, backup_dir: str | Path, keep: int = 14,
     filename = f"{BACKUP_PREFIX}{timestamp}-{unique}{suffix}"
     target = backup_dir / filename
     snapshot = backup_dir / f".{filename}.snapshot.tmp"
-    temporary = backup_dir / f".{filename}.tmp"
+    temporary = backup_dir / f".{filename}.tmp{ENCRYPTED_BACKUP_SUFFIX}"
     try:
         _copy_snapshot(source, snapshot)
         os.chmod(snapshot, 0o600)
         if encryption_key is not None:
             _encrypt_file(snapshot, temporary, encryption_key)
             os.chmod(temporary, 0o600)
+            verification = verify_backup(temporary, encryption_key)
             os.replace(temporary, target)
             snapshot.unlink(missing_ok=True)
-            verification = verify_backup(target, encryption_key)
         else:
             os.replace(snapshot, target)
             verification = _check_database(target)
