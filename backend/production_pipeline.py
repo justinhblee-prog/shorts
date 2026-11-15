@@ -299,7 +299,33 @@ class ProductionPipeline:
                 raise ValueError(f"{key} is required")
         if len(brief["topic"]) > 500:
             raise ValueError("topic must be 500 characters or fewer")
-        return {key: brief[key].strip() for key in required}
+        clean = {key: brief[key].strip() for key in required}
+        profile = brief.get("brand_profile")
+        if profile is not None:
+            if not isinstance(profile, dict):
+                raise ValueError("brand_profile must be an object")
+            def clean_text(value, field, limit=500):
+                if not isinstance(value, str) or len(value) > limit:
+                    raise ValueError(f"brand_profile.{field} must be text up to {limit} characters")
+                return value.strip()
+            def clean_list(value, field, limit=20):
+                if not isinstance(value, list) or len(value) > limit or any(
+                    not isinstance(item, str) or not item.strip() or len(item) > 300
+                    for item in value
+                ):
+                    raise ValueError(f"brand_profile.{field} must be a list of up to {limit} text items")
+                return [item.strip() for item in value]
+            risk = profile.get("risk_level", "standard")
+            if risk not in ("standard", "elevated", "high"):
+                raise ValueError("brand_profile.risk_level is invalid")
+            clean["brand_profile"] = {
+                "positioning": clean_text(profile.get("positioning", ""), "positioning"),
+                "audience": clean_text(profile.get("audience", ""), "audience"),
+                "tone": clean_list(profile.get("tone", []), "tone"),
+                "risk_level": risk,
+                "review_rules": clean_list(profile.get("review_rules", []), "review_rules"),
+            }
+        return clean
 
     @staticmethod
     def _check_stop(stop_event):
@@ -321,7 +347,9 @@ class ProductionPipeline:
                 "task": "create_short_video_script",
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "topic": brief["topic"],
-                "format": "vertical_short", "require_fact_check": True
+                "format": "vertical_short", "require_fact_check": True,
+                "brand_profile": brief.get("brand_profile", {}),
+                "editorial_constraints": brief.get("brand_profile", {}).get("review_rules", []),
             })
             self._check_stop(stop_event)
             script_text = script.get("script")
@@ -336,7 +364,9 @@ class ProductionPipeline:
             self._check_stop(stop_event)
             voice = self.voice.post("voice_generation", {
                 "script": script_text, "language": brief["language"],
-                "brand": brief["brand"], "format": "narration"
+                "brand": brief["brand"], "format": "narration",
+                "voice_tone": brief.get("brand_profile", {}).get("tone", []),
+                "target_audience": brief.get("brand_profile", {}).get("audience", ""),
             })
             self._check_stop(stop_event)
             audio_url = voice.get("audio_url")
@@ -353,7 +383,8 @@ class ProductionPipeline:
                 "script": script_text, "audio_url": audio_url,
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "aspect_ratio": "9:16",
-                "subtitles": True
+                "subtitles": True,
+                "brand_profile": brief.get("brand_profile", {}),
             })
             self._check_stop(stop_event)
             video_url = rendered.get("video_url")
