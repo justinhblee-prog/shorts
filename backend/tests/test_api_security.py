@@ -957,6 +957,7 @@ class ApiSecurityTests(unittest.TestCase):
                                return_value={"platform": "youtube_analytics", "status": "not_started",
                                              "last_success_at": None, "requested": 0,
                                              "available_metrics": ["averageViewPercentage"],
+                                             "scope_required": "https://www.googleapis.com/auth/yt-analytics.readonly",
                                              "read_only": True}), \
              mock.patch.object(app_module.tiktok_metrics_store, "status",
                                return_value={"platform": "tiktok", "status": "not_started",
