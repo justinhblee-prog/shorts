@@ -675,6 +675,12 @@ class TikTokPublisher:
             raise TikTokPublishError(
                 "Approved commercial relationship disclosure evidence is required for branded content"
             )
+        # Return an already-confirmed publication before opening the staged file
+        # or creating a temporary upload snapshot. Idempotent retries must not
+        # depend on the continued existence of local staging bytes.
+        existing = self.store.get(job_id)
+        if existing and existing["status"] == "publish_complete":
+            return existing
         resolved, mime, size = self._media(media_path)
         try:
             snapshot_path, size = create_verified_media_snapshot(
@@ -684,9 +690,6 @@ class TikTokPublisher:
         except (OSError, ValueError) as exc:
             raise TikTokPublishError(str(exc)) from exc
         resolved = Path(snapshot_path)
-        existing = self.store.get(job_id)
-        if existing and existing["status"] == "publish_complete":
-            return existing
         attempt_id = uuid.uuid4().hex
         try:
             begun = self.store.begin(
@@ -702,6 +705,13 @@ class TikTokPublisher:
         # The preflight read above can race with another worker completing this
         # same job. Respect the authoritative row returned under BEGIN IMMEDIATE.
         if begun and begun.get("status") == "publish_complete":
+            # Another worker completed between the preflight read and BEGIN IMMEDIATE.
+            # This path returns before the upload try/finally below, so remove the
+            # snapshot created for this losing attempt explicitly.
+            try:
+                os.unlink(snapshot_path)
+            except OSError:
+                pass
             return begun
         remote_started = False
         try:

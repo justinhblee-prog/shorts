@@ -8,6 +8,7 @@ from urllib.error import HTTPError
 from pathlib import Path
 
 from production_pipeline import ProductionStore
+from approval_integrity import create_verified_media_snapshot
 from review_workflow import ReviewStore
 from policy_engine import evaluate_content_policy
 from tiktok_publishing import (TikTokPublishStore, TikTokPublisher, TikTokPublishError, CHUNK_SIZE, _NoRedirectHandler, MAX_TIKTOK_RESPONSE_BYTES)
@@ -346,6 +347,51 @@ class TikTokPublishingTests(unittest.TestCase):
             )
         self.assertEqual(self.transport.calls, [])
         self.assertIsNone(self.store.get("job-1"))
+
+    def test_completed_race_cleans_up_verified_snapshot_before_return(self):
+        completed = {
+            "job_id": "job-1",
+            "status": "publish_complete",
+            "attempt_id": "already-completed-attempt",
+            "video_id": "video-123",
+        }
+        self.store.get = lambda job_id: None
+        self.store.begin = lambda *args, **kwargs: completed
+        created = []
+        def tracked_snapshot(*args, **kwargs):
+            result = create_verified_media_snapshot(*args, **kwargs)
+            created.append(result[0])
+            return result
+        with mock.patch("tiktok_publishing.create_verified_media_snapshot",
+                        side_effect=tracked_snapshot):
+            result = self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True,
+                privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(result, completed)
+        self.assertEqual(self.transport.calls, [])
+        self.assertEqual(len(created), 1)
+        self.assertFalse(os.path.exists(created[0]))
+
+    def test_completed_publish_returns_without_reopening_or_snapshotting_media(self):
+        first = self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True,
+            privacy_level="SELF_ONLY",
+        )
+        self.store.mark_status(
+            "job-1", first["attempt_id"], "PUBLISH_COMPLETE", ["video-123"], None
+        )
+        calls_before = len(self.transport.calls)
+        os.unlink(self.media)
+        result = self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True,
+            privacy_level="SELF_ONLY",
+        )
+        self.assertEqual(result["status"], "publish_complete")
+        self.assertEqual(len(self.transport.calls), calls_before)
 
     def test_publish_approved_video_as_private_with_aigc_label(self):
         result = self.publisher.publish_private_approved(

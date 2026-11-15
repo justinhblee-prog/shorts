@@ -989,3 +989,19 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Push CI [43730328484](https://github.com/justinhblee-prog/shorts/actions/runs/43730328484): **545 tests passed**.
 - PR merge-result CI [43730353235](https://github.com/justinhblee-prog/shorts/actions/runs/43730353235): **545 tests passed**.
 - Tests use a fake transport and do not make a real TikTok request.
+
+
+
+## BUILD-00094 and BUILD-00095 — idempotent publishing cleanup (2026-11-15)
+
+| Build | Change | PR | Push CI | PR CI |
+|---|---|---|---:|---:|
+| BUILD-00094 | Avoid TikTok verified-media snapshot leaks on already-complete and concurrent-completion early returns; allow completed retry after staging cleanup | [#59](https://github.com/justinhblee-prog/shorts/pull/59) | 547 tests | 547 tests |
+| BUILD-00095 | Return confirmed YouTube uploads before checking staged-file retention; preserve all preflight checks for new uploads | [#60](https://github.com/justinhblee-prog/shorts/pull/60) | 546 tests | 546 tests |
+
+### CI evidence
+- BUILD-00094 push [43730820864](https://github.com/justinhblee-prog/shorts/actions/runs/43730820864) and PR [43730841177](https://github.com/justinhblee-prog/shorts/actions/runs/43730841177): **547 tests passed**.
+- BUILD-00095 final-head push [43731150850](https://github.com/justinhblee-prog/shorts/actions/runs/43731150850) and PR [43731156176](https://github.com/justinhblee-prog/shorts/actions/runs/43731156176): **546 tests passed**.
+- BUILD-00094 specifically covers temporary-file cleanup when a concurrent publisher has already completed.
+- BUILD-00095 verifies an already-confirmed YouTube upload remains idempotent after local staged media has been cleaned up.
+- Both workstreams use local fake transports; neither makes live platform requests.
