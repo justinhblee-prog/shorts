@@ -193,5 +193,22 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertTrue(fake.released)
 
 
+
+    def test_due_selection_does_not_starve_videos_after_first_batch(self):
+        records = [
+            {"job_id": f"job-{index:03}", "video_id": f"video-{index:03}",
+             "status": "uploaded", "uploaded_at": f"2026-10-{(index % 28) + 1:02}T00:00:00+00:00"}
+            for index in range(1, 56)
+        ]
+        uploads = FakeUploads(records)
+        first = self.store.due_video_ids(uploads, limit=50, min_age_seconds=21600)
+        self.assertEqual(len(first), 50)
+        values = {key: 1 for key in NUMERIC_FIELDS}
+        for video_id in first:
+            self.store.save_snapshot(video_id, "2026-10-01", "2026-10-28", values)
+        second = self.store.due_video_ids(uploads, limit=50, min_age_seconds=21600)
+        self.assertEqual(len(second), 5)
+        self.assertTrue(set(second).isdisjoint(first))
+
 if __name__ == "__main__":
     unittest.main()
