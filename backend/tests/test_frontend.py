@@ -244,5 +244,19 @@ class FrontendPortalTests(unittest.TestCase):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
             self.assertIn(section, html)
+
+    def test_shadow_experiment_workspace_is_integrated_without_live_traffic_controls(self):
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="recommendationExperimentForm"', html)
+        self.assertIn('id="recommendationExperimentList"', html)
+        self.assertIn('id="recommendationExperimentReport"', html)
+        self.assertIn("/api/recommendations/experiments?limit=20", app_js)
+        self.assertIn("/shadow-assignment", app_js)
+        self.assertIn("recommendation_served", app_js) if "recommendation_served" in app_js else self.assertIn("실제 노출 없음", app_js)
+        self.assertIn("createShadowParticipantKey", app_js)
+        self.assertIn("실제 노출 0", app_js)
+        self.assertIn("ranking_score_adjustment", app_js) if "ranking_score_adjustment" in app_js else self.assertIn("추천 점수 조정", app_js)
+
 if __name__ == "__main__":
     unittest.main()
