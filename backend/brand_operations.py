@@ -10,43 +10,43 @@ DEFAULT_BRANDS = [
     {"slug":"brain-glitch","name":"Brain Glitch","vertical":"neuroscience_psychology",
      "positioning":"Evidence-led explanations of brain and behavior","audience":"curious general audience",
      "tone":["curious","clear","evidence-led"],"regions":["KR","US","JP","GB"],"languages":["ko","en","ja"],
-     "risk_level":"elevated","review_rules":["Cite credible sources for scientific claims","Do not diagnose viewers"]},
+     "risk_level":"elevated","keywords":["neuroscience","psychology","brain","memory","attention","cognitive science","behavior"],"review_rules":["Cite credible sources for scientific claims","Do not diagnose viewers"]},
     {"slug":"silent-signals","name":"Silent Signals","vertical":"relationships_nonverbal",
      "positioning":"Practical insight into relationships and nonverbal communication","audience":"general adult audience",
      "tone":["empathetic","observant","nonjudgmental"],"regions":["KR","US","JP","GB"],"languages":["ko","en","ja"],
-     "risk_level":"standard","review_rules":["Avoid manipulative relationship advice","Distinguish research from opinion"]},
+     "risk_level":"standard","keywords":["relationships","communication","body language","nonverbal","social cues","dating","interpersonal"],"review_rules":["Avoid manipulative relationship advice","Distinguish research from opinion"]},
     {"slug":"unseen-truth","name":"Unseen Truth","vertical":"history_context",
      "positioning":"Hidden context behind historical events","audience":"history-curious viewers",
      "tone":["documentary","intriguing","balanced"],"regions":["KR","US","JP","GB"],"languages":["ko","en","ja"],
-     "risk_level":"elevated","review_rules":["Verify dates and primary-source claims","Separate disputed interpretations from established facts"]},
+     "risk_level":"elevated","keywords":["history","historical events","archaeology","ancient civilizations","primary sources","historical context"],"review_rules":["Verify dates and primary-source claims","Separate disputed interpretations from established facts"]},
     {"slug":"dark-files-global","name":"Dark Files Global","vertical":"space_ocean_mysteries",
      "positioning":"Documented mysteries of space and the deep sea","audience":"science and mystery enthusiasts",
      "tone":["cinematic","curious","skeptical"],"regions":["KR","US","JP","GB"],"languages":["ko","en","ja"],
-     "risk_level":"elevated","review_rules":["No fabricated discoveries or conspiracy claims","Label hypotheses and unknowns clearly"]},
+     "risk_level":"elevated","keywords":["space","astronomy","deep sea","ocean","astrophysics","marine science","exploration","documented mysteries"],"review_rules":["No fabricated discoveries or conspiracy claims","Label hypotheses and unknowns clearly"]},
     {"slug":"99-missed","name":"99% Missed","vertical":"everyday_knowledge_productivity",
      "positioning":"Useful overlooked facts and practical productivity","audience":"broad general audience",
      "tone":["useful","fast","friendly"],"regions":["KR","US","JP","GB"],"languages":["ko","en","ja"],
-     "risk_level":"standard","review_rules":["Check practical advice for context and limitations"]},
+     "risk_level":"standard","keywords":["productivity","everyday knowledge","practical science","learning","habits","time management","useful facts"],"review_rules":["Check practical advice for context and limitations"]},
     {"slug":"money-glitch","name":"Money Glitch","vertical":"economics_finance",
      "positioning":"Explain economic mechanisms and financial literacy","audience":"financially curious adults",
      "tone":["analytical","plainspoken","cautious"],"regions":["KR","US","JP","GB"],"languages":["ko","en","ja"],
-     "risk_level":"high","review_rules":["No personalized investment recommendations","Date and source all market data","Clearly label opinion and forecasts"]},
+     "risk_level":"high","keywords":["economics","finance","inflation","financial literacy","markets","monetary policy","personal finance"],"review_rules":["No personalized investment recommendations","Date and source all market data","Clearly label opinion and forecasts"]},
     {"slug":"secret-vault-24","name":"Secret Vault 24","vertical":"corporate_economic_secrets",
      "positioning":"Investigative explainers on corporate and economic stories","audience":"business-curious viewers",
      "tone":["investigative","precise","skeptical"],"regions":["KR","US","JP","GB"],"languages":["ko","en","ja"],
-     "risk_level":"high","review_rules":["Substantiate allegations with reliable public evidence","Avoid defamatory claims and misleading insinuation"]},
+     "risk_level":"high","keywords":["corporate","business","companies","corporate history","mergers","regulation","economic stories"],"review_rules":["Substantiate allegations with reliable public evidence","Avoid defamatory claims and misleading insinuation"]},
     {"slug":"future-leak","name":"Future Leak","vertical":"ai_future_technology",
      "positioning":"Accessible analysis of AI and emerging technology","audience":"technology-curious viewers",
      "tone":["forward-looking","clear","grounded"],"regions":["KR","US","JP","GB"],"languages":["ko","en","ja"],
-     "risk_level":"elevated","review_rules":["Distinguish shipped capabilities from demos and speculation","Date fast-changing claims"]},
+     "risk_level":"elevated","keywords":["artificial intelligence","AI","machine learning","robotics","emerging technology","software","computing"],"review_rules":["Distinguish shipped capabilities from demos and speculation","Date fast-changing claims"]},
     {"slug":"30sec-shift","name":"30Sec Shift","vertical":"health_sleep_longevity",
      "positioning":"Evidence-aware health, sleep and longevity explainers","audience":"general wellness audience",
      "tone":["reassuring","practical","evidence-led"],"regions":["KR","US","JP","GB"],"languages":["ko","en","ja"],
-     "risk_level":"high","review_rules":["No diagnosis or treatment claims","Use authoritative health sources","Flag uncertainty and consult-professional boundaries"]},
+     "risk_level":"high","keywords":["health","sleep","longevity","nutrition","exercise","public health","wellness","clinical research"],"review_rules":["No diagnosis or treatment claims","Use authoritative health sources","Flag uncertainty and consult-professional boundaries"]},
     {"slug":"why-nobody-tells","name":"Why Nobody Tells","vertical":"social_business_insights",
      "positioning":"Explain overlooked social and business dynamics","audience":"curious working adults",
      "tone":["direct","insightful","balanced"],"regions":["KR","US","JP","GB"],"languages":["ko","en","ja"],
-     "risk_level":"standard","review_rules":["Avoid presenting anecdotes as universal truths","Attribute disputed claims"]},
+     "risk_level":"standard","keywords":["social dynamics","workplace","business","organizational behavior","incentives","culture","social insights"],"review_rules":["Avoid presenting anecdotes as universal truths","Attribute disputed claims"]},
 ]
 
 
@@ -91,6 +91,23 @@ class BrandStore:
                   VALUES(?,?,?,?,1,?,?)""",
                   (brand["slug"],brand["name"],brand["vertical"],
                    json.dumps(brand,ensure_ascii=False),now(),now()))
+                # Add newly introduced default taxonomy fields to existing rows
+                # without overwriting operator-customized brand settings.
+                row = c.execute(
+                    "SELECT config_json FROM brand_profiles WHERE slug=?",
+                    (brand["slug"],)
+                ).fetchone()
+                existing = json.loads(row["config_json"])
+                changed = False
+                for key in ("keywords", "exclude_keywords"):
+                    if key not in existing and key in brand:
+                        existing[key] = brand[key]
+                        changed = True
+                if changed:
+                    c.execute(
+                        "UPDATE brand_profiles SET config_json=?,updated_at=? WHERE slug=?",
+                        (json.dumps(existing, ensure_ascii=False), now(), brand["slug"])
+                    )
 
     def list(self, active_only=False):
         query = "SELECT * FROM brand_profiles"
