@@ -839,3 +839,6 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Docker image now installs FFmpeg/ffprobe. Local non-Docker deployments must install FFmpeg separately.
 - Regression tests cover unavailable ffprobe, unreadable/truncated media, empty/missing files, missing audio, wrong aspect ratio and invalid/overlong duration.
 - CI/runtime execution for this new change is pending; no real renderer artifact has yet been inspected in the deployed environment.
+
+
+- Follow-up fix: the first CI run for byte-level inspection exposed a test expectation mismatch when an explicitly configured ffprobe executable path does not exist. The inspector now detects a missing binary before subprocess invocation and reports the intended fail-closed "unavailable" state. Revalidation for the corrected commit is pending.

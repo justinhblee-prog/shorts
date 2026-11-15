@@ -23,10 +23,7 @@ def inspect_media_file(path, ffprobe_path=None, runner=None, timeout=30):
         raise MediaInspectionError("Staged media file is empty")
 
     executable = ffprobe_path or os.getenv("FFPROBE_PATH") or shutil.which("ffprobe")
-    if not executable or (
-        runner is None and not Path(str(executable)).is_file()
-        and shutil.which(str(executable)) is None
-    ):
+    if not executable:
         raise MediaInspectionError(
             "ffprobe is unavailable; install FFmpeg before staging or uploading media"
         )
