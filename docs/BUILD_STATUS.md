@@ -1260,6 +1260,6 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Evaluation snapshots are append-only in SQLite, protected by update/delete rejection triggers, and deduplicated by evaluation version plus input fingerprint. Repeated capture of unchanged inputs returns the existing record.
 - Added dashboard action to capture an immutable evaluation record and display its timestamp, coverage, holdout exposure count, score association and input fingerprint.
 - Regression tests cover whole-run split isolation, minimum exposure-run coverage, input deduplication, immutable history, history bounds, API authorization and dashboard rendering.
-- GitHub Actions run [43702530629](https://github.com/justinhblee-prog/shorts/actions/runs/43702530629) passed **405 tests** at code commit `3ac740b`.
+- GitHub Actions run [43702654358](https://github.com/justinhblee-prog/shorts/actions/runs/43702654358) passed **405 tests** at code commit `972395a`; the same result was revalidated after deterministic ordering of same-timestamp exposure runs.
 - No randomized exposure assignment, counterfactual measurement, causal lift estimate, or automatic score adjustment is enabled. Existing selected-only outcome capture remains selection-biased; actual platform reach is not independently verified.
 - Ranking score adjustment remains disabled; no queue, production, approval, retry or publishing behavior changes.
