@@ -313,7 +313,7 @@ class TikTokPublisher:
     def _upload_chunks(self, upload_url, media_path, mime, size):
         chunk_size = min(CHUNK_SIZE, size)
         if size > CHUNK_SIZE:
-            chunk_count = size // chunk_size
+            chunk_count = (size + chunk_size - 1) // chunk_size
         else:
             chunk_count = 1
         if chunk_count < 1 or chunk_count > 1000:
@@ -407,7 +407,7 @@ class TikTokPublisher:
                 )
             remote_started = True
             chunk_size = min(CHUNK_SIZE, size)
-            chunk_count = max(1, size // chunk_size)
+            chunk_count = max(1, (size + chunk_size - 1) // chunk_size)
             initialized = self._call(
                 API_ROOT + "/v2/post/publish/video/init/",
                 payload={
