@@ -1390,6 +1390,82 @@ def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None)
     require_review_access(x_review_token)
     return {"opportunities":opportunity_store.list(limit)}
 
+@app.get("/api/publishing/dashboard")
+def publishing_dashboard(
+    limit:int=100, x_review_token:str|None=Header(default=None)
+):
+    """Read-only cross-platform publication state with platform-specific evidence."""
+    require_review_access(x_review_token)
+    if limit < 1 or limit > 200:
+        raise HTTPException(422, "limit must be between 1 and 200")
+    youtube = youtube_upload_store.list_recent(limit)
+    tiktok = tiktok_publish_store.list_recent(limit)
+
+    def summarize(records):
+        counts = {}
+        for record in records:
+            status = record.get("status") or "unknown"
+            counts[status] = counts.get(status, 0) + 1
+        return counts
+
+    def present(record, platform):
+        events = record.get("events") or []
+        latest = events[-1] if events else None
+        if platform == "youtube":
+            needs_attention = bool(record.get("reconciliation_required")) or record.get("status") in (
+                "reconciliation_required", "late_success_review_required"
+            )
+            remote_id = record.get("video_id")
+            error = record.get("last_error") or record.get("error")
+        else:
+            needs_attention = record.get("status") == "reconciliation_required"
+            remote_id = record.get("video_id") or record.get("publish_id")
+            error = record.get("error") or record.get("fail_reason")
+        return {
+            "platform": platform,
+            "job_id": record.get("job_id"),
+            "status": record.get("status") or "unknown",
+            "attempt_id": record.get("attempt_id"),
+            "remote_id": remote_id,
+            "privacy_level": record.get("privacy_level") if platform == "tiktok" else "private",
+            "updated_at": record.get("updated_at"),
+            "last_attempt_at": record.get("last_attempt_at"),
+            "last_success_at": record.get("last_success_at"),
+            "error": error,
+            "fail_reason": record.get("fail_reason"),
+            "reconciliation_required": needs_attention,
+            "latest_event": latest,
+            "events": events,
+        }
+
+    items = [present(item, "youtube") for item in youtube]
+    items.extend(present(item, "tiktok") for item in tiktok)
+    items.sort(key=lambda item: (item.get("updated_at") or "", item["platform"], item["job_id"] or ""), reverse=True)
+    attention = sum(1 for item in items if item["reconciliation_required"] or item["error"])
+    return {
+        "items": items,
+        "count": len(items),
+        "platforms": {
+            "youtube": {"count": len(youtube), "status_counts": summarize(youtube)},
+            "tiktok": {"count": len(tiktok), "status_counts": summarize(tiktok),
+                       "privacy_mode": "SELF_ONLY"},
+        },
+        "summary": {
+            "reconciliation_required": sum(1 for item in items if item["reconciliation_required"]),
+            "errors_present": sum(1 for item in items if item["error"]),
+            "attention_required": attention,
+        },
+        "read_only": True,
+        "actions_taken": [],
+        "limitations": [
+            "Platform states are shown independently; no cross-platform success state is inferred.",
+            "A stored remote identifier or operator attestation is not independent proof of public visibility.",
+            "Refreshing remote status and resolving uncertain outcomes require separate explicit operator actions.",
+            "TikTok publication remains restricted to SELF_ONLY while the app is unaudited.",
+        ],
+    }
+
+
 @app.get("/api/health")
 def health(): return {"status":"ok","service":"nexus-studio-pro"}
 @app.get("/api/ops/health")
