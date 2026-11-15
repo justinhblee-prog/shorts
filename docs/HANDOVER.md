@@ -727,5 +727,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Queued production cancellation synchronizes production_runs; running cancellation is treated as ambiguous and fences the lease rather than claiming a clean cancellation.
 - A confirmed YouTube upload remains confirmed if a later metrics/readback request fails.
 - Added regression tests for API bypasses, provider retryability, atomic failure/pause behavior, policy-failure isolation, cancellation, and post-confirmation upload read failures.
-- Earlier implementation head passed GitHub Actions with Python compileall, Compose YAML validation, frontend syntax/ID checks, and 194 backend unit tests; the latest-main branch is undergoing its own CI validation.
+- GitHub Actions push run 43674578819 passed on the latest-main branch: Python compileall, Compose YAML validation, frontend syntax/ID checks, and all 202 backend unit tests.
 - External provider/production validation has not been performed.
