@@ -409,6 +409,15 @@ class YouTubePublishingTests(unittest.TestCase):
         self.uploads.snapshot("yt-recent",{"viewCount":"100"})
         self.assertEqual(self.uploads.due_metric_video_ids(limit=50,min_age_seconds=21600),[])
 
+    def test_upload_rejects_media_mutated_after_human_approval(self):
+        Path(self.media).write_bytes(b"mutated-after-approval")
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
+            self.publisher.upload_approved(
+                "job-1", self.media, self.review, "A useful short"
+            )
+        self.assertFalse(hasattr(self.service._videos, "body"))
+        self.assertIsNone(self.uploads.get("job-1"))
+
     def test_upload_is_always_private_and_persists_source_stats(self):
         result=self.publisher.upload_approved("job-1",self.media,self.review,
                                               "A useful short","Description")
