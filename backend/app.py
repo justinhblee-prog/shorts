@@ -1,5 +1,6 @@
 import os
 import secrets
+import logging
 from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Header, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
@@ -26,6 +27,26 @@ from preflight import build_preflight
 from policy_engine import POLICY_VERSION
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
+class TikTokOAuthAccessLogRedaction(logging.Filter):
+    """Prevent authorization codes and OAuth state values entering access logs."""
+    def filter(self, record):
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 3:
+            path = args[2]
+            if isinstance(path, str) and path.startswith("/api/tiktok/oauth/callback"):
+                sanitized = list(args)
+                sanitized[2] = "/api/tiktok/oauth/callback?[REDACTED]"
+                record.args = tuple(sanitized)
+        return True
+
+
+oauth_log_filter = TikTokOAuthAccessLogRedaction()
+uvicorn_access_logger = logging.getLogger("uvicorn.access")
+uvicorn_access_logger.addFilter(oauth_log_filter)
+for access_handler in uvicorn_access_logger.handlers:
+    access_handler.addFilter(oauth_log_filter)
+
+
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
 trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 trend_ingestor=TrendIngestor(trend_store)
