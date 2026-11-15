@@ -259,6 +259,16 @@ class JobQueue:
               lease_expires_at=NULL,updated_at=?,error_code='cancelled',error_message=? WHERE id=?""",
               (n,reason[:2000],jid))
             self.event(c,jid,"cancelled",row["status"],"cancelled",None,{"reason":reason})
+            if row["job_type"] == "short_video_production" and row["status"] != "running":
+                has_runs = c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+                ).fetchone()
+                if has_runs:
+                    c.execute("""UPDATE production_runs
+                        SET status='cancelled',current_stage='cancelled',
+                            error=?,updated_at=?
+                        WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                        (reason[:2000], n, jid))
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             c.commit()
             return self.decode(out)
