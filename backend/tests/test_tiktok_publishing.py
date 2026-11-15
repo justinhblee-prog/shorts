@@ -76,12 +76,12 @@ class TikTokPublishingTests(unittest.TestCase):
     def test_publish_requires_explicit_creator_consent(self):
         with self.assertRaisesRegex(TikTokPublishError, "consent"):
             self.publisher.publish_approved("job-tt", self.media, self.review,
-                "caption", False, True, "reviewer")
+                "caption", False, True, "reviewer", False, False)
         self.assertIsNone(self.store.get("job-tt"))
 
     def test_private_upload_maps_aigc_and_status(self):
         result = self.publisher.publish_approved("job-tt", self.media, self.review,
-            "creator confirmed caption", True, True, "reviewer")
+            "creator confirmed caption", True, True, "reviewer", False, False)
         self.assertEqual(result["status"], "processing")
         init = next(item for item in self.session.posts if "/video/init/" in item[0])
         body = init[1]["json"]
@@ -106,7 +106,7 @@ class TikTokPublishingTests(unittest.TestCase):
                 (json.dumps(metadata), row["id"]))
         with self.assertRaisesRegex(TikTokPublishError, "blocked|disclosure"):
             self.publisher.publish_approved("job-tt", self.media, self.review,
-                "caption", True, True, "reviewer")
+                "caption", True, True, "reviewer", False, False)
         self.assertIsNone(self.store.get("job-tt"))
 
     def test_untrusted_upload_url_is_rejected(self):
