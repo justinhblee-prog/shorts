@@ -205,15 +205,18 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
         production_store.reconcile_review_pending(queue)
         return production_store.get(job_id)
     except ProviderError as e:
+        failure_recorded=False
         try:
             queue.fail(job_id,body.worker_id,body.lease_token,
                        "provider_"+e.stage,str(e),False)
+            failure_recorded=True
         except Exception:
             pass
-        try:
-            queue.pause(f"API provider failure at {e.stage}: {e}", job_id)
-        except Exception:
-            pass
+        if not failure_recorded:
+            try:
+                queue.pause(f"API provider failure at {e.stage}: {e}", job_id)
+            except Exception:
+                pass
         raise HTTPException(502,{"stage":e.stage,"error":str(e),"retryable":False})
     except JobNotFound:
         raise HTTPException(404,"Job not found")
