@@ -353,7 +353,8 @@
     const operator_id=$("queueOperator").value.trim();
     const note=$("queueControlNote").value.trim();
     if(!operator_id||!note){toast("운영자 ID와 조치 사유를 입력하세요.");return null;}
-    return {operator_id,note};
+    const recovery_confirmed=$("recoveryConfirmed").checked;
+    return {operator_id,note,recovery_confirmed};
   }
   $("pauseQueue").addEventListener("click",async()=>{
     if(!requireToken())return;
@@ -367,7 +368,8 @@
   $("resumeQueue").addEventListener("click",async()=>{
     if(!requireToken())return;
     const body=queueControlPayload();if(!body)return;
-    if(!confirm("외부 AI 공급자 기록, 생성 파일, 과금 상태를 확인하셨습니까? 확인 후 제작 큐를 재개합니다."))return;
+    if(!body.recovery_confirmed){toast("복구 체크리스트를 직접 확인하고 확인란을 선택하세요.");return;}
+    if(!confirm("공급자 결과, 생성 파일·과금, 사람 승인·정책 증거 및 Worker 상태를 확인하셨습니까? 확인 후 제작 큐를 재개합니다."))return;
     try{
       await api("/api/queue/resume",{method:"POST",body:JSON.stringify(body)});
       toast("운영자 확인 기록과 함께 제작 큐가 재개되었습니다.");await loadQueue();
