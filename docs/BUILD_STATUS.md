@@ -1831,4 +1831,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added role guards to the remaining authenticated production/publishing reads, OAuth status/creator info, metrics refresh, opportunity scoring, rendered recommendation exposure capture, and queue worker endpoints.
 - Added a static route-coverage regression test: every `/api/*` route must declare an explicit RBAC permission except the documented public health, brand catalog and OAuth callback routes.
 - Added a dedicated `worker` role for API claim/heartbeat/complete/fail calls; queue cancellation remains a separate operator control permission.
-- Producer and analyst roles can manage opportunity scoring. CI pending.
+- Producer and analyst roles can manage opportunity scoring. Final-head push CI [43775696071](https://github.com/justinhblee-prog/shorts/actions/runs/43775696071), PR CI [43775800790](https://github.com/justinhblee-prog/shorts/actions/runs/43775800790), and post-merge integration CI [43775888584](https://github.com/justinhblee-prog/shorts/actions/runs/43775888584): **625 tests passed**.
