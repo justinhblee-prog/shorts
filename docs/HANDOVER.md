@@ -903,3 +903,26 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Malformed URLs/ports are rejected before DNS/network activity. HTTPS, allowlisted hostname and public-IP checks remain required.
 - Content-Length must be a valid nonnegative integer within the configured size cap and must match the bytes actually downloaded.
 - Failed or truncated downloads clean up their temporary `.part` files. CI pending; no live renderer download is claimed.
+
+
+
+## Handover update — BUILD-00090 and BUILD-00091 (2026-11-15)
+
+### BUILD-00090 — PR #51
+- Renewed the fixed five-minute singleton leases while YouTube Data API counter, YouTube Analytics and TikTok Display API metric batches are running.
+- Added owner/token-fenced renewal APIs. Expired leases cannot be revived by stale owners.
+- Added a shared heartbeat helper in `metrics_collector.py`.
+- Collection-state writes now validate the current unexpired owner/token in the same SQLite transaction as the state update. This closes the check-then-write race and rejects stale results.
+- Push CI: 528 tests passed [43727205026](https://github.com/justinhblee-prog/shorts/actions/runs/43727205026). Final PR CI [43727332336](https://github.com/justinhblee-prog/shorts/actions/runs/43727332336) passed.
+
+### BUILD-00091 — PR #52
+- Prevented the scheduler from polling TikTok publication statuses after its scheduler lease has been lost.
+- Status polling requires a live token, renews the lease before the provider call, and verifies the lease after the call.
+- If leadership is lost during polling, the scheduler clears its token and stops leader-only work.
+- Push CI: 525 tests passed [43727567497](https://github.com/justinhblee-prog/shorts/actions/runs/43727567497). PR CI [43727592372](https://github.com/justinhblee-prog/shorts/actions/runs/43727592372) passed.
+
+### Integration boundary
+- PRs #51 and #52 are independent of one another and both target BUILD-00085. Neither is merged.
+- BUILD-00086–00089 combined validation remains 532 tests. BUILD-00090 and BUILD-00091 have individual passing CI only; no combined validation with those tracks is claimed yet.
+- Do not merge the BUILD-00083–00085 stacked chain out of order. Review/merge it sequentially, then retarget or rebase the independent workstreams.
+- Live YouTube/TikTok OAuth, AI provider generation, real media rendering, real publishing and revenue remain unverified.
