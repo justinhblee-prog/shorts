@@ -354,7 +354,7 @@ class TikTokOAuthTests(unittest.TestCase):
     def test_exchange_code_rejects_oversized_or_controlled_code_before_consuming_state(self):
         auth = self.manager.start_authorization()
         state = parse_qs(urlparse(auth["authorization_url"]).query)["state"][0]
-        for code in ("", " leading", "line\\nbreak", "x" * 4097):
+        for code in ("", " leading", "line\nbreak", "x" * 4097):
             with self.subTest(code_length=len(code)):
                 with self.assertRaises(TikTokOAuthError):
                     self.manager.exchange_code(code, state)
