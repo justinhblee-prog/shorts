@@ -93,10 +93,12 @@ class YouTubePublishingTests(unittest.TestCase):
             {"script": "Approved test script",
              "policy_preflight": evaluate_content_policy(policy_brief)},
         )
-        self.review.decide("job-1","approved","reviewer-1")
         os.environ["NEXUS_MEDIA_DIR"]=self.tmp.name
         self.media=os.path.join(self.tmp.name,"video.mp4")
         Path(self.media).write_bytes(b"fake-media-for-unit-test")
+        self.review.decide(
+            "job-1","approved","reviewer-1",staged_media_path=self.media
+        )
         self.service=FakeService()
         self.publisher=YouTubePublisher(self.uploads,self.service)
 
@@ -132,7 +134,7 @@ class YouTubePublishingTests(unittest.TestCase):
                 (json.dumps(metadata), "job-1"),
             )
         self.prod.stage("job-1", "rendered", "review_pending")
-        self.review.decide("job-1", "approved", "reviewer-1")
+        self.review.decide("job-1", "approved", "reviewer-1", staged_media_path=self.media)
         self.publisher.upload_approved(
             "job-1", self.media, self.review, "Realistic synthetic scene"
         )
