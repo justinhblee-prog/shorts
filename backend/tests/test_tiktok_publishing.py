@@ -147,7 +147,7 @@ class TikTokPublishingTests(unittest.TestCase):
             error="timeout", event_type="publish_outcome_uncertain")
         with self.assertRaisesRegex(TikTokPublishError, "retry"):
             self.publisher.publish_approved("job-tt", self.media, self.review,
-                "caption", True, True, "reviewer")
+                "caption", True, True, "reviewer", False, False)
 
 
 if __name__ == "__main__":
