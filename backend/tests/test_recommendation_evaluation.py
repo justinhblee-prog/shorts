@@ -421,3 +421,47 @@ class RecommendationEvaluationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_shadow_experiment_assignments_are_stable_and_do_not_claim_exposure(self):
+        experiment = self.store.create_experiment(
+            "thumbnail wording", "operator-1", allocation_basis_points=5000
+        )
+        first = self.store.assign_shadow(experiment["experiment_id"], "opaque-user-1")
+        repeated = self.store.assign_shadow(experiment["experiment_id"], "opaque-user-1")
+        self.assertIn(first["arm"], ("control", "treatment"))
+        self.assertEqual(first["arm"], repeated["arm"])
+        self.assertFalse(first["deduplicated"])
+        self.assertTrue(repeated["deduplicated"])
+        self.assertEqual(first["assignment_id"], repeated["assignment_id"])
+        self.assertEqual(first["assignment_mode"], "shadow_only")
+        self.assertFalse(first["recommendation_served"])
+        self.assertFalse(first["production_behavior_changed"])
+        self.assertFalse(first["measured_exposure"])
+        self.assertFalse(first["participant_identifier_stored"])
+        report = self.store.experiment_report(experiment["experiment_id"])
+        self.assertEqual(report["shadow_assignment_count"], 1)
+        self.assertEqual(report["measured_exposure_count"], 0)
+        self.assertIsNone(report["effect_estimate"])
+        self.assertFalse(report["live_assignment_enabled"])
+        with self.store.db() as connection:
+            row = connection.execute(
+                "SELECT participant_fingerprint FROM recommendation_experiment_assignments"
+            ).fetchone()
+        self.assertEqual(len(row["participant_fingerprint"]), 64)
+        self.assertNotIn("opaque-user-1", row["participant_fingerprint"])
+
+    def test_experiment_allocation_validation_and_unknown_experiment(self):
+        with self.assertRaises(ValueError):
+            self.store.create_experiment("bad", "operator", allocation_basis_points=9500)
+        experiment = self.store.create_experiment("valid", "operator")
+        self.assertIsNone(self.store.assign_shadow("missing", "user-1"))
+        self.assertIsNone(self.store.experiment_report("missing"))
+        self.assertEqual(self.store.list_experiments()["count"], 1)
+
+    def test_experiment_assignment_rejects_empty_or_oversized_participant_key(self):
+        experiment = self.store.create_experiment("validation", "operator")
+        with self.assertRaises(ValueError):
+            self.store.assign_shadow(experiment["experiment_id"], "")
+        with self.assertRaises(ValueError):
+            self.store.assign_shadow(experiment["experiment_id"], "x" * 257)
