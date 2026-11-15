@@ -123,15 +123,18 @@ def run_once():
         print(f"policy_blocked job={job['id']} stage={exc.stage}")
     except ProviderError as exc:
         stopping.set()
+        failure_recorded=False
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
                        "provider_" + exc.stage, str(exc), False)
+            failure_recorded=True
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
-        try:
-            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
-        except Exception:
-            pass
+        if not failure_recorded:
+            try:
+                queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
+            except Exception:
+                pass
         print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}")
     except (LeaseConflict, ProductionLeaseConflict) as exc:
         stopping.set()
