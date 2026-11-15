@@ -168,21 +168,23 @@ class ApiSecurityTests(unittest.TestCase):
                 "items":jobs,"total":121,"limit":25,"offset":50,
                 "status_counts":{"review_pending":121},
             }) as listing,
-            mock.patch("app.production_store.get",return_value={
-                "status":"approved","current_stage":"review","brand":"NEXUS",
-                "topic":"AI trends",
-            }),
-            mock.patch("app.review_store.history",return_value=[
-                {"decision":"approved","id":1}
-            ]),
-            mock.patch("app.youtube_upload_store.get",return_value=None),
-            mock.patch("app.tiktok_publish_store.get",return_value=None),
+            mock.patch("app.queue.lifecycle_summaries",return_value={
+                "job-global-1":{
+                    "production_status":"approved","current_stage":"review",
+                    "brand":"NEXUS","topic":"AI trends",
+                    "latest_review_decision":"approved",
+                    "youtube_status":None,"youtube_attempt_id":None,"youtube_video_id":None,
+                    "youtube_events":[],"tiktok_status":None,"tiktok_attempt_id":None,
+                    "tiktok_video_id":None,"tiktok_events":[],
+                }
+            }) as summaries,
         ):
             result=get_lifecycle_queue(limit=25,offset=50,status="review_pending",
                                        x_review_token="test-token")
         access.assert_called_once_with("test-token")
         listing.assert_called_once_with(job_type="short_video_production",
                                         limit=25,offset=50,status="review_pending")
+        summaries.assert_called_once_with(["job-global-1"])
         self.assertEqual(result["total"],121)
         self.assertEqual(result["items"][0]["job_id"],"job-global-1")
         self.assertEqual(result["risk_counts"]["consistent"],1)
@@ -199,7 +201,7 @@ class ApiSecurityTests(unittest.TestCase):
                           "max_attempts":3}],
                 "total":1,"limit":50,"offset":0,"status_counts":{"queued":1},
             }),
-            mock.patch("app.production_store.get",return_value=None),
+            mock.patch("app.queue.lifecycle_summaries",return_value={"job-missing":{}}),
         ):
             result=get_lifecycle_queue(x_review_token="test-token")
         self.assertEqual(result["items"][0]["risk_status"],"blocked")
