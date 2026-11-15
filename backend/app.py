@@ -34,6 +34,7 @@ from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
 from policy_engine import POLICY_VERSION
+from api_rate_limit import ApiRateLimitMiddleware, SQLiteRateLimitStore
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 class TikTokOAuthAccessLogRedaction(logging.Filter):
@@ -57,6 +58,19 @@ for access_handler in uvicorn_access_logger.handlers:
 
 
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
+rate_limit_store=SQLiteRateLimitStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+app.add_middleware(
+    ApiRateLimitMiddleware,
+    store=rate_limit_store,
+    limits={
+        "default": int(os.getenv("NEXUS_API_RATE_LIMIT_PER_MINUTE", "120")),
+        "auth": int(os.getenv("NEXUS_API_AUTH_RATE_LIMIT_PER_MINUTE", "20")),
+        "publish": int(os.getenv("NEXUS_API_PUBLISH_RATE_LIMIT_PER_MINUTE", "10")),
+        "control": int(os.getenv("NEXUS_API_CONTROL_RATE_LIMIT_PER_MINUTE", "30")),
+        "review": int(os.getenv("NEXUS_API_REVIEW_RATE_LIMIT_PER_MINUTE", "60")),
+        "production": int(os.getenv("NEXUS_API_PRODUCTION_RATE_LIMIT_PER_MINUTE", "30")),
+    },
+)
 trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 trend_ingestor=TrendIngestor(trend_store)
 competitor_store=CompetitorStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
