@@ -1034,3 +1034,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - A slower concurrent status poll returning `PROCESSING_UPLOAD` can no longer downgrade an already-recorded inbox handoff.
 - Add a regression test for stale processing status after inbox handoff.
 - CI passed at code commit 5b9465a (326 tests).
+
+
+### BUILD-00039 — unified production lifecycle trace endpoint (2026-11-15)
+
+- Added authenticated `GET /api/lifecycle/jobs/{job_id}` to return one production job's durable queue record and events, production record and artifacts, complete human-review history/latest decision, and YouTube/TikTok publication records.
+- The endpoint rejects missing jobs and non-production queue jobs rather than returning a misleading partial lifecycle.
+- Publishing states remain platform-specific and are returned independently; a YouTube upload or TikTok inbox handoff is not collapsed into a generic "published" state.
+- Added API regression tests for joined lifecycle data and non-production job rejection.
+- Validation pending on this commit; no live platform posting or external service validation is implied.
