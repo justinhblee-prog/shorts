@@ -33,6 +33,49 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(ranked[0]["recommendation_score"],
                          round(sum(ranked[0]["score_breakdown"].values()), 2))
 
+    def test_collection_time_does_not_masquerade_as_publication_freshness(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        trend = {
+            "id": "collected-only",
+            "title": "AI technology explained",
+            "region": "US",
+            "collected_at": now.isoformat(),
+        }
+        brand = {
+            "slug": "future-leak", "name": "Future Leak", "active": True,
+            "config": {"positioning": "AI technology", "regions": ["US"]},
+        }
+        result = rank_trend_candidates([trend], [brand], now=now)[0]
+        self.assertEqual(result["freshness_score"], 0)
+        self.assertIsNone(result["publication_age_hours"])
+        self.assertEqual(result["freshness_evidence"], "unverified")
+        self.assertIn("trend_publication_timestamp_unavailable",
+                      result["evidence_gaps"])
+
+    def test_brand_region_and_language_matching_are_case_insensitive(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        brand = {
+            "slug": "future-leak", "name": "Future Leak", "active": True,
+            "config": {
+                "positioning": "AI technology", "regions": ["us"],
+                "languages": ["EN-us"],
+            },
+        }
+        supported = {
+            "id": "en", "title": "AI technology explained", "region": "US",
+            "language": "en", "published_at": now.isoformat(),
+        }
+        unsupported = {
+            "id": "ja", "title": "AI technology explained", "region": "US",
+            "language": "ja", "published_at": now.isoformat(),
+        }
+        result = rank_trend_candidates([supported, unsupported], [brand], now=now)
+        en = next(item for item in result if item["trend"]["id"] == "en")
+        ja = next(item for item in result if item["trend"]["id"] == "ja")
+        self.assertEqual(en["best_brand"]["brand"], "future-leak")
+        self.assertEqual(en["best_brand"]["language_match"], "matched")
+        self.assertIsNone(ja["best_brand"])
+
     def test_no_brand_match_is_not_invented(self):
         result = rank_trend_candidates(
             [{"id": "x", "title": "Local gardening", "region": "US"}],
