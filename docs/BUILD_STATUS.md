@@ -1340,3 +1340,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The endpoint is diagnostic only: no live assignment, variant delivery, outcome attribution, rollout, or recommendation-score adjustment is enabled.
 - Regression tests cover the distinction between shadow assignments and viewport acknowledgements, plus detection of an unexpected persisted assignment mode.
 - GitHub Actions run [43707809205](https://github.com/justinhblee-prog/shorts/actions/runs/43707809205) passed **434 tests**; `scripts/validate.sh` completed successfully, including Python compileall, YAML validation, frontend syntax/ID checks and full unittest discovery.
+
+
+## BUILD-00064 — experiment integrity diagnostics in operator workspace
+
+- Integrated the authenticated experiment-integrity audit into the control center as an explicit operator-triggered check; no automatic polling or state mutation.
+- Displays experiment count, shadow assignment count, client viewport acknowledgement count, verified randomized served exposures, assignment-to-exposure join availability, outcome attribution availability, duplicate fingerprint groups, foreign-key issues and per-experiment integrity warnings.
+- Explicitly displays live assignment, ranking adjustment and deployment authorization as disabled/zero.
+- Added API authorization/read-only regression coverage and frontend integration assertions.
+- The preceding BUILD-00063 documentation-only head CI run [43707877471](https://github.com/justinhblee-prog/shorts/actions/runs/43707877471) completed successfully. BUILD-00064 validation is pending for the new code/UI changes.
