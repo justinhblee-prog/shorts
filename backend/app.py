@@ -79,6 +79,7 @@ class YouTubeUploadReconciliation(BaseModel):
 
 class YouTubeLateSuccessResolution(BaseModel):
     operator_id:str=Field(min_length=1,max_length=128)
+    video_id:str=Field(min_length=1,max_length=128)
     note:str=Field(min_length=1,max_length=2000)
 
 class LedgerEntry(BaseModel):
@@ -356,7 +357,7 @@ def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
     require_review_access(x_review_token)
     try:
         return youtube_upload_store.resolve_late_success(
-            job_id,body.operator_id,body.note
+            job_id,body.operator_id,body.note,body.video_id
         )
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
