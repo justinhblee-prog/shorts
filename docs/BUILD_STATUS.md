@@ -770,3 +770,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression tests for API bypasses, provider retryability, atomic failure/pause behavior, policy-failure isolation, cancellation, and post-confirmation upload read failures.
 - GitHub Actions push run 43674578819 passed on the latest-main branch: Python compileall, Compose YAML validation, frontend syntax/ID checks, and all 202 backend unit tests.
 - External provider/production validation has not been performed.
+
+### API execution lease renewal hardening — 2026-11-15
+
+- Fixed a lease-expiry gap in the API-triggered production execution route. The endpoint now renews the queue lease in a daemon heartbeat while script, voice and render providers are running.
+- If heartbeat renewal fails, the endpoint persists a production pause, sets a stop signal consumed by the pipeline between provider operations, waits for the heartbeat thread to stop, and refuses to mark the job review-pending.
+- Added a regression test for heartbeat lease loss and confirmed the API path does not call queue.finish after lease loss.
+- GitHub Actions runs 43674812239 and 43674806863 passed on commit 4ffc4af752cfcda6e2f20f80ba3826189596b72d; each ran compile/Compose/frontend validation and all 203 backend unit tests.
+- Still not merged or deployed. Live provider behavior has not been exercised.
