@@ -688,7 +688,9 @@ def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
 @app.post("/api/jobs/claim")
 def claim(body:Claim,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    return {"job":queue.claim(body.worker_id,body.hostname)}
+    # Production jobs must be claimed by the production-aware worker path.
+    return {"job":queue.claim(body.worker_id,body.hostname,
+                              exclude_job_type="short_video_production")}
 @app.post("/api/jobs/{jid}/heartbeat")
 def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
