@@ -1,6 +1,8 @@
 import os
 import unittest
 import logging
+import tempfile
+from pathlib import Path
 import app as app_module
 from unittest import mock
 from fastapi import HTTPException, Response
@@ -19,10 +21,40 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  skip_recommendation_feedback, capture_trend_recommendations,
                  get_job_lifecycle, get_job_lifecycle_consistency, get_lifecycle_queue,
                  operational_health, operational_recovery_plan, get_job_failure_analysis, get_job_lifecycle_overview, metrics_collection_status,
-                 capture_recommendation_evaluation_snapshot, list_recommendation_evaluation_snapshots)
+                 capture_recommendation_evaluation_snapshot, list_recommendation_evaluation_snapshots,
+                 require_canonical_staged_media)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
+    def test_canonical_staged_media_accepts_only_current_job_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            expected=root/"job-1.mp4"
+            expected.write_bytes(b"approved-media")
+            with mock.patch.object(app_module,"media_stager",SimpleNamespace(
+                media_dir=root,staged_path=lambda job_id:root/(job_id+".mp4")
+            )):
+                self.assertEqual(require_canonical_staged_media("job-1",expected.name),str(expected))
+                with self.assertRaises(HTTPException) as caught:
+                    require_canonical_staged_media("job-1","other-job.mp4")
+                self.assertEqual(caught.exception.status_code,409)
+
+    def test_canonical_staged_media_rejects_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            expected=root/"job-1.mp4"
+            expected.write_bytes(b"approved-media")
+            other=root/"other.mp4"
+            other.write_bytes(b"unapproved-media")
+            link=root/"job-1-link.mp4"
+            link.symlink_to(other)
+            with mock.patch.object(app_module,"media_stager",SimpleNamespace(
+                media_dir=root,staged_path=lambda job_id:expected
+            )):
+                with self.assertRaises(HTTPException) as caught:
+                    require_canonical_staged_media("job-1",str(link))
+                self.assertEqual(caught.exception.status_code,409)
+
     def test_failure_analysis_requires_review_access_and_classifies_latest_failure(self):
         job={"id":"job-1","job_type":"short_video_production","status":"failed_retriable",
              "error_code":"provider_rendering","error_message":"Provider connection failed",
