@@ -363,7 +363,7 @@ class YouTubePublisher:
         existing=self.store.get(job_id)
         if existing and existing["status"]=="uploaded":
             return existing
-        self.store.begin(job_id,title,description)
+        upload_attempt=self.store.begin(job_id,title,description)
         remote_request_started=False
         heartbeat_stop=threading.Event()
         heartbeat_thread=None
