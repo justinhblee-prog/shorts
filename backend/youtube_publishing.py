@@ -203,14 +203,17 @@ class YouTubeUploadStore:
             if row is None or row["status"]=="late_success_review_required":
                 return
             now=_now()
+            if row["status"]=="uploaded":
+                event_type=("post_confirmation_worker_error"
+                            if row["attempt_id"]==attempt_id
+                            else "superseded_attempt_uncertain")
+                c.execute("""INSERT INTO youtube_upload_events
+                  (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
+                  VALUES(?,?,?,'informational',NULL,'system:upload_worker',?,
+                    'uploaded','uploaded',?)""",
+                  (job_id,attempt_id,event_type,str(error)[:2000],now))
+                return
             if row["attempt_id"]!=attempt_id:
-                if row["status"]=="uploaded":
-                    c.execute("""INSERT INTO youtube_upload_events
-                      (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
-                      VALUES(?,?,'superseded_attempt_uncertain','uncertain',NULL,'system:upload_worker',?,
-                        'uploaded','uploaded',?)""",
-                      (job_id,attempt_id,str(error)[:2000],now))
-                    return
                 c.execute("""INSERT INTO youtube_upload_events
                   (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
                   VALUES(?,?,'superseded_attempt_uncertain','uncertain',NULL,'system:upload_worker',?,?, 'reconciliation_required',?)""",
