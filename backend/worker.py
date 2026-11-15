@@ -31,6 +31,7 @@ pipeline = ProductionPipeline(store)
 stopping = threading.Event()
 active_job_id = None
 active_lost_lease_event = None
+INSTANCE_TOKEN = str(uuid.uuid4())
 
 
 def handle_shutdown_signal(signum, frame):
@@ -43,7 +44,7 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
     interval = HEARTBEAT_SECONDS if interval is None else max(0, interval)
     while not heartbeat_stop.wait(interval):
         try:
-            queue.heartbeat(job_id, WORKER_ID, token)
+            queue.heartbeat(job_id, WORKER_ID, token, INSTANCE_TOKEN)
         except LeaseConflict as exc:
             lost_lease.set()
             stopping.set()
@@ -71,7 +72,8 @@ def run_once():
     store.reconcile_missing_runs(queue)
     store.reconcile_terminal_jobs(queue)
     store.reconcile_review_pending(queue)
-    job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production")
+    job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production",
+                      instance_token=INSTANCE_TOKEN)
     if job is None:
         return False
     lost_lease = threading.Event()
@@ -173,7 +175,7 @@ def main():
         while True:
             # Keep idle and paused workers visible; job heartbeats alone only
             # refresh registry timestamps while a production lease is running.
-            queue.register_worker(WORKER_ID, socket.gethostname())
+            queue.register_worker(WORKER_ID, socket.gethostname(), INSTANCE_TOKEN)
             if stopping.is_set():
                 return
             if queue.is_paused():
@@ -193,7 +195,7 @@ def main():
         raise
     finally:
         try:
-            queue.mark_worker_offline(WORKER_ID)
+            queue.mark_worker_offline(WORKER_ID, INSTANCE_TOKEN)
         except Exception as exc:
             # Do not hide the original worker failure if shutdown bookkeeping fails.
             print(f"worker_offline_record_failed error={type(exc).__name__}")
