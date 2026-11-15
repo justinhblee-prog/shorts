@@ -29,6 +29,13 @@ class TikTokPublishError(RuntimeError):
     pass
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Signed TikTok upload URLs must never redirect media to another host."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def _now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -271,7 +278,8 @@ class TikTokPublisher:
     def _request(url, headers, body, timeout, method="POST"):
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
+            opener = urllib.request.build_opener(_NoRedirectHandler())
+            with opener.open(req, timeout=timeout) as response:
                 return response.status, response.read()
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read(2000)
