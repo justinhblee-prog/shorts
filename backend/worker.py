@@ -81,38 +81,38 @@ def run_once():
     except ProviderError as exc:
         stopping.set()
         try:
-            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
-        except Exception:
-            pass
-        try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
                        "provider_" + exc.stage, str(exc), exc.retryable)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
+        try:
+            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
+        except Exception:
+            pass
         print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}")
     except (LeaseConflict, ProductionLeaseConflict) as exc:
         stopping.set()
-        try:
-            queue.pause(f"lease/production conflict: {exc}", job["id"])
-        except Exception:
-            pass
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
                        "worker_interrupted_ambiguous", str(exc), False)
         except LeaseConflict:
             pass
+        try:
+            queue.pause(f"lease/production conflict: {exc}", job["id"])
+        except Exception:
+            pass
         print(f"lease_lost job={job['id']}; worker_paused")
     except Exception as exc:
         stopping.set()
-        try:
-            queue.pause(f"fatal worker error: {type(exc).__name__}: {exc}", job["id"])
-        except Exception:
-            pass
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
                        "worker_error", str(exc), False)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
+        try:
+            queue.pause(f"fatal worker error: {type(exc).__name__}: {exc}", job["id"])
+        except Exception:
+            pass
         print(f"worker_failure job={job['id']} error={type(exc).__name__}")
     finally:
         heartbeat_stop.set()
