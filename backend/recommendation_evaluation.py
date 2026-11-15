@@ -4,12 +4,13 @@ Only recommendations returned by the API and subsequently selected for productio
 are eligible outcomes. This is an observational, selection-biased evaluation, not
 a causal estimate or a counterfactual test of unseen recommendations.
 """
+import hashlib
 import json
 import math
 import sqlite3
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
 def _now():
@@ -66,6 +67,11 @@ class RecommendationEvaluationStore:
             CREATE INDEX IF NOT EXISTS idx_recommendation_candidate_selected
               ON recommendation_candidates(selected_job_id,selected_at);
             """)
+            columns = {row["name"] for row in c.execute(
+                "PRAGMA table_info(recommendation_runs)"
+            ).fetchall()}
+            if "signature" not in columns:
+                c.execute("ALTER TABLE recommendation_runs ADD COLUMN signature TEXT NOT NULL DEFAULT ''")
 
     @contextmanager
     def db(self):
@@ -106,18 +112,53 @@ class RecommendationEvaluationStore:
                            ensure_ascii=False, sort_keys=True),
                 timestamp,
             ))
+        signature_payload = [
+            [row[2], row[5], row[7], row[8], row[9], row[10]]
+            for row in rows
+        ]
+        signature = hashlib.sha256(json.dumps(
+            signature_payload, ensure_ascii=False, sort_keys=True
+        ).encode("utf-8")).hexdigest()
+        generated = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        if generated.tzinfo is None:
+            generated = generated.replace(tzinfo=timezone.utc)
+        cutoff = (generated - timedelta(seconds=60)).isoformat()
+        retention_cutoff = (generated - timedelta(days=180)).isoformat()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            previous = c.execute("""SELECT id,candidate_count FROM recommendation_runs
+                WHERE region IS ? AND signature=? AND generated_at>=?
+                ORDER BY generated_at DESC LIMIT 1""",
+                (region, signature, cutoff)).fetchone()
+            if previous:
+                return {
+                    "run_id": previous["id"],
+                    "recorded_candidates": int(previous["candidate_count"]),
+                    "deduplicated": True,
+                }
             c.execute("""INSERT INTO recommendation_runs
-              (id,region,generated_at,candidate_count,scoring_method)
-              VALUES(?,?,?,?,?)""",
-              (run_id, region, timestamp, len(rows), "editorial_v1"))
+              (id,region,generated_at,candidate_count,scoring_method,signature)
+              VALUES(?,?,?,?,?,?)""",
+              (run_id, region, timestamp, len(rows), "editorial_v1", signature))
             c.executemany("""INSERT INTO recommendation_candidates
               (id,run_id,trend_id,trend_title,trend_region,brand_slug,brand_name,
                recommendation_rank,recommendation_score,score_breakdown_json,
                cohort_context_json,created_at)
               VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", rows)
-        return {"run_id": run_id, "recorded_candidates": len(rows)}
+            # Retain selected records indefinitely for longitudinal evaluation;
+            # prune only stale, unselected snapshots and their empty run headers.
+            c.execute("""DELETE FROM recommendation_candidates
+                WHERE selected_job_id IS NULL AND created_at<?""",
+                (retention_cutoff,))
+            c.execute("""DELETE FROM recommendation_runs
+                WHERE generated_at<? AND NOT EXISTS (
+                  SELECT 1 FROM recommendation_candidates c
+                  WHERE c.run_id=recommendation_runs.id
+                )""", (retention_cutoff,))
+        return {
+            "run_id": run_id, "recorded_candidates": len(rows),
+            "deduplicated": False,
+        }
 
     def link_production(self, trend_id, brand_slug, job_id, selected_at=None):
         timestamp = selected_at or _now()
