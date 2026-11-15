@@ -283,7 +283,9 @@ class ProductionTests(unittest.TestCase):
         result = pipeline.execute("job-byte-inspected", self.brief)
         quality = next(a["metadata"] for a in result["artifacts"]
                        if a["stage"] == "quality_check")
-        self.assertEqual(quality["status"], "ready_for_human_review")
+        self.assertEqual(quality["status"], "review_required")
+        self.assertIn("speech_transcription_not_configured", quality["warnings"])
+        self.assertNotIn("actual_media_bytes_not_inspected", quality["warnings"])
         self.assertEqual(quality["media_inspection"]["inspection_method"],
                          "ffprobe_file_bytes")
         self.assertTrue(quality["checks"][-1]["status"] == "inspected")
