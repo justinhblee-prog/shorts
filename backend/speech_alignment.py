@@ -70,8 +70,9 @@ def _subtitle_payload_to_text(value):
 def build_caption_alignment_report(script, subtitle_text, asr_transcript=None,
                                    max_word_error_rate=0.25):
     caption_text = _subtitle_payload_to_text(subtitle_text)
-    reference = asr_transcript if isinstance(asr_transcript, str) and asr_transcript.strip() else script
-    reference_kind = "independent_asr_transcript" if reference is not script and asr_transcript else "generated_script"
+    asr_available = isinstance(asr_transcript, str) and bool(asr_transcript.strip())
+    reference = asr_transcript if asr_available else script
+    reference_kind = "independent_asr_transcript" if asr_available else "generated_script"
     result = compare_transcript_to_script(
         reference, caption_text, max_word_error_rate=max_word_error_rate
     )
