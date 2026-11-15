@@ -472,7 +472,7 @@
         if(note===null||!note.trim())return;
         if(!confirm("원격 플랫폼에서 결과를 직접 확인했으며, 이 운영자 확인을 감사 기록에 남기시겠습니까?"))return;
         const body={outcome:outcome.trim(),confirmed:true,video_id:videoId||undefined,note:note.trim(),operator_id:operatorId};
-        await api("/api/"+platform+"/publications/"+encodeURIComponent(jobId)+"/reconcile",{
+        await api(platform==="youtube"?"/api/youtube/uploads/"+encodeURIComponent(jobId)+"/reconcile":"/api/tiktok/publications/"+encodeURIComponent(jobId)+"/reconcile",{
           method:"POST",body:JSON.stringify(body)
         });
         toast(platform+" 게시 결과 운영자 확인 기록 완료");
