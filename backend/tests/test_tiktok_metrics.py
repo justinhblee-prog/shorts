@@ -117,6 +117,9 @@ class TikTokMetricsTests(unittest.TestCase):
         malformed = self._collector(["not", "an", "object"])
         with self.assertRaisesRegex(TikTokMetricsError, "unexpected response shape"):
             malformed.refresh_due_metrics(min_age_seconds=0)
+        malformed_data = self._collector({"data": [], "error": {"code": "ok"}})
+        with self.assertRaisesRegex(TikTokMetricsError, "omitted its data object"):
+            malformed_data.refresh_due_metrics(min_age_seconds=0)
 
     def test_metrics_lease_is_exclusive_and_owner_token_fenced(self):
         first = self.store.acquire_lease("collector-a", 60)
