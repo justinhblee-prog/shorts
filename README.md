@@ -25,6 +25,7 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 - **Intelligence:** collect Google News/Hacker News signals, search competitor channels, and score attributed profitability scenarios.
 - **Review:** inspect actual provider-generated video references; approve, reject or request revisions.
 - **Approved uploads:** stage the saved MP4 artifact from an allowlisted HTTPS host and explicitly initiate a YouTube upload. Upload privacy is always `private`.
+- **TikTok:** connect the creator account from Integration Readiness. OAuth state is one-time and expires after ten minutes; access/refresh tokens are encrypted in SQLite, access tokens refresh proactively, and rotated refresh tokens replace the previous value. TikTok Direct Post is fixed to `SELF_ONLY` until a separate audited public-publishing milestone.
 - **Ambiguous upload recovery:** if a resumable upload times out after starting, automatic retries are blocked. Check YouTube Studio and use the dashboard reconciliation action after the stale threshold (`NEXUS_UPLOAD_STALE_SECONDS`, default 900 seconds).
 - **Operations:** configure interval schedules, record verified financial entries, inspect snapshot-based performance insights, and pause/resume production with an audited operator note.
 
