@@ -91,6 +91,14 @@ class PolicyEvidenceInput(BaseModel):
     child_safety_review_confirmed:bool|None=None
 
 
+class TikTokPublishReconciliation(BaseModel):
+    outcome:Literal["published","not_published"]
+    confirmed:bool
+    publish_id:str|None=Field(default=None,min_length=1,max_length=64)
+    operator_id:str=Field(min_length=1,max_length=128)
+    note:str=Field(min_length=1,max_length=2000)
+
+
 class TikTokPublishRequest(BaseModel):
     media_path:str=Field(min_length=1,max_length=2000)
     title:str=Field(min_length=1,max_length=2200)
@@ -449,6 +457,20 @@ def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=Non
     if result is None:
         raise HTTPException(404,"TikTok publication not found")
     return result
+
+
+@app.post("/api/tiktok/publications/{job_id}/reconcile")
+def reconcile_tiktok_publication(job_id:str,body:TikTokPublishReconciliation,
+                                 x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    if not body.confirmed:
+        raise HTTPException(422,"Explicit operator confirmation is required")
+    try:
+        return tiktok_publish_store.reconcile(
+            job_id,body.outcome,body.operator_id,body.note,body.publish_id
+        )
+    except TikTokPublishError as e:
+        raise HTTPException(409,str(e))
 
 
 @app.post("/api/tiktok/publications/{job_id}/refresh-status")
