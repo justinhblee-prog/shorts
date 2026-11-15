@@ -124,18 +124,35 @@ def evaluate_content_policy(brief):
 
     required = list(missing_rights)
     approval_blockers = list(missing_rights)
+    youtube_contains_synthetic_media = brief.get("youtube_contains_synthetic_media")
+    if "youtube" in platforms:
+        if synthetic in ("none", "ai_assisted_nonrealistic"):
+            if youtube_contains_synthetic_media not in (None, False):
+                raise ValueError("youtube_contains_synthetic_media must be false for non-realistic content")
+            youtube_contains_synthetic_media = False
+        elif synthetic == "realistic_alteration":
+            if youtube_contains_synthetic_media not in (None, True):
+                raise ValueError("youtube_contains_synthetic_media must be true for realistic altered or synthetic content")
+            youtube_contains_synthetic_media = True
+        elif synthetic == "ai_generated":
+            if not isinstance(youtube_contains_synthetic_media, bool):
+                required.append("youtube_contains_synthetic_media")
+                approval_blockers.append("youtube_contains_synthetic_media")
+    else:
+        youtube_contains_synthetic_media = None
+
     if synthetic == "unknown":
         required.append("synthetic_media_status")
         approval_blockers.append("synthetic_media_status")
     elif synthetic in ("ai_generated", "realistic_alteration"):
-        disclosure_fields = {
-            "youtube": "youtube_altered_content",
-            "tiktok": "tiktok_ai_generated_content",
-        }
-        for platform in platforms:
-            field = disclosure_fields[platform]
-            key = f"platform_disclosures.{field}"
-            if disclosures.get(field) is not True:
+        if "youtube" in platforms and youtube_contains_synthetic_media is True:
+            key = "platform_disclosures.youtube_altered_content"
+            if disclosures.get("youtube_altered_content") is not True:
+                required.append(key)
+                approval_blockers.append(key)
+        if "tiktok" in platforms:
+            key = "platform_disclosures.tiktok_ai_generated_content"
+            if disclosures.get("tiktok_ai_generated_content") is not True:
                 required.append(key)
                 approval_blockers.append(key)
 
@@ -194,6 +211,12 @@ def evaluate_content_policy(brief):
         "evaluated_at": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "platforms": platforms,
+        "synthetic_media_status": synthetic,
+        "youtube_contains_synthetic_media": youtube_contains_synthetic_media,
+        "platform_disclosures": {
+            key: disclosures.get(key) for key in ("youtube_altered_content", "tiktok_ai_generated_content")
+            if key in disclosures
+        },
         "blocking_reasons": blocked,
         "required_confirmations": required,
         "approval_blockers": approval_blockers,
