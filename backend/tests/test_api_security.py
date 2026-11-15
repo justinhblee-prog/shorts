@@ -764,9 +764,10 @@ class ApiSecurityTests(unittest.TestCase):
                "status": "running", "worker_id": "worker-1",
                "lease_token": "lease-1", "payload": {"topic": "test"}}
         response = {"status": "review_pending"}
-        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1", instance_token="instance-1")
         with (
             mock.patch("app.require_review_access"),
+            mock.patch("app.queue.assert_current_worker_instance"),
             mock.patch("app.queue.get", return_value=job),
             mock.patch("app.production_pipeline.execute",
                               return_value={"artifacts": []}) as execute,
@@ -778,10 +779,32 @@ class ApiSecurityTests(unittest.TestCase):
 
         self.assertEqual(result, response)
         execute.assert_called_once_with(
-            "job-1", job["payload"], worker_id="worker-1", lease_token="lease-1"
+            "job-1", job["payload"], worker_id="worker-1", lease_token="lease-1",
+            instance_token="instance-1"
         )
-        finish.assert_called_once()
+        finish.assert_called_once_with("job-1","worker-1","lease-1",
+            {"production_status":"review_pending"},instance_token="instance-1")
         reconcile.assert_called_once_with(app_module.queue)
+
+    def test_api_production_execution_rejects_stale_worker_instance(self):
+        job = {"id":"job-stale","job_type":"short_video_production","status":"running",
+               "worker_id":"worker-1","lease_token":"lease-1","payload":{"topic":"test"}}
+        body = ProductionExecute(worker_id="worker-1",lease_token="lease-1",
+                                 instance_token="instance-old")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue,"get",return_value=job),
+            mock.patch.object(app_module.queue,"assert_current_worker_instance",
+                              side_effect=LeaseConflict("stale worker instance")),
+            mock.patch.object(app_module.production_pipeline,"execute") as execute,
+            mock.patch.object(app_module.queue,"pause") as pause,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job("job-stale",body,x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code,409)
+        execute.assert_not_called()
+        pause.assert_called_once_with("API queue lease conflict: stale worker instance","job-stale",
+                                      worker_id="worker-1",instance_token="instance-old")
 
     def test_api_production_execution_rejects_stale_pipeline_lease(self):
         job = {"id": "job-1", "job_type": "short_video_production",
@@ -791,6 +814,8 @@ class ApiSecurityTests(unittest.TestCase):
         with (
             mock.patch("app.require_review_access"),
             mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "assert_current_worker_instance"),
+            mock.patch.object(app_module.queue, "assert_current_worker_instance"),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProductionLeaseConflict("stale lease")),
             mock.patch.object(app_module.queue, "fail") as fail,
