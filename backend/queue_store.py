@@ -227,6 +227,41 @@ class JobQueue:
             self.event(c,jid,"failed","running",status,worker,{"error_code":error_code,"retryable":retry})
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
+    def list_jobs(self, job_type=None, limit=50, offset=0, status=None):
+        """Return bounded, metadata-only queue rows for read-only operator dashboards."""
+        limit = max(1, min(int(limit), 100))
+        offset = max(0, int(offset))
+        clauses = []
+        params = []
+        if job_type:
+            clauses.append("job_type=?")
+            params.append(str(job_type))
+        if status:
+            clauses.append("status=?")
+            params.append(str(status))
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self.db() as c:
+            total = c.execute("SELECT COUNT(*) FROM pipeline_jobs" + where, params).fetchone()[0]
+            rows = c.execute(
+                """SELECT id,job_type,channel_name,status,priority,attempt,max_attempts,
+                   available_at,worker_id,lease_expires_at,error_code,error_message,
+                   created_at,updated_at,started_at,completed_at
+                   FROM pipeline_jobs""" + where +
+                " ORDER BY updated_at DESC,created_at DESC LIMIT ? OFFSET ?",
+                (*params, limit, offset),
+            ).fetchall()
+            counts = c.execute(
+                "SELECT status,COUNT(*) AS count FROM pipeline_jobs" + where + " GROUP BY status",
+                params,
+            ).fetchall()
+        return {
+            "items": [dict(row) for row in rows],
+            "total": int(total),
+            "limit": limit,
+            "offset": offset,
+            "status_counts": {row["status"]: int(row["count"]) for row in counts},
+        }
+
     def get(self,jid):
         with self.db() as c:
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
