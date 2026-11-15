@@ -97,12 +97,19 @@ class ScheduleStore:
                 "SELECT * FROM production_schedules ORDER BY created_at DESC")]
 
     def set_active(self, sid, active):
+        stamp = _stamp(datetime.now(timezone.utc))
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             cur = c.execute("UPDATE production_schedules SET active=?,updated_at=? WHERE id=?",
-                            (int(bool(active)), _stamp(datetime.now(timezone.utc)), sid))
+                            (int(bool(active)), stamp, sid))
             if not cur.rowcount:
                 return None
+            if not active:
+                # A due occurrence that has not reached the queue is still
+                # cancellable. Do not replay it if this schedule is later re-enabled.
+                c.execute("""UPDATE schedule_dispatch_outbox
+                    SET status='cancelled',last_error='Schedule deactivated before dispatch'
+                    WHERE schedule_id=? AND status='pending'""", (sid,))
             return self.get(sid, c)
 
     def pending_dispatches(self, limit=100):
