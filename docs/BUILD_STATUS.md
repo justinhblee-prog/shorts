@@ -89,15 +89,18 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - No production worker, PostgreSQL, external AI generation, OAuth, rendering or YouTube publishing has been validated.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
 
-## Next actions
+## Remaining blockers before a real revenue-producing launch
 
-1. Resolve GitHub Actions runner initialization and execute the complete Python test suite; do not treat committed mocked tests as passed.
-2. BUILD-00007 — implement explicit human review, approve/reject, revision and audit history for rendered shorts.
-3. BUILD-00008 — YouTube OAuth, private upload, upload status and platform metrics ingestion.
-4. BUILD-00009 — actual cost/revenue ledger with ad, affiliate and sponsor sources kept separate.
-5. BUILD-00010 — performance analysis and evidence-backed strategy recommendations.
-6. BUILD-00011/00012 — scheduling, recovery, integrated validation and deployment.
-7. Connect and validate real script, TTS and renderer providers using credentials supplied in the runtime environment.
+1. **CI runner:** GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43656517188 failed before any step (`runner_id=0`, empty runner name, `steps=[]`). No Python test has executed. Resolve runner allocation or run `./scripts/validate.sh` in an authorized Python 3.11+ environment.
+2. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
+3. **Media handoff:** current renderer output is a remote artifact URL, while YouTube upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
+4. **YouTube OAuth:** issue and configure a refresh token with `youtube.upload` and `youtube.readonly`; validate channel identity, quota, private upload and processing on a test channel.
+5. **Financial integrations:** connect YouTube Analytics, affiliate networks and sponsor billing to the source-backed ledger. Reconcile actual currency, refunds, taxes and platform adjustments.
+6. **Security/operations:** replace shared review token with real user identity and roles; add HTTPS, secret rotation, audit export, backups/restore, monitoring, rate limits and incident recovery.
+7. **Scale:** migrate SQLite to PostgreSQL and add distributed worker/scheduler coordination before multi-instance deployment.
+8. **Commercial validation:** test one controlled content cohort across the ten brands; compare verified net revenue and costs before increasing production volume. No actual revenue or monetization is established yet.
+
+All BUILD-00001 through BUILD-00012 source milestones have a committed baseline. This is **not** equivalent to a tested production system or a completed revenue-generating business. External credentials, real provider execution, YouTube channel authorization and actual financial data remain necessary.
 
 ## Versioning
 
@@ -184,3 +187,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Added `scripts/validate.sh` to run compileall and the complete unittest suite.
 - Docker Compose deployment is a local/single-host baseline. SQLite shared-volume operation is not a horizontally scalable production database architecture.
 - **Not validated:** image build, compose startup, tests, provider credentials, OAuth, YouTube upload, media playback, monitoring, backups, restore, TLS/reverse proxy or production traffic.
+
+## Latest CI observation
+
+The latest checked run (run 74) failed before runner allocation: `runner_id=0`, `runner_name` empty, and `steps=[]`. It did not execute checkout, dependency installation, compilation or tests. A local clone attempt from this execution environment also could not resolve github.com, so no alternate local test run was possible. Do not interpret this as code passing or failing.
