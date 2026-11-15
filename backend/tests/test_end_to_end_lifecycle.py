@@ -190,6 +190,21 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.assertEqual(self.production.get(job_id)["status"], "review_pending")
 
 
+    def test_cancel_after_queue_completion_prevents_review_promotion(self):
+        brief = {"brand": "Brain Glitch", "region": "US",
+                 "language": "English", "topic": "Cancelled after finish"}
+        submitted = submit_production(self.queue, self.production, brief)
+        job_id = submitted["job"]["id"]
+        claimed = self.queue.claim("cancel-race-worker", "test-host",
+                                   job_type="short_video_production")
+        self.production.stage(job_id, "rendered", "rendered")
+        self.queue.finish(job_id, "cancel-race-worker", claimed["lease_token"],
+                          {"production_status": "review_pending"})
+        self.queue.cancel(job_id, "Operator cancelled before review handoff")
+        result = self.production.reconcile_review_pending(self.queue)
+        self.assertEqual(result["reconciled"], 0)
+        self.assertEqual(self.production.get(job_id)["status"], "rendered")
+
     def test_reconciliation_never_promotes_a_job_before_queue_completion(self):
         brief = {"brand": "Brain Glitch", "region": "US",
                  "language": "English", "topic": "Not complete"}
