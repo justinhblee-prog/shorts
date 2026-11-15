@@ -106,3 +106,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 GitHub Actions runs have repeatedly ended before runner allocation with `runner_id=0`, empty runner name and no steps. This is an infrastructure/runner allocation failure, not evidence that tests passed or failed. A rerun has been requested, but no successful test execution has been observed.
 
 Real provider credentials, renderer CDN hostnames, YouTube OAuth and financial integrations are external dependencies. No real revenue outcome is established by the committed source code.
+
+### Review queue recovery
+
+The worker reconciles completed queue jobs before claiming new work. The authenticated pending-review API also performs this reconciliation. If a process stops after the durable queue enters `review_pending` but before the production record is updated, the next worker poll or pending-review request repairs the production record. The queue status is authoritative; jobs that are not durably `review_pending` are never promoted by this recovery path.
