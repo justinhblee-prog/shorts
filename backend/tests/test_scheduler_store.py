@@ -53,6 +53,24 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(self.queue.stats()["total"], 1)
         self.assertEqual(self.schedules.pending_dispatches(), [])
 
+
+    def test_queue_failure_keeps_outbox_pending_for_retry(self):
+        now = datetime.now(timezone.utc)
+        item = self.schedule(now - timedelta(minutes=5))
+        class FailingQueue:
+            def enqueue(self, *args, **kwargs):
+                raise RuntimeError("temporary queue outage")
+        first = self.schedules.dispatch_due(FailingQueue(), now=now)
+        self.assertEqual(first["count"], 0)
+        pending = self.schedules.pending_dispatches()
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["attempts"], 1)
+        self.assertIn("temporary queue outage", pending[0]["last_error"])
+        second = self.schedules.dispatch_due(self.queue, now=now)
+        self.assertEqual(second["count"], 1)
+        self.assertEqual(self.schedules.pending_dispatches(), [])
+        self.assertEqual(self.queue.stats()["total"], 1)
+
     def test_inactive_schedule_does_not_create_outbox(self):
         now = datetime.now(timezone.utc)
         item = self.schedule(now - timedelta(hours=2))
