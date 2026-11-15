@@ -209,6 +209,41 @@ class TikTokPublishStore:
               WHERE job_id=? AND attempt_id=? AND status='initializing'
             """, (message[:1000], _now(), job_id, attempt_id))
 
+    def due_status_job_ids(self, limit=5, min_age_seconds=60):
+        cutoff = datetime.now(timezone.utc).timestamp() - max(0, int(min_age_seconds))
+        cutoff_iso = datetime.fromtimestamp(cutoff, timezone.utc).isoformat()
+        with self.db() as c:
+            rows = c.execute("""
+              SELECT job_id FROM tiktok_publications
+              WHERE publish_id IS NOT NULL
+                AND status IN ('uploading','processing','reconciliation_required')
+                AND updated_at<=?
+              ORDER BY updated_at ASC LIMIT ?
+            """, (cutoff_iso, max(1, min(int(limit), 20)))).fetchall()
+            return [row["job_id"] for row in rows]
+
+    def record_status_poll_error(self, job_id, attempt_id, message):
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row = c.execute(
+                "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
+            ).fetchone()
+            if not row or row["attempt_id"] != attempt_id:
+                return False
+            stamp = _now()
+            c.execute(
+                "UPDATE tiktok_publications SET updated_at=? WHERE job_id=?",
+                (stamp, job_id),
+            )
+            c.execute("""
+              INSERT INTO tiktok_publication_events
+                (job_id,attempt_id,event_type,outcome,publish_id,operator_id,
+                 note,created_at,policy_version)
+              VALUES(?,?,'status_poll_failed','retry_scheduled',?,?,?,?,?)
+            """, (job_id, attempt_id, row["publish_id"], row["operator_id"],
+                  message[:1000], stamp, row["policy_version"]))
+            return True
+
     def get(self, job_id):
         with self.db() as c:
             row = c.execute(
@@ -501,3 +536,26 @@ class TikTokPublisher:
             data.get("publicaly_available_post_id") or [],
             data.get("fail_reason"),
         )
+
+    def refresh_due_statuses(self, limit=5, min_age_seconds=60):
+        if not (self.access_token or os.getenv("TIKTOK_ACCESS_TOKEN")):
+            return {"skipped": True, "checked": 0, "updated": 0, "errors": []}
+        job_ids = self.store.due_status_job_ids(limit, min_age_seconds)
+        updated = []
+        errors = []
+        for job_id in job_ids:
+            record = self.store.get(job_id)
+            if record is None:
+                continue
+            try:
+                result = self.refresh_status(job_id)
+                updated.append({"job_id": job_id, "status": result["status"]})
+            except TikTokPublishError as exc:
+                self.store.record_status_poll_error(
+                    job_id, record["attempt_id"], str(exc)
+                )
+                errors.append({"job_id": job_id, "error": str(exc)})
+        return {
+            "skipped": False, "checked": len(job_ids),
+            "updated": len(updated), "results": updated, "errors": errors,
+        }
