@@ -709,3 +709,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added tests for the performance context, no-score-adjustment guarantee and endpoint integration.
 - GitHub Actions run [43672582331](https://github.com/justinhblee-prog/shorts/actions/runs/43672582331) passed **179 tests** on source commit `3d52e5d713967d419c5c7f6fbdceadd83557c2f9`; frontend validation passed (84 unique IDs, 69 literal selectors), and Compose YAML validation passed.
 - This remains historical brand-level context, not a prediction of a specific trend's results. Topic-level performance learning is a separate next step.
+
+### Production replay and API fencing hardening — 2026-11-15
+
+- Consolidated the earlier overlapping safety proposals into Draft PR #15: https://github.com/justinhblee-prog/shorts/pull/15.
+- Provider HTTP 5xx, network failures and timeouts are treated as ambiguous and non-retryable; HTTP 429 remains retryable as an explicit rate-limit rejection.
+- A terminal provider failure atomically updates the queue job and matching production run, pauses production, and fences other running production leases in one SQLite transaction. Non-provider policy failures remain job-local.
+- Generic job APIs cannot create, claim, heartbeat, or complete short_video_production jobs. Those operations must use the production-aware path.
+- Queued production cancellation synchronizes production_runs; running cancellation is treated as ambiguous and fences the lease rather than claiming a clean cancellation.
+- A confirmed YouTube upload remains confirmed if a later metrics/readback request fails.
+- Added regression tests for API bypasses, provider retryability, atomic failure/pause behavior, policy-failure isolation, cancellation, and post-confirmation upload read failures.
+- GitHub Actions push run 43673966274 passed on commit 3ec7eee159285a056f983606fe9522f1e11d7e29: Python compileall, Compose YAML validation, frontend syntax/ID checks, and 194 backend unit tests.
+- PR #15 remains Draft/open and is not merged or deployed. External provider/production validation has not been performed.
