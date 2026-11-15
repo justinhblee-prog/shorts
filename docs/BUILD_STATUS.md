@@ -1689,7 +1689,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 ## BUILD-00098 — worker-instance fencing for completion and production writes (2026-11-15)
 
-- Pull request: [#65](https://github.com/justinhblee-prog/shorts/pull/65), implementation and CI validation completed; integration merge status to be confirmed.
+- Pull request: [#65](https://github.com/justinhblee-prog/shorts/pull/65), merged into the integration-only branch.
 - Job `finish()` and `fail()` now require the current process-instance token when invoked by the production worker.
 - Production stage and artifact writes validate both the job lease and the current worker process instance.
 - Worker-originated pause requests, including heartbeat failure, SIGTERM and startup failure paths, are fenced by the same process token so a stale process cannot pause the production queue after restart.
@@ -1698,3 +1698,23 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Final push CI [43734147538](https://github.com/justinhblee-prog/shorts/actions/runs/43734147538): **556 tests passed**.
 - PR merge-result CI [43734151885](https://github.com/justinhblee-prog/shorts/actions/runs/43734151885): passed.
 - Tests use local SQLite and fake providers; no live AI generation, platform publishing or production deployment was performed.
+
+
+
+## BUILD-00099 — worker claim ownership fencing (2026-11-15)
+
+- Pull request: [#66](https://github.com/justinhblee-prog/shorts/pull/66), merged into the integration-only branch.
+- A claim carrying an instance token now rejects a worker process that no longer owns the registry entry, preventing stale claim attempts from taking over a reused worker ID.
+- Added regression coverage for stale claim rejection and current-instance claim continuity.
+- Integration push CI [43734470042](https://github.com/justinhblee-prog/shorts/actions/runs/43734470042) and PR CI [43734475291](https://github.com/justinhblee-prog/shorts/actions/runs/43734475291): passed.
+- No production deployment or live provider request was performed.
+
+## BUILD-00100 — worker registration / presence-refresh fencing (2026-11-15)
+
+- Pull request: [#67](https://github.com/justinhblee-prog/shorts/pull/67), merged into the integration-only branch at `318f21da8c8bad40a2bd33e2d88c29c24c5efb49`.
+- Identified a remaining restart race: the worker main loop re-registered the same worker ID on every idle iteration, allowing an old process to reclaim the registry row after a replacement process had registered.
+- Worker registration is now a one-time ownership acquisition at process startup. Recurring liveness updates use `touch_worker(worker_id, instance_token)`, which updates only the exact online owner.
+- If a process loses registry ownership, its next presence refresh fails closed and the worker exits through the existing fenced error/shutdown path.
+- Added a regression test proving an old instance cannot refresh presence after the worker ID is reassigned.
+- Final-head push CI [43737410463](https://github.com/justinhblee-prog/shorts/actions/runs/43737410463) and PR merge-result CI [43737420594](https://github.com/justinhblee-prog/shorts/actions/runs/43737420594): passed.
+- Validation uses local SQLite and GitHub Actions; no production deployment, live OAuth, AI generation or platform publishing was performed.
