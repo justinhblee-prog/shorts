@@ -5,7 +5,7 @@ import tempfile
 import sqlite3
 import unittest
 
-from approval_integrity import approval_snapshot_matches_current_artifacts, verify_staged_media_hash
+from approval_integrity import approval_snapshot_matches_current_artifacts, verify_staged_media_hash, create_verified_media_snapshot
 
 
 class ApprovalIntegrityTests(unittest.TestCase):
@@ -107,6 +107,37 @@ class ApprovalIntegrityTests(unittest.TestCase):
             with open(path, "wb") as stream:
                 stream.write(b"video")
             self.assertFalse(verify_staged_media_hash(path, None, None)[0])
+
+    def test_verified_snapshot_is_independent_of_later_source_replacement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = os.path.join(directory, "video.mp4")
+            payload = b"approved-video"
+            with open(source, "wb") as stream:
+                stream.write(payload)
+            snapshot, size = create_verified_media_snapshot(
+                source, hashlib.sha256(payload).hexdigest(), len(payload)
+            )
+            try:
+                with open(source, "wb") as stream:
+                    stream.write(b"attacker-replacement")
+                with open(snapshot, "rb") as stream:
+                    self.assertEqual(stream.read(), payload)
+                self.assertEqual(size, len(payload))
+            finally:
+                os.unlink(snapshot)
+
+    def test_verified_snapshot_rejects_symlink_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = os.path.join(directory, "real.mp4")
+            link = os.path.join(directory, "video.mp4")
+            payload = b"approved-video"
+            with open(target, "wb") as stream:
+                stream.write(payload)
+            os.symlink(target, link)
+            with self.assertRaisesRegex(ValueError, "symbolic link"):
+                create_verified_media_snapshot(
+                    link, hashlib.sha256(payload).hexdigest(), len(payload)
+                )
 
     def test_malformed_snapshot_fails_closed(self):
         matches, reason = approval_snapshot_matches_current_artifacts(
