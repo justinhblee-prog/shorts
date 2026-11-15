@@ -303,7 +303,7 @@ class TikTokPublisher:
             "public_publishing_enabled": False,
         }
 
-    def _call(self, url, payload=None, method="POST", binary=False, extra_headers=None):
+    def _call(self, url, payload=None, method="POST", binary=False, extra_headers=None, timeout=90):
         body = payload if binary else json.dumps(payload or {}).encode("utf-8")
         headers = {"Accept": "application/json"}
         if not binary:
@@ -311,7 +311,7 @@ class TikTokPublisher:
             headers["Content-Type"] = "application/json; charset=UTF-8"
         if extra_headers:
             headers.update(extra_headers)
-        status, raw = self.transport(url, headers, body, 90, method)
+        status, raw = self.transport(url, headers, body, timeout, method)
         try:
             data = json.loads(raw.decode("utf-8")) if not binary else {}
         except (ValueError, UnicodeDecodeError) as exc:
@@ -526,6 +526,7 @@ class TikTokPublisher:
         response = self._call(
             API_ROOT + "/v2/post/publish/status/fetch/",
             payload={"publish_id": record["publish_id"]},
+            timeout=20,
         )
         data = response.get("data") or {}
         status = data.get("status")
