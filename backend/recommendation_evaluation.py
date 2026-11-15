@@ -257,7 +257,7 @@ class RecommendationEvaluationStore:
             if cohort_score_rhos:
                 run_diagnostics.append({
                     "run_id": run_id,
-                    "generated_at": next(iter(next(iter(cohorts.values()))))["run_generated_at"],
+                    "generated_at": next(iter(cohorts.values()))[0]["run_generated_at"],
                     "eligible_cohort_count": len(cohort_score_rhos),
                     "selected_measured_count": cohort_sample_count,
                     "median_score_views_spearman": round(
