@@ -40,6 +40,14 @@
     $("financeNet").textContent=money(net);
     setConnection(true,"API 연결됨");
   }
+
+  async function loadFinance(){
+    const currency=$("ledgerCurrency").value||"USD";
+    const data=await api("/api/finance/report?currency="+encodeURIComponent(currency));
+    $("financeRevenue").textContent=money(data.revenue,currency);
+    $("financeCosts").textContent=money(data.costs,currency);
+    $("financeNet").textContent=money(data.net,currency);
+  }
   async function loadReviews(){
     const data=await api("/api/review/pending?limit=100");
     const items=data.items||[];$("reviewCount").textContent=items.length+" ITEMS";
@@ -83,7 +91,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadReviews(),loadApproved(),loadTrends(),loadSchedules(),loadInsights(),loadQueue(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTrends(),loadSchedules(),loadInsights(),loadQueue(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -161,9 +169,10 @@
   });
   $("ledgerForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
-    try{await api("/api/finance/ledger",{method:"POST",body:JSON.stringify({brand:$("ledgerBrand").value,region:$("ledgerRegion").value,entry_type:$("ledgerType").value,amount:Number($("ledgerAmount").value),currency:"USD",source_type:"operator_receipt",source_reference:$("ledgerReference").value,occurred_at:new Date($("ledgerDate").value+"T12:00:00Z").toISOString(),note:"Entered via NEXUS dashboard"})});msg("ledgerMessage","거래 장부 기록 완료");await loadMetrics();}
+    try{await api("/api/finance/ledger",{method:"POST",body:JSON.stringify({brand:$("ledgerBrand").value,region:$("ledgerRegion").value,entry_type:$("ledgerType").value,amount:Number($("ledgerAmount").value),currency:$("ledgerCurrency").value,source_type:"operator_receipt",source_reference:$("ledgerReference").value,occurred_at:new Date($("ledgerDate").value+"T12:00:00Z").toISOString(),note:"Entered via NEXUS dashboard"})});msg("ledgerMessage","거래 장부 기록 완료");await Promise.all([loadMetrics(),loadFinance()]);}
     catch(err){msg("ledgerMessage",err.message,true);}
   });
+  $("ledgerCurrency").addEventListener("change",()=>loadFinance().catch(e=>toast(e.message)));
   $("ledgerDate").value=new Date().toISOString().slice(0,10);
   loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
 })();
