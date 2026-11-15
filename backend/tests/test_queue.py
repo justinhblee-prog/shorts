@@ -170,6 +170,18 @@ class QueueTests(unittest.TestCase):
   with self.assertRaises(LeaseConflict):
    self.q.finish(other["id"],"worker-b",other_claimed["lease_token"])
 
+ def test_non_provider_terminal_failure_does_not_pause_production(self):
+  job=self.q.enqueue("short_video_production", {"topic":"policy blocked"})
+  claimed=self.q.claim("worker-a",job_type="short_video_production")
+  self.create_production_run(job["id"],"running")
+  failed=self.q.fail(job["id"],"worker-a",claimed["lease_token"],
+                     "policy_blocked","content policy blocked",False)
+  self.assertEqual(failed["status"],"failed_terminal")
+  self.assertFalse(self.q.is_paused())
+  with self.q.db() as c:
+   run=c.execute("SELECT * FROM production_runs WHERE job_id=?",(job["id"],)).fetchone()
+  self.assertEqual(run["status"],"failed_terminal")
+
  def test_cancel_queued_production_atomically_syncs_production_run(self):
   job=self.q.enqueue("short_video_production", {"topic":"cancel"})
   self.create_production_run(job["id"],"queued")
