@@ -138,10 +138,11 @@ class YouTubeUploadStore:
         if state_error:
             raise YouTubeUploadError(state_error)
 
-    def fail(self,job_id,error):
+    def fail(self,job_id,error,attempt_id=None):
         with self.db() as c:
             c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
-                         WHERE job_id=? AND status='uploading'""",(str(error)[:2000],_now(),job_id))
+                         WHERE job_id=? AND status='uploading' AND attempt_id=?""",
+                      (str(error)[:2000],_now(),job_id,attempt_id))
 
     @staticmethod
     def upload_stale_seconds():
@@ -159,20 +160,21 @@ class YouTubeUploadStore:
         except (TypeError,ValueError):
             return False
 
-    def touch_upload(self,job_id):
+    def touch_upload(self,job_id,attempt_id=None):
         with self.db() as c:
             c.execute("""UPDATE youtube_uploads SET updated_at=?
-              WHERE job_id=? AND status='uploading'""",(_now(),job_id))
+              WHERE job_id=? AND status='uploading' AND attempt_id=?""",(_now(),job_id,attempt_id))
             return c.rowcount==1
 
-    def mark_reconciliation_required(self,job_id,error):
+    def mark_reconciliation_required(self,job_id,error,attempt_id=None):
         with self.db() as c:
-            row=c.execute("SELECT status FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
-            if row is not None and row["status"]=="late_success_review_required":
+            row=c.execute("SELECT status,attempt_id FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
+            if row is None or row["status"]=="late_success_review_required" or row["attempt_id"]!=attempt_id:
                 return
             c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',
-              error=?,updated_at=? WHERE job_id=? AND status IN ('uploading','reconciliation_required')""",
-              (str(error)[:2000],_now(),job_id))
+              error=?,updated_at=? WHERE job_id=? AND status IN ('uploading','reconciliation_required')
+              AND attempt_id=?""",
+              (str(error)[:2000],_now(),job_id,attempt_id))
             if c.rowcount != 1:
                 raise YouTubeUploadError("Upload record is not in a reconcilable state")
 
@@ -372,7 +374,7 @@ class YouTubePublisher:
             def refresh_upload_activity():
                 while not heartbeat_stop.wait(heartbeat_interval):
                     try:
-                        self.store.touch_upload(job_id)
+                        self.store.touch_upload(job_id,upload_attempt.get("attempt_id"))
                     except Exception:
                         # The upload itself remains authoritative; a later poll can retry.
                         continue
@@ -382,7 +384,7 @@ class YouTubePublisher:
             while response is None:
                 _,response=request.next_chunk()
                 if response is None:
-                    self.store.touch_upload(job_id)
+                    self.store.touch_upload(job_id,upload_attempt.get("attempt_id"))
             video_id=response.get("id")
             if not video_id:
                 raise YouTubeUploadError("YouTube response did not contain a video ID")
@@ -400,10 +402,11 @@ class YouTubePublisher:
             detail=type(exc).__name__+": "+str(exc)
             if remote_request_started:
                 self.store.mark_reconciliation_required(
-                    job_id,"Remote upload outcome is uncertain. "+detail
+                    job_id,"Remote upload outcome is uncertain. "+detail,
+                    upload_attempt.get("attempt_id")
                 )
             else:
-                self.store.fail(job_id,detail)
+                self.store.fail(job_id,detail,upload_attempt.get("attempt_id"))
             if isinstance(exc,YouTubeUploadError):
                 raise
             if remote_request_started:
