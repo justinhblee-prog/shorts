@@ -40,7 +40,8 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
 | BUILD-00023 | Platform AI disclosure enforcement | YouTube API disclosure mapping implemented and branch CI passed; TikTok adapter isolated in PR #35; live platform authorization/publish validation pending |
-| BUILD-00024 | TikTok private Direct Post integration | Private-only Direct Post, creator-info, explicit consent, AIGC/commercial disclosures, status lifecycle and audit; 260 branch tests passed; live OAuth pending |
+| BUILD-00024 | TikTok private Direct Post integration | Portal controls, creator-info, SELF_ONLY Direct Post, explicit consent, AIGC/commercial disclosures, chunk transfer, background status polling and immutable audit; 290 tests passed; live posting pending |
+| BUILD-00025 | TikTok OAuth lifecycle and account security | Web OAuth, browser-bound one-time state, Fernet token encryption, distributed refresh lease, refresh-token rotation, revocation, preflight and log redaction implemented; 290 tests passed; live app authorization pending |
 
 ## BUILD-00001 — durable queue and Worker Lease
 
@@ -89,9 +90,9 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Baseline main commit `dc98712` reports a successful 245-test CI run.
 - YouTube disclosure branch `0c4b352`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685657932 passed **252 tests**.
 - TikTok AIGC mapping branch `6e80f7c`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685373875 passed **248 tests**.
-- Integrated TikTok private Direct Post, portal and background-status branch `1a4f471`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43687231216 passed **271 tests**.
-- These are branch CI results; PR #34, #35 and #36 remain draft and are not merged to main.
-- Tests use deterministic provider transports and temporary SQLite. No production worker, PostgreSQL, external AI generation, OAuth, rendering or live YouTube/TikTok publishing has been validated.
+- Integrated TikTok Direct Post, portal and OAuth branch `77c236f`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43687960278 passed **290 tests**.
+- PR #36 remains draft and is not merged to main. It integrates the YouTube disclosure foundation from PR #34 and TikTok AIGC mapper from PR #35.
+- Tests use deterministic HTTP transports and temporary SQLite. No live TikTok developer app authorization, creator OAuth, account posting, production worker/database, external AI generation or renderer has been validated.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
 
 ## BUILD-00023 — platform AI-generated and synthetic-media disclosure
@@ -104,6 +105,25 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Human approval remains mandatory; YouTube uploads remain private. Public automatic publishing remains disabled.
 - CI evidence: YouTube branch 252 tests passed; TikTok adapter branch 248 tests passed.
 - Live channel authorization, OAuth, actual API upload and label verification remain pending.
+
+## BUILD-00024 — TikTok private Direct Post integration
+
+- Added creator-info query, private-only Direct Post initialization, signed media upload and status tracking.
+- TikTok Direct Post is fixed to `SELF_ONLY`; public publishing remains disabled.
+- Requires latest human approval, current policy snapshot, explicit per-post consent, correct `is_aigc` label, and explicit branded-content/own-business declarations.
+- Media uses HTTP PUT to the signed upload URL; OAuth bearer token is not forwarded to that host. Chunk sizing follows TikTok's floor-based count and final-chunk rules.
+- Approved review workspace exposes TikTok publish and status controls beside YouTube; status is also polled by the scheduler with bounded batches and backoff.
+- Immutable publication audit events and duplicate-attempt fencing protect uncertain remote outcomes.
+
+## BUILD-00025 — TikTok OAuth lifecycle and account security
+
+- Added Login Kit web OAuth authorization-code exchange and one-time ten-minute state.
+- Binds the OAuth state to a Secure, HttpOnly, SameSite=Lax browser cookie and hashes state in SQLite; callback access logs redact the authorization code and state.
+- Access and refresh tokens are encrypted at rest using a Fernet key from the environment; client secret remains server-side.
+- Access tokens refresh proactively. Rotated refresh tokens are replaced atomically under a SQLite distributed lease shared by API and scheduler processes.
+- Portal supports account connection, connection status and remote token revocation on disconnect. Static access-token fallback remains optional and must be removed separately to disconnect.
+- Preflight supports either connected OAuth or the static-token fallback. One TikTok creator account per installation is supported; multi-account/per-brand routing remains future work.
+- Live developer-app approval, production HTTPS callback, scope grant, account authorization and real publish remain pending.
 
 ## Remaining blockers before a real revenue-producing launch
 
