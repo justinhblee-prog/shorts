@@ -29,6 +29,7 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 - **TikTok:** connect the creator account from Integration Readiness. OAuth state is one-time and expires after ten minutes; access/refresh tokens are encrypted in SQLite, access tokens refresh proactively, and rotated refresh tokens replace the previous value. TikTok Direct Post is fixed to `SELF_ONLY` until a separate audited public-publishing milestone.
 - **Ambiguous upload recovery:** if a resumable upload times out after starting, automatic retries are blocked. Check YouTube Studio and use the dashboard reconciliation action after the stale threshold (`NEXUS_UPLOAD_STALE_SECONDS`, default 900 seconds).
 - **Operations:** configure interval schedules, record verified financial entries, inspect snapshot-based performance insights, and pause/resume production with an audited operator note.
+- **Metrics collection:** the separate collector records last attempt/success, failures and snapshot coverage. The dashboard distinguishes YouTube Data API counters from unsupported retention/swipe-away/watch-time metrics; TikTok analytics collection is not implemented.
 
 ## Services
 
@@ -37,6 +38,7 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 | API | FastAPI dashboard and protected operational endpoints |
 | Worker | Claims and executes short-video production jobs |
 | Scheduler | Dispatches due interval schedules into the durable queue |
+| Metrics collector | Periodically refreshes due YouTube video counters and records collection health |
 
 All services share the persistent `nexus_data` volume. The scheduler uses a SQLite singleton leader lease with a fencing token, so multiple instances can safely run with only one active dispatcher; crashed leaders are replaced after lease expiry. This remains a single-host SQLite baseline, not a horizontally scalable multi-host production deployment.
 
