@@ -153,7 +153,7 @@ API health: `http://localhost:8502/api/health`. Compose starts the API, one prod
 Run the validation script with Python dependencies installed:
 
 ```bash
-./scripts/validate.sh
+sh scripts/validate.sh
 ```
 
 It performs bytecode compilation and discovers all unittest cases. A successful mocked test suite still does not validate real AI providers, OAuth, upload, monetization, or live revenue.
