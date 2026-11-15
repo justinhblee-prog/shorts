@@ -109,7 +109,7 @@ class ProductionStore:
 
     def create(self, job_id, brief):
         with self.db() as c:
-            c.execute("""INSERT INTO production_runs
+            c.execute("""INSERT OR IGNORE INTO production_runs
               (job_id,brand,region,language,topic,status,current_stage,created_at,updated_at)
               VALUES(?,?,?,?,?,'queued','queued',?,?)""",
               (job_id, brief["brand"], brief["region"], brief["language"],
