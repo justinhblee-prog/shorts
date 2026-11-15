@@ -239,6 +239,14 @@ class JobQueue:
                     (n, ("Queue paused: " + reason)[:2000], row["id"]))
                 self.event(c,row["id"],"worker_pause","running","failed_terminal",
                            row["worker_id"],{"reason":reason,"paused_job_id":job_id})
+                has_production_runs=c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+                ).fetchone()
+                if has_production_runs:
+                    c.execute("""UPDATE production_runs SET status='failed_terminal',
+                        current_stage='worker_paused',error=?,updated_at=?
+                        WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                        (("Queue paused: " + reason)[:2000], n, row["id"]))
             c.commit()
             return self.worker_control()
 
