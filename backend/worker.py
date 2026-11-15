@@ -4,13 +4,14 @@ Run: python worker.py
 The worker only claims short_video_production jobs; it does not consume other queue types.
 """
 import os
+import signal
 import socket
 import threading
 import uuid
 
 from production_pipeline import ProductionPipeline, ProductionStore, ProductionLeaseConflict, ProviderError
 from queue_store import JobQueue, LeaseConflict
-from worker_runtime import heartbeat_interval
+from worker_runtime import heartbeat_interval, request_worker_shutdown
 
 
 DB_PATH = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
@@ -27,6 +28,14 @@ queue = JobQueue(DB_PATH, LEASE_SECONDS)
 store = ProductionStore(DB_PATH)
 pipeline = ProductionPipeline(store)
 stopping = threading.Event()
+active_job_id = None
+active_lost_lease_event = None
+
+
+def handle_shutdown_signal(signum, frame):
+    request_worker_shutdown(
+        queue, stopping, active_job_id, active_lost_lease_event, signum
+    )
 
 
 def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
@@ -69,6 +78,9 @@ def run_once():
 
     lost_lease = threading.Event()
     heartbeat_stop = threading.Event()
+    global active_job_id, active_lost_lease_event
+    active_job_id = job["id"]
+    active_lost_lease_event = lost_lease
     heartbeat = threading.Thread(
         target=heartbeat_loop, args=(job["id"], job["lease_token"], lost_lease, heartbeat_stop),
         daemon=True)
@@ -137,21 +149,24 @@ def run_once():
     finally:
         heartbeat_stop.set()
         heartbeat.join(timeout=5)
+        active_job_id = None
+        active_lost_lease_event = None
     return True
 
 
 def main():
-    print(f"worker_started id={WORKER_ID} lease_seconds={LEASE_SECONDS}")
+    signal.signal(signal.SIGTERM, handle_shutdown_signal)
+    print(f"worker_started id={WORKER_ID} lease_seconds={LEASE_SECONDS} heartbeat_seconds={HEARTBEAT_SECONDS}")
     try:
         while True:
             # Keep idle and paused workers visible; job heartbeats alone only
             # refresh registry timestamps while a production lease is running.
             queue.register_worker(WORKER_ID, socket.gethostname())
-            if queue.is_paused():
-                threading.Event().wait(IDLE_SECONDS)
-                continue
             if stopping.is_set():
                 return
+            if queue.is_paused():
+                stopping.wait(IDLE_SECONDS)
+                continue
             if not run_once():
                 stopping.wait(IDLE_SECONDS)
     except KeyboardInterrupt:
