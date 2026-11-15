@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from policy_engine import POLICY_VERSION
-from approval_integrity import approval_snapshot_matches_current_artifacts
+from approval_integrity import approval_snapshot_matches_current_artifacts, verify_staged_media_hash
 from tiktok_disclosure import build_tiktok_disclosure, TikTokDisclosureError
 from media_inspection import MediaInspector, MediaInspectionError
 
@@ -572,6 +572,14 @@ class TikTokPublisher:
                 "Approved commercial relationship disclosure evidence is required for branded content"
             )
         resolved, mime, size = self._media(media_path)
+        media_matches, media_error = verify_staged_media_hash(
+            resolved, history[-1].get("staged_media_sha256"),
+            history[-1].get("staged_media_size_bytes")
+        )
+        if not media_matches:
+            raise TikTokPublishError(
+                media_error or "Staged media does not match the approved video fingerprint"
+            )
         existing = self.store.get(job_id)
         if existing and existing["status"] == "publish_complete":
             return existing
