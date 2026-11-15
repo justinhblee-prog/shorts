@@ -218,8 +218,8 @@ def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
         upload=youtube_upload_store.get(item["job_id"])
         item["upload_status"]=upload["status"] if upload else "not_uploaded"
         item["upload_video_id"]=upload.get("video_id") if upload else None
-        item["upload_reconciliation_required"]=item["upload_status"] in (
-            "uploading","reconciliation_required"
+        item["upload_reconciliation_required"]=bool(
+            upload and upload.get("reconciliation_required")
         )
         if item["upload_status"]!="uploaded":
             pending.append(item)
