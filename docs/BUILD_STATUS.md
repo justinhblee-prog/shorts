@@ -251,3 +251,5 @@ Latest CI run 106: https://github.com/justinhblee-prog/shorts/actions/runs/43657
 - Queue enqueue uses a deterministic idempotency key; if the scheduler crashes after enqueue but before outbox acknowledgement, the next poll replays safely without creating a duplicate job.
 - Failed dispatch attempts remain pending with bounded error details and retry on later scheduler polls.
 - Added tests for single dispatch, crash-window replay, inactive schedules and timezone-aware scheduling. Runtime execution remains pending due GitHub Actions runner allocation failures.
+
+- Scheduler operations dashboard/API now exposes durable outbox pending/dispatched counts, attempts and bounded last-error details via authenticated `GET /api/schedules/outbox`; pending records are automatically retried by the scheduler loop.
