@@ -9,6 +9,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from policy_engine import POLICY_VERSION, POLICY_CHECKED_ON
+from approval_integrity import approval_snapshot_matches_current_artifacts
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -110,6 +111,14 @@ class YouTubeUploadStore:
             if run is None or run["status"]!="approved" or latest is None or latest["decision"]!="approved":
                 raise YouTubeUploadError(
                     "The production job must remain approved by its latest human review decision"
+                )
+
+            snapshot_matches, snapshot_error = approval_snapshot_matches_current_artifacts(
+                c, job_id, latest["artifact_snapshot_json"]
+            )
+            if not snapshot_matches:
+                raise YouTubeUploadError(
+                    snapshot_error or "Production artifacts changed after approval; return to review"
                 )
 
             # A previous human approval cannot silently carry forward after
