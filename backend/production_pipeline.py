@@ -52,9 +52,9 @@ class JsonProvider:
         except urllib.error.HTTPError as exc:
             detail = exc.read(1000).decode("utf-8", "replace")
             raise ProviderError("provider", f"Provider HTTP {exc.code}: {detail}",
-                                retryable=exc.code >= 500 or exc.code == 429)
+                                retryable=exc.code == 429)
         except (urllib.error.URLError, TimeoutError) as exc:
-            raise ProviderError("provider", f"Provider connection failed: {type(exc).__name__}")
+            raise ProviderError("provider", f"Provider connection failed: {type(exc).__name__}", retryable=False)
 
     def post(self, stage, payload):
         if not self.url:
@@ -68,7 +68,7 @@ class JsonProvider:
                 self.timeout)
             if status < 200 or status >= 300:
                 raise ProviderError(stage, f"{stage} provider returned HTTP {status}",
-                                    retryable=status >= 500 or status == 429)
+                                    retryable=status == 429)
             data = json.loads(raw.decode("utf-8"))
             if not isinstance(data, dict):
                 raise ValueError("Provider response must be a JSON object")
@@ -343,37 +343,10 @@ class ProductionPipeline:
             clean["rights"] = brief["rights"]
         if "platforms" in brief:
             clean["platforms"] = brief["platforms"]
-        for key in (
-            "synthetic_media_status", "originality_notes",
-            "claim_evidence_notes", "transformative_contribution",
-        ):
+        for key in ("synthetic_media_status", "ai_disclosure_acknowledged",
+                    "factual_claims_verified", "originality_notes"):
             if key in brief:
-                if not isinstance(brief[key], str) or len(brief[key]) > 4000:
-                    raise ValueError(f"{key} must be text up to 4000 characters")
-                clean[key] = brief[key].strip()
-        for key in ("platform_disclosures", "risk_flags"):
-            if key in brief:
-                if not isinstance(brief[key], dict):
-                    raise ValueError(f"{key} must be an object")
                 clean[key] = brief[key]
-        if "factual_claims_verified" in brief:
-            if not isinstance(brief["factual_claims_verified"], bool):
-                raise ValueError("factual_claims_verified must be a boolean")
-            clean["factual_claims_verified"] = brief["factual_claims_verified"]
-        for key in (
-            "commercial_relationship_disclosed", "child_safety_review_confirmed",
-        ):
-            if key in brief:
-                if not isinstance(brief[key], bool):
-                    raise ValueError(f"{key} must be a boolean")
-                clean[key] = brief[key]
-        if "source_urls" in brief:
-            if not isinstance(brief["source_urls"], list) or len(brief["source_urls"]) > 30:
-                raise ValueError("source_urls must be a list of up to 30 HTTPS URLs")
-            if any(not isinstance(url, str) or not url.startswith("https://")
-                   for url in brief["source_urls"]):
-                raise ValueError("source_urls entries must be HTTPS URLs")
-            clean["source_urls"] = [url.strip() for url in brief["source_urls"]]
         trend_context = brief.get("trend_context")
         if trend_context is not None:
             if not isinstance(trend_context, dict):
