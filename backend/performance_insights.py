@@ -293,6 +293,7 @@ class PerformanceAnalyzer:
             if not isinstance(rate, (int, float)) or rate < 0:
                 continue
             key = (
+                str(video.get("brand") or "unknown"),
                 str(video.get("region") or "unknown").upper(),
                 video.get("publication_age_bucket", "unknown"),
                 video.get("duration_bucket", "unknown"),
@@ -300,11 +301,12 @@ class PerformanceAnalyzer:
                 video.get("topic_signature", "unknown"),
             )
             cohort = cohort_groups.setdefault(key, {
-                "region": key[0],
-                "publication_age_bucket": key[1],
-                "duration_bucket": key[2],
-                "format": key[3],
-                "topic_signature": key[4],
+                "brand": key[0],
+                "region": key[1],
+                "publication_age_bucket": key[2],
+                "duration_bucket": key[3],
+                "format": key[4],
+                "topic_signature": key[5],
                 "_views_per_hour": [],
                 "_interaction_rates": [],
             })
@@ -333,7 +335,7 @@ class PerformanceAnalyzer:
             cohorts.append(cohort)
         cohorts.sort(
             key=lambda item: (
-                item["region"], item["publication_age_bucket"],
+                item["brand"], item["region"], item["publication_age_bucket"],
                 item["duration_bucket"], item["format"], item["topic_signature"]
             )
         )
@@ -362,7 +364,7 @@ class PerformanceAnalyzer:
             "regions": list(by_region.values()),
             "videos": video_results,
             "cohorts": cohorts,
-            "cohort_method": "Exact normalized topic-token signature + region + publication-age-at-last-snapshot + duration bucket + format; descriptive only.",
+            "cohort_method": "Brand + region + exact normalized topic-token signature + publication-age-at-last-snapshot + duration bucket + format; descriptive only.",
             "financial": list(financial.values()),
             "limitations": [
                 "View deltas are differences between stored snapshots, not real-time platform analytics.",
