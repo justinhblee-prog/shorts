@@ -36,7 +36,18 @@ A network failure after a remote request begins is marked `reconciliation_requir
 
 ## Credentials and authorization
 
-Set `TIKTOK_ACCESS_TOKEN` in the backend runtime. The access token must belong to an authorized creator and include the `video.publish` and creator-info query scopes required by TikTok. This repository does not perform OAuth authorization-code exchange or refresh-token rotation for TikTok yet. The upload follows TikTok's floor-based chunk count: 64 MiB chunks, with the final chunk absorbing the remainder up to TikTok's 128 MiB final-chunk limit.
+Preferred setup is the server-side TikTok Login Kit web OAuth flow:
+
+1. Register Login Kit and Content Posting API in the TikTok developer console.
+2. Register the exact HTTPS callback URI `TIKTOK_REDIRECT_URI=https://your-domain/api/tiktok/oauth/callback`.
+3. Set `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, and a stable `TIKTOK_TOKEN_ENCRYPTION_KEY`. Generate the Fernet key once with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`; keep it secret and back it up.
+4. In the portal, select **TikTok 계정 연결**. The server creates a one-time ten-minute OAuth state, stores its hash, and binds it to a Secure, HttpOnly, SameSite=Lax browser cookie. The callback checks both cookie and server-side one-time state before exchanging the code.
+5. The server stores access and refresh tokens encrypted with Fernet. Access tokens are refreshed proactively; each successful refresh replaces the rotated refresh token. The scheduler and API share a SQLite refresh lease to prevent concurrent rotation.
+6. Required scopes are `user.info.basic` and `video.publish`. TikTok app review and creator authorization are external requirements; the code cannot grant these scopes itself.
+
+TikTok access tokens are valid for two hours and refresh tokens for 180 days according to the current developer documentation. If the refresh token expires or is revoked, reconnect the account. Never expose client secrets or tokens in the browser or logs.
+
+An optional `TIKTOK_ACCESS_TOKEN` environment variable remains available as a manual fallback, but it does not provide automatic refresh/rotation. The upload follows TikTok's floor-based chunk count: 64 MiB chunks, with the final chunk absorbing the remainder up to TikTok's 128 MiB final-chunk limit.
 
 TikTok may require app review, creator authorization, posting caps, and additional product eligibility. The local code cannot bypass these controls.
 
@@ -48,3 +59,6 @@ Official references:
 - https://developers.tiktok.com/doc/content-posting-api-reference-direct-post
 - https://developers.tiktok.com/doc/content-posting-api-media-transfer-guide
 - https://developers.tiktok.com/doc/content-posting-api-reference-get-video-status
+- https://developers.tiktok.com/docs/en/oauth-get-a-user-access-token
+- https://developers.tiktok.com/docs/en/oauth-refresh-a-user-access-token
+- https://developers.tiktok.com/docs/en/oauth-user-access-token-management
