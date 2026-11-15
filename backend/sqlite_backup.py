@@ -170,6 +170,9 @@ def _copy_snapshot(source: Path, destination: Path) -> None:
         if not result or result[0] != "ok":
             detail = result[0] if result else "no integrity result"
             raise sqlite3.DatabaseError(f"Backup integrity check failed: {detail}")
+        mode = destination_connection.execute("PRAGMA journal_mode=DELETE").fetchone()
+        if not mode or str(mode[0]).lower() != "delete":
+            raise sqlite3.DatabaseError("Backup could not be normalized to a standalone DELETE-journal database")
         destination_connection.commit()
     finally:
         destination_connection.close()
@@ -186,6 +189,11 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
+def _remove_sqlite_sidecars(path: Path) -> None:
+    for suffix in ("-wal", "-shm", "-journal"):
+        Path(str(path) + suffix).unlink(missing_ok=True)
+
+
 def _prune_backups(directory: Path, keep: int) -> list[str]:
     candidates = [
         path for path in directory.iterdir()
@@ -197,6 +205,7 @@ def _prune_backups(directory: Path, keep: int) -> list[str]:
     removed = []
     for path in candidates[keep:]:
         path.unlink()
+        _remove_sqlite_sidecars(path)
         removed.append(path.name)
     return removed
 
