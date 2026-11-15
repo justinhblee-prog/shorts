@@ -19,6 +19,7 @@ from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_r
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
+from tiktok_metrics import TikTokMetricsStore
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
@@ -69,6 +70,7 @@ youtube_publisher=YouTubePublisher(youtube_upload_store)
 tiktok_publish_store=TikTokPublishStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 tiktok_oauth_store=TikTokOAuthStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 tiktok_oauth_manager=TikTokOAuthManager(tiktok_oauth_store)
+tiktok_metrics_store=TikTokMetricsStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 tiktok_publisher=TikTokPublisher(
     tiktok_publish_store,token_provider=tiktok_oauth_manager.get_access_token
 )
@@ -986,21 +988,17 @@ def metrics_collection_status(x_review_token:str|None=Header(default=None)):
     youtube["unavailable_metrics"]=[
         "audience_retention","swipe_away_rate","watch_time","estimated_revenue"
     ]
+    tiktok = tiktok_metrics_store.status(tiktok_publish_store, interval*2)
+    oauth_status = tiktok_oauth_manager.status()
+    granted_scopes = {scope.strip() for scope in str(oauth_status.get("scope") or "").split(",")}
+    tiktok["credentials_configured"] = bool(oauth_status.get("connected"))
+    tiktok["required_scope"] = "video.list"
+    tiktok["scope_authorized"] = "video.list" in granted_scopes
+    if not tiktok["scope_authorized"] and tiktok["status"] in ("not_started", "not_configured"):
+        tiktok["status"] = "scope_missing"
+        tiktok["last_error"] = "TikTok reauthorization with video.list is required"
     return {
-        "platforms": {
-            "youtube": youtube,
-            "tiktok": {
-                "platform": "tiktok",
-                "status": "not_implemented",
-                "provider": None,
-                "last_attempt_at": None,
-                "last_success_at": None,
-                "last_error": None,
-                "available_metrics": [],
-                "unavailable_metrics": ["analytics_collection_not_implemented"],
-                "read_only": True,
-            },
-        },
+        "platforms": {"youtube": youtube, "tiktok": tiktok},
         "collection_interval_seconds": interval,
         "read_only": True,
     }
