@@ -90,6 +90,20 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(resolved["video_id"], "late-video-id")
         self.assertEqual(resolved["events"][-1]["operator_id"], "reviewer-ops")
 
+    def test_superseded_attempt_uncertainty_blocks_new_attempt(self):
+        first=self.uploads.begin("job-1","First attempt","")
+        self.uploads.mark_reconciliation_required("job-1","first attempt timed out",first["attempt_id"])
+        self.uploads.reconcile("job-1","not_uploaded",note="Checked YouTube Studio")
+        second=self.uploads.begin("job-1","Retry attempt","")
+        self.uploads.mark_reconciliation_required(
+            "job-1","old request ended after retry began",first["attempt_id"]
+        )
+        result=self.uploads.get("job-1")
+        self.assertEqual(result["status"],"reconciliation_required")
+        self.assertEqual(result["events"][-1]["event_type"],"superseded_attempt_uncertain")
+        with self.assertRaises(YouTubeUploadError):
+            self.uploads.begin("job-1","Third attempt","")
+
     def test_finish_requires_active_upload_state(self):
         with self.assertRaises(YouTubeUploadError):
             self.uploads.finish("missing-job", "video-id")
