@@ -146,3 +146,14 @@ GET `/api/performance/insights` optionally filters by brand and requires `X-Revi
 Files: `backend/scheduler_store.py`, `backend/scheduler.py`, tests `backend/tests/test_scheduler.py`.
 
 Run one scheduler process using `python scheduler.py` from backend. It polls persistent schedules and dispatches due production jobs to the durable queue. The deterministic idempotency key prevents duplicate queue jobs if dispatch is retried. Missed intervals are skipped forward; minimum interval is one hour. API endpoints POST/GET `/api/schedules` and PUT `/api/schedules/{id}/activation?active=true|false` require `X-Review-Token`. Current scheduler is single-instance; do not run multiple schedulers against production until a distributed leader/lease is implemented.
+
+## BUILD-00012 — integrated package
+
+Root files: `compose.yaml`, `.env.example`; image: `backend/Dockerfile`; validation script: `scripts/validate.sh`.
+
+1. Copy `.env.example` to `.env` and replace the review token and provider/OAuth credentials.
+2. Run `docker compose build` and `docker compose up -d`.
+3. Check `http://localhost:8502/api/health`.
+4. Run `./scripts/validate.sh` in an environment with the backend dependencies installed.
+
+Compose starts API, one worker and one scheduler sharing a persistent SQLite volume. Keep one scheduler instance. This is a single-host validation baseline, not production-hardened HA. Configure HTTPS reverse proxy, backups/restore, log monitoring, OAuth refresh-token issuance and real provider endpoints before external launch. Never commit `.env`.
