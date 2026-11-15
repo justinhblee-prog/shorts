@@ -72,7 +72,14 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
         ]))
         brand_rows.append((brand, config, brand_tokens))
 
-    competitor_channels = competitor_store.list_channels(limit=10) if competitor_store else []
+    regions_needed = {str(trend.get("region") or "").upper() for trend in trends}
+    include_all_regions = not regions_needed or "" in regions_needed or "GLOBAL" in regions_needed
+    competitor_channels = competitor_store.list_channels(limit=10) if competitor_store and trends else []
+    if not include_all_regions:
+        competitor_channels = [
+            channel for channel in competitor_channels
+            if str(channel.get("country") or "").upper() in regions_needed
+        ]
     videos_by_channel = {
         channel.get("channel_id"): competitor_store.list_videos(channel.get("channel_id"), limit=30)
         for channel in competitor_channels
