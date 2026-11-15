@@ -1624,7 +1624,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 ## BUILD-00093 — TikTok approval-media fingerprint regression (2026-11-15)
 
-- Pull request: [#58](https://github.com/justinhblee-prog/shorts/pull/58), Open / Draft / unmerged.
+- Pull request: [#58](https://github.com/justinhblee-prog/shorts/pull/58), merged into the integration-only validation branch (not production).
 - Added a regression test that mutates the staged video after human approval and verifies the TikTok publisher rejects it before making any provider request or creating a publication row.
 - The production code already uses the shared no-follow, hash-verified upload snapshot; this build closes a missing regression-test gap.
 - Push CI [43730328484](https://github.com/justinhblee-prog/shorts/actions/runs/43730328484): **545 tests passed**.
@@ -1646,3 +1646,16 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - BUILD-00094 specifically covers temporary-file cleanup when a concurrent publisher has already completed.
 - BUILD-00095 verifies an already-confirmed YouTube upload remains idempotent after local staged media has been cleaned up.
 - Both workstreams use local fake transports; neither makes live platform requests.
+
+
+
+## BUILD-00086–00095 combined validation — 2026-11-15
+
+- Integration branch: `integration/build-00086-00092-combined` (branch name retained; includes BUILD-00093, BUILD-00094 and BUILD-00095).
+- Latest two-parent integration commit: `5ae1500c9f59bb45cc25a82d3ad38fc423f90e07`.
+- Push CI [43731448059](https://github.com/justinhblee-prog/shorts/actions/runs/43731448059): **548 tests passed**.
+- Pull-request CI [43731454247](https://github.com/justinhblee-prog/shorts/actions/runs/43731454247): **548 tests passed**.
+- PR #58 (BUILD-00093), #59 (BUILD-00094) and #60 (BUILD-00095) are merged into this integration-only branch.
+- PR #57 remains Open / Draft as the combined review PR against `integration/build-00086-00089-parallel`.
+- No PR was merged to `main`; no production deployment was made.
+- Live YouTube/TikTok OAuth, real AI-provider generation, renderer delivery, real-account publishing and revenue remain unverified.

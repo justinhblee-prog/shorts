@@ -51,7 +51,7 @@ With Python dependencies installed:
 sh scripts/validate.sh
 ```
 
-This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified code validation including BUILD-00093: GitHub Actions PR run [43730353235](https://github.com/justinhblee-prog/shorts/actions/runs/43730353235), **545 tests passed**; frontend validation reported 107 unique IDs / 91 literal selectors. This validates automated checks only, not live provider connectivity, OAuth consent, real-account publishing, metric retrieval or monetization. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
+This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified combined integration validation for BUILD-00086 through BUILD-00095: GitHub Actions PR run [43731454247](https://github.com/justinhblee-prog/shorts/actions/runs/43731454247), **548 tests passed**; frontend validation reported 107 unique IDs / 91 literal selectors. This validates automated checks only, not live provider connectivity, OAuth consent, real-account publishing, metric retrieval or monetization. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
 
 ## Documentation
 
