@@ -258,5 +258,17 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("실제 노출 0", app_js)
         self.assertIn("ranking_score_adjustment", app_js) if "ranking_score_adjustment" in app_js else self.assertIn("추천 점수 조정", app_js)
 
+
+    def test_recommendation_cards_record_viewport_exposures_and_report_evidence(self):
+        html=(ROOT/"frontend"/"index.html").read_text(encoding="utf-8")
+        app_js=(ROOT/"frontend"/"app.js").read_text(encoding="utf-8")
+        self.assertIn('id="recommendationExposureSummary"',html)
+        self.assertIn("data-recommendation-exposure",app_js)
+        self.assertIn("IntersectionObserver",app_js)
+        self.assertIn("visibility_ms",app_js)
+        self.assertIn("/api/recommendations/exposures/rendered",app_js)
+        self.assertIn("/api/recommendations/exposures/",app_js)
+        self.assertIn("not_estimable_nonrandomized",app_js)
+
 if __name__ == "__main__":
     unittest.main()
