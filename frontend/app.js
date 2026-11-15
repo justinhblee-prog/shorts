@@ -246,9 +246,13 @@
   }
 
   async function loadPreflight(){
-    const data=await api("/api/preflight");
-    const labels={operator_auth:"운영자 인증",script_generation:"AI 대본",voice_generation:"AI 음성",video_rendering:"영상 렌더링",artifact_staging:"렌더링 파일 스테이징",youtube_upload:"YouTube OAuth",youtube_data_api:"YouTube 데이터 API",tiktok_publish:"TikTok 비공개 게시 토큰",media_directory:"미디어 저장소"};
-    $("preflightList").innerHTML=Object.entries(data.checks||{}).map(([key,value])=>'<div class="data-item"><b>'+esc(labels[key]||key)+' · <span class="'+(value.configured?"ready-text":"missing-text")+'">'+(value.configured?"설정 확인":"설정 누락")+'</span></b><small>'+esc((value.missing||[]).join(", ")||"필수 설정값 존재")+'</small></div>').join("")+'<div class="notice"><b>'+(data.capabilities.end_to_end_configured?"필수 설정값 구성 완료":"외부 연동 설정이 더 필요합니다")+'</b><span>'+esc(data.note)+'</span></div>';
+    const [data,tiktok]=await Promise.all([
+      api("/api/preflight"),api("/api/tiktok/oauth/status")
+    ]);
+    const labels={operator_auth:"운영자 인증",script_generation:"AI 대본",voice_generation:"AI 음성",video_rendering:"영상 렌더링",artifact_staging:"렌더링 파일 스테이징",youtube_upload:"YouTube OAuth",youtube_data_api:"YouTube 데이터 API",tiktok_oauth:"TikTok OAuth 설정",tiktok_publish:"TikTok 비공개 게시",media_directory:"미디어 저장소"};
+    const rows=Object.entries(data.checks||{}).map(([key,value])=>'<div class="data-item"><b>'+esc(labels[key]||key)+' · <span class="'+(value.configured?"ready-text":"missing-text")+'">'+(value.configured?"설정 확인":"설정 누락")+'</span></b><small>'+esc((value.missing||[]).join(", ")||"필수 설정값 존재")+'</small></div>').join("");
+    const account='<div class="data-item"><b>TikTok 계정 · <span class="'+(tiktok.connected?"ready-text":"missing-text")+'">'+(tiktok.connected?"연결됨":"연결 필요")+'</span></b><small>'+esc(tiktok.open_id||tiktok.mode||tiktok.status||"OAuth 연결 후 표시")+'</small></div>';
+    $("preflightList").innerHTML=rows+account+'<div class="notice"><b>'+(data.capabilities.end_to_end_configured?"필수 설정값 구성 완료":"외부 연동 설정이 더 필요합니다")+'</b><span>'+esc(data.note)+'</span></div>';
   }
   async function loadQueue(){
     const [q,w,control]=await Promise.all([
