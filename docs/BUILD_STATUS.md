@@ -1026,3 +1026,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Reject boolean, NaN and infinite render-duration metadata from duration cohort bucketing.
 - Add regression coverage for both invalid duration metadata and unverified requested-format exclusion.
 - CI passed at code commit 6742ceb (325 tests).
+
+
+### BUILD-00038 — TikTok inbox handoff state monotonicity (2026-11-15)
+
+- Treat `SEND_TO_USER_INBOX` as a terminal handoff state for this Direct Post attempt.
+- A slower concurrent status poll returning `PROCESSING_UPLOAD` can no longer downgrade an already-recorded inbox handoff.
+- Add a regression test for stale processing status after inbox handoff.
+- CI validation pending.
