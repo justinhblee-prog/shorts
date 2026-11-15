@@ -246,7 +246,7 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["status"], "failed_terminal")
         self.assertIs(fail.call_args.args[-1], False)
         pause.assert_called_once_with(
-            "API reported production failure; provider outcome may be ambiguous",
+            "API reported terminal production failure",
             "job-generic-fail",
         )
 
