@@ -4,17 +4,20 @@ from pathlib import Path
 from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import app as app_module
-from app import trend_recommendations, capture_trend_recommendations
+from app import trend_recommendations, capture_trend_recommendations, draft_production_from_trend, TrendProductionDraft
 
 
 class TrendRecommendationApiTests(unittest.TestCase):
+
     def test_read_only_recommendation_get_does_not_record_an_exposure(self):
         with (mock.patch("app.require_review_access"),
               mock.patch("app.trend_store.list", return_value=[]),
               mock.patch("app.brand_store.list", return_value=[]),
               mock.patch("app.performance_analyzer.analyze", return_value={"brands": [], "videos": [], "cohorts": []}),
               mock.patch("app.recommendation_evaluation_store.record_run") as record_run):
-            result = trend_recommendations(region="US", limit=10, x_review_token="valid")
+            result = capture_trend_recommendations(
+                region="US", limit=10, x_review_token="valid"
+            )
         self.assertEqual(result["count"], 0)
         self.assertNotIn("evaluation_run_id", result)
         record_run.assert_not_called()
@@ -31,6 +34,35 @@ class TrendRecommendationApiTests(unittest.TestCase):
             result = app_module.recommendation_evaluation(x_review_token="valid")
         self.assertEqual(result, expected)
         evaluate.assert_called_once_with({"videos": []})
+
+
+    def test_recommendation_run_id_is_required_for_auditable_production_link(self):
+        trend = {
+            "id": "trend-a", "title": "AI research", "region": "US",
+            "source": "test", "url": "https://example.invalid", "summary": "summary",
+        }
+        brand = {
+            "slug": "future-leak", "name": "Future Leak", "active": True,
+            "config": {"regions": ["US"], "languages": ["en"]},
+        }
+        body = TrendProductionDraft(
+            brand="future-leak", language="en", recommendation_run_id="run-exact"
+        )
+        submitted = {"job": {"id": "job-exact"}}
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.trend_store.get", return_value=trend),
+            mock.patch("app.brand_store.list", return_value=[brand]),
+            mock.patch("app.submit_production", return_value=submitted),
+            mock.patch("app.recommendation_evaluation_store.link_production") as link,
+        ):
+            result = draft_production_from_trend(
+                "trend-a", body, x_review_token="valid"
+            )
+        self.assertEqual(result, submitted)
+        link.assert_called_once_with(
+            "trend-a", "future-leak", "job-exact", run_id="run-exact"
+        )
 
     def test_endpoint_requires_review_token_and_returns_explained_editorial_rank(self):
         route = next(r for r in app_module.app.routes
@@ -69,9 +101,7 @@ class TrendRecommendationApiTests(unittest.TestCase):
               mock.patch("app.performance_analyzer.analyze", return_value=performance),
               mock.patch("app.recommendation_evaluation_store.record_run",
                          return_value={"run_id": "run-123", "recorded_candidates": 1}) as record_run):
-            result = capture_trend_recommendations(
-                region="US", limit=10, x_review_token="valid"
-            )
+            result = trend_recommendations(region="US", limit=10, x_review_token="valid")
         self.assertEqual(result["count"], 1)
         self.assertEqual(result["evaluation_run_id"], "run-123")
         self.assertEqual(result["evaluation_candidates_recorded"], 1)

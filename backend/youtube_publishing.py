@@ -466,8 +466,16 @@ class YouTubePublisher:
         if existing and existing["status"]=="uploaded":
             return existing
         upload_attempt=self.store.begin(job_id,title,description)
+        # Another request may have completed after our initial read but before
+        # begin() acquired its write lock. In that race begin() returns the
+        # already-confirmed row; never issue a second remote insert.
+        if upload_attempt.get("status")=="uploaded":
+            return self.store.get(job_id) or upload_attempt
         remote_request_started=False
+        upload_confirmed=False
+        confirmed_video_id=None
         heartbeat_stop=threading.Event()
+        heartbeat_lost=threading.Event()
         heartbeat_thread=None
         try:
             from googleapiclient.http import MediaFileUpload
@@ -486,21 +494,35 @@ class YouTubePublisher:
             def refresh_upload_activity():
                 while not heartbeat_stop.wait(heartbeat_interval):
                     try:
-                        self.store.touch_upload(job_id,upload_attempt.get("attempt_id"))
+                        if not self.store.touch_upload(job_id,upload_attempt.get("attempt_id")):
+                            heartbeat_lost.set()
+                            return
                     except Exception:
-                        # The upload itself remains authoritative; a later poll can retry.
-                        continue
+                        # A failed ownership refresh is fail-closed: do not start another
+                        # remote chunk when the local attempt can no longer be confirmed.
+                        heartbeat_lost.set()
+                        return
             heartbeat_thread=threading.Thread(target=refresh_upload_activity,daemon=True)
             heartbeat_thread.start()
             response=None
             while response is None:
+                if heartbeat_lost.is_set():
+                    raise YouTubeUploadError(
+                        "Upload lease ownership could not be refreshed; remote outcome requires reconciliation"
+                    )
                 _,response=request.next_chunk()
-                if response is None:
-                    self.store.touch_upload(job_id,upload_attempt.get("attempt_id"))
+                if response is None and not self.store.touch_upload(
+                    job_id,upload_attempt.get("attempt_id")
+                ):
+                    raise YouTubeUploadError(
+                        "Upload attempt was superseded; remote outcome requires reconciliation"
+                    )
             video_id=response.get("id")
             if not video_id:
                 raise YouTubeUploadError("YouTube response did not contain a video ID")
             self.store.finish(job_id,video_id,upload_attempt.get("attempt_id"))
+            upload_confirmed=True
+            confirmed_video_id=video_id
             try:
                 result=service.videos().list(part="statistics,status",id=video_id).execute()
                 items=result.get("items",[])
@@ -512,6 +534,11 @@ class YouTubePublisher:
             return self.store.get(job_id)
         except Exception as exc:
             detail=type(exc).__name__+": "+str(exc)
+            if upload_confirmed:
+                raise YouTubeUploadError(
+                    "YouTube upload was confirmed as "+str(confirmed_video_id)+
+                    "; a follow-up read failed: "+detail
+                ) from exc
             if remote_request_started:
                 self.store.mark_reconciliation_required(
                     job_id,"Remote upload outcome is uncertain. "+detail,

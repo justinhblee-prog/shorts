@@ -53,13 +53,33 @@ class WorkerFailClosedTests(unittest.TestCase):
             mock.patch.object(worker.queue, "fail") as fail,
             mock.patch.object(worker.queue, "pause") as pause,
             mock.patch.object(worker.pipeline, "execute",
-                              side_effect=ProviderError("script", "provider unavailable", True)),
+                              side_effect=ProviderError("script", "provider unavailable", False)),
         ):
             self.assertTrue(worker.run_once())
         fail.assert_called_once()
-        pause.assert_called_once()
+        self.assertIs(fail.call_args.args[-1], False)
+        pause.assert_not_called()
         claim.assert_called_once()
         self.assertTrue(worker.stopping.is_set())
+
+    def test_retryable_provider_rejection_keeps_worker_alive_for_backoff_retry(self):
+        job = {"id": "job-429", "payload": {"topic": "test"}, "lease_token": "token-429"}
+        with (
+            mock.patch.object(worker.queue, "is_paused", return_value=False),
+            mock.patch.object(worker.store, "reconcile_missing_runs"),
+            mock.patch.object(worker.store, "reconcile_terminal_jobs"),
+            mock.patch.object(worker.store, "reconcile_review_pending"),
+            mock.patch.object(worker.queue, "claim", return_value=job),
+            mock.patch.object(worker.queue, "fail",
+                              return_value={"status": "failed_retriable"}) as fail,
+            mock.patch.object(worker.queue, "pause") as pause,
+            mock.patch.object(worker.pipeline, "execute",
+                              side_effect=ProviderError("provider", "HTTP 429 rate limited", True)),
+        ):
+            self.assertTrue(worker.run_once())
+        self.assertIs(fail.call_args.args[-1], True)
+        pause.assert_not_called()
+        self.assertFalse(worker.stopping.is_set())
 
     def test_keyboard_interrupt_terminalizes_ambiguous_job_and_pauses_worker(self):
         job = {"id": "job-ctrl-c", "payload": {"topic": "test"}, "lease_token": "token-ctrl-c"}

@@ -160,14 +160,18 @@ class RecommendationEvaluationStore:
             "deduplicated": False,
         }
 
-    def link_production(self, trend_id, brand_slug, job_id, selected_at=None):
+    def link_production(self, trend_id, brand_slug, job_id, run_id=None, selected_at=None):
+        # Do not infer which recommendation card was selected from trend/brand alone:
+        # repeated API refreshes can create multiple exposures for the same pair.
+        if not run_id:
+            return {"linked": False, "reason": "recommendation_run_id_required"}
         timestamp = selected_at or _now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute("""SELECT id FROM recommendation_candidates
-                WHERE trend_id=? AND brand_slug=? AND selected_job_id IS NULL
-                ORDER BY created_at DESC LIMIT 1""",
-                (str(trend_id), str(brand_slug))).fetchone()
+                WHERE run_id=? AND trend_id=? AND brand_slug=? AND selected_job_id IS NULL
+                ORDER BY recommendation_rank LIMIT 1""",
+                (str(run_id), str(trend_id), str(brand_slug))).fetchone()
             if row is None:
                 return {"linked": False, "reason": "no_matching_recommendation_exposure"}
             changed = c.execute("""UPDATE recommendation_candidates
