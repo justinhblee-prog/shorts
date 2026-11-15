@@ -503,8 +503,7 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
                                 x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     try:
-        trend=next((item for item in trend_store.list(limit=200)
-                    if item.get("id")==trend_id),None)
+        trend=trend_store.get(trend_id)
         if trend is None:
             raise HTTPException(404,"Trend signal not found")
         brand=next((item for item in brand_store.list(active_only=True)
