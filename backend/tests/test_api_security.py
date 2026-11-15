@@ -929,7 +929,8 @@ class ApiSecurityTests(unittest.TestCase):
                                              "coverage": {}, "read_only": True}), \
              mock.patch.object(app_module.tiktok_metrics_store, "status",
                                return_value={"platform": "tiktok", "status": "not_started",
-                                             "coverage": {}, "read_only": True}), \
+                                             "coverage": {}, "available_metrics": ["view_count", "like_count", "comment_count", "share_count"],
+                                             "read_only": True}), \
              mock.patch.object(app_module.tiktok_oauth_manager, "status",
                                return_value={"connected": False, "scope": ""}):
             result = metrics_collection_status(x_review_token="test-token")
