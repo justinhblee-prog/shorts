@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from media_scanner import ClamAVScanner, MediaScanError
+
 
 class MediaStagingError(RuntimeError):
     pass
@@ -27,7 +29,8 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
 
 class MediaStager:
     def __init__(self, media_dir=None, allowed_hosts=None, max_bytes=None,
-                 resolver=None, fetcher=None, timeout=45):
+                 resolver=None, fetcher=None, timeout=45, scanner=None,
+                 scan_enabled=None):
         self.media_dir = Path(media_dir or os.getenv("NEXUS_MEDIA_DIR", "data/media")).resolve()
         configured = allowed_hosts if allowed_hosts is not None else os.getenv("RENDER_ARTIFACT_HOSTS", "")
         self.allowed_hosts = {x.strip().lower().rstrip(".") for x in configured.split(",") if x.strip()}
@@ -35,6 +38,10 @@ class MediaStager:
         self.resolver = resolver or self._resolve
         self.fetcher = fetcher or self._fetch
         self.timeout = timeout
+        if scan_enabled is None:
+            scan_enabled = os.getenv("NEXUS_MEDIA_SCAN_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
+        self.scan_enabled = bool(scan_enabled)
+        self.scanner = scanner or ClamAVScanner()
 
     @staticmethod
     def _resolve(host):
@@ -68,7 +75,7 @@ class MediaStager:
             return response.status, headers, chunks()
         except OSError as exc:
             connection.close()
-            raise MediaStagingError("Renderer artifact download failed") from exc
+            raise MediaStagingError("Artifact download failed") from exc
 
     def staged_path(self, job_id):
         filename = hashlib.sha256(str(job_id).encode("utf-8")).hexdigest() + ".mp4"
@@ -189,8 +196,16 @@ class MediaStager:
                 raise MediaStagingError("Artifact byte count does not match Content-Length")
             if total < 12 or prefix[4:8] != b"ftyp":
                 raise MediaStagingError("Downloaded artifact does not contain an MP4 file signature")
+            scan_status = "disabled"
+            if self.scan_enabled:
+                try:
+                    self.scanner.scan(temporary)
+                except MediaScanError as exc:
+                    raise MediaStagingError(str(exc)) from exc
+                scan_status = "clean"
             os.replace(str(temporary), str(destination))
-            return {"media_path": filename, "size_bytes": total, "content_type": "video/mp4"}
+            return {"media_path": filename, "size_bytes": total, "content_type": "video/mp4",
+                    "malware_scan": scan_status}
         except Exception:
             if temporary is not None:
                 try: temporary.unlink(missing_ok=True)
