@@ -1093,7 +1093,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Failed platform attempts require evidence that no remote post exists before a new attempt is considered.
 - No automatic retry, upload, publication, or remote mutation is performed by the recovery-plan endpoint.
 - Added regression tests for ambiguous YouTube outcomes, late success, TikTok inbox handoff, missing current approval, and retry prohibition.
-- Automated GitHub Actions passed **385 tests** at code commit `96d78a4` (run `43700040116`). Live YouTube/TikTok account recovery remains unverified and requires an authorized operator.
+- Automated GitHub Actions passed **373 tests** at code commit `be7a469` (run `43699286605`). Live YouTube/TikTok account recovery remains unverified and requires an authorized operator.
 
 
 ### BUILD-00043 — lifecycle consistency false-positive correction (2026-11-15)
@@ -1208,5 +1208,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added authenticated read-only `GET /api/performance/pipeline` with bounded cohort and minimum-sample parameters.
 - Integrated cohort metrics into the global operations dashboard, including sample sufficiency and measurement limitations.
 - Queue state dwell time is not provider execution, render CPU, or remote API latency. The cohort is limited to the latest bounded jobs and is not a lifetime census.
-- No queue, worker, provider, retry, approval, OAuth, or publishing state is mutated. CI validation pending.
+- No queue, worker, provider, retry, approval, OAuth, or publishing state is mutated. GitHub Actions passed **385 tests** at code commit `96d78a4` (run `43700040116`).
 
