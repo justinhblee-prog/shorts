@@ -215,14 +215,27 @@
   });
   $("competitorForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
-    try{const r=await api("/api/competitors/search?q="+encodeURIComponent($("competitorQuery").value.trim()));$("competitorList").innerHTML=(r.channels||r.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.title||x.name||x.channel_title||x.channel_id)+'</b><small>'+esc(x.custom_url||x.channel_id||"")+' · '+esc(x.subscriber_count??"subscriber count hidden")+'</small></div>').join("")||'<div class="empty-state">검색 결과가 없습니다.</div>';}
+    try{const r=await api("/api/competitors/search?q="+encodeURIComponent($("competitorQuery").value.trim()));$("competitorList").innerHTML=(r.channels||r.items||[]).map(x=>'<div class="data-item competitor-item"><b>'+esc(x.title||x.name||x.channel_title||x.channel_id)+'</b><small>'+esc(x.custom_url||x.channel_id||"")+' · '+esc(x.subscriber_count??"subscriber count hidden")+'</small><div class="competitor-actions"><label><input type="checkbox" data-competitor-select value="'+esc(x.channel_id)+'"> 점수 비교에 포함</label><button type="button" class="button button-quiet button-small" data-inspect-channel="'+esc(x.channel_id)+'">최근 영상 분석</button></div><div class="competitor-evidence" id="competitor-'+esc(x.channel_id)+'"></div></div>').join("")||'<div class="empty-state">검색 결과가 없습니다.</div>';}
     catch(err){toast(err.message);}
+  });
+  $("competitorList").addEventListener("click",async e=>{
+    const button=e.target.closest("[data-inspect-channel]");if(!button)return;
+    if(!requireToken())return;
+    const id=button.dataset.inspectChannel;button.disabled=true;
+    try{
+      const data=await api("/api/competitors/"+encodeURIComponent(id)+"?video_limit=20");
+      const target=$("competitor-"+CSS.escape(id));
+      target.innerHTML='<small>저장된 최근 영상 '+(data.recent_videos||[]).length+'개 · 조회수는 수집 시점의 공개 카운터입니다.</small>'+
+        (data.recent_videos||[]).slice(0,5).map(v=>'<div class="competitor-video"><span>'+esc(v.title)+'</span><b>'+esc(v.view_count??"비공개")+' views</b></div>').join("");
+      toast("최근 영상 표본을 저장했습니다. 점수 평가 시 선택 채널의 주제 유사도를 계산합니다.");
+    }catch(err){toast(err.message);}
+    finally{button.disabled=false;}
   });
   $("opportunityForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
     const num=id=>Number($(id).value);
-    const body={title:$("oppTitle").value,currency:$("oppCurrency").value,forecast_source:$("forecastSource").value,forecast_views_low:num("viewsLow"),forecast_views_high:num("viewsHigh"),rpm_low:num("rpmLow"),rpm_high:num("rpmHigh"),cost_low:num("costLow"),cost_high:num("costHigh"),monetization_eligible:$("monetizationEligible").checked};
-    try{const r=await api("/api/opportunities/score",{method:"POST",body:JSON.stringify(body)});msg("opportunityResult","우선순위 점수 "+r.priority_score+" / 100 · 예상치이며 실제 수익이 아닙니다.");}
+    const body={title:$("oppTitle").value,currency:$("oppCurrency").value,forecast_source:$("forecastSource").value,forecast_views_low:num("viewsLow"),forecast_views_high:num("viewsHigh"),rpm_low:num("rpmLow"),rpm_high:num("rpmHigh"),cost_low:num("costLow"),cost_high:num("costHigh"),monetization_eligible:$("monetizationEligible").checked,competitor_channel_ids:Array.from(document.querySelectorAll("[data-competitor-select]:checked")).map(x=>x.value)};
+    try{const r=await api("/api/opportunities/score",{method:"POST",body:JSON.stringify(body)});const market=r.competitive_context||{};msg("opportunityResult","우선순위 점수 "+r.priority_score+" / 100 · 비교 표본 "+market.observed_videos+"개 · 주제 유사 "+market.topic_matched_videos+"개 · 경쟁 조정 "+(market.score_adjustment??0)+"점. "+(market.method||"경쟁 표본 미선택")+". 예상치이며 실제 수익이 아닙니다.");}
     catch(err){msg("opportunityResult",err.message,true);}
   });
   $("reviewList").addEventListener("click",async e=>{
