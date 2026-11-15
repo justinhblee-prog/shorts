@@ -47,6 +47,34 @@ class ProductionQualityTests(unittest.TestCase):
         self.assertIn("render_format_is_not_vertical_9_16", report["blockers"])
 
 
+
+    def test_decimal_vertical_aspect_ratio_is_normalized(self):
+        report = evaluate_production_quality(
+            "A clear opening explains the problem. Evidence supports the claim. "
+            "The ending gives viewers a useful next step with a concise summary.",
+            {"factual_claims_verified": True},
+            {"duration_seconds": 30},
+            {"duration_seconds": 30, "aspect_ratio": "0.5625",
+             "width": 1080, "height": 1920, "audio_track_present": True,
+             "subtitles_enabled": True},
+            {},
+        )
+        self.assertEqual(report["status"], "ready_for_human_review")
+        self.assertEqual(report["blockers"], [])
+
+    def test_trend_source_metadata_requires_a_valid_http_url(self):
+        report = evaluate_production_quality(
+            "A clear opening explains the problem. Evidence supports the claim. "
+            "The ending gives viewers a useful next step with a concise summary.",
+            {"source_urls": ["not-a-url"], "factual_claims_verified": True},
+            {"duration_seconds": 30},
+            {"duration_seconds": 30, "aspect_ratio": "9:16",
+             "audio_track_present": True, "subtitles_enabled": True},
+            {"trend_context": {"id": "trend-1"}},
+        )
+        self.assertEqual(report["status"], "review_required")
+        self.assertIn("trend_source_citations_invalid_or_empty", report["warnings"])
+
     def test_nonfinite_and_boolean_measurements_are_treated_as_missing(self):
         report = evaluate_production_quality(
             "A script with enough words to explain the subject clearly and provide a useful next step.",
