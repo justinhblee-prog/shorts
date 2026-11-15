@@ -89,7 +89,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Baseline main commit `dc98712` reports a successful 245-test CI run.
 - YouTube disclosure branch `0c4b352`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685657932 passed **252 tests**.
 - TikTok AIGC mapping branch `6e80f7c`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685373875 passed **248 tests**.
-- Integrated TikTok private Direct Post and portal branch `27e84a1`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43687062444 passed **269 tests**.
+- Integrated TikTok private Direct Post, portal and background-status branch `1a4f471`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43687231216 passed **271 tests**.
 - These are branch CI results; PR #34, #35 and #36 remain draft and are not merged to main.
 - Tests use deterministic provider transports and temporary SQLite. No production worker, PostgreSQL, external AI generation, OAuth, rendering or live YouTube/TikTok publishing has been validated.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
