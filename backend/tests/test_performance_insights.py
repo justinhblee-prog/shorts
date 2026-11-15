@@ -110,6 +110,9 @@ class PerformanceTests(unittest.TestCase):
   add_measured("j5","Future Leak","US","AI robotics explained","vid5",70,
    "2026-11-14T00:00:00+00:00","2026-11-14T01:00:00+00:00",
    "2026-11-14T02:00:00+00:00",800)
+  add_measured("j6","Money Glitch","US","AI robotics explained","vid6",30,
+   "2026-11-14T00:00:00+00:00","2026-11-14T01:00:00+00:00",
+   "2026-11-14T02:00:00+00:00",500)
 
   result=PerformanceAnalyzer(self.db).analyze()
   cohort=next(x for x in result["cohorts"]
@@ -121,6 +124,9 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(cohort["median_views_per_hour"],200.0)
   self.assertEqual(cohort["evidence_status"],"observed")
   self.assertEqual(cohort["ranking_score_adjustment"],0)
+  other_brand=next(x for x in result["cohorts"] if x["brand"]=="Money Glitch")
+  self.assertEqual(other_brand["sample_count"],1)
+  self.assertEqual(cohort["brand"],"Future Leak")
   self.assertNotIn("vid4",[x["job_id"] for x in result["videos"] if x["region"]=="US"])
 
  def test_financials_never_mix_currencies_and_brand_filter_applies(self):
