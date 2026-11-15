@@ -344,7 +344,7 @@ class ProductionPipeline:
         if "platforms" in brief:
             clean["platforms"] = brief["platforms"]
         for key in (
-            "synthetic_media_status", "factual_claims_verified", "originality_notes",
+            "synthetic_media_status", "originality_notes",
             "claim_evidence_notes", "transformative_contribution",
         ):
             if key in brief:
@@ -356,6 +356,10 @@ class ProductionPipeline:
                 if not isinstance(brief[key], dict):
                     raise ValueError(f"{key} must be an object")
                 clean[key] = brief[key]
+        if "factual_claims_verified" in brief:
+            if not isinstance(brief["factual_claims_verified"], bool):
+                raise ValueError("factual_claims_verified must be a boolean")
+            clean["factual_claims_verified"] = brief["factual_claims_verified"]
         for key in (
             "commercial_relationship_disclosed", "child_safety_review_confirmed",
         ):
