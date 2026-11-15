@@ -59,10 +59,10 @@ class SpeechAlignmentTests(unittest.TestCase):
 
     def test_srt_caption_text_matches_asr_transcript_without_timecode_noise(self):
         srt = (
-            "1\\n00:00:00,000 --> 00:00:02,000\\n"
-            "The human brain predicts what happens next.\\n\\n"
-            "2\\n00:00:02,000 --> 00:00:04,000\\n"
-            "Patterns help the brain learn.\\n"
+            "1\n00:00:00,000 --> 00:00:02,000\n"
+            "The human brain predicts what happens next.\n\n"
+            "2\n00:00:02,000 --> 00:00:04,000\n"
+            "Patterns help the brain learn.\n"
         )
         reference = (
             "The human brain predicts what happens next. "
