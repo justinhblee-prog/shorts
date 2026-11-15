@@ -208,9 +208,10 @@ class YouTubePublisher:
     def upload_approved(self,job_id,media_path,review_store,title,description="",tags=None,
                         category_id="22"):
         history=review_store.history(job_id)
-        approvals=[item for item in history if item["decision"]=="approved"]
-        if not approvals:
-            raise YouTubeUploadError("A recorded human approval is required before upload")
+        if not history or history[-1]["decision"]!="approved":
+            raise YouTubeUploadError(
+                "The latest human review decision must be approved before upload"
+            )
         if not isinstance(media_path,str) or not media_path.strip():
             raise YouTubeUploadError("A staged media path is required")
         media_root=Path(os.getenv("NEXUS_MEDIA_DIR","data/media")).resolve()
