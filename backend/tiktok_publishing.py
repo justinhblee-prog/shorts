@@ -45,6 +45,8 @@ class TikTokPublishStore:
               title TEXT NOT NULL, is_aigc INTEGER NOT NULL,
               creator_username TEXT, creator_nickname TEXT,
               video_id TEXT, fail_reason TEXT, error TEXT,
+              brand_content_toggle INTEGER NOT NULL DEFAULT 0,
+              brand_organic_toggle INTEGER NOT NULL DEFAULT 0,
               operator_id TEXT NOT NULL, consented_at TEXT NOT NULL,
               updated_at TEXT NOT NULL, attempt_id TEXT,
               policy_version TEXT NOT NULL
@@ -80,7 +82,7 @@ class TikTokPublishStore:
         finally:
             c.close()
 
-    def begin(self, job_id, title, is_aigc, operator_id, attempt_id):
+    def begin(self, job_id, title, is_aigc, operator_id, attempt_id, brand_content_toggle, brand_organic_toggle):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute(
@@ -98,17 +100,20 @@ class TikTokPublishStore:
                 )
             c.execute("""
               INSERT INTO tiktok_publications
-                (job_id,status,privacy_level,title,is_aigc,operator_id,
-                 consented_at,updated_at,attempt_id,policy_version)
-              VALUES(?,'initializing','SELF_ONLY',?,?,?,?,?,?,?)
+                (job_id,status,privacy_level,title,is_aigc,brand_content_toggle,
+                 brand_organic_toggle,operator_id,consented_at,updated_at,attempt_id,policy_version)
+              VALUES(?,'initializing','SELF_ONLY',?,?,?,?,?,?,?,?,?)
               ON CONFLICT(job_id) DO UPDATE SET
                 publish_id=NULL,status='initializing',privacy_level='SELF_ONLY',
                 title=excluded.title,is_aigc=excluded.is_aigc,
+                brand_content_toggle=excluded.brand_content_toggle,
+                brand_organic_toggle=excluded.brand_organic_toggle,
                 creator_username=NULL,creator_nickname=NULL,video_id=NULL,
                 fail_reason=NULL,error=NULL,operator_id=excluded.operator_id,
                 consented_at=excluded.consented_at,updated_at=excluded.updated_at,
                 attempt_id=excluded.attempt_id,policy_version=excluded.policy_version
-            """, (job_id, title, int(is_aigc), operator_id, _now(), _now(),
+            """, (job_id, title, int(is_aigc), int(brand_content_toggle),
+                  int(brand_organic_toggle), operator_id, _now(), _now(),
                   attempt_id, POLICY_VERSION))
             c.execute("""
               INSERT INTO tiktok_publication_events
@@ -148,7 +153,7 @@ class TikTokPublishStore:
         allowed = {
             "PROCESSING_UPLOAD": "processing",
             "PUBLISH_COMPLETE": "publish_complete",
-            "SEND_TO_INBOX": "send_to_inbox",
+            "SEND_TO_USER_INBOX": "send_to_inbox",
             "FAILED": "failed",
         }
         normalized = allowed.get(status)
@@ -353,7 +358,7 @@ class TikTokPublisher:
 
     def publish_private_approved(
         self, job_id, media_path, review_store, title, operator_id,
-        explicit_consent=False,
+        explicit_consent=False, brand_content_toggle=False, brand_organic_toggle=False,
     ):
         if explicit_consent is not True:
             raise TikTokPublishError(
@@ -361,6 +366,8 @@ class TikTokPublisher:
             )
         if not isinstance(operator_id, str) or not operator_id.strip():
             raise TikTokPublishError("operator_id is required")
+        if type(brand_content_toggle) is not bool or type(brand_organic_toggle) is not bool:
+            raise TikTokPublishError("Explicit brand-content and own-business declarations are required")
         if not isinstance(title, str) or not title.strip() or len(title.encode("utf-16-le")) // 2 > 2200:
             raise TikTokPublishError("TikTok caption must contain 1 to 2200 UTF-16 code units")
         history = review_store.history(job_id)
@@ -398,7 +405,8 @@ class TikTokPublisher:
         if existing and existing["status"] == "publish_complete":
             return existing
         attempt_id = uuid.uuid4().hex
-        self.store.begin(job_id, title, disclosure["is_aigc"], operator_id.strip(), attempt_id)
+        self.store.begin(job_id, title, disclosure["is_aigc"], operator_id.strip(), attempt_id,
+                         brand_content_toggle, brand_organic_toggle)
         remote_started = False
         try:
             creator = self._call(API_ROOT + "/v2/post/publish/creator_info/query/")
@@ -418,6 +426,8 @@ class TikTokPublisher:
                         "title": title,
                         "privacy_level": "SELF_ONLY",
                         "is_aigc": disclosure["is_aigc"],
+                        "brand_content_toggle": brand_content_toggle,
+                        "brand_organic_toggle": brand_organic_toggle,
                     },
                     "source_info": {
                         "source": "FILE_UPLOAD",
