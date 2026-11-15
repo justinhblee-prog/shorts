@@ -1393,3 +1393,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added tests proving the snapshot remains byte-identical after the source path is overwritten and that symlink sources are rejected.
 - GitHub Actions passed **455 tests** at code commit `a18013c` (run [43710116070](https://github.com/justinhblee-prog/shorts/actions/runs/43710116070)).
 - No external platform publishing was performed. PR remains Draft/open/unmerged.
+
+
+## BUILD-00069 — TikTok uncertain-outcome operator reconciliation
+
+- Added an authenticated `POST /api/tiktok/publications/{job_id}/reconcile` action for attempts stuck in `reconciliation_required`, including initialization timeouts where TikTok never returned a `publish_id` and automated status lookup is impossible.
+- Reconciliation requires explicit operator confirmation, a non-empty audit note, and at least 15 minutes since the uncertain attempt. Recent/active attempts remain blocked.
+- An operator-confirmed published result requires a verified video ID and rejects IDs already assigned to another job. A verified not-published result is recorded as failed, preserving the audit trail and allowing a new attempt only after that explicit confirmation.
+- Terminal states cannot be overwritten by conflicting reconciliation. Every resolution is written to the immutable TikTok publication event history with operator identity and attempt ID.
+- Added regression coverage for confirmation requirement, published/not-published outcomes, cooldown, duplicate video IDs, and safe retry after verified non-publication.
+- External TikTok account verification and actual publishing are not performed by CI; the endpoint only records an operator attestation and cannot independently prove the remote account state.
