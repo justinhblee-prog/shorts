@@ -74,6 +74,12 @@ class TikTokPublishingTests(unittest.TestCase):
         with self.assertRaisesRegex(TikTokPublishError, "TikTok HTTP 403: access_denied"):
             publisher._call("https://open.tiktokapis.com/v2/test/")
 
+    def test_non_object_api_response_is_rejected_cleanly(self):
+        transport = TikTokTransport([(200, ["unexpected", "array"])])
+        publisher = TikTokPublisher(self.store, "test-token", transport)
+        with self.assertRaisesRegex(TikTokPublishError, "unexpected response shape"):
+            publisher._call("https://open.tiktokapis.com/v2/test/")
+
     def test_success_accepts_string_ok_error_envelope(self):
         transport = TikTokTransport([(200, {"data": {"ready": True}, "error": "ok"})])
         publisher = TikTokPublisher(self.store, "test-token", transport)
