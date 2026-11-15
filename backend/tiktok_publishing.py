@@ -279,7 +279,7 @@ class TikTokPublisher:
             raise TikTokPublishError("TikTok network request failed: " + type(exc).__name__) from exc
 
     def _token(self):
-        token = self.access_token
+        token = self.access_token or os.getenv("TIKTOK_ACCESS_TOKEN")
         if not token and self.token_provider:
             try:
                 token = self.token_provider()
@@ -287,7 +287,6 @@ class TikTokPublisher:
                 raise TikTokPublishError(
                     "TikTok OAuth token is unavailable: " + type(exc).__name__
                 ) from exc
-        token = token or os.getenv("TIKTOK_ACCESS_TOKEN")
         if not token:
             raise TikTokPublishError(
                 "TikTok account is not connected; complete OAuth or configure TIKTOK_ACCESS_TOKEN"
