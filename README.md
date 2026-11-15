@@ -9,7 +9,7 @@ Global short-form content operations platform. The system coordinates topic disc
 3. Configure the script, voice and render provider endpoints/tokens.
 4. Set `RENDER_ARTIFACT_HOSTS` to the exact HTTPS CDN hostnames returned by your renderer.
 5. Add YouTube OAuth refresh credentials and YouTube Data API key when ready.
-6. Register TikTok Login Kit and Content Posting API, configure the exact HTTPS callback URI, set TikTok client credentials, and generate a stable Fernet encryption key as shown in `.env.example`.
+6. Register TikTok Login Kit, Content Posting API and Display API, configure the exact HTTPS callback URI, set TikTok client credentials, and generate a stable Fernet encryption key as shown in `.env.example`. TikTok metrics additionally require creator consent to the `video.list` scope; existing connections must reauthorize after this scope is added.
 7. Start the services:
 
 ```bash
@@ -26,10 +26,10 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 - **Intelligence:** collect Google News/Hacker News signals, search competitor channels, and score attributed profitability scenarios.
 - **Review:** inspect actual provider-generated video references; approve, reject or request revisions.
 - **Approved uploads:** stage the saved MP4 artifact from an allowlisted HTTPS host and explicitly initiate a YouTube upload. Upload privacy is always `private`.
-- **TikTok:** connect the creator account from Integration Readiness. OAuth state is one-time and expires after ten minutes; access/refresh tokens are encrypted in SQLite, access tokens refresh proactively, and rotated refresh tokens replace the previous value. TikTok Direct Post is fixed to `SELF_ONLY` until a separate audited public-publishing milestone.
+- **TikTok:** connect the creator account from Integration Readiness. OAuth state is one-time and expires after ten minutes; access/refresh tokens are encrypted in SQLite, access tokens refresh proactively, and rotated refresh tokens replace the previous value. Direct Post is fixed to `SELF_ONLY`. The Display API collector separately requires `video.list` consent and records views, likes, comments and shares for confirmed owned publications.
 - **Ambiguous upload recovery:** if a resumable upload times out after starting, automatic retries are blocked. Check YouTube Studio and use the dashboard reconciliation action after the stale threshold (`NEXUS_UPLOAD_STALE_SECONDS`, default 900 seconds).
 - **Operations:** configure interval schedules, record verified financial entries, inspect snapshot-based performance insights, and pause/resume production with an audited operator note.
-- **Metrics collection:** the separate collector records last attempt/success, failures and snapshot coverage. The dashboard distinguishes YouTube Data API counters from unsupported retention/swipe-away/watch-time metrics; TikTok analytics collection is not implemented.
+- **Metrics collection:** the separate `metrics-collector` service independently refreshes YouTube and TikTok counters, records collection health/coverage, and isolates provider failures. TikTok collection requires `video.list`; only views, likes, comments and shares are reported. Retention, swipe-away, watch-time and revenue are not inferred.
 - **Recommendation experiments:** chronological holdout splits complete recommendation exposure runs, reports pre/holdout association stability, and supports operator-captured immutable evaluation snapshots with input fingerprints. Outcomes remain observational and selection-biased; ranking scores are not auto-adjusted.
 
 ## Services
@@ -39,7 +39,7 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 | API | FastAPI dashboard and protected operational endpoints |
 | Worker | Claims and executes short-video production jobs |
 | Scheduler | Dispatches due interval schedules into the durable queue |
-| Metrics collector | Periodically refreshes due YouTube video counters and records collection health |
+| Metrics collector | Independently refreshes due YouTube and TikTok counters and records collection health |
 
 All services share the persistent `nexus_data` volume. The scheduler uses a SQLite singleton leader lease with a fencing token, so multiple instances can safely run with only one active dispatcher; crashed leaders are replaced after lease expiry. This remains a single-host SQLite baseline, not a horizontally scalable multi-host production deployment.
 
@@ -51,7 +51,7 @@ With Python dependencies installed:
 sh scripts/validate.sh
 ```
 
-This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified GitHub Actions run [43671183060](https://github.com/justinhblee-prog/shorts/actions/runs/43671183060) completed successfully on main; **166 tests passed**. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
+This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified code validation for the TikTok performance dashboard: GitHub Actions run [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), **476 tests passed**; frontend validation reported 107 unique IDs / 91 literal selectors. This validates automated checks only, not live provider connectivity, OAuth consent, real-account publishing, metric retrieval or monetization. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
 
 ## Documentation
 
@@ -62,7 +62,7 @@ This runs Python bytecode compilation, unittest discovery, and (when Node.js is 
 
 ## Non-negotiable operating constraints
 
-- No public upload or publishing action is exposed. YouTube uploads remain private.
+- No public publishing action is exposed. YouTube uploads remain `private`; TikTok Direct Post remains `SELF_ONLY`.
 - A recorded human approval is required before upload.
 - Forecasts are estimates, not actual earnings.
 - Missing source metrics remain missing; no fabricated views, RPM, trend volume or revenue.
