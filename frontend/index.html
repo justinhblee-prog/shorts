@@ -113,6 +113,7 @@
           <div class="compact-form queue-control-form">
             <div class="field-row"><label>운영자 ID<input id="queueOperator" maxlength="128" value="operator" required></label><label>조치 사유<input id="queueControlNote" maxlength="2000" placeholder="오류 확인 및 복구 점검 완료" required></label></div>
             <div class="field-row"><button class="button button-secondary" id="pauseQueue" type="button">생산 일시 중지</button><button class="button button-primary" id="resumeQueue" type="button" disabled>검증 후 생산 재개</button></div>
+            <label class="check-row"><input id="recoveryConfirmed" type="checkbox"> 공급자 결과·생성 파일·과금·사람 승인·정책 증거·Worker 상태를 직접 확인했고, 안전 진단의 차단 항목이 없음을 확인했습니다.</label>
             <div class="notice"><span>재개 전 원격 AI 작업 결과, 생성 파일 및 과금 내역을 확인하세요. 재개 결정은 감사 기록에 남습니다.</span></div>
           </div>
           <div class="notice">운영 안전 진단은 읽기 전용입니다. 자동 복구·중지·재개를 실행하지 않습니다.</div><div id="queueDetails" class="data-list"><div class="empty-state">인증 후 작업 현황을 불러옵니다.</div></div></article>
