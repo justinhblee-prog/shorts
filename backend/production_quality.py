@@ -123,9 +123,7 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
             known_nonvertical = True
     if known_nonvertical:
         blockers.append("render_format_is_not_vertical_9_16")
-    elif not aspect and not (width and height) and render_format not in (
-        "vertical", "vertical_short", "9:16"
-    ):
+    elif not aspect and not (width and height) and render_format != "9:16":
         warnings.append("render_aspect_ratio_not_reported")
 
     audio_track_present = _reported_bool(render_metadata.get("audio_track_present"))
