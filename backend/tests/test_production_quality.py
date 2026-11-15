@@ -38,6 +38,12 @@ class ProductionQualityTests(unittest.TestCase):
                 "audio_track_present": True, "video_codec": "h264",
                 "audio_codec": "aac", "subtitle_stream_present": True,
             },
+            speech_report={
+                "status": "aligned", "provider": "test-asr",
+                "script_token_count": 25, "transcript_token_count": 25,
+                "word_error_rate": 0, "match_rate": 1.0,
+                "threshold_word_error_rate": 0.25,
+            },
         )
         self.assertEqual(report["status"], "ready_for_human_review")
         self.assertNotIn("actual_media_bytes_not_inspected", report["warnings"])
