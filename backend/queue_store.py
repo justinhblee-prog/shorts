@@ -218,6 +218,11 @@ class JobQueue:
         if owner is None or owner["instance_token"] != instance_token:
             raise LeaseConflict("Worker process instance no longer owns this worker ID")
 
+    def assert_current_worker_instance(self, worker, instance_token):
+        """Verify an API caller still owns the registered worker process identity."""
+        with self.db() as c:
+            self.assert_worker_instance(c, worker, instance_token)
+
     def heartbeat(self,jid,worker,token,instance_token=None):
         dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds))
         with self.db() as c:
