@@ -101,6 +101,17 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("TikTok 게시 시 AI 생성 콘텐츠 라벨", app_js)
         self.assertIn("현실적으로 보이거나 실제 장면을 의미 있게 변형", app_js)
 
+    def test_tiktok_oauth_connection_controls_are_wired(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="connectTikTok"', html)
+        self.assertIn('id="tiktokOAuthStatus"', html)
+        self.assertIn("/api/tiktok/oauth/authorize", app_js)
+        self.assertIn("/api/tiktok/oauth/status", app_js)
+        self.assertIn("window.location.assign(result.authorization_url)", app_js)
+        self.assertIn("tiktok_oauth=connected", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
