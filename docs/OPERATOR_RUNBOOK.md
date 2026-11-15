@@ -349,3 +349,8 @@ Provider JSON responses are limited to 2 MiB. If a provider returns an oversized
 - When enabled, the artifact is scanned after bounded download, Content-Length and MP4 signature checks, but before the atomic move into the final staged filename. An infected result, missing scanner, unavailable/outdated database, scanner error or timeout rejects staging and removes the temporary file. The application never treats a scanner error as a clean result.
 - Staging responses report `malware_scan=clean` when the scan succeeds and `malware_scan=disabled` when the gate is off. The default remains disabled for backward-compatible rollout; operators must explicitly enable it and maintain fresh signatures before claiming malware scanning is active.
 - ClamAV scanning is one layer of defense, not a guarantee that a media file is safe. Keep the renderer host allowlist, size caps, MP4/ffprobe validation and human review in place. No production artifact or live ClamAV database was scanned by CI.
+
+
+## 9. Operator audit identity
+
+With `NEXUS_REVIEW_CREDENTIALS_JSON` configured, use a unique token per operator. The API attributes review decisions, policy attestations, queue pause/resume, YouTube reconciliation, TikTok private publishing/reconciliation and recommendation experiment/skip-feedback events to the operator ID mapped to the presented token. Request-body `operator_id` / `reviewer_id` values are retained for client compatibility but do not determine the audit actor. Legacy shared-token deployments are attributed to `legacy-operator`. All configured operators currently share the same permission set; configure a future IdP/RBAC layer before delegating different operational privileges.
