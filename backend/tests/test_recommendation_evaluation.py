@@ -78,7 +78,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(evaluation["feedback_summary"]["skipped_count"], 0)
         with self.store.db() as connection:
             events = connection.execute(
-                "SELECT decision FROM recommendation_feedback_events WHERE candidate_id=? ORDER BY created_at,id",
+                "SELECT decision FROM recommendation_feedback_events WHERE candidate_id=? ORDER BY rowid",
                 (linked["candidate_id"],),
             ).fetchall()
         self.assertEqual([row["decision"] for row in events], ["skipped", "selected"])
