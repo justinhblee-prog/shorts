@@ -213,7 +213,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("제작 품질·검수·게시·기록 재무 분석", app_js)
         self.assertIn("단계별 실패율", app_js)
         self.assertIn("작업 연결 재무 기록", app_js)
-        self.assertIn("통화 환산·추정 매출은 포함하지 않습니다", app_js)
+        self.assertIn("통화 환산·추정 매출은 포함하지 않으며", app_js)
 
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
