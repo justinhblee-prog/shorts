@@ -16,7 +16,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  get_tiktok_publication, approved_reviews, start_tiktok_oauth,
                  tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth,
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
-                 skip_recommendation_feedback)
+                 skip_recommendation_feedback, capture_trend_recommendations)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -133,6 +133,36 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result.status_code, 303)
         self.assertIn("tiktok_oauth=connected", result.headers["location"])
         exchange.assert_called_once_with("code-1", "state-1")
+
+    def test_recommendation_snapshot_returns_stable_candidate_ids(self):
+        ranked = [{
+            "trend": {"id": "trend-1", "title": "AI"},
+            "brand_candidates": [{"brand": "alpha", "brand_name": "Alpha"}],
+        }]
+        exposure = {
+            "run_id": "run-1",
+            "recorded_candidates": 1,
+            "candidate_ids": [{
+                "candidate_id": "candidate-1",
+                "trend_id": "trend-1",
+                "brand_slug": "alpha",
+            }],
+            "deduplicated": False,
+        }
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app._build_trend_recommendations", return_value=ranked),
+            mock.patch("app.recommendation_evaluation_store.record_run",
+                       return_value=exposure),
+        ):
+            result = capture_trend_recommendations(
+                region="US", limit=20, x_review_token="test-token"
+            )
+        self.assertEqual(
+            result["items"][0]["brand_candidates"][0]["evaluation_candidate_id"],
+            "candidate-1",
+        )
+        self.assertEqual(result["evaluation_run_id"], "run-1")
 
     def test_recommendation_skip_feedback_is_token_protected(self):
         route = next(route for route in app.routes
