@@ -25,6 +25,7 @@ from lifecycle_consistency import inspect_lifecycle_consistency
 from operator_recovery import build_operator_recovery_plan
 from failure_analysis import classify_failure
 from stage_performance import build_stage_performance
+from pipeline_performance import build_pipeline_performance
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
@@ -1307,6 +1308,24 @@ def get_job_failure_analysis(jid:str,x_review_token:str|None=Header(default=None
                 "event_type":event.get("event_type"),"created_at":event.get("created_at"),
                 "from_status":event.get("from_status"),"to_status":event.get("to_status")},
             "latest_failure":analysis,"read_only":True,"actions_taken":[]}
+@app.get("/api/performance/pipeline")
+def get_pipeline_performance(
+    limit:int=100, min_samples:int=5,
+    x_review_token:str|None=Header(default=None),
+):
+    """Return bounded cohort statistics from durable queue event timestamps."""
+    require_review_access(x_review_token)
+    if min_samples < 1 or min_samples > 100:
+        raise HTTPException(422,"min_samples must be between 1 and 100")
+    page=queue.list_jobs(job_type="short_video_production",limit=min(100,max(1,limit)))
+    jobs=page["items"]
+    event_map={job["id"]:queue.events(job["id"]) for job in jobs}
+    result=build_pipeline_performance(jobs,event_map,min_samples=min_samples)
+    result["cohort_total_jobs"]=page["total"]
+    result["cohort_limit"]=min(100,max(1,limit))
+    return result
+
+
 @app.get("/api/jobs/{jid}/stage-performance")
 def get_job_stage_performance(jid:str,x_review_token:str|None=Header(default=None)):
     """Return read-only observed queue-state dwell times for one job."""
