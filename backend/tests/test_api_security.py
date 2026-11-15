@@ -2,6 +2,7 @@ import os
 import unittest
 import logging
 import tempfile
+import threading
 from pathlib import Path
 import app as app_module
 from unittest import mock
@@ -9,7 +10,7 @@ from fastapi import HTTPException, Response
 from types import SimpleNamespace
 from pydantic import ValidationError
 from app import (app, require_review_access, YouTubeLateSuccessResolution, Enqueue,
-                 enqueue, IdempotencyConflict, ProductionExecute, execute_production_job,
+                 enqueue, IdempotencyConflict, ProductionExecute, execute_production_job, cancel as cancel_job,
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
@@ -25,6 +26,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  require_canonical_staged_media, stage_production_media, approve_review,
                  publishing_dashboard, tiktok_metrics, youtube_analytics_metrics)
 from production_pipeline import ProviderError
+from queue_store import LeaseConflict
 
 class ApiSecurityTests(unittest.TestCase):
     def test_canonical_staged_media_accepts_only_current_job_file(self):
@@ -778,10 +780,46 @@ class ApiSecurityTests(unittest.TestCase):
 
         self.assertEqual(result, response)
         execute.assert_called_once_with(
-            "job-1", job["payload"], worker_id="worker-1", lease_token="lease-1"
+            "job-1", job["payload"], worker_id="worker-1",
+            lease_token="lease-1", stop_event=mock.ANY
         )
+        self.assertIsInstance(execute.call_args.kwargs["stop_event"], __import__("threading").Event)
         finish.assert_called_once()
         reconcile.assert_called_once_with(app_module.queue)
+
+    def test_api_production_execution_stops_when_heartbeat_loses_lease(self):
+        job = {"id": "job-heartbeat", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        observed_stop = threading.Event()
+
+        def wait_for_lease_loss(*args, **kwargs):
+            stop_event = kwargs["stop_event"]
+            if stop_event.wait(timeout=2):
+                observed_stop.set()
+            return {"artifacts": []}
+
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "lease_seconds", 0.3),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "heartbeat",
+                              side_effect=LeaseConflict("lease ownership lost")),
+            mock.patch.object(app_module.queue, "pause") as pause,
+            mock.patch.object(app_module.queue, "finish") as finish,
+            mock.patch.object(app_module.production_pipeline, "execute",
+                              side_effect=wait_for_lease_loss),
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job(
+                    "job-heartbeat", body, x_review_token="test-token"
+                )
+
+        self.assertEqual(caught.exception.status_code, 409)
+        self.assertTrue(observed_stop.is_set())
+        finish.assert_not_called()
+        pause.assert_called_once()
 
     def test_api_production_execution_rejects_stale_pipeline_lease(self):
         job = {"id": "job-1", "job_type": "short_video_production",
@@ -811,14 +849,16 @@ class ApiSecurityTests(unittest.TestCase):
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProviderError("script", "provider timeout", True)),
-            mock.patch.object(app_module.queue, "fail") as fail,
+            mock.patch.object(app_module.queue, "fail",
+                              return_value={"status": "failed_retriable"}) as fail,
             mock.patch.object(app_module.queue, "pause") as pause,
         ):
             with self.assertRaises(HTTPException) as caught:
                 execute_production_job("job-provider", body, x_review_token="test-token")
         self.assertEqual(caught.exception.status_code, 502)
         fail.assert_called_once()
-        pause.assert_called_once()
+        self.assertTrue(caught.exception.detail["retryable"])
+        pause.assert_not_called()
 
     def test_api_internal_error_records_failure_and_pauses_production(self):
         job = {"id": "job-internal", "job_type": "short_video_production",
@@ -838,6 +878,23 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 500)
         fail.assert_called_once()
         pause.assert_called_once()
+    def test_cancelled_production_job_reconciles_production_record_immediately(self):
+        cancelled = {"id": "job-cancel", "job_type": "short_video_production",
+                     "status": "cancelled"}
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "cancel", return_value=cancelled) as cancel,
+            mock.patch.object(
+                app_module.production_store, "reconcile_terminal_jobs",
+                return_value={"updated": 1, "job_ids": ["job-cancel"]}
+            ) as reconcile,
+        ):
+            result = cancel_job("job-cancel", x_review_token="test-token")
+
+        self.assertEqual(result, cancelled)
+        cancel.assert_called_once_with("job-cancel")
+        reconcile.assert_called_once_with(app_module.queue)
+
     def test_queue_control_endpoints_are_authenticated_and_audited(self):
         body = QueueControlAction(operator_id="operator-1", note="Reviewed worker state", recovery_confirmed=True)
         control = {"paused": True, "pause_reason": body.note, "paused_job_id": "job-1"}

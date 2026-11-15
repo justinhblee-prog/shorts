@@ -864,3 +864,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Comparable cohorts now include median average view percentage and duration when available. The trend recommendation context exposes these values for operator review.
 - No score, rank, production selection or publishing action uses the new metrics. `ranking_score_adjustment=0`; the values are descriptive and observational, not causal or detailed per-second retention curves.
 - GitHub Actions run [43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969) passed **490 tests**, with 107 unique HTML IDs / 91 JS selectors. Live Analytics OAuth/data remains unverified.
+
+
+### Production API lease fencing — BUILD-00076
+- The production execution API renews its queue lease while the pipeline is running. A heartbeat failure signals the pipeline to stop before another provider stage and prevents a false successful handoff.
+- Generic job APIs cannot claim production jobs or enqueue/heartbeat/complete them outside the production-aware flow.
+- Retryable API errors are reported only when the durable queue actually schedules a retry.
+- API cancellation immediately reconciles the production row with the queue's terminal state.
+- New regression coverage checks heartbeat-loss propagation and cancellation reconciliation. CI for the latest branch head is pending; the prior head passed 491 tests.
