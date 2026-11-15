@@ -36,7 +36,8 @@ INSTANCE_TOKEN = str(uuid.uuid4())
 
 def handle_shutdown_signal(signum, frame):
     request_worker_shutdown(
-        queue, stopping, active_job_id, active_lost_lease_event, signum
+        queue, stopping, active_job_id, active_lost_lease_event, signum,
+        worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN
     )
 
 
@@ -49,7 +50,7 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
             lost_lease.set()
             stopping.set()
             try:
-                queue.pause(f"heartbeat lease conflict: {exc}", job_id)
+                queue.pause(f"heartbeat lease conflict: {exc}", job_id, worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
             except Exception:
                 pass
             return
@@ -59,7 +60,7 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
             lost_lease.set()
             stopping.set()
             try:
-                queue.pause(f"heartbeat failure: {type(exc).__name__}: {exc}", job_id)
+                queue.pause(f"heartbeat failure: {type(exc).__name__}: {exc}", job_id, worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
             except Exception:
                 pass
             return
@@ -189,7 +190,8 @@ def main():
     except Exception as exc:
         stopping.set()
         try:
-            queue.pause(f"fatal worker startup/reconciliation error: {type(exc).__name__}: {exc}")
+            queue.pause(f"fatal worker startup/reconciliation error: {type(exc).__name__}: {exc}",
+                        worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
         except Exception:
             pass
         print(f"worker_fatal error={type(exc).__name__}; worker_paused")
