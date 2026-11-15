@@ -163,6 +163,9 @@ class YouTubeUploadStore:
 
     def mark_reconciliation_required(self,job_id,error):
         with self.db() as c:
+            row=c.execute("SELECT status FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
+            if row is not None and row["status"]=="late_success_review_required":
+                return
             c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',
               error=?,updated_at=? WHERE job_id=? AND status IN ('uploading','reconciliation_required')""",
               (str(error)[:2000],_now(),job_id))
