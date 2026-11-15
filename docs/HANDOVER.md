@@ -1151,3 +1151,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Only explicitly trusted proxy peers can supply a bounded XFF chain; malformed or ambiguous chains fall back to the direct peer. CIDR errors fail startup.
 - Updated operator and backend runbooks. Corrected literal escaped newlines in `.env.example`.
 - Added IPv4/IPv6 and XFF spoof-resistance regression tests. CI evidence pending.
+
+
+## Handover — BUILD-00108 (2026-11-16)
+
+- Authenticated operator identity now flows into queue control, YouTube/TikTok reconciliation and publishing, and recommendation experiment/skip-feedback audit records.
+- Request body actor IDs are compatibility-only and are not trusted for audit attribution.
+- Added endpoint-level forged-identity regression tests. All configured tokens currently have the same permissions; this is not RBAC. CI evidence pending.
