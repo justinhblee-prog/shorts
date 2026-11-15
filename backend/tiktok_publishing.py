@@ -84,7 +84,7 @@ class TikTokPublishStore:
         finally:
             connection.close()
 
-    def begin(self, job_id, title, is_aigc, policy_version):
+    def begin(self, job_id, title, is_aigc, policy_version, operator_id):
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
@@ -112,9 +112,9 @@ class TikTokPublishStore:
             connection.execute("""
               INSERT INTO tiktok_publication_events
                 (job_id,attempt_id,event_type,outcome,operator_id,note,created_at,policy_version)
-              VALUES(?,?,'publish_attempt_started','started','system:tiktok_worker',
+              VALUES(?,?,'publish_attempt_started','started',?,
                      'Creator consent and human approval verified; private visibility selected',?,?)
-            """, (job_id, attempt_id, now, policy_version))
+            """, (job_id, attempt_id, operator_id, now, policy_version))
             return dict(connection.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone())
@@ -286,9 +286,14 @@ class TikTokPublisher:
         return upload_url
 
     def publish_approved(self, job_id, media_path, review_store, title,
-                         creator_consented, caption_confirmed, operator_id):
+                         creator_consented, caption_confirmed, operator_id,
+                         brand_content_toggle, brand_organic_toggle):
         if creator_consented is not True:
             raise TikTokPublishError("Explicit creator consent to upload is required")
+        if not isinstance(brand_content_toggle, bool) or not isinstance(brand_organic_toggle, bool):
+            raise TikTokPublishError("Paid partnership and own-brand promotion declarations must be explicit booleans")
+        if brand_content_toggle and brand_organic_toggle:
+            raise TikTokPublishError("Paid partnership and own-brand promotion declarations cannot both be true")
         if caption_confirmed is not True:
             raise TikTokPublishError("Creator must confirm the editable caption before upload")
         operator_id = str(operator_id or "").strip()
@@ -298,22 +303,25 @@ class TikTokPublisher:
             raise TikTokPublishError("TikTok caption must contain 1 to 2200 characters")
         resolved, mime, size = self._media(media_path)
         policy, is_aigc = self._policy_evidence(self.store, review_store, job_id)
-        attempt = self.store.begin(job_id, title, is_aigc, policy["policy_version"])
+        attempt = self.store.begin(job_id, title, is_aigc, policy["policy_version"], operator_id)
         remote_started = False
         try:
             creator = self.creator_info().get("data") or {}
             privacy_options = creator.get("privacy_level_options") or []
             if "SELF_ONLY" not in privacy_options:
                 raise TikTokPublishError("TikTok creator account does not offer SELF_ONLY privacy")
-            chunk_size = size if size < 5 * 1024 * 1024 else min(UPLOAD_CHUNK_BYTES, size)
-            total_chunks = (size + chunk_size - 1) // chunk_size
+            chunk_size = size if size < UPLOAD_CHUNK_BYTES else UPLOAD_CHUNK_BYTES
+            total_chunks = max(1, size // chunk_size)
             if total_chunks > 1000:
                 raise TikTokPublishError("TikTok upload exceeds the 1000-chunk limit")
+            remote_started = True
             body = self._api_post("/post/publish/video/init/", {
                 "post_info": {
                     "title": title, "privacy_level": "SELF_ONLY",
                     "disable_duet": True, "disable_comment": True, "disable_stitch": True,
-                    "brand_organic_toggle": False, "is_aigc": is_aigc,
+                    "brand_content_toggle": brand_content_toggle,
+                    "brand_organic_toggle": brand_organic_toggle,
+                    "is_aigc": is_aigc,
                 },
                 "source_info": {
                     "source": "FILE_UPLOAD", "video_size": size,
@@ -325,14 +333,17 @@ class TikTokPublisher:
             upload_url = self._upload_url_allowed(data.get("upload_url"))
             if not publish_id or len(publish_id) > 64 or not upload_url:
                 raise TikTokPublishError("TikTok did not return a valid publish ID and upload URL")
-            remote_started = True
             self.store.update(job_id, attempt["attempt_id"], "uploading",
                               publish_id=publish_id, event_type="upload_initialized",
                               note="Direct Post initialized with SELF_ONLY privacy and is_aigc declaration")
             with resolved.open("rb") as media:
                 offset = 0
                 while offset < size:
-                    chunk = media.read(chunk_size)
+                    remaining = size - offset
+                    # TikTok requires each chunk to be >=5 MiB (except a whole
+                    # file below 5 MiB). The final chunk absorbs the remainder.
+                    read_size = remaining if (total_chunks == 1 or offset // chunk_size == total_chunks - 1) else chunk_size
+                    chunk = media.read(read_size)
                     if not chunk:
                         raise TikTokPublishError("Unexpected end of staged video during upload")
                     end = offset + len(chunk) - 1
