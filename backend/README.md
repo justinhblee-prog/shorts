@@ -443,3 +443,8 @@ The script, voice, render and optional transcription adapters validate provider 
 Configuration preflight reports missing or invalid provider URL keys without echoing URL values or secrets. It remains configuration-only and does not make network requests. A configured HTTPS URL is not evidence that DNS, TLS, provider authentication, provider contracts, generation, artifact delivery or billing work. Provider HTTP error bodies are intentionally discarded; only status codes are retained to prevent accidental persistence of echoed secrets or submitted content. Automatic HTTP redirects are disabled because the standard redirect handler can forward request headers; a redirect fails closed rather than forwarding a bearer token to another host.
 
 GitHub Actions PR run [43719673855](https://github.com/justinhblee-prog/shorts/actions/runs/43719673855) passed **497 tests** and frontend validation passed with **107 unique IDs / 91 literal selectors**. The existing TikTok poll-backoff test fixture was made deterministic using margins away from SQLite's one-second timestamp boundary. Final PR CI run [43719815537](https://github.com/justinhblee-prog/shorts/actions/runs/43719815537) passed **497 tests**.
+
+
+## BUILD-00078 — bounded provider responses
+
+Provider JSON adapters read no more than 2 MiB plus one detection byte and reject oversized responses before JSON parsing. The same limit is enforced after custom/injected transports return, preventing a custom adapter from bypassing the boundary. This protects worker memory from unexpectedly large or malformed provider responses. Renderer media artifacts are separate binary downloads and continue to use the media staging size limit.
