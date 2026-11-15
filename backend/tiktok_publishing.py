@@ -326,19 +326,24 @@ class TikTokPublisher:
             data = json.loads(raw.decode("utf-8")) if not binary else {}
         except (ValueError, UnicodeDecodeError) as exc:
             raise TikTokPublishError("TikTok returned an invalid response") from exc
+        error = data.get("error") if isinstance(data, dict) else None
+        if isinstance(error, dict):
+            error_code = error.get("code")
+        elif isinstance(error, str):
+            error_code = error.strip() or None
+        else:
+            error_code = None
         if status < 200 or status >= 300:
-            error = data.get("error", {}) if isinstance(data, dict) else {}
             raise TikTokPublishError(
                 "TikTok HTTP " + str(status) + ": " +
-                str(error.get("code") or "request_failed")
+                str(error_code or "request_failed")
             )
         if binary:
             if status not in (201, 206):
                 raise TikTokPublishError("TikTok media chunk returned unexpected HTTP " + str(status))
             return {"http_status": status}
-        error = data.get("error", {})
-        if error and error.get("code") not in (None, "ok"):
-            raise TikTokPublishError("TikTok API error: " + str(error.get("code")))
+        if error_code not in (None, "ok"):
+            raise TikTokPublishError("TikTok API error: " + str(error_code))
         return data
 
     @staticmethod
