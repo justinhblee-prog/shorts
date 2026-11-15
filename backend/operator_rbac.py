@@ -60,6 +60,9 @@ def _load_role_map(raw: str) -> dict[str, frozenset[str]]:
 def permissions_for(operator_id: str, *, role_map_json: str | None = None) -> frozenset[str]:
     """Resolve explicit role grants; legacy mode retains the operator role."""
     raw = os.getenv("NEXUS_REVIEW_ROLE_MAP_JSON", "") if role_map_json is None else role_map_json
+    raw = raw or ""
+    if not isinstance(raw, str):
+        raise OperatorRoleConfigurationError("NEXUS_REVIEW_ROLE_MAP_JSON must be a JSON string")
     if not raw.strip():
         return frozenset({"*"})
     role_map = _load_role_map(raw)
