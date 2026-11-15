@@ -2,6 +2,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from production_pipeline import ProductionStore
@@ -294,7 +295,7 @@ class YouTubePublishingTests(unittest.TestCase):
             if calls["count"]==2:
                 raise RuntimeError("database read unavailable after confirmation")
             return original_get(job_id)
-        with unittest.mock.patch.object(self.uploads,"get",side_effect=fail_followup_read):
+        with mock.patch.object(self.uploads,"get",side_effect=fail_followup_read):
             with self.assertRaisesRegex(
                 YouTubeUploadError,"upload was confirmed as yt-video-123"
             ):
