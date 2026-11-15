@@ -44,6 +44,12 @@ class ProductionQualityTests(unittest.TestCase):
                 "word_error_rate": 0, "match_rate": 1.0,
                 "threshold_word_error_rate": 0.25,
             },
+            caption_report={
+                "status": "aligned", "extraction_status": "extracted",
+                "reference": "independent_asr_transcript",
+                "subtitle_token_count": 25, "word_error_rate": 0,
+                "match_rate": 1.0, "threshold_word_error_rate": 0.25,
+            },
         )
         self.assertEqual(report["status"], "ready_for_human_review")
         self.assertNotIn("actual_media_bytes_not_inspected", report["warnings"])
