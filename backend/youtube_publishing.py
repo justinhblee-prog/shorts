@@ -169,12 +169,22 @@ class YouTubeUploadStore:
     def mark_reconciliation_required(self,job_id,error,attempt_id=None):
         with self.db() as c:
             row=c.execute("SELECT status,attempt_id FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
-            if row is None or row["status"]=="late_success_review_required" or row["attempt_id"]!=attempt_id:
+            if row is None or row["status"]=="late_success_review_required":
+                return
+            now=_now()
+            if row["attempt_id"]!=attempt_id:
+                c.execute("""INSERT INTO youtube_upload_events
+                  (job_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
+                  VALUES(?,'superseded_attempt_uncertain','uncertain',NULL,'system:upload_worker',?,?, 'reconciliation_required',?)""",
+                  (job_id,str(error)[:2000],row["status"],now))
+                c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',
+                  error=?,updated_at=? WHERE job_id=? AND status!='late_success_review_required'""",
+                  ("A superseded upload attempt ended with an uncertain remote outcome. "+str(error)[:1500],now,job_id))
                 return
             c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',
               error=?,updated_at=? WHERE job_id=? AND status IN ('uploading','reconciliation_required')
               AND attempt_id=?""",
-              (str(error)[:2000],_now(),job_id,attempt_id))
+              (str(error)[:2000],now,job_id,attempt_id))
             if c.rowcount != 1:
                 raise YouTubeUploadError("Upload record is not in a reconcilable state")
 
