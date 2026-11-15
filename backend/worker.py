@@ -125,7 +125,7 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "provider_" + exc.stage, str(exc), exc.retryable)
+                       "provider_" + exc.stage, str(exc), False)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
