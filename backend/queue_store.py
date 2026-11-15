@@ -92,6 +92,10 @@ class JobQueue:
         dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds)); token=str(uuid.uuid4())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            control=c.execute("SELECT paused FROM worker_control WHERE id=1").fetchone()
+            if control and control["paused"]:
+                c.commit()
+                return None
             c.execute("""INSERT INTO worker_registry VALUES(?,?,?,'online') ON CONFLICT(worker_id)
               DO UPDATE SET hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",(worker_id,hostname,n))
             expired=c.execute("""SELECT id,attempt,max_attempts FROM pipeline_jobs WHERE status='running'
