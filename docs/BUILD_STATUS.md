@@ -562,3 +562,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Worker listings now compute stale records as `offline` after the configured lease window (minimum 30 seconds), rather than displaying a dead process as online indefinitely.
 - Added regression coverage for idle worker registration, heartbeat refresh and stale-to-offline detection.
 - GitHub Actions run [43669105872](https://github.com/justinhblee-prog/shorts/actions/runs/43669105872) passed **141 tests** on commit `e4f64cbd78e542165c545dcf8b659d8915eb77f2`; Python compilation and JavaScript syntax validation passed.
+
+
+## BUILD-00013 — evidence-bounded trend-to-brand recommendations
+
+- Added `backend/trend_recommendations.py` to rank collected trend signals using recency (0–40) and editorial brand fit (0–40).
+- Active brand profiles are matched by title/summary token overlap; incompatible regional profiles are excluded. The endpoint returns up to three suitable brand candidates per trend.
+- Added authenticated GET `/api/trends/recommendations?region=US&limit=30`.
+- The score is explicitly an editorial discovery signal, **not** a profitability forecast. The remaining 20 score points are intentionally unallocated because the current trend feeds do not supply comparable search volume, Shorts demand, verified RPM, or production cost.
+- Each result carries evidence-gap flags. No trend is automatically sent to production; the operator still selects a brand and uses the existing draft-production and human-review gates.
+- Regression tests cover freshness ordering, region eligibility, missing brand matches, evidence caveats and route authentication.
+- **Validation:** GitHub Actions is running against the latest API regression test commit; do not mark this milestone validated until that run completes successfully.
