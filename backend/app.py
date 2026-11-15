@@ -63,6 +63,7 @@ rate_limit_store=SQLiteRateLimitStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqli
 app.add_middleware(
     ApiRateLimitMiddleware,
     store=rate_limit_store,
+    trusted_proxy_cidrs=os.getenv("NEXUS_TRUSTED_PROXY_CIDRS", ""),
     limits={
         "default": int(os.getenv("NEXUS_API_RATE_LIMIT_PER_MINUTE", "120")),
         "auth": int(os.getenv("NEXUS_API_AUTH_RATE_LIMIT_PER_MINUTE", "20")),

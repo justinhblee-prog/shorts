@@ -35,5 +35,14 @@ class ReviewerAuthTests(unittest.TestCase):
                 with self.assertRaises(ReviewCredentialConfigurationError):
                     resolve_review_principal("a" * 40, credentials_json=raw)
 
+    def test_env_example_uses_real_line_breaks_for_reviewer_credentials(self):
+        from pathlib import Path
+        example = Path(__file__).resolve().parents[2] / ".env.example"
+        content = example.read_text(encoding="utf-8")
+        self.assertNotIn("\\n", content)
+        self.assertIn("NEXUS_REVIEW_CREDENTIALS_JSON=", content)
+        self.assertIn("NEXUS_TRUSTED_PROXY_CIDRS=", content)
+
+
 if __name__ == "__main__":
     unittest.main()

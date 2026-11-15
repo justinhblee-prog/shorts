@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import ipaddress
 import json
 import sqlite3
 import time
@@ -74,7 +75,6 @@ class SQLiteRateLimitStore:
                     "WHERE scope=? AND subject_hash=?",
                     (count, current, str(scope), subject_hash),
                 )
-            # Bound persistent state without requiring a background cleanup worker.
             if window_start % 3600 == 0:
                 connection.execute(
                     "DELETE FROM api_rate_limit_buckets WHERE updated_at < ?",
@@ -87,7 +87,6 @@ class SQLiteRateLimitStore:
             raise
         finally:
             connection.close()
-
         retry_after = max(1, window_start + window_seconds - current)
         return {
             "allowed": count <= limit,
@@ -99,24 +98,78 @@ class SQLiteRateLimitStore:
 
 
 class ApiRateLimitMiddleware:
-    """Apply persistent per-client limits to API mutations and OAuth callbacks."""
+    """Apply persistent per-client limits with explicit trusted-proxy handling."""
 
-    def __init__(self, app, store, limits=None, window_seconds=60):
+    MAX_FORWARDED_FOR_BYTES = 4096
+    MAX_FORWARDED_HOPS = 20
+
+    def __init__(self, app, store, limits=None, window_seconds=60,
+                 trusted_proxy_cidrs=None):
         self.app = app
         self.store = store
         self.window_seconds = int(window_seconds)
         self.limits = {
-            "default": 120,
-            "auth": 20,
-            "publish": 10,
-            "control": 30,
-            "review": 60,
-            "production": 30,
+            "default": 120, "auth": 20, "publish": 10,
+            "control": 30, "review": 60, "production": 30,
         }
         if limits:
             self.limits.update({key: int(value) for key, value in limits.items()})
         if any(value < 1 for value in self.limits.values()):
             raise ValueError("all API rate limits must be positive")
+        if trusted_proxy_cidrs is None:
+            trusted_proxy_cidrs = ""
+        if isinstance(trusted_proxy_cidrs, str):
+            entries = [item.strip() for item in trusted_proxy_cidrs.split(",") if item.strip()]
+        else:
+            entries = list(trusted_proxy_cidrs)
+        try:
+            self.trusted_proxy_networks = tuple(
+                ipaddress.ip_network(item, strict=False) for item in entries
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError("NEXUS_TRUSTED_PROXY_CIDRS contains an invalid network") from exc
+
+    def _is_trusted_proxy(self, address):
+        return any(address.version == network.version and address in network
+                   for network in self.trusted_proxy_networks)
+
+    @classmethod
+    def _forwarded_addresses(cls, scope):
+        values = [value for name, value in scope.get("headers", [])
+                  if name.lower() == b"x-forwarded-for"]
+        if len(values) != 1 or len(values[0]) > cls.MAX_FORWARDED_FOR_BYTES:
+            return None
+        try:
+            raw = values[0].decode("ascii")
+            parts = [part.strip() for part in raw.split(",")]
+            if not parts or len(parts) > cls.MAX_FORWARDED_HOPS or any(not part for part in parts):
+                return None
+            return [ipaddress.ip_address(part) for part in parts]
+        except (UnicodeDecodeError, ValueError):
+            return None
+
+    def _client_identity(self, scope):
+        client = scope.get("client")
+        if not client:
+            return "unknown"
+        try:
+            peer = ipaddress.ip_address(str(client[0]))
+        except ValueError:
+            return "unknown"
+        if not self._is_trusted_proxy(peer):
+            # Untrusted peers cannot choose their rate-limit identity with XFF.
+            return str(peer)
+        forwarded = self._forwarded_addresses(scope)
+        if not forwarded:
+            return str(peer)
+        # Walk right-to-left: only a currently trusted hop may nominate the
+        # preceding hop. Stop at the first untrusted address (the client).
+        current = peer
+        for address in reversed(forwarded):
+            if not self._is_trusted_proxy(current):
+                break
+            current = address
+        return str(current)
 
     def _policy(self, method, path):
         callback = path == "/api/tiktok/oauth/callback"
@@ -136,31 +189,19 @@ class ApiRateLimitMiddleware:
             return "default"
         return None
 
-    @staticmethod
-    def _client_identity(scope):
-        client = scope.get("client")
-        # Do not trust caller-supplied X-Forwarded-For. Configure the ASGI server
-        # and trusted proxy boundary explicitly before placing this behind a proxy.
-        return str(client[0]) if client else "unknown"
-
     async def __call__(self, scope, receive, send):
         if scope.get("type") != "http":
             await self.app(scope, receive, send)
             return
-
         method = scope.get("method", "GET").upper()
         path = scope.get("path", "")
         policy = self._policy(method, path)
         if policy is None:
             await self.app(scope, receive, send)
             return
-
         result = await asyncio.to_thread(
-            self.store.consume,
-            self._client_identity(scope),
-            policy,
-            self.limits[policy],
-            self.window_seconds,
+            self.store.consume, self._client_identity(scope), policy,
+            self.limits[policy], self.window_seconds,
         )
         headers = [
             (b"x-ratelimit-limit", str(result["limit"]).encode("ascii")),
@@ -180,11 +221,9 @@ class ApiRateLimitMiddleware:
             await send({"type": "http.response.start", "status": 429, "headers": headers})
             await send({"type": "http.response.body", "body": body})
             return
-
         async def send_with_rate_headers(message):
             if message["type"] == "http.response.start":
                 message = dict(message)
                 message["headers"] = list(message.get("headers", [])) + headers
             await send(message)
-
         await self.app(scope, receive, send_with_rate_headers)

@@ -1782,3 +1782,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added tests for unique identity resolution, invalid/duplicate/weak credentials, legacy fallback, malformed configuration and audit spoofing attempts.
 - This is per-operator bearer-token authentication, not full IdP/RBAC/session management. HTTPS, secure distribution and token rotation are required; broader RBAC remains open.
 - Final-head push CI [43773111981](https://github.com/justinhblee-prog/shorts/actions/runs/43773111981) and PR CI [43773117502](https://github.com/justinhblee-prog/shorts/actions/runs/43773117502): **588 tests passed**.
+
+
+## BUILD-00107 — trusted proxy-aware API rate-limit identity (2026-11-16)
+
+- Added explicit `NEXUS_TRUSTED_PROXY_CIDRS`; direct peer IP remains authoritative unless the peer belongs to an operator-configured trusted proxy network.
+- Safely parses a bounded single `X-Forwarded-For` chain, walks trusted hops right-to-left, and ignores malformed/duplicate/oversized chains.
+- Invalid CIDR configuration fails API startup. Added IPv4/IPv6, spoofing, chain and malformed-header tests.
+- Corrected escaped newlines accidentally introduced in the BUILD-00106 `.env.example` reviewer-credential section.
+- Final-head push CI [43773527527](https://github.com/justinhblee-prog/shorts/actions/runs/43773527527) and PR CI [43773552365](https://github.com/justinhblee-prog/shorts/actions/runs/43773552365): **595 tests passed**.
