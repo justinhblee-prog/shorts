@@ -71,10 +71,9 @@ class TrendRecommendationTests(unittest.TestCase):
         }
         result = rank_trend_candidates([supported, unsupported], [brand], now=now)
         en = next(item for item in result if item["trend"]["id"] == "en")
-        ja = next(item for item in result if item["trend"]["id"] == "ja")
         self.assertEqual(en["best_brand"]["brand"], "future-leak")
         self.assertEqual(en["best_brand"]["language_match"], "matched")
-        self.assertIsNone(ja["best_brand"])
+        self.assertNotIn("ja", [item["trend"]["id"] for item in result])
 
     def test_no_brand_match_is_not_invented(self):
         result = rank_trend_candidates(
