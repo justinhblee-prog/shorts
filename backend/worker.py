@@ -29,19 +29,30 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
     while not heartbeat_stop.wait(interval):
         try:
             queue.heartbeat(job_id, WORKER_ID, token)
-        except LeaseConflict:
+        except LeaseConflict as exc:
             lost_lease.set()
             stopping.set()
+            try:
+                queue.pause(f"heartbeat lease conflict: {exc}", job_id)
+            except Exception:
+                pass
             return
-        except Exception:
-            # A heartbeat DB failure makes lease ownership uncertain. Never silently
-            # continue the worker loop; fenced stage writes remain the final guard.
+        except Exception as exc:
+            # A heartbeat DB failure makes lease ownership uncertain. Persist a
+            # global pause when possible; never silently continue to another job.
             lost_lease.set()
             stopping.set()
+            try:
+                queue.pause(f"heartbeat failure: {type(exc).__name__}: {exc}", job_id)
+            except Exception:
+                pass
             return
 
 
 def run_once():
+    # A durable pause is checked before reconciliation and before every new claim.
+    if queue.is_paused():
+        return False
     # Recovery failures are intentionally allowed to escape: no job may be claimed
     # when the durable queue/production state cannot be reconciled.
     store.reconcile_missing_runs(queue)
@@ -72,16 +83,28 @@ def run_once():
     except ProviderError as exc:
         stopping.set()
         try:
+            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
+        except Exception:
+            pass
+        try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
                        "provider_" + exc.stage, str(exc), exc.retryable)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}; worker_stopped")
-    except (LeaseConflict, ProductionLeaseConflict):
+    except (LeaseConflict, ProductionLeaseConflict) as exc:
         stopping.set()
-        print(f"lease_lost job={job['id']}; worker_stopped")
+        try:
+            queue.pause(f"lease/production conflict: {exc}", job["id"])
+        except Exception:
+            pass
+        print(f"lease_lost job={job['id']}; worker_paused")
     except Exception as exc:
         stopping.set()
+        try:
+            queue.pause(f"fatal worker error: {type(exc).__name__}: {exc}", job["id"])
+        except Exception:
+            pass
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
                        "worker_error", str(exc), False)
@@ -97,16 +120,27 @@ def run_once():
 def main():
     print(f"worker_started id={WORKER_ID} lease_seconds={LEASE_SECONDS}")
     try:
-        while not stopping.is_set():
+        while True:
+            if queue.is_paused():
+                # Docker may restart this process automatically. Keep it alive but
+                # inert until an operator explicitly clears the durable pause.
+                stopping.wait(IDLE_SECONDS)
+                continue
+            if stopping.is_set():
+                return
             if not run_once():
                 stopping.wait(IDLE_SECONDS)
     except KeyboardInterrupt:
         print("worker_stopping")
     except Exception as exc:
-        # Reconciliation/claim/database failures are fatal to this process. Do not
-        # catch-and-continue into another queue claim with uncertain durable state.
+        # Reconciliation/claim/database failures are fatal to this process. Persist
+        # a pause if the database is reachable; never claim another job.
         stopping.set()
-        print(f"worker_fatal error={type(exc).__name__}; worker_stopped")
+        try:
+            queue.pause(f"fatal worker startup/reconciliation error: {type(exc).__name__}: {exc}")
+        except Exception:
+            pass
+        print(f"worker_fatal error={type(exc).__name__}; worker_paused")
         raise
 
 
