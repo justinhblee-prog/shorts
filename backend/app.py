@@ -532,7 +532,10 @@ def stats(x_review_token:str|None=Header(default=None)):
 @app.post("/api/jobs",status_code=201)
 def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    return queue.enqueue(**body.model_dump())
+    try:
+        return queue.enqueue(**body.model_dump())
+    except IdempotencyConflict as e:
+        raise HTTPException(409,str(e))
 @app.post("/api/jobs/claim")
 def claim(body:Claim,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
