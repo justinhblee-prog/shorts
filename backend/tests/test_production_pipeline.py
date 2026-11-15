@@ -107,6 +107,74 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(len(voice.calls), 1)
         self.assertEqual(len(render.calls), 1)
 
+    def test_pipeline_transcribes_generated_audio_and_records_script_alignment(self):
+        script_text = (
+            "The human brain predicts what happens next using patterns from previous "
+            "experiences. When expectations are violated, attention increases and the "
+            "brain updates its model of the world."
+        )
+        script = FakeProvider({"script": script_text, "factual_claims_verified": True})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3",
+                              "duration_seconds": 30})
+        transcription = FakeProvider({
+            "transcript": script_text,
+            "provider": "test-asr",
+        })
+        render = FakeProvider({"video_url": "https://media.example/video.mp4",
+                               "duration_seconds": 30, "aspect_ratio": "9:16",
+                               "audio_track_present": True, "subtitles_enabled": True})
+        pipeline = ProductionPipeline(
+            self.store, script, voice, render, transcription_provider=transcription
+        )
+        self.store.create("job-asr", self.brief)
+        result = pipeline.execute("job-asr", self.brief)
+        speech = next(item for item in result["artifacts"]
+                      if item["stage"] == "speech_alignment")
+        quality = next(item for item in result["artifacts"]
+                       if item["stage"] == "quality_check")
+        self.assertEqual(speech["metadata"]["status"], "aligned")
+        self.assertEqual(speech["metadata"]["provider"], "test-asr")
+        self.assertEqual(speech["metadata"]["word_error_rate"], 0)
+        self.assertEqual(quality["metadata"]["speech_alignment"]["status"], "aligned")
+        self.assertNotIn("speech_transcription_not_configured",
+                         quality["metadata"]["warnings"])
+        self.assertEqual(len(transcription.calls), 1)
+        self.assertEqual(transcription.calls[0][1]["audio_url"],
+                         "https://media.example/audio.mp3")
+        self.assertIn("Do not correct", transcription.calls[0][1]["instructions"])
+
+    def test_pipeline_flags_audio_script_mismatch_for_human_review(self):
+        script_text = (
+            "The human brain predicts what happens next using patterns from previous "
+            "experiences. When expectations are violated, attention increases and the "
+            "brain updates its model of the world."
+        )
+        script = FakeProvider({"script": script_text, "factual_claims_verified": True})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3",
+                              "duration_seconds": 30})
+        transcription = FakeProvider({
+            "transcript": (
+                "Ocean researchers explore deep water habitats using specialized robotic "
+                "vehicles to observe unusual species around underwater volcanic vents."
+            ),
+            "provider": "test-asr",
+        })
+        render = FakeProvider({"video_url": "https://media.example/video.mp4",
+                               "duration_seconds": 30, "aspect_ratio": "9:16",
+                               "audio_track_present": True, "subtitles_enabled": True})
+        pipeline = ProductionPipeline(
+            self.store, script, voice, render, transcription_provider=transcription
+        )
+        self.store.create("job-asr-mismatch", self.brief)
+        result = pipeline.execute("job-asr-mismatch", self.brief)
+        quality = next(item for item in result["artifacts"]
+                       if item["stage"] == "quality_check")
+        self.assertIn("spoken_audio_differs_from_generated_script",
+                      quality["metadata"]["warnings"])
+        self.assertEqual(quality["metadata"]["speech_alignment"]["status"],
+                         "material_mismatch")
+        self.assertEqual(result["status"], "rendered")
+
     def test_pipeline_flags_similar_script_from_another_brand_for_review(self):
         previous_script = (
             "The human brain predicts what happens next using patterns from previous "
