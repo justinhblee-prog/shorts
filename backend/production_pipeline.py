@@ -394,6 +394,10 @@ class ProductionPipeline:
                 if not isinstance(brief[key], str) or len(brief[key]) > 4000:
                     raise ValueError(f"{key} must be text up to 4000 characters")
                 clean[key] = brief[key].strip()
+        if "youtube_contains_synthetic_media" in brief:
+            if not isinstance(brief["youtube_contains_synthetic_media"], bool):
+                raise ValueError("youtube_contains_synthetic_media must be a boolean")
+            clean["youtube_contains_synthetic_media"] = brief["youtube_contains_synthetic_media"]
         for key in ("platform_disclosures", "risk_flags"):
             if key in brief:
                 if not isinstance(brief[key], dict):
