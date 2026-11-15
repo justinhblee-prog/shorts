@@ -157,3 +157,19 @@ Root files: `compose.yaml`, `.env.example`; image: `backend/Dockerfile`; validat
 4. Run `./scripts/validate.sh` in an environment with the backend dependencies installed.
 
 Compose starts API, one worker and one scheduler sharing a persistent SQLite volume. Keep one scheduler instance. This is a single-host validation baseline, not production-hardened HA. Configure HTTPS reverse proxy, backups/restore, log monitoring, OAuth refresh-token issuance and real provider endpoints before external launch. Never commit `.env`.
+
+## Final integrated baseline and external launch blockers
+
+BUILD-00001 through BUILD-00012 have source baselines committed to `main`. This does not establish a tested or revenue-producing production system.
+
+Before live launch:
+1. Resolve GitHub Actions runner allocation or execute `./scripts/validate.sh` in a working Python 3.11+ environment.
+2. Configure real script/TTS/render provider endpoints and validate actual generated artifacts.
+3. Add secure download/staging of remote rendered media; YouTube upload currently requires a server-local file path.
+4. Issue YouTube OAuth refresh credentials with upload/read scopes and validate a private test upload.
+5. Connect actual YouTube Analytics, affiliate and sponsor financial sources to the ledger.
+6. Replace the shared review token with authenticated users/roles; configure TLS, secret rotation, backups, monitoring and incident recovery.
+7. Migrate SQLite and add distributed worker/scheduler coordination before scaling beyond a single host.
+8. Verify actual revenue, costs and net ROI on a controlled content cohort before declaring business success.
+
+Latest checked CI run 74: runner_id=0, no runner name and no steps. Tests have not run. A clone attempt from this execution environment could not resolve github.com. The source is committed; runtime and live integration are unverified.
