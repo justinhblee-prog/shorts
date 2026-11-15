@@ -1,11 +1,12 @@
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from tiktok_publishing import TikTokPublishStore
-from tiktok_metrics import TikTokMetricsStore, TikTokMetricsCollector, TikTokMetricsError
+from tiktok_metrics import (TikTokMetricsStore, TikTokMetricsCollector, TikTokMetricsError, MAX_TIKTOK_METRICS_RESPONSE_BYTES)
 from metrics_collector import run_tiktok_once
 
 
@@ -120,6 +121,37 @@ class TikTokMetricsTests(unittest.TestCase):
         malformed_data = self._collector({"data": [], "error": {"code": "ok"}})
         with self.assertRaisesRegex(TikTokMetricsError, "omitted its data object"):
             malformed_data.refresh_due_metrics(min_age_seconds=0)
+
+    def test_custom_tiktok_metrics_transport_response_is_bounded(self):
+        collector = self._collector({"data": {"videos": []}, "error": {"code": "ok"}})
+        collector.transport = lambda *args: (
+            200, b"x" * (MAX_TIKTOK_METRICS_RESPONSE_BYTES + 1)
+        )
+        with self.assertRaisesRegex(TikTokMetricsError, "2 MiB"):
+            collector.refresh_due_metrics(min_age_seconds=0)
+
+    def test_tiktok_metrics_http_read_is_bounded_and_redirects_are_disabled(self):
+        response = mock.MagicMock()
+        response.status = 200
+        response.read.return_value = b"x" * (MAX_TIKTOK_METRICS_RESPONSE_BYTES + 1)
+        response.__enter__.return_value = response
+        opener = mock.Mock()
+        opener.open.return_value = response
+        with mock.patch("urllib.request.build_opener", return_value=opener):
+            with self.assertRaisesRegex(TikTokMetricsError, "2 MiB"):
+                TikTokMetricsCollector._request(
+                    "https://open.tiktokapis.com/v2/video/query/", {}, b"{}", 1
+                )
+        response.read.assert_called_once_with(MAX_TIKTOK_METRICS_RESPONSE_BYTES + 1)
+
+    def test_unsafe_tiktok_metrics_error_code_is_not_reflected(self):
+        secret = "token-" + ("x" * 200)
+        collector = self._collector({
+            "data": {"videos": []}, "error": {"code": secret}
+        })
+        with self.assertRaisesRegex(TikTokMetricsError, "request_failed") as caught:
+            collector.refresh_due_metrics(min_age_seconds=0)
+        self.assertNotIn(secret, str(caught.exception))
 
     def test_metrics_lease_is_exclusive_and_owner_token_fenced(self):
         first = self.store.acquire_lease("collector-a", 60)

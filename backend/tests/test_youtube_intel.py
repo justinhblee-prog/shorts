@@ -1,7 +1,8 @@
 import sys, tempfile, unittest
+from unittest import mock
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from youtube_intel import YouTubeDataAPI, CompetitorStore, CompetitorIntelligence
+from youtube_intel import (YouTubeDataAPI, CompetitorStore, CompetitorIntelligence, http_json, MAX_YOUTUBE_INTEL_RESPONSE_BYTES)
 
 class CompetitorTests(unittest.TestCase):
  def setUp(self):
@@ -32,6 +33,22 @@ class CompetitorTests(unittest.TestCase):
   rows=api.recent_videos("UC1",1)
   self.assertEqual(rows[0]["view_count"],50)
   self.assertEqual(rows[0]["duration"],"PT30S")
+ def test_youtube_http_json_bounds_response_and_rejects_non_object(self):
+  response=mock.MagicMock()
+  response.read.return_value=b"x"*(MAX_YOUTUBE_INTEL_RESPONSE_BYTES+1)
+  response.__enter__.return_value=response
+  opener=mock.Mock()
+  opener.open.return_value=response
+  with mock.patch("urllib.request.build_opener",return_value=opener):
+   with self.assertRaisesRegex(ValueError,"1 MiB"):
+    http_json("https://www.googleapis.com/youtube/v3/channels")
+  response.read.assert_called_once_with(MAX_YOUTUBE_INTEL_RESPONSE_BYTES+1)
+
+  response.read.return_value=b'["not","an","object"]'
+  with mock.patch("urllib.request.build_opener",return_value=opener):
+   with self.assertRaisesRegex(ValueError,"JSON object"):
+    http_json("https://www.googleapis.com/youtube/v3/channels")
+
  def test_api_key_is_required(self):
   with self.assertRaises(RuntimeError): YouTubeDataAPI(None,lambda url:{}).channels(["UC1"])
 if __name__=="__main__": unittest.main()
