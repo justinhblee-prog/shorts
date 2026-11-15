@@ -11,12 +11,12 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  TrendProductionDraft, draft_production_from_trend,
                  OpportunityInput, create_opportunity_score, TikTokPublishRequest,
                  publish_tiktok_video, refresh_tiktok_publication_status,
-                 get_tiktok_publication, approved_reviews)
+                 get_tiktok_publication, approved_reviews, start_tiktok_oauth,\n                 tiktok_oauth_status, tiktok_oauth_callback)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
     def test_all_operational_routes_require_review_token(self):
-        public = {"/api/health", "/api/brands", "/api/brands/{slug}"}
+        public = {"/api/health", "/api/brands", "/api/brands/{slug}", "/api/tiktok/oauth/callback"}
         unprotected = []
         for route in app.routes:
             path = getattr(route, "path", "")
@@ -67,6 +67,42 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["tiktok_status"], "processing")
         self.assertTrue(result["items"][0]["tiktok_eligible"])
         self.assertEqual(result["items"][0]["tiktok_publish_id"], "publish-1")
+
+    def test_tiktok_oauth_start_and_status_routes_are_token_protected(self):
+        expected = {"/api/tiktok/oauth/start", "/api/tiktok/oauth/status"}
+        found = {getattr(route, "path", ""): route for route in app.routes
+                 if getattr(route, "path", "") in expected}
+        self.assertEqual(set(found), expected)
+        for route in found.values():
+            self.assertIn("x_review_token", route.endpoint.__annotations__)
+
+    def test_tiktok_oauth_start_returns_authorization_url(self):
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.tiktok_oauth_manager.start_authorization",
+                       return_value={"authorization_url": "https://www.tiktok.com/v2/auth/authorize/?state=x"}),
+        ):
+            result = start_tiktok_oauth(x_review_token="test-token")
+        self.assertIn("authorization_url", result)
+
+    def test_tiktok_oauth_callback_consumes_code_and_redirects_back_to_portal(self):
+        with mock.patch("app.tiktok_oauth_manager.exchange_code",
+                        return_value={"connected": True, "open_id": "creator-1"}) as exchange:
+            result = tiktok_oauth_callback(code="code-1", state="state-1")
+        self.assertEqual(result.status_code, 303)
+        self.assertIn("tiktok_oauth=connected", result.headers["location"])
+        exchange.assert_called_once_with("code-1", "state-1")
+
+    def test_tiktok_oauth_status_never_returns_token_values(self):
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.tiktok_oauth_manager.status",
+                       return_value={"connected": True, "open_id": "creator-1"}),
+        ):
+            result = tiktok_oauth_status(x_review_token="test-token")
+        self.assertTrue(result["connected"])
+        self.assertNotIn("access_token", result)
+        self.assertNotIn("refresh_token", result)
 
     def test_tiktok_creator_info_route_returns_available_privacy_options(self):
         with (
