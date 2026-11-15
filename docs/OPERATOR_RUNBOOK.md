@@ -307,3 +307,10 @@ Provider JSON responses are limited to 2 MiB. If a provider returns an oversized
 - OAuth response bodies are limited to 256 KiB. Oversized or malformed responses fail closed.
 - Upstream error descriptions are discarded. Only a short safe error code and safe log ID may be shown in diagnostics.
 - These checks do not establish that TikTok app credentials, scopes, consent or account authorization are valid.
+
+
+## BUILD-00081 — analytics API transport limits
+
+- TikTok Display API collector: maximum 2 MiB JSON response, bounded default reads, custom-transport size checks, and no automatic redirects for bearer-token requests.
+- YouTube competitor intelligence: maximum 1 MiB JSON response and no automatic redirects for API-key-bearing requests.
+- These limits apply to read-only analytics API responses, not video media uploads or downloads. Do not increase limits without documented API payload needs and a memory/credential-forwarding review.

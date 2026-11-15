@@ -891,3 +891,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Automatic redirects are disabled for OAuth POSTs carrying client secrets or refresh tokens.
 - Upstream error descriptions are not copied into exceptions; only short safe error identifiers/log IDs are allowed.
 - CI validation is pending. No live OAuth authorization or token refresh is claimed.
+
+
+### Analytics API response bounds — BUILD-00081
+- TikTok Display API responses are capped at 2 MiB; bearer-token requests do not follow redirects, and unsafe error codes are not reflected in errors.
+- YouTube competitor-intelligence responses are capped at 1 MiB; API-key-bearing requests do not follow redirects.
+- Regression coverage added for bounded reads and malformed response handling. CI pending.

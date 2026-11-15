@@ -1512,3 +1512,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Removed upstream error descriptions from exception text; only short, validated machine-readable error codes and safe log IDs may be exposed.
 - Added regression tests for bounded reads, custom transport size limits, unexpected JSON shapes and error-detail redaction.
 - CI validation is pending for the new branch head. OAuth credentials, consent and live account behavior remain unverified.
+
+
+## BUILD-00081 — bounded analytics API responses
+
+- Capped TikTok Display API JSON responses at 2 MiB at the default HTTP read boundary and after custom/injected transports return.
+- Disabled automatic redirects for TikTok metrics requests carrying bearer tokens. Error codes are restricted to short safe identifiers before being included in diagnostics.
+- Capped public YouTube Data API competitor-intelligence JSON responses at 1 MiB and disabled redirects so the API-key query parameter is not forwarded to a redirected host.
+- Added regression tests for oversized response handling and malformed YouTube JSON response shapes.
+- CI validation is pending for the new branch head. These are read-only analytics integrations; no publishing or recommendation score behavior changes.

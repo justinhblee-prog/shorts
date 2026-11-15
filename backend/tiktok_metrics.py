@@ -5,6 +5,7 @@ This does not discover third-party videos or infer audience-retention metrics.
 """
 import json
 import os
+import re
 import sqlite3
 import urllib.error
 import urllib.request
@@ -16,6 +17,12 @@ from urllib.parse import urlencode
 
 API_URL = "https://open.tiktokapis.com/v2/video/query/"
 FIELDS = "id,view_count,like_count,comment_count,share_count"
+MAX_TIKTOK_METRICS_RESPONSE_BYTES = 2 * 1024 * 1024
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 def _now():
@@ -223,8 +230,12 @@ class TikTokMetricsCollector:
     def _request(url, headers, body, timeout):
         request = urllib.request.Request(url, data=body, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                return response.status, response.read()
+            opener = urllib.request.build_opener(_NoRedirectHandler())
+            with opener.open(request, timeout=timeout) as response:
+                raw = response.read(MAX_TIKTOK_METRICS_RESPONSE_BYTES + 1)
+                if len(raw) > MAX_TIKTOK_METRICS_RESPONSE_BYTES:
+                    raise TikTokMetricsError("TikTok metrics response exceeded the 2 MiB limit")
+                return response.status, raw
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read(4000)
         except (urllib.error.URLError, TimeoutError) as exc:
@@ -254,6 +265,12 @@ class TikTokMetricsCollector:
             "Content-Type": "application/json",
             "Accept": "application/json",
         }, body, 30)
+        if isinstance(status, bool) or not isinstance(status, int) or not 100 <= status <= 599:
+            raise TikTokMetricsError("TikTok metrics returned an invalid HTTP status")
+        if not isinstance(raw, (bytes, bytearray)):
+            raise TikTokMetricsError("TikTok metrics response must be binary JSON")
+        if len(raw) > MAX_TIKTOK_METRICS_RESPONSE_BYTES:
+            raise TikTokMetricsError("TikTok metrics response exceeded the 2 MiB limit")
         try:
             data = json.loads(raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError) as exc:
@@ -262,8 +279,13 @@ class TikTokMetricsCollector:
             raise TikTokMetricsError("TikTok metrics returned an unexpected response shape")
         error = data.get("error")
         if status < 200 or status >= 300 or not isinstance(error, dict) or error.get("code") not in ("ok", 0):
-            code = error.get("code") if isinstance(error, dict) else "invalid_error_envelope"
-            raise TikTokMetricsError("TikTok metrics request failed: " + str(code or "http_" + str(status)))
+            raw_code = error.get("code") if isinstance(error, dict) else None
+            code = (
+                raw_code if isinstance(raw_code, str)
+                and re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", raw_code)
+                else "request_failed"
+            )
+            raise TikTokMetricsError("TikTok metrics request failed: " + code)
         response_data = data.get("data")
         if not isinstance(response_data, dict):
             raise TikTokMetricsError("TikTok metrics response omitted its data object")

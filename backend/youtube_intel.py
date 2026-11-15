@@ -23,10 +23,25 @@ def connection(path):
 
 def utc_now(): return datetime.now(timezone.utc).isoformat()
 
+MAX_YOUTUBE_INTEL_RESPONSE_BYTES = 1024 * 1024
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+ def redirect_request(self, req, fp, code, msg, headers, newurl):
+  return None
+
+
 def http_json(url,timeout=15):
  req=urllib.request.Request(url,headers={"Accept":"application/json","User-Agent":"NexusStudioPro/0.1"})
- with urllib.request.urlopen(req,timeout=timeout) as response:
-  return json.loads(response.read().decode("utf-8"))
+ opener=urllib.request.build_opener(_NoRedirectHandler())
+ with opener.open(req,timeout=timeout) as response:
+  raw=response.read(MAX_YOUTUBE_INTEL_RESPONSE_BYTES+1)
+  if len(raw)>MAX_YOUTUBE_INTEL_RESPONSE_BYTES:
+   raise ValueError("YouTube Data API response exceeded the 1 MiB limit")
+  data=json.loads(raw.decode("utf-8"))
+  if not isinstance(data,dict):
+   raise ValueError("YouTube Data API response must be a JSON object")
+  return data
 
 class YouTubeDataAPI:
  def __init__(self,api_key=None,transport=http_json):
