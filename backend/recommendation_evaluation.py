@@ -209,44 +209,71 @@ class RecommendationEvaluationStore:
                 "recommendation_rank": int(row["recommendation_rank"]),
                 "recommendation_score": float(row["recommendation_score"]),
                 "views_per_hour": float(measured[job_id]["views_per_hour"]),
+                "outcome_brand": measured[job_id].get("brand"),
+                "outcome_region": measured[job_id].get("region"),
+                "publication_age_bucket": measured[job_id].get("publication_age_bucket"),
+                "duration_bucket": measured[job_id].get("duration_bucket"),
+                "format": measured[job_id].get("format"),
                 "brand": row["brand_slug"],
                 "trend_id": row["trend_id"],
             })
         total_selected = len(rows)
         total_measured = len(observations)
-        # Compare candidates within the same recommendation exposure. Raw scores
-        # from different API runs are not directly comparable because freshness,
-        # candidate sets and collection times differ.
+        # Compare candidates within the same exposure and comparable outcome cohort.
+        # Raw scores from different API runs, brands, regions, ages or formats are
+        # not directly comparable.
         grouped = {}
         for item in observations:
-            grouped.setdefault(item["run_id"], []).append(item)
+            run_id = item["run_id"]
+            cohort_key = (
+                item.get("outcome_brand"), item.get("outcome_region"),
+                item.get("publication_age_bucket"), item.get("duration_bucket"),
+                item.get("format"),
+            )
+            grouped.setdefault(run_id, {}).setdefault(cohort_key, []).append(item)
         run_diagnostics = []
-        for run_id, items in grouped.items():
-            if len(items) < 3:
-                continue
-            score_rho = _spearman(
-                [item["recommendation_score"] for item in items],
-                [item["views_per_hour"] for item in items],
-            )
-            rank_rho = _spearman(
-                [-item["recommendation_rank"] for item in items],
-                [item["views_per_hour"] for item in items],
-            )
-            if score_rho is None or rank_rho is None:
-                continue
-            run_diagnostics.append({
-                "run_id": run_id,
-                "generated_at": items[0]["run_generated_at"],
-                "selected_measured_count": len(items),
-                "score_views_spearman": score_rho,
-                "rank_views_spearman": rank_rho,
-            })
+        eligible_cohort_count = 0
+        for run_id, cohorts in grouped.items():
+            cohort_score_rhos = []
+            cohort_rank_rhos = []
+            cohort_sample_count = 0
+            for cohort_items in cohorts.values():
+                if len(cohort_items) < 3:
+                    continue
+                score_rho = _spearman(
+                    [item["recommendation_score"] for item in cohort_items],
+                    [item["views_per_hour"] for item in cohort_items],
+                )
+                rank_rho = _spearman(
+                    [-item["recommendation_rank"] for item in cohort_items],
+                    [item["views_per_hour"] for item in cohort_items],
+                )
+                if score_rho is None or rank_rho is None:
+                    continue
+                cohort_score_rhos.append(score_rho)
+                cohort_rank_rhos.append(rank_rho)
+                cohort_sample_count += len(cohort_items)
+                eligible_cohort_count += 1
+            if cohort_score_rhos:
+                run_diagnostics.append({
+                    "run_id": run_id,
+                    "generated_at": next(iter(next(iter(cohorts.values()))))["run_generated_at"],
+                    "eligible_cohort_count": len(cohort_score_rhos),
+                    "selected_measured_count": cohort_sample_count,
+                    "median_score_views_spearman": round(
+                        statistics.median(cohort_score_rhos), 4
+                    ),
+                    "median_rank_views_spearman": round(
+                        statistics.median(cohort_rank_rhos), 4
+                    ),
+                })
         run_diagnostics.sort(key=lambda item: item["generated_at"])
         within_run = {
             "status": "insufficient_run_coverage",
-            "method": "within_exposure_run_spearman_chronological_holdout",
+            "method": "within_exposure_comparable_cohort_spearman_chronological_holdout",
             "eligible_run_count": len(run_diagnostics),
-            "minimum_selected_measured_per_run": 3,
+            "eligible_cohort_count": eligible_cohort_count,
+            "minimum_selected_measured_per_cohort": 3,
             "pre_holdout_run_count": 0,
             "holdout_run_count": 0,
             "holdout_median_score_views_spearman": None,
@@ -254,16 +281,21 @@ class RecommendationEvaluationStore:
             "holdout_positive_score_association_share": None,
             "score_adjustment_enabled": False,
             "reason": (
-                "At least five recommendation exposure runs with three or more "
-                "selected and measured candidates each are required."
+                "At least five recommendation exposure runs with one comparable "
+                "brand/region/publication-age/duration/format cohort containing three "
+                "or more selected and measured candidates each are required."
             ),
         }
         if len(run_diagnostics) >= 5:
             run_split = max(2, int(math.ceil(len(run_diagnostics) * 0.30)))
             run_split = min(run_split, len(run_diagnostics) - 2)
             run_holdout = run_diagnostics[-run_split:]
-            score_values = [item["score_views_spearman"] for item in run_holdout]
-            rank_values = [item["rank_views_spearman"] for item in run_holdout]
+            score_values = [
+                item["median_score_views_spearman"] for item in run_holdout
+            ]
+            rank_values = [
+                item["median_rank_views_spearman"] for item in run_holdout
+            ]
             within_run.update({
                 "status": "holdout_available",
                 "pre_holdout_run_count": len(run_diagnostics) - run_split,
@@ -280,8 +312,9 @@ class RecommendationEvaluationStore:
                     sum(value > 0 for value in score_values) / len(score_values), 4
                 ),
                 "reason": (
-                    "Within-run holdout compares selected measured candidates only. "
-                    "It remains observational and selection-biased; no score change is enabled."
+                    "Within-run, comparable-cohort holdout compares selected measured "
+                    "candidates only. It remains observational and selection-biased; "
+                    "no score change is enabled."
                 ),
             })
         result = {
