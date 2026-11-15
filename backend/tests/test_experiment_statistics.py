@@ -91,5 +91,88 @@ class ExperimentStatisticsTests(unittest.TestCase):
                     )
 
 
+
+
+    def test_preregistered_practical_effect_and_guardrails_create_review_candidate_only(self):
+        from experiment_statistics import evaluate_preregistered_decision
+        primary = {
+            "metric": "views_per_hour", "status": "comparison_available",
+            "randomized_assignment_verified": True, "served_exposure_verified": True,
+            "confidence_interval": [4.2, 8.1],
+        }
+        guardrail = {
+            "metric": "policy_block_rate", "status": "comparison_available",
+            "randomized_assignment_verified": True, "served_exposure_verified": True,
+            "confidence_interval": [-0.5, 0.2], "allowed_degradation": 1.0,
+        }
+        result = evaluate_preregistered_decision(
+            primary, expected_direction="higher",
+            minimum_meaningful_effect=3.0, guardrails=[guardrail],
+        )
+        self.assertEqual(result["status"], "review_candidate")
+        self.assertFalse(result["deployment_authorized"])
+        self.assertEqual(result["ranking_score_adjustment"], 0)
+        self.assertTrue(result["guardrail_results"][0]["passed"])
+
+    def test_practical_effect_gate_rejects_interval_crossing_threshold(self):
+        from experiment_statistics import evaluate_preregistered_decision
+        primary = {
+            "metric": "views", "status": "comparison_available",
+            "randomized_assignment_verified": True, "served_exposure_verified": True,
+            "confidence_interval": [1.0, 5.0],
+        }
+        result = evaluate_preregistered_decision(
+            primary, expected_direction="higher", minimum_meaningful_effect=2.0,
+        )
+        self.assertEqual(result["status"], "inconclusive_practical_effect")
+        self.assertFalse(result["deployment_authorized"])
+
+    def test_guardrail_degradation_blocks_review_candidate(self):
+        from experiment_statistics import evaluate_preregistered_decision
+        primary = {
+            "metric": "views", "status": "comparison_available",
+            "randomized_assignment_verified": True, "served_exposure_verified": True,
+            "confidence_interval": [4.0, 7.0],
+        }
+        guardrail = {
+            "metric": "negative_feedback", "status": "comparison_available",
+            "randomized_assignment_verified": True, "served_exposure_verified": True,
+            "confidence_interval": [-3.0, 0.2], "allowed_degradation": 1.0,
+        }
+        result = evaluate_preregistered_decision(
+            primary, expected_direction="higher", minimum_meaningful_effect=2.0,
+            guardrails=[guardrail],
+        )
+        self.assertEqual(result["status"], "blocked_guardrail_regression")
+        self.assertFalse(result["deployment_authorized"])
+
+    def test_shadow_or_unverified_primary_comparison_is_blocked(self):
+        from experiment_statistics import evaluate_preregistered_decision
+        primary = {
+            "metric": "views", "status": "comparison_available",
+            "randomized_assignment_verified": False, "served_exposure_verified": True,
+            "confidence_interval": [4.0, 7.0],
+        }
+        result = evaluate_preregistered_decision(
+            primary, expected_direction="higher", minimum_meaningful_effect=2.0,
+        )
+        self.assertEqual(result["status"], "blocked_missing_verified_comparison")
+
+    def test_preregistered_threshold_and_guardrail_inputs_are_validated(self):
+        from experiment_statistics import evaluate_preregistered_decision
+        primary = {
+            "metric": "views", "status": "comparison_available",
+            "randomized_assignment_verified": True, "served_exposure_verified": True,
+            "confidence_interval": [4.0, 7.0],
+        }
+        for invalid in (True, 0, -1, float("nan"), float("inf")):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    evaluate_preregistered_decision(
+                        primary, expected_direction="higher",
+                        minimum_meaningful_effect=invalid,
+                    )
+
+
 if __name__ == "__main__":
     unittest.main()
