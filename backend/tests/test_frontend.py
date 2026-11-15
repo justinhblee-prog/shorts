@@ -121,6 +121,15 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('tiktokOAuthResult==="connected"', app_js)
         self.assertIn("/api/tiktok/oauth/status", app_js)
 
+    def test_approved_workspace_exposes_joined_lifecycle_trace(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data-lifecycle-id", app_js)
+        self.assertIn("/api/lifecycle/jobs/", app_js)
+        self.assertIn("renderLifecycleTrace", app_js)
+        self.assertIn("queue_events", app_js)
+        self.assertIn("통합 작업 이력", app_js)
+        self.assertIn("최근 큐 이벤트", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
