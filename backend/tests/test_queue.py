@@ -52,6 +52,12 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(retried["id"],j["id"])
   self.assertEqual(retried["attempt"],2)
   self.assertEqual([e["event_type"] for e in self.q.events(j["id"])],["enqueued","claimed","failed","claimed"])
+ def test_paused_queue_refuses_claim_until_resume(self):
+  self.q.enqueue("render", {"topic": "held"})
+  self.q.pause("operator investigation")
+  self.assertIsNone(self.q.claim("worker-a"))
+  self.q.resume()
+  self.assertIsNotNone(self.q.claim("worker-a"))
  def test_worker_pause_persists_until_explicit_resume(self):
   self.q.pause("provider outcome uncertain", "job-123")
   self.assertTrue(self.q.is_paused())
