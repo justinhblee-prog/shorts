@@ -313,7 +313,7 @@ def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(de
 
 @app.get("/api/production/jobs/{job_id}")
 def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "production.read")
     result=production_store.get(job_id)
     if result is None: raise HTTPException(404,"Production job not found")
     return result
@@ -828,7 +828,7 @@ def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
 
 @app.get("/api/youtube/uploads/{job_id}")
 def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publishing.read")
     result=youtube_upload_store.get(job_id)
     if result is None:
         raise HTTPException(404,"YouTube upload record not found")
@@ -866,7 +866,7 @@ def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
 
 @app.post("/api/youtube/videos/{video_id}/refresh-metrics")
 def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "analytics.read")
     try:
         return youtube_publisher.refresh_metrics(video_id)
     except YouTubeUploadError as e:
@@ -917,7 +917,7 @@ def tiktok_oauth_callback(
 
 @app.get("/api/tiktok/oauth/status")
 def tiktok_oauth_status(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publishing.read")
     result=tiktok_oauth_manager.status()
     if not result.get("connected") and os.getenv("TIKTOK_ACCESS_TOKEN"):
         result={"connected":True,"status":"static_token_configured","mode":"static_env"}
@@ -939,7 +939,7 @@ def disconnect_tiktok_oauth(x_review_token:str|None=Header(default=None)):
 
 @app.get("/api/tiktok/creator-info")
 def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publish.execute")
     try:
         return tiktok_publisher.creator_info()
     except TikTokPublishError as e:
@@ -968,7 +968,7 @@ def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
 
 @app.get("/api/tiktok/publications/{job_id}")
 def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publishing.read")
     result=tiktok_publish_store.get(job_id)
     if result is None:
         raise HTTPException(404,"TikTok publication record not found")
@@ -992,7 +992,7 @@ def reconcile_tiktok_publication(
 
 @app.post("/api/tiktok/publications/{job_id}/refresh-status")
 def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publish.reconcile")
     try:
         return tiktok_publisher.refresh_status(job_id)
     except TikTokPublishError as e:
@@ -1260,7 +1260,7 @@ class OpportunityInput(BaseModel):
 
 @app.post("/api/opportunities/score",status_code=201)
 def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "opportunities.manage")
     try:
         data=body.model_dump()
         channel_ids=data.pop("competitor_channel_ids",[])
@@ -1374,7 +1374,7 @@ def record_recommendation_rendered_exposures(
     body:RecommendationRenderedExposureBatch,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.manage")
     try:
         result=recommendation_evaluation_store.record_rendered_exposures(
             body.run_id,[item.model_dump() for item in body.exposures]
@@ -1630,29 +1630,29 @@ def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
         raise HTTPException(409,str(e))
 @app.post("/api/jobs/claim")
 def claim(body:Claim,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "worker.execute")
     return {"job":queue.claim(body.worker_id,body.hostname)}
 @app.post("/api/jobs/{jid}/heartbeat")
 def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "worker.execute")
     try: return queue.heartbeat(jid,body.worker_id,body.lease_token)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/complete")
 def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "worker.execute")
     try: return queue.finish(jid,body.worker_id,body.lease_token,body.result)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/fail")
 def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "worker.execute")
     try: return queue.fail(jid,body.worker_id,body.lease_token,body.error_code,body.error_message,body.retryable)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/cancel")
 def cancel(jid:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "queue.control")
     try: return queue.cancel(jid)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except ValueError as e: raise HTTPException(409,str(e))
