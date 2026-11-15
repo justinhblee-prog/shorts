@@ -42,3 +42,8 @@ Do not tune weights using the same observations used to claim success. Before an
 3. Compare a time-based holdout against the current formula.
 4. Report sample size, coverage, confidence intervals and policy-block rate.
 5. Keep a rollbackable algorithm version and require human approval before production weight changes.
+
+## Exposure attribution integrity
+
+Every explicitly captured recommendation snapshot returns stable candidate IDs for the exact trend/brand pairs shown to the operator. The workspace carries that ID through the brand selector into either the production-draft or skip-feedback request. A selection or skip is recorded only if the candidate ID, trend ID and brand slug all match the same stored exposure. Generic trend-to-production drafts do not create recommendation-selection evidence. Identical snapshots deduplicated within 60 seconds return the original candidate IDs so the UI remains linked to the original exposure.
+
