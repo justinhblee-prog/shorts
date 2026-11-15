@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from youtube_publishing import YouTubeUploadStore
+from metrics_collector import run_once
 
 
 class MetricsCollectionStatusTests(unittest.TestCase):
@@ -60,6 +61,56 @@ class MetricsCollectionStatusTests(unittest.TestCase):
     def test_invalid_collection_state_is_rejected(self):
         with self.assertRaises(ValueError):
             self.store.record_metrics_collection("unknown")
+
+
+class MetricsCollectorRunTests(unittest.TestCase):
+    class Store:
+        def __init__(self, lease=True):
+            self.lease = lease
+            self.states = []
+            self.released = False
+
+        def acquire_metrics_collector_lease(self, owner_id, lease_seconds=300):
+            return owner_id if self.lease else None
+
+        def release_metrics_collector_lease(self, owner_id):
+            self.released = True
+            return True
+
+        def record_metrics_collection(self, status, **kwargs):
+            self.states.append((status, kwargs))
+
+    class Publisher:
+        def __init__(self, error=None):
+            self.error = error
+
+        def refresh_due_metrics(self, **kwargs):
+            if self.error:
+                raise self.error
+            return {"requested": 2, "collected": 2, "missing": [],
+                    "source": "YouTube Data API v3"}
+
+    def test_run_once_persists_success_and_releases_lease(self):
+        store = self.Store()
+        result = run_once(store, self.Publisher())
+        self.assertEqual(result["collected"], 2)
+        self.assertEqual([state for state, _ in store.states], ["running", "succeeded"])
+        self.assertTrue(store.released)
+
+    def test_run_once_persists_failure_and_releases_lease(self):
+        store = self.Store()
+        with self.assertRaisesRegex(RuntimeError, "provider unavailable"):
+            run_once(store, self.Publisher(RuntimeError("provider unavailable")))
+        self.assertEqual([state for state, _ in store.states], ["running", "failed"])
+        self.assertEqual(store.states[-1][1]["error"], "RuntimeError")
+        self.assertTrue(store.released)
+
+    def test_run_once_skips_when_another_collector_holds_lease(self):
+        store = self.Store(lease=False)
+        result = run_once(store, self.Publisher())
+        self.assertTrue(result["skipped"])
+        self.assertEqual(store.states, [])
+        self.assertFalse(store.released)
 
 
 if __name__ == "__main__":
