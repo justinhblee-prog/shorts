@@ -119,8 +119,15 @@
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
 
-  function renderLifecycleTrace(data){
+  function renderLifecycleTrace(data,performance=null){
     const job=data.job||{},production=data.production||{},review=data.review||{};
+    const metrics=performance||data.performance||{};
+    const metricRows=(metrics.state_durations||[]).map(item=>'<div><small>'+esc(item.stage)+' · '+esc(item.status)+'</small><b>'+esc(item.observed_seconds)+'초</b></div>').join("");
+    const performanceHtml='<section class="review-policy lifecycle-performance"><strong>단계별 체류시간 분석</strong>'+
+      '<p>관측 누적 '+esc(metrics.total_observed_seconds??0)+'초 · 측정 기준: 큐 상태 체류시간</p>'+
+      (metricRows?'<div class="finance-summary">'+metricRows+'</div>':'<p>분석할 큐 이벤트가 아직 충분하지 않습니다.</p>')+
+      (metrics.bottleneck?'<p>가장 긴 체류 상태: '+esc(metrics.bottleneck.stage)+' ('+esc(metrics.bottleneck.observed_seconds)+'초)</p>':'')+
+      '<small>공급자 실행시간이나 렌더링 CPU 시간과 동일하지 않습니다. 표본 부족 시 병목 확정에 사용하지 않습니다.</small></section>';
     const publishing=data.publishing||{},youtube=publishing.youtube||{},tiktok=publishing.tiktok||{};
     const latest=review.latest||{};
     const events=(data.timeline||[]).slice(-20).reverse();
@@ -128,7 +135,7 @@
     const eventHtml=events.length
       ? '<ol>'+events.map(event=>'<li><strong>'+esc(stageLabels[event.stage]||event.stage)+' · '+esc(event.event||"event")+'</strong> · '+esc(event.outcome||"기록")+(event.attempt_id?' · 시도 '+esc(event.attempt_id):"")+(event.reference_id?' · 참조 '+esc(event.reference_id):"")+' <small>'+esc(event.occurred_at||"")+'</small></li>').join("")+'</ol>'
       : '<p>아직 통합 이벤트가 없습니다.</p>';
-    return '<section class="review-policy lifecycle-trace"><strong>통합 작업 이력</strong>'+
+    return performanceHtml+'<section class="review-policy lifecycle-trace"><strong>통합 작업 이력</strong>'+
       '<p>큐 · '+esc(job.status||"unknown")+' / 제작 · '+esc(production.status||"unknown")+
       ' ('+esc(production.current_stage||"단계 미기록")+')</p>'+
       '<p>최근 검수 · '+esc(latest.decision||"검수 기록 없음")+
@@ -605,13 +612,12 @@
       const id=lifecycleButton.dataset.lifecycleId;
       lifecycleButton.disabled=true;
       try{
-        const [data,consistency,recovery]=await Promise.all([
-          api("/api/lifecycle/jobs/"+encodeURIComponent(id)),
-          api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/consistency"),
-          api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/recovery")
-        ]);
+        const overview=await api("/api/lifecycle/jobs/"+encodeURIComponent(id)+"/overview");
         const target=$("lifecycle-"+id);
-        if(target)target.innerHTML=renderLifecycleTrace(data)+renderLifecycleOperations(consistency,recovery);
+        if(target)target.innerHTML=renderLifecycleTrace(overview.trace,overview.performance)+
+          '<section class="review-policy"><strong>통합 운영 상태</strong><p>일관성 · '+esc(overview.summary?.consistency_status||"unknown")+
+          ' · 실패 유형 · '+esc(overview.summary?.failure_category||"없음")+'</p></section>'+
+          renderLifecycleOperations(overview.consistency,overview.recovery);
       }catch(err){
         const target=$("lifecycle-"+id);
         if(target)target.textContent=err.message;
