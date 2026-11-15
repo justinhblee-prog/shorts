@@ -448,3 +448,5 @@ GitHub Actions PR run [43719673855](https://github.com/justinhblee-prog/shorts/a
 ## BUILD-00078 — bounded provider responses
 
 Provider JSON adapters read no more than 2 MiB plus one detection byte and reject oversized responses before JSON parsing. The same limit is enforced after custom/injected transports return, preventing a custom adapter from bypassing the boundary. This protects worker memory from unexpectedly large or malformed provider responses. Renderer media artifacts are separate binary downloads and continue to use the media staging size limit.
+
+GitHub Actions PR run [43720002960](https://github.com/justinhblee-prog/shorts/actions/runs/43720002960) passed **499 tests** and frontend validation passed with **107 unique IDs / 91 literal selectors**.
