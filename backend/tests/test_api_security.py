@@ -16,7 +16,8 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  get_tiktok_publication, approved_reviews, start_tiktok_oauth,
                  tiktok_oauth_status, tiktok_oauth_callback, disconnect_tiktok_oauth,
                  TikTokOAuthAccessLogRedaction, RecommendationSkipFeedback,
-                 skip_recommendation_feedback, capture_trend_recommendations,\n                 get_job_lifecycle)
+                 skip_recommendation_feedback, capture_trend_recommendations,
+                 get_job_lifecycle)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
