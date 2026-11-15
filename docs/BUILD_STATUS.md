@@ -791,3 +791,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Kept `GET /api/trends/recommendations` read-only.
 - Added `POST /api/trends/recommendations/snapshot` for the production workspace to explicitly capture the candidate set it receives for later outcome linkage.
 - Updated the workspace to call the POST endpoint. Identical snapshots remain deduplicated within 60 seconds.
+
+
+### BUILD-00014 — byte-level rendered media quality gate (2026-11-15)
+
+- Added `backend/media_inspection.py`: invokes ffprobe against a staged local MP4 and parses actual container/stream metadata: format, duration, byte size, video dimensions/codec, audio presence/codec, and subtitle-stream presence.
+- Hardened invocation with a bounded timeout, no stdin, and `-protocol_whitelist file,pipe`; rejects symlink input, malformed probe output, missing video stream, non-MP4-family containers, and invalid dimensions/duration/size.
+- `ProductionPipeline` automatically stages and inspects renderer output before it can become review-pending whenever `RENDER_ARTIFACT_HOSTS` is configured. It reuses the existing allowlisted HTTPS downloader with DNS public-IP validation, pinned TLS host, redirect rejection and a 256 MiB default cap.
+- A byte-level report is attached to the quality-check artifact. Actual non-9:16 dimensions, missing audio, invalid probe, or duration over 180 seconds blocks handoff even if renderer-supplied metadata claims otherwise.
+- Added ffmpeg/ffprobe to the production Docker image. The manual stage-media endpoint reuses the already-staged file.
+- **Configuration:** set `RENDER_ARTIFACT_HOSTS` to the exact comma-separated renderer artifact hostnames in `.env`. If unset, the pipeline deliberately remains in `review_required` with `actual_media_bytes_not_inspected`; it does not claim byte-level QA.
+- **Verification boundary:** ffprobe does not prove visual quality, subtitle legibility/correctness (especially burned-in captions), source facts, copyright/music rights, consent, platform compliance, or monetization eligibility. Human review remains mandatory. The tests use mocked ffprobe output and fake staged media; no real renderer artifact has yet been inspected.
