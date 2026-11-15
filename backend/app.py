@@ -636,7 +636,7 @@ def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|N
     return {
         "items":ranked,
         "count":len(ranked),
-        "method":"Freshness (0-40) plus editorial brand fit (0-40); remaining 20 points are unallocated because comparable demand and monetization evidence are unavailable.",
+        "method":"100-point editorial score: freshness (0-40), editorial brand fit (0-40), source provenance completeness (0-10), and topic distinctiveness (0-10). Historical performance is displayed separately and is not yet scored.",
         "warning":"Editorial recommendation score only. Historical brand-level performance is displayed as context but does not alter ranking until topic-matched evidence is sufficient. This is not a profitability forecast, search-volume estimate, or automatic production approval."
     }
 
