@@ -204,7 +204,14 @@ def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None)):
 @app.get("/api/review/approved")
 def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    return {"items":review_store.list_approved(limit)}
+    items=review_store.list_approved(limit)
+    pending=[]
+    for item in items:
+        upload=youtube_upload_store.get(item["job_id"])
+        item["upload_status"]=upload["status"] if upload else "not_uploaded"
+        if item["upload_status"]!="uploaded":
+            pending.append(item)
+    return {"items":pending}
 
 
 @app.post("/api/review/{job_id}/approve")
