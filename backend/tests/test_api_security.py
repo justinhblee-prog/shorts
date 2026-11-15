@@ -110,16 +110,17 @@ class ApiSecurityTests(unittest.TestCase):
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
             mock.patch("app.require_review_access"),
-            mock.patch("app.queue.get", return_value=job),
-            mock.patch("app.production_pipeline.execute",
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProductionLeaseConflict("stale lease")),
-            mock.patch("app.queue.fail") as fail,
+            mock.patch.object(app_module.queue, "fail") as fail,
+            mock.patch.object(app_module.queue, "pause") as pause,
         ):
             with self.assertRaises(HTTPException) as caught:
                 execute_production_job("job-1", body, x_review_token="test-token")
         self.assertEqual(caught.exception.status_code, 409)
         fail.assert_not_called()
-
+        pause.assert_called_once()
     def test_api_provider_error_records_failure_and_pauses_production(self):
         job = {"id": "job-provider", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
