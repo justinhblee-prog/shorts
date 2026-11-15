@@ -174,10 +174,12 @@ def main():
     signal.signal(signal.SIGTERM, handle_shutdown_signal)
     print(f"worker_started id={WORKER_ID} lease_seconds={LEASE_SECONDS} heartbeat_seconds={HEARTBEAT_SECONDS}")
     try:
+        # Registration acquires ownership once per process. Re-registering in
+        # the loop would let an old process reclaim a worker ID after restart.
+        queue.register_worker(WORKER_ID, socket.gethostname(), INSTANCE_TOKEN)
         while True:
-            # Keep idle and paused workers visible; job heartbeats alone only
-            # refresh registry timestamps while a production lease is running.
-            queue.register_worker(WORKER_ID, socket.gethostname(), INSTANCE_TOKEN)
+            if not queue.touch_worker(WORKER_ID, INSTANCE_TOKEN):
+                raise LeaseConflict("Worker process instance lost registry ownership")
             if stopping.is_set():
                 return
             if queue.is_paused():
