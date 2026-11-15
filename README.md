@@ -42,7 +42,7 @@ All services share the persistent `nexus_data` volume. Run only one scheduler in
 With Python dependencies installed:
 
 ```bash
-./scripts/validate.sh
+sh scripts/validate.sh
 ```
 
 This runs Python bytecode compilation and unittest discovery. The GitHub Actions runner has repeatedly failed before runner allocation (`runner_id=0`, no steps); therefore do not assume the suite has passed until a run actually executes the test steps.
