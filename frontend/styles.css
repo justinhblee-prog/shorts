@@ -14,3 +14,10 @@
 .risk-level{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#e8edf5;color:#344054}
 .risk-high{background:#fee4e2;color:#b42318}
 .risk-elevated{background:#fff1d6;color:#93370d}
+
+.review-script{margin:12px 0;border:1px solid var(--line,#d9dee8);border-radius:10px;padding:10px 12px}
+.review-script summary{cursor:pointer;font-weight:650}
+.review-script pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;margin:10px 0 0;font:inherit;line-height:1.55}
+.review-audio{margin:12px 0}
+.review-audio label{display:block;margin-bottom:6px;font-size:12px;font-weight:650}
+.review-audio audio{display:block;width:min(100%,420px)}
