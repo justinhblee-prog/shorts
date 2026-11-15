@@ -1179,6 +1179,11 @@ def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=
     require_review_access(x_review_token)
     if not body.operator_id.strip() or not body.note.strip():
         raise HTTPException(422,"operator_id and note must not be blank")
+    if not body.recovery_confirmed:
+        raise HTTPException(422,"Explicit recovery checklist confirmation is required")
+    health=queue.operational_health()
+    if health["blockers"]:
+        raise HTTPException(409,{"message":"Queue recovery is blocked by unresolved operational safety signals","blockers":health["blockers"]})
     try:
         control=queue.resume(actor=body.operator_id.strip(),note=body.note.strip())
         return {"control":control,"events":queue.worker_control_events(30)}
