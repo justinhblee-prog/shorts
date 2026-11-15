@@ -133,6 +133,7 @@ The endpoint requires the operator token, an explicit confirmation flag and a no
 
 - `ProductionStore.stage()` and `ProductionStore.artifact()` accept worker identity plus lease token and validate the live `pipeline_jobs` row under `BEGIN IMMEDIATE` before changing production state or artifact records.
 - `ProductionPipeline.execute()` carries the claim's worker ID and token through every stage and artifact write. Lease conflicts are propagated without marking the production run failed, preventing an expired worker from overwriting a replacement worker's state.
+- The authenticated API execution route passes its verified worker ID and lease token into the pipeline and uses durable review-handoff reconciliation after queue completion.
 - The worker now passes its claim token into the pipeline. The end-to-end lifecycle test does the same.
 - Added a regression test that expires and reclaims a job, proves the old token cannot start or write an artifact, and proves the new token can complete production.
 - Existing direct pipeline unit tests remain supported without a lease context for isolated component tests; the production worker always supplies one.
