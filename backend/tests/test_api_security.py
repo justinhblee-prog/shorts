@@ -92,10 +92,10 @@ class ApiSecurityTests(unittest.TestCase):
 
     def test_lifecycle_endpoint_returns_joined_authoritative_records(self):
         job={"id":"job-1","job_type":"short_video_production","status":"review_pending"}
-        production={"job_id":"job-1","status":"review_pending","artifacts":[]}
-        decisions=[{"id":1,"job_id":"job-1","decision":"approved"}]
-        youtube={"job_id":"job-1","status":"uploaded","video_id":"yt-1"}
-        tiktok={"job_id":"job-1","status":"send_to_inbox","publish_id":"tt-1"}
+        production={"job_id":"job-1","status":"review_pending","artifacts":[{"id":7,"stage":"rendering","created_at":"2026-11-15T08:00:00Z"}]}
+        decisions=[{"id":1,"job_id":"job-1","decision":"approved","created_at":"2026-11-15T08:02:00Z"}]
+        youtube={"job_id":"job-1","status":"uploaded","video_id":"yt-1","events":[{"event_type":"upload_completed","outcome":"uploaded","created_at":"2026-11-15T08:04:00Z","attempt_id":"yt-attempt-1","video_id":"yt-1"}]}
+        tiktok={"job_id":"job-1","status":"send_to_inbox","publish_id":"tt-1","events":[{"event_type":"status_refreshed","outcome":"SEND_TO_USER_INBOX","created_at":"2026-11-15T08:05:00Z","attempt_id":"tt-attempt-1","publish_id":"tt-1"}]}
         with (
             mock.patch("app.require_review_access"),
             mock.patch("app.queue.get",return_value=job),
@@ -112,6 +112,11 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["publishing"]["youtube"]["video_id"],"yt-1")
         self.assertEqual(result["publishing"]["tiktok"]["status"],"send_to_inbox")
         self.assertEqual(result["queue_events"][0]["event_type"],"completed")
+        timeline=result["timeline"]
+        self.assertEqual([item["stage"] for item in timeline],
+                         ["queue","production","human_review","youtube","tiktok"])
+        self.assertEqual(timeline[-1]["attempt_id"],"tt-attempt-1")
+        self.assertEqual(timeline[-1]["outcome"],"SEND_TO_USER_INBOX")
 
     def test_lifecycle_endpoint_rejects_nonproduction_queue_jobs(self):
         with (
