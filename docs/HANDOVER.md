@@ -851,3 +851,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The Compose metrics-collector service now runs both YouTube and TikTok collectors. A TikTok connection must have `video.list` consent in addition to `video.publish`; existing accounts may need to reconnect/reauthorize.
 - Automated validation: run [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), 476 tests passed; 107 unique HTML IDs / 91 JS selectors. This does not establish live OAuth, real TikTok posting, visibility, analytics or monetization.
 - TikTok remains `SELF_ONLY`; YouTube remains `private`. No public posting or automatic recommendation-score adjustment is enabled.
+
+### YouTube Analytics watch-time metrics — 2026-11-15
+- BUILD-00074 adds a separate YouTube Analytics API v2 collector for completed owned uploads, requesting a rolling 28-day report through two days before the current UTC date.
+- Metrics: views, Shorts engaged views, estimated minutes watched, average view duration, average view percentage, likes, comments, shares and subscribers gained. Monetary metrics are deliberately excluded.
+- Uses `yt-analytics.readonly` plus the existing `youtube.readonly`/`youtube.upload` scopes. Existing refresh-token consent must be updated; enable the YouTube Analytics API and reauthorize the channel before live collection.
+- Collection is separate from YouTube Data API/TikTok, uses its own SQLite lease/state, 50-video batches, freshness rotation across the uploaded inventory, and read-only snapshot API/dashboard. Missing scope and invalid credentials have distinct statuses.
+- Automated validation is pending on the latest branch head. No real OAuth or Analytics report request has been performed.
