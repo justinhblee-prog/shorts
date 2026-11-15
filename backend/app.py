@@ -469,6 +469,15 @@ def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=
     except YouTubeUploadError as e:
         raise HTTPException(502,str(e))
 
+@app.get("/api/tiktok/creator-info")
+def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_publisher.creator_info()
+    except TikTokPublishError as e:
+        raise HTTPException(502,str(e))
+
+
 @app.post("/api/tiktok/publish/{job_id}",status_code=201)
 def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
                          x_review_token:str|None=Header(default=None)):
