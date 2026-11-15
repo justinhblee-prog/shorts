@@ -455,3 +455,8 @@ GitHub Actions PR run [43720002960](https://github.com/justinhblee-prog/shorts/a
 ## Trusted reverse proxies for API rate limits
 
 By default, rate-limit buckets use the direct ASGI peer IP and ignore `X-Forwarded-For`. When operating behind a reverse proxy, configure `NEXUS_TRUSTED_PROXY_CIDRS` with only the exact proxy IPv4/IPv6 CIDRs you control. Forwarded addresses are honored only when the direct peer is trusted; the middleware walks the chain right-to-left and stops at the first untrusted hop. Invalid, duplicate, oversized or malformed headers fall back to the proxy peer. Ensure your proxy appends or overwrites forwarding metadata safely. Never trust all public addresses or allow direct untrusted traffic to supply forwarding headers. Invalid CIDR configuration fails API startup.
+
+
+## Authenticated operator audit attribution
+
+When `NEXUS_REVIEW_CREDENTIALS_JSON` is configured, the token-resolved operator identity is used for human-review decisions, policy-evidence events, queue pause/resume events, YouTube upload reconciliation and late-success resolution, TikTok publishing/reconciliation, recommendation experiment creation and recommendation-skip feedback. Client-supplied `reviewer_id` and `operator_id` body fields remain for compatibility but are not trusted for these audit records. The legacy shared-token fallback maps all requests to `legacy-operator`. Tokens currently grant the same operational permissions; role separation and external identity-provider integration remain future work.
