@@ -166,10 +166,12 @@
     if(lateButton){
       if(!requireToken())return;
       const id=lateButton.dataset.resolveLateId;
-      const note=prompt("보존된 YouTube 영상 ID를 YouTube Studio에서 확인한 근거를 입력하세요.");
+      const videoId=prompt("업로드 응답에서 보존된 영상 ID를 입력하세요. 이벤트 기록의 ID와 정확히 일치해야 합니다.");
+      if(videoId===null||!videoId.trim())return;
+      const note=prompt("YouTube Studio에서 선택한 영상 ID를 확인한 근거를 입력하세요.");
       if(note===null||!note.trim())return;
       try{
-        await api("/api/youtube/uploads/"+encodeURIComponent(id)+"/resolve-late-result",{method:"POST",body:JSON.stringify({operator_id:reviewer||"operator",note:note.trim()})});
+        await api("/api/youtube/uploads/"+encodeURIComponent(id)+"/resolve-late-result",{method:"POST",body:JSON.stringify({operator_id:reviewer||"operator",video_id:videoId.trim(),note:note.trim()})});
         toast("늦은 업로드 결과를 확정했습니다.");await refreshAll();
       }catch(err){$("upload-"+CSS.escape(id)).textContent=err.message;toast(err.message);}
       return;
