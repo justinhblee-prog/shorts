@@ -49,6 +49,42 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(result["production"]["status"], "queued")
         self.assertEqual(result["production"]["artifacts"], [])
 
+    def test_submit_includes_policy_report_and_blocks_explicit_flags(self):
+        queue = FakeQueue()
+        result = submit_production(queue, self.store, self.brief)
+        self.assertEqual(result["job"]["payload"]["policy_report"]["status"], "review_required")
+        blocked = {**self.brief, "policy_flags": {"known_unauthorized_assets": True}}
+        with self.assertRaisesRegex(ValueError, "blocked by policy preflight"):
+            submit_production(FakeQueue(), self.store, blocked)
+
+    def test_pipeline_blocks_explicit_policy_flags_before_provider_calls(self):
+        script = FakeProvider({"script": "must not run"})
+        pipeline = ProductionPipeline(self.store, script,
+            FakeProvider({"audio_url": "https://media.example/audio.mp3"}),
+            FakeProvider({"video_url": "https://media.example/video.mp4"}))
+        brief = {**self.brief, "policy_flags": {"deceptive_impersonation": True}}
+        self.store.create("job-blocked", brief)
+        with self.assertRaises(ProviderError) as caught:
+            pipeline.execute("job-blocked", brief)
+        self.assertEqual(caught.exception.stage, "policy_preflight")
+        self.assertEqual(self.store.get("job-blocked")["status"], "failed_terminal")
+        self.assertEqual(script.calls, [])
+
+    def test_policy_report_is_passed_to_script_and_saved_for_review(self):
+        script = FakeProvider({"script": "Original, sourced explanation."})
+        voice = FakeProvider({"audio_url": "https://media.example/audio.mp3"})
+        render = FakeProvider({"video_url": "https://media.example/video.mp4"})
+        brief = {**self.brief,
+            "rights": {"visuals_cleared": True, "audio_cleared": True, "likeness_authorized": True},
+            "synthetic_media_status": "ai_generated", "ai_disclosure_acknowledged": True,
+            "factual_claims_verified": True, "originality_notes": "Distinct narrative."}
+        self.store.create("job-policy", brief)
+        result = ProductionPipeline(self.store, script, voice, render).execute("job-policy", brief)
+        report = result["artifacts"][0]["metadata"]["policy_preflight"]
+        self.assertEqual(report["status"], "ready_for_human_review")
+        self.assertEqual(script.calls[0][1]["policy_preflight"]["status"], "ready_for_human_review")
+        self.assertIn("Never claim this content is policy-approved",
+                      script.calls[0][1]["platform_compliance_instructions"])
     def test_pipeline_runs_script_voice_render_and_waits_for_review(self):
         script = FakeProvider({"script": "Hook. Evidence. Takeaway."})
         voice = FakeProvider({"audio_url": "https://media.example/audio.mp3", "voice": "en-US"})
