@@ -44,6 +44,8 @@ class MediaInspectorTests(unittest.TestCase):
         self.assertTrue(report["audio_track_present"])
         self.assertEqual(report["video_codec"], "h264")
         self.assertFalse(report["subtitle_stream_present"])
+        self.assertEqual(report["subtitle_extraction"]["status"], "not_present")
+        self.assertIsNone(report["subtitle_text"])
 
     def test_extracts_text_subtitle_stream_with_bounded_ffmpeg_output(self):
         probe = {
