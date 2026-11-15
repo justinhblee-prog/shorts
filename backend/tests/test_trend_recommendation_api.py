@@ -17,11 +17,18 @@ class TrendRecommendationApiTests(unittest.TestCase):
         brand = {"slug": "future-leak", "name": "Future Leak", "active": True,
                  "config": {"positioning": "AI technology", "regions": ["US"],
                             "languages": ["en"]}}
-        performance = {"brands": [{
-            "brand": "Future Leak", "measured_videos": 4, "rate_sample_count": 3,
-            "median_views_per_hour": 90.0, "interaction_rate_sample_count": 2,
-            "median_interactions_per_1000_view_delta": 14.0
-        }]}
+        performance = {
+            "brands": [{
+                "brand": "Future Leak", "measured_videos": 4, "rate_sample_count": 3,
+                "median_views_per_hour": 90.0, "interaction_rate_sample_count": 2,
+                "median_interactions_per_1000_view_delta": 14.0
+            }],
+            "videos": [{
+                "brand": "Future Leak", "region": "US", "topic": "AI technology research",
+                "measurement_status": "measured", "views_per_hour": 90.0,
+                "interactions_per_1000_view_delta": 14.0
+            }]
+        }
         with (mock.patch("app.require_review_access"),
               mock.patch("app.trend_store.list", return_value=[trend]),
               mock.patch("app.brand_store.list", return_value=[brand]),
@@ -32,6 +39,9 @@ class TrendRecommendationApiTests(unittest.TestCase):
         historical = result["items"][0]["best_brand"]["historical_performance"]
         self.assertEqual(historical["median_views_per_hour"], 90.0)
         self.assertEqual(historical["ranking_score_adjustment"], 0)
+        topic_history = result["items"][0]["best_brand"]["topic_performance"]
+        self.assertEqual(topic_history["matched_video_count"], 1)
+        self.assertEqual(topic_history["median_views_per_hour"], 90.0)
         self.assertIn("not a profitability forecast", result["warning"])
 
 
