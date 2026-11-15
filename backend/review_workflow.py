@@ -135,12 +135,12 @@ class ReviewStore:
               VALUES(?,?,?,?,?,?,?)
             """, (job_id, decision, run["status"], reviewer_id, comment,
                   json.dumps(snapshot, ensure_ascii=False), timestamp))
-            c.execute("""
+            updated=c.execute("""
               UPDATE production_runs SET status=?,current_stage='review',
                 error=?,updated_at=? WHERE job_id=? AND status='review_pending'
             """, (decision, comment if decision != "approved" else None,
                   timestamp, job_id))
-            if c.rowcount != 1:
+            if updated.rowcount != 1:
                 raise ReviewConflict("Review state changed concurrently")
             row = c.execute(
                 "SELECT * FROM production_runs WHERE job_id=?", (job_id,)
