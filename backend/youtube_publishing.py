@@ -9,7 +9,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from policy_engine import POLICY_VERSION, POLICY_CHECKED_ON
-from approval_integrity import approval_snapshot_matches_current_artifacts
+from approval_integrity import approval_snapshot_matches_current_artifacts, verify_staged_media_hash
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -598,6 +598,14 @@ class YouTubePublisher:
             raise YouTubeUploadError("Media path must resolve to an existing file inside NEXUS_MEDIA_DIR")
         if not resolved.is_file():
             raise YouTubeUploadError("Staged media path is not a regular file")
+        media_matches, media_error = verify_staged_media_hash(
+            resolved, history[-1].get("staged_media_sha256"),
+            history[-1].get("staged_media_size_bytes")
+        )
+        if not media_matches:
+            raise YouTubeUploadError(
+                media_error or "Staged media does not match the approved video fingerprint"
+            )
         allowed={".mp4": "video/mp4", ".m4v": "video/x-m4v",
                  ".mov": "video/quicktime", ".webm": "video/webm"}
         media_type=allowed.get(resolved.suffix.lower())
