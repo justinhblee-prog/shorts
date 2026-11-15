@@ -54,6 +54,9 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(result["providers"]["script_generation"]["endpoint_valid"])
         self.assertFalse(result["providers"]["voice_generation"]["configured"])
         self.assertFalse(result["providers"]["video_rendering"]["endpoint_valid"])
+        env["SCRIPT_PROVIDER_URL"] = "https://provider.example:99999/api"
+        result = build_preflight(env)
+        self.assertFalse(result["providers"]["script_generation"]["endpoint_valid"])
 
     def test_localhost_http_is_allowed_for_development(self):
         env = {

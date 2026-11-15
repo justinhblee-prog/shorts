@@ -28,6 +28,7 @@ def _provider_readiness(source, url_key, token_key):
                 and parsed.password is None
                 and parsed.query == ""
                 and parsed.fragment == ""
+                and (parsed.port is None or 1 <= parsed.port <= 65535)
             )
         except ValueError:
             endpoint_valid = False
