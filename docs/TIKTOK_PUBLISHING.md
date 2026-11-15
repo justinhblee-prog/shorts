@@ -81,3 +81,7 @@ The scheduler polls only unresolved publication records and stops polling termin
 
 Before the Direct Post initialization request, the adapter reads the creator's current `max_video_post_duration_sec` from Creator Info and inspects the staged file's actual duration with ffprobe. Missing/invalid creator limits, missing ffprobe, or an uninspectable file fail closed before any remote publishing request. Media longer than the creator's current limit is rejected. This is a byte-level media check, not a trust of renderer-supplied metadata.
 
+## Explicit privacy selection
+
+The review UI now shows the connected creator identity and available privacy options, then requires the operator to explicitly enter the currently permitted `SELF_ONLY` choice before continuing. The publish API requires the selected value and verifies it against the fresh Creator Info response; it no longer silently defaults the privacy field. Public options remain disabled until TikTok app audit and the corresponding policy review are completed. The current input is a constrained explicit-choice prompt; a native dropdown remains a UX improvement.
+
