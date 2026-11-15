@@ -167,6 +167,15 @@ class YouTubePublishingTests(unittest.TestCase):
         with self.assertRaises(YouTubeUploadError):
             self.uploads.finish("missing-job", "video-id")
 
+    def test_preflight_failure_is_audited_without_remote_request(self):
+        attempt=self.uploads.begin("job-1","Bad media","")
+        self.uploads.fail("job-1","Unsupported media extension",attempt["attempt_id"])
+        result=self.uploads.get("job-1")
+        self.assertEqual(result["status"],"failed")
+        event=result["events"][-1]
+        self.assertEqual(event["event_type"],"upload_preflight_failed")
+        self.assertEqual(event["attempt_id"],attempt["attempt_id"])
+
     def test_upload_requires_approval(self):
         self.prod.create("job-2",{"brand":"Brain Glitch","region":"US",
                                   "language":"English","topic":"Focus"})
@@ -232,6 +241,8 @@ class YouTubePublishingTests(unittest.TestCase):
         record=self.uploads.get("job-1")
         self.assertEqual(record["status"],"reconciliation_required")
         self.assertIn("uncertain",record["error"].lower())
+        self.assertEqual(record["events"][-1]["event_type"],"upload_outcome_uncertain")
+        self.assertEqual(record["events"][-1]["attempt_id"],record["attempt_id"])
 
         with self.assertRaises(YouTubeUploadError):
             uncertain_publisher.upload_approved(
