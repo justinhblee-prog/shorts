@@ -381,6 +381,10 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
     if video is None:
         raise HTTPException(409,"Rendered video artifact is not available")
     try:
+        existing=media_stager.staged_path(job_id)
+        if existing.is_file() and not existing.is_symlink():
+            return {"media_path":existing.name,"size_bytes":existing.stat().st_size,
+                    "already_staged":True}
         return media_stager.stage(job_id,video["artifact_url"])
     except MediaStagingError as e:
         raise HTTPException(502,str(e))
