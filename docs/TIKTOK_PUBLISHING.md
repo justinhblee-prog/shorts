@@ -64,3 +64,12 @@ Official references:
 - https://developers.tiktok.com/docs/en/oauth-refresh-a-user-access-token
 - https://developers.tiktok.com/docs/en/oauth-user-access-token-management
 - https://developers.tiktok.com/docs/en/oauth-revoke-a-user-access-token
+
+## Signed upload URL trust boundary
+
+The adapter accepts only HTTPS upload URLs on the two hostnames shown in TikTok's current media-transfer examples: `open-upload.tiktokapis.com` and `upload.us.tiktokapis.com`. It rejects arbitrary TikTok subdomains, non-default ports, URL credentials, and fragments. The HTTP client disables redirects so a signed URL cannot redirect the staged video body to another host. The full signed query string is preserved when sending chunks.
+
+TikTok documents both hostnames in its media transfer guide, including the regional host in the multi-chunk example:
+- https://developers.tiktok.com/docs/en/content-posting-api-media-transfer-guide
+- https://developers.tiktok.com/docs/en/content-posting-api-reference-direct-post
+
