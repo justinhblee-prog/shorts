@@ -149,6 +149,35 @@ class TikTokMetricsStore:
             """).fetchall()
         return {row["video_id"]: row["collected_at"] for row in rows}
 
+    def recent_metrics(self, publication_store, limit=100):
+        limit = max(1, min(int(limit), 200))
+        records = publication_store.list_recent(200)
+        eligible = [x for x in records if x.get("status") == "publish_complete" and x.get("video_id")]
+        by_video = {x["video_id"]: x for x in eligible}
+        if not by_video:
+            return []
+        ids = list(by_video)[:limit]
+        placeholders = ",".join("?" for _ in ids)
+        with self.db() as c:
+            rows = c.execute(f"""
+              SELECT s.* FROM tiktok_video_metric_snapshots s
+              JOIN (
+                SELECT video_id,MAX(id) AS latest_id
+                FROM tiktok_video_metric_snapshots
+                WHERE video_id IN ({placeholders})
+                GROUP BY video_id
+              ) latest ON latest.latest_id=s.id
+              ORDER BY s.collected_at DESC,s.id DESC LIMIT ?
+            """, (*ids, limit)).fetchall()
+        items = []
+        for row in rows:
+            item = dict(row)
+            publication = by_video.get(item["video_id"], {})
+            item["publication_status"] = publication.get("status")
+            item["privacy_level"] = publication.get("privacy_level") or "SELF_ONLY"
+            items.append(item)
+        return items
+
     def status(self, publication_store, freshness_seconds=43200):
         with self.db() as c:
             row = c.execute(
