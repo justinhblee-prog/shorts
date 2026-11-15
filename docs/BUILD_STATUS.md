@@ -784,3 +784,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - CI validation pending on this branch; do not mark verified until GitHub Actions passes.
 
 - Approval enforcement is server-side: quality blockers cannot be overridden by a reviewer comment, and `review_required` warnings require an explicit reviewer confirmation note. The review UI requests that note and displays the recorded quality report.
+
+
+### Recommendation exposure capture uses explicit POST — 2026-11-15
+
+- Kept `GET /api/trends/recommendations` read-only.
+- Added `POST /api/trends/recommendations/snapshot` for the production workspace to explicitly capture the candidate set it receives for later outcome linkage.
+- Updated the workspace to call the POST endpoint. Identical snapshots remain deduplicated within 60 seconds.
