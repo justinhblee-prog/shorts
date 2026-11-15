@@ -1031,3 +1031,29 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Push CI [43732243418](https://github.com/justinhblee-prog/shorts/actions/runs/43732243418): **550 tests passed**.
 - PR merge-result CI [43732267560](https://github.com/justinhblee-prog/shorts/actions/runs/43732267560): **550 tests passed**.
 - Tests are local SQLite/runner checks; no live YouTube API request was made.
+
+
+
+## BUILD-00097 — worker process-instance fencing (2026-11-15)
+
+- Pull request: [#64](https://github.com/justinhblee-prog/shorts/pull/64), merged into the integration-only branch.
+- Added a UUID instance token to each worker process and an additive SQLite migration for `worker_registry.instance_token`.
+- Registration, claim, heartbeat and shutdown now carry the worker process identity; stale heartbeats and stale shutdowns cannot overwrite the current registry owner.
+- Worker registry responses omit the internal instance token.
+- Regression tests cover legacy DB migration, worker restart/offline fencing, stale heartbeat rejection and token privacy.
+- Push CI [43733525754](https://github.com/justinhblee-prog/shorts/actions/runs/43733525754): passed.
+- PR merge-result CI [43733532796](https://github.com/justinhblee-prog/shorts/actions/runs/43733532796): passed.
+- No production deployment or live provider request was performed.
+
+
+## BUILD-00098 — worker-instance fencing for completion and production writes (2026-11-15)
+
+- Pull request: [#65](https://github.com/justinhblee-prog/shorts/pull/65), implementation and CI validation completed; integration merge status to be confirmed.
+- Job `finish()` and `fail()` now require the current process-instance token when invoked by the production worker.
+- Production stage and artifact writes validate both the job lease and the current worker process instance.
+- Worker-originated pause requests, including heartbeat failure, SIGTERM and startup failure paths, are fenced by the same process token so a stale process cannot pause the production queue after restart.
+- Added regression coverage for stale finish/fail, stale queue pause, production stage/artifact writes, and shutdown token propagation.
+- An initial CI run exposed a missing instance-token check in artifact writes; that specific defect was corrected before the successful final run.
+- Final push CI [43734147538](https://github.com/justinhblee-prog/shorts/actions/runs/43734147538): **556 tests passed**.
+- PR merge-result CI [43734151885](https://github.com/justinhblee-prog/shorts/actions/runs/43734151885): passed.
+- Tests use local SQLite and fake providers; no live AI generation, platform publishing or production deployment was performed.
