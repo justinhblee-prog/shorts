@@ -14,7 +14,7 @@ class LedgerTests(unittest.TestCase):
   self.entry("production_cost","ai_provider","invoice-1",25)
   r=self.s.report(brand="Brain Glitch")
   self.assertEqual(r["revenue"],150); self.assertEqual(r["costs"],25)
-  self.assertEqual(r["net"],125); self.assertEqual(r["roi_percent"],400)
+  self.assertEqual(r["net"],125); self.assertEqual(r["roi_percent"],500)
  def test_idempotent_source_reference(self):
   a=self.entry("sponsor","sponsor_invoice","inv-1",500)
   b=self.entry("sponsor","sponsor_invoice","inv-1",500)
