@@ -190,8 +190,17 @@ class MediaInspector:
         if width <= 0 or height <= 0 or duration <= 0 or size <= 0:
             raise MediaInspectionError("Media file has non-positive dimensions, duration, or size")
         format_names = [x.strip().lower() for x in str(fmt.get("format_name", "")).split(",")]
-        if not any(x in ("mp4", "mov", "m4a", "3gp", "3g2", "mj2") for x in format_names):
-            raise MediaInspectionError("Media container is not a supported MP4-family format")
+        if not any(x in ("mp4", "mov", "m4a", "3gp", "3g2", "mj2", "webm", "matroska") for x in format_names):
+            raise MediaInspectionError("Media container is not a supported MP4-family or WebM format")
+        frame_rate = None
+        raw_frame_rate = video.get("avg_frame_rate") or video.get("r_frame_rate")
+        try:
+            numerator, denominator = str(raw_frame_rate).split("/", 1)
+            denominator_value = float(denominator)
+            if denominator_value > 0:
+                frame_rate = float(numerator) / denominator_value
+        except (TypeError, ValueError, ZeroDivisionError):
+            frame_rate = None
         subtitle_stream_present = any(
             s.get("codec_type") == "subtitle" for s in streams
         )
@@ -214,6 +223,7 @@ class MediaInspector:
             "size_bytes": size,
             "width": width,
             "height": height,
+            "frame_rate": frame_rate,
             "aspect_ratio": round(width / height, 5),
             "video_codec": video.get("codec_name"),
             "audio_track_present": audio is not None,
