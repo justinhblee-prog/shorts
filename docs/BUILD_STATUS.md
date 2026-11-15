@@ -860,4 +860,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - Provider HTTP error bodies are no longer copied into durable job errors or API responses. Upstream response bodies can contain echoed prompts, identifiers or secret-bearing diagnostics.
 - Only the HTTP status is retained; HTTP 429 remains retryable and other HTTP statuses retain the existing fail-closed behavior.
-- Regression coverage asserts provider error bodies are not exposed. CI pending.
+- Regression coverage asserts provider error bodies are not exposed. GitHub Actions [run 43681021764](https://github.com/justinhblee-prog/shorts/actions/runs/43681021764) passed **239 backend tests**, Python compilation, Compose YAML validation and frontend syntax/DOM-ID checks.
