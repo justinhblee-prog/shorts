@@ -10,12 +10,10 @@ import math
 import os
 import sqlite3
 
-from youtube_publishing import YouTubeUploadError
-
-
 SOURCE = "YouTube Analytics API v2"
 ANALYTICS_SCOPE = "https://www.googleapis.com/auth/yt-analytics.readonly"
 YOUTUBE_READ_SCOPE = "https://www.googleapis.com/auth/youtube.readonly"
+YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
 METRICS = (
     "views,engagedViews,estimatedMinutesWatched,averageViewDuration,"
     "averageViewPercentage,likes,comments,shares,subscribersGained"
@@ -46,7 +44,7 @@ def build_analytics_service():
             token=None, refresh_token=refresh,
             token_uri="https://oauth2.googleapis.com/token",
             client_id=client_id, client_secret=client_secret,
-            scopes=[YOUTUBE_READ_SCOPE, ANALYTICS_SCOPE],
+            scopes=[YOUTUBE_UPLOAD_SCOPE, YOUTUBE_READ_SCOPE, ANALYTICS_SCOPE],
         )
         credentials.refresh(Request())
         granted = getattr(credentials, "granted_scopes", None)
