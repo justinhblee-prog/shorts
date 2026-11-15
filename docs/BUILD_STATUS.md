@@ -1447,3 +1447,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Updated the operator runbook launch checklist for TikTok Display API enablement, `video.publish` / `video.list` consent, `SELF_ONLY` test publishing and real counter retrieval. Updated handover documentation with BUILD-00071/00072 boundaries.
 - Corrected the documented validation reference to the latest verified analytics dashboard run: [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), 476 automated tests passed. This is not a live-account verification.
 - Documentation-only changes do not trigger the path-filtered CI workflow; code validation remains the verified run above.
+
+## BUILD-00074 — YouTube Analytics watch-time and engagement collection
+
+- Added `backend/youtube_analytics.py` with a separate read-only YouTube Analytics API v2 collector. It requests a 28-day report (ending two days before the current UTC date) for confirmed uploaded video IDs only.
+- Captures views, Shorts engaged views, estimated minutes watched, average view duration, average view percentage, likes, comments, shares and subscribers gained. No monetary/revenue metrics are requested.
+- Uses a dedicated SQLite snapshot store, collection status and fenced lease. Batches are limited to 50 videos and due selection rotates across the full bounded uploaded inventory based on snapshot freshness, preventing newest-batch starvation.
+- Integrated into the existing metrics collector as an independent provider, with separate handling for missing `yt-analytics.readonly` consent, invalid OAuth credentials and other API errors. A failure does not suppress YouTube Data API or TikTok collection.
+- Added authenticated read-only `GET /api/youtube/analytics-metrics` and dashboard display for watch time/average view percentage. Recommendation score changes remain disabled.
+- The channel refresh token must be reauthorized with `yt-analytics.readonly` in addition to existing YouTube scopes; the YouTube Analytics API must be enabled in Google Cloud. This external consent/API setup has not been performed.
+- Validation pending for the latest code changes. Live YouTube Analytics report retrieval remains unverified.
