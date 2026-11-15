@@ -67,6 +67,20 @@ class YouTubePublishingTests(unittest.TestCase):
 
     def tearDown(self): self.tmp.cleanup()
 
+    def test_late_upload_completion_cannot_override_reconciled_not_uploaded(self):
+        self.store.begin("job-1", "Title", "Description")
+        self.store.mark_reconciliation_required("job-1", "timeout")
+        self.store.reconcile("job-1", "not_uploaded", note="Checked YouTube Studio")
+        with self.assertRaises(YouTubeUploadError):
+            self.store.finish("job-1", "late-video-id")
+        result = self.store.get("job-1")
+        self.assertEqual(result["status"], "failed")
+        self.assertIsNone(result["video_id"])
+
+    def test_finish_requires_active_upload_state(self):
+        with self.assertRaises(YouTubeUploadError):
+            self.store.finish("missing-job", "video-id")
+
     def test_upload_requires_approval(self):
         self.prod.create("job-2",{"brand":"Brain Glitch","region":"US",
                                   "language":"English","topic":"Focus"})
