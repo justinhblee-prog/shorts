@@ -103,7 +103,9 @@ class EndToEndLifecycleTests(unittest.TestCase):
         claimed = self.queue.claim("integration-worker", "test-host",
                                    job_type="short_video_production")
         self.assertEqual(claimed["id"], job_id)
-        generated = self.pipeline.execute(job_id, claimed["payload"])
+        generated = self.pipeline.execute(job_id, claimed["payload"],
+                                             worker_id="integration-worker",
+                                             lease_token=claimed["lease_token"])
         self.assertEqual(generated["status"], "rendered")
         self.assertEqual([a["artifact_type"] for a in generated["artifacts"]],
                          ["text", "audio", "video"])
