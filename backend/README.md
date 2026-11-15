@@ -204,3 +204,12 @@ Dashboard supports USD, KRW, JPY and GBP for ledger entries and profitability sc
 - After the upload ledger reports `status=uploaded` with a confirmed YouTube video ID, an operator may call `POST /api/production/jobs/{job_id}/cleanup-media` with `X-Review-Token`. The endpoint deletes only the deterministic staged file belonging to that job; repeated calls are safe.
 - Abandoned atomic-write `.part` files can be pruned with `MediaStager.prune_temporary_files()` after a minimum one-hour age threshold. It never scans or deletes completed media files. No automatic retention job is enabled by default.
 - Keep the renderer's remote artifact until upload is confirmed and your provider's retention policy permits deletion. Remote artifact deletion is not implemented.
+
+
+## Retry, cancellation and orphan-artifact consistency — 2026-11-15
+
+- A new production attempt now deletes the previous attempt's script/audio/video artifact rows in the same SQLite transaction as the fenced transition into the script stage. This prevents an old rendered MP4 from remaining visible as the current attempt's output after a retry starts.
+- Worker startup now reconciles durable queue states `cancelled` and `failed_terminal` into the matching production record. The reconciliation is transactional and does not overwrite approved/uploaded records.
+- Added regression tests for retry invalidation and cancellation-state synchronization.
+- This does **not** delete remote renderer artifacts; provider-side cleanup is not implemented because ownership and retention guarantees depend on the configured renderer.
+- Tests are committed but have not been executed in a Python runtime. GitHub Actions currently fails before allocating a runner; no assertion result is available.
