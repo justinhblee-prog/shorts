@@ -174,7 +174,7 @@ class RecommendationEvaluationStore:
             "selected_production_count": total_selected,
             "measured_outcome_count": total_measured,
             "unmeasured_selected_count": max(0, total_selected - total_measured),
-            "training_count": 0,
+            "pre_holdout_count": 0,
             "holdout_count": 0,
             "holdout_score_views_spearman": None,
             "holdout_rank_views_spearman": None,
@@ -191,11 +191,11 @@ class RecommendationEvaluationStore:
             return result
         split = max(5, int(math.ceil(total_measured * 0.30)))
         split = min(split, total_measured - 5)
-        training = observations[:-split]
+        pre_holdout = observations[:-split]
         holdout = observations[-split:]
         result.update({
             "status": "holdout_available",
-            "training_count": len(training),
+            "pre_holdout_count": len(pre_holdout),
             "holdout_count": len(holdout),
             "holdout_start": holdout[0]["observed_at"],
             "holdout_end": holdout[-1]["observed_at"],
