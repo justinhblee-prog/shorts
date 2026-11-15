@@ -794,3 +794,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Configuration is opt-in through `.env`; the audio URL is shared with the configured transcription provider. No ASR provider is called by default.
 - This validates approximate spoken narration/script alignment only. It does not verify burned-in subtitles, subtitle timing, factual correctness, pronunciation quality, voice identity consent, or platform policy compliance.
 - CI validation pending on this branch.
+
+
+### BUILD-00018 — extractable subtitle text and script/audio alignment (2026-11-15)
+
+- FFprobe inspection now detects actual text subtitle streams in staged renderer output.
+- FFmpeg extracts the first subtitle stream to SRT using a 2 MiB output cap and bounded timeout; extraction failures are recorded as review warnings, not silent success.
+- Extracted caption text is compared against independent ASR transcript when configured, otherwise against the generated script, using the same normalized token WER metric (0.25 threshold).
+- Persists a `caption_alignment` report artifact and shows status/match estimate in the review workspace.
+- Caption mismatch, absent text subtitle stream, truncated/empty extraction or extraction errors require human review; they do not automatically reject the video.
+- No text subtitle stream does not prove captions are absent because captions may be burned in. Burned-in caption OCR, timing, placement, font size, contrast, legibility and factual correctness remain unverified.
+- Raw extracted subtitle text is not copied into the quality report; only comparison metadata is retained.
+- CI validation pending on this branch.
