@@ -546,7 +546,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.store.record_status_poll_error("job-1", attempt_id, "temporary error")
         with self.store.db() as connection:
             connection.execute(
-                "UPDATE tiktok_publications SET updated_at=datetime('now','-59 seconds') WHERE job_id='job-1'"
+                "UPDATE tiktok_publications SET updated_at=datetime('now','-30 seconds') WHERE job_id='job-1'"
             )
         self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=0), [])
         with self.store.db() as connection:
@@ -558,7 +558,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.store.record_status_poll_error("job-1", attempt_id, "second temporary error")
         with self.store.db() as connection:
             connection.execute(
-                "UPDATE tiktok_publications SET updated_at=datetime('now','-119 seconds') WHERE job_id='job-1'"
+                "UPDATE tiktok_publications SET updated_at=datetime('now','-90 seconds') WHERE job_id='job-1'"
             )
         self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=0), [])
         with self.store.db() as connection:
