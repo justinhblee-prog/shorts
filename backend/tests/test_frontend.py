@@ -47,6 +47,14 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("제작 기획 등록 완료", app_js)
         self.assertIn("data-trend-brand", app_js)
 
+    def test_competitor_evidence_can_adjust_opportunity_priority(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data-inspect-channel", app_js)
+        self.assertIn("data-competitor-select", app_js)
+        self.assertIn("competitor_channel_ids", app_js)
+        self.assertIn("competitive_context", app_js)
+        self.assertIn("최근 영상 분석", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
