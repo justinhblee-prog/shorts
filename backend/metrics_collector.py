@@ -33,8 +33,21 @@ def run_once(store=None, publisher=None):
         logger.info("metrics_collection_skipped reason=another_collector_holds_lease")
         return {"skipped": True, "requested": 0, "collected": 0}
     try:
-        result = publisher.refresh_due_metrics(
-            limit=BATCH_SIZE, min_age_seconds=MIN_AGE
+        store.record_metrics_collection("running", source="YouTube Data API v3")
+        try:
+            result = publisher.refresh_due_metrics(
+                limit=BATCH_SIZE, min_age_seconds=MIN_AGE
+            )
+        except Exception as exc:
+            store.record_metrics_collection(
+                "failed", error=type(exc).__name__ + ": " + str(exc),
+                source="YouTube Data API v3"
+            )
+            raise
+        store.record_metrics_collection(
+            "succeeded", requested=result["requested"],
+            collected=result["collected"], missing=len(result["missing"]),
+            source=result.get("source", "YouTube Data API v3")
         )
         logger.info(
             "metrics_collection_completed requested=%s collected=%s missing=%s",
