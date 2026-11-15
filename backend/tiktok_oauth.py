@@ -221,7 +221,7 @@ class TikTokOAuthManager:
             "redirect_uri": self.redirect_uri,
             "state": state,
         })
-        return {"authorization_url": AUTHORIZE_URL + "?" + query, "expires_in": 600}
+        return {"authorization_url": AUTHORIZE_URL + "?" + query, "state": state, "expires_in": 600}
 
     def _post_token(self, payload):
         body = urllib.parse.urlencode(payload).encode("utf-8")
