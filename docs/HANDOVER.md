@@ -199,3 +199,7 @@ The dashboard now includes an approved-production list backed by `GET /api/revie
 FastAPI serves `frontend/index.html` at `/` and assets at `/assets`. The dashboard contains production intake, trend collection, competitor search, profitability scoring, review queue, approved/private upload queue, schedules, finance and performance. Token entry is in-memory only (not localStorage/sessionStorage); reload clears it. The approved queue is `GET /api/review/approved`; an operator can explicitly stage the stored MP4 artifact and upload privately. Dockerfile copies frontend assets into the image.
 
 UI integration and responsive browser behavior have not yet been tested in a live browser. The backend CI runner has been intermittently failing before runner allocation; no claims of UI or full-suite validation.
+
+## Dashboard packaging test
+
+Added `backend/tests/test_frontend.py` to check that the three static assets exist, FastAPI exposes the dashboard and asset mount, and all four primary workspaces are present. This is a packaging/static test, not browser automation. Latest Actions run 94 had no allocated runner and no steps; a rerun was requested but not yet verified.
