@@ -26,7 +26,7 @@ def make_events():
 
 class PipelinePerformanceTests(unittest.TestCase):
     def test_percentiles_and_median_are_reported_for_sufficient_cohort(self):
-        jobs = [make_job(f"j{i}", 10 + i) for i in range(5)]
+        jobs = [make_job(f"j{i}", 20 + i) for i in range(5)]
         events = {job["id"]: make_events() for job in jobs}
         result = build_pipeline_performance(jobs, events, min_samples=5)
         queued = next(item for item in result["stages"] if item["status"] == "queued")
