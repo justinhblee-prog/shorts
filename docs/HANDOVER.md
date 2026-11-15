@@ -539,3 +539,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Worker listings now compute stale records as `offline` after the configured lease window (minimum 30 seconds), rather than displaying a dead process as online indefinitely.
 - Added regression coverage for idle worker registration, heartbeat refresh and stale-to-offline detection.
 - GitHub Actions run [43669105872](https://github.com/justinhblee-prog/shorts/actions/runs/43669105872) passed **141 tests** on commit `e4f64cbd78e542165c545dcf8b659d8915eb77f2`; Python compilation and JavaScript syntax validation passed.
+
+
+### Faster production lease-loss detection — 2026-11-15
+
+- Reduced the default active-job heartbeat interval from one-third of the lease (100 seconds for a 300-second lease) to **10 seconds**, configurable through `NEXUS_HEARTBEAT_SECONDS` and capped at one-third of the lease.
+- This reduces the delay before a worker detects an operator pause or lease revocation. An in-flight provider HTTP request cannot be forcibly cancelled by the current synchronous transport; it runs until its configured timeout, after which the stop signal prevents the next pipeline stage.
+- Extracted the heartbeat interval policy into a pure helper and added boundary tests for the lease cap and minimum interval.
+- GitHub Actions run [43669352365](https://github.com/justinhblee-prog/shorts/actions/runs/43669352365) passed **148 tests** on commit `5b1aa3d0d1993176c4d135abf581e101f3113efe`; Python compilation and JavaScript syntax validation passed.
