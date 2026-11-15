@@ -121,6 +121,31 @@ class RecommendationEvaluationStore:
               BEFORE DELETE ON recommendation_evaluation_snapshots
               BEGIN SELECT RAISE(ABORT,'Recommendation evaluation snapshots are immutable'); END;
             """)
+            CREATE TABLE IF NOT EXISTS recommendation_experiments(
+              id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL,
+              control_label TEXT NOT NULL, treatment_label TEXT NOT NULL,
+              allocation_basis_points INTEGER NOT NULL, assignment_salt TEXT NOT NULL,
+              created_at TEXT NOT NULL, created_by TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS recommendation_experiment_assignments(
+              id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL
+                REFERENCES recommendation_experiments(id),
+              participant_fingerprint TEXT NOT NULL, arm TEXT NOT NULL,
+              assigned_at TEXT NOT NULL, assignment_mode TEXT NOT NULL,
+              UNIQUE(experiment_id,participant_fingerprint)
+            );
+            CREATE INDEX IF NOT EXISTS idx_recommendation_experiment_assignments
+              ON recommendation_experiment_assignments(experiment_id,arm);
+            CREATE TRIGGER IF NOT EXISTS recommendation_experiment_assignments_no_update
+              BEFORE UPDATE ON recommendation_experiment_assignments
+              BEGIN SELECT RAISE(ABORT,'Experiment assignments are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS recommendation_experiment_assignments_no_delete
+              BEFORE DELETE ON recommendation_experiment_assignments
+              BEGIN SELECT RAISE(ABORT,'Experiment assignments are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS recommendation_experiments_no_delete
+              BEFORE DELETE ON recommendation_experiments
+              BEGIN SELECT RAISE(ABORT,'Recommendation experiments are retained'); END;
+            """)
 
     @contextmanager
     def db(self):
@@ -640,3 +665,137 @@ class RecommendationEvaluationStore:
         return {"items": [dict(row) for row in rows], "count": len(rows),
                 "limit": bounded, "immutable": True}
 
+
+
+    def create_experiment(self, name, created_by, control_label="control",
+                          treatment_label="treatment", allocation_basis_points=5000):
+        """Create a draft experiment definition; it cannot affect production ranking."""
+        name = str(name or "").strip()
+        created_by = str(created_by or "").strip()
+        control_label = str(control_label or "").strip()
+        treatment_label = str(treatment_label or "").strip()
+        if not name or len(name) > 160 or not created_by or len(created_by) > 128:
+            raise ValueError("A valid experiment name and operator are required")
+        if (not control_label or not treatment_label or control_label == treatment_label
+                or len(control_label) > 64 or len(treatment_label) > 64):
+            raise ValueError("Distinct control and treatment labels are required")
+        if isinstance(allocation_basis_points, bool) or not isinstance(allocation_basis_points, int):
+            raise ValueError("allocation_basis_points must be an integer")
+        if not 1000 <= allocation_basis_points <= 9000:
+            raise ValueError("Treatment allocation must be between 10% and 90%")
+        experiment_id = str(uuid.uuid4())
+        created_at = _now()
+        salt = uuid.uuid4().hex + uuid.uuid4().hex
+        with self.db() as c:
+            c.execute("""INSERT INTO recommendation_experiments
+                (id,name,status,control_label,treatment_label,allocation_basis_points,
+                 assignment_salt,created_at,created_by)
+                VALUES(?,?,'draft',?,?,?,?,?,?)""",
+                (experiment_id,name,control_label,treatment_label,
+                 allocation_basis_points,salt,created_at,created_by))
+        return {
+            "experiment_id": experiment_id, "name": name, "status": "draft",
+            "control_label": control_label, "treatment_label": treatment_label,
+            "allocation_basis_points": allocation_basis_points,
+            "assignment_mode": "shadow_only", "live_assignment_enabled": False,
+            "ranking_score_adjustment": 0, "created_at": created_at,
+        }
+
+    def list_experiments(self, limit=20):
+        bounded = max(1, min(50, int(limit)))
+        with self.db() as c:
+            rows = c.execute("""SELECT e.id,e.name,e.status,e.control_label,
+                e.treatment_label,e.allocation_basis_points,e.created_at,e.created_by,
+                COUNT(a.id) AS shadow_assignment_count,
+                SUM(CASE WHEN a.arm='control' THEN 1 ELSE 0 END) AS control_count,
+                SUM(CASE WHEN a.arm='treatment' THEN 1 ELSE 0 END) AS treatment_count
+                FROM recommendation_experiments e
+                LEFT JOIN recommendation_experiment_assignments a ON a.experiment_id=e.id
+                GROUP BY e.id ORDER BY e.created_at DESC,e.id DESC LIMIT ?""",
+                (bounded,)).fetchall()
+        return {"items":[{
+            **dict(row),
+            "control_count": int(row["control_count"] or 0),
+            "treatment_count": int(row["treatment_count"] or 0),
+            "assignment_mode": "shadow_only",
+            "live_assignment_enabled": False,
+            "ranking_score_adjustment": 0,
+            "measured_exposure_count": 0,
+            "causal_effect_status": "not_measured",
+        } for row in rows], "count":len(rows), "limit":bounded}
+
+    def assign_shadow(self, experiment_id, participant_key):
+        """Stable, salted assignment simulation; never changes a served recommendation."""
+        participant_key = str(participant_key or "").strip()
+        if not participant_key or len(participant_key) > 256:
+            raise ValueError("A non-empty participant key of at most 256 characters is required")
+        participant_fingerprint = hashlib.sha256(
+            participant_key.encode("utf-8")
+        ).hexdigest()
+        timestamp = _now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            experiment = c.execute("""SELECT * FROM recommendation_experiments
+                WHERE id=?""", (str(experiment_id),)).fetchone()
+            if experiment is None:
+                return None
+            existing = c.execute("""SELECT id,arm,assigned_at FROM
+                recommendation_experiment_assignments
+                WHERE experiment_id=? AND participant_fingerprint=?""",
+                (str(experiment_id),participant_fingerprint)).fetchone()
+            if existing:
+                assignment = dict(existing)
+                deduplicated = True
+            else:
+                digest = hashlib.sha256(
+                    (experiment["assignment_salt"] + participant_fingerprint).encode("utf-8")
+                ).hexdigest()
+                bucket = int(digest[:16],16) % 10000
+                arm = "treatment" if bucket < experiment["allocation_basis_points"] else "control"
+                assignment_id = str(uuid.uuid4())
+                c.execute("""INSERT INTO recommendation_experiment_assignments
+                    (id,experiment_id,participant_fingerprint,arm,assigned_at,assignment_mode)
+                    VALUES(?,?,?,? ,?,'shadow')""",
+                    (assignment_id,str(experiment_id),participant_fingerprint,arm,timestamp))
+                assignment = {"id":assignment_id,"arm":arm,"assigned_at":timestamp}
+                deduplicated = False
+        return {
+            "experiment_id": str(experiment_id), "assignment_id": assignment["id"],
+            "arm": assignment["arm"], "assigned_at": assignment["assigned_at"],
+            "deduplicated": deduplicated, "assignment_mode": "shadow_only",
+            "recommendation_served": False, "production_behavior_changed": False,
+            "measured_exposure": False, "causal_effect_status": "not_measured",
+            "ranking_score_adjustment": 0,
+            "participant_identifier_stored": False,
+        }
+
+    def experiment_report(self, experiment_id):
+        with self.db() as c:
+            experiment = c.execute("""SELECT id,name,status,control_label,treatment_label,
+                allocation_basis_points,created_at FROM recommendation_experiments WHERE id=?""",
+                (str(experiment_id),)).fetchone()
+            if experiment is None:
+                return None
+            counts = c.execute("""SELECT arm,COUNT(*) AS count FROM
+                recommendation_experiment_assignments WHERE experiment_id=? GROUP BY arm""",
+                (str(experiment_id),)).fetchall()
+        by_arm = {row["arm"]: int(row["count"]) for row in counts}
+        return {
+            "experiment_id": experiment["id"], "name": experiment["name"],
+            "status": experiment["status"], "control_label": experiment["control_label"],
+            "treatment_label": experiment["treatment_label"],
+            "allocation_basis_points": experiment["allocation_basis_points"],
+            "assignment_counts": {"control":by_arm.get("control",0),
+                                  "treatment":by_arm.get("treatment",0)},
+            "shadow_assignment_count": sum(by_arm.values()),
+            "measured_exposure_count": 0, "outcome_count": 0,
+            "effect_estimate": None, "confidence_interval": None,
+            "causal_effect_status": "not_measured",
+            "assignment_mode": "shadow_only", "live_assignment_enabled": False,
+            "ranking_score_adjustment": 0,
+            "limitations": [
+                "Shadow assignments are not served recommendation exposures.",
+                "No outcome is attributed and no causal lift is estimated.",
+                "Live traffic allocation and ranking changes are disabled."
+            ],
+        }
