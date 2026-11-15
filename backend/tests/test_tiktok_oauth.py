@@ -168,6 +168,14 @@ class TikTokOAuthTests(unittest.TestCase):
             self.manager.disconnect()
         self.assertIsNotNone(self.store.token_record())
 
+    def test_invalid_encryption_key_fails_closed_without_crashing_manager_creation(self):
+        manager = TikTokOAuthManager(
+            self.store, "client-key", "client-secret",
+            "https://example.test/callback", "not-a-fernet-key", self.transport
+        )
+        self.assertFalse(manager.status()["connected"])
+        self.assertEqual(manager.status()["status"], "disconnected")
+
     def test_refresh_lease_fences_concurrent_processes(self):
         first = self.store.acquire_refresh_lease("process-a", 60)
         second = self.store.acquire_refresh_lease("process-b", 60)
