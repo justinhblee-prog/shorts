@@ -4,7 +4,7 @@ from urllib.error import HTTPError
 from io import BytesIO
 
 from provider_endpoint import provider_endpoint_error
-from production_pipeline import JsonProvider, ProviderError
+from production_pipeline import JsonProvider, ProviderError, MAX_PROVIDER_RESPONSE_BYTES
 
 
 class ProviderEndpointTests(unittest.TestCase):
@@ -58,6 +58,33 @@ class ProviderEndpointTests(unittest.TestCase):
         self.assertNotIn("secret-value", str(caught.exception))
         self.assertIn("401", str(caught.exception))
         opener.open.assert_called_once()
+
+    def test_provider_response_read_is_bounded_before_buffering(self):
+        response = unittest.mock.MagicMock()
+        response.status = 200
+        response.read.return_value = b"x" * (MAX_PROVIDER_RESPONSE_BYTES + 1)
+        response.__enter__.return_value = response
+        opener = unittest.mock.Mock()
+        opener.open.return_value = response
+        with patch("urllib.request.build_opener", return_value=opener):
+            with self.assertRaises(ProviderError) as caught:
+                JsonProvider._request(
+                    "https://api.example.test/generate", {}, b"{}", 1
+                )
+        self.assertIn("2 MiB", str(caught.exception))
+        response.read.assert_called_once_with(MAX_PROVIDER_RESPONSE_BYTES + 1)
+
+    def test_custom_transport_response_is_bounded_before_json_parsing(self):
+        provider = JsonProvider(
+            "https://api.example.test/generate",
+            transport=lambda *args: (
+                200, b"x" * (MAX_PROVIDER_RESPONSE_BYTES + 1)
+            ),
+        )
+        with self.assertRaises(ProviderError) as caught:
+            provider.post("script", {"topic": "test"})
+        self.assertFalse(caught.exception.retryable)
+        self.assertIn("2 MiB", str(caught.exception))
 
     def test_provider_redirect_is_not_followed(self):
         redirect = HTTPError(

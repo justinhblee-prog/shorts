@@ -21,6 +21,9 @@ from speech_alignment import build_speech_alignment_report, build_caption_alignm
 from provider_endpoint import provider_endpoint_error
 
 
+MAX_PROVIDER_RESPONSE_BYTES = 2 * 1024 * 1024
+
+
 class ProviderError(RuntimeError):
     def __init__(self, stage, message, retryable=True):
         super().__init__(message)
@@ -62,7 +65,13 @@ class JsonProvider:
         try:
             opener = urllib.request.build_opener(NoRedirectHandler)
             with opener.open(req, timeout=timeout) as response:
-                return response.status, response.read()
+                raw = response.read(MAX_PROVIDER_RESPONSE_BYTES + 1)
+                if len(raw) > MAX_PROVIDER_RESPONSE_BYTES:
+                    raise ProviderError(
+                        "provider", "Provider response exceeded the 2 MiB limit",
+                        retryable=False,
+                    )
+                return response.status, raw
         except urllib.error.HTTPError as exc:
             # Never persist upstream response bodies: providers can echo credentials,
             # signed URLs, or submitted content in error payloads. Redirects are
@@ -87,6 +96,10 @@ class JsonProvider:
             status, raw = self.transport(
                 self.url, headers, json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                 self.timeout)
+            if not isinstance(raw, (bytes, bytearray)):
+                raise ProviderError(stage, "Provider response must be binary JSON", False)
+            if len(raw) > MAX_PROVIDER_RESPONSE_BYTES:
+                raise ProviderError(stage, "Provider response exceeded the 2 MiB limit", False)
             if status < 200 or status >= 300:
                 raise ProviderError(stage, f"{stage} provider returned HTTP {status}",
                                     retryable=status >= 500 or status == 429)
