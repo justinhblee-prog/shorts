@@ -858,3 +858,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Uses `yt-analytics.readonly` plus the existing `youtube.readonly`/`youtube.upload` scopes. Existing refresh-token consent must be updated; enable the YouTube Analytics API and reauthorize the channel before live collection.
 - Collection is separate from YouTube Data API/TikTok, uses its own SQLite lease/state, 50-video batches, freshness rotation across the uploaded inventory, and read-only snapshot API/dashboard. Missing scope and invalid credentials have distinct statuses.
 - GitHub Actions passed at code commit `3984e759e618c6aaa93c744830b775908dfa7618`: run [43716302094](https://github.com/justinhblee-prog/shorts/actions/runs/43716302094), 489 tests passed; 107 unique HTML IDs / 91 JS selectors. No real OAuth or Analytics report request has been performed.
+
+### Analytics-informed recommendation evidence — 2026-11-15
+- BUILD-00075 joins the latest YouTube Analytics snapshot to uploaded-video performance records and exposes engaged views, watch time, average view duration and average view percentage.
+- Comparable cohorts now include median average view percentage and duration when available. The trend recommendation context exposes these values for operator review.
+- No score, rank, production selection or publishing action uses the new metrics. `ranking_score_adjustment=0`; the values are descriptive and observational, not causal or detailed per-second retention curves.
+- GitHub Actions run [43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969) passed **490 tests**, with 107 unique HTML IDs / 91 JS selectors. Live Analytics OAuth/data remains unverified.
