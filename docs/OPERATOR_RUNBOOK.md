@@ -201,3 +201,12 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - Added regression tests for provider-stage propagation, malformed-profile fail-closed validation, and API-level profile snapshotting at submission.
 - GitHub Actions run [43666178495](https://github.com/justinhblee-prog/shorts/actions/runs/43666178495) on commit `f7d7c20c396d8ea05fb60ed8414b84d5301e63d8` completed successfully. The full validation script passed and the log confirms **116 tests ran**.
 - This verifies profile propagation through the mocked provider contract and API test boundary. Actual provider prompt adherence, voice characteristics and rendered visual branding still require live provider credentials and real media review.
+
+
+### Ambiguous production worker loss — fail-closed recovery
+
+- A short-video production job whose worker lease expires is **not automatically requeued**. The provider may have completed an external side effect even if the worker died before persisting its result.
+- Expired production work is moved to `failed_terminal` with `production_lease_expired_ambiguous`; the matching production record is synchronized and the production queue is durably paused.
+- A normal worker interruption (Ctrl+C) during provider execution records a non-retriable ambiguous failure, pauses production, and exits. A hard process/host kill is handled by the lease-expiry path on the next claim or recovery.
+- Operators must inspect the provider's job history and billing/artifact state before deciding whether to create a new production request. Do not simply retry the same ambiguous job.
+- Non-production queue jobs retain their existing lease-expiry retry behavior.
