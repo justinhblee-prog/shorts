@@ -174,6 +174,14 @@ class YouTubeUploadReconciliation(BaseModel):
     note:str=Field(min_length=1,max_length=2000)
     operator_id:str=Field(min_length=1,max_length=128)
 
+class TikTokPublicationReconciliation(BaseModel):
+    outcome:Literal["published","not_published"]
+    confirmed:bool
+    video_id:str|None=Field(default=None,min_length=1,max_length=128)
+    note:str=Field(min_length=1,max_length=2000)
+    operator_id:str=Field(min_length=1,max_length=128)
+
+
 class YouTubeLateSuccessResolution(BaseModel):
     operator_id:str=Field(min_length=1,max_length=128)
     video_id:str=Field(min_length=1,max_length=128)
@@ -913,6 +921,21 @@ def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=Non
     if result is None:
         raise HTTPException(404,"TikTok publication record not found")
     return result
+
+
+@app.post("/api/tiktok/publications/{job_id}/reconcile")
+def reconcile_tiktok_publication(
+    job_id:str, body:TikTokPublicationReconciliation,
+    x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_publish_store.reconcile(
+            job_id, body.outcome, body.operator_id, body.note,
+            video_id=body.video_id, confirmed=body.confirmed,
+        )
+    except TikTokPublishError as e:
+        raise HTTPException(409,str(e))
 
 
 @app.post("/api/tiktok/publications/{job_id}/refresh-status")
