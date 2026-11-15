@@ -418,3 +418,8 @@ The evaluation endpoint retains the existing chronological pooled Spearman value
 ### Upload-time policy version freshness gate
 
 Immediately before creating a YouTube upload attempt, the upload store checks that the latest human approval snapshot and the current script artifact both contain the current `POLICY_VERSION`, and that current policy evidence has no blocking reasons or approval blockers. A stale/missing policy report or stale approval snapshot blocks the upload before a remote request begins; the operator must refresh evidence and obtain a new approval. This is a local rule-version check, not a live fetch of YouTube/TikTok policy documents; official policies and regional rules still need current manual verification.
+
+
+### Immutable upload policy-version audit stamps
+
+The YouTube upload record and immutable `upload_attempt_started` audit event now retain the exact local policy version and checked-on date that passed the upload-time freshness gate. Existing databases are migrated additively; old records retain null values and are not retroactively represented as having been checked under the current version.
