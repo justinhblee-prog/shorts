@@ -64,11 +64,14 @@ class ReviewStore:
         limit = max(1, min(int(limit), 200))
         with self.db() as c:
             rows = c.execute("""
-              SELECT r.* FROM production_runs r
+              SELECT r.*, j.payload_json AS job_payload_json
+              FROM production_runs r
+              LEFT JOIN pipeline_jobs j ON j.id=r.job_id
               WHERE r.status='review_pending'
               ORDER BY r.updated_at ASC LIMIT ?
             """, (limit,)).fetchall()
-            return [self._with_artifacts(c, dict(row)) for row in rows]
+            return [self._with_job_context(self._with_artifacts(c, dict(row)))
+                    for row in rows]
 
     @staticmethod
     def _with_artifacts(c, run):
@@ -89,11 +92,37 @@ class ReviewStore:
         limit = max(1, min(int(limit), 200))
         with self.db() as c:
             rows = c.execute("""
-              SELECT r.* FROM production_runs r
+              SELECT r.*, j.payload_json AS job_payload_json
+              FROM production_runs r
+              LEFT JOIN pipeline_jobs j ON j.id=r.job_id
               WHERE r.status='approved'
               ORDER BY r.updated_at DESC LIMIT ?
             """, (limit,)).fetchall()
-            return [self._with_artifacts(c, dict(row)) for row in rows]
+            return [self._with_job_context(self._with_artifacts(c, dict(row)))
+                    for row in rows]
+
+    @staticmethod
+    def _with_job_context(run):
+        """Expose the immutable brand profile captured when the job was submitted."""
+        raw = run.pop("job_payload_json", None)
+        profile = None
+        if raw:
+            try:
+                payload = json.loads(raw)
+                if isinstance(payload, dict):
+                    candidate = payload.get("brand_profile")
+                    if isinstance(candidate, dict):
+                        profile = {
+                            "positioning": candidate.get("positioning"),
+                            "audience": candidate.get("audience"),
+                            "tone": candidate.get("tone", []),
+                            "risk_level": candidate.get("risk_level"),
+                            "review_rules": candidate.get("review_rules", []),
+                        }
+            except (TypeError, ValueError):
+                profile = None
+        run["brand_profile"] = profile
+        return run
 
     def decide(self, job_id, decision, reviewer_id, comment=""):
         if decision not in self.DECISIONS:
