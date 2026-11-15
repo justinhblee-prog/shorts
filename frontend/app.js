@@ -4,6 +4,7 @@
   let reviewer = "operator";
   let brands = [];
   let toastTimer;
+  let recommendationExposureObserver;
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const money = (n,c="USD") => new Intl.NumberFormat("en-US",{style:"currency",currency:c,maximumFractionDigits:2}).format(Number(n||0));
   function toast(message){$("toast").textContent=message;$("toast").classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),2800);}
@@ -224,6 +225,63 @@
     }).join("")||'<div class="empty-state">저장된 트렌드 신호가 없습니다.</div>';
   }
 
+  async function loadRenderedExposureReport(runId){
+    if(!runId)return;
+    const report=await api("/api/recommendations/exposures/"+encodeURIComponent(runId)+"/report");
+    $("recommendationExposureSummary").textContent=
+      "화면 표시 트렌드 "+Number(report.visible_trend_card_count||0)+"개 · 미표시 "+
+      Number(report.unseen_trend_card_count||0)+"개 · 표시 확인 "+
+      Number(report.render_impression_count||0)+"회 · 노출 후 제작 선택 "+
+      Number(report.selected_after_exposure_count||0)+"건 · 실측 성과 "+
+      Number(report.measured_outcome_count||0)+"건 · 인과 효과 미측정";
+  }
+
+  function observeRenderedRecommendationCards(runId){
+    if(recommendationExposureObserver)recommendationExposureObserver.disconnect();
+    const cards=Array.from(document.querySelectorAll("[data-recommendation-exposure]"));
+    if(!runId||!cards.length||!("IntersectionObserver" in window)){
+      $("recommendationExposureSummary").textContent=
+        "현재 브라우저에서 화면 표시 측정을 지원하지 않거나 표시할 추천 카드가 없습니다.";
+      return;
+    }
+    recommendationExposureObserver=new IntersectionObserver(entries=>{
+      for(const entry of entries){
+        const card=entry.target;
+        if(entry.isIntersecting&&entry.intersectionRatio>=0.5){
+          if(card.dataset.exposureRecorded==="true"||card.dataset.exposureTimer)continue;
+          const started=Date.now();
+          card.dataset.exposureTimer=setTimeout(async()=>{
+            delete card.dataset.exposureTimer;
+            if(document.visibilityState!=="visible"||card.dataset.exposureRecorded==="true")return;
+            const visibilityMs=Math.min(30000,Math.max(1000,Date.now()-started));
+            try{
+              const result=await api("/api/recommendations/exposures/rendered",{
+                method:"POST",body:JSON.stringify({run_id:runId,exposures:[{
+                  event_id:crypto.randomUUID(),trend_id:card.dataset.trendId,
+                  visibility_ms:visibilityMs
+                }]})
+              });
+              card.dataset.exposureRecorded="true";
+              $("recommendationExposureSummary").textContent=
+                "실제 화면 표시 확인 "+Number(result.recorded_count||0)+
+                "건 기록 · 개인정보 식별자 미저장 · 무작위 실험 아님";
+              await loadRenderedExposureReport(runId);
+            }catch(error){
+              $("recommendationExposureSummary").textContent=
+                "노출 기록 실패: "+error.message+" · 추천 갱신 후 재시도할 수 있습니다.";
+            }
+          },1000);
+        }else if(card.dataset.exposureTimer){
+          clearTimeout(card.dataset.exposureTimer);
+          delete card.dataset.exposureTimer;
+        }
+      }
+    },{threshold:[0,0.5,1]});
+    cards.forEach(card=>recommendationExposureObserver.observe(card));
+    $("recommendationExposureSummary").textContent=
+      "추천 카드 화면 표시 확인 대기 중 · 50% 이상 1초 조건 · 사용자 식별정보 미수집";
+  }
+
   async function loadTrendRecommendations(){
     const region=$("trendRegion").value;
     const data=await api("/api/trends/recommendations/snapshot?region="+encodeURIComponent(region)+"&limit=20",{method:"POST"});
@@ -260,8 +318,9 @@
       const cohortSummary=cohortRows.length
         ? '<small>비교 코호트 · '+cohortRows.map(x=>esc(x.publication_age_bucket)+' / '+esc(x.duration_bucket)+' · '+Number(x.sample_count)+'개 · '+Number(x.median_views_per_hour||0).toLocaleString()+' views/hour').join(' | ')+'</small>'
         : '<small>동일 브랜드·시장·주제의 비교 코호트 표본 부족</small>';
-      return '<div class="data-item trend-item"><div class="recommendation-head"><b>'+esc(trend.title||"Untitled trend")+'</b><strong>'+Number(item.recommendation_score||0).toFixed(1)+'/100</strong></div><small>'+esc(trend.region||"")+' · 최신성 '+Number(item.freshness_score||0).toFixed(1)+' · '+esc(item.score_type||"")+'</small>'+(item.best_brand?'<small>최적 브랜드: '+esc(item.best_brand.brand_name)+' · 적합도 '+Number(item.best_brand.fit_score||0).toFixed(1)+'</small>':'<small>적합 브랜드 미확인</small>')+topicHistorySummary+cohortSummary+historySummary+competitorSummary+controls+'<small class="recommendation-caveat">과거 실측값은 동일 브랜드·시장·주제 및 게시 경과·영상 길이별 비교 표본을 별도로 표시하며, 현재 추천 점수에는 반영되지 않습니다. 경쟁 지표도 저장된 최대 10개 채널의 최근 영상 표본으로 시장 전체 수요나 수익을 뜻하지 않습니다.</small></div>';
+      return '<div class="data-item trend-item" data-recommendation-exposure data-trend-id="'+esc(trend.id||"")+'" data-run-id="'+esc(data.evaluation_run_id||"")+'"><div class="recommendation-head"><b>'+esc(trend.title||"Untitled trend")+'</b><strong>'+Number(item.recommendation_score||0).toFixed(1)+'/100</strong></div><small>'+esc(trend.region||"")+' · 최신성 '+Number(item.freshness_score||0).toFixed(1)+' · '+esc(item.score_type||"")+'</small>'+(item.best_brand?'<small>최적 브랜드: '+esc(item.best_brand.brand_name)+' · 적합도 '+Number(item.best_brand.fit_score||0).toFixed(1)+'</small>':'<small>적합 브랜드 미확인</small>')+topicHistorySummary+cohortSummary+historySummary+competitorSummary+controls+'<small class="recommendation-caveat">과거 실측값은 동일 브랜드·시장·주제 및 게시 경과·영상 길이별 비교 표본을 별도로 표시하며, 현재 추천 점수에는 반영되지 않습니다. 경쟁 지표도 저장된 최대 10개 채널의 최근 영상 표본으로 시장 전체 수요나 수익을 뜻하지 않습니다.</small></div>';
     }).join("")||'<div class="empty-state">선택한 시장에 추천할 트렌드가 없습니다.</div>';
+    observeRenderedRecommendationCards(data.evaluation_run_id);
   }
 
   async function loadSchedules(){
