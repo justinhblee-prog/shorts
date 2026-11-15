@@ -547,3 +547,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - This reduces the delay before a worker detects an operator pause or lease revocation. An in-flight provider HTTP request cannot be forcibly cancelled by the current synchronous transport; it runs until its configured timeout, after which the stop signal prevents the next pipeline stage.
 - Extracted the heartbeat interval policy into a pure helper and added boundary tests for the lease cap and minimum interval.
 - GitHub Actions run [43669352365](https://github.com/justinhblee-prog/shorts/actions/runs/43669352365) passed **148 tests** on commit `5b1aa3d0d1993176c4d135abf581e101f3113efe`; Python compilation and JavaScript syntax validation passed.
+
+
+### Frontend validation gate restored — 2026-11-15
+
+- Found that CI watched backend and validation-script paths but ignored frontend-only changes. A trend dashboard update therefore introduced a literal newline escape in `frontend/app.js` without triggering the syntax check.
+- Fixed both stray literal newline escapes and expanded workflow path filters to include `frontend/**`. Frontend JavaScript changes now trigger the same automated validation workflow.
+- GitHub Actions run [43669577773](https://github.com/justinhblee-prog/shorts/actions/runs/43669577773) passed **149 tests** and the frontend `node --check` step on commit `8970caef75930c00be4b6125455daa8639ccd10e`.
