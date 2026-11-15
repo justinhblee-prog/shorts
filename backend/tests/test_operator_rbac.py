@@ -32,6 +32,23 @@ class OperatorRoleTests(unittest.TestCase):
         self.assertEqual(permissions_for("unmapped", role_map_json=roles), frozenset())
         self.assertFalse(has_permission("unmapped", "review.read", role_map_json=roles))
 
+    def test_read_permissions_are_separated_by_role(self):
+        roles = json.dumps({
+            "producer": ["producer"],
+            "reviewer": ["reviewer"],
+            "publisher": ["publisher"],
+            "analyst": ["analyst"],
+            "operator": ["operator"],
+        })
+        self.assertTrue(has_permission("producer", "production.read", role_map_json=roles))
+        self.assertTrue(has_permission("producer", "trends.read", role_map_json=roles))
+        self.assertTrue(has_permission("reviewer", "review.read", role_map_json=roles))
+        self.assertFalse(has_permission("reviewer", "operations.read", role_map_json=roles))
+        self.assertTrue(has_permission("publisher", "publishing.read", role_map_json=roles))
+        self.assertTrue(has_permission("analyst", "recommendations.read", role_map_json=roles))
+        self.assertTrue(has_permission("operator", "queue.read", role_map_json=roles))
+        self.assertFalse(has_permission("operator", "review.read", role_map_json=roles))
+
     def test_admin_role_grants_wildcard(self):
         self.assertTrue(has_permission("root", "any.future.permission",
                                        role_map_json=json.dumps({"root": ["admin"]})))
