@@ -155,7 +155,6 @@ class TikTokOAuthTests(unittest.TestCase):
         url, kwargs = self.session.posts[-1]
         self.assertEqual(url, "https://open.tiktokapis.com/v2/oauth/revoke/")
         self.assertEqual(kwargs["data"]["token"], "revoke-access")
-        self.assertNotIn("revoke-access", str(kwargs["data"]))
 
     def test_access_token_fails_closed_when_creator_is_not_connected(self):
         with mock.patch.dict(os.environ, {"TIKTOK_ACCESS_TOKEN": ""}):
