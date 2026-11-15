@@ -69,6 +69,61 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(result["production"]["status"], "approved")
         self.assertIn("Confirmed rights", result["decision"]["comment"])
 
+    def test_policy_evidence_update_is_audited_and_unblocks_only_after_platform_disclosures(self):
+        brief = {
+            "brand": "Brain Glitch", "region": "US",
+            "language": "English", "topic": "Synthetic explainer",
+        }
+        job = self.queue.enqueue("short_video_production", brief)
+        job_id = job["id"]
+        claimed = self.queue.claim("policy-worker", job_type="short_video_production")
+        self.production.create(job_id, brief)
+        self.production.stage(job_id, "rendered", "review_pending")
+        self.production.artifact(job_id, "script", "text", None, {"script": "Example"})
+        self.queue.finish(job_id, "policy-worker", claimed["lease_token"], {})
+
+        first = self.review.update_policy_evidence(job_id, "operator-1", {
+            "rights": {
+                "visuals_cleared": True, "audio_cleared": True,
+                "likeness_authorized": True,
+            },
+            "synthetic_media_status": "realistic_alteration",
+            "platform_disclosures": {"youtube_altered_content": True},
+        })
+        self.assertIn(
+            "platform_disclosures.tiktok_ai_generated_content",
+            first["policy_preflight"]["approval_blockers"],
+        )
+        with self.assertRaisesRegex(ReviewConflict, "approval blockers"):
+            self.review.decide(job_id, "approved", "operator-1", "Reviewed")
+
+        second = self.review.update_policy_evidence(job_id, "operator-1", {
+            "platform_disclosures": {"tiktok_ai_generated_content": True},
+        })
+        self.assertEqual(second["policy_preflight"]["approval_blockers"], [])
+        history = self.review.policy_evidence_history(job_id)
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[-1]["policy_preflight"]["platforms"], ["youtube", "tiktok"])
+        approved = self.review.decide(
+            job_id, "approved", "operator-1", "Reviewed script, rights, and disclosure settings"
+        )
+        self.assertEqual(approved["production"]["status"], "approved")
+
+    def test_policy_approval_blockers_cannot_be_overridden_by_reviewer_comment(self):
+        self.production.artifact("job-1", "script", "text", None, {
+            "script": "Example", "policy_preflight": {
+                "status": "review_required",
+                "required_confirmations": ["platform_disclosures.youtube_altered_content"],
+                "approval_blockers": ["platform_disclosures.youtube_altered_content"],
+            }
+        })
+        with self.assertRaisesRegex(ReviewConflict, "approval blockers"):
+            self.review.decide(
+                "job-1", "approved", "operator-1",
+                "I reviewed it; proceed despite missing disclosure"
+            )
+        self.assertEqual(self.production.get("job-1")["status"], "review_pending")
+
     def test_policy_blocked_content_cannot_be_approved(self):
         self.production.artifact("job-1", "script", "text", None, {
             "script": "Example", "policy_preflight": {

@@ -68,6 +68,24 @@ class ReviewDecision(BaseModel):
     comment:str=Field(default="",max_length=4000)
 
 
+class PolicyEvidenceInput(BaseModel):
+    reviewer_id:str=Field(min_length=1,max_length=128)
+    rights:dict[str,bool]|None=None
+    synthetic_media_status:Literal[
+        "none","ai_assisted_nonrealistic","ai_generated","realistic_alteration","unknown"
+    ]|None=None
+    platform_disclosures:dict[str,bool]|None=None
+    platforms:list[Literal["youtube","tiktok"]]|None=None
+    risk_flags:dict[str,bool]|None=None
+    factual_claims_verified:bool|None=None
+    originality_notes:str|None=Field(default=None,max_length=4000)
+    claim_evidence_notes:str|None=Field(default=None,max_length=4000)
+    source_urls:list[str]|None=Field(default=None,max_length=30)
+    transformative_contribution:str|None=Field(default=None,max_length=4000)
+    commercial_relationship_disclosed:bool|None=None
+    child_safety_review_confirmed:bool|None=None
+
+
 class YouTubeUploadRequest(BaseModel):
     media_path:str=Field(min_length=1,max_length=2000)
     title:str=Field(min_length=1,max_length=100)
@@ -274,6 +292,25 @@ def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
         if item["upload_status"]!="uploaded":
             pending.append(item)
     return {"items":pending}
+
+
+@app.post("/api/review/{job_id}/policy-evidence")
+def update_review_policy_evidence(
+    job_id:str, body:PolicyEvidenceInput,
+    x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    declarations=body.model_dump(exclude={"reviewer_id"},exclude_none=True)
+    try:
+        return review_store.update_policy_evidence(
+            job_id,body.reviewer_id,declarations
+        )
+    except ReviewNotFound:
+        raise HTTPException(404,"Production job not found")
+    except ReviewConflict as e:
+        raise HTTPException(409,str(e))
+    except ValueError as e:
+        raise HTTPException(422,str(e))
 
 
 @app.post("/api/review/{job_id}/approve")
