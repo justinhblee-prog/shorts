@@ -669,13 +669,14 @@ def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|N
     ranked=rank_trend_candidates(
         trends,brands,competitor_store,limit,
         performance_by_brand=performance_by_brand,
-        performance_videos=performance.get("videos",[])
+        performance_videos=performance.get("videos",[]),
+        performance_cohorts=performance.get("cohorts",[])
     )
     return {
         "items":ranked,
         "count":len(ranked),
-        "method":"100-point editorial score: freshness (0-40), editorial brand fit (0-40), source provenance completeness (0-10), and topic distinctiveness (0-10). Historical performance is displayed separately and is not yet scored.",
-        "warning":"Editorial recommendation score only. Historical brand-level performance is displayed as context but does not alter ranking until topic-matched evidence is sufficient. This is not a profitability forecast, search-volume estimate, or automatic production approval."
+        "method":"100-point editorial score: freshness (0-40), editorial brand fit (0-40), source provenance completeness (0-10), and topic distinctiveness (0-10). Brand/topic-matched historical performance cohorts are displayed separately and are not scored.",
+        "warning":"Editorial recommendation score only. Brand/region/topic-matched cohort evidence is contextual, may be sparse, and does not alter ranking until held-out validation demonstrates stable improvement. This is not a profitability forecast, search-volume estimate, or automatic production approval."
     }
 
 @app.get("/api/opportunities")
