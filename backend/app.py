@@ -155,6 +155,16 @@ def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(de
             raise HTTPException(422,"Region or language is not enabled for this brand")
         brief = body.model_dump()
         brief["brand"] = brand["name"]
+        # Freeze the selected brand's editorial profile into the durable job payload
+        # so workers use the same brand rules even if the profile is later edited.
+        profile = config
+        brief["brand_profile"] = {
+            "positioning": profile.get("positioning", ""),
+            "audience": profile.get("audience", ""),
+            "tone": profile.get("tone", []),
+            "risk_level": profile.get("risk_level", "standard"),
+            "review_rules": profile.get("review_rules", []),
+        }
         return submit_production(queue,production_store,brief)
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
