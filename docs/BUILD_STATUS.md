@@ -1404,3 +1404,16 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression coverage for confirmation requirement, published/not-published outcomes, cooldown, duplicate video IDs, and safe retry after verified non-publication.
 - Regression suite: **460 tests passed** at final code commit `44b70d6` (run [43710459521](https://github.com/justinhblee-prog/shorts/actions/runs/43710459521)).
 - External TikTok account verification and actual publishing are not performed by CI; the endpoint only records an operator attestation and cannot independently prove the remote account state.
+
+
+## BUILD-00070 — unified YouTube·TikTok publishing operations dashboard
+
+- Added bounded `list_recent(limit)` readers to both publisher stores. Each returned record includes its own platform event history; no state is written by the listing operation.
+- Added authenticated, read-only `GET /api/publishing/dashboard?limit=100` with independently grouped YouTube and TikTok status counts, attempt identifiers, remote IDs, timestamps, error/reason fields, reconciliation flags, and audit events. The response keeps platform states separate, reports attention counts, and explicitly returns `actions_taken: []`.
+- Added a unified publishing panel to the single-page operator workspace. It displays YouTube and TikTok records, platform-specific states, recent audit events, private visibility, and attention-required records.
+- Added only explicit, operator-triggered actions: TikTok remote status refresh and confirmed reconciliation for ambiguous YouTube/TikTok outcomes. Reconciliation requires an operator identity, a non-empty evidence note, explicit confirmation, and a remote video ID for a claimed successful upload. The UI uses the correct platform-specific API routes.
+- No status refresh, retry, publish, reconciliation, or other mutation occurs when the dashboard is loaded or refreshed. TikTok remains `SELF_ONLY`; YouTube uploads remain private. Human approval and the existing approval-bound immutable media checks remain mandatory.
+- Added API authorization, read-only behavior, platform-state separation, bounded-limit, and frontend integration regression tests.
+- CI validation for this build is pending. No live YouTube/TikTok account, OAuth, upload, or remote visibility test was performed.
+- PR #36 remains Draft/open/unmerged.
+
