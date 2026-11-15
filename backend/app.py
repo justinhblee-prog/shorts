@@ -9,6 +9,7 @@ from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflic
 from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
 from profitability import OpportunityStore, score_opportunity, analyze_competition
+from trend_recommendations import rank_trend_candidates
 from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError, ProductionLeaseConflict
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
@@ -618,6 +619,21 @@ def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Heade
         return opportunity_store.save(result)
     except ValueError as e:
         raise HTTPException(422,str(e))
+
+
+@app.get("/api/trends/recommendations")
+def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|None=Header(default=None)):
+    """Return evidence-bounded trend-to-brand recommendations for operator review."""
+    require_review_access(x_review_token)
+    trends=trend_store.list(region=region,limit=200)
+    brands=brand_store.list(active_only=True)
+    ranked=rank_trend_candidates(trends,brands,competitor_store,limit)
+    return {
+        "items":ranked,
+        "count":len(ranked),
+        "method":"Freshness (0-40) plus editorial brand fit (0-40); remaining 20 points are unallocated because comparable demand and monetization evidence are unavailable.",
+        "warning":"Editorial recommendation score only. It is not a profitability forecast, search-volume estimate, or automatic production approval."
+    }
 
 @app.get("/api/opportunities")
 def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None)):
