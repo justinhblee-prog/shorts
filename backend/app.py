@@ -23,6 +23,7 @@ from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
 from lifecycle_consistency import inspect_lifecycle_consistency
 from operator_recovery import build_operator_recovery_plan
+from failure_analysis import classify_failure
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
@@ -1233,6 +1234,30 @@ def recover(x_review_token:str|None=Header(default=None)):
 def workers(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     return {"workers":queue.workers()}
+@app.get("/api/jobs/{jid}/failure-analysis")
+def get_job_failure_analysis(jid:str,x_review_token:str|None=Header(default=None)):
+    """Read-only classification of the most recent persisted job failure."""
+    require_review_access(x_review_token)
+    try:
+        job=queue.get(jid)
+        events=queue.events(jid)
+    except JobNotFound:
+        raise HTTPException(404,"Job not found")
+    failure_events=[event for event in events if event.get("event_type") in
+                    ("failed","lease_expired","lease_recovered","worker_pause")]
+    if not failure_events:
+        return {"job_id":jid,"job_status":job["status"],"latest_failure":None,
+                "read_only":True,"actions_taken":[]}
+    event=failure_events[-1]
+    details=event.get("details") or {}
+    code=details.get("error_code") or job.get("error_code") or event.get("event_type")
+    message=job.get("error_message") or details.get("error_message") or details.get("reason") or ""
+    analysis=classify_failure(code,message,job.get("job_type"),job.get("status"),
+                              job.get("attempt"),job.get("max_attempts"),details.get("retryable"))
+    return {"job_id":jid,"job_status":job["status"],"failure_event":{
+                "event_type":event.get("event_type"),"created_at":event.get("created_at"),
+                "from_status":event.get("from_status"),"to_status":event.get("to_status")},
+            "latest_failure":analysis,"read_only":True,"actions_taken":[]}
 @app.get("/api/jobs/{jid}")
 def get_job(jid:str,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
