@@ -29,6 +29,9 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(ranked[0]["score_type"], "editorial_signal_not_profitability")
         self.assertIn("revenue_and_cost_not_estimated", ranked[0]["evidence_gaps"])
         self.assertIn("competitor_video_sample_unavailable", ranked[0]["evidence_gaps"])
+        self.assertIn("trend_source_provenance_incomplete", ranked[0]["evidence_gaps"])
+        self.assertEqual(ranked[0]["recommendation_score"],
+                         sum(ranked[0]["score_breakdown"].values()))
 
     def test_no_brand_match_is_not_invented(self):
         result = rank_trend_candidates(
@@ -38,6 +41,34 @@ class TrendRecommendationTests(unittest.TestCase):
             now=datetime(2026, 11, 15, tzinfo=timezone.utc))
         self.assertIsNone(result[0]["best_brand"])
         self.assertEqual(result[0]["recommendation_score"], 0)
+
+    def test_provenance_and_topic_distinctiveness_fill_only_editorial_evidence_points(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        brands = [{
+            "slug": "future-leak", "name": "Future Leak", "active": True,
+            "config": {"positioning": "AI technology", "regions": ["US"]}
+        }]
+        trends = [
+            {"id": "a", "title": "AI technology in healthcare", "region": "US",
+             "source": "google_news_rss", "url": "https://news.example/a",
+             "published_at": now.isoformat()},
+            {"id": "b", "title": "AI technology in healthcare", "region": "US",
+             "source": "google_news_rss", "url": "https://news.example/b",
+             "published_at": now.isoformat()},
+            {"id": "c", "title": "AI technology in robotics", "region": "US",
+             "source": "google_news_rss", "url": "https://news.example/c",
+             "published_at": now.isoformat()},
+        ]
+        ranked = rank_trend_candidates(trends, brands, now=now)
+        duplicate = next(item for item in ranked if item["trend"]["id"] == "a")
+        distinct = next(item for item in ranked if item["trend"]["id"] == "c")
+        self.assertEqual(duplicate["source_evidence_score"], 10)
+        self.assertLess(duplicate["topic_distinctiveness_score"],
+                        distinct["topic_distinctiveness_score"])
+        self.assertEqual(duplicate["recommendation_score"],
+                         sum(duplicate["score_breakdown"].values()))
+        self.assertEqual(duplicate["score_type"],
+                         "editorial_signal_not_profitability")
 
     def test_competitor_evidence_is_region_scoped_and_does_not_change_editorial_score(self):
         store = Mock()
@@ -61,8 +92,8 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(context["observed_videos"], 1)
         self.assertEqual(context["topic_matched_videos"], 1)
         self.assertEqual(context["median_matched_views"], 1200)
-        self.assertEqual(result["recommendation_score"], result["freshness_score"] +
-                         result["best_brand"]["fit_score"])
+        self.assertEqual(result["recommendation_score"],
+                         sum(result["score_breakdown"].values()))
         self.assertNotIn("competitor_video_sample_unavailable", result["evidence_gaps"])
         store.list_channels.assert_called_once_with(limit=200)
         store.list_videos.assert_called_once_with("us-channel", limit=30)
