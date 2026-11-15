@@ -1146,3 +1146,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added queue-store tests for duplicate IDs, bounded input, compact result shape, latest review state, and publication-attempt evidence; updated API tests to assert the dashboard consumes the batch snapshot.
 - GitHub Actions passed **357 tests** at commit `676a18b` (run `43697822438`). The first run exposed a missing TikTok audit-event fixture in the new unit test; the fixture was corrected and the complete suite then passed.
 - The optimization is local database-only and does not contact YouTube or TikTok.
+
+### BUILD-00047 — operational worker and queue safety diagnostics
+
+- Added authenticated `GET /api/ops/health` returning a read-only operational snapshot: queue status counts and pause state, worker heartbeat freshness, expired running leases, and incomplete lease ownership.
+- Severity rules: an explicitly paused queue, expired running lease, or incomplete running lease is a blocker; stale worker heartbeats and retryable failures are warnings.
+- Snapshot includes the check timestamp, stale-heartbeat threshold, explicit `read_only` marker, and empty `actions_taken`; it does not mutate jobs, pause/resume workers, requeue work, or contact external providers.
+- Control center now displays blocker/warning signals alongside existing queue controls and audit history. Operators retain explicit, audited pause/resume authority.
+- Added tests for stale workers, expired and incomplete leases, paused state, non-mutating diagnostics, and authenticated API access; frontend regression assertions cover visibility and read-only messaging.
+- CI validation pending. Diagnostics are limited to data persisted in the local queue database; they do not prove external worker process or provider availability.
