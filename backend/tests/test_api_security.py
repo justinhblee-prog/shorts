@@ -55,11 +55,11 @@ class ApiSecurityTests(unittest.TestCase):
         with (
             mock.patch("app.require_review_access"),
             mock.patch("app.queue.get", return_value=job),
-            mock.patch.object(app.production_pipeline, "execute",
+            mock.patch("app.production_pipeline.execute",
                               return_value={"artifacts": []}) as execute,
             mock.patch("app.queue.finish") as finish,
-            mock.patch.object(app.production_store, "reconcile_review_pending") as reconcile,
-            mock.patch.object(app.production_store, "get", return_value=response),
+            mock.patch("app.production_store.reconcile_review_pending") as reconcile,
+            mock.patch("app.production_store.get", return_value=response),
         ):
             result = execute_production_job("job-1", body, x_review_token="test-token")
 
@@ -78,7 +78,7 @@ class ApiSecurityTests(unittest.TestCase):
         with (
             mock.patch("app.require_review_access"),
             mock.patch("app.queue.get", return_value=job),
-            mock.patch.object(app.production_pipeline, "execute",
+            mock.patch("app.production_pipeline.execute",
                               side_effect=ProductionLeaseConflict("stale lease")),
             mock.patch("app.queue.fail") as fail,
         ):
