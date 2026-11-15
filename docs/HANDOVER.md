@@ -1171,7 +1171,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 ## Handover — BUILD-00110 (2026-11-16)
 
 - Added `backend/operator_rbac.py` and role checks for sensitive operator API actions.
-- Configure `NEXUS_REVIEW_CREDENTIALS_JSON` and `NEXUS_REVIEW_ROLE_MAP_JSON` with matching reviewer IDs. Roles: admin, producer, reviewer, publisher, analyst, operator, finance.
+- Configure `NEXUS_REVIEW_CREDENTIALS_JSON` and `NEXUS_REVIEW_ROLE_MAP_JSON` with matching reviewer IDs. Roles: admin, producer, reviewer, publisher, analyst, operator, finance, worker.
 - When the role map is set, unmapped identities have no role permissions; malformed config returns 503. Without it, legacy authenticated full-access remains for compatibility, so RBAC is not yet active.
 - Read `docs/BUILD_00110.md`, `backend/README.md` and `docs/OPERATOR_RUNBOOK.md` before deployment. External IdP/OIDC, token expiry/rotation automation and production deployment remain outstanding. Final-head push CI [43775131523](https://github.com/justinhblee-prog/shorts/actions/runs/43775131523), PR CI [43775135385](https://github.com/justinhblee-prog/shorts/actions/runs/43775135385), and post-merge integration CI [43775221344](https://github.com/justinhblee-prog/shorts/actions/runs/43775221344): **620 tests passed**.
 
