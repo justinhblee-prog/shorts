@@ -158,11 +158,18 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("/api/lifecycle/queue?limit=50&offset=0", app_js)
         self.assertIn("loadLifecycleQueue()", app_js)
         self.assertIn("risk_counts", app_js)
+        self.assertIn("production_status_counts", app_js)
+        self.assertIn("lifecycleOffset", app_js)
+        self.assertIn("lifecycleStatusFilter", app_js)
+        self.assertIn("lifecycleNext", app_js)
         self.assertIn("data-queue-lifecycle-id", app_js)
         self.assertIn("/api/lifecycle/jobs/", app_js)
         self.assertIn('id="globalLifecyclePanel"', html)
         self.assertIn('id="loadLifecycleQueue"', html)
         self.assertIn('id="lifecycleQueue"', html)
+        self.assertIn('id="lifecycleStatusFilter"', html)
+        self.assertIn('id="lifecyclePrev"', html)
+        self.assertIn('id="lifecycleNext"', html)
         self.assertIn("읽기 전용 관제", app_js)
 
     def test_dashboard_has_single_page_workspaces(self):
