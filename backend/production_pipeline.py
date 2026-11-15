@@ -26,6 +26,11 @@ class ProductionLeaseConflict(RuntimeError):
     """Raised when a stale worker attempts to mutate production state."""
 
 
+class PolicyBlocked(ProviderError):
+    """A deterministic policy preflight block; fail this job without pausing all workers."""
+
+
+
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -361,7 +366,7 @@ class ProductionPipeline:
         lease = {"worker_id": worker_id, "lease_token": lease_token}
         policy_report = brief.get("policy_report") or evaluate_content_policy(brief)
         if policy_report.get("status") == "blocked":
-            raise ProviderError("policy_preflight",
+            raise PolicyBlocked("policy_preflight",
                                 "Production blocked by explicit policy risk flags: "
                                 + ", ".join(policy_report.get("blocking_reasons", [])),
                                 retryable=False)
