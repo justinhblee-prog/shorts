@@ -8,7 +8,7 @@ Global short-form content operations platform. The system coordinates topic disc
 2. Set a long random `NEXUS_REVIEW_TOKEN`.
 3. Configure the script, voice and render provider endpoints/tokens.
 4. Set `RENDER_ARTIFACT_HOSTS` to the exact HTTPS CDN hostnames returned by your renderer.
-5. Add YouTube OAuth refresh credentials and YouTube Data API key when ready.
+5. Add YouTube OAuth refresh credentials with `youtube.upload`, `youtube.readonly` and `yt-analytics.readonly` scopes, plus the YouTube Data API key. Reauthorize the channel after adding the Analytics scope.
 6. Register TikTok Login Kit, Content Posting API and Display API, configure the exact HTTPS callback URI, set TikTok client credentials, and generate a stable Fernet encryption key as shown in `.env.example`. TikTok metrics additionally require creator consent to the `video.list` scope; existing connections must reauthorize after this scope is added.
 7. Start the services:
 
