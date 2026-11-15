@@ -35,7 +35,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00006 | Ten-brand operations | Persistent 10-brand registry, activation controls and production market validation implemented; runtime validation pending |
 | BUILD-00007 | Review and approval workflow | Decision store, authenticated APIs, audit snapshots and tests committed; runtime validation pending |
 | BUILD-00008 | YouTube publishing and tracking | OAuth refresh-token adapter, approval-gated private resumable upload, upload ledger and Data API counter snapshots committed; live validation pending |
-| BUILD-00009 | Revenue, cost and ROI analytics | Not started |
+| BUILD-00009 | Revenue, cost and ROI analytics | Source-referenced financial ledger and separate revenue/cost reports committed; provider reconciliation pending |
 | BUILD-00010 | AI performance analysis and strategy updates | Not started |
 | BUILD-00011 | Scheduling and recovery operations | Not started |
 | BUILD-00012 | Integrated validation and deployment | Not started |
@@ -147,3 +147,12 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - The upload endpoint accepts a server-local media path. Remote artifact URL download/staging and multi-channel OAuth are not yet implemented.
 - Added mocked tests for approval gating, private-only metadata, idempotent successful upload and source metrics persistence.
 - **Not validated:** Python test execution, real OAuth, real media upload, YouTube processing, live counter retrieval or production quota.
+
+## BUILD-00009 — financial ledger
+
+- Added `backend/ledger.py` with an auditable SQLite ledger for YouTube ads, affiliate, sponsor revenue, production costs and platform fees.
+- Requires source type, source reference, occurrence timestamp, currency, brand and region; source reference + source type + entry type is idempotent.
+- Revenue and costs are reported separately; net and ROI are calculated only from recorded ledger inputs. No view-based revenue is fabricated.
+- APIs: POST `/api/finance/ledger`; GET `/api/finance/report`; both require `NEXUS_REVIEW_TOKEN`.
+- Added tests for totals, idempotency and mandatory source reference.
+- **Not validated:** runtime tests, automated YouTube Analytics ingestion, affiliate-network integrations, sponsor invoice imports, FX conversion or tax/accounting reconciliation. Reports are single-currency and must not sum different currencies.
