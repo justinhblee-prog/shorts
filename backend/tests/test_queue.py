@@ -67,6 +67,25 @@ class QueueTests(unittest.TestCase):
   self.q.pause("production only")
   claimed=self.q.claim("worker-other",job_type="render")
   self.assertEqual(claimed["job_type"],"render")
+ def test_terminal_production_failure_atomically_syncs_production_run(self):
+  from production_pipeline import ProductionStore
+  job=self.q.enqueue("short_video_production", {
+   "brand":"test-brand","region":"KR","language":"ko","topic":"ambiguous provider result"
+  })
+  claimed=self.q.claim("worker-provider")
+  store=ProductionStore(self.q.db_path)
+  store.create(job["id"], {
+   "brand":"test-brand","region":"KR","language":"ko","topic":"ambiguous provider result"
+  })
+  store.stage(job["id"],"script","failed_retriable","Provider returned an ambiguous response")
+  failed=self.q.fail(job["id"],"worker-provider",claimed["lease_token"],
+                     "provider_script","Provider returned an ambiguous response",False)
+  self.assertEqual(failed["status"],"failed_terminal")
+  production=store.get(job["id"])
+  self.assertEqual(production["status"],"failed_terminal")
+  self.assertEqual(production["current_stage"],"failed_terminal")
+  self.assertEqual(production["error"],"Provider returned an ambiguous response")
+
  def test_pause_revokes_every_in_flight_lease(self):
   job=self.q.enqueue("short_video_production", {"topic":"active"})
   claimed=self.q.claim("worker-active")
