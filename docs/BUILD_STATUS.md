@@ -1223,7 +1223,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 ## BUILD-00054 — evidence-gated content performance experiments
 
-- Extended `PerformanceAnalyzer` with descriptive `cohort_insights` comparing only cohorts that share brand, region, publication-age bucket and render format.
+- Extended `PerformanceAnalyzer` with descriptive `cohort_insights` comparing only cohorts that share brand, region, publication-age bucket, duration bucket and render format.
 - Each cohort must contain at least three measured videos before it can participate in a comparative suggestion; a comparison requires at least two eligible cohorts.
 - Suggestions are limited to controlled follow-up experiments or review candidates; sparse cohorts explicitly request more observations.
 - Added cohort comparison count, baseline median views/hour, evidence status and suggested next action to the existing authenticated `GET /api/performance/insights` response.
