@@ -204,6 +204,9 @@ class TikTokOAuthStore:
         refresh_cipher = cipher.encrypt(refresh.encode()).decode("ascii")
         now = datetime.now(timezone.utc).timestamp()
         scopes = data.get("scope") or ""
+        scope_set = {scope.strip() for scope in scopes.split(",") if scope.strip()}
+        if "video.publish" not in scope_set:
+            raise TikTokOAuthError("TikTok account did not grant the required video.publish scope")
         with self.db() as connection:
             connection.execute("""
               INSERT INTO tiktok_oauth_tokens
