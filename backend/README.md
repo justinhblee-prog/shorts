@@ -157,3 +157,7 @@ Run the validation script with Python dependencies installed:
 ```
 
 It performs bytecode compilation and discovers all unittest cases. A successful mocked test suite still does not validate real AI providers, OAuth, upload, monetization, or live revenue.
+
+### YouTube upload media safety
+
+YouTube upload accepts only staged files resolved inside `NEXUS_MEDIA_DIR` (default `data/media`). Supported extensions: MP4, M4V, MOV and WebM. The upload validates file existence, non-zero size and `NEXUS_MAX_MEDIA_BYTES` (default 256 MiB), and derives the MIME type from the extension. Paths outside the staging root and symlink escapes are rejected. The renderer currently returns a remote URL; an authenticated, allowlisted downloader must stage that artifact before upload. Do not pass arbitrary host paths to the API.
