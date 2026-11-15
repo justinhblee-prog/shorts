@@ -63,13 +63,16 @@ class ReviewStore:
     def list_pending(self, limit=50):
         limit = max(1, min(int(limit), 200))
         with self.db() as c:
-            rows = c.execute("""
-              SELECT r.*, j.payload_json AS job_payload_json
-              FROM production_runs r
-              LEFT JOIN pipeline_jobs j ON j.id=r.job_id
-              WHERE r.status='review_pending'
-              ORDER BY r.updated_at ASC LIMIT ?
-            """, (limit,)).fetchall()
+            has_queue = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
+            ).fetchone() is not None
+            payload_column = ", j.payload_json AS job_payload_json" if has_queue else ", NULL AS job_payload_json"
+            queue_join = " LEFT JOIN pipeline_jobs j ON j.id=r.job_id" if has_queue else ""
+            rows = c.execute(
+                "SELECT r.*" + payload_column + " FROM production_runs r" + queue_join +
+                " WHERE r.status='review_pending' ORDER BY r.updated_at ASC LIMIT ?",
+                (limit,)
+            ).fetchall()
             return [self._with_job_context(self._with_artifacts(c, dict(row)))
                     for row in rows]
 
@@ -91,13 +94,16 @@ class ReviewStore:
     def list_approved(self, limit=50):
         limit = max(1, min(int(limit), 200))
         with self.db() as c:
-            rows = c.execute("""
-              SELECT r.*, j.payload_json AS job_payload_json
-              FROM production_runs r
-              LEFT JOIN pipeline_jobs j ON j.id=r.job_id
-              WHERE r.status='approved'
-              ORDER BY r.updated_at DESC LIMIT ?
-            """, (limit,)).fetchall()
+            has_queue = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
+            ).fetchone() is not None
+            payload_column = ", j.payload_json AS job_payload_json" if has_queue else ", NULL AS job_payload_json"
+            queue_join = " LEFT JOIN pipeline_jobs j ON j.id=r.job_id" if has_queue else ""
+            rows = c.execute(
+                "SELECT r.*" + payload_column + " FROM production_runs r" + queue_join +
+                " WHERE r.status='approved' ORDER BY r.updated_at DESC LIMIT ?",
+                (limit,)
+            ).fetchall()
             return [self._with_job_context(self._with_artifacts(c, dict(row)))
                     for row in rows]
 
