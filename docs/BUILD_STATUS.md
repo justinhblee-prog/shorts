@@ -1414,6 +1414,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added only explicit, operator-triggered actions: TikTok remote status refresh and confirmed reconciliation for ambiguous YouTube/TikTok outcomes. Reconciliation requires an operator identity, a non-empty evidence note, explicit confirmation, and a remote video ID for a claimed successful upload. The UI uses the correct platform-specific API routes.
 - No status refresh, retry, publish, reconciliation, or other mutation occurs when the dashboard is loaded or refreshed. TikTok remains `SELF_ONLY`; YouTube uploads remain private. Human approval and the existing approval-bound immutable media checks remain mandatory.
 - Added API authorization, read-only behavior, platform-state separation, bounded-limit, and frontend integration regression tests.
-- CI validation for this build is pending. No live YouTube/TikTok account, OAuth, upload, or remote visibility test was performed.
+- Latest verified branch-head CI after the integrated dashboard and duplicate cleanup: run [43714473081](https://github.com/justinhblee-prog/shorts/actions/runs/43714473081), **464 tests passed**; `scripts/validate.sh` completed successfully.
+- No live YouTube/TikTok account, OAuth, upload, or remote visibility test was performed.
 - PR #36 remains Draft/open/unmerged.
 - BUILD-00070 branch-head GitHub Actions run [43714106712](https://github.com/justinhblee-prog/shorts/actions/runs/43714106712) completed successfully: **464 tests passed**; `scripts/validate.sh` completed successfully, including Python compilation, YAML validation, frontend syntax/ID checks and full unittest discovery.
