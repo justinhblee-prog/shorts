@@ -157,6 +157,19 @@ class ReviewStore:
               SELECT stage,artifact_type,artifact_url,metadata_json
               FROM production_artifacts WHERE job_id=? ORDER BY created_at,id
             """, (job_id,)).fetchall()
+            policy_report = None
+            for artifact in artifacts:
+                if artifact["stage"] == "script" and artifact["artifact_type"] == "text":
+                    metadata = json.loads(artifact["metadata_json"])
+                    candidate = metadata.get("policy_preflight")
+                    if isinstance(candidate, dict):
+                        policy_report = candidate
+                        break
+            if decision == "approved" and policy_report:
+                if policy_report.get("status") == "blocked":
+                    raise ReviewConflict("Policy-blocked content cannot be approved")
+                if policy_report.get("status") == "review_required" and not comment:
+                    raise ValueError("Policy review requires an explicit reviewer confirmation note")
             snapshot = [{
                 "stage": a["stage"], "artifact_type": a["artifact_type"],
                 "artifact_url": a["artifact_url"],
