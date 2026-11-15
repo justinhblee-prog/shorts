@@ -1371,3 +1371,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Direct publisher unit tests remain available for isolated adapter validation; the production API boundary enforces canonical staging.
 - External platform posting remains unperformed. This does not independently prove that the renderer URL itself is immutable; a content-hash approval binding remains a follow-on hardening item.
 - GitHub Actions passed **445 tests** at code commit `940bd62` (run [43709319386](https://github.com/justinhblee-prog/shorts/actions/runs/43709319386)).
+
+
+## BUILD-00067 — approval-bound staged-media SHA-256
+
+- Reordered the API workflow so rendered media must be staged while the production job is `rendered` or `review_pending`; staging after approval is no longer accepted.
+- The explicit human approval endpoint now passes the job's deterministic canonical staged-media path into the review transaction.
+- Review decisions persist the staged video's SHA-256 digest and byte length. Existing SQLite databases are upgraded in place with nullable columns; historical approvals without a fingerprint remain non-publishable through the new publisher checks.
+- YouTube and TikTok publisher preflights verify the current staged file against the exact fingerprint in the latest approval, in addition to the existing artifact-snapshot check. Missing fingerprints/files, symlinks, invalid sizes, and byte changes fail closed before any remote upload initialization.
+- Regression tests cover approval fingerprint persistence, missing staged media, exact-byte acceptance, post-approval mutation, and rejection before either platform makes a network request.
+- Human approval remains mandatory; TikTok remains SELF_ONLY and YouTube remains private. No external publishing was performed.
+- CI validation for BUILD-00067 is pending.
