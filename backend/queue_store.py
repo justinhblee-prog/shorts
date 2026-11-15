@@ -334,9 +334,28 @@ class JobQueue:
     def is_paused(self):
         return bool(self.worker_control()["paused"])
 
-    def workers(self):
+    def register_worker(self, worker_id, hostname=None):
+        if not str(worker_id).strip():
+            raise ValueError("worker_id required")
+        n = stamp(now())
         with self.db() as c:
-            return [dict(r) for r in c.execute("SELECT * FROM worker_registry ORDER BY last_seen_at DESC")]
+            c.execute("""INSERT INTO worker_registry(worker_id,hostname,last_seen_at,status)
+                VALUES(?,?,?,'online') ON CONFLICT(worker_id) DO UPDATE SET
+                hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",
+                (worker_id, hostname, n))
+        return {"worker_id": worker_id, "hostname": hostname,
+                "last_seen_at": n, "status": "online"}
+
+    def workers(self, stale_after_seconds=None):
+        threshold = max(30, int(stale_after_seconds or self.lease_seconds))
+        cutoff = stamp(now() - timedelta(seconds=threshold))
+        with self.db() as c:
+            rows = [dict(r) for r in c.execute(
+                "SELECT * FROM worker_registry ORDER BY last_seen_at DESC")]
+        for row in rows:
+            if row["last_seen_at"] < cutoff:
+                row["status"] = "offline"
+        return rows
 
     def stats(self):
         with self.db() as c:
