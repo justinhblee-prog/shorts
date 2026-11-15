@@ -1,5 +1,5 @@
 import os
-from typing import Any
+from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -68,6 +68,13 @@ class YouTubeUploadRequest(BaseModel):
     description:str=Field(default="",max_length=5000)
     tags:list[str]=Field(default_factory=list,max_length=30)
     category_id:str=Field(default="22",min_length=1,max_length=4)
+
+
+class YouTubeUploadReconciliation(BaseModel):
+    outcome:Literal["uploaded","not_uploaded"]
+    confirmed:bool
+    video_id:str|None=Field(default=None,min_length=1,max_length=128)
+    note:str=Field(min_length=1,max_length=2000)
 
 class LedgerEntry(BaseModel):
     job_id:str|None=None
@@ -210,6 +217,10 @@ def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
     for item in items:
         upload=youtube_upload_store.get(item["job_id"])
         item["upload_status"]=upload["status"] if upload else "not_uploaded"
+        item["upload_video_id"]=upload.get("video_id") if upload else None
+        item["upload_reconciliation_required"]=item["upload_status"] in (
+            "uploading","reconciliation_required"
+        )
         if item["upload_status"]!="uploaded":
             pending.append(item)
     return {"items":pending}
@@ -307,6 +318,22 @@ def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
     if result is None:
         raise HTTPException(404,"YouTube upload record not found")
     return result
+
+
+@app.post("/api/youtube/uploads/{job_id}/reconcile")
+def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
+                              x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    if not body.confirmed:
+        raise HTTPException(422,"Explicit operator confirmation is required")
+    if body.outcome=="uploaded" and not body.video_id:
+        raise HTTPException(422,"A verified YouTube video ID is required")
+    try:
+        return youtube_upload_store.reconcile(
+            job_id,body.outcome,body.video_id,body.note
+        )
+    except YouTubeUploadError as e:
+        raise HTTPException(409,str(e))
 
 
 @app.post("/api/youtube/videos/{video_id}/refresh-metrics")
