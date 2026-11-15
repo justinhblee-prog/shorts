@@ -367,6 +367,52 @@ def get_job_recovery_plan(job_id:str,x_review_token:str|None=Header(default=None
     )
 
 
+@app.get("/api/lifecycle/jobs/{job_id}/overview")
+def get_job_lifecycle_overview(job_id:str,x_review_token:str|None=Header(default=None)):
+    """Return a single read-only operational view across all production stages."""
+    require_review_access(x_review_token)
+    trace=get_job_lifecycle(job_id,x_review_token)
+    consistency=get_job_lifecycle_consistency(job_id,x_review_token)
+    recovery=get_job_recovery_plan(job_id,x_review_token)
+    failure=get_job_failure_analysis(job_id,x_review_token)
+    job=trace["job"]
+    production=trace["production"]
+    review=trace["review"].get("latest") or {}
+    publishing=trace["publishing"]
+    youtube=publishing.get("youtube") or {}
+    tiktok=publishing.get("tiktok") or {}
+    def stage(name,status,occurred_at=None,reference_id=None):
+        return {"stage":name,"status":status or "not_started",
+                "occurred_at":occurred_at,"reference_id":reference_id}
+    artifacts=production.get("artifacts") or []
+    latest_artifact=artifacts[-1] if artifacts else {}
+    stages=[
+        stage("queue",job.get("status"),job.get("updated_at"),job.get("id")),
+        stage("production",production.get("status"),production.get("updated_at"),
+              latest_artifact.get("id")),
+        stage("human_review",review.get("decision"),review.get("created_at"),review.get("id")),
+        stage("youtube",youtube.get("status"),youtube.get("updated_at"),youtube.get("video_id")),
+        stage("tiktok",tiktok.get("status"),tiktok.get("updated_at"),
+              tiktok.get("video_id") or tiktok.get("publish_id")),
+    ]
+    return {
+        "job_id":job_id,
+        "summary":{"brand":production.get("brand"),"topic":production.get("topic"),
+                   "queue_status":job.get("status"),"production_status":production.get("status"),
+                   "current_stage":production.get("current_stage"),
+                   "latest_review":review.get("decision"),
+                   "youtube_status":youtube.get("status") or "not_started",
+                   "tiktok_status":tiktok.get("status") or "not_started",
+                   "consistency_status":consistency.get("status"),
+                   "failure_category":(failure.get("latest_failure") or {}).get("category")},
+        "stages":stages,
+        "trace":trace,
+        "consistency":consistency,
+        "recovery":recovery,
+        "failure":failure,
+        "read_only":True,"automatic_retry_performed":False,
+        "remote_status_refresh_performed":False,"publishing_performed":False,
+    }
 @app.get("/api/lifecycle/queue")
 def get_lifecycle_queue(
     limit:int=50, offset:int=0, status:str|None=None,
