@@ -14,7 +14,7 @@ from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
     def test_all_operational_routes_require_review_token(self):
-        public = {"/api/health", "/api/brands", "/api/brands/{slug}"}
+        public = {"/api/health", "/api/brands", "/api/brands/{slug}", "/api/tiktok/oauth/callback"}
         unprotected = []
         for route in app.routes:
             path = getattr(route, "path", "")
@@ -286,6 +286,33 @@ class ApiSecurityTests(unittest.TestCase):
                 with self.assertRaises(HTTPException) as caught:
                     action(body, x_review_token="test-token")
                 self.assertEqual(caught.exception.status_code, 422)
+    def test_tiktok_oauth_routes_are_registered_and_protected_except_state_callback(self):
+        paths = {getattr(route, "path", ""): route for route in app.routes}
+        self.assertIn("/api/tiktok/oauth/status", paths)
+        self.assertIn("/api/tiktok/oauth/authorize", paths)
+        self.assertIn("/api/tiktok/oauth/callback", paths)
+        self.assertIn("x_review_token", paths["/api/tiktok/oauth/status"].endpoint.__annotations__)
+        self.assertIn("x_review_token", paths["/api/tiktok/oauth/authorize"].endpoint.__annotations__)
+        self.assertNotIn("x_review_token", paths["/api/tiktok/oauth/callback"].endpoint.__annotations__)
+
+    def test_tiktok_oauth_authorize_requires_review_access_and_returns_redirect(self):
+        from app import tiktok_oauth_authorize, TikTokOAuthAuthorizationRequest
+        body = TikTokOAuthAuthorizationRequest(operator_id="reviewer")
+        payload = {"authorization_url":"https://www.tiktok.com/v2/auth/authorize/?state=opaque",
+                   "state_expires_in_seconds":600,"scopes":["user.info.basic","video.publish"]}
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.tiktok_oauth_store,"create_authorization",return_value=payload),
+        ):
+            result = tiktok_oauth_authorize(body,x_review_token="test-token")
+        self.assertEqual(result["authorization_url"],payload["authorization_url"])
+
+    def test_tiktok_oauth_callback_fails_closed_without_code_or_state(self):
+        from app import tiktok_oauth_callback
+        response=tiktok_oauth_callback(code=None,state=None,error=None)
+        self.assertEqual(response.status_code,303)
+        self.assertIn("tiktok_oauth=failed",response.headers["location"])
+
     def test_review_token_fails_closed(self):
         previous = os.environ.get("NEXUS_REVIEW_TOKEN")
         os.environ["NEXUS_REVIEW_TOKEN"] = "unit-test-secret"
