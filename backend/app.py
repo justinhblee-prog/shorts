@@ -719,17 +719,21 @@ def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None))
 @app.post("/api/jobs/{jid}/fail")
 def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
+    production_job=False
     try:
         job=queue.get(jid)
         production_job=job["job_type"]=="short_video_production"
         retryable=False if production_job else body.retryable
         result=queue.fail(jid,body.worker_id,body.lease_token,
                            body.error_code,body.error_message,retryable)
-        if production_job:
-            queue.pause("API reported production failure; provider outcome may be ambiguous",jid)
+        if production_job and not str(body.error_code).startswith("provider_"):
+            queue.pause("API reported terminal production failure",jid)
         return result
     except JobNotFound: raise HTTPException(404,"Job not found")
-    except LeaseConflict as e: raise HTTPException(409,str(e))
+    except LeaseConflict as e:
+        if production_job:
+            queue.pause("API production failure could not be recorded under the current lease",jid)
+        raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/cancel")
 def cancel(jid:str,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
