@@ -210,5 +210,43 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(len(second), 5)
         self.assertTrue(set(second).isdisjoint(first))
 
+
+    def test_no_uploaded_videos_waits_without_creating_a_false_scope_success(self):
+        collector = YouTubeAnalyticsCollector(
+            self.store, FakeUploads([]),
+            service_factory=lambda: (_ for _ in ()).throw(AssertionError("must not call API")),
+        )
+        result = collector.refresh()
+        self.assertEqual(result["requested"], 0)
+        self.assertEqual(result["collected"], 0)
+        self.assertEqual(result["missing"], [])
+
+    def test_periodic_runner_marks_invalid_credentials_separately(self):
+        from metrics_collector import run_youtube_analytics_once
+        from types import SimpleNamespace
+        class FakeStore:
+            def __init__(self):
+                self.states = []
+                self.released = False
+            def acquire_lease(self, owner_id, lease_seconds=300):
+                return "analytics-lease"
+            def release_lease(self, owner_id, token):
+                self.released = True
+            def record_collection(self, status, **kwargs):
+                self.states.append((status, kwargs))
+        class FakeCollector:
+            def refresh(self, **kwargs):
+                error = RuntimeError("unauthorized")
+                error.resp = SimpleNamespace(status=401)
+                raise error
+        fake = FakeStore()
+        with self.assertRaisesRegex(RuntimeError, "unauthorized"):
+            run_youtube_analytics_once(
+                store=fake, collector=FakeCollector(), upload_store=self.uploads
+            )
+        self.assertEqual(fake.states[-1][0], "authorization_failed")
+        self.assertEqual(fake.states[-1][1]["error"], "invalid_credentials")
+        self.assertTrue(fake.released)
+
 if __name__ == "__main__":
     unittest.main()
