@@ -311,6 +311,14 @@
   $("loadSchedules").addEventListener("click",()=>loadSchedules().catch(e=>toast(e.message)));
   $("loadInsights").addEventListener("click",()=>loadInsights().catch(e=>toast(e.message)));
   $("loadPreflight").addEventListener("click",()=>loadPreflight().catch(e=>toast(e.message)));
+  $("connectTikTok").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    try{
+      const result=await api("/api/tiktok/oauth/start");
+      if(!result.authorization_url)throw new Error("TikTok OAuth authorization URL is unavailable");
+      window.location.assign(result.authorization_url);
+    }catch(err){toast(err.message);}
+  });
   $("productionForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
     try{const result=await api("/api/production/jobs",{method:"POST",body:JSON.stringify({brand:$("brandSelect").value,region:$("regionSelect").value,language:$("languageSelect").value,topic:$("topicInput").value.trim()})});msg("productionMessage","작업 등록 완료 · "+result.job.id);$("topicInput").value="";await refreshAll();}
@@ -568,5 +576,10 @@
   });
   $("ledgerCurrency").addEventListener("change",()=>loadFinance().catch(e=>toast(e.message)));
   $("ledgerDate").value=new Date().toISOString().slice(0,10);
+  const tiktokOAuthResult=new URLSearchParams(window.location.search).get("tiktok_oauth");
+  if(tiktokOAuthResult==="connected")toast("TikTok 계정 연결 및 토큰 저장이 완료되었습니다.");
+  else if(tiktokOAuthResult==="denied")toast("TikTok 계정 연결이 취소되었거나 거부되었습니다.");
+  else if(tiktokOAuthResult==="error")toast("TikTok 계정 연결에 실패했습니다. 설정과 로그를 확인하세요.");
+  if(tiktokOAuthResult)window.history.replaceState({}, "", window.location.pathname);
   loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
 })();
