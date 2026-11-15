@@ -168,6 +168,19 @@ class RecommendationEvaluationStore:
         timestamp = selected_at or _now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            existing = c.execute("""SELECT id,run_id,trend_id,brand_slug
+                FROM recommendation_candidates WHERE selected_job_id=?""",
+                (str(job_id),)).fetchone()
+            if existing is not None:
+                same_exposure = (
+                    existing["run_id"] == str(run_id)
+                    and existing["trend_id"] == str(trend_id)
+                    and existing["brand_slug"] == str(brand_slug)
+                )
+                if same_exposure:
+                    return {"linked": True, "candidate_id": existing["id"],
+                            "already_linked": True}
+                return {"linked": False, "reason": "job_already_attributed"}
             row = c.execute("""SELECT id FROM recommendation_candidates
                 WHERE run_id=? AND trend_id=? AND brand_slug=? AND selected_job_id IS NULL
                 ORDER BY recommendation_rank LIMIT 1""",
