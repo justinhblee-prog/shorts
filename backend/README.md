@@ -434,3 +434,10 @@ The refresh token must include `https://www.googleapis.com/auth/yt-analytics.rea
 The performance analyzer now joins the latest YouTube Analytics snapshot to each confirmed uploaded video and includes average view percentage, average view duration, estimated minutes watched and Shorts engaged views in the operator performance response. Comparable brand/region/topic/age/duration/format cohorts report median average view percentage and duration when those observations exist.
 
 The trend recommendation context exposes these metrics as descriptive evidence only. They do not enter the editorial recommendation score, do not reorder candidates, and do not trigger production or publishing actions. Cohorts still require at least three measured videos for observed status; sparse data remains explicitly limited. This is not a causal estimate and does not claim per-second audience-retention curves.
+
+
+## BUILD-00077 — provider endpoint transport security
+
+The script, voice, render and optional transcription adapters validate provider URLs before sending requests. URLs must use HTTPS and include a hostname; embedded username/password credentials and fragments are rejected, and malformed ports are rejected. Validation is enforced by the request adapter itself, not only by the configuration preflight, so bearer tokens are never sent to a configured plaintext HTTP endpoint.
+
+Configuration preflight reports missing or invalid provider URL keys without echoing URL values or secrets. It remains configuration-only and does not make network requests. A configured HTTPS URL is not evidence that DNS, TLS, provider authentication, provider contracts, generation, artifact delivery or billing work. Provider HTTP error bodies are intentionally discarded; only status codes are retained to prevent accidental persistence of echoed secrets or submitted content.
