@@ -711,7 +711,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 ### Production replay and API fencing hardening — 2026-11-15
 
-- Consolidated the earlier overlapping safety proposals into Draft PR #15 (replacement PR to follow after clean-base validation).
+- Consolidated the earlier overlapping safety proposals into Draft PR #19 (clean branch based on current main).
 - Provider HTTP 5xx, network failures and timeouts are treated as ambiguous and non-retryable; HTTP 429 remains retryable as an explicit rate-limit rejection.
 - A terminal provider failure atomically updates the queue job and matching production run, pauses production, and fences other running production leases in one SQLite transaction. Non-provider policy failures remain job-local.
 - Generic job APIs cannot create, claim, heartbeat, or complete short_video_production jobs. Those operations must use the production-aware path.
