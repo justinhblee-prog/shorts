@@ -645,3 +645,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Candidate output includes matched terms and the scoring method for auditability.
 - GitHub Actions run [43671850512](https://github.com/justinhblee-prog/shorts/actions/runs/43671850512) passed **172 tests** on source commit `7a2c1a3e7a36e3fe13fd7e3754fe2eddd4a2719a`, including Python compilation, frontend syntax/DOM validation and Compose YAML parsing.
 - **Boundary:** this improves editorial topic-to-brand relevance; it is not a trained semantic model and does not predict views, virality, watch time, platform recommendation outcomes or revenue. Actual channel performance feedback remains the next major ranking input.
+
+ 
+### Automated YouTube counter collection and normalized performance signals — 2026-11-15
+
+- Added `backend/metrics_collector.py` as a dedicated periodic service. It runs independently of production workers, refreshes at most 50 due videos in one YouTube Data API v3 `videos.list` request, and defaults to a six-hour interval.
+- Added a SQLite-backed singleton collector lease so duplicate collector processes do not normally spend quota concurrently. Due selection skips videos with a recent snapshot; batch size is capped at the API limit of 50.
+- Added the `metrics-collector` service to `compose.yaml`, sharing the existing durable database volume and environment credentials. Provider/auth failures are logged and retried on the next interval; they do not pause production.
+- Added normalized snapshot-derived `views_per_hour`, elapsed interval, interaction delta and interactions per 1,000 gained views. Negative like/comment counter differences are treated as missing evidence, not negative engagement.
+- Added explicit limitations: these Data API counters do not provide average view duration, audience retention, viewed-versus-swiped-away, subscriber conversion or satisfaction. Those require eligible YouTube Analytics data and appropriate OAuth authorization; no such metrics are fabricated.
+- Added tests for collector singleton lease, due-video filtering, one-request multi-video refresh, rate normalization and counter reset handling.
+- GitHub Actions run [43672298086](https://github.com/justinhblee-prog/shorts/actions/runs/43672298086) passed **178 tests** on commit `4d4fcde7f4571cd69d0997da1acd580dfad10554`; frontend validation passed (84 unique IDs, 69 literal selectors), and Compose YAML validation passed.
+- **Not yet live-validated:** actual OAuth credentials, YouTube API quota consumption, production container startup and real channel counter collection. These remain unverified until deployed with valid credentials.
