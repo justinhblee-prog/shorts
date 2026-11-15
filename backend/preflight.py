@@ -12,14 +12,28 @@ def build_preflight(env=None):
         "artifact_staging": ["RENDER_ARTIFACT_HOSTS"],
         "youtube_upload": ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"],
         "youtube_data_api": ["YOUTUBE_DATA_API_KEY"],
-        "tiktok_publish": ["TIKTOK_ACCESS_TOKEN"],
+        "tiktok_oauth": [
+            "TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET",
+            "TIKTOK_REDIRECT_URI", "TIKTOK_TOKEN_ENCRYPTION_KEY",
+        ],
     }
     checks = {}
     missing = []
     for group, keys in requirements.items():
         absent = [key for key in keys if not str(source.get(key, "")).strip()]
         checks[group] = {"configured": not absent, "missing": absent}
-        missing.extend(absent)
+        if group != "tiktok_oauth" or not str(source.get("TIKTOK_ACCESS_TOKEN", "")).strip():
+            missing.extend(absent)
+    static_tiktok = bool(str(source.get("TIKTOK_ACCESS_TOKEN", "")).strip())
+    oauth_tiktok = checks["tiktok_oauth"]["configured"]
+    checks["tiktok_publish"] = {
+        "configured": static_tiktok or oauth_tiktok,
+        "mode": "static_env" if static_tiktok else ("oauth" if oauth_tiktok else "unconfigured"),
+        "missing": [] if static_tiktok or oauth_tiktok else [
+            "TIKTOK_ACCESS_TOKEN or complete TikTok OAuth credentials/encryption key"
+        ],
+    }
+    missing.extend(checks["tiktok_publish"]["missing"])
     media_dir = Path(source.get("NEXUS_MEDIA_DIR", "data/media"))
     ancestor = media_dir
     while not ancestor.exists() and ancestor != ancestor.parent:
