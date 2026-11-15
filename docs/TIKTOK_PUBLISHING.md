@@ -77,3 +77,7 @@ TikTok documents both hostnames in its media transfer guide, including the regio
 
 The scheduler polls only unresolved publication records and stops polling terminal states. The first status request can run on the normal scheduler interval; after consecutive polling errors, retries use exponential backoff (60 seconds, 120 seconds, 240 seconds, up to a one-hour cap). A successful status response resets the consecutive-failure window. Every failed poll is recorded as an immutable audit event. TikTok currently documents a per-user limit of 30 Fetch Status requests per minute, so the scheduler's small batch size remains intentionally conservative.
 
+## Creator-specific duration gate
+
+Before the Direct Post initialization request, the adapter reads the creator's current `max_video_post_duration_sec` from Creator Info and inspects the staged file's actual duration with ffprobe. Missing/invalid creator limits, missing ffprobe, or an uninspectable file fail closed before any remote publishing request. Media longer than the creator's current limit is rejected. This is a byte-level media check, not a trust of renderer-supplied metadata.
+
