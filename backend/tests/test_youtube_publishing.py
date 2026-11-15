@@ -493,6 +493,20 @@ class YouTubePublishingTests(unittest.TestCase):
         second=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         self.assertEqual(first["video_id"],second["video_id"])
 
+    def test_confirmed_upload_retry_does_not_require_staged_file(self):
+        first = self.publisher.upload_approved(
+            "job-1", self.media, self.review, "Title"
+        )
+        calls_before = self.service._videos.insert_calls
+        os.unlink(self.media)
+        second = self.publisher.upload_approved(
+            "job-1", self.media, self.review, "Title"
+        )
+        self.assertEqual(second["status"], "uploaded")
+        self.assertEqual(first["video_id"], second["video_id"])
+        self.assertEqual(self.service._videos.insert_calls, calls_before)
+
+
     def test_ambiguous_timeout_blocks_duplicate_retry_until_operator_reconciles(self):
         uncertain_service=TimeoutService()
         uncertain_publisher=YouTubePublisher(self.uploads,uncertain_service)

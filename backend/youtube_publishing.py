@@ -630,6 +630,11 @@ class YouTubePublisher:
             raise YouTubeUploadError(
                 "The latest human review decision must be approved before upload"
             )
+        # A confirmed upload is an idempotent terminal result. Return it before
+        # requiring the local staged file, which may have been cleaned up later.
+        existing=self.store.get(job_id)
+        if existing and existing["status"]=="uploaded":
+            return existing
         if not isinstance(media_path,str) or not media_path.strip():
             raise YouTubeUploadError("A staged media path is required")
         media_root=Path(os.getenv("NEXUS_MEDIA_DIR","data/media")).resolve()
@@ -680,9 +685,6 @@ class YouTubePublisher:
                 "YouTube realistic altered/synthetic-media status is not explicitly classified; "
                 "return to policy review before upload"
             )
-        existing=self.store.get(job_id)
-        if existing and existing["status"]=="uploaded":
-            return existing
         try:
             snapshot_path, snapshot_size = create_verified_media_snapshot(
                 resolved, history[-1].get("staged_media_sha256"),
