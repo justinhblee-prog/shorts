@@ -44,6 +44,11 @@ class Enqueue(BaseModel):
     priority:int=100
     max_attempts:int=3
     idempotency_key:str|None=None
+
+class QueueControlAction(BaseModel):
+    operator_id:str=Field(min_length=1,max_length=128)
+    note:str=Field(min_length=1,max_length=2000)
+
 class Claim(BaseModel):
     worker_id:str=Field(min_length=1,max_length=128)
     hostname:str|None=None
