@@ -922,15 +922,24 @@ class ApiSecurityTests(unittest.TestCase):
             else:
                 os.environ["NEXUS_REVIEW_TOKEN"] = previous
 
-    def test_metrics_collection_status_is_authenticated_and_discloses_platform_gaps(self):
+    def test_metrics_collection_status_is_authenticated_and_discloses_platform_scopes(self):
         with mock.patch("app.require_review_access") as access, \
              mock.patch.object(app_module.youtube_upload_store, "metrics_collection_status",
                                return_value={"platform": "youtube", "status": "succeeded",
-                                             "coverage": {}, "read_only": True}):
+                                             "coverage": {}, "read_only": True}), \
+             mock.patch.object(app_module.tiktok_metrics_store, "status",
+                               return_value={"platform": "tiktok", "status": "not_started",
+                                             "coverage": {}, "read_only": True}), \
+             mock.patch.object(app_module.tiktok_oauth_manager, "status",
+                               return_value={"connected": False, "scope": ""}):
             result = metrics_collection_status(x_review_token="test-token")
         access.assert_called_once_with("test-token")
         self.assertTrue(result["read_only"])
-        self.assertEqual(result["platforms"]["tiktok"]["status"], "not_implemented")
+        tiktok = result["platforms"]["tiktok"]
+        self.assertEqual(tiktok["status"], "scope_missing")
+        self.assertEqual(tiktok["required_scope"], "video.list")
+        self.assertFalse(tiktok["scope_authorized"])
+        self.assertIn("share_count", tiktok["available_metrics"])
         self.assertIn("swipe_away_rate",
                       result["platforms"]["youtube"]["unavailable_metrics"])
 
