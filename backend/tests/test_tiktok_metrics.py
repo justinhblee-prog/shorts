@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlparse
 
 from tiktok_publishing import TikTokPublishStore
 from tiktok_metrics import TikTokMetricsStore, TikTokMetricsCollector, TikTokMetricsError
+from metrics_collector import run_tiktok_once
 
 
 class TikTokMetricsTests(unittest.TestCase):
@@ -137,6 +138,55 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertIn("audience_retention", status["unavailable_metrics"])
         self.assertTrue(status["read_only"])
 
+
+
+    def test_periodic_runner_persists_success_and_releases_lease(self):
+        class FakeStore:
+            def __init__(self):
+                self.states = []
+                self.released = False
+            def acquire_lease(self, owner_id, lease_seconds=300):
+                return "lease-token"
+            def release_lease(self, owner_id, token):
+                self.released = True
+            def record_collection(self, status, **kwargs):
+                self.states.append((status, kwargs))
+        class FakeCollector:
+            def refresh_due_metrics(self, **kwargs):
+                return {"requested": 1, "collected": 1, "missing": [],
+                        "source": "TikTok Display API v2"}
+        fake = FakeStore()
+        result = run_tiktok_once(
+            store=fake, collector=FakeCollector(),
+            publication_store=self.publications, token_manager=object(),
+        )
+        self.assertEqual(result["collected"], 1)
+        self.assertEqual([x[0] for x in fake.states], ["running", "succeeded"])
+        self.assertTrue(fake.released)
+
+    def test_periodic_runner_records_failure_and_releases_lease(self):
+        class FakeStore:
+            def __init__(self):
+                self.states = []
+                self.released = False
+            def acquire_lease(self, owner_id, lease_seconds=300):
+                return "lease-token"
+            def release_lease(self, owner_id, token):
+                self.released = True
+            def record_collection(self, status, **kwargs):
+                self.states.append((status, kwargs))
+        class FakeCollector:
+            def refresh_due_metrics(self, **kwargs):
+                raise TikTokMetricsError("scope unavailable")
+        fake = FakeStore()
+        with self.assertRaisesRegex(TikTokMetricsError, "scope unavailable"):
+            run_tiktok_once(
+                store=fake, collector=FakeCollector(),
+                publication_store=self.publications, token_manager=object(),
+            )
+        self.assertEqual([x[0] for x in fake.states], ["running", "failed"])
+        self.assertEqual(fake.states[-1][1]["error"], "TikTokMetricsError")
+        self.assertTrue(fake.released)
 
 if __name__ == "__main__":
     unittest.main()
