@@ -150,7 +150,8 @@ class ReviewStore:
             raise ValueError("policy declarations are required")
 
         allowed = {
-            "rights", "synthetic_media_status", "platform_disclosures", "platforms",
+            "rights", "synthetic_media_status", "youtube_contains_synthetic_media",
+            "platform_disclosures", "platforms",
             "risk_flags", "factual_claims_verified", "originality_notes",
             "claim_evidence_notes", "source_urls", "transformative_contribution",
             "commercial_relationship_disclosed", "child_safety_review_confirmed",
