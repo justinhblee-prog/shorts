@@ -21,6 +21,7 @@ class PolicyEngineTests(unittest.TestCase):
             "rights": {"visuals_cleared": True, "audio_cleared": True,
                        "likeness_authorized": True},
             "synthetic_media_status": "ai_generated",
+            "youtube_contains_synthetic_media": False,
             "platform_disclosures": {
                 "youtube_altered_content": True,
                 "tiktok_ai_generated_content": True,
