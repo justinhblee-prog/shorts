@@ -4,6 +4,7 @@ import unittest
 
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore, ReviewConflict, ReviewNotFound, valid_review_token
+from queue_store import JobQueue
 
 
 class ReviewWorkflowTests(unittest.TestCase):
@@ -28,6 +29,28 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(len(pending), 1)
         self.assertEqual(pending[0]["artifacts"][0]["artifact_url"],
                          "https://media.example/video.mp4")
+
+    def test_pending_review_exposes_frozen_brand_guidance_from_job_payload(self):
+        queue = JobQueue(self.db)
+        job = queue.enqueue("short_video_production", {
+            "brand": "Brain Glitch", "region": "US", "language": "English",
+            "topic": "Sleep", "brand_profile": {
+                "positioning": "Evidence-led brain explainers",
+                "audience": "curious adults", "tone": ["clear", "careful"],
+                "risk_level": "high",
+                "review_rules": ["Cite sources", "No diagnosis"],
+            },
+        })
+        with self.production.db() as connection:
+            connection.execute("UPDATE production_runs SET job_id=? WHERE job_id=?",
+                               (job["id"], "job-1"))
+            connection.execute("UPDATE production_artifacts SET job_id=? WHERE job_id=?",
+                               (job["id"], "job-1"))
+        pending = self.review.list_pending()
+        self.assertEqual(pending[0]["brand_profile"]["risk_level"], "high")
+        self.assertEqual(pending[0]["brand_profile"]["review_rules"],
+                         ["Cite sources", "No diagnosis"])
+        self.assertNotIn("job_payload_json", pending[0])
 
     def test_approval_is_explicit_and_audited_with_snapshot(self):
         result = self.review.decide("job-1", "approved", "operator-1", "Looks good")
