@@ -770,3 +770,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - **Strict interpretation boundary:** this is an observational diagnostic among recommendations that operators actually selected for production. It does not observe unseen candidates, correct selection bias, establish causality, or validate a new score adjustment. It is not model training. `ranking_score_adjustment_enabled=false` remains enforced.
 - Recommendation API retrievals are stored as candidate snapshots, not proof that a human viewed a card. Actual UI impression tracking and randomized exploration remain future work.
 - CI validation pending on this branch; do not mark verified until GitHub Actions passes.
+
+- Repeated identical recommendation responses within 60 seconds reuse the same snapshot run to avoid noisy duplicate records. Unselected candidate snapshots older than 180 days are pruned; selected production-linked evidence is retained for longitudinal diagnostics.
