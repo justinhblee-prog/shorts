@@ -203,3 +203,7 @@ UI integration and responsive browser behavior have not yet been tested in a liv
 ## Dashboard packaging test
 
 Added `backend/tests/test_frontend.py` to check that the three static assets exist, FastAPI exposes the dashboard and asset mount, and all four primary workspaces are present. This is a packaging/static test, not browser automation. Latest Actions run 94 had no allocated runner and no steps; a rerun was requested but not yet verified.
+
+## Operator runbook
+
+See `docs/OPERATOR_RUNBOOK.md` for configuration, Docker deployment, production lifecycle, artifact staging security, financial controls, recovery and the external launch validation checklist.
