@@ -379,11 +379,19 @@ class TikTokPublisher:
 
     @staticmethod
     def _validate_upload_url(upload_url):
-        parsed = urlparse(upload_url or "")
-        host = (parsed.hostname or "").lower()
-        if parsed.scheme != "https" or not (
-            host == "open-upload.tiktokapis.com"
-            or host.endswith(".tiktokapis.com")
+        try:
+            parsed = urlparse(upload_url or "")
+            host = (parsed.hostname or "").lower()
+            port = parsed.port
+        except (TypeError, ValueError):
+            raise TikTokPublishError("TikTok returned an untrusted upload URL")
+        if (
+            parsed.scheme != "https"
+            or host != "open-upload.tiktokapis.com"
+            or parsed.username is not None
+            or parsed.password is not None
+            or port not in (None, 443)
+            or parsed.fragment
         ):
             raise TikTokPublishError("TikTok returned an untrusted upload URL")
         return upload_url
