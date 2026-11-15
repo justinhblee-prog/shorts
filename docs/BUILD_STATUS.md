@@ -1296,4 +1296,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Outcome attribution is limited to a selected production job whose selection timestamp is at or after the first server-recorded render event and whose outcome is explicitly marked measured. Unrelated or missing outcomes are excluded.
 - Exposure events are immutable; invalid run/trend pairs, malformed event IDs and out-of-range visibility durations are rejected.
 - Safety/evidence boundary: viewport acknowledgement is client-reported, not proof of human attention. This milestone does not randomize traffic, deliver experiment arms, estimate causal lift, or change ranking scores / production / publishing behavior. Ranking score adjustment remains zero.
-- CI validation pending.
+- GitHub Actions run [43705912745](https://github.com/justinhblee-prog/shorts/actions/runs/43705912745) passed **418 tests**; `scripts/validate.sh` completed successfully, including Python compileall, YAML validation, frontend syntax/ID checks and full unittest discovery.
