@@ -175,3 +175,12 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - Repeating a submission with the same idempotency key, job type, channel and JSON payload returns the existing job without creating another queue entry.
 - Reusing that key with a different job type, channel or payload is rejected with HTTP 409. The original job remains unchanged.
 - A client retry must resend the original request body with the original key. Generate a new key only for a genuinely new production request.
+
+
+### Ambiguous production worker loss — fail-closed recovery
+
+- A short-video production job whose worker lease expires is **not automatically requeued**. The provider may have completed an external side effect even if the worker died before persisting its result.
+- Expired production work is moved to `failed_terminal` with `production_lease_expired_ambiguous`; the matching production record is synchronized and the production queue is durably paused.
+- A normal worker interruption (Ctrl+C) during provider execution records a non-retriable ambiguous failure, pauses the production queue, and exits. A hard process/host kill is handled by the lease-expiry path on the next claim/recovery.
+- Operators must inspect the provider's job history and billing/artifact state before deciding whether to create a new production request. Do not simply retry the same ambiguous job.
+- Non-production queue jobs retain their existing lease-expiry retry behavior.
