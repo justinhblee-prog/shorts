@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 
 from policy_engine import POLICY_VERSION
 from tiktok_disclosure import build_tiktok_disclosure, TikTokDisclosureError
+from media_inspection import MediaInspector, MediaInspectionError
 
 
 API_ROOT = "https://open.tiktokapis.com"
@@ -297,11 +298,12 @@ class TikTokPublishStore:
 
 
 class TikTokPublisher:
-    def __init__(self, store, access_token=None, transport=None, token_provider=None):
+    def __init__(self, store, access_token=None, transport=None, token_provider=None, media_inspector=None):
         self.store = store
         self.access_token = access_token
         self.transport = transport or self._request
         self.token_provider = token_provider
+        self.media_inspector = media_inspector or MediaInspector(analyze_signals=False)
 
     @staticmethod
     def _request(url, headers, body, timeout, method="POST"):
@@ -536,6 +538,21 @@ class TikTokPublisher:
             if "SELF_ONLY" not in creator_data["privacy_level_options"]:
                 raise TikTokPublishError(
                     "TikTok creator settings do not currently offer SELF_ONLY privacy"
+                )
+            max_duration = creator_data.get("max_video_post_duration_sec")
+            if isinstance(max_duration, bool) or not isinstance(max_duration, (int, float)) or max_duration <= 0:
+                raise TikTokPublishError("TikTok creator maximum video duration is unavailable")
+            try:
+                media_report = self.media_inspector.inspect(resolved)
+            except MediaInspectionError as exc:
+                raise TikTokPublishError("TikTok media inspection failed: " + str(exc)) from exc
+            duration = media_report.get("duration_seconds")
+            if not isinstance(duration, (int, float)) or duration <= 0:
+                raise TikTokPublishError("TikTok media duration could not be verified")
+            if duration > max_duration:
+                raise TikTokPublishError(
+                    "Video duration exceeds this creator's TikTok limit of "
+                    + str(max_duration) + " seconds"
                 )
             remote_started = True
             chunk_size = min(CHUNK_SIZE, size)
