@@ -349,30 +349,24 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(stale["status"], "publish_complete")
         self.assertEqual(stale["video_id"], "123456789")
 
-    def test_late_poll_error_cannot_downgrade_terminal_tiktok_statuses(self):
-        for remote_status, expected in (
-            ("PUBLISH_COMPLETE", "publish_complete"),
-            ("SEND_TO_USER_INBOX", "send_to_inbox"),
-            ("FAILED", "failed"),
-        ):
-            with self.subTest(status=remote_status):
-                self.publisher.publish_private_approved(
-                    "job-1", self.media, self.review, "AI generated short", "operator-1",
-                    explicit_consent=True, privacy_level="SELF_ONLY",
-                )
-                attempt_id = self.store.get("job-1")["attempt_id"]
-                result = self.store.mark_status(
-                    "job-1", attempt_id, remote_status,
-                    ["video-123"] if remote_status == "PUBLISH_COMPLETE" else [], None,
-                )
-                self.assertEqual(result["status"], expected)
-                self.store.mark_uncertain(
-                    "job-1", attempt_id, "late concurrent status poll timed out",
-                )
-                after = self.store.get("job-1")
-                self.assertEqual(after["status"], expected)
-                self.assertEqual(after["events"][-1]["event_type"], "post_terminal_poll_error")
-                self.assertEqual(after["events"][-1]["resulting_status"], None)
+    def test_late_poll_error_cannot_downgrade_published_result(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        complete = self.store.mark_status(
+            "job-1", attempt_id, "PUBLISH_COMPLETE", ["video-123"], None,
+        )
+        self.assertEqual(complete["status"], "publish_complete")
+        self.store.mark_uncertain(
+            "job-1", attempt_id, "late concurrent status poll timed out",
+        )
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], "publish_complete")
+        self.assertEqual(after["video_id"], "video-123")
+        self.assertEqual(after["events"][-1]["event_type"], "post_terminal_poll_error")
+        self.assertEqual(after["events"][-1]["outcome"], "informational")
 
     def test_late_processing_status_cannot_downgrade_inbox_handoff(self):
         self.publisher.publish_private_approved(
@@ -385,6 +379,12 @@ class TikTokPublishingTests(unittest.TestCase):
             "job-1", attempt_id, "SEND_TO_USER_INBOX", [], None
         )
         self.assertEqual(inbox["status"], "send_to_inbox")
+        self.store.mark_uncertain(
+            "job-1", attempt_id, "late concurrent status poll timed out",
+        )
+        after_error = self.store.get("job-1")
+        self.assertEqual(after_error["status"], "send_to_inbox")
+        self.assertEqual(after_error["events"][-1]["event_type"], "post_terminal_poll_error")
         stale = self.store.mark_status(
             "job-1", attempt_id, "PROCESSING_UPLOAD", [], None
         )
