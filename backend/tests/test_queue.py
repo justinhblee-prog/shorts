@@ -1,4 +1,4 @@
-import sys, tempfile, unittest
+import sqlite3, sys, tempfile, unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -8,6 +8,19 @@ class QueueTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.q=JobQueue(Path(self.tmp.name)/"test.db",10)
  def tearDown(self): self.tmp.cleanup()
+
+ def test_worker_registry_instance_token_migrates_existing_database(self):
+  legacy_path=Path(self.tmp.name)/"legacy.db"
+  with sqlite3.connect(legacy_path) as c:
+   c.execute("CREATE TABLE worker_registry(worker_id TEXT PRIMARY KEY, hostname TEXT, last_seen_at TEXT NOT NULL, status TEXT NOT NULL)")
+   c.execute("INSERT INTO worker_registry VALUES('legacy-worker','old-host','2026-01-01T00:00:00+00:00','online')")
+  migrated=JobQueue(legacy_path,10)
+  with migrated.db() as c:
+   columns={row["name"] for row in c.execute("PRAGMA table_info(worker_registry)")}
+   row=c.execute("SELECT worker_id,instance_token FROM worker_registry").fetchone()
+  self.assertIn("instance_token",columns)
+  self.assertEqual(row["worker_id"],"legacy-worker")
+  self.assertIsNone(row["instance_token"])
 
  def test_stale_worker_instance_cannot_mark_restarted_instance_offline(self):
   self.q.register_worker("worker-reused","host-a","instance-old")
