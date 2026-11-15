@@ -655,3 +655,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression coverage for competing owners, expiry/takeover, stale-owner fencing, invalid lease rejection and successful dispatch under a valid lease.
 - GitHub Actions run [43670844206](https://github.com/justinhblee-prog/shorts/actions/runs/43670844206) passed **156 tests** on commit `851551896e1bc1b0416427d3a4d6f5964f05862c`. Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing also passed.
 - Calendar/DST recurrence rules and multi-host database deployment remain outside the current SQLite baseline.
+
+
+## Platform policy preflight and review visibility — 2026-11-15
+
+- Added `backend/policy_engine.py` with a versioned, deterministic YouTube/TikTok pre-production risk screen. It checks explicit high-risk flags, declared visual/audio/likeness rights, synthetic-media status and disclosure acknowledgement, factual-claim verification, originality notes and target platforms.
+- Explicitly declared unauthorized assets, non-consensual likeness, deceptive impersonation, prohibited content, fake engagement/platform evasion, or denied asset rights produce a hard `blocked` result before queue submission. Directly enqueued jobs are also stopped before the first provider call; only that job is terminalized, without globally pausing unrelated production workers.
+- Missing declarations remain `review_required`; complete declarations advance only to `ready_for_human_review`, never to a claim of platform compliance or approval. The report is attached to the generated script artifact and passed to the script provider with originality, rights, factuality and anti-manipulation constraints.
+- Review workspace displays policy status, blocking reasons, missing confirmations and an explicit limitation notice. Human review and explicit approval remain mandatory before upload.
+- Added regression coverage for policy decisions, blocked queue submissions, direct-worker blocking, provider prompt context and review UI visibility.
+- GitHub Actions run [43671183060](https://github.com/justinhblee-prog/shorts/actions/runs/43671183060) passed **166 tests** on commit `57878e3b99e03bc1e1e420c600e68d27f9b161e2`; Python compilation, frontend syntax/DOM checks and Compose YAML validation passed.
+- **Validation boundary:** this is a deterministic preflight and metadata-driven checklist, not frame-by-frame audiovisual moderation, legal advice, platform approval, monetization eligibility or a guarantee against enforcement. Platform-specific rule packs and live policy refresh, actual rights evidence verification, media-content scanning and upload-time disclosure enforcement remain future work.
