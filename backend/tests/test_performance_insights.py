@@ -140,6 +140,12 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(cohort["median_views_per_hour"],200.0)
   self.assertEqual(cohort["evidence_status"],"observed")
   self.assertEqual(cohort["ranking_score_adjustment"],0)
+  insight=next(x for x in result["cohort_insights"]
+   if x["brand"]=="Future Leak" and x["topic_signature"]=="ai explained robotics")
+  self.assertEqual(insight["status"],"insufficient_comparable_cohorts")
+  self.assertEqual(insight["sample_count"],3)
+  self.assertEqual(insight["ranking_score_adjustment"],0)
+  self.assertIn("Keep collecting",insight["suggested_action"])
   other_brand=next(x for x in result["cohorts"] if x["brand"]=="Money Glitch")
   self.assertEqual(other_brand["sample_count"],1)
   self.assertEqual(cohort["brand"],"Future Leak")
