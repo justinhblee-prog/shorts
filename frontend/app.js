@@ -122,7 +122,8 @@
       return '<div class="data-item trend-item"><div class="recommendation-head"><b>'+esc(trend.title||"Untitled trend")+'</b><strong>'+Number(item.recommendation_score||0).toFixed(1)+'/80</strong></div><small>'+esc(trend.region||"")+' · 최신성 '+Number(item.freshness_score||0).toFixed(1)+' · '+esc(item.score_type||"")+'</small>'+(item.best_brand?'<small>최적 브랜드: '+esc(item.best_brand.brand_name)+' · 적합도 '+Number(item.best_brand.fit_score||0).toFixed(1)+'</small>':'<small>적합 브랜드 미확인</small>')+controls+'<small class="recommendation-caveat">수익·검색량·Shorts 수요 미검증</small></div>';
     }).join("")||'<div class="empty-state">선택한 시장에 추천할 트렌드가 없습니다.</div>';
   }
-\n  async function loadSchedules(){
+
+  async function loadSchedules(){
     const [data,outbox]=await Promise.all([api("/api/schedules"),api("/api/schedules/outbox")]);
     const schedules=(data.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.name)+' · '+(x.active?"활성":"중지")+'</b><small>'+esc(x.payload.brand)+' · '+esc(x.payload.region)+' · 다음 실행 '+esc(x.next_run_at)+'</small></div>').join("")||'<div class="empty-state">등록된 예약이 없습니다.</div>';
     const dispatches=(outbox.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.schedule_id)+'</b><small>'+esc(x.scheduled_for)+' · attempts '+x.attempts+(x.last_error?' · '+esc(x.last_error):'')+'</small></div>').join("");
@@ -242,7 +243,8 @@
     }catch(err){toast(err.message);}
     finally{button.disabled=false;}
   });
-\n  $("trendList").addEventListener("click",async e=>{
+
+  $("trendList").addEventListener("click",async e=>{
     const button=e.target.closest("[data-trend-draft]");
     if(!button)return;
     if(!requireToken())return;
