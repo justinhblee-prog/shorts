@@ -130,6 +130,15 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("통합 작업 이력", app_js)
         self.assertIn("최근 큐 이벤트", app_js)
 
+    def test_lifecycle_trace_renders_cross_platform_timeline(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data.timeline", app_js)
+        self.assertIn("stageLabels", app_js)
+        self.assertIn("human_review", app_js)
+        self.assertIn("최대 20개", app_js)
+        self.assertIn("attempt_id", app_js)
+        self.assertIn("reference_id", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
