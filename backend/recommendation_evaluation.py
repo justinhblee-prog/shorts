@@ -73,6 +73,35 @@ class RecommendationEvaluationStore:
             ).fetchall()}
             if "signature" not in columns:
                 c.execute("ALTER TABLE recommendation_runs ADD COLUMN signature TEXT NOT NULL DEFAULT ''")
+            candidate_columns = {row["name"] for row in c.execute(
+                "PRAGMA table_info(recommendation_candidates)"
+            ).fetchall()}
+            for name, definition in (
+                ("decision", "TEXT"),
+                ("decision_reason", "TEXT"),
+                ("reviewer_id", "TEXT"),
+                ("decided_at", "TEXT"),
+            ):
+                if name not in candidate_columns:
+                    c.execute(
+                        f"ALTER TABLE recommendation_candidates ADD COLUMN {name} {definition}"
+                    )
+            c.executescript("""
+            CREATE TABLE IF NOT EXISTS recommendation_feedback_events(
+              id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL
+                REFERENCES recommendation_candidates(id),
+              decision TEXT NOT NULL, reviewer_id TEXT NOT NULL,
+              reason TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_candidate
+              ON recommendation_feedback_events(candidate_id,created_at);
+            CREATE TRIGGER IF NOT EXISTS recommendation_feedback_events_no_update
+              BEFORE UPDATE ON recommendation_feedback_events
+              BEGIN SELECT RAISE(ABORT,'Recommendation feedback events are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS recommendation_feedback_events_no_delete
+              BEFORE DELETE ON recommendation_feedback_events
+              BEGIN SELECT RAISE(ABORT,'Recommendation feedback events are immutable'); END;
+            """)
 
     @contextmanager
     def db(self):
@@ -96,23 +125,27 @@ class RecommendationEvaluationStore:
         for rank, item in enumerate(items or [], start=1):
             trend = item.get("trend") or {}
             best = item.get("best_brand") or {}
+            candidates = item.get("brand_candidates") or ([best] if best else [])
             trend_id = str(trend.get("id") or "")
-            brand_slug = str(best.get("brand") or "")
-            brand_name = str(best.get("brand_name") or "")
-            if not trend_id or not brand_slug or not brand_name:
+            if not trend_id:
                 continue
-            rows.append((
-                str(uuid.uuid4()), run_id, trend_id,
-                str(trend.get("title") or "")[:500],
-                str(trend.get("region") or ""),
-                brand_slug, brand_name, rank,
-                float(item.get("recommendation_score") or 0),
-                json.dumps(item.get("score_breakdown") or {}, ensure_ascii=False,
-                           sort_keys=True),
-                json.dumps(best.get("comparable_cohort_performance") or {},
-                           ensure_ascii=False, sort_keys=True),
-                timestamp,
-            ))
+            for candidate in candidates:
+                brand_slug = str(candidate.get("brand") or "")
+                brand_name = str(candidate.get("brand_name") or "")
+                if not brand_slug or not brand_name:
+                    continue
+                rows.append((
+                    str(uuid.uuid4()), run_id, trend_id,
+                    str(trend.get("title") or "")[:500],
+                    str(trend.get("region") or ""),
+                    brand_slug, brand_name, rank,
+                    float(item.get("recommendation_score") or 0),
+                    json.dumps(item.get("score_breakdown") or {}, ensure_ascii=False,
+                               sort_keys=True),
+                    json.dumps(candidate.get("comparable_cohort_performance") or {},
+                               ensure_ascii=False, sort_keys=True),
+                    timestamp,
+                ))
         signature_payload = [
             [row[2], row[5], row[7], row[8], row[9], row[10]]
             for row in rows
@@ -146,8 +179,6 @@ class RecommendationEvaluationStore:
                recommendation_rank,recommendation_score,score_breakdown_json,
                cohort_context_json,created_at)
               VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", rows)
-            # Retain selected records indefinitely for longitudinal evaluation;
-            # prune only stale, unselected snapshots and their empty run headers.
             c.execute("""DELETE FROM recommendation_candidates
                 WHERE selected_job_id IS NULL AND created_at<?""",
                 (retention_cutoff,))
@@ -172,10 +203,40 @@ class RecommendationEvaluationStore:
             if row is None:
                 return {"linked": False, "reason": "no_matching_recommendation_exposure"}
             changed = c.execute("""UPDATE recommendation_candidates
-                SET selected_job_id=?,selected_at=?
+                SET selected_job_id=?,selected_at=?,decision='selected',
+                    decision_reason=NULL,reviewer_id='operator',decided_at=?
                 WHERE id=? AND selected_job_id IS NULL""",
-                (str(job_id), timestamp, row["id"])).rowcount
+                (str(job_id), timestamp, timestamp, row["id"])).rowcount
+            if changed:
+                c.execute("""INSERT INTO recommendation_feedback_events
+                    (id,candidate_id,decision,reviewer_id,reason,created_at)
+                    VALUES(?,?,'selected','operator','Production draft created from recommendation',?)""",
+                    (str(uuid.uuid4()), row["id"], timestamp))
             return {"linked": bool(changed), "candidate_id": row["id"] if changed else None}
+
+    def record_skip(self, trend_id, brand_slug, reviewer_id, reason="", decided_at=None):
+        timestamp = decided_at or _now()
+        reviewer = str(reviewer_id or "").strip()
+        if not reviewer:
+            raise ValueError("reviewer_id is required")
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row = c.execute("""SELECT id FROM recommendation_candidates
+                WHERE trend_id=? AND brand_slug=? AND selected_job_id IS NULL
+                ORDER BY created_at DESC LIMIT 1""",
+                (str(trend_id), str(brand_slug))).fetchone()
+            if row is None:
+                return {"recorded": False, "reason": "no_matching_recommendation_exposure"}
+            c.execute("""UPDATE recommendation_candidates
+                SET decision='skipped',decision_reason=?,reviewer_id=?,decided_at=?
+                WHERE id=? AND selected_job_id IS NULL""",
+                (str(reason or "")[:1000], reviewer[:128], timestamp, row["id"]))
+            c.execute("""INSERT INTO recommendation_feedback_events
+                (id,candidate_id,decision,reviewer_id,reason,created_at)
+                VALUES(?,?,'skipped',?,?,?)""",
+                (str(uuid.uuid4()), row["id"], reviewer[:128],
+                 str(reason or "")[:1000], timestamp))
+            return {"recorded": True, "candidate_id": row["id"]}
 
     def evaluate(self, performance):
         measured = {
@@ -319,7 +380,28 @@ class RecommendationEvaluationStore:
                     "no score change is enabled."
                 ),
             })
+        with self.db() as c:
+            feedback_rows = c.execute(
+                "SELECT decision,COUNT(*) AS count FROM recommendation_candidates "
+                "WHERE decision IS NOT NULL GROUP BY decision"
+            ).fetchall()
+            feedback_counts = {row["decision"]: int(row["count"]) for row in feedback_rows}
+            undecided_count = int(c.execute(
+                "SELECT COUNT(*) FROM recommendation_candidates WHERE decision IS NULL"
+            ).fetchone()[0])
+        feedback_total = feedback_counts.get("selected", 0) + feedback_counts.get("skipped", 0)
+        feedback_summary = {
+            "selected_count": feedback_counts.get("selected", 0),
+            "skipped_count": feedback_counts.get("skipped", 0),
+            "undecided_count": undecided_count,
+            "selection_rate": (
+                round(feedback_counts.get("selected", 0) / feedback_total, 4)
+                if feedback_total else None
+            ),
+            "interpretation": "Human selection/skip feedback only; not a platform performance metric.",
+        }
         result = {
+            "feedback_summary": feedback_summary,
             "status": "insufficient_data",
             "method": "chronological_70_30_holdout_spearman",
             "selected_production_count": total_selected,
