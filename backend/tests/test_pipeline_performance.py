@@ -34,9 +34,8 @@ class PipelinePerformanceTests(unittest.TestCase):
         self.assertEqual(queued["median_seconds"], 5.0)
         self.assertEqual(queued["p90_seconds"], 5.0)
         self.assertEqual(queued["assessment"], "measurable")
-        self.assertIsNone(result["bottleneck_candidate"]["mean_seconds"]
-                          if result["bottleneck_candidate"]["status"] != "queued"
-                          else None)
+        self.assertEqual(result["bottleneck_candidate"]["status"], "review_pending")
+        self.assertIsNotNone(result["bottleneck_candidate"]["median_seconds"])
 
     def test_small_cohort_suppresses_statistics_and_bottleneck(self):
         jobs = [make_job("only-one")]
