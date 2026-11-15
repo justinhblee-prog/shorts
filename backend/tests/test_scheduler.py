@@ -59,8 +59,11 @@ class SchedulerTests(unittest.TestCase):
   now=datetime.now(timezone.utc)
   self.s.create("hourly",3600,{"brand":"B","region":"US","language":"English","topic":"x"},now.isoformat())
   token=self.s.acquire_scheduler_lease("scheduler-a",90,now)
+  self.assertIsNotNone(token)
+  self.assertTrue(self.s.scheduler_lease_is_valid("scheduler-a",token,now))
   result=self.s.dispatch_due(self.q,now,lease_owner="scheduler-a",
                              lease_token=token,lease_seconds=90)
-  self.assertEqual(result["count"],1)
+  self.assertEqual(result["count"],1,
+                   msg=f"result={result!r} outbox={self.s.outbox_status()!r}")
   self.assertFalse(result.get("lease_lost",False))
 if __name__=="__main__":unittest.main()
