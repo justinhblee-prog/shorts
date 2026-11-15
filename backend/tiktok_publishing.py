@@ -315,7 +315,9 @@ class TikTokPublisher:
 
     @staticmethod
     def _upload_url_allowed(upload_url):
-        parsed = urlparse(upload_url or "")
+        if not isinstance(upload_url, str) or not upload_url or len(upload_url) > 256:
+            raise TikTokPublishError("TikTok returned an invalid or oversized upload URL")
+        parsed = urlparse(upload_url)
         host = (parsed.hostname or "").lower()
         if parsed.scheme != "https" or not (host == "tiktokapis.com"
                 or host.endswith(".tiktokapis.com")):
@@ -336,8 +338,9 @@ class TikTokPublisher:
         operator_id = str(operator_id or "").strip()
         if not operator_id or len(operator_id) > 128:
             raise TikTokPublishError("A valid operator ID is required")
-        if not isinstance(title, str) or not title.strip() or len(title) > 2200:
-            raise TikTokPublishError("TikTok caption must contain 1 to 2200 characters")
+        if (not isinstance(title, str) or not title.strip()
+                or len(title.encode("utf-16-le")) // 2 > 2200):
+            raise TikTokPublishError("TikTok caption must contain 1 to 2200 UTF-16 code units")
         resolved, mime, size = self._media(media_path)
         policy, is_aigc = self._policy_evidence(self.store, review_store, job_id)
         attempt = self.store.begin(job_id, title, is_aigc, policy["policy_version"], operator_id)
