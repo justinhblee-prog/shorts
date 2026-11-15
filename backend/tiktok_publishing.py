@@ -1,0 +1,395 @@
+"""TikTok Content Posting API Direct Post adapter.
+
+Uploads are private-only, require current human approval and explicit creator
+consent, and are never retried automatically after an ambiguous remote outcome.
+"""
+import json
+import os
+import sqlite3
+import uuid
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+
+from policy_engine import POLICY_VERSION
+
+
+API_BASE = "https://open.tiktokapis.com/v2"
+UPLOAD_CHUNK_BYTES = 10 * 1024 * 1024
+MAX_VIDEO_BYTES = 256 * 1024 * 1024
+
+
+class TikTokPublishError(RuntimeError):
+    pass
+
+
+def _now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _safe_api_error(response):
+    try:
+        body = response.json()
+    except Exception:
+        body = {}
+    error = body.get("error") if isinstance(body, dict) else {}
+    code = error.get("code") if isinstance(error, dict) else None
+    message = error.get("message") if isinstance(error, dict) else None
+    return f"TikTok API error ({code or response.status_code}): {str(message or 'request failed')[:500]}"
+
+
+class TikTokPublishStore:
+    def __init__(self, db_path="data/nexus.sqlite3"):
+        self.db_path = str(db_path)
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        with self.db() as connection:
+            connection.executescript("""
+            CREATE TABLE IF NOT EXISTS tiktok_publications(
+              job_id TEXT PRIMARY KEY, publish_id TEXT, status TEXT NOT NULL,
+              privacy_level TEXT NOT NULL DEFAULT 'SELF_ONLY',
+              title TEXT NOT NULL, is_aigc INTEGER NOT NULL,
+              error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+              attempt_id TEXT, policy_version TEXT, remote_status TEXT
+            );
+            CREATE TABLE IF NOT EXISTS tiktok_publication_events(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
+              attempt_id TEXT, event_type TEXT NOT NULL, outcome TEXT,
+              operator_id TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
+              created_at TEXT NOT NULL, policy_version TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_tiktok_events_job
+              ON tiktok_publication_events(job_id,id);
+            CREATE TRIGGER IF NOT EXISTS tiktok_events_no_update
+              BEFORE UPDATE ON tiktok_publication_events
+              BEGIN SELECT RAISE(ABORT,'TikTok publication events are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS tiktok_events_no_delete
+              BEFORE DELETE ON tiktok_publication_events
+              BEGIN SELECT RAISE(ABORT,'TikTok publication events are immutable'); END;
+            """)
+
+    @contextmanager
+    def db(self):
+        connection = sqlite3.connect(self.db_path, timeout=30)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout=30000")
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    def begin(self, job_id, title, is_aigc, policy_version):
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
+            ).fetchone()
+            if row and row["status"] in ("published", "processing", "uploading",
+                                         "reconciliation_required"):
+                raise TikTokPublishError(
+                    "TikTok publication already exists or has an uncertain outcome; "
+                    "automatic retry is blocked to prevent duplicate posts"
+                )
+            attempt_id = uuid.uuid4().hex
+            now = _now()
+            connection.execute("""
+              INSERT INTO tiktok_publications
+                (job_id,status,privacy_level,title,is_aigc,created_at,updated_at,
+                 attempt_id,policy_version)
+              VALUES(?,'initializing','SELF_ONLY',?,?,?,?,?,?)
+              ON CONFLICT(job_id) DO UPDATE SET status='initializing',
+                privacy_level='SELF_ONLY',title=excluded.title,
+                is_aigc=excluded.is_aigc,error=NULL,updated_at=excluded.updated_at,
+                attempt_id=excluded.attempt_id,policy_version=excluded.policy_version,
+                publish_id=NULL,remote_status=NULL
+            """, (job_id, title, int(is_aigc), now, now, attempt_id, policy_version))
+            connection.execute("""
+              INSERT INTO tiktok_publication_events
+                (job_id,attempt_id,event_type,outcome,operator_id,note,created_at,policy_version)
+              VALUES(?,?,'publish_attempt_started','started','system:tiktok_worker',
+                     'Creator consent and human approval verified; private visibility selected',?,?)
+            """, (job_id, attempt_id, now, policy_version))
+            return dict(connection.execute(
+                "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
+            ).fetchone())
+
+    def update(self, job_id, attempt_id, status, publish_id=None, remote_status=None,
+               error=None, event_type=None, note=""):
+        allowed = {"initializing", "uploading", "processing", "published",
+                   "failed", "reconciliation_required"}
+        if status not in allowed:
+            raise TikTokPublishError("Unsupported TikTok publication state")
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
+            ).fetchone()
+            if row is None or row["attempt_id"] != attempt_id:
+                raise TikTokPublishError("TikTok publication attempt changed; operator reconciliation required")
+            connection.execute("""
+              UPDATE tiktok_publications SET status=?,publish_id=COALESCE(?,publish_id),
+                remote_status=COALESCE(?,remote_status),error=?,updated_at=?
+              WHERE job_id=? AND attempt_id=?
+            """, (status, publish_id, remote_status, error, _now(), job_id, attempt_id))
+            if event_type:
+                connection.execute("""
+                  INSERT INTO tiktok_publication_events
+                    (job_id,attempt_id,event_type,outcome,operator_id,note,created_at,policy_version)
+                  VALUES(?,?,?,?,'system:tiktok_worker',?,?,?)
+                """, (job_id, attempt_id, event_type, status, str(note)[:2000],
+                      _now(), row["policy_version"]))
+
+    def get(self, job_id):
+        with self.db() as connection:
+            row = connection.execute(
+                "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            result = dict(row)
+            result["is_aigc"] = bool(result["is_aigc"])
+            result["events"] = [dict(item) for item in connection.execute(
+                "SELECT * FROM tiktok_publication_events WHERE job_id=? ORDER BY id",
+                (job_id,)
+            ).fetchall()]
+            return result
+
+
+class TikTokPublisher:
+    def __init__(self, store, session=None):
+        self.store = store
+        self.session = session or requests.Session()
+
+    def _token(self):
+        token = os.getenv("TIKTOK_ACCESS_TOKEN", "").strip()
+        if not token:
+            raise TikTokPublishError("TIKTOK_ACCESS_TOKEN is required")
+        return token
+
+    def _api_post(self, path, payload):
+        try:
+            response = self.session.post(
+                API_BASE + path,
+                headers={"Authorization": "Bearer " + self._token(),
+                         "Content-Type": "application/json; charset=UTF-8"},
+                json=payload, timeout=(10, 60),
+            )
+        except requests.RequestException as exc:
+            raise TikTokPublishError("TikTok API network outcome is uncertain: " + type(exc).__name__) from exc
+        if response.status_code < 200 or response.status_code >= 300:
+            raise TikTokPublishError(_safe_api_error(response))
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise TikTokPublishError("TikTok API returned invalid JSON") from exc
+        error = body.get("error", {}) if isinstance(body, dict) else {}
+        if error.get("code") not in (None, "ok"):
+            raise TikTokPublishError(
+                f"TikTok API error ({error.get('code')}): {str(error.get('message') or '')[:500]}"
+            )
+        return body
+
+    def creator_info(self):
+        return self._api_post("/post/publish/creator_info/query/", {})
+
+    @staticmethod
+    def _policy_evidence(store, review_store, job_id):
+        history = review_store.history(job_id)
+        if not history or history[-1].get("decision") != "approved":
+            raise TikTokPublishError("The latest human review decision must be approved")
+        with store.db() as connection:
+            run = connection.execute(
+                "SELECT status FROM production_runs WHERE job_id=?", (job_id,)
+            ).fetchone()
+            artifact = connection.execute("""
+              SELECT metadata_json FROM production_artifacts
+              WHERE job_id=? AND stage='script' AND artifact_type='text'
+              ORDER BY created_at DESC,id DESC LIMIT 1
+            """, (job_id,)).fetchone()
+            latest = connection.execute("""
+              SELECT artifact_snapshot_json FROM review_decisions
+              WHERE job_id=? ORDER BY id DESC LIMIT 1
+            """, (job_id,)).fetchone()
+        if run is None or run["status"] != "approved" or artifact is None or latest is None:
+            raise TikTokPublishError("Approved production and current policy evidence are required")
+        try:
+            metadata = json.loads(artifact["metadata_json"])
+            policy = metadata.get("policy_preflight") or {}
+            snapshot = json.loads(latest["artifact_snapshot_json"] or "[]")
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise TikTokPublishError("Saved TikTok policy evidence is invalid") from exc
+        approved_script = next((item for item in snapshot
+                                if isinstance(item, dict) and item.get("stage") == "script"
+                                and item.get("artifact_type") == "text"), None)
+        approved_policy = ((approved_script.get("metadata") or {}).get("policy_preflight")
+                           if isinstance(approved_script, dict)
+                           and isinstance(approved_script.get("metadata"), dict) else None)
+        if (not isinstance(policy, dict) or policy.get("policy_version") != POLICY_VERSION
+                or not isinstance(approved_policy, dict)
+                or approved_policy.get("policy_version") != POLICY_VERSION
+                or policy.get("status") == "blocked" or policy.get("approval_blockers")):
+            raise TikTokPublishError(
+                "TikTok policy evidence is blocked, stale or not included in the latest approval"
+            )
+        if "tiktok" not in (policy.get("platforms") or []):
+            raise TikTokPublishError("TikTok was not included in the approved target platforms")
+        classification = policy.get("synthetic_media_status")
+        mapping = {
+            "none": False, "ai_assisted_nonrealistic": False,
+            "ai_generated": True, "realistic_alteration": True,
+        }
+        if classification not in mapping:
+            raise TikTokPublishError("TikTok AI-generated status is unknown; return to policy review")
+        is_aigc = mapping[classification]
+        disclosures = policy.get("platform_disclosures") or {}
+        if is_aigc and disclosures.get("tiktok_ai_generated_content") is not True:
+            raise TikTokPublishError("TikTok AI-generated disclosure acknowledgement is missing")
+        return policy, is_aigc
+
+    @staticmethod
+    def _media(media_path):
+        if not isinstance(media_path, str) or not media_path.strip():
+            raise TikTokPublishError("A staged media path is required")
+        root = Path(os.getenv("NEXUS_MEDIA_DIR", "data/media")).resolve()
+        candidate = Path(media_path)
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved.relative_to(root)
+        except (OSError, ValueError):
+            raise TikTokPublishError("Media path must be an existing file inside NEXUS_MEDIA_DIR")
+        if not resolved.is_file() or resolved.is_symlink():
+            raise TikTokPublishError("Staged media must be a regular non-symlink file")
+        mime = {".mp4": "video/mp4", ".mov": "video/quicktime",
+                ".webm": "video/webm"}.get(resolved.suffix.lower())
+        if not mime:
+            raise TikTokPublishError("TikTok supports MP4, QuickTime or WebM video files")
+        size = resolved.stat().st_size
+        if size <= 0 or size > MAX_VIDEO_BYTES:
+            raise TikTokPublishError("TikTok video must be between 1 byte and 256 MiB")
+        return resolved, mime, size
+
+    @staticmethod
+    def _upload_url_allowed(upload_url):
+        parsed = urlparse(upload_url or "")
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme != "https" or not (host == "tiktokapis.com"
+                or host.endswith(".tiktokapis.com")):
+            raise TikTokPublishError("TikTok returned an untrusted media upload URL")
+        return upload_url
+
+    def publish_approved(self, job_id, media_path, review_store, title,
+                         creator_consented, caption_confirmed, operator_id):
+        if creator_consented is not True:
+            raise TikTokPublishError("Explicit creator consent to upload is required")
+        if caption_confirmed is not True:
+            raise TikTokPublishError("Creator must confirm the editable caption before upload")
+        operator_id = str(operator_id or "").strip()
+        if not operator_id or len(operator_id) > 128:
+            raise TikTokPublishError("A valid operator ID is required")
+        if not isinstance(title, str) or not title.strip() or len(title) > 2200:
+            raise TikTokPublishError("TikTok caption must contain 1 to 2200 characters")
+        resolved, mime, size = self._media(media_path)
+        policy, is_aigc = self._policy_evidence(self.store, review_store, job_id)
+        attempt = self.store.begin(job_id, title, is_aigc, policy["policy_version"])
+        remote_started = False
+        try:
+            creator = self.creator_info().get("data") or {}
+            privacy_options = creator.get("privacy_level_options") or []
+            if "SELF_ONLY" not in privacy_options:
+                raise TikTokPublishError("TikTok creator account does not offer SELF_ONLY privacy")
+            chunk_size = size if size < 5 * 1024 * 1024 else min(UPLOAD_CHUNK_BYTES, size)
+            total_chunks = (size + chunk_size - 1) // chunk_size
+            if total_chunks > 1000:
+                raise TikTokPublishError("TikTok upload exceeds the 1000-chunk limit")
+            body = self._api_post("/post/publish/video/init/", {
+                "post_info": {
+                    "title": title, "privacy_level": "SELF_ONLY",
+                    "disable_duet": True, "disable_comment": True, "disable_stitch": True,
+                    "brand_organic_toggle": False, "is_aigc": is_aigc,
+                },
+                "source_info": {
+                    "source": "FILE_UPLOAD", "video_size": size,
+                    "chunk_size": chunk_size, "total_chunk_count": total_chunks,
+                },
+            })
+            data = body.get("data") or {}
+            publish_id = data.get("publish_id")
+            upload_url = self._upload_url_allowed(data.get("upload_url"))
+            if not publish_id or len(publish_id) > 64 or not upload_url:
+                raise TikTokPublishError("TikTok did not return a valid publish ID and upload URL")
+            remote_started = True
+            self.store.update(job_id, attempt["attempt_id"], "uploading",
+                              publish_id=publish_id, event_type="upload_initialized",
+                              note="Direct Post initialized with SELF_ONLY privacy and is_aigc declaration")
+            with resolved.open("rb") as media:
+                offset = 0
+                while offset < size:
+                    chunk = media.read(chunk_size)
+                    if not chunk:
+                        raise TikTokPublishError("Unexpected end of staged video during upload")
+                    end = offset + len(chunk) - 1
+                    try:
+                        response = self.session.put(
+                            upload_url,
+                            headers={"Content-Type": mime, "Content-Length": str(len(chunk)),
+                                     "Content-Range": f"bytes {offset}-{end}/{size}"},
+                            data=chunk, timeout=(10, 180),
+                        )
+                    except requests.RequestException as exc:
+                        raise TikTokPublishError("TikTok media transfer outcome is uncertain: "
+                                                 + type(exc).__name__) from exc
+                    expected = 201 if end == size - 1 else 206
+                    if response.status_code != expected:
+                        raise TikTokPublishError(
+                            f"TikTok media transfer returned HTTP {response.status_code}; expected {expected}"
+                        )
+                    offset = end + 1
+            self.store.update(job_id, attempt["attempt_id"], "processing",
+                              publish_id=publish_id, event_type="media_uploaded",
+                              note="All media chunks accepted; awaiting TikTok processing")
+            return self.store.get(job_id)
+        except Exception as exc:
+            detail = type(exc).__name__ + ": " + str(exc)
+            if remote_started:
+                self.store.update(job_id, attempt["attempt_id"], "reconciliation_required",
+                                  error=detail, event_type="publish_outcome_uncertain",
+                                  note="Do not retry until the creator's TikTok inbox/profile is checked")
+            else:
+                self.store.update(job_id, attempt["attempt_id"], "failed",
+                                  error=detail, event_type="publish_preflight_failed", note=detail)
+            if isinstance(exc, TikTokPublishError):
+                raise
+            raise TikTokPublishError("TikTok publication failed: " + type(exc).__name__) from exc
+
+    def refresh_status(self, job_id):
+        current = self.store.get(job_id)
+        if current is None:
+            raise TikTokPublishError("TikTok publication record not found")
+        if not current.get("publish_id"):
+            raise TikTokPublishError("TikTok publish ID is unavailable")
+        body = self._api_post("/post/publish/status/fetch/",
+                              {"publish_id": current["publish_id"]})
+        data = body.get("data") or {}
+        remote = data.get("status") or "UNKNOWN"
+        mapping = {
+            "PUBLISH_COMPLETE": "published",
+            "FAILED": "failed",
+            "PROCESSING_UPLOAD": "processing",
+            "PROCESSING_DOWNLOAD": "processing",
+            "SEND_TO_USER_INBOX": "processing",
+            "INBOXED": "processing",
+            "PUBLISHING": "processing",
+        }
+        state = mapping.get(remote, "processing")
+        self.store.update(job_id, current["attempt_id"], state,
+                          remote_status=remote, event_type="status_refreshed",
+                          note="TikTok status fetch returned " + str(remote))
+        return self.store.get(job_id)
