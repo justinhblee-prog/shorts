@@ -247,7 +247,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=0), [])
         with self.store.db() as connection:
             connection.execute(
-                "UPDATE tiktok_publications SET updated_at=datetime('now','-1 seconds') WHERE job_id='job-1'"
+                "UPDATE tiktok_publications SET updated_at=datetime('now','-61 seconds') WHERE job_id='job-1'"
             )
         self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"])
 
@@ -270,7 +270,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.publisher.refresh_status("job-1")
         with self.store.db() as connection:
             connection.execute(
-                "UPDATE tiktok_publications SET updated_at=datetime('now','-61 seconds') WHERE job_id='job-1'"
+                "UPDATE tiktok_publications SET updated_at=datetime('now','-1 seconds') WHERE job_id='job-1'"
             )
         self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"])
 
