@@ -477,7 +477,8 @@
           throw new Error("이 TikTok 계정은 SELF_ONLY 비공개 게시를 지원하지 않습니다.");
         }
         const account=creator.creator_nickname||creator.creator_username||"연결된 TikTok 계정";
-        if(!confirm(account+" 계정으로 SELF_ONLY 비공개 게시를 준비합니다. 이 콘텐츠를 TikTok에 전송하는 데 동의하십니까?"))return;
+        const privacySummary=options.join(", ");
+        if(!confirm(account+" 계정의 TikTok 공개 범위 옵션: "+privacySummary+"\nNEXUS 현재 운영 모드는 SELF_ONLY 비공개 전송으로 제한됩니다. 이 콘텐츠를 TikTok에 전송하는 데 동의하십니까?"))return;
         const caption=prompt("TikTok 캡션을 입력하세요. 최대 2,200 UTF-16 코드 단위입니다.", "NEXUS STUDIO PRO · "+id.slice(0,8));
         if(caption===null)return;
         const title=caption.trim();
