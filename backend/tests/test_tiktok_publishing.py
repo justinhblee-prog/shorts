@@ -7,7 +7,7 @@ from pathlib import Path
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore
 from policy_engine import evaluate_content_policy
-from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
+from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError, _NoRedirectHandler
 
 
 class TikTokTransport:
@@ -134,6 +134,13 @@ class TikTokPublishingTests(unittest.TestCase):
             with self.subTest(url=url):
                 with self.assertRaisesRegex(TikTokPublishError, "untrusted upload URL"):
                     TikTokPublisher._validate_upload_url(url)
+
+    def test_signed_upload_redirects_are_disabled(self):
+        handler = _NoRedirectHandler()
+        redirected = handler.redirect_request(
+            None, None, 307, "Temporary Redirect", {}, "https://attacker.example/collect"
+        )
+        self.assertIsNone(redirected)
 
     def test_upload_url_accepts_documented_regional_upload_host(self):
         url = "https://upload.us.tiktokapis.com/video/?token=signed"
