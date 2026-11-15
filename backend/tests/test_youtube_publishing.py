@@ -117,7 +117,25 @@ class YouTubePublishingTests(unittest.TestCase):
         policy = evaluate_content_policy(policy_brief)
         self.assertEqual(policy["status"], "ready_for_human_review")
         self.assertTrue(policy["youtube_contains_synthetic_media"])
-        self.assertTrue(policy["approval_blockers"] == [])
+        self.assertEqual(policy["approval_blockers"], [])
+        with self.prod.db() as connection:
+            row = connection.execute(
+                """SELECT metadata_json FROM production_artifacts
+                   WHERE job_id=? AND stage='script' AND artifact_type='text'""",
+                ("job-1",),
+            ).fetchone()
+            metadata = json.loads(row["metadata_json"])
+            metadata["policy_preflight"] = policy
+            connection.execute(
+                """UPDATE production_artifacts SET metadata_json=?
+                   WHERE job_id=? AND stage='script' AND artifact_type='text'""",
+                (json.dumps(metadata), "job-1"),
+            )
+        self.review.decide("job-1", "approved", "reviewer-1")
+        self.publisher.upload_approved(
+            "job-1", self.media, self.review, "Realistic synthetic scene"
+        )
+        self.assertTrue(self.service._videos.body["status"]["containsSyntheticMedia"])
 
     def test_ai_generated_youtube_requires_explicit_realism_classification(self):
         brief = {
