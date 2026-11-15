@@ -217,3 +217,7 @@ Latest checked CI run 103 (2026-11-15): https://github.com/justinhblee-prog/shor
 Dashboard currency selectors support USD/KRW/JPY/GBP for financial ledger entries and profitability scenarios. The reporting API remains currency-filtered; no implicit FX conversion is performed.
 
 Latest observed run 106 (commit `efa84562519ea814f9f10d5e030c8c3b5f2f131e`) failed before runner allocation: `runner_id=0`, no runner name, no steps. Latest code changes remain untested by CI.
+
+## BUILD-00010 — performance insights
+
+`GET /api/performance/insights` now returns `brands`, `regions`, `videos`, `financial` (array grouped by brand/currency), and `limitations`. It excludes negative view-counter differences from growth totals, labels invalid/reset measurements, and applies the brand filter to financial records too. Dashboard renders these evidence groups. Recommendations are heuristics only, not forecasts.
