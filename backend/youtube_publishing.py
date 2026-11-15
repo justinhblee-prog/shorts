@@ -86,10 +86,18 @@ class YouTubeUploadStore:
             return dict(c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone())
 
     def finish(self,job_id,video_id):
+        if not isinstance(video_id,str) or not video_id.strip():
+            raise YouTubeUploadError("A confirmed YouTube video ID is required")
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
             c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
-              privacy_status='private',uploaded_at=?,updated_at=?,error=NULL WHERE job_id=?""",
-              (video_id,_now(),_now(),job_id))
+              privacy_status='private',uploaded_at=?,updated_at=?,error=NULL
+              WHERE job_id=? AND status='uploading'""",
+              (video_id.strip(),_now(),_now(),job_id))
+            if c.rowcount != 1:
+                raise YouTubeUploadError(
+                    "Upload state changed before completion; preserve the result for operator reconciliation"
+                )
 
     def fail(self,job_id,error):
         with self.db() as c:
@@ -136,6 +144,7 @@ class YouTubeUploadStore:
         if outcome=="uploaded" and (not isinstance(video_id,str) or not video_id.strip()):
             raise YouTubeUploadError("A confirmed YouTube video ID is required")
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
             row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
             if row is None:
                 raise YouTubeUploadError("Upload record not found")
