@@ -1132,3 +1132,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Docker image includes `clamav` and `clamav-freshclam`; operators initialize signatures with `docker compose exec api freshclam` and verify `clamscan --version` before enabling `NEXUS_MEDIA_SCAN_ENABLED=true`.
 - PR CI [43771112826](https://github.com/justinhblee-prog/shorts/actions/runs/43771112826): **577 tests passed**.
 - The scanner is opt-in by default. Real signature freshness, real media scanning, production deployment and publishing remain unverified.
+
+
+## Handover — BUILD-00106 (2026-11-16)
+
+- PR task: bind human-review audit identity to the authenticating operator credential.
+- Configure `NEXUS_REVIEW_CREDENTIALS_JSON` as a JSON object mapping reviewer IDs to unique random tokens of at least 32 characters. When configured, `NEXUS_REVIEW_TOKEN` is ignored.
+- Review approval, rejection and policy-evidence event writes now use the authenticated identity; a forged body reviewer_id is not used for audit attribution.
+- Legacy-only deployments remain compatible but are recorded as `legacy-operator`, not as a caller-asserted identity.
+- Malformed credential maps fail closed (503); invalid tokens are rejected (401).
+- Per-operator bearer credentials are not a full IdP/RBAC solution. External identity integration, roles, sessions and production rollout remain open.
+- CI evidence pending.
