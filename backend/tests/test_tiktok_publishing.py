@@ -334,6 +334,19 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(result, completed)
         self.assertEqual(self.transport.calls, [])
 
+    def test_publish_rejects_media_mutated_after_human_approval_before_network(self):
+        # Approval captured the staged bytes in setUp. A changed file must never
+        # reach TikTok initialization or the upload endpoint.
+        Path(self.media).write_bytes(b"mutated-after-human-approval")
+        with self.assertRaisesRegex(TikTokPublishError, "changed after human approval"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True,
+                privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(self.transport.calls, [])
+        self.assertIsNone(self.store.get("job-1"))
+
     def test_publish_approved_video_as_private_with_aigc_label(self):
         result = self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",

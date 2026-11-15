@@ -978,3 +978,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Integration review PR: [#57](https://github.com/justinhblee-prog/shorts/pull/57), Open / Draft / unmerged. Superseded conflict probe PR #56 was closed.
 - Individual implementation PRs remain Open / Draft / unmerged. The integration branch is not deployed to production.
 - Automated validation does not prove live YouTube/TikTok OAuth, AI-provider generation, production rendering, real-account publishing, analytics retrieval or revenue.
+
+
+
+## BUILD-00093 — TikTok approval-media fingerprint regression (2026-11-15)
+
+- Pull request: [#58](https://github.com/justinhblee-prog/shorts/pull/58), Open / Draft / unmerged.
+- Added a regression test that mutates the staged video after human approval and verifies the TikTok publisher rejects it before making any provider request or creating a publication row.
+- The production code already uses the shared no-follow, hash-verified upload snapshot; this build closes a missing regression-test gap.
+- Push CI [43730328484](https://github.com/justinhblee-prog/shorts/actions/runs/43730328484): **545 tests passed**.
+- PR merge-result CI [43730353235](https://github.com/justinhblee-prog/shorts/actions/runs/43730353235): **545 tests passed**.
+- Tests use a fake transport and do not make a real TikTok request.
