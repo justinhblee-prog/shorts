@@ -95,7 +95,10 @@ class EndToEndLifecycleTests(unittest.TestCase):
     def test_queued_job_to_review_private_upload_and_recorded_finance(self):
         brief = {"brand": "Brain Glitch", "region": "US",
                  "language": "English", "topic": "Sleep and memory",
-                 "idempotency_key": "e2e-sleep-001"}
+                 "idempotency_key": "e2e-sleep-001",
+                 "rights": {"visuals_cleared": True, "audio_cleared": True,
+                            "likeness_authorized": True},
+                 "synthetic_media_status": "none"}
         submitted = submit_production(self.queue, self.production, brief)
         job_id = submitted["job"]["id"]
         self.assertEqual(submitted["job"]["status"], "queued")
