@@ -975,4 +975,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The review UI displays the connected creator identity and available options, then asks the operator to explicitly enter SELF_ONLY before consent and upload.
 - Add regression coverage proving missing privacy selection is rejected before any remote request.
 - Current UX uses a constrained prompt rather than a native dropdown; improve to a dedicated selector before product audit.
-- CI validation pending for latest commit.
+- CI passed at commit aad8f0e (314 tests).
