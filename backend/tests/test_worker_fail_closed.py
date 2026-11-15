@@ -61,6 +61,24 @@ class WorkerFailClosedTests(unittest.TestCase):
         claim.assert_called_once()
         self.assertTrue(worker.stopping.is_set())
 
+    def test_keyboard_interrupt_terminalizes_ambiguous_job_and_pauses_worker(self):
+        job = {"id": "job-ctrl-c", "payload": {"topic": "test"}, "lease_token": "token-ctrl-c"}
+        with (
+            mock.patch.object(worker.queue, "is_paused", return_value=False),
+            mock.patch.object(worker.store, "reconcile_missing_runs"),
+            mock.patch.object(worker.store, "reconcile_terminal_jobs"),
+            mock.patch.object(worker.store, "reconcile_review_pending"),
+            mock.patch.object(worker.queue, "claim", return_value=job),
+            mock.patch.object(worker.queue, "fail") as fail,
+            mock.patch.object(worker.queue, "pause") as pause,
+            mock.patch.object(worker.pipeline, "execute", side_effect=KeyboardInterrupt),
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                worker.run_once()
+        fail.assert_called_once()
+        self.assertFalse(fail.call_args.args[-1])
+        pause.assert_called_once()
+        self.assertTrue(worker.stopping.is_set())
     def test_main_does_not_claim_another_job_after_stop_flag(self):
         worker.stopping.set()
         with (
