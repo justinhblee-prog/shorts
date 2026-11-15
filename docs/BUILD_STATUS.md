@@ -1418,3 +1418,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Latest verified branch head `5961289ca8dde34bde8d5c748a6ce9658b2023ec`: GitHub Actions run [43714582332](https://github.com/justinhblee-prog/shorts/actions/runs/43714582332) passed; frontend validation reported **107 unique IDs / 91 literal selectors**, and **464 tests passed**. `scripts/validate.sh` completed successfully.
 - No live YouTube/TikTok account OAuth, upload, remote visibility, or external platform approval test was performed.
 - PR #36 remains Draft/open/unmerged.
+
+## BUILD-00071 — TikTok owned-video performance counter collection
+
+- Added `backend/tiktok_metrics.py` using TikTok Display API v2 `POST /v2/video/query/`, restricted to video IDs already confirmed in this account's `publish_complete` records. Requests are bounded to 20 IDs and require the `video.list` OAuth scope.
+- Added durable SQLite counter snapshots (views, likes, comments, shares), freshness/coverage status, a fenced singleton collector lease, response-ID allowlisting, non-negative integer validation, and explicit missing-video accounting. API errors and malformed/unrequested IDs fail closed.
+- Expanded the TikTok OAuth request to include `video.list`. Existing publishing calls continue to require only `video.publish`; metrics token retrieval separately requires `video.list`. A refresh that drops the required scope is rejected.
+- Integrated TikTok collection into the existing independent metrics service and exposed its status through authenticated `GET /api/metrics/collection-status`. YouTube and TikTok collector failures are isolated so one provider outage does not suppress the other.
+- Updated the performance dashboard to distinguish a missing `video.list` authorization from a collection failure. The feature reports only counters documented by TikTok; retention, watch time, and revenue remain unavailable.
+- Official API contract: https://developers.tiktok.com/docs/en/tiktok-api-v2-video-query (up to 20 owned video IDs, `video.list` scope, requested counter fields); scope reference: https://developers.tiktok.com/docs/en/tiktok-api-scopes.
+- Validation is pending on the latest branch head. No live TikTok credentials, developer-product approval, `video.list` consent, or real-account metric collection have been verified. Existing `SELF_ONLY` privacy behavior is unchanged; no public posting is enabled.
