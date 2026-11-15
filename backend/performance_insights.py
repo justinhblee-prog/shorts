@@ -1,5 +1,6 @@
 """Evidence-bound performance analysis; no synthetic metrics or predictive claims."""
 import json
+import math
 import re
 import sqlite3
 import statistics
@@ -37,11 +38,13 @@ def _publication_age_bucket(uploaded_at, measured_at):
 
 
 def _duration_bucket(value):
+    if isinstance(value, bool):
+        return "unknown"
     try:
         seconds = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return "unknown"
-    if seconds <= 0:
+    if not math.isfinite(seconds) or seconds <= 0:
         return "unknown"
     if seconds < 20:
         return "under_20s"
