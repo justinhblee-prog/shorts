@@ -187,6 +187,18 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.assertEqual([item["job_id"] for item in pending], [job_id])
         self.assertEqual(self.production.get(job_id)["status"], "review_pending")
 
+
+    def test_reconciliation_never_promotes_a_job_before_queue_completion(self):
+        brief = {"brand": "Brain Glitch", "region": "US",
+                 "language": "English", "topic": "Not complete"}
+        submitted = submit_production(self.queue, self.production, brief)
+        job_id = submitted["job"]["id"]
+        self.production.stage(job_id, "rendered", "rendered")
+        result = self.production.reconcile_review_pending(self.queue)
+        self.assertEqual(result["reconciled"], 0)
+        self.assertEqual(self.production.get(job_id)["status"], "rendered")
+        self.assertEqual(self.review.list_pending(), [])
+
     def test_upload_cannot_start_without_human_approval(self):
         brief = {"brand": "Brain Glitch", "region": "US",
                  "language": "English", "topic": "Sleep"}
