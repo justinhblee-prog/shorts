@@ -1241,8 +1241,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added durable collection-run state: running/succeeded/failed, last attempt, last successful collection, sanitized error class, and requested/collected/missing counts. A failed attempt preserves the previous successful timestamp.
 - Added authenticated read-only `GET /api/metrics/collection-status` with per-platform availability, last attempt/success timestamps, latest batch counts, uploaded-video snapshot coverage and stale-snapshot counts.
 - Integrated collection freshness and coverage into the performance dashboard.
-- YouTube Data API collection is limited to view, like and comment counters. Audience retention, swipe-away rate, watch time and estimated revenue are explicitly unavailable and are not inferred.
-- TikTok analytics collection is explicitly marked not implemented; no unsupported metric or API scope is assumed.
+- At BUILD-00055, YouTube Data API collection was limited to view, like and comment counters; TikTok analytics was not yet implemented. These historical limitations were superseded by BUILD-00071/00072 (TikTok views/likes/comments/shares) and BUILD-00074 (YouTube Analytics watch-time/average view metrics). Detailed retention curves, swipe-away rate and revenue remain unreported.
 - Recommendation scores remain unchanged; `ranking_score_adjustment=0` and holdout evidence remains the gate for future calibration.
 - Regression tests cover persisted success/failure state, preservation of last success, coverage/freshness, collector lease skip/release paths, API authorization and dashboard display.
 - GitHub Actions run [43701730561](https://github.com/justinhblee-prog/shorts/actions/runs/43701730561) passed **400 tests** at code commit `7fd7c5b`.
@@ -1456,4 +1455,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Integrated into the existing metrics collector as an independent provider, with separate handling for missing `yt-analytics.readonly` consent, invalid OAuth credentials and other API errors. A failure does not suppress YouTube Data API or TikTok collection.
 - Added authenticated read-only `GET /api/youtube/analytics-metrics` and dashboard display for watch time/average view percentage. Recommendation score changes remain disabled.
 - The channel refresh token must be reauthorized with `yt-analytics.readonly` in addition to existing YouTube scopes; the YouTube Analytics API must be enabled in Google Cloud. This external consent/API setup has not been performed.
-- Validation pending for the latest code changes. Live YouTube Analytics report retrieval remains unverified.
+- GitHub Actions passed at code commit `3984e759e618c6aaa93c744830b775908dfa7618`: run [43716302094](https://github.com/justinhblee-prog/shorts/actions/runs/43716302094), **489 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
+- Live YouTube Analytics report retrieval, OAuth scope consent, and actual channel data remain unverified.
