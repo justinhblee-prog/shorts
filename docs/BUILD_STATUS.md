@@ -1219,7 +1219,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added authenticated read-only `GET /api/analytics/operations-economics` and integrated the report into the global operations dashboard.
 - No inferred revenue, estimated views/RPM, external metrics refresh, worker mutation, retry, approval, or publication action is performed.
 - Publication counters reflect persisted platform statuses, not independently verified public reach. Brand-only ledger entries are excluded from per-job economics.
-- CI validation pending.
+- GitHub Actions passed **392 tests** at code commit `c3e1298` (run `43700923864`).
 
 ## BUILD-00054 — evidence-gated content performance experiments
 
