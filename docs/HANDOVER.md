@@ -247,7 +247,7 @@ The upload path now avoids a duplicate-video hazard when a resumable upload has 
 
 - Before the remote request begins, ordinary initialization failures remain `failed` and can be retried.
 - After `videos().insert()` returns a resumable request, exceptions or a missing final video ID become `reconciliation_required`. The job cannot be retried automatically.
-- A live `uploading` attempt updates its activity timestamp after each completed resumable chunk. Manual reconciliation is blocked until the attempt is stale for `NEXUS_UPLOAD_STALE_SECONDS` (default 900 seconds, minimum 60).
+- A live `uploading` attempt refreshes its activity timestamp in a background heartbeat and after completed resumable chunks. Manual reconciliation is blocked until the attempt is stale for `NEXUS_UPLOAD_STALE_SECONDS` (default 900 seconds, minimum 60).
 - Authenticated endpoint: `POST /api/youtube/uploads/{job_id}/reconcile`.
   - `outcome=uploaded`: operator must confirm and supply the video ID found in YouTube Studio.
   - `outcome=not_uploaded`: operator must confirm that no matching upload exists; this makes the job retryable.
