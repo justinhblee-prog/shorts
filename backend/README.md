@@ -133,3 +133,7 @@ Use entry types `youtube_ads`, `affiliate`, `sponsor`, `production_cost`, `platf
 ## BUILD-00010 — performance insights
 
 GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports brand-level video snapshot differences and recorded ledger totals. It does not estimate earnings from views or infer trends from a single snapshot. Recommendations are rule-based and include their evidence basis. YouTube retention/watch-time, controlled experiments and autonomous strategy updates are not implemented.
+
+## BUILD-00011 — persistent scheduler
+
+Run `python scheduler.py` as a separate supervised process from the API and production worker. It dispatches due interval schedules to the durable queue with deterministic idempotency keys. API endpoints POST/GET `/api/schedules` and PUT `/api/schedules/{id}/activation?active=true|false` require `X-Review-Token`. Schedules are hourly or less frequent and validate active brand/market settings. Operate one scheduler instance only; distributed scheduler locking and calendar/DST rules are not implemented.
