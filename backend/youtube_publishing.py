@@ -272,8 +272,10 @@ class YouTubeUploadStore:
             known=c.execute("""SELECT 1 FROM youtube_upload_events
               WHERE job_id=? AND event_type='late_remote_success' AND video_id=? LIMIT 1""",
               (job_id,chosen)).fetchone()
-            if not chosen or not known:
-                raise YouTubeUploadError("Choose a video ID preserved in the late-success audit events")
+            if not chosen or (chosen!=row["video_id"] and not known):
+                raise YouTubeUploadError(
+                    "Choose the currently recorded video ID or one preserved in late-success audit events"
+                )
             now=_now()
             updated=c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',privacy_status='private',
               uploaded_at=COALESCE(uploaded_at,?),error=NULL,updated_at=?
