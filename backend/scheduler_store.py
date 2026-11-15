@@ -47,6 +47,12 @@ class ScheduleStore:
         c.execute("PRAGMA busy_timeout=30000")
         try:
             yield c
+            if c.in_transaction:
+                c.commit()
+        except Exception:
+            if c.in_transaction:
+                c.rollback()
+            raise
         finally:
             c.close()
 
