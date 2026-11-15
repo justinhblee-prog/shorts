@@ -1,8 +1,11 @@
+import hashlib
 import json
+import os
+import tempfile
 import sqlite3
 import unittest
 
-from approval_integrity import approval_snapshot_matches_current_artifacts
+from approval_integrity import approval_snapshot_matches_current_artifacts, verify_staged_media_hash
 
 
 class ApprovalIntegrityTests(unittest.TestCase):
@@ -71,6 +74,39 @@ class ApprovalIntegrityTests(unittest.TestCase):
         )
         self.assertFalse(matches)
         self.assertIn("missing", reason)
+
+    def test_approved_media_hash_accepts_exact_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "video.mp4")
+            payload = b"approved-rendered-video"
+            with open(path, "wb") as stream:
+                stream.write(payload)
+            self.assertEqual(
+                verify_staged_media_hash(path, hashlib.sha256(payload).hexdigest(), len(payload)),
+                (True, None),
+            )
+
+    def test_approved_media_hash_rejects_mutated_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "video.mp4")
+            with open(path, "wb") as stream:
+                stream.write(b"approved-bytes")
+            with open(path, "wb") as stream:
+                stream.write(b"mutated-bytes")
+            matches, reason = verify_staged_media_hash(
+                path, hashlib.sha256(b"approved-bytes").hexdigest(), len(b"approved-bytes")
+            )
+            self.assertFalse(matches)
+            self.assertIn("changed after human approval", reason)
+
+    def test_approved_media_hash_rejects_missing_file_and_missing_fingerprint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing = os.path.join(directory, "missing.mp4")
+            self.assertFalse(verify_staged_media_hash(missing, "a" * 64, 10)[0])
+            path = os.path.join(directory, "video.mp4")
+            with open(path, "wb") as stream:
+                stream.write(b"video")
+            self.assertFalse(verify_staged_media_hash(path, None, None)[0])
 
     def test_malformed_snapshot_fails_closed(self):
         matches, reason = approval_snapshot_matches_current_artifacts(
