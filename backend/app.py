@@ -257,6 +257,32 @@ def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
     if result is None: raise HTTPException(404,"Production job not found")
     return result
 
+@app.get("/api/lifecycle/jobs/{job_id}")
+def get_job_lifecycle(job_id:str,x_review_token:str|None=Header(default=None)):
+    """Return the authoritative cross-system lifecycle record for one production job."""
+    require_review_access(x_review_token)
+    try:
+        job=queue.get(job_id)
+    except JobNotFound:
+        raise HTTPException(404,"Job not found")
+    if job.get("job_type")!="short_video_production":
+        raise HTTPException(409,"Job is not a short-video production job")
+    production=production_store.get(job_id)
+    if production is None:
+        raise HTTPException(404,"Production record not found")
+    decisions=review_store.history(job_id)
+    latest_review=decisions[-1] if decisions else None
+    youtube=youtube_upload_store.get(job_id)
+    tiktok=tiktok_publish_store.get(job_id)
+    return {
+        "job":job,
+        "queue_events":queue.events(job_id),
+        "production":production,
+        "review":{"history":decisions,"latest":latest_review},
+        "publishing":{"youtube":youtube,"tiktok":tiktok},
+    }
+
+
 @app.post("/api/production/jobs/{job_id}/execute")
 def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
