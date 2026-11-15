@@ -1175,3 +1175,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added deterministic classifier, API authorization/response, and frontend regression tests.
 - Unknown and ambiguous failures fail closed; automatic retry, replay, cancellation, or publishing is not performed.
 - CI validation pending.
+
+### BUILD-00050 — unified production lifecycle overview
+
+- Added authenticated read-only `GET /api/lifecycle/jobs/{job_id}/overview`, consolidating queue, production, human review, YouTube, TikTok, consistency, recovery, and failure-analysis records.
+- Added a normalized five-stage status summary (queue → production → human review → YouTube → TikTok) with current stage, cross-system consistency, and latest failure category.
+- Consolidated the control-center job detail from four separate requests into one overview request and added a compact end-to-end stage panel.
+- Added API coverage for stage ordering, platform handoff state, and read-only guarantees; added frontend integration assertions.
+- The overview does not refresh remote provider state, retry work, or publish content. TikTok inbox handoff is still not represented as public publication.
+- CI validation pending.
