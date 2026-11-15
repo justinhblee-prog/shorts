@@ -1122,3 +1122,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression coverage for blocker aggregation, missing identifiers, incomplete queue leases, and approval-history mismatch.
 - GitHub Actions passed **351 tests** at code commit `9cf4367`.
 - All diagnostics remain read-only; remote platform verification and any new upload remain explicit operator actions.
+
+### BUILD-00045 — global production queue risk dashboard
+
+- Added an authenticated, read-only `GET /api/lifecycle/queue` endpoint for the short-video production queue, with bounded pagination (maximum 100), optional validated status filtering, queue-state counts, and per-page consistency risk counts.
+- Added a metadata-only queue listing method; response rows intentionally omit job payloads, lease tokens, worker identifiers, and other execution secrets.
+- Each listed job is checked against its production record, latest human-review decision, and platform publication evidence. Missing production records are surfaced as blockers rather than silently omitted.
+- Integrated a global production operations panel into the single-page control center, with status/risk summaries, key findings, and on-demand links to the existing detailed lifecycle and recovery diagnostics.
+- The dashboard performs no automatic retry, remote platform polling, approval, or publishing. Platform outcomes remain distinct; TikTok inbox handoff is not described as published.
+- Added API coverage for auth gating, pagination/filter forwarding, missing-record blockers, and invalid status filters, plus frontend wiring regression coverage.
+- CI validation pending for this commit. The dashboard is bounded to the latest 50 records by default; operators can request subsequent pages through the API. No live provider or platform integration is implied.
