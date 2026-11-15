@@ -283,5 +283,73 @@ class TikTokOAuthTests(unittest.TestCase):
             manager.start_authorization()
 
 
+    def test_token_response_rejects_invalid_expiry_types_and_ranges(self):
+        valid = {
+            "access_token": "access-safe",
+            "refresh_token": "refresh-safe",
+            "open_id": "creator-safe",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        }
+        for value in (True, False, 0, -1, 1.5, "7200.5", 31_536_001):
+            payload = dict(valid, expires_in=value)
+            with self.subTest(expires_in=value):
+                with self.assertRaises(TikTokOAuthError):
+                    self.manager._save_token_response(payload)
+        for value in (True, 0, -1, 1.5, "15552000", 315_360_001):
+            payload = dict(valid, refresh_expires_in=value)
+            with self.subTest(refresh_expires_in=value):
+                with self.assertRaises(TikTokOAuthError):
+                    self.manager._save_token_response(payload)
+        self.assertIsNone(self.store.token_record())
+
+    def test_token_response_rejects_oversized_or_malformed_credential_fields(self):
+        valid = {
+            "access_token": "access-safe",
+            "refresh_token": "refresh-safe",
+            "open_id": "creator-safe",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        }
+        invalid_payloads = (
+            dict(valid, access_token="a" * (16 * 1024 + 1)),
+            dict(valid, refresh_token="r" * (16 * 1024 + 1)),
+            dict(valid, open_id="i" * 257),
+            dict(valid, access_token=" leading-space"),
+            dict(valid, refresh_token="embedded\ncontrol"),
+            dict(valid, scope="s" * 4097),
+            dict(valid, scope=["video.publish"]),
+            dict(valid, token_type="MAC"),
+            dict(valid, token_type={"type": "Bearer"}),
+        )
+        for payload in invalid_payloads:
+            with self.subTest(payload_keys=tuple(payload.keys())):
+                with self.assertRaises(TikTokOAuthError):
+                    self.manager._save_token_response(payload)
+        self.assertIsNone(self.store.token_record())
+
+    def test_invalid_refresh_response_does_not_overwrite_existing_tokens(self):
+        original = {
+            "access_token": "access-original",
+            "refresh_token": "refresh-original",
+            "open_id": "creator-original",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        }
+        self.manager._save_token_response(original)
+        before = self.store.token_record()
+        malformed = dict(original, access_token="x" * (16 * 1024 + 1))
+        with self.assertRaises(TikTokOAuthError):
+            self.manager._save_token_response(malformed)
+        self.assertEqual(self.store.token_record(), before)
+
+
+
 if __name__ == "__main__":
     unittest.main()

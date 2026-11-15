@@ -20,6 +20,11 @@ from cryptography.fernet import Fernet, InvalidToken
 
 TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
 MAX_TIKTOK_OAUTH_RESPONSE_BYTES = 256 * 1024
+MAX_TIKTOK_TOKEN_CHARS = 16 * 1024
+MAX_TIKTOK_OPEN_ID_CHARS = 256
+MAX_TIKTOK_SCOPE_CHARS = 4096
+MAX_TIKTOK_ACCESS_TTL_SECONDS = 31_536_000
+MAX_TIKTOK_REFRESH_TTL_SECONDS = 315_360_000
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -285,21 +290,66 @@ class TikTokOAuthManager:
         return data
 
     def _save_token_response(self, data):
-        required = ("access_token", "refresh_token", "open_id")
-        if any(not isinstance(data.get(key), str) or not data[key] for key in required):
-            raise TikTokOAuthError("TikTok OAuth token response is missing required token fields")
-        try:
-            access_seconds = int(data["expires_in"])
-            refresh_seconds = int(data["refresh_expires_in"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise TikTokOAuthError("TikTok OAuth token response has invalid expiry values") from exc
+        if not isinstance(data, dict):
+            raise TikTokOAuthError("TikTok OAuth token response has an invalid shape")
+
+        def bounded_opaque_string(name, maximum):
+            value = data.get(name)
+            if (
+                not isinstance(value, str)
+                or not value
+                or len(value) > maximum
+                or value != value.strip()
+                or any(ord(char) < 33 or ord(char) > 126 for char in value)
+            ):
+                raise TikTokOAuthError(
+                    "TikTok OAuth token response has an invalid " + name
+                )
+            return value
+
+        access_token = bounded_opaque_string("access_token", MAX_TIKTOK_TOKEN_CHARS)
+        refresh_token = bounded_opaque_string("refresh_token", MAX_TIKTOK_TOKEN_CHARS)
+        open_id = bounded_opaque_string("open_id", MAX_TIKTOK_OPEN_ID_CHARS)
+
+        scope = data.get("scope", "")
+        if (
+            not isinstance(scope, str)
+            or len(scope) > MAX_TIKTOK_SCOPE_CHARS
+            or any(ord(char) < 32 or ord(char) == 127 for char in scope)
+        ):
+            raise TikTokOAuthError("TikTok OAuth token response has an invalid scope")
+
+        token_type = data.get("token_type", "Bearer")
+        if not isinstance(token_type, str) or token_type.lower() != "bearer":
+            raise TikTokOAuthError("TikTok OAuth token response has an unsupported token type")
+
+        def bounded_expiry(name, maximum):
+            value = data.get(name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value < 1
+                or value > maximum
+            ):
+                raise TikTokOAuthError(
+                    "TikTok OAuth token response has invalid " + name
+                )
+            return value
+
+        access_seconds = bounded_expiry(
+            "expires_in", MAX_TIKTOK_ACCESS_TTL_SECONDS
+        )
+        refresh_seconds = bounded_expiry(
+            "refresh_expires_in", MAX_TIKTOK_REFRESH_TTL_SECONDS
+        )
+
         now = _now()
         values = {
-            "open_id": data["open_id"],
-            "access_token_encrypted": self.cipher.encrypt(data["access_token"].encode()).decode(),
-            "refresh_token_encrypted": self.cipher.encrypt(data["refresh_token"].encode()).decode(),
-            "scope": str(data.get("scope") or ""),
-            "token_type": str(data.get("token_type") or "Bearer"),
+            "open_id": open_id,
+            "access_token_encrypted": self.cipher.encrypt(access_token.encode("ascii")).decode(),
+            "refresh_token_encrypted": self.cipher.encrypt(refresh_token.encode("ascii")).decode(),
+            "scope": scope,
+            "token_type": "Bearer",
             "access_expires_at": _stamp(now + timedelta(seconds=access_seconds)),
             "refresh_expires_at": _stamp(now + timedelta(seconds=refresh_seconds)),
         }
