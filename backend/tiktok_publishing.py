@@ -206,7 +206,7 @@ class TikTokOAuthStore:
             data = result
         return data
 
-    def _save_tokens(self, data):
+    def _save_tokens(self, data, connection=None):
         access = data.get("access_token")
         refresh = data.get("refresh_token")
         open_id = data.get("open_id")
@@ -228,21 +228,26 @@ class TikTokOAuthStore:
         scope_set = {scope.strip() for scope in scopes.split(",") if scope.strip()}
         if "video.publish" not in scope_set:
             raise TikTokOAuthError("TikTok account did not grant the required video.publish scope")
-        with self.db() as connection:
-            connection.execute("""
-              INSERT INTO tiktok_oauth_tokens
-                (id,open_id,display_name,access_token_cipher,refresh_token_cipher,
-                 scopes,access_expires_at,refresh_expires_at,updated_at)
-              VALUES(1,?,?,?,?,?,?,?,?)
-              ON CONFLICT(id) DO UPDATE SET open_id=excluded.open_id,
-                display_name=excluded.display_name,
-                access_token_cipher=excluded.access_token_cipher,
-                refresh_token_cipher=excluded.refresh_token_cipher,
-                scopes=excluded.scopes,access_expires_at=excluded.access_expires_at,
-                refresh_expires_at=excluded.refresh_expires_at,updated_at=excluded.updated_at
-            """, (open_id, data.get("display_name"), access_cipher, refresh_cipher,
-                  scopes, now + access_ttl, now + refresh_ttl, _now()))
-        return self.status()
+        params = (open_id, data.get("display_name"), access_cipher, refresh_cipher,
+                  scopes, now + access_ttl, now + refresh_ttl, _now())
+        statement = """
+          INSERT INTO tiktok_oauth_tokens
+            (id,open_id,display_name,access_token_cipher,refresh_token_cipher,
+             scopes,access_expires_at,refresh_expires_at,updated_at)
+          VALUES(1,?,?,?,?,?,?,?,?)
+          ON CONFLICT(id) DO UPDATE SET open_id=excluded.open_id,
+            display_name=excluded.display_name,
+            access_token_cipher=excluded.access_token_cipher,
+            refresh_token_cipher=excluded.refresh_token_cipher,
+            scopes=excluded.scopes,access_expires_at=excluded.access_expires_at,
+            refresh_expires_at=excluded.refresh_expires_at,updated_at=excluded.updated_at
+        """
+        if connection is None:
+            with self.db() as db:
+                db.execute(statement, params)
+            return self.status()
+        connection.execute(statement, params)
+        return {"connected": True}
 
     def connect(self, code, state):
         if not isinstance(code, str) or not code.strip() or len(code) > 2048:
@@ -256,33 +261,38 @@ class TikTokOAuthStore:
         return self._save_tokens(data)
 
     def _refresh(self):
+        # BEGIN IMMEDIATE serializes refresh-token rotation across API worker processes.
+        # TikTok invalidates the previous refresh token as soon as it issues a replacement.
         with self._refresh_lock:
             with self.db() as connection:
+                connection.execute("BEGIN IMMEDIATE")
                 row = connection.execute(
                     "SELECT * FROM tiktok_oauth_tokens WHERE id=1"
                 ).fetchone()
-            if row is None:
-                raise TikTokOAuthError("TikTok creator account is not connected")
-            now = datetime.now(timezone.utc).timestamp()
-            if float(row["access_expires_at"]) > now + 300:
-                return None
-            if float(row["refresh_expires_at"]) <= now:
-                raise TikTokOAuthError("TikTok refresh token expired; reconnect the creator account")
-            cipher = self._fernet()
-            try:
-                refresh = cipher.decrypt(row["refresh_token_cipher"].encode()).decode()
-            except Exception as exc:
-                raise TikTokOAuthError("Stored TikTok refresh token cannot be decrypted") from exc
-            data = self._token_request({"grant_type": "refresh_token", "refresh_token": refresh})
-            data.setdefault("open_id", row["open_id"])
-            if "refresh_expires_in" not in data:
-                data["refresh_expires_in"] = max(
-                    1, int(float(row["refresh_expires_at"]) - now)
-                )
-            if "scope" not in data:
-                data["scope"] = row["scopes"]
-            self._save_tokens(data)
-            return True
+                if row is None:
+                    raise TikTokOAuthError("TikTok creator account is not connected")
+                now = datetime.now(timezone.utc).timestamp()
+                if float(row["access_expires_at"]) > now + 300:
+                    return None
+                if float(row["refresh_expires_at"]) <= now:
+                    raise TikTokOAuthError("TikTok refresh token expired; reconnect the creator account")
+                cipher = self._fernet()
+                try:
+                    refresh_token = cipher.decrypt(row["refresh_token_cipher"].encode()).decode()
+                except Exception as exc:
+                    raise TikTokOAuthError("Stored TikTok refresh token cannot be decrypted") from exc
+                data = self._token_request({
+                    "grant_type": "refresh_token", "refresh_token": refresh_token
+                })
+                data.setdefault("open_id", row["open_id"])
+                if "refresh_expires_in" not in data:
+                    data["refresh_expires_in"] = max(
+                        1, int(float(row["refresh_expires_at"]) - now)
+                    )
+                if "scope" not in data:
+                    data["scope"] = row["scopes"]
+                self._save_tokens(data, connection=connection)
+                return True
 
     def get_access_token(self):
         with self.db() as connection:
@@ -305,6 +315,52 @@ class TikTokOAuthStore:
             return self._fernet().decrypt(row["access_token_cipher"].encode()).decode()
         except Exception as exc:
             raise TikTokOAuthError("Stored TikTok access token cannot be decrypted") from exc
+
+    def disconnect(self):
+        # Serialize revoke against token refresh and erase local credentials only after
+        # TikTok confirms the remote revocation.
+        with self._refresh_lock:
+            with self.db() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT * FROM tiktok_oauth_tokens WHERE id=1"
+                ).fetchone()
+                if row is None:
+                    return {"connected": False}
+                try:
+                    access_token = self._fernet().decrypt(
+                        row["access_token_cipher"].encode()
+                    ).decode()
+                except Exception as exc:
+                    raise TikTokOAuthError("Stored TikTok access token cannot be decrypted") from exc
+                config = self._config()
+                try:
+                    response = self.session.post(
+                        "https://open.tiktokapis.com/v2/oauth/revoke/",
+                        headers={"Content-Type": "application/x-www-form-urlencoded"},
+                        data={
+                            "client_key": config["client_key"],
+                            "client_secret": config["client_secret"],
+                            "token": access_token,
+                        },
+                        timeout=(10, 30),
+                    )
+                except requests.RequestException as exc:
+                    raise TikTokOAuthError(
+                        "TikTok revoke request failed: " + type(exc).__name__
+                    ) from exc
+                if response.status_code < 200 or response.status_code >= 300:
+                    raise TikTokOAuthError(_safe_api_error(response))
+                try:
+                    body = response.json()
+                except ValueError:
+                    body = {}
+                error = body.get("error") if isinstance(body, dict) else None
+                if error not in (None, "", "ok"):
+                    raise TikTokOAuthError(_safe_api_error(response))
+                connection.execute("DELETE FROM tiktok_oauth_tokens WHERE id=1")
+                connection.execute("DELETE FROM tiktok_oauth_states")
+        return {"connected": False}
 
     def status(self):
         with self.db() as connection:
