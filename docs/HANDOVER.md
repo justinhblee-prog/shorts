@@ -227,3 +227,5 @@ Latest observed run 106 (commit `efa84562519ea814f9f10d5e030c8c3b5f2f131e`) fail
 The scheduler atomically reserves due occurrences and writes them to `schedule_dispatch_outbox`. Queue enqueue uses `schedule:{schedule_id}:{scheduled_for}` idempotency. Pending outbox records are replayed on each poll; a crash between queue enqueue and outbox acknowledgement cannot duplicate the job. Failures remain pending with attempt count and bounded error text. Test file: `backend/tests/test_scheduler_store.py`.
 
 Scheduler observability endpoint: authenticated `GET /api/schedules/outbox` returns pending/dispatched counts and recent occurrence attempts/errors. It is diagnostic only; the scheduler process retries pending records on its normal polling loop.
+
+Latest CI run 114 (commit `b3f6ae65669af361f4c7fa6314e9d9c2c832fd30`) again failed before runner allocation: `runner_id=0`, empty runner name, `steps=[]`. The new analytics and scheduler outbox tests are not executed.
