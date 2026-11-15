@@ -38,10 +38,13 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop):
 
 def run_once():
     # Recover the cross-store crash window before claiming new work.
+    store.reconcile_missing_runs(queue)
     store.reconcile_review_pending(queue)
     job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production")
     if job is None:
         return False
+    # Close the enqueue/worker race: repair a missing production row after claim too.
+    store.reconcile_missing_runs(queue, job_ids=[job["id"]])
 
     lost_lease = threading.Event()
     heartbeat_stop = threading.Event()
