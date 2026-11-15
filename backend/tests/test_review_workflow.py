@@ -69,6 +69,21 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(result["production"]["status"], "approved")
         self.assertIn("Confirmed rights", result["decision"]["comment"])
 
+    def test_policy_approval_blockers_cannot_be_overridden_by_reviewer_comment(self):
+        self.production.artifact("job-1", "script", "text", None, {
+            "script": "Example", "policy_preflight": {
+                "status": "review_required",
+                "required_confirmations": ["platform_disclosures.youtube_altered_content"],
+                "approval_blockers": ["platform_disclosures.youtube_altered_content"],
+            }
+        })
+        with self.assertRaisesRegex(ReviewConflict, "approval blockers"):
+            self.review.decide(
+                "job-1", "approved", "operator-1",
+                "I reviewed it; proceed despite missing disclosure"
+            )
+        self.assertEqual(self.production.get("job-1")["status"], "review_pending")
+
     def test_policy_blocked_content_cannot_be_approved(self):
         self.production.artifact("job-1", "script", "text", None, {
             "script": "Example", "policy_preflight": {
