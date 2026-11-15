@@ -133,11 +133,11 @@ class YouTubeUploadStore:
                   (video_id.strip(),"Late remote success from a superseded upload attempt; operator resolution required",now,job_id))
                 late_conflict=True
             else:
-                c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
+                updated=c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
                   privacy_status='private',uploaded_at=?,updated_at=?,error=NULL
                   WHERE job_id=? AND status='uploading' AND attempt_id=?""",
                   (video_id.strip(),_now(),_now(),job_id,attempt_id))
-                if c.rowcount != 1:
+                if updated.rowcount != 1:
                     state_error="Upload attempt was replaced before finalization"
                 else:
                     c.execute("""INSERT INTO youtube_upload_events
@@ -176,9 +176,9 @@ class YouTubeUploadStore:
 
     def touch_upload(self,job_id,attempt_id=None):
         with self.db() as c:
-            c.execute("""UPDATE youtube_uploads SET updated_at=?
+            updated=c.execute("""UPDATE youtube_uploads SET updated_at=?
               WHERE job_id=? AND status='uploading' AND attempt_id=?""",(_now(),job_id,attempt_id))
-            return c.rowcount==1
+            return updated.rowcount==1
 
     def mark_reconciliation_required(self,job_id,error,attempt_id=None):
         with self.db() as c:
@@ -203,11 +203,11 @@ class YouTubeUploadStore:
                   error=?,updated_at=? WHERE job_id=? AND status IN ('uploading','failed','reconciliation_required')""",
                   ("A superseded upload attempt ended with an uncertain remote outcome. "+str(error)[:1500],now,job_id))
                 return
-            c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',
+            updated=c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',
               error=?,updated_at=? WHERE job_id=? AND status IN ('uploading','reconciliation_required')
               AND attempt_id=?""",
               (str(error)[:2000],now,job_id,attempt_id))
-            if c.rowcount != 1:
+            if updated.rowcount != 1:
                 raise YouTubeUploadError("Upload record is not in a reconcilable state")
 
     def reconcile(self,job_id,outcome,video_id=None,note="",operator_id="unspecified"):
@@ -240,15 +240,15 @@ class YouTubeUploadStore:
             if row["status"] not in ("uploading","reconciliation_required"):
                 raise YouTubeUploadError("Only an ambiguous upload can be reconciled")
             if outcome=="uploaded":
-                c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
+                updated=c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
                   privacy_status='private',uploaded_at=?,updated_at=?,error=NULL
                   WHERE job_id=? AND status IN ('uploading','reconciliation_required')""",
                   (video_id.strip(),_now(),_now(),job_id))
             else:
-                c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
+                updated=c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
                   WHERE job_id=? AND status IN ('uploading','reconciliation_required')""",
                   ("Operator verified no matching remote upload. "+note,_now(),job_id))
-            if c.rowcount != 1:
+            if updated.rowcount != 1:
                 raise YouTubeUploadError("Upload state changed during reconciliation")
             resulting="uploaded" if outcome=="uploaded" else "failed"
             c.execute("""INSERT INTO youtube_upload_events
@@ -275,10 +275,10 @@ class YouTubeUploadStore:
             if not chosen or not known:
                 raise YouTubeUploadError("Choose a video ID preserved in the late-success audit events")
             now=_now()
-            c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',privacy_status='private',
+            updated=c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',privacy_status='private',
               uploaded_at=COALESCE(uploaded_at,?),error=NULL,updated_at=?
               WHERE job_id=? AND status='late_success_review_required'""",(chosen,now,now,job_id))
-            if c.rowcount!=1:
+            if updated.rowcount!=1:
                 raise YouTubeUploadError("Late success state changed during resolution")
             c.execute("""INSERT INTO youtube_upload_events
               (job_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
