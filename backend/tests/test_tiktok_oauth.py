@@ -2,11 +2,14 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
+from io import BytesIO
+from urllib.error import HTTPError
 from datetime import datetime, timezone, timedelta
 from urllib.parse import parse_qs, urlparse
 
 from cryptography.fernet import Fernet
-from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
+from tiktok_oauth import (TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError, MAX_TIKTOK_OAUTH_RESPONSE_BYTES)
 
 
 class OAuthTransport:
@@ -224,6 +227,52 @@ class TikTokOAuthTests(unittest.TestCase):
     def test_expired_or_unknown_state_is_rejected(self):
         with self.assertRaisesRegex(TikTokOAuthError, "invalid, expired or already used"):
             self.store.consume_state("missing-state-hash")
+
+    def test_oauth_http_response_read_is_bounded_and_redirects_are_not_followed(self):
+        response = mock.MagicMock()
+        response.status = 200
+        response.read.return_value = b"x" * (MAX_TIKTOK_OAUTH_RESPONSE_BYTES + 1)
+        response.__enter__.return_value = response
+        opener = mock.Mock()
+        opener.open.return_value = response
+        with mock.patch("urllib.request.build_opener", return_value=opener):
+            with self.assertRaisesRegex(TikTokOAuthError, "256 KiB"):
+                TikTokOAuthManager._request(
+                    "https://open.tiktokapis.com/v2/oauth/token/", {}, b"secret", 1
+                )
+        response.read.assert_called_once_with(MAX_TIKTOK_OAUTH_RESPONSE_BYTES + 1)
+        opener.open.assert_called_once()
+
+    def test_custom_oauth_transport_response_is_bounded(self):
+        manager = TikTokOAuthManager(
+            self.store, "client-key", "client-secret",
+            "https://example.test/callback", self.key,
+            lambda *args: (200, b"x" * (MAX_TIKTOK_OAUTH_RESPONSE_BYTES + 1)),
+        )
+        with self.assertRaisesRegex(TikTokOAuthError, "256 KiB"):
+            manager._post_token({"grant_type": "authorization_code"})
+
+    def test_oauth_error_description_and_unsafe_log_id_are_not_reflected(self):
+        secret = "refresh-secret-" + ("x" * 200)
+        transport = OAuthTransport([(
+            400, {"error": "invalid_grant", "error_description": secret, "log_id": secret}
+        )])
+        manager = TikTokOAuthManager(
+            self.store, "client-key", "client-secret",
+            "https://example.test/callback", self.key, transport,
+        )
+        with self.assertRaisesRegex(TikTokOAuthError, "invalid_grant") as caught:
+            manager._post_token({"grant_type": "refresh_token"})
+        self.assertNotIn(secret, str(caught.exception))
+
+    def test_oauth_custom_transport_rejects_non_object_json(self):
+        manager = TikTokOAuthManager(
+            self.store, "client-key", "client-secret",
+            "https://example.test/callback", self.key,
+            lambda *args: (200, b'["unexpected"]'),
+        )
+        with self.assertRaisesRegex(TikTokOAuthError, "unexpected response shape"):
+            manager._post_token({"grant_type": "authorization_code"})
 
     def test_redirect_uri_must_be_static_https(self):
         manager = TikTokOAuthManager(

@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 import secrets
 import sqlite3
 import threading
@@ -18,6 +19,12 @@ from cryptography.fernet import Fernet, InvalidToken
 
 
 TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
+MAX_TIKTOK_OAUTH_RESPONSE_BYTES = 256 * 1024
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 REVOKE_URL = "https://open.tiktokapis.com/v2/oauth/revoke/"
 AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/"
 DEFAULT_SCOPES = "user.info.basic,video.publish,video.list"
@@ -200,9 +207,15 @@ class TikTokOAuthManager:
     def _request(url, headers, body, timeout):
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                return response.status, response.read()
+            opener = urllib.request.build_opener(_NoRedirectHandler())
+            with opener.open(req, timeout=timeout) as response:
+                raw = response.read(MAX_TIKTOK_OAUTH_RESPONSE_BYTES + 1)
+                if len(raw) > MAX_TIKTOK_OAUTH_RESPONSE_BYTES:
+                    raise TikTokOAuthError("TikTok OAuth response exceeded the 256 KiB limit")
+                return response.status, raw
         except urllib.error.HTTPError as exc:
+            # Never follow credential-bearing OAuth redirects. Error bodies are
+            # bounded and only safe machine-readable identifiers may be surfaced.
             return exc.code, exc.read(4000)
         except (urllib.error.URLError, TimeoutError) as exc:
             raise TikTokOAuthError("TikTok OAuth network request failed: " + type(exc).__name__) from exc
@@ -242,17 +255,32 @@ class TikTokOAuthManager:
              "Accept": "application/json", "Cache-Control": "no-cache"},
             body, 30,
         )
+        if isinstance(status, bool) or not isinstance(status, int) or not 100 <= status <= 599:
+            raise TikTokOAuthError("TikTok OAuth returned an invalid HTTP status")
+        if not isinstance(raw, (bytes, bytearray)):
+            raise TikTokOAuthError("TikTok OAuth response must be binary JSON")
+        if len(raw) > MAX_TIKTOK_OAUTH_RESPONSE_BYTES:
+            raise TikTokOAuthError("TikTok OAuth response exceeded the 256 KiB limit")
         try:
             data = json.loads(raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError) as exc:
             raise TikTokOAuthError("TikTok OAuth returned invalid JSON") from exc
+        if not isinstance(data, dict):
+            raise TikTokOAuthError("TikTok OAuth returned an unexpected response shape")
         if status < 200 or status >= 300 or data.get("error"):
-            code = data.get("error") or "http_" + str(status)
-            detail = data.get("error_description") or "token request rejected"
+            raw_code = data.get("error")
+            code = raw_code if isinstance(raw_code, str) and re.fullmatch(
+                r"[A-Za-z0-9_.-]{1,128}", raw_code
+            ) else "request_failed"
             log_id = data.get("log_id")
+            safe_log_id = (
+                log_id if isinstance(log_id, str)
+                and re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", log_id)
+                else None
+            )
             raise TikTokOAuthError(
-                "TikTok OAuth " + str(code) + ": " + str(detail) +
-                ((" (log_id " + str(log_id) + ")") if log_id else "")
+                "TikTok OAuth " + code +
+                ((" (log_id " + safe_log_id + ")") if safe_log_id else "")
             )
         return data
 

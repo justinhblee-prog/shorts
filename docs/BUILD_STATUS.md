@@ -1502,3 +1502,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Restricted reflected TikTok error codes to short, safe identifier characters; arbitrary upstream text is not copied into durable error messages.
 - Added regression tests for bounded reads, oversized custom-transport responses and unsafe error-code redaction.
 - CI validation is pending for the new branch head. This hardening does not change the SELF_ONLY publishing boundary or enable public posting.
+
+
+## BUILD-00080 — bounded TikTok OAuth response handling
+
+- Capped token-exchange, refresh and revoke response reads at 256 KiB plus one detection byte in the default HTTP transport, and enforced the same cap for injected/custom transports.
+- Disabled automatic redirects for credential-bearing OAuth POST requests so client secrets and refresh tokens are not forwarded to a redirected endpoint.
+- Validated HTTP status and JSON object shape before processing token responses.
+- Removed upstream error descriptions from exception text; only short, validated machine-readable error codes and safe log IDs may be exposed.
+- Added regression tests for bounded reads, custom transport size limits, unexpected JSON shapes and error-detail redaction.
+- CI validation is pending for the new branch head. OAuth credentials, consent and live account behavior remain unverified.
