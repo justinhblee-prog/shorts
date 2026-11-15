@@ -1188,6 +1188,29 @@ def recommendation_evaluation(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     return recommendation_evaluation_store.evaluate(performance_analyzer.analyze())
 
+@app.post("/api/recommendations/evaluation/snapshots")
+def capture_recommendation_evaluation_snapshot(x_review_token:str|None=Header(default=None)):
+    """Capture an immutable evaluation record on explicit operator request."""
+    require_review_access(x_review_token)
+    result=recommendation_evaluation_store.evaluate(performance_analyzer.analyze())
+    snapshot=recommendation_evaluation_store.record_evaluation_snapshot(result)
+    return {
+        **snapshot,
+        "status": result.get("status"),
+        "selected_production_count": result.get("selected_production_count",0),
+        "measured_outcome_count": result.get("measured_outcome_count",0),
+        "holdout_run_count": result.get("holdout_run_count",0),
+        "holdout_score_views_spearman": result.get("holdout_score_views_spearman"),
+        "ranking_score_adjustment_enabled": False,
+    }
+
+@app.get("/api/recommendations/evaluation/snapshots")
+def list_recommendation_evaluation_snapshots(
+    limit:int=20,x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    return recommendation_evaluation_store.list_evaluation_snapshots(limit)
+
 
 @app.post("/api/recommendations/feedback/skip")
 def skip_recommendation_feedback(
