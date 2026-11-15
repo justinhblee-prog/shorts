@@ -7,6 +7,10 @@ import json
 import os
 import sqlite3
 import uuid
+import threading
+import hashlib
+import secrets
+from urllib.parse import urlencode
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +47,256 @@ def _safe_api_error(response):
     code = error.get("code") if isinstance(error, dict) else None
     message = error.get("message") if isinstance(error, dict) else None
     return f"TikTok API error ({code or response.status_code}): {str(message or 'request failed')[:500]}"
+
+
+class TikTokOAuthError(RuntimeError):
+    pass
+
+
+class TikTokOAuthStore:
+    """Single-active-creator OAuth store with Fernet-encrypted tokens at rest."""
+
+    def __init__(self, db_path="data/nexus.sqlite3", session=None):
+        self.db_path = str(db_path)
+        self.session = session or requests.Session()
+        self._refresh_lock = threading.Lock()
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        with self.db() as connection:
+            connection.executescript("""
+            CREATE TABLE IF NOT EXISTS tiktok_oauth_states(
+              state_hash TEXT PRIMARY KEY, operator_id TEXT NOT NULL,
+              expires_at REAL NOT NULL, created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS tiktok_oauth_tokens(
+              id INTEGER PRIMARY KEY CHECK(id=1), open_id TEXT NOT NULL,
+              display_name TEXT, access_token_cipher TEXT NOT NULL,
+              refresh_token_cipher TEXT NOT NULL, scopes TEXT NOT NULL,
+              access_expires_at REAL NOT NULL, refresh_expires_at REAL NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            """)
+
+    @contextmanager
+    def db(self):
+        connection = sqlite3.connect(self.db_path, timeout=30)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout=30000")
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _config():
+        values = {
+            "client_key": os.getenv("TIKTOK_CLIENT_KEY", "").strip(),
+            "client_secret": os.getenv("TIKTOK_CLIENT_SECRET", "").strip(),
+            "redirect_uri": os.getenv("TIKTOK_REDIRECT_URI", "").strip(),
+            "encryption_key": os.getenv("TIKTOK_TOKEN_ENCRYPTION_KEY", "").strip(),
+        }
+        missing = [key for key, value in values.items() if not value]
+        if missing:
+            raise TikTokOAuthError("Missing TikTok OAuth configuration: " + ", ".join(missing))
+        return values
+
+    @classmethod
+    def _fernet(cls):
+        config = cls._config()
+        try:
+            from cryptography.fernet import Fernet
+            return Fernet(config["encryption_key"].encode("ascii"))
+        except Exception as exc:
+            raise TikTokOAuthError("TIKTOK_TOKEN_ENCRYPTION_KEY must be a valid Fernet key") from exc
+
+    def create_authorization(self, operator_id):
+        operator_id = str(operator_id or "").strip()
+        if not operator_id or len(operator_id) > 128:
+            raise TikTokOAuthError("A valid operator ID is required")
+        config = self._config()
+        state = secrets.token_urlsafe(32)
+        now = datetime.now(timezone.utc).timestamp()
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("DELETE FROM tiktok_oauth_states WHERE expires_at<=?", (now,))
+            connection.execute(
+                "INSERT INTO tiktok_oauth_states(state_hash,operator_id,expires_at,created_at) VALUES(?,?,?,?)",
+                (hashlib.sha256(state.encode()).hexdigest(), operator_id, now + 600, _now()),
+            )
+        params = {
+            "client_key": config["client_key"],
+            "response_type": "code",
+            "scope": "user.info.basic,video.publish",
+            "redirect_uri": config["redirect_uri"],
+            "state": state,
+        }
+        return {
+            "authorization_url": "https://www.tiktok.com/v2/auth/authorize/?" + urlencode(params),
+            "state_expires_in_seconds": 600,
+            "scopes": ["user.info.basic", "video.publish"],
+        }
+
+    def _consume_state(self, state):
+        if not isinstance(state, str) or len(state) < 32 or len(state) > 256:
+            raise TikTokOAuthError("OAuth state is invalid")
+        digest = hashlib.sha256(state.encode()).hexdigest()
+        now = datetime.now(timezone.utc).timestamp()
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM tiktok_oauth_states WHERE state_hash=?", (digest,)
+            ).fetchone()
+            connection.execute("DELETE FROM tiktok_oauth_states WHERE state_hash=?", (digest,))
+            if row is None or float(row["expires_at"]) <= now:
+                raise TikTokOAuthError("OAuth state is expired or has already been used")
+            return row["operator_id"]
+
+    def _token_request(self, payload):
+        config = self._config()
+        body = {
+            "client_key": config["client_key"],
+            "client_secret": config["client_secret"],
+            **payload,
+        }
+        try:
+            response = self.session.post(
+                "https://open.tiktokapis.com/v2/oauth/token/",
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                data=body, timeout=(10, 30),
+            )
+        except requests.RequestException as exc:
+            raise TikTokOAuthError("TikTok OAuth network request failed: " + type(exc).__name__) from exc
+        if response.status_code < 200 or response.status_code >= 300:
+            raise TikTokOAuthError(_safe_api_error(response))
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise TikTokOAuthError("TikTok OAuth returned invalid JSON") from exc
+        error = result.get("error", {}) if isinstance(result, dict) else {}
+        if error.get("code") not in (None, "ok"):
+            raise TikTokOAuthError(
+                f"TikTok OAuth error ({error.get('code')}): {str(error.get('message') or '')[:500]}"
+            )
+        data = result.get("data") if isinstance(result, dict) else None
+        if not isinstance(data, dict):
+            data = result
+        return data
+
+    def _save_tokens(self, data):
+        access = data.get("access_token")
+        refresh = data.get("refresh_token")
+        open_id = data.get("open_id")
+        if not all(isinstance(value, str) and value.strip()
+                   for value in (access, refresh, open_id)):
+            raise TikTokOAuthError("TikTok OAuth response is missing access, refresh or open_id")
+        try:
+            access_ttl = int(data["expires_in"])
+            refresh_ttl = int(data["refresh_expires_in"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise TikTokOAuthError("TikTok OAuth expiry fields are invalid") from exc
+        if access_ttl <= 0 or refresh_ttl <= 0:
+            raise TikTokOAuthError("TikTok OAuth tokens are already expired")
+        cipher = self._fernet()
+        access_cipher = cipher.encrypt(access.encode()).decode("ascii")
+        refresh_cipher = cipher.encrypt(refresh.encode()).decode("ascii")
+        now = datetime.now(timezone.utc).timestamp()
+        scopes = data.get("scope") or ""
+        with self.db() as connection:
+            connection.execute("""
+              INSERT INTO tiktok_oauth_tokens
+                (id,open_id,display_name,access_token_cipher,refresh_token_cipher,
+                 scopes,access_expires_at,refresh_expires_at,updated_at)
+              VALUES(1,?,?,?,?,?,?,?,?)
+              ON CONFLICT(id) DO UPDATE SET open_id=excluded.open_id,
+                display_name=excluded.display_name,
+                access_token_cipher=excluded.access_token_cipher,
+                refresh_token_cipher=excluded.refresh_token_cipher,
+                scopes=excluded.scopes,access_expires_at=excluded.access_expires_at,
+                refresh_expires_at=excluded.refresh_expires_at,updated_at=excluded.updated_at
+            """, (open_id, data.get("display_name"), access_cipher, refresh_cipher,
+                  scopes, now + access_ttl, now + refresh_ttl, _now()))
+        return self.status()
+
+    def connect(self, code, state):
+        if not isinstance(code, str) or not code.strip() or len(code) > 2048:
+            raise TikTokOAuthError("OAuth authorization code is invalid")
+        self._consume_state(state)
+        config = self._config()
+        data = self._token_request({
+            "code": code.strip(), "grant_type": "authorization_code",
+            "redirect_uri": config["redirect_uri"],
+        })
+        return self._save_tokens(data)
+
+    def _refresh(self):
+        with self._refresh_lock:
+            with self.db() as connection:
+                row = connection.execute(
+                    "SELECT * FROM tiktok_oauth_tokens WHERE id=1"
+                ).fetchone()
+            if row is None:
+                raise TikTokOAuthError("TikTok creator account is not connected")
+            now = datetime.now(timezone.utc).timestamp()
+            if float(row["access_expires_at"]) > now + 300:
+                return None
+            if float(row["refresh_expires_at"]) <= now:
+                raise TikTokOAuthError("TikTok refresh token expired; reconnect the creator account")
+            cipher = self._fernet()
+            try:
+                refresh = cipher.decrypt(row["refresh_token_cipher"].encode()).decode()
+            except Exception as exc:
+                raise TikTokOAuthError("Stored TikTok refresh token cannot be decrypted") from exc
+            data = self._token_request({"grant_type": "refresh_token", "refresh_token": refresh})
+            data.setdefault("open_id", row["open_id"])
+            if "refresh_expires_in" not in data:
+                data["refresh_expires_in"] = max(
+                    1, int(float(row["refresh_expires_at"]) - now)
+                )
+            if "scope" not in data:
+                data["scope"] = row["scopes"]
+            self._save_tokens(data)
+            return True
+
+    def get_access_token(self):
+        with self.db() as connection:
+            row = connection.execute(
+                "SELECT * FROM tiktok_oauth_tokens WHERE id=1"
+            ).fetchone()
+        if row is None:
+            fallback = os.getenv("TIKTOK_ACCESS_TOKEN", "").strip()
+            if fallback:
+                return fallback
+            raise TikTokOAuthError("TikTok creator account is not connected")
+        now = datetime.now(timezone.utc).timestamp()
+        if float(row["access_expires_at"]) <= now + 300:
+            self._refresh()
+            with self.db() as connection:
+                row = connection.execute(
+                    "SELECT * FROM tiktok_oauth_tokens WHERE id=1"
+                ).fetchone()
+        try:
+            return self._fernet().decrypt(row["access_token_cipher"].encode()).decode()
+        except Exception as exc:
+            raise TikTokOAuthError("Stored TikTok access token cannot be decrypted") from exc
+
+    def status(self):
+        with self.db() as connection:
+            row = connection.execute(
+                "SELECT * FROM tiktok_oauth_tokens WHERE id=1"
+            ).fetchone()
+        if row is None:
+            return {"connected": False}
+        now = datetime.now(timezone.utc).timestamp()
+        return {
+            "connected": True, "open_id": row["open_id"],
+            "display_name": row["display_name"], "scopes": row["scopes"].split(","),
+            "access_token_expires_in": max(0, int(row["access_expires_at"] - now)),
+            "refresh_token_expires_in": max(0, int(row["refresh_expires_at"] - now)),
+            "updated_at": row["updated_at"],
+        }
 
 
 class TikTokPublishStore:
@@ -199,12 +453,13 @@ class TikTokPublishStore:
 
 
 class TikTokPublisher:
-    def __init__(self, store, session=None):
+    def __init__(self, store, session=None, token_provider=None):
         self.store = store
         self.session = session or requests.Session()
+        self.token_provider = token_provider
 
     def _token(self):
-        token = os.getenv("TIKTOK_ACCESS_TOKEN", "").strip()
+        token = self.token_provider() if self.token_provider else os.getenv("TIKTOK_ACCESS_TOKEN", "").strip()
         if not token:
             raise TikTokPublishError("TIKTOK_ACCESS_TOKEN is required")
         return token
