@@ -318,7 +318,7 @@ class YouTubePublishingTests(unittest.TestCase):
                 "UPDATE review_decisions SET artifact_snapshot_json=? WHERE id=?",
                 (json.dumps(snapshot), row["id"]),
             )
-        with self.assertRaisesRegex(YouTubeUploadError, "rules changed"):
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
             self.uploads.begin("job-1", "Title", "Description")
         self.assertIsNone(self.uploads.get("job-1"))
 
