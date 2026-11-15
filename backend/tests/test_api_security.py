@@ -877,5 +877,35 @@ class ApiSecurityTests(unittest.TestCase):
             self.assertIn("x_review_token",route.endpoint.__annotations__)
 
 
+
+    def test_rendered_recommendation_exposure_routes_require_auth_and_report_evidence(self):
+        from app import (record_recommendation_rendered_exposures,
+            recommendation_rendered_exposure_report,RecommendationRenderedExposureBatch,
+            RecommendationRenderedExposure)
+        batch=RecommendationRenderedExposureBatch(run_id="run-1",exposures=[
+            RecommendationRenderedExposure(event_id="b8d6f5e4-73b0-4f6d-91ab-2d5e5a1c0f11",
+                trend_id="trend-1",visibility_ms=1200)])
+        with mock.patch("app.require_review_access") as access, \
+             mock.patch.object(app_module.recommendation_evaluation_store,
+                "record_rendered_exposures",return_value={"recorded_count":1,"randomized_assignment":False}):
+            result=record_recommendation_rendered_exposures(batch,x_review_token="token")
+        self.assertEqual(result["recorded_count"],1)
+        access.assert_called_once_with("token")
+        with mock.patch("app.require_review_access"), \
+             mock.patch.object(app_module.performance_analyzer,"analyze",return_value={"videos":[]}), \
+             mock.patch.object(app_module.recommendation_evaluation_store,
+                "rendered_exposure_report",return_value={"causal_effect_status":"not_estimable_nonrandomized"}):
+            report=recommendation_rendered_exposure_report("run-1",x_review_token="token")
+        self.assertEqual(report["causal_effect_status"],"not_estimable_nonrandomized")
+
+    def test_rendered_recommendation_exposure_routes_are_included_in_auth_audit(self):
+        protected={"/api/recommendations/exposures/rendered",
+                   "/api/recommendations/exposures/{run_id}/report"}
+        found={getattr(route,"path",""):route for route in app.routes
+               if getattr(route,"path","") in protected}
+        self.assertEqual(set(found),protected)
+        for route in found.values():
+            self.assertIn("x_review_token",route.endpoint.__annotations__)
+
 if __name__ == "__main__":
     unittest.main()
