@@ -77,3 +77,9 @@ Authenticated operator endpoints:
 - `GET /api/recommendations/experiments/{experiment_id}/report` reports assignment counts and explicit evidence gaps.
 
 Live assignment, recommendation changes, causal-effect claims and ranking-score adjustments are disabled. Shadow assignment is not an exposure.
+
+
+### Recommendation viewport exposure evidence
+- The recommendation workspace records a privacy-minimized viewport acknowledgement after a card is at least 50% visible for at least one second.
+- Authenticated `POST /api/recommendations/exposures/rendered` accepts immutable, idempotent render events linked to a captured recommendation run; `GET /api/recommendations/exposures/{run_id}/report` summarizes rendered cards and eligible post-render measured outcomes.
+- These are client-reported render acknowledgements, not proof of attention or randomized experiment exposure. No experiment arm is served and no ranking adjustment is enabled.
