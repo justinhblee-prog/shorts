@@ -166,6 +166,48 @@ class ApiSecurityTests(unittest.TestCase):
         for route in found.values():
             self.assertIn("x_review_token", route.endpoint.__annotations__)
 
+    def test_unified_publishing_dashboard_is_authenticated_read_only_and_keeps_platform_states_separate(self):
+        youtube = [{
+            "job_id": "job-youtube", "status": "reconciliation_required",
+            "attempt_id": "yt-attempt", "video_id": None,
+            "updated_at": "2026-11-15T10:00:00Z", "events": [
+                {"event_type": "upload_timeout", "created_at": "2026-11-15T09:59:00Z"}
+            ], "reconciliation_required": True, "last_error": "timeout",
+        }]
+        tiktok = [{
+            "job_id": "job-tiktok", "status": "processing",
+            "attempt_id": "tt-attempt", "publish_id": "publish-1",
+            "video_id": None, "privacy_level": "SELF_ONLY",
+            "updated_at": "2026-11-15T10:01:00Z", "events": [],
+            "error": None, "fail_reason": None,
+        }]
+        with mock.patch("app.require_review_access") as access, \
+             mock.patch.object(app_module.youtube_upload_store, "list_recent", return_value=youtube) as yt_list, \
+             mock.patch.object(app_module.tiktok_publish_store, "list_recent", return_value=tiktok) as tt_list:
+            result = publishing_dashboard(limit=25, x_review_token="test-token")
+        access.assert_called_once_with("test-token")
+        yt_list.assert_called_once_with(25)
+        tt_list.assert_called_once_with(25)
+        self.assertEqual(result["platforms"]["youtube"]["status_counts"], {"reconciliation_required": 1})
+        self.assertEqual(result["platforms"]["tiktok"]["status_counts"], {"processing": 1})
+        self.assertEqual(result["items"][0]["platform"], "tiktok")
+        self.assertEqual(result["items"][1]["platform"], "youtube")
+        self.assertTrue(result["items"][1]["reconciliation_required"])
+        self.assertEqual(result["items"][0]["privacy_level"], "SELF_ONLY")
+        self.assertTrue(result["read_only"])
+        self.assertEqual(result["actions_taken"], [])
+
+    def test_unified_publishing_dashboard_rejects_invalid_limit(self):
+        with mock.patch("app.require_review_access"):
+            with self.assertRaises(HTTPException) as caught:
+                publishing_dashboard(limit=201, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 422)
+
+    def test_unified_publishing_dashboard_route_is_token_protected(self):
+        route = next(route for route in app.routes
+                     if getattr(route, "path", "") == "/api/publishing/dashboard")
+        self.assertIn("x_review_token", route.endpoint.__annotations__)
+
     def test_approved_review_queue_includes_tiktok_status_for_selected_platform(self):
         item = {
             "job_id": "job-tiktok",
