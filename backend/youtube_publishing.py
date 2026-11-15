@@ -416,6 +416,8 @@ class YouTubePublisher:
             return existing
         upload_attempt=self.store.begin(job_id,title,description)
         remote_request_started=False
+        upload_confirmed=False
+        confirmed_video_id=None
         heartbeat_stop=threading.Event()
         heartbeat_thread=None
         try:
@@ -450,6 +452,8 @@ class YouTubePublisher:
             if not video_id:
                 raise YouTubeUploadError("YouTube response did not contain a video ID")
             self.store.finish(job_id,video_id,upload_attempt.get("attempt_id"))
+            upload_confirmed=True
+            confirmed_video_id=video_id
             try:
                 result=service.videos().list(part="statistics,status",id=video_id).execute()
                 items=result.get("items",[])
@@ -461,6 +465,11 @@ class YouTubePublisher:
             return self.store.get(job_id)
         except Exception as exc:
             detail=type(exc).__name__+": "+str(exc)
+            if upload_confirmed:
+                raise YouTubeUploadError(
+                    "YouTube upload was confirmed as video ID "+str(confirmed_video_id)+
+                    ", but post-upload result retrieval failed: "+type(exc).__name__
+                ) from exc
             if remote_request_started:
                 self.store.mark_reconciliation_required(
                     job_id,"Remote upload outcome is uncertain. "+detail,
