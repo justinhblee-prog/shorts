@@ -9,7 +9,8 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
-                 OpportunityInput, create_opportunity_score, Fail, fail as fail_job)
+                 OpportunityInput, create_opportunity_score, Fail, fail as fail_job,
+                 Complete, complete as complete_job)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -228,6 +229,20 @@ class ApiSecurityTests(unittest.TestCase):
         fail.assert_called_once()
         self.assertIs(fail.call_args.args[-1], False)
         pause.assert_called_once()
+
+    def test_generic_api_completion_cannot_bypass_production_pipeline(self):
+        job = {"id": "job-generic-complete", "job_type": "short_video_production"}
+        body = Complete(worker_id="worker-1", lease_token="lease-1",
+                        result={"production_status": "review_pending"})
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "finish") as finish,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                complete_job("job-generic-complete", body, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 409)
+        finish.assert_not_called()
 
     def test_generic_api_failure_forces_production_job_terminal_and_pauses(self):
         job = {"id": "job-generic-fail", "job_type": "short_video_production"}
