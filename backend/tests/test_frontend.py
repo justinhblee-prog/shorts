@@ -4,6 +4,13 @@ from app import app
 
 ROOT = Path(__file__).resolve().parents[2]
 class FrontendPortalTests(unittest.TestCase):
+    def test_insights_show_evidence_gated_cohort_experiments(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data.cohort_insights", app_js)
+        self.assertIn("성과 기반 다음 제작 실험 제안", app_js)
+        self.assertIn("점수 자동 변경 없음", app_js)
+        self.assertIn("비교 가능한 표본이 부족합니다", app_js)
+
     def test_dashboard_assets_are_packaged(self):
         frontend = ROOT / "frontend"
         self.assertTrue((frontend / "index.html").is_file())
