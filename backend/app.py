@@ -313,7 +313,12 @@ def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
         item["upload_reconciliation_required"]=bool(
             upload and upload.get("reconciliation_required")
         )
-        if item["upload_status"]!="uploaded":
+        tiktok=tiktok_publish_store.get(item["job_id"])
+        item["tiktok_status"]=tiktok.get("status") if tiktok else "not_published"
+        item["tiktok_publish_id"]=tiktok.get("publish_id") if tiktok else None
+        item["tiktok_events"]=tiktok.get("events",[]) if tiktok else []
+        item["tiktok_is_aigc"]=tiktok.get("is_aigc") if tiktok else None
+        if item["upload_status"]!="uploaded" or item["tiktok_status"]!="published":
             pending.append(item)
     return {"items":pending}
 
