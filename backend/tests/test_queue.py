@@ -147,18 +147,28 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(claimed["id"],ordinary["id"])
   self.assertEqual(self.q.get(production["id"])["status"],"queued")
 
- def test_terminal_production_failure_atomically_syncs_production_run(self):
+ def test_terminal_production_failure_atomically_syncs_and_pauses(self):
   job=self.q.enqueue("short_video_production", {"topic":"provider timeout"})
+  other=self.q.enqueue("short_video_production", {"topic":"parallel work"})
   claimed=self.q.claim("worker-a",job_type="short_video_production")
+  other_claimed=self.q.claim("worker-b",job_type="short_video_production")
   self.create_production_run(job["id"],"failed_retriable")
+  self.create_production_run(other["id"],"running")
   failed=self.q.fail(job["id"],"worker-a",claimed["lease_token"],
                      "provider_timeout","provider outcome uncertain",False)
   self.assertEqual(failed["status"],"failed_terminal")
+  self.assertTrue(self.q.is_paused())
+  self.assertEqual(self.q.get(other["id"])["status"],"failed_terminal")
   with self.q.db() as c:
    run=c.execute("SELECT * FROM production_runs WHERE job_id=?",(job["id"],)).fetchone()
+   other_run=c.execute("SELECT * FROM production_runs WHERE job_id=?",(other["id"],)).fetchone()
   self.assertEqual(run["status"],"failed_terminal")
   self.assertEqual(run["current_stage"],"failed_terminal")
   self.assertEqual(run["error"],"provider outcome uncertain")
+  self.assertEqual(other_run["status"],"failed_terminal")
+  self.assertEqual(other_run["current_stage"],"worker_paused")
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(other["id"],"worker-b",other_claimed["lease_token"])
 
  def test_cancel_queued_production_atomically_syncs_production_run(self):
   job=self.q.enqueue("short_video_production", {"topic":"cancel"})
