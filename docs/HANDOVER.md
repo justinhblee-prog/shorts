@@ -1018,3 +1018,16 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - PR #57 remains Open / Draft as the combined review PR against `integration/build-00086-00089-parallel`.
 - No PR was merged to `main`; no production deployment was made.
 - Live YouTube/TikTok OAuth, real AI-provider generation, renderer delivery, real-account publishing and revenue remain unverified.
+
+
+
+## BUILD-00096 — YouTube metrics lease token fencing (2026-11-15)
+
+- Pull request: [#62](https://github.com/justinhblee-prog/shorts/pull/62), merged into the integration-only branch.
+- The YouTube Data API metrics collector now uses a unique fencing token per lease acquisition.
+- Any unexpired lease blocks all new acquisitions, including attempts by the same owner ID.
+- Renewal, release and collection-state writes require the exact owner/token pair.
+- Existing SQLite lease tables are migrated with a `lease_token` column; legacy empty tokens cannot renew or release the lease.
+- Push CI [43732243418](https://github.com/justinhblee-prog/shorts/actions/runs/43732243418): **550 tests passed**.
+- PR merge-result CI [43732267560](https://github.com/justinhblee-prog/shorts/actions/runs/43732267560): **550 tests passed**.
+- Tests are local SQLite/runner checks; no live YouTube API request was made.
