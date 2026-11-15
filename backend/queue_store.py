@@ -430,6 +430,18 @@ class JobQueue:
         return {"worker_id": worker_id, "hostname": hostname,
                 "last_seen_at": n, "status": "online"}
 
+    def mark_worker_offline(self, worker_id):
+        """Persist a graceful worker shutdown; stale heartbeats still cover hard crashes."""
+        worker_id = str(worker_id or "").strip()
+        if not worker_id:
+            raise ValueError("worker_id required")
+        with self.db() as c:
+            updated = c.execute(
+                "UPDATE worker_registry SET last_seen_at=?,status='offline' WHERE worker_id=?",
+                (stamp(now()), worker_id),
+            )
+            return updated.rowcount == 1
+
     def workers(self, stale_after_seconds=None):
         threshold = max(30, int(stale_after_seconds or self.lease_seconds))
         cutoff = stamp(now() - timedelta(seconds=threshold))
@@ -461,8 +473,8 @@ class JobQueue:
                    OR lease_expires_at IS NULL OR lease_expires_at='')""").fetchone()["n"]
             worker_rows = c.execute("""SELECT
                 COUNT(*) AS total,
-                SUM(CASE WHEN last_seen_at>=? THEN 1 ELSE 0 END) AS online,
-                SUM(CASE WHEN last_seen_at<? THEN 1 ELSE 0 END) AS stale
+                SUM(CASE WHEN status='online' AND last_seen_at>=? THEN 1 ELSE 0 END) AS online,
+                SUM(CASE WHEN status='online' AND last_seen_at<? THEN 1 ELSE 0 END) AS stale
                 FROM worker_registry""", (stale_cutoff, stale_cutoff)).fetchone()
         statuses = {row["status"]: row["n"] for row in status_rows}
         control = dict(control) if control else {
