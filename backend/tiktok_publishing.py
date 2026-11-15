@@ -281,7 +281,12 @@ class TikTokPublisher:
     def _token(self):
         token = self.access_token
         if not token and self.token_provider:
-            token = self.token_provider()
+            try:
+                token = self.token_provider()
+            except Exception as exc:
+                raise TikTokPublishError(
+                    "TikTok OAuth token is unavailable: " + type(exc).__name__
+                ) from exc
         token = token or os.getenv("TIKTOK_ACCESS_TOKEN")
         if not token:
             raise TikTokPublishError(
@@ -545,7 +550,7 @@ class TikTokPublisher:
         )
 
     def refresh_due_statuses(self, limit=5, min_age_seconds=60):
-        if not (self.access_token or os.getenv("TIKTOK_ACCESS_TOKEN")):
+        if not (self.access_token or os.getenv("TIKTOK_ACCESS_TOKEN") or self.token_provider):
             return {"skipped": True, "checked": 0, "updated": 0, "errors": []}
         job_ids = self.store.due_status_job_ids(limit, min_age_seconds)
         updated = []
