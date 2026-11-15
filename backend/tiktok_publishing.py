@@ -176,6 +176,9 @@ class TikTokPublishStore:
             ).fetchone()
             if not row or row["attempt_id"] != attempt_id:
                 raise TikTokPublishError("TikTok status belongs to an unknown or superseded attempt")
+            # A slower concurrent poll must never downgrade a terminal outcome.
+            if row["status"] in ("publish_complete", "failed"):
+                return dict(row)
             c.execute("""
               UPDATE tiktok_publications SET status=?,video_id=COALESCE(?,video_id),
                 fail_reason=?,updated_at=? WHERE job_id=?
@@ -587,13 +590,18 @@ class TikTokPublisher:
             payload={"publish_id": record["publish_id"]},
             timeout=20,
         )
-        data = response.get("data") or {}
+        data = response.get("data")
+        if not isinstance(data, dict):
+            raise TikTokPublishError("TikTok status response data has an unexpected shape")
         status = data.get("status")
-        if not status:
-            raise TikTokPublishError("TikTok status response did not include a status")
+        if not isinstance(status, str) or not status:
+            raise TikTokPublishError("TikTok status response did not include a valid status")
+        video_ids = data.get("publicaly_available_post_id") or []
+        if not isinstance(video_ids, list):
+            raise TikTokPublishError("TikTok status response video IDs have an unexpected shape")
         return self.store.mark_status(
             job_id, record["attempt_id"], status,
-            data.get("publicaly_available_post_id") or [],
+            video_ids,
             data.get("fail_reason"),
         )
 
