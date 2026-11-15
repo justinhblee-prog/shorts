@@ -15,8 +15,8 @@ class TikTokTransport:
         self.responses = list(responses)
         self.calls = []
 
-    def __call__(self, url, headers, body, timeout):
-        self.calls.append((url, headers, body))
+    def __call__(self, url, headers, body, timeout, method="POST"):
+        self.calls.append((url, headers, body, method))
         if url.startswith("https://upload.us.tiktokapis.com"):
             return 201, b""
         status, payload = self.responses.pop(0)
@@ -74,6 +74,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertTrue(body["post_info"]["is_aigc"])
         self.assertEqual(body["source_info"]["source"], "FILE_UPLOAD")
         self.assertEqual(self.transport.calls[2][2], b"test-video-bytes")
+        self.assertEqual(self.transport.calls[2][3], "PUT")
         self.assertEqual(self.transport.calls[2][1]["Content-Range"],
                          "bytes 0-15/16")
         self.assertEqual(result["events"][0]["event_type"], "operator_consent_recorded")
