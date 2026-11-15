@@ -220,25 +220,36 @@ class TikTokPublishStore:
         minimum_age = max(0, int(min_age_seconds))
         with self.db() as c:
             rows = c.execute("""
-              SELECT p.job_id FROM tiktok_publications AS p
+              WITH latest_success AS (
+                SELECT job_id,attempt_id,MAX(id) AS last_success_id
+                FROM tiktok_publication_events
+                WHERE event_type='status_refreshed'
+                GROUP BY job_id,attempt_id
+              ),
+              failure_counts AS (
+                SELECT failed.job_id,failed.attempt_id,COUNT(*) AS failures
+                FROM tiktok_publication_events AS failed
+                LEFT JOIN latest_success AS success
+                  ON success.job_id=failed.job_id
+                 AND success.attempt_id=failed.attempt_id
+                WHERE failed.event_type='status_poll_failed'
+                  AND failed.id > COALESCE(success.last_success_id,0)
+                GROUP BY failed.job_id,failed.attempt_id
+              )
+              SELECT p.job_id
+              FROM tiktok_publications AS p
+              LEFT JOIN failure_counts AS failures
+                ON failures.job_id=p.job_id
+               AND failures.attempt_id=p.attempt_id
               WHERE p.publish_id IS NOT NULL
                 AND p.status IN ('uploading','processing','reconciliation_required')
                 AND julianday(p.updated_at) <= julianday('now') - (
-                  MAX(?, MIN(3600, 60 * (
-                    1 << MIN(6, MAX(0, (
-                      SELECT COUNT(*) FROM tiktok_publication_events AS failed
-                      WHERE failed.job_id=p.job_id
-                        AND failed.attempt_id=p.attempt_id
-                        AND failed.event_type='status_poll_failed'
-                        AND failed.id > COALESCE((
-                          SELECT MAX(success.id)
-                          FROM tiktok_publication_events AS success
-                          WHERE success.job_id=p.job_id
-                            AND success.attempt_id=p.attempt_id
-                            AND success.event_type='status_refreshed'
-                        ), 0)
-                    ) - 1))
-                  ))) / 86400.0
+                  MAX(?, CASE
+                    WHEN COALESCE(failures.failures,0)=0 THEN 0
+                    ELSE MIN(3600, 60 * (
+                      1 << MIN(6, failures.failures - 1)
+                    ))
+                  END) / 86400.0
                 )
               ORDER BY p.updated_at ASC LIMIT ?
             """, (minimum_age, max(1, min(int(limit), 20)))).fetchall()
