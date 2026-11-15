@@ -226,6 +226,7 @@ class ProductionBrief(BaseModel):
 class ProductionExecute(BaseModel):
     worker_id:str=Field(min_length=1,max_length=128)
     lease_token:str=Field(min_length=1,max_length=128)
+    instance_token:str=Field(min_length=1,max_length=128)
 
 class TrendCollect(BaseModel):
     region:str="US"
@@ -545,20 +546,24 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
             raise HTTPException(409,"Job is not a short-video production job")
         if job["status"]!="running" or job["worker_id"]!=body.worker_id or job["lease_token"]!=body.lease_token:
             raise HTTPException(409,"Current worker lease is required")
+        queue.assert_current_worker_instance(body.worker_id,body.instance_token)
         result=production_pipeline.execute(
-            job_id,job["payload"],worker_id=body.worker_id,lease_token=body.lease_token
+            job_id,job["payload"],worker_id=body.worker_id,lease_token=body.lease_token,
+            instance_token=body.instance_token
         )
-        queue.finish(job_id,body.worker_id,body.lease_token,{"production_status":"review_pending"})
+        queue.finish(job_id,body.worker_id,body.lease_token,
+                     {"production_status":"review_pending"},instance_token=body.instance_token)
         production_store.reconcile_review_pending(queue)
         return production_store.get(job_id)
     except ProviderError as e:
         try:
             queue.fail(job_id,body.worker_id,body.lease_token,
-                       "provider_"+e.stage,str(e),e.retryable)
+                       "provider_"+e.stage,str(e),e.retryable,instance_token=body.instance_token)
         except Exception:
             pass
         try:
-            queue.pause(f"API provider failure at {e.stage}: {e}", job_id)
+            queue.pause(f"API provider failure at {e.stage}: {e}", job_id,
+                        worker_id=body.worker_id,instance_token=body.instance_token)
         except Exception:
             pass
         raise HTTPException(502,{"stage":e.stage,"error":str(e),"retryable":e.retryable})
@@ -566,13 +571,15 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
         raise HTTPException(404,"Job not found")
     except ProductionLeaseConflict as e:
         try:
-            queue.pause(f"API production lease conflict: {e}", job_id)
+            queue.pause(f"API production lease conflict: {e}", job_id,
+                        worker_id=body.worker_id,instance_token=body.instance_token)
         except Exception:
             pass
         raise HTTPException(409,str(e))
     except LeaseConflict as e:
         try:
-            queue.pause(f"API queue lease conflict: {e}", job_id)
+            queue.pause(f"API queue lease conflict: {e}", job_id,
+                        worker_id=body.worker_id,instance_token=body.instance_token)
         except Exception:
             pass
         raise HTTPException(409,str(e))
@@ -581,11 +588,13 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
     except Exception as e:
         try:
             queue.fail(job_id,body.worker_id,body.lease_token,
-                       "pipeline_internal_error",type(e).__name__,False)
+                       "pipeline_internal_error",type(e).__name__,False,
+                       instance_token=body.instance_token)
         except Exception:
             pass
         try:
-            queue.pause(f"API pipeline internal error: {type(e).__name__}: {e}", job_id)
+            queue.pause(f"API pipeline internal error: {type(e).__name__}: {e}", job_id,
+                        worker_id=body.worker_id,instance_token=body.instance_token)
         except Exception:
             pass
         raise HTTPException(500,"Production pipeline failed internally")
