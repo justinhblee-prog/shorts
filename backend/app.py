@@ -223,7 +223,7 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
         lost_lease=threading.Event()
         heartbeat_stop=threading.Event()
         def renew_api_lease():
-            interval=max(1,queue.lease_seconds//3)
+            interval=max(0.1,queue.lease_seconds/3.0)
             while not heartbeat_stop.wait(interval):
                 try:
                     queue.heartbeat(job_id,body.worker_id,body.lease_token)
