@@ -222,6 +222,13 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("작업 연결 재무 기록", app_js)
         self.assertIn("통화 환산·추정 매출은 포함하지 않으며", app_js)
 
+    def test_performance_dashboard_displays_metrics_collection_freshness(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/metrics/collection-status", app_js)
+        self.assertIn("성과 데이터 수집 상태", app_js)
+        self.assertIn("오래된 스냅샷", app_js)
+        self.assertIn("TikTok 분석 수집은 아직 구현되지 않았으며", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
