@@ -163,6 +163,28 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.assertEqual(report["costs"], 0.40)
         self.assertEqual(round(report["net"], 2), 0.85)
 
+
+    def test_queue_completion_crash_window_is_reconciled_into_review_queue(self):
+        brief = {"brand": "Brain Glitch", "region": "US",
+                 "language": "English", "topic": "Crash recovery"}
+        submitted = submit_production(self.queue, self.production, brief)
+        job_id = submitted["job"]["id"]
+        claimed = self.queue.claim("crash-worker", "test-host",
+                                   job_type="short_video_production")
+        self.production.stage(job_id, "rendered", "rendered")
+        self.production.artifact(job_id, "rendering", "video",
+                                 "https://cdn.example.test/video.mp4", {})
+        # Simulate process termination after durable queue completion but before
+        # the production record is advanced to review_pending.
+        self.queue.finish(job_id, "crash-worker", claimed["lease_token"],
+                          {"production_status": "review_pending"})
+        self.assertEqual(self.production.get(job_id)["status"], "rendered")
+        repaired = self.production.reconcile_review_pending(self.queue)
+        self.assertEqual(repaired["job_ids"], [job_id])
+        pending = self.review.list_pending()
+        self.assertEqual([item["job_id"] for item in pending], [job_id])
+        self.assertEqual(self.production.get(job_id)["status"], "review_pending")
+
     def test_upload_cannot_start_without_human_approval(self):
         brief = {"brand": "Brain Glitch", "region": "US",
                  "language": "English", "topic": "Sleep"}
