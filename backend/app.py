@@ -56,6 +56,13 @@ class ReviewDecision(BaseModel):
     comment:str=Field(default="",max_length=4000)
 
 
+class YouTubeUploadRequest(BaseModel):
+    media_path:str=Field(min_length=1,max_length=2000)
+    title:str=Field(min_length=1,max_length=100)
+    description:str=Field(default="",max_length=5000)
+    tags:list[str]=Field(default_factory=list,max_length=30)
+    category_id:str=Field(default="22",min_length=1,max_length=4)
+
 class LedgerEntry(BaseModel):
     job_id:str|None=None
     brand:str=Field(min_length=1,max_length=100)
