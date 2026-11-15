@@ -130,6 +130,7 @@ class TikTokPublishRequest(BaseModel):
     media_path:str=Field(min_length=1,max_length=2000)
     title:str=Field(min_length=1,max_length=2200)
     operator_id:str=Field(min_length=1,max_length=128)
+    privacy_level:Literal["SELF_ONLY"]
     explicit_consent:bool
     brand_content_toggle:bool
     brand_organic_toggle:bool
@@ -606,6 +607,7 @@ def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
         return tiktok_publisher.publish_private_approved(
             job_id,body.media_path,review_store,body.title,body.operator_id,
             explicit_consent=body.explicit_consent,
+            privacy_level=body.privacy_level,
             brand_content_toggle=body.brand_content_toggle,
             brand_organic_toggle=body.brand_organic_toggle
         )
