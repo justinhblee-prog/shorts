@@ -1000,3 +1000,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Compute one shared chunk plan for both Direct Post initialization and the sequential PUT uploader. Near the boundary, reduce the base chunk so the final chunk stays within TikTok's documented 128 MiB cap.
 - Add a sparse-file regression test for a 64 MiB + 17 byte upload, checking two sequential Content-Range requests and exact byte counts.
 - CI passed at code commit d06d940 (320 tests).
+
+
+### BUILD-00035 — Exact recommendation exposure attribution (2026-11-15)
+
+- Return stable candidate IDs from each explicit recommendation snapshot, including deduplicated snapshots.
+- Carry the exact candidate ID through the brand selector, production-draft request, and skip-feedback request.
+- Link production outcomes and skip decisions only to the exact exposed candidate matching both trend and brand; generic trend drafts no longer get silently attributed to whichever matching recommendation happened to be newest.
+- Add tests for exact candidate linkage, stale/wrong trend or brand IDs, deduplicated snapshot IDs, API payload propagation, and frontend wiring.
+- CI validation pending.
