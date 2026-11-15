@@ -708,6 +708,22 @@ def review_history(job_id:str, x_review_token:str|None=Header(default=None)):
 
 
 @app.post("/api/production/jobs/{job_id}/stage-media")
+def require_canonical_staged_media(job_id:str,media_path:str):
+    """Accept only the current job's deterministic staging file, never an arbitrary media-root file."""
+    expected=media_stager.staged_path(job_id)
+    candidate=Path(media_path)
+    if not candidate.is_absolute():
+        candidate=media_stager.media_dir/candidate
+    try:
+        resolved=candidate.resolve(strict=True)
+        resolved.relative_to(media_stager.media_dir)
+    except (OSError,ValueError):
+        raise HTTPException(409,"Media must be staged for this production job before publishing")
+    if candidate.is_symlink() or not resolved.is_file() or resolved!=expected.resolve():
+        raise HTTPException(409,"Media path does not match this job's canonical staged artifact")
+    return str(resolved)
+
+
 def stage_production_media(job_id:str,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     production=production_store.get(job_id)
@@ -720,10 +736,8 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
     if video is None:
         raise HTTPException(409,"Rendered video artifact is not available")
     try:
-        existing=media_stager.staged_path(job_id)
-        if existing.is_file() and not existing.is_symlink():
-            return {"media_path":existing.name,"size_bytes":existing.stat().st_size,
-                    "already_staged":True}
+        # Always fetch the currently approved renderer artifact. Reusing a
+        # job-named file can silently upload stale bytes after a renderer revision.
         return media_stager.stage(job_id,video["artifact_url"])
     except MediaStagingError as e:
         raise HTTPException(502,str(e))
@@ -742,9 +756,10 @@ def cleanup_production_media(job_id:str,x_review_token:str|None=Header(default=N
 def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
                          x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
+    staged_path=require_canonical_staged_media(job_id,body.media_path)
     try:
         return youtube_publisher.upload_approved(
-            job_id,body.media_path,review_store,body.title,body.description,
+            job_id,staged_path,review_store,body.title,body.description,
             body.tags,body.category_id)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
@@ -872,9 +887,10 @@ def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
 def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
                          x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
+    staged_path=require_canonical_staged_media(job_id,body.media_path)
     try:
         return tiktok_publisher.publish_private_approved(
-            job_id,body.media_path,review_store,body.title,body.operator_id,
+            job_id,staged_path,review_store,body.title,body.operator_id,
             explicit_consent=body.explicit_consent,
             privacy_level=body.privacy_level,
             brand_content_toggle=body.brand_content_toggle,
