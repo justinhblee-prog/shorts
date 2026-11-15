@@ -309,6 +309,35 @@
     $("insightList").innerHTML=collectionPanel+evaluationPanel+snapshotPanel+'<h4>브랜드 성과</h4>'+(brands||'<div class="empty-state">업로드된 영상 데이터가 없습니다.</div>')+'<h4>지역별 성과</h4>'+(regions||'<div class="empty-state">지역별 데이터가 없습니다.</div>')+'<h4>비교 가능한 성과 코호트</h4>'+(cohorts||'<div class="empty-state">비교 조건을 만족하는 측정 표본이 아직 없습니다.</div>')+'<h4>성과 기반 다음 제작 실험 제안 (점수 자동 변경 없음)</h4>'+(cohortInsights||'<div class="empty-state">비교 가능한 표본이 부족합니다. 동일 조건의 측정 영상이 더 필요합니다.</div>')+'<h4>영상별 측정 상태</h4>'+(videos||'<div class="empty-state">영상 측정 데이터가 없습니다.</div>')+'<h4>실제 기록 금융 데이터 (통화별)</h4>'+(finance||'<div class="empty-state">기록된 금융 데이터가 없습니다.</div>')+'<div class="notice">'+(data.limitations||[]).map(esc).join(" · ")+'</div>';
   }
 
+  async function loadRecommendationExperiments(){
+    const data=await api("/api/recommendations/experiments?limit=20");
+    const items=data.items||[];
+    $("recommendationExperimentList").innerHTML=items.length?items.map(item=>
+      '<div class="data-item"><div class="recommendation-head"><b>'+esc(item.name)+'</b><strong>'+esc(item.status)+'</strong></div>'+
+      '<small>대조군 '+Number(item.control_count||0)+' · 처리군 '+Number(item.treatment_count||0)+' · Shadow 배정 '+Number(item.shadow_assignment_count||0)+'</small>'+
+      '<small>처리군 비율 '+(Number(item.allocation_basis_points||0)/100).toFixed(0)+'% · 실제 노출 0 · 인과 효과 미측정</small>'+
+      '<div class="field-row"><button type="button" class="button button-quiet button-small" data-experiment-shadow="'+esc(item.id)+'">샘플 Shadow 배정</button><button type="button" class="button button-secondary button-small" data-experiment-report="'+esc(item.id)+'">실험 보고서</button></div></div>'
+    ).join(""):'<div class="empty-state">등록된 실험 초안이 없습니다.</div>';
+  }
+
+  async function loadRecommendationExperimentReport(experimentId){
+    const report=await api("/api/recommendations/experiments/"+encodeURIComponent(experimentId)+"/report");
+    const counts=report.assignment_counts||{};
+    $("recommendationExperimentReport").innerHTML=
+      '<div class="data-item"><b>'+esc(report.name)+' · '+esc(report.status)+'</b>'+
+      '<small>Shadow 배정 — 대조군 '+Number(counts.control||0)+' · 처리군 '+Number(counts.treatment||0)+' · 합계 '+Number(report.shadow_assignment_count||0)+'</small>'+
+      '<small>실제 노출 '+Number(report.measured_exposure_count||0)+' · 성과 결과 '+Number(report.outcome_count||0)+' · 인과 효과 '+esc(report.causal_effect_status||"not_measured")+'</small>'+
+      '<small>효과 추정치 '+(report.effect_estimate===null||report.effect_estimate===undefined?"—":Number(report.effect_estimate).toFixed(4))+' · 신뢰구간 미산출 · 추천 점수 조정 '+Number(report.ranking_score_adjustment||0)+'</small>'+
+      '<div class="notice">'+(report.limitations||[]).map(esc).join(" · ")+'</div></div>';
+  }
+
+  function createShadowParticipantKey(){
+    if(!window.crypto||!window.crypto.getRandomValues)throw new Error("보안 난수 생성이 지원되는 HTTPS 또는 localhost 환경이 필요합니다.");
+    const bytes=new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes,value=>value.toString(16).padStart(2,"0")).join("");
+  }
+
   async function loadPreflight(){
     const [data,tiktok]=await Promise.all([
       api("/api/preflight"),api("/api/tiktok/oauth/status")
@@ -371,7 +400,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTrends(),loadTrendRecommendations(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadLifecycleQueue(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTrends(),loadTrendRecommendations(),loadSchedules(),loadInsights(),loadRecommendationExperiments(),loadOpportunities(),loadQueue(),loadLifecycleQueue(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -444,6 +473,40 @@
       await loadInsights();
     }catch(e){toast(e.message);}
     finally{button.disabled=false;}
+  });
+  $("loadRecommendationExperiments").addEventListener("click",()=>loadRecommendationExperiments().catch(e=>toast(e.message)));
+  $("recommendationExperimentForm").addEventListener("submit",async event=>{
+    event.preventDefault();
+    if(!requireToken())return;
+    const name=$("recommendationExperimentName").value.trim();
+    if(!name)return;
+    try{
+      const created=await api("/api/recommendations/experiments",{method:"POST",body:JSON.stringify({
+        name,operator_id:reviewer||"operator",control_label:"control",treatment_label:"treatment",
+        treatment_allocation_basis_points:Number($("recommendationExperimentAllocation").value)
+      })});
+      $("recommendationExperimentName").value="";
+      toast("Shadow 전용 실험 초안을 생성했습니다.");
+      await loadRecommendationExperiments();
+      await loadRecommendationExperimentReport(created.experiment_id);
+    }catch(error){toast(error.message);}
+  });
+  $("recommendationExperimentList").addEventListener("click",async event=>{
+    const shadow=event.target.closest("button[data-experiment-shadow]");
+    const report=event.target.closest("button[data-experiment-report]");
+    if(!shadow&&!report)return;
+    if(!requireToken())return;
+    const experimentId=(shadow||report).dataset.experimentShadow||(shadow||report).dataset.experimentReport;
+    try{
+      if(shadow){
+        const result=await api("/api/recommendations/experiments/"+encodeURIComponent(experimentId)+"/shadow-assignment",{
+          method:"POST",body:JSON.stringify({participant_key:createShadowParticipantKey()})
+        });
+        toast("샘플 배정 계산 완료 · "+result.arm+" (실제 노출 없음)");
+        await loadRecommendationExperiments();
+      }
+      await loadRecommendationExperimentReport(experimentId);
+    }catch(error){toast(error.message);}
   });
   $("loadPreflight").addEventListener("click",()=>loadPreflight().catch(e=>toast(e.message)));
   $("connectTikTok").addEventListener("click",async()=>{
