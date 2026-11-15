@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 
@@ -54,6 +54,10 @@ class YouTubeUploadStore:
               BEGIN SELECT RAISE(ABORT,'youtube upload audit events are immutable'); END;
             CREATE INDEX IF NOT EXISTS idx_youtube_snapshots_video
               ON youtube_video_snapshots(video_id,collected_at);
+            CREATE TABLE IF NOT EXISTS youtube_metrics_collector_lease(
+              id INTEGER PRIMARY KEY CHECK(id=1), owner_id TEXT NOT NULL,
+              lease_until REAL NOT NULL, updated_at TEXT NOT NULL
+            );
             """)
             upload_columns={r["name"] for r in c.execute("PRAGMA table_info(youtube_uploads)")}
             if "attempt_id" not in upload_columns:
@@ -315,6 +319,53 @@ class YouTubeUploadStore:
               (job_id,resolved_attempt_id,chosen,operator_id,note,row["status"],"uploaded",now))
         return self.get(job_id)
 
+    def due_metric_video_ids(self, limit=50, min_age_seconds=21600):
+        """Return uploaded video IDs with no recent counter snapshot, capped at 50."""
+        limit = max(1, min(int(limit), 50))
+        min_age_seconds = max(300, int(min_age_seconds))
+        cutoff = (datetime.now(timezone.utc) - timedelta(seconds=min_age_seconds)).isoformat()
+        with self.db() as c:
+            rows = c.execute("""
+                SELECT u.video_id, MAX(s.collected_at) AS last_collected_at
+                FROM youtube_uploads u
+                LEFT JOIN youtube_video_snapshots s ON s.video_id=u.video_id
+                WHERE u.status='uploaded' AND u.video_id IS NOT NULL
+                GROUP BY u.video_id
+                HAVING last_collected_at IS NULL OR last_collected_at < ?
+                ORDER BY COALESCE(last_collected_at,'') ASC, u.video_id ASC
+                LIMIT ?
+            """, (cutoff, limit)).fetchall()
+        return [row["video_id"] for row in rows]
+
+    def acquire_metrics_collector_lease(self, owner_id, lease_seconds=300):
+        """Acquire a database-backed singleton lease for the periodic metrics collector."""
+        owner_id = str(owner_id or "").strip()
+        if not owner_id or len(owner_id) > 200:
+            raise ValueError("A valid metrics collector owner ID is required")
+        now = datetime.now(timezone.utc).timestamp()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row = c.execute(
+                "SELECT owner_id,lease_until FROM youtube_metrics_collector_lease WHERE id=1"
+            ).fetchone()
+            if row and row["owner_id"] != owner_id and float(row["lease_until"]) > now:
+                return None
+            c.execute("""
+                INSERT INTO youtube_metrics_collector_lease(id,owner_id,lease_until,updated_at)
+                VALUES(1,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET owner_id=excluded.owner_id,
+                  lease_until=excluded.lease_until,updated_at=excluded.updated_at
+            """, (owner_id, now + max(30, int(lease_seconds)), _now()))
+        return owner_id
+
+    def release_metrics_collector_lease(self, owner_id):
+        with self.db() as c:
+            updated = c.execute(
+                "DELETE FROM youtube_metrics_collector_lease WHERE id=1 AND owner_id=?",
+                (owner_id,)
+            )
+            return updated.rowcount == 1
+
     def snapshot(self,video_id,stats):
         def count(key):
             value=stats.get(key)
@@ -480,6 +531,32 @@ class YouTubePublisher:
             heartbeat_stop.set()
             if heartbeat_thread is not None:
                 heartbeat_thread.join(timeout=2)
+
+    def refresh_due_metrics(self, limit=50, min_age_seconds=21600):
+        """Refresh due uploaded videos in one quota-efficient videos.list request."""
+        video_ids = self.store.due_metric_video_ids(limit, min_age_seconds)
+        if not video_ids:
+            return {"requested": 0, "collected": 0, "missing": [], "source": "YouTube Data API v3"}
+        service = self._service()
+        response = service.videos().list(
+            part="statistics,status", id=",".join(video_ids), maxResults=len(video_ids)
+        ).execute()
+        items = response.get("items", [])
+        collected = []
+        for item in items:
+            video_id = item.get("id")
+            if video_id in video_ids:
+                self.store.snapshot(video_id, item.get("statistics", {}))
+                collected.append(video_id)
+        missing = sorted(set(video_ids) - set(collected))
+        return {
+            "requested": len(video_ids), "collected": len(collected),
+            "missing": missing, "source": "YouTube Data API v3",
+            "privacy_statuses": {
+                item.get("id"): item.get("status", {}).get("privacyStatus")
+                for item in items if item.get("id") in collected
+            }
+        }
 
     def refresh_metrics(self,video_id):
         service=self._service()
