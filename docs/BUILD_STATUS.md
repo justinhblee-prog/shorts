@@ -40,7 +40,8 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
 | BUILD-00023 | Platform-specific AI disclosure evidence | YouTube realism classification and TikTok AIGC label evidence are persisted in policy reports; policy/UI regression tests included |
-| BUILD-00024 | TikTok private Direct Post | Authenticated private-only video init/upload/status API, creator consent, sponsorship declarations, immutable events and operator reconciliation; branch CI passed 260 tests |
+| BUILD-00024 | TikTok private Direct Post | Authenticated private-only video init/upload/status API, creator consent, sponsorship declarations, immutable events and operator reconciliation |
+| BUILD-00025 | TikTok OAuth lifecycle | State-validated web OAuth callback, encrypted rotating tokens, required scope checks, dashboard connect/status controls and OAuth error-schema tests; branch CI passed 271 tests |
 
 ## BUILD-00001 — durable queue and Worker Lease
 
@@ -84,10 +85,11 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 - Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.\n\n## Validation — current truth
 
-- Latest TikTok branch commit `b4123f5`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43690904131 completed successfully; `./scripts/validate.sh` ran **260 tests**, all passed.
-- The run includes the TikTok adapter, authenticated API routes, policy evidence, operator reconciliation, consent UI and existing regression suite.
+- Latest source-validation commit `5fa19fa`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43691474527 completed successfully; `./scripts/validate.sh` ran **271 tests**, all passed.
+- The run includes TikTok private Direct Post, state-validated OAuth, encrypted token persistence/refresh, current and legacy OAuth error parsing, required scope/redirect checks, dashboard controls and regression coverage.
+- A subsequent documentation-only commit is being rechecked separately.
 - PR #35 remains draft and is not merged to `main`.
-- No real TikTok OAuth token, approved `video.publish` scope, app audit, live channel upload or public post was performed.
+- No real TikTok developer credentials, user authorization, approved `video.publish` scope, app audit, live channel upload or public post was performed.
 - No production worker, PostgreSQL, external AI generation, live rendering or actual financial integration has been validated.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
 
@@ -96,7 +98,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 1. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
 2. **Media handoff:** current renderer output is a remote artifact URL, while platform upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
 3. **YouTube OAuth:** issue and configure a refresh token with `youtube.upload` and `youtube.readonly`; validate channel identity, quota, private upload and processing on a test channel.
-4. **TikTok OAuth and app audit:** implement OAuth authorization/refresh, encrypted per-user token storage, approved `video.publish` scope and the TikTok app audit. Until audited, the adapter stays `SELF_ONLY`.
+4. **TikTok production onboarding:** configure real client key/secret, exact registered HTTPS callback and Fernet key; complete creator authorization with approved `video.publish` scope; perform TikTok app audit. Current OAuth store supports one creator account per database; multi-tenant token isolation and revoke/disconnect remain pending. Until audited, the adapter stays `SELF_ONLY`.
 5. **Financial integrations:** connect YouTube Analytics, affiliate networks and sponsor billing to the source-backed ledger. Reconcile actual currency, refunds, taxes and platform adjustments.
 6. **Security/operations:** replace shared review token with real user identity and roles; add HTTPS, secret rotation, audit export, backups/restore, monitoring, rate limits and incident recovery.
 7. **Scale:** migrate SQLite to PostgreSQL and add distributed worker/scheduler coordination before multi-instance deployment.
