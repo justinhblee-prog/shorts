@@ -9,6 +9,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from policy_engine import POLICY_VERSION, POLICY_CHECKED_ON
+from approval_integrity import approval_snapshot_matches_current_artifacts, create_verified_media_snapshot
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -60,6 +61,13 @@ class YouTubeUploadStore:
               id INTEGER PRIMARY KEY CHECK(id=1), owner_id TEXT NOT NULL,
               lease_until REAL NOT NULL, updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS youtube_metrics_collection_state(
+              id INTEGER PRIMARY KEY CHECK(id=1), status TEXT NOT NULL,
+              last_attempt_at TEXT, last_success_at TEXT, last_error TEXT,
+              requested INTEGER NOT NULL DEFAULT 0, collected INTEGER NOT NULL DEFAULT 0,
+              missing INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
             """)
             upload_columns={r["name"] for r in c.execute("PRAGMA table_info(youtube_uploads)")}
             if "attempt_id" not in upload_columns:
@@ -103,6 +111,14 @@ class YouTubeUploadStore:
             if run is None or run["status"]!="approved" or latest is None or latest["decision"]!="approved":
                 raise YouTubeUploadError(
                     "The production job must remain approved by its latest human review decision"
+                )
+
+            snapshot_matches, snapshot_error = approval_snapshot_matches_current_artifacts(
+                c, job_id, latest["artifact_snapshot_json"]
+            )
+            if not snapshot_matches:
+                raise YouTubeUploadError(
+                    snapshot_error or "Production artifacts changed after approval; return to review"
                 )
 
             # A previous human approval cannot silently carry forward after
@@ -428,6 +444,81 @@ class YouTubeUploadStore:
             )
             return updated.rowcount == 1
 
+    def record_metrics_collection(self, status, requested=0, collected=0,
+                                   missing=0, error=None, source="YouTube Data API v3"):
+        """Persist collector health without converting provider errors into metric values."""
+        if status not in ("running", "succeeded", "failed"):
+            raise ValueError("Invalid metrics collection status")
+        now = _now()
+        with self.db() as c:
+            c.execute("""
+                INSERT INTO youtube_metrics_collection_state
+                  (id,status,last_attempt_at,last_success_at,last_error,requested,
+                   collected,missing,source,updated_at)
+                VALUES(1,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET
+                  status=excluded.status,
+                  last_attempt_at=excluded.last_attempt_at,
+                  last_success_at=CASE WHEN excluded.status='succeeded'
+                    THEN excluded.last_success_at
+                    ELSE youtube_metrics_collection_state.last_success_at END,
+                  last_error=CASE WHEN excluded.status='failed'
+                    THEN excluded.last_error
+                    WHEN excluded.status='succeeded' THEN NULL
+                    ELSE youtube_metrics_collection_state.last_error END,
+                  requested=excluded.requested,collected=excluded.collected,
+                  missing=excluded.missing,source=excluded.source,updated_at=excluded.updated_at
+            """, (status, now, now if status == "succeeded" else None,
+                  str(error)[:1000] if error else None, max(0, int(requested)),
+                  max(0, int(collected)), max(0, int(missing)), source, now))
+
+    def metrics_collection_status(self, freshness_seconds=43200):
+        """Return source-backed collection freshness and coverage for uploaded YouTube videos."""
+        cutoff = (datetime.now(timezone.utc) -
+                  timedelta(seconds=max(300, int(freshness_seconds)))).isoformat()
+        with self.db() as c:
+            state = c.execute(
+                "SELECT * FROM youtube_metrics_collection_state WHERE id=1"
+            ).fetchone()
+            totals = c.execute("""
+                SELECT COUNT(*) AS uploaded_videos,
+                  SUM(CASE WHEN latest_snapshot IS NOT NULL THEN 1 ELSE 0 END) AS measured_videos,
+                  SUM(CASE WHEN latest_snapshot IS NULL OR latest_snapshot < ? THEN 1 ELSE 0 END) AS stale_videos
+                FROM (
+                  SELECT u.video_id, MAX(s.collected_at) AS latest_snapshot
+                  FROM youtube_uploads u
+                  LEFT JOIN youtube_video_snapshots s ON s.video_id=u.video_id
+                  WHERE u.status='uploaded' AND u.video_id IS NOT NULL
+                  GROUP BY u.video_id
+                )
+            """, (cutoff,)).fetchone()
+        uploaded = int(totals["uploaded_videos"] or 0)
+        measured = int(totals["measured_videos"] or 0)
+        stale = int(totals["stale_videos"] or 0)
+        row = dict(state) if state else {}
+        return {
+            "platform": "youtube",
+            "provider": "YouTube Data API v3 videos.list",
+            "status": row.get("status", "not_started"),
+            "last_attempt_at": row.get("last_attempt_at"),
+            "last_success_at": row.get("last_success_at"),
+            "last_error": row.get("last_error"),
+            "last_batch": {
+                "requested": int(row.get("requested") or 0),
+                "collected": int(row.get("collected") or 0),
+                "missing": int(row.get("missing") or 0),
+            },
+            "coverage": {
+                "uploaded_videos": uploaded,
+                "with_snapshot": measured,
+                "without_snapshot": max(0, uploaded - measured),
+                "stale_snapshots": stale,
+                "freshness_window_seconds": max(300, int(freshness_seconds)),
+                "snapshot_coverage_ratio": round(measured / uploaded, 4) if uploaded else None,
+            },
+            "read_only": True,
+        }
+
     def snapshot(self,video_id,stats):
         def count(key):
             value=stats.get(key)
@@ -437,6 +528,28 @@ class YouTubeUploadStore:
               (video_id,view_count,like_count,comment_count,collected_at)
               VALUES(?,?,?,?,?)""",(video_id,count("viewCount"),count("likeCount"),
                                      count("commentCount"),_now()))
+
+    def list_recent(self, limit=100):
+        """Return bounded upload records with their immutable event histories."""
+        limit = max(1, min(int(limit), 200))
+        with self.db() as c:
+            rows = c.execute(
+                "SELECT job_id FROM youtube_uploads ORDER BY updated_at DESC, job_id LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [item for row in rows if (item := self.get(row["job_id"])) is not None]
+
+    def list_uploaded_video_ids(self, limit=10000):
+        limit = max(1, min(int(limit), 10000))
+        with self.db() as connection:
+            rows = connection.execute(
+                """SELECT job_id,video_id,uploaded_at,updated_at
+                   FROM youtube_uploads
+                   WHERE status='uploaded' AND video_id IS NOT NULL
+                   ORDER BY COALESCE(uploaded_at,updated_at),job_id LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def get(self,job_id):
         with self.db() as c:
@@ -524,10 +637,46 @@ class YouTubePublisher:
             raise YouTubeUploadError("Video description exceeds 5000 characters")
         if len(tags or [])>30 or any(not isinstance(tag,str) or len(tag)>500 for tag in (tags or [])):
             raise YouTubeUploadError("At most 30 valid tags are allowed")
+        # The policy preflight records an explicit YouTube A/S declaration.
+        # Never infer the platform disclosure from the generic "AI-generated" label.
+        with self.store.db() as connection:
+            policy_row=connection.execute(
+                """SELECT metadata_json FROM production_artifacts
+                   WHERE job_id=? AND stage='script' AND artifact_type='text'
+                   ORDER BY created_at DESC,id DESC LIMIT 1""",(job_id,)
+            ).fetchone()
+        if policy_row is None:
+            raise YouTubeUploadError("YouTube synthetic-media disclosure evidence is missing; return to review")
+        try:
+            policy_evidence=json.loads(policy_row["metadata_json"]).get("policy_preflight") or {}
+        except (TypeError, ValueError, AttributeError):
+            raise YouTubeUploadError("YouTube synthetic-media disclosure evidence is invalid; return to review")
+        contains_synthetic_media=policy_evidence.get("youtube_contains_synthetic_media")
+        if not isinstance(contains_synthetic_media,bool):
+            raise YouTubeUploadError(
+                "YouTube realistic altered/synthetic-media status is not explicitly classified; "
+                "return to policy review before upload"
+            )
         existing=self.store.get(job_id)
         if existing and existing["status"]=="uploaded":
             return existing
-        upload_attempt=self.store.begin(job_id,title,description)
+        try:
+            snapshot_path, snapshot_size = create_verified_media_snapshot(
+                resolved, history[-1].get("staged_media_sha256"),
+                history[-1].get("staged_media_size_bytes")
+            )
+        except (OSError, ValueError) as exc:
+            raise YouTubeUploadError(str(exc)) from exc
+        resolved = Path(snapshot_path)
+        size = snapshot_size
+        try:
+            upload_attempt=self.store.begin(job_id,title,description)
+        except Exception:
+            try:
+                os.unlink(snapshot_path)
+            except OSError:
+                pass
+            raise
         remote_request_started=False
         heartbeat_stop=threading.Event()
         heartbeat_thread=None
@@ -537,7 +686,8 @@ class YouTubePublisher:
             body={
                 "snippet":{"title":title,"description":description,
                            "tags":list(tags or []),"categoryId":str(category_id)},
-                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False}
+                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False,
+                          "containsSyntheticMedia":contains_synthetic_media}
             }
             request=service.videos().insert(
                 part="snippet,status",body=body,
@@ -593,6 +743,10 @@ class YouTubePublisher:
             heartbeat_stop.set()
             if heartbeat_thread is not None:
                 heartbeat_thread.join(timeout=2)
+            try:
+                os.unlink(snapshot_path)
+            except OSError:
+                pass
 
     def refresh_due_metrics(self, limit=50, min_age_seconds=21600):
         """Refresh due uploaded videos in one quota-efficient videos.list request."""

@@ -4,6 +4,24 @@ from app import app
 
 ROOT = Path(__file__).resolve().parents[2]
 class FrontendPortalTests(unittest.TestCase):
+    def test_recommendation_experiments_show_run_isolated_holdout_and_immutable_history(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        index_html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("/api/recommendations/evaluation/snapshots?limit=10", app_js)
+        self.assertIn("/api/recommendations/evaluation/snapshots", app_js)
+        self.assertIn("검증 결과 이력 저장", index_html)
+        self.assertIn("불변 검증 이력", app_js)
+        self.assertIn("노출 단위 학습", app_js)
+        self.assertIn("서로 다른 추천 노출 횟수 부족", app_js)
+        self.assertIn("점수 자동 조정은 비활성", app_js)
+
+    def test_insights_show_evidence_gated_cohort_experiments(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data.cohort_insights", app_js)
+        self.assertIn("성과 기반 다음 제작 실험 제안", app_js)
+        self.assertIn("점수 자동 변경 없음", app_js)
+        self.assertIn("비교 가능한 표본이 부족합니다", app_js)
+
     def test_dashboard_assets_are_packaged(self):
         frontend = ROOT / "frontend"
         self.assertTrue((frontend / "index.html").is_file())
@@ -59,6 +77,9 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("data-recommend-draft", app_js)
         self.assertIn("loadTrendRecommendations()", app_js)
         self.assertIn("data-recommend-brand", app_js)
+        self.assertIn("evaluation_candidate_id", app_js)
+        self.assertIn("recommendation_candidate_id", app_js)
+        self.assertIn("data-candidate-id", app_js)
         self.assertIn("EDITORIAL MATCH", html)
         self.assertIn("trendRecommendations", html)
         self.assertIn("수익성이나 조회수 예측 점수가 아닙니다", html)
@@ -84,9 +105,204 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('id="opportunityList"', html)
         self.assertIn("경쟁 조정", app_js)
 
+    def test_approved_workspace_exposes_private_tiktok_publish_and_status_controls(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/tiktok/creator-info", app_js)
+        self.assertIn("/api/tiktok/publish/", app_js)
+        self.assertIn("data-tiktok-publish-id", app_js)
+        self.assertIn("data-tiktok-refresh-id", app_js)
+        self.assertIn("explicit_consent:true", app_js)
+        self.assertIn("brand_content_toggle", app_js)
+        self.assertIn("brand_organic_toggle", app_js)
+        self.assertIn("commercial_relationship_disclosed", app_js)
+        self.assertIn("SELF_ONLY", app_js)
+
+    def test_recommendation_workspace_records_human_skip_feedback(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data-recommend-skip", app_js)
+        self.assertIn("/api/recommendations/feedback/skip", app_js)
+        self.assertIn("이번 후보 제외", app_js)
+        self.assertIn("reviewer_id:reviewer||\"operator\"", app_js)
+        self.assertIn("recommendation_candidate_id:candidateId", app_js)
+        self.assertIn("selectedOption?.dataset.candidateId", app_js)
+
+    def test_tiktok_oauth_connection_is_available_from_integration_readiness(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="connectTikTok"', html)
+        self.assertIn('id="disconnectTikTok"', html)
+        self.assertIn("/api/tiktok/oauth/disconnect", app_js)
+        self.assertIn("/api/tiktok/oauth/start", app_js)
+        self.assertIn("window.location.assign", app_js)
+        self.assertIn('get("tiktok_oauth")', app_js)
+        self.assertIn('tiktokOAuthResult==="connected"', app_js)
+        self.assertIn("/api/tiktok/oauth/status", app_js)
+
+    def test_approved_workspace_exposes_joined_lifecycle_trace(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data-lifecycle-id", app_js)
+        self.assertIn("/api/lifecycle/jobs/", app_js)
+        self.assertIn('/overview', app_js)
+        self.assertIn("overview.stages", app_js)
+        self.assertIn("전체 제작 단계 현황", app_js)
+        self.assertIn('/overview', app_js)
+        self.assertIn("overview.failure?.latest_failure", app_js)
+        self.assertIn("analysis.retry_recommendation", app_js)
+        self.assertIn("renderLifecycleTrace", app_js)
+        self.assertIn("data.timeline", app_js)
+        self.assertIn("통합 작업 이력", app_js)
+        self.assertIn("최근 통합 이벤트", app_js)
+
+    def test_lifecycle_trace_renders_cross_platform_timeline(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data.timeline", app_js)
+        self.assertIn("stageLabels", app_js)
+        self.assertIn("human_review", app_js)
+        self.assertIn("최대 20개", app_js)
+        self.assertIn("attempt_id", app_js)
+        self.assertIn("reference_id", app_js)
+
+    def test_approved_workspace_exposes_integrated_consistency_and_recovery_diagnostics(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("상태·복구 진단", app_js)
+        self.assertIn("renderLifecycleOperations", app_js)
+        self.assertIn('"/overview"', app_js)
+        self.assertIn("overview.consistency", app_js)
+        self.assertIn("overview.recovery", app_js)
+        self.assertIn("상태 일관성 진단", app_js)
+        self.assertIn("운영자 복구 절차", app_js)
+        self.assertIn("재처리 정책", app_js)
+        self.assertIn("필요 증거", app_js)
+        self.assertIn("map(esc)", app_js)
+
+    def test_global_lifecycle_risk_dashboard_is_integrated(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('"/api/lifecycle/queue?"', app_js)
+        self.assertIn('limit:"50"', app_js)
+        self.assertIn('offset:String(lifecycleOffset)', app_js)
+        self.assertIn("loadLifecycleQueue()", app_js)
+        self.assertIn("risk_counts", app_js)
+        self.assertIn("production_status_counts", app_js)
+        self.assertIn("lifecycleOffset", app_js)
+        self.assertIn("lifecycleStatusFilter", app_js)
+        self.assertIn("lifecycleNext", app_js)
+        self.assertIn("data-queue-lifecycle-id", app_js)
+        self.assertIn("/api/lifecycle/jobs/", app_js)
+        self.assertIn('id="globalLifecyclePanel"', html)
+        self.assertIn('id="loadLifecycleQueue"', html)
+        self.assertIn('id="lifecycleQueue"', html)
+        self.assertIn('id="lifecycleStatusFilter"', html)
+        self.assertIn('id="lifecyclePrev"', html)
+        self.assertIn('id="lifecycleNext"', html)
+        self.assertIn("읽기 전용 관제", app_js)
+        self.assertIn("/api/ops/health", app_js)
+        self.assertIn("운영 안전 진단", app_js)
+        self.assertIn("health.blockers", app_js)
+        self.assertIn("health.warnings", app_js)
+        self.assertIn("자동 복구·중지·재개를 실행하지 않습니다", html)
+        self.assertIn("/api/ops/recovery-plan", app_js)
+        self.assertIn("recovery.operator_checks", app_js)
+        self.assertIn('id="recoveryConfirmed"', html)
+        self.assertIn("recovery_confirmed", app_js)
+        self.assertIn("복구 체크리스트를 직접 확인", app_js)
+
+    def test_lifecycle_workspace_displays_observed_stage_performance(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("단계별 체류시간 분석", app_js)
+        self.assertIn("total_observed_seconds", app_js)
+        self.assertIn("state_durations", app_js)
+        self.assertIn("공급자 실행시간이나 렌더링 CPU 시간과 동일하지 않습니다", app_js)
+        self.assertIn('"/overview"', app_js)
+
+    def test_global_lifecycle_dashboard_displays_cohort_performance(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/performance/pipeline?limit=100&min_samples=5", app_js)
+        self.assertIn("전체 파이프라인 성능 통계", app_js)
+        self.assertIn("bottleneck_candidate", app_js)
+        self.assertIn("중앙값", app_js)
+        self.assertIn("P90", app_js)
+        self.assertIn("최근 최대 100개 작업", app_js)
+
+    def test_global_dashboard_shows_quality_and_recorded_economics(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/analytics/operations-economics?limit=500", app_js)
+        self.assertIn("제작 품질·검수·게시·기록 재무 분석", app_js)
+        self.assertIn("단계별 실패율", app_js)
+        self.assertIn("작업 연결 재무 기록", app_js)
+        self.assertIn("통화 환산·추정 매출은 포함하지 않으며", app_js)
+
+    def test_unified_publishing_dashboard_exposes_separate_platform_states_and_manual_recovery(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("/api/publishing/dashboard?limit=100", app_js)
+        self.assertIn("loadPublishingDashboard()", app_js)
+        self.assertIn("data-pub-refresh", app_js)
+        self.assertIn("data-pub-reconcile", app_js)
+        self.assertIn("/api/tiktok/publications/", app_js)
+        self.assertIn("/api/youtube/uploads/", app_js)
+        self.assertIn("confirmed:true", app_js)
+        self.assertIn("원격 플랫폼에서 결과를 직접 확인", app_js)
+        self.assertIn('id="publishingDashboardPanel"', html)
+        self.assertIn('id="publishingDashboardSummary"', html)
+        self.assertIn('id="publishingDashboardList"', html)
+        self.assertIn("읽기 전용", html)
+        self.assertIn("SELF_ONLY", app_js)
+
+    def test_performance_dashboard_displays_metrics_collection_freshness(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/metrics/collection-status", app_js)
+        self.assertIn("성과 데이터 수집 상태", app_js)
+        self.assertIn("오래된 스냅샷", app_js)
+        self.assertIn("video.list 권한으로 조회수·좋아요·댓글·공유 수를 수집합니다", app_js)
+        self.assertIn("리텐션·예상 수익은 제공하지 않습니다", app_js)
+        self.assertIn("/api/tiktok/metrics?limit=100", app_js)
+        self.assertIn("TikTok 영상 성과", app_js)
+        self.assertIn("/api/youtube/analytics-metrics?limit=100", app_js)
+        self.assertIn("YouTube 고급 분석", app_js)
+        self.assertIn("yt-analytics.readonly", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
             self.assertIn(section, html)
+
+    def test_shadow_experiment_workspace_is_integrated_without_live_traffic_controls(self):
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="recommendationExperimentForm"', html)
+        self.assertIn('id="recommendationExperimentList"', html)
+        self.assertIn('id="recommendationExperimentReport"', html)
+        self.assertIn("/api/recommendations/experiments?limit=20", app_js)
+        self.assertIn("/shadow-assignment", app_js)
+        self.assertIn("recommendation_served", app_js) if "recommendation_served" in app_js else self.assertIn("실제 노출 없음", app_js)
+        self.assertIn("createShadowParticipantKey", app_js)
+        self.assertIn("실제 노출 0", app_js)
+        self.assertIn("ranking_score_adjustment", app_js) if "ranking_score_adjustment" in app_js else self.assertIn("추천 점수 조정", app_js)
+
+
+    def test_experiment_integrity_audit_is_visible_in_control_workspace(self):
+        app_js = (ROOT / "frontend/app.js").read_text()
+        html = (ROOT / "frontend/index.html").read_text()
+        self.assertIn('id="loadRecommendationExperimentIntegrity"', html)
+        self.assertIn('id="recommendationExperimentIntegrity"', html)
+        self.assertIn("/api/recommendations/experiments/integrity", app_js)
+        self.assertIn("verified_randomized_served_exposure_count", app_js)
+        self.assertIn("assignment_exposure_join_available", app_js)
+        self.assertIn("ranking_score_adjustment", app_js)
+
+    def test_recommendation_cards_record_viewport_exposures_and_report_evidence(self):
+        html=(ROOT/"frontend"/"index.html").read_text(encoding="utf-8")
+        app_js=(ROOT/"frontend"/"app.js").read_text(encoding="utf-8")
+        self.assertIn('id="recommendationExposureSummary"',html)
+        self.assertIn("data-recommendation-exposure",app_js)
+        self.assertIn("IntersectionObserver",app_js)
+        self.assertIn("visibility_ms",app_js)
+        self.assertIn("/api/recommendations/exposures/rendered",app_js)
+        self.assertIn("/api/recommendations/exposures/",app_js)
+        self.assertIn("인과 효과 미측정",app_js)
+
+
 if __name__ == "__main__":
     unittest.main()

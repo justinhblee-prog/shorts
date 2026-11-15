@@ -3,13 +3,14 @@ from production_pipeline import ProductionStore
 from youtube_publishing import YouTubeUploadStore
 from review_workflow import ReviewStore
 from ledger import LedgerStore
-from performance_insights import PerformanceAnalyzer
+from performance_insights import PerformanceAnalyzer, _duration_bucket
+from youtube_analytics import YouTubeAnalyticsStore, NUMERIC_FIELDS
 from policy_engine import evaluate_content_policy
 
 class PerformanceTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.db=os.path.join(self.tmp.name,"x.db")
-  self.p=ProductionStore(self.db); self.review=ReviewStore(self.db); self.u=YouTubeUploadStore(self.db); self.l=LedgerStore(self.db)
+  self.p=ProductionStore(self.db); self.review=ReviewStore(self.db); self.u=YouTubeUploadStore(self.db); self.l=LedgerStore(self.db); self.analytics=YouTubeAnalyticsStore(self.db)
  def tearDown(self): self.tmp.cleanup()
  def video(self,job,brand,region,topic,video):
   self.p.create(job,{"brand":brand,"region":region,"language":"English","topic":topic})
@@ -27,11 +28,50 @@ class PerformanceTests(unittest.TestCase):
   self.l.record({"brand":brand,"region":"US","entry_type":kind,"amount":amount,
    "currency":currency,"source_type":"operator_receipt","source_reference":ref,
    "occurred_at":"2026-11-15T00:00:00+00:00"})
+ def test_duration_bucket_rejects_boolean_and_nonfinite_metadata(self):
+  self.assertEqual(_duration_bucket(True),"unknown")
+  self.assertEqual(_duration_bucket(False),"unknown")
+  self.assertEqual(_duration_bucket(float("nan")),"unknown")
+  self.assertEqual(_duration_bucket(float("inf")),"unknown")
+  self.assertEqual(_duration_bucket(-float("inf")),"unknown")
+  self.assertEqual(_duration_bucket(30),"20_40s")
+
  def test_insufficient_snapshots_not_misrepresented_as_growth(self):
   self.video("j1","Brain Glitch","US","Sleep","vid1")
   r=PerformanceAnalyzer(self.db).analyze()
   self.assertEqual(r["brands"][0]["measured_videos"],0)
   self.assertIn("insufficient_evidence",[x["type"] for x in r["brands"][0]["recommendations"]])
+ def test_analytics_watch_metrics_flow_into_comparable_cohort_without_score_change(self):
+  self.video("j1","Brain Glitch","US","Sleep","vid1")
+  self.video("j2","Brain Glitch","US","Sleep","vid2")
+  for video in ("vid1","vid2"):
+   self.u.snapshot(video,{"viewCount":"100","likeCount":"5","commentCount":"1"})
+   self.u.snapshot(video,{"viewCount":"180","likeCount":"9","commentCount":"2"})
+   with self.u.db() as connection:
+    connection.execute("UPDATE youtube_uploads SET uploaded_at=? WHERE video_id=?",
+                       ("2026-09-30T00:00:00+00:00",video))
+    rows=connection.execute("SELECT id FROM youtube_video_snapshots WHERE video_id=? ORDER BY id",
+                            (video,)).fetchall()
+    connection.execute("UPDATE youtube_video_snapshots SET collected_at=? WHERE id=?",
+                       ("2026-10-01T00:00:00+00:00",rows[0]["id"]))
+    connection.execute("UPDATE youtube_video_snapshots SET collected_at=? WHERE id=?",
+                       ("2026-10-02T00:00:00+00:00",rows[1]["id"]))
+  first={key:1 for key in NUMERIC_FIELDS}
+  first["averageViewPercentage"]=50.0
+  first["averageViewDuration"]=12.0
+  second={key:1 for key in NUMERIC_FIELDS}
+  second["averageViewPercentage"]=80.0
+  second["averageViewDuration"]=18.0
+  self.analytics.save_snapshot("vid1","2026-10-01","2026-10-28",first)
+  self.analytics.save_snapshot("vid2","2026-10-01","2026-10-28",second)
+  result=PerformanceAnalyzer(self.db).analyze()
+  cohort=result["cohorts"][0]
+  self.assertEqual(cohort["analytics_sample_count"],2)
+  self.assertEqual(cohort["median_average_view_percentage"],65.0)
+  self.assertEqual(cohort["median_average_view_duration_seconds"],15.0)
+  self.assertEqual(cohort["ranking_score_adjustment"],0)
+  self.assertEqual(result["cohort_insights"][0]["median_average_view_percentage"],65.0)
+  self.assertEqual(result["videos"][0]["average_view_percentage"],50.0)
  def test_snapshot_difference_and_recorded_finance(self):
   self.video("j1","Brain Glitch","US","Sleep","vid1")
   self.u.snapshot("vid1",{"viewCount":"100","likeCount":"5","commentCount":"1"})
@@ -132,6 +172,13 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(cohort["median_views_per_hour"],200.0)
   self.assertEqual(cohort["evidence_status"],"observed")
   self.assertEqual(cohort["ranking_score_adjustment"],0)
+  insight=next(x for x in result["cohort_insights"]
+   if x["brand"]=="Future Leak" and x["region"]=="US" and x["topic_signature"]=="ai explained robotics"
+   and x["duration_bucket"]=="20_40s")
+  self.assertEqual(insight["status"],"insufficient_comparable_cohorts")
+  self.assertEqual(insight["sample_count"],3)
+  self.assertEqual(insight["ranking_score_adjustment"],0)
+  self.assertIn("Keep collecting",insight["suggested_action"])
   other_brand=next(x for x in result["cohorts"] if x["brand"]=="Money Glitch")
   self.assertEqual(other_brand["sample_count"],1)
   self.assertEqual(cohort["brand"],"Future Leak")

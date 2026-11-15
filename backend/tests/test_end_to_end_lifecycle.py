@@ -122,11 +122,6 @@ class EndToEndLifecycleTests(unittest.TestCase):
         pending = self.review.list_pending()
         self.assertEqual([item["job_id"] for item in pending], [job_id])
 
-        decision = self.review.decide(job_id, "approved", "human-reviewer",
-                                      "Content and rights checked")
-        self.assertEqual(decision["production"]["status"], "approved")
-        self.assertEqual(len(self.review.history(job_id)), 1)
-
         mp4 = b"0000ftypisom" + b"mock-mp4-payload"
         stager = MediaStager(
             media_dir=str(self.media_dir),
@@ -140,7 +135,15 @@ class EndToEndLifecycleTests(unittest.TestCase):
         video_artifact = next(item for item in generated["artifacts"]
                               if item["artifact_type"] == "video")
         staged = stager.stage(job_id, video_artifact["artifact_url"])
-        self.assertTrue((self.media_dir / staged["media_path"]).is_file())
+        staged_path = self.media_dir / staged["media_path"]
+        self.assertTrue(staged_path.is_file())
+
+        decision = self.review.decide(
+            job_id, "approved", "human-reviewer", "Content and rights checked",
+            staged_media_path=staged_path,
+        )
+        self.assertEqual(decision["production"]["status"], "approved")
+        self.assertEqual(len(self.review.history(job_id)), 1)
 
         uploaded = self.publisher.upload_approved(
             job_id, staged["media_path"], self.review,

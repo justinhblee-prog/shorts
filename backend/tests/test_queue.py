@@ -8,6 +8,45 @@ class QueueTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.q=JobQueue(Path(self.tmp.name)/"test.db",10)
  def tearDown(self): self.tmp.cleanup()
+ def test_operational_health_reports_worker_staleness_without_mutation(self):
+  job=self.q.enqueue("render",{})
+  claimed=self.q.claim("worker-stale")
+  with self.q.db() as c:
+   c.execute("UPDATE worker_registry SET last_seen_at='2000-01-01T00:00:00+00:00' WHERE worker_id='worker-stale'")
+  before=self.q.get(job["id"])
+  result=self.q.operational_health()
+  after=self.q.get(job["id"])
+  self.assertEqual(result["status"],"attention_required")
+  self.assertEqual(result["workers"]["stale"],1)
+  self.assertEqual(result["leases"]["expired_running"],0)
+  self.assertEqual(before["status"],after["status"])
+  self.assertTrue(result["read_only"])
+  self.assertEqual(result["actions_taken"],[])
+
+ def test_operational_health_detects_expired_and_incomplete_running_leases(self):
+  first=self.q.enqueue("render",{})
+  self.q.claim("worker-expired")
+  second=self.q.enqueue("render",{})
+  self.q.claim("worker-incomplete")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(first["id"],))
+   c.execute("UPDATE pipeline_jobs SET worker_id=NULL,lease_token=NULL,lease_expires_at=NULL WHERE id=?",(second["id"],))
+  result=self.q.operational_health()
+  self.assertEqual(result["status"],"blocked")
+  self.assertEqual(result["leases"]["expired_running"],1)
+  self.assertEqual(result["leases"]["running_missing_ownership"],1)
+  self.assertEqual({x["code"] for x in result["blockers"]},
+                   {"worker_lease_expired","worker_lease_incomplete"})
+  self.assertEqual(self.q.get(first["id"])["status"],"running")
+
+ def test_operational_health_reports_operator_pause_as_blocker(self):
+  self.q.pause("manual safety stop")
+  result=self.q.operational_health()
+  self.assertEqual(result["status"],"blocked")
+  self.assertTrue(result["queue"]["paused"])
+  self.assertEqual(result["control"]["pause_reason"],"manual safety stop")
+  self.assertEqual(result["blockers"][0]["code"],"production_queue_paused")
+
  def test_idempotency(self):
   a=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
   b=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
@@ -100,6 +139,60 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(result["requeued"],0)
   self.assertEqual(self.q.get(job["id"])["status"],"failed_terminal")
   self.assertTrue(self.q.is_paused())
+ def test_lifecycle_summaries_batch_compact_state_without_artifacts(self):
+  job=self.q.enqueue("short_video_production",{"private_payload":"never return"})
+  with self.q.db() as c:
+   c.executescript("""
+    CREATE TABLE production_runs(job_id TEXT PRIMARY KEY,brand TEXT,region TEXT,
+      language TEXT,topic TEXT,status TEXT,current_stage TEXT,error TEXT,
+      created_at TEXT,updated_at TEXT);
+    CREATE TABLE review_decisions(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT,
+      decision TEXT,previous_status TEXT,reviewer_id TEXT,comment TEXT,
+      artifact_snapshot_json TEXT,created_at TEXT);
+    CREATE TABLE youtube_uploads(job_id TEXT PRIMARY KEY,video_id TEXT,status TEXT,
+      privacy_status TEXT,title TEXT,description TEXT,uploaded_at TEXT,error TEXT,
+      updated_at TEXT,attempt_id TEXT,policy_version TEXT,policy_checked_on TEXT);
+    CREATE TABLE youtube_upload_events(id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id TEXT,attempt_id TEXT,event_type TEXT,outcome TEXT,video_id TEXT,
+      operator_id TEXT,note TEXT,previous_status TEXT,resulting_status TEXT,
+      created_at TEXT,policy_version TEXT,policy_checked_on TEXT);
+    CREATE TABLE tiktok_publications(job_id TEXT PRIMARY KEY,publish_id TEXT,status TEXT,
+      privacy_level TEXT,title TEXT,is_aigc INTEGER,creator_username TEXT,
+      creator_nickname TEXT,video_id TEXT,fail_reason TEXT,error TEXT,
+      brand_content_toggle INTEGER,brand_organic_toggle INTEGER,operator_id TEXT,
+      consented_at TEXT,updated_at TEXT,attempt_id TEXT,policy_version TEXT);
+    CREATE TABLE tiktok_publication_events(id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id TEXT,attempt_id TEXT,event_type TEXT,outcome TEXT,publish_id TEXT,
+      video_id TEXT,operator_id TEXT,note TEXT,created_at TEXT,policy_version TEXT);
+   """)
+   c.execute("INSERT INTO production_runs VALUES(?,?,?,?,?,?,?,?,?,?)",
+     (job["id"],"NEXUS","KR","ko","AI trends","approved","review",None,"now","now"))
+   c.execute("INSERT INTO review_decisions(job_id,decision,previous_status,reviewer_id,comment,artifact_snapshot_json,created_at) VALUES(?,?,?,?,?,?,?)",
+     (job["id"],"approved","review_pending","reviewer","", "{}", "now"))
+   c.execute("INSERT INTO youtube_uploads VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+     (job["id"],"video-1","uploaded","private","title","desc","now",None,"now","attempt-yt","v1","now"))
+   c.execute("INSERT INTO youtube_upload_events(job_id,event_type,operator_id,created_at) VALUES(?,?,?,?)",
+     (job["id"],"upload_attempt_started","operator","now"))
+   c.execute("INSERT INTO tiktok_publication_events(job_id,event_type,operator_id,created_at) VALUES(?,?,?,?)",
+     (job["id"],"publication_attempt_started","operator","now"))
+   c.execute("INSERT INTO tiktok_publications VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+     (job["id"],"pub-1","processing","SELF_ONLY","title",1,None,None,None,None,None,0,0,"operator","now","now","attempt-tt","v1"))
+  result=self.q.lifecycle_summaries([job["id"],job["id"]])
+  self.assertEqual(set(result),{job["id"]})
+  summary=result[job["id"]]
+  self.assertEqual(summary["production_status"],"approved")
+  self.assertEqual(summary["latest_review_decision"],"approved")
+  self.assertEqual(summary["youtube_video_id"],"video-1")
+  self.assertEqual(summary["youtube_events"],[{"event_type":"upload_attempt_started"}])
+  self.assertEqual(summary["tiktok_status"],"processing")
+  self.assertEqual(summary["tiktok_events"],[{"event_type":"publication_attempt_started"}])
+  self.assertNotIn("payload",summary)
+  self.assertNotIn("lease_token",summary)
+
+ def test_lifecycle_summaries_reject_more_than_one_page(self):
+  with self.assertRaises(ValueError):
+   self.q.lifecycle_summaries([str(i) for i in range(101)])
+
  def test_operator_pause_and_resume_are_audited(self):
   self.q.pause("operator requested stop",actor="admin-7")
   events=self.q.worker_control_events()

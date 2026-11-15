@@ -93,14 +93,89 @@ class YouTubePublishingTests(unittest.TestCase):
             {"script": "Approved test script",
              "policy_preflight": evaluate_content_policy(policy_brief)},
         )
-        self.review.decide("job-1","approved","reviewer-1")
         os.environ["NEXUS_MEDIA_DIR"]=self.tmp.name
         self.media=os.path.join(self.tmp.name,"video.mp4")
         Path(self.media).write_bytes(b"fake-media-for-unit-test")
+        self.review.decide(
+            "job-1","approved","reviewer-1",staged_media_path=self.media
+        )
         self.service=FakeService()
         self.publisher=YouTubePublisher(self.uploads,self.service)
 
     def tearDown(self): self.tmp.cleanup()
+
+    
+    def test_realistic_alteration_requires_and_sets_youtube_disclosure(self):
+        policy_brief = {
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "synthetic_media_status": "realistic_alteration",
+            "platforms": ["youtube"],
+            "platform_disclosures": {"youtube_altered_content": True},
+            "youtube_contains_synthetic_media": True,
+            "factual_claims_verified": True,
+            "originality_notes": "Original scene composition.",
+        }
+        policy = evaluate_content_policy(policy_brief)
+        self.assertEqual(policy["status"], "ready_for_human_review")
+        self.assertTrue(policy["youtube_contains_synthetic_media"])
+        self.assertEqual(policy["approval_blockers"], [])
+        with self.prod.db() as connection:
+            row = connection.execute(
+                """SELECT metadata_json FROM production_artifacts
+                   WHERE job_id=? AND stage='script' AND artifact_type='text'""",
+                ("job-1",),
+            ).fetchone()
+            metadata = json.loads(row["metadata_json"])
+            metadata["policy_preflight"] = policy
+            connection.execute(
+                """UPDATE production_artifacts SET metadata_json=?
+                   WHERE job_id=? AND stage='script' AND artifact_type='text'""",
+                (json.dumps(metadata), "job-1"),
+            )
+        self.prod.stage("job-1", "rendered", "review_pending")
+        self.review.decide("job-1", "approved", "reviewer-1", staged_media_path=self.media)
+        self.publisher.upload_approved(
+            "job-1", self.media, self.review, "Realistic synthetic scene"
+        )
+        self.assertTrue(self.service._videos.body["status"]["containsSyntheticMedia"])
+
+    def test_ai_generated_youtube_requires_explicit_realism_classification(self):
+        brief = {
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "synthetic_media_status": "ai_generated",
+            "platforms": ["youtube"],
+            "platform_disclosures": {"youtube_altered_content": True},
+            "factual_claims_verified": True,
+            "originality_notes": "Original AI-generated animation.",
+        }
+        result = evaluate_content_policy(brief)
+        self.assertIn("youtube_contains_synthetic_media", result["approval_blockers"])
+        brief["youtube_contains_synthetic_media"] = False
+        result = evaluate_content_policy(brief)
+        self.assertNotIn("youtube_contains_synthetic_media", result["approval_blockers"])
+
+    def test_upload_fails_closed_when_youtube_disclosure_classification_is_missing(self):
+        with self.prod.db() as connection:
+            row = connection.execute(
+                """SELECT metadata_json FROM production_artifacts
+                   WHERE job_id=? AND stage='script' AND artifact_type='text'""",
+                ("job-1",),
+            ).fetchone()
+            metadata = json.loads(row["metadata_json"])
+            metadata["policy_preflight"].pop("youtube_contains_synthetic_media", None)
+            connection.execute(
+                """UPDATE production_artifacts SET metadata_json=?
+                   WHERE job_id=? AND stage='script' AND artifact_type='text'""",
+                (json.dumps(metadata), "job-1"),
+            )
+        with self.assertRaisesRegex(YouTubeUploadError, "not explicitly classified"):
+            self.publisher.upload_approved(
+                "job-1", self.media, self.review, "Unclassified short"
+            )
+        self.assertIsNone(self.uploads.get("job-1"))
+        self.assertFalse(hasattr(self.service._videos, "body"))
 
     def test_late_upload_completion_cannot_override_reconciled_not_uploaded(self):
         first_attempt=self.uploads.begin("job-1", "Title", "Description")
@@ -228,7 +303,7 @@ class YouTubePublishingTests(unittest.TestCase):
                 "UPDATE production_artifacts SET metadata_json=? WHERE id=?",
                 (json.dumps(metadata), row["id"]),
             )
-        with self.assertRaisesRegex(YouTubeUploadError, "rules changed"):
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
             self.uploads.begin("job-1", "Title", "Description")
         self.assertIsNone(self.uploads.get("job-1"))
 
@@ -245,7 +320,7 @@ class YouTubePublishingTests(unittest.TestCase):
                 "UPDATE review_decisions SET artifact_snapshot_json=? WHERE id=?",
                 (json.dumps(snapshot), row["id"]),
             )
-        with self.assertRaisesRegex(YouTubeUploadError, "rules changed"):
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
             self.uploads.begin("job-1", "Title", "Description")
         self.assertIsNone(self.uploads.get("job-1"))
 
@@ -263,7 +338,7 @@ class YouTubePublishingTests(unittest.TestCase):
                 "UPDATE production_artifacts SET metadata_json=? WHERE id=?",
                 (json.dumps(metadata), row["id"]),
             )
-        with self.assertRaisesRegex(YouTubeUploadError, "blocking requirements"):
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
             self.uploads.begin("job-1", "Title", "Description")
         self.assertIsNone(self.uploads.get("job-1"))
 
@@ -334,6 +409,15 @@ class YouTubePublishingTests(unittest.TestCase):
         self.uploads.snapshot("yt-recent",{"viewCount":"100"})
         self.assertEqual(self.uploads.due_metric_video_ids(limit=50,min_age_seconds=21600),[])
 
+    def test_upload_rejects_media_mutated_after_human_approval(self):
+        Path(self.media).write_bytes(b"mutated-after-approval")
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
+            self.publisher.upload_approved(
+                "job-1", self.media, self.review, "A useful short"
+            )
+        self.assertFalse(hasattr(self.service._videos, "body"))
+        self.assertIsNone(self.uploads.get("job-1"))
+
     def test_upload_is_always_private_and_persists_source_stats(self):
         result=self.publisher.upload_approved("job-1",self.media,self.review,
                                               "A useful short","Description")
@@ -349,6 +433,7 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(result["events"][-1]["attempt_id"],result["attempt_id"])
         self.assertEqual(result["events"][0]["event_type"],"upload_attempt_started")
         self.assertEqual(self.service._videos.body["status"]["privacyStatus"],"private")
+        self.assertFalse(self.service._videos.body["status"]["containsSyntheticMedia"])
         self.assertEqual(result["snapshots"][0]["view_count"],123)
 
     def test_stale_error_cannot_downgrade_confirmed_upload(self):

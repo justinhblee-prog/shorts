@@ -39,6 +39,10 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00010 | AI performance analysis and strategy updates | Source implementation expanded: brand/region/video evidence, measurement coverage, reset detection and currency-safe financial grouping; runtime validation pending |
 | BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
+| BUILD-00023 | Platform AI disclosure enforcement | YouTube API disclosure mapping implemented and branch CI passed; TikTok adapter isolated in PR #35; live platform authorization/publish validation pending |
+| BUILD-00024 | TikTok private Direct Post integration | Portal controls, creator-info, SELF_ONLY Direct Post, explicit consent, AIGC/commercial disclosures, chunk transfer, background status polling and immutable audit; 290 tests passed; live posting pending |
+| BUILD-00025 | TikTok OAuth lifecycle and account security | Web OAuth, browser-bound one-time state, Fernet token encryption, distributed refresh lease, refresh-token rotation, revocation, preflight and log redaction implemented; 293 tests passed; live app authorization pending |
+| BUILD-00026 | Recommendation ranking integrity | Publisher-time-only freshness, case-insensitive region/language eligibility, evidence-bounded scoring and ranking methodology documentation implemented; 293 tests passed |
 
 ## BUILD-00001 — durable queue and Worker Lease
 
@@ -80,27 +84,68 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - SQLite persistence and API: POST `/api/opportunities/score`; GET `/api/opportunities`.
 - Unit tests committed; runtime validation pending.
 
-- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.\n\n## Validation — current truth
+- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.
 
-- Code and tests are committed to the private repository main branch.
-- Latest observed GitHub Actions run before this documentation update: https://github.com/justinhblee-prog/shorts/actions/runs/43654662581
-- Latest inspected job metadata reported `runner_id=0`, empty runner name, and `steps=[]`; the job failed before checkout or dependency installation. This is an environment/runner initialization failure, not evidence of a Python test failure.
-- The suite has not passed or failed on code behavior; it has not executed in a real Python runtime.
-- No production worker, PostgreSQL, external AI generation, OAuth, rendering or YouTube publishing has been validated.
+## Validation — current truth
+
+- Baseline main commit `dc98712` reports a successful 245-test CI run.
+- YouTube disclosure branch `0c4b352`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685657932 passed **252 tests**.
+- TikTok AIGC mapping branch `6e80f7c`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43685373875 passed **248 tests**.
+- Integrated TikTok Direct Post, OAuth, portal and recommendation branch `da09da1`: GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43688223171 passed **293 tests**.
+- PR #36 remains draft and is not merged to main. It integrates the YouTube disclosure foundation from PR #34 and TikTok AIGC mapper from PR #35.
+- Tests use deterministic HTTP transports and temporary SQLite. No live TikTok developer-app authorization, account posting, production worker/database, external AI generation or renderer has been validated.
 - Do not claim real earnings, real monetization or a complete automated business cycle.
+
+## BUILD-00023 — platform AI-generated and synthetic-media disclosure
+
+- YouTube Data API v3 `videos.insert` supports `status.containsSyntheticMedia`; the upload adapter now sends this field alongside the existing private-only status.
+- Policy preflight preserves the explicit YouTube realism classification. For generic AI-generated content, the classification must resolve to a boolean; realistic alteration forces true and non-realistic classes force false.
+- The upload is blocked before the remote API call if the current script artifact lacks a valid disclosure classification.
+- TikTok Direct Post documents `is_aigc`; an isolated fail-closed mapping helper and tests are in PR #35. The TikTok publisher client is not yet implemented.
+- The platform policy matrix distinguishes YouTube's realistic A/S disclosure from TikTok's AI-generated label.
+- Human approval remains mandatory; YouTube uploads remain private. Public automatic publishing remains disabled.
+- CI evidence: YouTube branch 252 tests passed; TikTok adapter branch 248 tests passed.
+- Live channel authorization, OAuth, actual API upload and label verification remain pending.
+
+## BUILD-00024 — TikTok private Direct Post integration
+
+- Added creator-info query, private-only Direct Post initialization, signed media upload and status tracking.
+- TikTok Direct Post is fixed to `SELF_ONLY`; public publishing remains disabled.
+- Requires latest human approval, current policy snapshot, explicit per-post consent, correct `is_aigc` label, and explicit branded-content/own-business declarations.
+- Media uses HTTP PUT to the signed upload URL; OAuth bearer token is not forwarded to that host. Chunk sizing follows TikTok's floor-based count and final-chunk rules.
+- Approved review workspace exposes TikTok publish and status controls beside YouTube; status is also polled by the scheduler with bounded batches and backoff.
+- Immutable publication audit events and duplicate-attempt fencing protect uncertain remote outcomes.
+
+## BUILD-00025 — TikTok OAuth lifecycle and account security
+
+- Added Login Kit web OAuth authorization-code exchange and one-time ten-minute state.
+- Binds the OAuth state to a Secure, HttpOnly, SameSite=Lax browser cookie and hashes state in SQLite; callback access logs redact the authorization code and state.
+- Access and refresh tokens are encrypted at rest using a Fernet key from the environment; client secret remains server-side.
+- Access tokens refresh proactively. Rotated refresh tokens are replaced atomically under a SQLite distributed lease shared by API and scheduler processes.
+- Portal supports account connection, connection status and remote token revocation on disconnect. Static access-token fallback remains optional and must be removed separately to disconnect.
+- Preflight supports either connected OAuth or the static-token fallback. One TikTok creator account per installation is supported; multi-account/per-brand routing remains future work.
+- Live developer-app approval, production HTTPS callback, scope grant, account authorization and real publish remain pending.
+
+## BUILD-00026 — recommendation ranking integrity
+
+- Freshness uses only the source publisher's `published_at` timestamp. Collection time no longer makes an old item appear new; missing/invalid publisher time receives zero freshness and an explicit evidence gap.
+- Region and language eligibility matching is case-insensitive; language tags are matched by family (for example, `en-US` to `en`).
+- The editorial score remains explainable: freshness 40, brand fit 40, source provenance 10, topic distinctiveness 10.
+- Competitor views, historical performance and comparable cohorts remain context-only and do not change ranking until a held-out evaluation demonstrates value.
+- Added `docs/RECOMMENDATION_RANKING.md` with scoring formula, evidence boundaries, limitations and a future calibration protocol.
+- This is an editorial topic-prioritization heuristic, not a replica of YouTube/TikTok proprietary recommendation systems or a revenue forecast.
 
 ## Remaining blockers before a real revenue-producing launch
 
-1. **CI runner:** GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43656517188 failed before any step (`runner_id=0`, empty runner name, `steps=[]`). No Python test has executed. Resolve runner allocation or run `./scripts/validate.sh` in an authorized Python 3.11+ environment.
-2. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
-3. **Media handoff:** current renderer output is a remote artifact URL, while YouTube upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
+1. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
+2. **Media handoff:** current renderer output is a remote artifact URL, while YouTube upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
 4. **YouTube OAuth:** issue and configure a refresh token with `youtube.upload` and `youtube.readonly`; validate channel identity, quota, private upload and processing on a test channel.
 5. **Financial integrations:** connect YouTube Analytics, affiliate networks and sponsor billing to the source-backed ledger. Reconcile actual currency, refunds, taxes and platform adjustments.
 6. **Security/operations:** replace shared review token with real user identity and roles; add HTTPS, secret rotation, audit export, backups/restore, monitoring, rate limits and incident recovery.
 7. **Scale:** migrate SQLite to PostgreSQL and add distributed worker/scheduler coordination before multi-instance deployment.
 8. **Commercial validation:** test one controlled content cohort across the ten brands; compare verified net revenue and costs before increasing production volume. No actual revenue or monetization is established yet.
 
-All BUILD-00001 through BUILD-00012 source milestones have a committed baseline. This is **not** equivalent to a tested production system or a completed revenue-generating business. External credentials, real provider execution, YouTube channel authorization and actual financial data remain necessary.
+BUILD-00001 through BUILD-00023 describe implemented source milestones, but are not equivalent to a tested production system or a completed revenue-generating business. This is **not** equivalent to a tested production system or a completed revenue-generating business. External credentials, real provider execution, YouTube channel authorization and actual financial data remain necessary.
 
 ## Versioning
 
@@ -885,3 +930,540 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Stamp the same values into the immutable `upload_attempt_started` event so the audit trail preserves the exact local policy ruleset used.
 - Additive SQLite migrations extend existing upload and event tables without rewriting historical records; legacy rows retain null policy stamps.
 - CI validation pending on this branch.
+
+
+### BUILD-00027 — TikTok signed upload URL trust boundary (2026-11-15)
+
+- Restrict signed upload URLs to the two official hostnames shown in TikTok's media-transfer documentation: `open-upload.tiktokapis.com` and `upload.us.tiktokapis.com`.
+- Require HTTPS, default/implicit port 443, no embedded URL credentials, and no fragment; preserve the signed query string unchanged.
+- Disable HTTP redirects in the TikTok transport so staged video bytes cannot be forwarded to a redirect destination outside the allowlist.
+- Add regression coverage for documented hosts, unapproved subdomains, URL credentials, nonstandard ports, fragments, and redirect rejection.
+- Official reference: https://developers.tiktok.com/docs/en/content-posting-api-media-transfer-guide
+- CI passed for the implementation at commit d9e038f; no live TikTok upload has been performed.
+
+
+### BUILD-00028 — TikTok status-poll retry backoff (2026-11-15)
+
+- Add per-publication exponential backoff after consecutive Fetch Status errors: 60s, 120s, 240s and onward, capped at one hour.
+- A successful status refresh resets the consecutive failure count; the initial poll remains eligible on the normal scheduler interval.
+- Backoff state is derived from immutable publication audit events, avoiding a destructive schema migration.
+- Regression tests cover first and second failure thresholds, successful reset, and scheduler polling.
+- TikTok's current Fetch Status reference documents a 30 requests/minute per-user limit and the available terminal/intermediate statuses.
+- CI validation pending for the latest commit. No live TikTok account polling or posting has been performed.
+
+
+### BUILD-00029 — TikTok status monotonicity and response validation (2026-11-15)
+
+- Reject malformed nested data, status, and post-ID response shapes from Fetch Status instead of allowing attribute/type errors.
+- Prevent a slower, stale concurrent poll from downgrading a confirmed PUBLISH_COMPLETE or FAILED terminal result.
+- Add regression tests for terminal-state monotonicity and malformed nested status responses.
+- CI passed at commit d714fff; live TikTok API concurrency has not been exercised.
+
+
+### BUILD-00030 — TikTok creator-specific media duration gate (2026-11-15)
+
+- Query the creator's current max_video_post_duration_sec and inspect the staged media's actual duration with ffprobe before Direct Post initialization.
+- Reject missing/invalid creator duration limits, unavailable ffprobe, uninspectable media, and videos exceeding the creator-specific limit before the first remote publishing request.
+- Add a regression test proving an over-limit video is blocked before the init endpoint is called.
+- CI passed at commit c49afcf (312 tests); live creator account behavior remains unverified.
+
+
+### BUILD-00031 — TikTok explicit privacy selection (2026-11-15)
+
+- Require a non-default privacy choice in the publish API and validate it against the creator's fresh privacy_level_options.
+- The current unaudited-client policy only permits SELF_ONLY; public posting remains disabled.
+- The review UI displays the connected creator identity and available options, then asks the operator to explicitly enter SELF_ONLY before consent and upload.
+- Add regression coverage proving missing privacy selection is rejected before any remote request.
+- Current UX uses a constrained prompt rather than a native dropdown; improve to a dedicated selector before product audit.
+- CI passed at commit aad8f0e (314 tests).
+
+
+### BUILD-00032 — TikTok concurrent idempotency race (2026-11-15)
+
+- Close a time-of-check/time-of-use race where a second worker could read a non-terminal state, then observe a completed publication from the atomic BEGIN IMMEDIATE operation, but ignore that completed row and issue a second remote Direct Post initialization.
+- The publisher now returns the authoritative completed row from the atomic begin operation without making another TikTok request.
+- Add a regression test simulating the race and asserting that no network request is sent.
+- CI passed at code commit 4a9fef4 (315 tests).
+
+
+### BUILD-00033 — TikTok media-spec byte inspection (2026-11-15)
+
+- Extend ffprobe evidence with measured average frame rate and recognize WebM/Matroska containers, which TikTok officially supports alongside MP4/MOV.
+- Before Direct Post initialization, enforce TikTok's published video constraints: 23–60 FPS, 360–4096 pixels on each dimension, H.264/H.265/VP8/VP9, supported container matching the file type, 4GB file cap, and the lower of the creator limit or 10-minute developer-upload ceiling.
+- Add regression tests for unsupported frame rate, dimensions, codecs, WebM inspection, and measured frame rate.
+- CI passed at code commit f195aef (319 tests). These are local ffprobe-based checks; no live TikTok upload has been performed.
+
+
+### BUILD-00034 — TikTok 64 MiB upload boundary (2026-11-15)
+
+- Fix the boundary case where a file just above 64 MiB could be initialized with one 64 MiB chunk, despite TikTok requiring videos larger than 64 MiB to use multiple chunks.
+- Compute one shared chunk plan for both Direct Post initialization and the sequential PUT uploader. Near the boundary, reduce the base chunk so the final chunk stays within TikTok's documented 128 MiB cap.
+- Add a sparse-file regression test for a 64 MiB + 17 byte upload, checking two sequential Content-Range requests and exact byte counts.
+- CI passed at code commit d06d940 (320 tests).
+
+
+### BUILD-00035 — Exact recommendation exposure attribution (2026-11-15)
+
+- Return stable candidate IDs from each explicit recommendation snapshot, including deduplicated snapshots.
+- Carry the exact candidate ID through the brand selector, production-draft request, and skip-feedback request.
+- Link production outcomes and skip decisions only to the exact exposed candidate matching both trend and brand; generic trend drafts no longer get silently attributed to whichever matching recommendation happened to be newest.
+- Add tests for exact candidate linkage, stale/wrong trend or brand IDs, deduplicated snapshot IDs, API payload propagation, and frontend wiring.
+- CI passed at code commit 718f339 (322 tests).
+
+
+### BUILD-00036 — Recommendation metric input validation (2026-11-15)
+
+- Reject boolean, NaN, infinite, negative, missing and non-numeric views-per-hour observations before evaluation.
+- Ignore malformed performance rows and require a non-empty production job ID.
+- Make duplicate job outcome handling deterministic: the first valid observation for a job is retained rather than overwritten by payload order.
+- Add a regression test covering invalid values, malformed rows and duplicate outcomes.
+- CI passed at code commit f616dcc (323 tests).
+
+
+### BUILD-00037 — Verified-format analytics cohorts (2026-11-15)
+
+- Exclude requested-but-unverified output formats from within-exposure comparable-cohort validation. Requested 9:16 is not evidence that the rendered artifact actually passed dimension/format inspection.
+- Reject boolean, NaN and infinite render-duration metadata from duration cohort bucketing.
+- Add regression coverage for both invalid duration metadata and unverified requested-format exclusion.
+- CI passed at code commit 6742ceb (325 tests).
+
+
+### BUILD-00038 — TikTok inbox handoff state monotonicity (2026-11-15)
+
+- Treat `SEND_TO_USER_INBOX` as a terminal handoff state for this Direct Post attempt.
+- A slower concurrent status poll returning `PROCESSING_UPLOAD` can no longer downgrade an already-recorded inbox handoff.
+- Add a regression test for stale processing status after inbox handoff.
+- CI passed at code commit 5b9465a (326 tests).
+
+
+### BUILD-00039 — unified production lifecycle trace endpoint (2026-11-15)
+
+- Added authenticated `GET /api/lifecycle/jobs/{job_id}` to return one production job's durable queue record and events, production record and artifacts, complete human-review history/latest decision, and YouTube/TikTok publication records.
+- The endpoint rejects missing jobs and non-production queue jobs rather than returning a misleading partial lifecycle.
+- Publishing states remain platform-specific and are returned independently; a YouTube upload or TikTok inbox handoff is not collapsed into a generic "published" state.
+- Added API regression tests for joined lifecycle data and non-production job rejection.
+- GitHub Actions passed **328 tests** at code commit `e695a0a`; no live platform posting or external service validation is implied.
+
+
+### BUILD-00040 — approved-workspace lifecycle trace UI (2026-11-15)
+
+- Added a per-job `작업 전체 이력` control to approved content cards. It loads the authenticated lifecycle endpoint on demand rather than expanding every card with large event payloads.
+- Displays queue status, production status/current stage, latest human review decision, separate YouTube and TikTok states/IDs, and the latest eight queue events.
+- All dynamic values are escaped before insertion into the dashboard; API failures remain local to the selected card.
+- GitHub Actions passed **329 tests** at code commit `bdb230a`, including the lifecycle API and frontend wiring regressions.
+- This is an audit/visibility feature only. It does not alter approval, retry, publishing, privacy or recommendation-ranking behavior.
+
+
+### BUILD-00041 — unified cross-platform lifecycle timeline (2026-11-15)
+
+- Extended `GET /api/lifecycle/jobs/{job_id}` with one chronological `timeline` assembled from durable queue events, production artifact creation, immutable human-review decisions, YouTube upload audit events, and TikTok publication audit events.
+- Each timeline item identifies its stage, event, outcome, timestamp, attempt ID where available, and platform artifact reference where available. The source-specific records remain included for detailed inspection.
+- Approved-workspace trace now renders the latest 20 cross-system events, not only queue events; platform outcomes remain distinct (for example, TikTok `SEND_TO_USER_INBOX` is not mislabeled as published).
+- GitHub Actions passed **330 tests** at commit `670344a`.
+- One intermediate CI failure was caused by stale frontend assertions expecting the old queue-only label; assertions were updated to the unified timeline and the latest run is green.
+- Read-only audit visibility only: no automatic retry, publishing, approval, or recommendation-ranking behavior changed. No live platform integration was exercised.
+
+
+### BUILD-00042 — TikTok terminal-state race protection (2026-11-15)
+
+- Fixed a concurrent polling race: a slow TikTok status request that times out after another poll has already confirmed `PUBLISH_COMPLETE`, `FAILED`, or `SEND_TO_USER_INBOX` can no longer overwrite the terminal publication state with `reconciliation_required`.
+- Late errors after a terminal result are preserved as informational `post_terminal_poll_error` audit events; they do not alter the terminal record or its scheduler freshness timestamp.
+- The periodic status-poll error recorder now applies the same terminal-state guard and no longer labels a post-terminal error as a scheduled retry.
+- Added regressions for completed publication and inbox handoff, including late transport and scheduler poll errors.
+- GitHub Actions passed **331 tests** at code commit `6e44c4b`.
+- The earlier intermediate failing run exposed a test-fixture issue (multiple terminal outcomes attempted on one already-terminal job); the test was isolated per outcome and the final run passed.
+- No automatic republishing/retry was introduced; ambiguous non-terminal outcomes still require reconciliation.
+
+## BUILD-00042 — read-only cross-platform lifecycle consistency diagnostics
+
+- Added `GET /api/lifecycle/jobs/{job_id}/consistency`, protected by the existing review-access gate.
+- Compares durable queue and production handoff/terminal states, latest immutable human-review decision, and YouTube/TikTok publication audit evidence.
+- Reports structured blocker/warning findings for incomplete review handoffs, terminal-state drift, publication attempts without current approval, and unresolved platform outcomes.
+- Treats TikTok `send_to_inbox` as a distinct terminal handoff rather than claiming the video was published.
+- Diagnostics are strictly read-only: no remote polling, automatic retry, cancellation, or publication action is performed.
+- Added deterministic regression tests for consistent state, queue/production drift, approval mismatch, unresolved YouTube/TikTok attempts, inbox handoff semantics, and terminal cancellation drift.
+- Unit/CI validation pending for this commit. Live platform state reconciliation remains an operator task and real account behavior is not validated.
+
+## BUILD-00043 — operator-guided cross-platform recovery workflow
+
+- Added authenticated read-only `GET /api/lifecycle/jobs/{job_id}/recovery`.
+- Produces a deterministic operator checklist from queue, production, latest human-review decision, YouTube upload state, and TikTok publication state.
+- Ambiguous YouTube uploads route operators to explicit Studio verification and the existing reconciliation endpoint; preserved late successes route to the dedicated late-result resolution action.
+- Ambiguous TikTok attempts route operators to official status refresh and creator-account verification; inbox handoff is explicitly distinguished from published status.
+- Failed platform attempts require evidence that no remote post exists before a new attempt is considered.
+- No automatic retry, upload, publication, or remote mutation is performed by the recovery-plan endpoint.
+- Added regression tests for ambiguous YouTube outcomes, late success, TikTok inbox handoff, missing current approval, and retry prohibition.
+- Automated GitHub Actions passed **373 tests** at code commit `be7a469` (run `43699286605`). Live YouTube/TikTok account recovery remains unverified and requires an authorized operator.
+
+
+### BUILD-00043 — lifecycle consistency false-positive correction (2026-11-15)
+
+- Corrected the consistency diagnostic so a queue job in `review_pending` is also considered valid after the human review decision moves the production record to `approved`, `rejected`, or `revision_requested`. The queue intentionally remains at the review handoff state; it is not advanced by the review decision.
+- Added regressions proving approved and rejected post-handoff records do not produce false warnings.
+- Added API-level coverage for authenticated consistency-report behavior and rejection of non-production queue jobs.
+- GitHub Actions passed **341 tests** at code commit `75d9e3a`.
+- Diagnostics remain read-only and never retry, cancel, poll, or publish. Live external platform reconciliation remains outside automated validation.
+
+## BUILD-00044 — approved-workspace lifecycle recovery integration
+
+- Extended each approved production card's on-demand lifecycle panel to fetch the lifecycle trace, consistency report, and operator recovery plan together.
+- Replaced the history-only action label with `상태·복구 진단`; the expanded panel now displays queue/production/review/platform timeline, blocker/warning findings, operator recovery steps, required evidence, referenced endpoint/method, and the no-automatic-retry policy.
+- All server-provided values are HTML-escaped before rendering. The diagnostics remain read-only and do not execute any remote action.
+- Added frontend regression coverage for the integrated API calls, combined rendering, operator evidence and retry-policy display.
+- GitHub Actions passed **372 tests** at commit `9b23353` (run `43698909193`). The workspace currently exposes per-job diagnostics on approved production cards; it does not claim a complete all-queue global risk dashboard.
+
+
+### BUILD-00044 — lifecycle blocker classification and identifier integrity (2026-11-15)
+
+- Corrected lifecycle consistency severity aggregation: any `blocker` finding now produces top-level `status=blocked`, rather than the ambiguous `attention_required`.
+- Added durable queue lease checks for running jobs missing worker/token/expiry fields and non-running jobs retaining stale lease ownership.
+- Added publication integrity blockers when YouTube is marked uploaded without a video ID, TikTok is marked publish-complete without a video ID, or an active/ambiguous platform attempt lacks its attempt identifier.
+- Added a review-state blocker when production is marked approved but the latest immutable human-review decision is not approved.
+- Added regression coverage for blocker aggregation, missing identifiers, incomplete queue leases, and approval-history mismatch.
+- GitHub Actions passed **351 tests** at code commit `9cf4367`.
+- All diagnostics remain read-only; remote platform verification and any new upload remain explicit operator actions.
+
+### BUILD-00045 — global production queue risk dashboard
+
+- Added an authenticated, read-only `GET /api/lifecycle/queue` endpoint for the short-video production queue, with bounded pagination (maximum 100), optional validated status filtering, queue-state counts, and per-page consistency risk counts.
+- Added a metadata-only queue listing method; response rows intentionally omit job payloads, lease tokens, worker identifiers, and other execution secrets.
+- Each listed job is checked against its production record, latest human-review decision, and platform publication evidence. Missing production records are surfaced as blockers rather than silently omitted.
+- Integrated a global production operations panel into the single-page control center, with status/risk summaries, key findings, and on-demand links to the existing detailed lifecycle and recovery diagnostics.
+- The dashboard performs no automatic retry, remote platform polling, approval, or publishing. Platform outcomes remain distinct; TikTok inbox handoff is not described as published.
+- Added API coverage for auth gating, pagination/filter forwarding, missing-record blockers, and invalid status filters, plus frontend wiring regression coverage.
+- GitHub Actions passed **355 tests** at commit `522d5ae` (run `43697465404`). Coverage includes API access protection, bounded pagination/status filtering, missing-production blockers, production-state aggregation, and frontend wiring.
+- The dashboard defaults to 50 records per page and provides status filtering plus previous/next navigation. Queue counts cover the filtered queue; lifecycle risk counts are scoped to the displayed page.
+- No live provider or platform integration is implied.
+
+- Follow-up hardening: the response now reports queue-state and production-lifecycle-state counts separately; the control center includes a queue-status filter and 50-row previous/next pagination. Per-page risk counts remain explicitly scoped to the displayed page.
+
+### BUILD-00046 — batched lifecycle snapshot and queue dashboard query optimization
+
+- Replaced per-job production/review/YouTube/TikTok store lookups in the global queue dashboard with one bounded SQLite snapshot query for the displayed page.
+- The batch query returns only the compact fields required for consistency evaluation: production status/stage/brand/topic, latest review decision, platform status/attempt/video identifiers, and existence of the specific publication-attempt audit events.
+- Avoids loading production artifact metadata, full review histories, platform event bodies, YouTube metric snapshots, payloads, worker identifiers, and lease tokens for dashboard rows.
+- Preserves the existing lifecycle consistency rules, including unresolved provider outcomes, current-approval checks, missing attempt IDs, and missing confirmed video IDs.
+- Added queue-store tests for duplicate IDs, bounded input, compact result shape, latest review state, and publication-attempt evidence; updated API tests to assert the dashboard consumes the batch snapshot.
+- GitHub Actions passed **357 tests** at commit `676a18b` (run `43697822438`). The first run exposed a missing TikTok audit-event fixture in the new unit test; the fixture was corrected and the complete suite then passed.
+- The optimization is local database-only and does not contact YouTube or TikTok.
+
+### BUILD-00047 — operational worker and queue safety diagnostics
+
+- Added authenticated `GET /api/ops/health` returning a read-only operational snapshot: queue status counts and pause state, worker heartbeat freshness, expired running leases, and incomplete lease ownership.
+- Severity rules: an explicitly paused queue, expired running lease, or incomplete running lease is a blocker; stale worker heartbeats and retryable failures are warnings.
+- Snapshot includes the check timestamp, stale-heartbeat threshold, explicit `read_only` marker, and empty `actions_taken`; it does not mutate jobs, pause/resume workers, requeue work, or contact external providers.
+- Control center now displays blocker/warning signals alongside existing queue controls and audit history. Operators retain explicit, audited pause/resume authority.
+- Added tests for stale workers, expired and incomplete leases, paused state, non-mutating diagnostics, and authenticated API access; frontend regression assertions cover visibility and read-only messaging.
+- GitHub Actions passed **361 tests** at commit `4981053` (run `43698181905`).
+- Diagnostics are limited to data persisted in the local queue database; they do not prove external worker process or provider availability.
+
+### BUILD-00048 — operator recovery checklist and guarded queue resume
+
+- Added authenticated `GET /api/ops/recovery-plan`, combining current read-only queue/worker/lease diagnostics with a deterministic recovery checklist.
+- Checklist explicitly calls for external provider outcome and duplicate-work reconciliation, output artifact integrity and billing review, latest human approval and platform policy evidence, and worker process/log/heartbeat review.
+- Queue resume now requires an explicit `recovery_confirmed` attestation and is rejected while operational blockers remain. A paused queue cannot be resumed merely by supplying a free-text note.
+- Integrated the checklist into the control center with an explicit operator checkbox and confirmation dialog. Pause remains independently available and audited.
+- The checklist is guidance/attestation, not automated proof that external provider, billing, artifact, or policy evidence was actually inspected. No automatic recovery, retry, or publishing is performed.
+- CI validation passed: **372 tests** at commit `9b23353` (run `43698909193`).
+
+### BUILD-00049 — deterministic failure classification and operator diagnostics
+
+- Added a conservative failure classifier for provider ambiguity, worker lease/ownership, policy/compliance blocks, pipeline/artifact defects, throttling, and unknown error codes.
+- Classification includes severity, rationale, evidence-based operator actions, and retry recommendation. Queue retryable flags are exposed as evidence only and never grant retry authorization.
+- Added authenticated read-only `GET /api/jobs/{job_id}/failure-analysis`, returning the latest persisted failure event and classification without changing queue or production state.
+- Integrated failure category, severity, rationale, recommended operator action, and retry disposition into each job's lifecycle diagnostics in the control center.
+- Added deterministic classifier, API authorization/response, and frontend regression tests.
+- Unknown and ambiguous failures fail closed; automatic retry, replay, cancellation, or publishing is not performed.
+- CI validation passed: **372 tests** at commit `9b23353` (run `43698909193`).
+
+### BUILD-00050 — unified production lifecycle overview
+
+- Added authenticated read-only `GET /api/lifecycle/jobs/{job_id}/overview`, consolidating queue, production, human review, YouTube, TikTok, consistency, recovery, and failure-analysis records.
+- Added a normalized five-stage status summary (queue → production → human review → YouTube → TikTok) with current stage, cross-system consistency, and latest failure category.
+- Consolidated the control-center job detail from four separate requests into one overview request and added a compact end-to-end stage panel.
+- Added API coverage for stage ordering, platform handoff state, and read-only guarantees; added frontend integration assertions.
+- The overview does not refresh remote provider state, retry work, or publish content. TikTok inbox handoff is still not represented as public publication.
+- GitHub Actions passed **391 tests** at code commit `94e8ef1` (run `43700449940`).
+
+## BUILD-00049 / BUILD-00050 — validation evidence correction
+
+- The branch-head GitHub Actions run `43699350193` completed successfully and executed `scripts/validate.sh`; its log reports **373 tests passed**.
+- This run validates the integrated branch head containing BUILD-00049 and BUILD-00050, not 372 or 373 tests separately for each milestone.
+- External AI providers, real media rendering, production workers, platform OAuth/account posting, and monetization remain unverified.
+
+## BUILD-00051 — per-job stage dwell-time diagnostics
+
+- Added `backend/stage_performance.py` to derive per-state dwell durations from durable queue transition events and job timestamps.
+- Added authenticated read-only `GET /api/jobs/{jid}/stage-performance`; unified lifecycle overview now includes the same `performance` snapshot.
+- Approved-workspace lifecycle diagnostics display observed state durations and the longest observed queue state.
+- Metrics explicitly describe queue-state dwell time, not provider execution time, rendering CPU time, or platform latency. They do not claim statistically significant throughput percentiles from a single job.
+- Invalid/out-of-order event timestamps are surfaced as data-quality warnings. No queue, worker, provider, retry, or publishing state is mutated.
+- Added unit/API/frontend regression coverage. GitHub Actions passed **379 tests** at commit `b942371` (run `43699702448`).
+
+## BUILD-00052 — cohort pipeline performance statistics
+
+- Added `backend/pipeline_performance.py` to aggregate durable queue-state dwell observations across a bounded cohort of up to 100 recent short-video jobs.
+- Reports per-state sample counts, mean, median, P90 and maximum only when the configured minimum sample threshold is met (default 5); otherwise statistical values are withheld.
+- A bottleneck candidate is identified only among stages with sufficient observations, using median dwell time. This is a diagnostic candidate, not a causal prediction.
+- Added authenticated read-only `GET /api/performance/pipeline` with bounded cohort and minimum-sample parameters.
+- Integrated cohort metrics into the global operations dashboard, including sample sufficiency and measurement limitations.
+- Queue state dwell time is not provider execution, render CPU, or remote API latency. The cohort is limited to the latest bounded jobs and is not a lifetime census.
+- No queue, worker, provider, retry, approval, OAuth, or publishing state is mutated. GitHub Actions passed **385 tests** at code commit `96d78a4` (run `43700040116`).
+
+## BUILD-00053 — production quality and recorded-economics analytics
+
+- Added `backend/operational_economics.py`, using a bounded recent cohort of up to 500 short-video jobs and a SQLite read-only connection.
+- Aggregates brand-level terminal failure rate, review approval rate, persisted YouTube/TikTok publication states, stage-level failure rates, and queue error codes.
+- Joins financial ledger entries only when they carry a matching `job_id`; reports recorded revenue, costs, net and ROI separately by ISO currency without currency conversion.
+- Cost/revenue Pearson correlation is exploratory only and suppressed below five job-level observations or when either variable has zero variance.
+- Added authenticated read-only `GET /api/analytics/operations-economics` and integrated the report into the global operations dashboard.
+- No inferred revenue, estimated views/RPM, external metrics refresh, worker mutation, retry, approval, or publication action is performed.
+- Publication counters reflect persisted platform statuses, not independently verified public reach. Brand-only ledger entries are excluded from per-job economics.
+- GitHub Actions passed **392 tests** at code commit `c3e1298` (run `43700923864`).
+
+## BUILD-00054 — evidence-gated content performance experiments
+
+- Extended `PerformanceAnalyzer` with descriptive `cohort_insights` comparing only cohorts that share brand, region, publication-age bucket, duration bucket and render format.
+- Each cohort must contain at least three measured videos before it can participate in a comparative suggestion; a comparison requires at least two eligible cohorts.
+- Suggestions are limited to controlled follow-up experiments or review candidates; sparse cohorts explicitly request more observations.
+- Added cohort comparison count, baseline median views/hour, evidence status and suggested next action to the existing authenticated `GET /api/performance/insights` response.
+- Integrated evidence-gated experiment suggestions into the performance insights dashboard.
+- Every suggestion reports `ranking_score_adjustment=0`; no algorithmic ranking score, candidate order, publishing behavior, or automated production action is changed.
+- Existing holdout evaluation remains the gate for future ranking changes. Audience retention and swipe-away metrics are not inferred from YouTube Data API counters.
+- Regression coverage added for sparse cohort handling and dashboard rendering.
+- CI validation pending.
+
+
+
+## BUILD-00055 — metrics collection freshness, coverage and recommendation evidence boundaries
+
+- Audited the existing periodic YouTube metrics collector and confirmed it is packaged as a separate Docker Compose service. It polls due uploaded videos in batches of up to 50 using one YouTube Data API v3 `videos.list` request per batch and uses a SQLite singleton lease to prevent overlapping collectors.
+- Added durable collection-run state: running/succeeded/failed, last attempt, last successful collection, sanitized error class, and requested/collected/missing counts. A failed attempt preserves the previous successful timestamp.
+- Added authenticated read-only `GET /api/metrics/collection-status` with per-platform availability, last attempt/success timestamps, latest batch counts, uploaded-video snapshot coverage and stale-snapshot counts.
+- Integrated collection freshness and coverage into the performance dashboard.
+- At BUILD-00055, YouTube Data API collection was limited to view, like and comment counters; TikTok analytics was not yet implemented. These historical limitations were superseded by BUILD-00071/00072 (TikTok views/likes/comments/shares) and BUILD-00074 (YouTube Analytics watch-time/average view metrics). Detailed retention curves, swipe-away rate and revenue remain unreported.
+- Recommendation scores remain unchanged; `ranking_score_adjustment=0` and holdout evidence remains the gate for future calibration.
+- Regression tests cover persisted success/failure state, preservation of last success, coverage/freshness, collector lease skip/release paths, API authorization and dashboard display.
+- GitHub Actions run [43701730561](https://github.com/justinhblee-prog/shorts/actions/runs/43701730561) passed **400 tests** at code commit `7fd7c5b`.
+- This validates deterministic tests and the collection-state implementation only. Real YouTube OAuth credentials, API quota, live account collection and TikTok analytics access remain unverified.
+- No ranking score, production, approval, queue, retry or publishing behavior is mutated.
+
+
+## BUILD-00056 — run-isolated recommendation holdout and immutable experiment history
+
+- Corrected the primary chronological holdout split so an entire recommendation exposure run is assigned to either pre-holdout or holdout; candidates from one captured ranking response can no longer leak across both sets.
+- Require at least five distinct measured exposure runs before the primary holdout is reported. Insufficient run coverage is explicit and does not silently fall back to a candidate-level split.
+- Report pre-holdout versus holdout score/rank Spearman associations, run counts, observation counts, time boundaries, and association-direction stability. These remain observational diagnostics over selected-and-produced recommendations, not causal estimates.
+- Added a stable SHA-256 input fingerprint over selected/measured coverage, measured outcomes and operator selection/skip feedback.
+- Added explicit operator-triggered, authenticated `POST /api/recommendations/evaluation/snapshots` and bounded read-only `GET /api/recommendations/evaluation/snapshots`.
+- Evaluation snapshots are append-only in SQLite, protected by update/delete rejection triggers, and deduplicated by evaluation version plus input fingerprint. Repeated capture of unchanged inputs returns the existing record.
+- Added dashboard action to capture an immutable evaluation record and display its timestamp, coverage, holdout exposure count, score association and input fingerprint.
+- Regression tests cover whole-run split isolation, minimum exposure-run coverage, input deduplication, immutable history, history bounds, API authorization and dashboard rendering.
+- GitHub Actions run [43702654358](https://github.com/justinhblee-prog/shorts/actions/runs/43702654358) passed **405 tests** at code commit `972395a`; the same result was revalidated after deterministic ordering of same-timestamp exposure runs.
+- No randomized exposure assignment, counterfactual measurement, causal lift estimate, or automatic score adjustment is enabled. Existing selected-only outcome capture remains selection-biased; actual platform reach is not independently verified.
+- Ranking score adjustment remains disabled; no queue, production, approval, retry or publishing behavior changes.
+
+
+## BUILD-00057 — controlled recommendation experiment foundation (shadow-only)
+- Added operator-authenticated experiment definitions with explicit control/treatment labels and bounded treatment allocation (10–90%).
+- Added stable, salted participant assignment using a one-way participant fingerprint; raw participant keys are not persisted. Assignment records are immutable and idempotent per experiment/participant.
+- Added authenticated experiment list, shadow-assignment and report endpoints. Reports separate shadow assignment counts from measured exposures and leave effect estimates/confidence intervals unset.
+- Safety boundary: experiments remain draft; assignment is shadow-only and does not serve a different recommendation, alter production ranking, or change publishing. Live traffic allocation is not implemented or enabled. Ranking score adjustment remains zero.
+- Added unit/API regression coverage for allocation validation, deterministic assignment, idempotency, participant-key minimization, report limitations and route authentication.
+- CI validation pending. Shadow assignments are infrastructure checks, not actual randomized exposure or causal evidence.
+
+
+### BUILD-00057 validation evidence (final)
+- Final implementation commit: `c612771601123f8215589f5b921f882ef0bd6ffb`.
+- GitHub Actions run [43703549995](https://github.com/justinhblee-prog/shorts/actions/runs/43703549995) passed **411 tests**; `scripts/validate.sh` completed successfully, including Python compileall, YAML validation, frontend syntax/ID checks and unittest discovery.
+- Added per-experiment HMAC participant fingerprinting after review to prevent cross-experiment participant correlation; the final CI run includes the regression test.
+- This confirms repository CI only. No production traffic was randomized and no actual platform outcome was measured.
+
+
+## BUILD-00058 — shadow experiment operator workspace
+- Added a dedicated controlled-experiment panel to the single-page operations workspace.
+- Operators can create draft experiments, inspect control/treatment shadow counts, generate an opaque random sample assignment, and view the experiment report.
+- The browser creates a short-lived random sample key; it does not ask for a real customer identifier. The backend stores only an experiment-scoped HMAC fingerprint.
+- The workspace explicitly shows zero real exposures, no measured outcomes, no causal estimate, and zero ranking-score adjustment. No live variant delivery or production behavior is enabled.
+- Added frontend integration regression coverage. GitHub Actions run [43703819165](https://github.com/justinhblee-prog/shorts/actions/runs/43703819165) passed **412 tests** at branch head; frontend ID validation, JavaScript syntax check, Python compileall, YAML validation and full unittest discovery succeeded.
+
+
+## BUILD-00059 — verified viewport exposure evidence
+- Added append-only rendered-exposure events linked to an existing captured recommendation run and trend card. Events are accepted only for trend IDs present in that run; UUID idempotency keys prevent accidental duplicate submissions.
+- The single-page workspace uses IntersectionObserver and records an acknowledgement only after at least 50% of a recommendation card remains in the viewport for at least one second. No user/account identifier or persistent participant key is sent.
+- Added authenticated batch-ingest and per-run report endpoints. Reports distinguish rendered-card impressions, unseen cards, candidate counts, post-render production selections and measured views/hour outcomes.
+- Outcome attribution is limited to a selected production job whose selection timestamp is at or after the first server-recorded render event and whose outcome is explicitly marked measured. Unrelated or missing outcomes are excluded.
+- Exposure events are immutable; invalid run/trend pairs, malformed event IDs and out-of-range visibility durations are rejected.
+- Safety/evidence boundary: viewport acknowledgement is client-reported, not proof of human attention. This milestone does not randomize traffic, deliver experiment arms, estimate causal lift, or change ranking scores / production / publishing behavior. Ranking score adjustment remains zero.
+- GitHub Actions run [43705912745](https://github.com/justinhblee-prog/shorts/actions/runs/43705912745) passed **418 tests**; `scripts/validate.sh` completed successfully, including Python compileall, YAML validation, frontend syntax/ID checks and full unittest discovery.
+
+## BUILD-00060 — randomized experiment statistical validity gate
+
+- Added `backend/experiment_statistics.py` with a fail-closed two-arm Welch mean-difference evaluator and approximate 95% confidence interval.
+- Rejects boolean, non-numeric and non-finite outcomes; bounds input samples and minimum sample configuration; reports insufficient-arm samples and zero-variance comparisons as inconclusive.
+- The evaluator refuses to estimate an effect unless randomized assignment and served exposure are explicitly verified by a trusted caller. Shadow assignment and client-reported viewport acknowledgements are not sufficient.
+- No public API accepts caller-asserted verification flags: the current experiment pipeline has no verified live arm delivery or randomized served-exposure ledger, so wiring an operator-controlled endpoint would create false statistical evidence. The evaluator is intentionally an internal gate until trusted assignment/exposure/outcome joins exist.
+- No p-value is reported; the interval is an approximate Welch interval and does not address repeated peeking, multiple testing, clustering, missing-not-at-random outcomes or metric pre-registration.
+- No automated decision, recommendation score adjustment, variant delivery, publication or production behavior is enabled. Ranking score adjustment remains zero.
+- Added regression tests for shadow-only blocking, client-render-only blocking, minimum sample size, finite numeric validation, Welch interval, and zero-variance inconclusiveness.
+- CI validation is pending for this commit; do not claim test success until the branch-head Actions run completes.
+
+## BUILD-00061 — conservative confidence-interval and evidence-gate correction
+
+- Corrected Welch 95% confidence critical-value lookup to round degrees of freedom DOWN to the nearest tabulated row. The previous upward lookup could select a smaller critical value than warranted and understate interval width for degrees of freedom between table rows.
+- Added strict boolean type validation for randomized-assignment and served-exposure verification gates; truthy strings/numbers can no longer be accepted as verification.
+- Added regression tests for df=11/14/16 boundary behavior, conservative monotonicity and malformed verification flags.
+- Statistical calculations remain internal only. There is still no verified randomized served-exposure ledger, trusted outcome join, public experiment-effect API or automatic ranking adjustment.
+- CI validation is pending for the branch-head commit; test success is not claimed until GitHub Actions confirms it.
+
+## BUILD-00062 — pre-registered practical-effect and guardrail decision gate
+
+- Added an internal decision evaluator that requires a verified randomized served-exposure comparison, a predeclared expected direction and a finite positive minimum practically meaningful effect.
+- A primary result is eligible for human review only when the full approximate 95% confidence interval exceeds the pre-registered practical-effect threshold in the expected direction.
+- Optional guardrail metrics require verified comparisons and predeclared non-negative degradation margins. A confidence interval allowing worse-than-permitted degradation blocks the candidate.
+- Outcomes are limited to blocked, inconclusive, guardrail-blocked or review-candidate states. Even a review candidate explicitly does not authorize deployment, variant rollout or recommendation score changes; ranking adjustment remains zero.
+- Added regression tests for successful review-candidate gating, practical-effect uncertainty, guardrail regression, shadow/unverified evidence and invalid thresholds.
+- CI validation pending for this branch-head commit. No live randomized experiment or outcome pipeline is enabled.
+
+## CI evidence — BUILD-00061 and BUILD-00062
+
+- BUILD-00061 branch-head Actions run [43707065436](https://github.com/justinhblee-prog/shorts/actions/runs/43707065436) completed successfully: **427 tests passed**.
+- BUILD-00062 branch-head Actions run [43707209959](https://github.com/justinhblee-prog/shorts/actions/runs/43707209959) completed successfully: **432 tests passed**, including repository validation and the new statistical decision-gate regressions.
+
+
+## BUILD-00063 — experiment evidence integrity audit
+
+- Added a read-only, authenticated experiment-integrity report at `GET /api/recommendations/experiments/integrity`.
+- Audits persisted assignment arms and modes, per-experiment participant-fingerprint uniqueness, and assignment foreign-key integrity; reports unexpected modes/arms and duplicate fingerprint groups as integrity warnings.
+- Separately reports shadow assignment counts and client-reported viewport acknowledgements. It explicitly records that these evidence streams have no experiment/arm join and that randomized served-exposure and arm-attributed outcome counts remain zero.
+- The endpoint is diagnostic only: no live assignment, variant delivery, outcome attribution, rollout, or recommendation-score adjustment is enabled.
+- Regression tests cover the distinction between shadow assignments and viewport acknowledgements, plus detection of an unexpected persisted assignment mode.
+- GitHub Actions run [43707809205](https://github.com/justinhblee-prog/shorts/actions/runs/43707809205) passed **434 tests**; `scripts/validate.sh` completed successfully, including Python compileall, YAML validation, frontend syntax/ID checks and full unittest discovery.
+
+
+## BUILD-00064 — experiment integrity diagnostics in operator workspace
+
+- Integrated the authenticated experiment-integrity audit into the control center as an explicit operator-triggered check; no automatic polling or state mutation.
+- Displays experiment count, shadow assignment count, client viewport acknowledgement count, verified randomized served exposures, assignment-to-exposure join availability, outcome attribution availability, duplicate fingerprint groups, foreign-key issues and per-experiment integrity warnings.
+- Explicitly displays live assignment, ranking adjustment and deployment authorization as disabled/zero.
+- Added API authorization/read-only regression coverage and frontend integration assertions.
+- The preceding BUILD-00063 documentation-only head CI run [43707877471](https://github.com/justinhblee-prog/shorts/actions/runs/43707877471) completed successfully.
+- BUILD-00064 GitHub Actions run [43708236894](https://github.com/justinhblee-prog/shorts/actions/runs/43708236894) passed **437 tests**; `scripts/validate.sh` completed successfully.
+
+
+## BUILD-00065 — post-approval artifact integrity gate
+
+- Added shared `backend/approval_integrity.py` validation that compares the complete current production artifact set against the immutable human-review snapshot.
+- Comparison covers ordered stage, artifact type, artifact URL, and parsed metadata. Added, removed, replaced, or modified artifacts invalidate the approval; malformed snapshots fail closed.
+- YouTube upload initialization and TikTok private-post initialization now reject artifacts that no longer exactly match the latest approved snapshot, before any external upload initialization.
+- Added regression tests for exact match, metadata mutation, added artifact, removed artifact, and malformed snapshot.
+- This prevents approval from silently carrying forward when the rendered media, script, quality report, or policy metadata changes after review.
+- No external publish was performed. Human approval remains mandatory; YouTube remains private and TikTok remains SELF_ONLY. Recommendation score changes remain disabled.
+- GitHub Actions passed **442 tests** at code commit `191cd1d` (run [43709004157](https://github.com/justinhblee-prog/shorts/actions/runs/43709004157)). Live provider/OAuth/account posting and monetization remain unverified.
+
+
+## BUILD-00066 — canonical staged-media binding
+
+- The production staging endpoint no longer returns an existing job-named media file without checking the current renderer artifact. Each explicit staging request downloads the current artifact again through the existing HTTPS host allowlist, DNS/IP checks, size limits, and atomic replacement.
+- YouTube and TikTok API publish routes now accept only the deterministic staging file belonging to that exact production job. Arbitrary media-root files, cross-job paths, missing files, and symlink substitutions fail closed before the publisher is called.
+- Added regression coverage for canonical-path acceptance, cross-job rejection, symlink rejection, and refreshing an existing staged file from the current renderer URL.
+- Direct publisher unit tests remain available for isolated adapter validation; the production API boundary enforces canonical staging.
+- External platform posting remains unperformed. This does not independently prove that the renderer URL itself is immutable; a content-hash approval binding remains a follow-on hardening item.
+- GitHub Actions passed **445 tests** at code commit `940bd62` (run [43709319386](https://github.com/justinhblee-prog/shorts/actions/runs/43709319386)).
+
+
+## BUILD-00067 — approval-bound staged-media SHA-256
+
+- Reordered the API workflow so rendered media must be staged while the production job is `rendered` or `review_pending`; staging after approval is no longer accepted.
+- The explicit human approval endpoint now passes the job's deterministic canonical staged-media path into the review transaction.
+- Review decisions persist the staged video's SHA-256 digest and byte length. Existing SQLite databases are upgraded in place with nullable columns; historical approvals without a fingerprint remain non-publishable through the new publisher checks.
+- YouTube and TikTok publisher preflights verify the current staged file against the exact fingerprint in the latest approval, in addition to the existing artifact-snapshot check. Missing fingerprints/files, symlinks, invalid sizes, and byte changes fail closed before any remote upload initialization.
+- Regression tests cover approval fingerprint persistence, missing staged media, exact-byte acceptance, post-approval mutation, and rejection before either platform makes a network request.
+- Human approval remains mandatory; TikTok remains SELF_ONLY and YouTube remains private. No external publishing was performed.
+- GitHub Actions passed **453 tests** at code commit `7dfa9d6` (run [43709886701](https://github.com/justinhblee-prog/shorts/actions/runs/43709886701)).
+
+
+## BUILD-00068 — immutable upload snapshots and publish-attempt serialization
+
+- Added a no-follow, regular-file-only media snapshot routine. It opens the approved staging file without following symlinks where supported, compares the opened file identity to the current path, streams and hashes the bytes into a private temporary snapshot, and checks the approved digest and byte length before returning it.
+- YouTube `MediaFileUpload` now receives the verified snapshot path, not the mutable canonical staging path. The snapshot is retained for the entire resumable upload attempt and removed in a `finally` block.
+- TikTok media inspection and chunk upload now use the same verified snapshot. Replacing or mutating the staged path after snapshot creation cannot change the bytes sent during the upload.
+- Both platform stores already serialize per-job attempt creation with SQLite `BEGIN IMMEDIATE` and reject active or unresolved attempts; this remains the authoritative duplicate-initiation gate. Concurrent attempts cannot both obtain an active upload attempt for the same job.
+- Added tests proving the snapshot remains byte-identical after the source path is overwritten and that symlink sources are rejected.
+- GitHub Actions passed **455 tests** at code commit `a18013c` (run [43710116070](https://github.com/justinhblee-prog/shorts/actions/runs/43710116070)).
+- No external platform publishing was performed. PR remains Draft/open/unmerged.
+
+
+## BUILD-00069 — TikTok uncertain-outcome operator reconciliation
+
+- Added an authenticated `POST /api/tiktok/publications/{job_id}/reconcile` action for attempts stuck in `reconciliation_required`, including initialization timeouts where TikTok never returned a `publish_id` and automated status lookup is impossible.
+- Reconciliation requires explicit operator confirmation, a non-empty audit note, and at least 15 minutes since the uncertain attempt. Recent/active attempts remain blocked.
+- An operator-confirmed published result requires a verified video ID and rejects IDs already assigned to another job. A verified not-published result is recorded as failed, preserving the audit trail and allowing a new attempt only after that explicit confirmation.
+- Terminal states cannot be overwritten by conflicting reconciliation. Every resolution is written to the immutable TikTok publication event history with operator identity and attempt ID.
+- Added regression coverage for confirmation requirement, published/not-published outcomes, cooldown, duplicate video IDs, and safe retry after verified non-publication.
+- Regression suite: **460 tests passed** at final code commit `44b70d6` (run [43710459521](https://github.com/justinhblee-prog/shorts/actions/runs/43710459521)).
+- External TikTok account verification and actual publishing are not performed by CI; the endpoint only records an operator attestation and cannot independently prove the remote account state.
+
+
+## BUILD-00070 — unified YouTube·TikTok publishing operations dashboard
+
+- Added bounded `list_recent(limit)` readers to both publisher stores. Each returned record includes its own platform event history; no state is written by the listing operation.
+- Added authenticated, read-only `GET /api/publishing/dashboard?limit=100` with independently grouped YouTube and TikTok status counts, attempt identifiers, remote IDs, timestamps, error/reason fields, reconciliation flags, and audit events. The response keeps platform states separate, reports attention counts, and explicitly returns `actions_taken: []`.
+- Added one unified publishing panel to the single-page operator workspace. It displays YouTube and TikTok records, platform-specific states, recent audit events, private visibility, and attention-required records.
+- Added only explicit, operator-triggered actions: TikTok remote status refresh and confirmed reconciliation for ambiguous YouTube/TikTok outcomes. Dashboard load/refresh performs no remote polling, retry, publishing, reconciliation, or other mutation.
+- TikTok remains `SELF_ONLY`; YouTube uploads remain private. Human approval and approval-bound immutable media checks remain mandatory.
+- Root cause of failed run `43714270272`: two independently-added publishing panels shared `id="loadPublishingDashboard"`; the redundant panel expected `/api/lifecycle/publishing` while the active frontend/backend contract was `/api/publishing/dashboard`. The redundant panel and stale alternate-contract test were removed; the canonical API was retained.
+- Regression coverage includes authorization, read-only behavior, platform-state separation, bounded results, canonical frontend wiring, and unique HTML IDs.
+- Latest verified branch head `5961289ca8dde34bde8d5c748a6ce9658b2023ec`: GitHub Actions run [43714582332](https://github.com/justinhblee-prog/shorts/actions/runs/43714582332) passed; frontend validation reported **107 unique IDs / 91 literal selectors**, and **464 tests passed**. `scripts/validate.sh` completed successfully.
+- No live YouTube/TikTok account OAuth, upload, remote visibility, or external platform approval test was performed.
+- PR #36 remains Draft/open/unmerged.
+
+## BUILD-00071 — TikTok owned-video performance counter collection
+
+- Added `backend/tiktok_metrics.py` using TikTok Display API v2 `POST /v2/video/query/`, restricted to video IDs already confirmed in this account's `publish_complete` records. Requests are bounded to 20 IDs and require the `video.list` OAuth scope.
+- Added durable SQLite counter snapshots (views, likes, comments, shares), freshness/coverage status, a fenced singleton collector lease, response-ID allowlisting, non-negative integer validation, and explicit missing-video accounting. API errors and malformed/unrequested IDs fail closed.
+- Expanded the TikTok OAuth request to include `video.list`. Existing publishing calls continue to require only `video.publish`; metrics token retrieval separately requires `video.list`. A refresh that drops the required scope is rejected.
+- Integrated TikTok collection into the existing independent metrics service and exposed its status through authenticated `GET /api/metrics/collection-status`. YouTube and TikTok collector failures are isolated so one provider outage does not suppress the other.
+- Updated the performance dashboard to distinguish a missing `video.list` authorization from a collection failure. The feature reports only counters documented by TikTok; retention, watch time, and revenue remain unavailable.
+- Official API contract: https://developers.tiktok.com/docs/en/tiktok-api-v2-video-query (up to 20 owned video IDs, `video.list` scope, requested counter fields); scope reference: https://developers.tiktok.com/docs/en/tiktok-api-scopes.
+- GitHub Actions passed at code commit `9c747dd9394241a13ebe15f83525049af9954d92`: run [43715389255](https://github.com/justinhblee-prog/shorts/actions/runs/43715389255), **474 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
+- No live TikTok credentials, developer-product approval, `video.list` consent, or real-account metric collection have been verified. Existing `SELF_ONLY` privacy behavior is unchanged; no public posting is enabled.
+
+## BUILD-00072 — TikTok performance snapshots in the operator dashboard
+
+- Added authenticated read-only `GET /api/tiktok/metrics?limit=100`, bounded to 200 records and sourced only from the latest snapshots for this account's confirmed `publish_complete` video IDs.
+- Added a latest-snapshot query that keeps historical rows intact and returns the associated job ID and publication privacy level; no remote calls or state mutations occur during dashboard reads.
+- Integrated TikTok views, likes, comments, and shares into the existing performance insights workspace, separately labeled from YouTube metrics. Empty state explains that TikTok `video.list` authorization and collection are prerequisites.
+- Added tests for latest-snapshot selection, `SELF_ONLY` metadata, endpoint authentication/limit enforcement/read-only behavior, and frontend visibility. Ranking score adjustment remains zero.
+- GitHub Actions passed at code commit `35d4c072e3703b2e197528534cc162ca8af930d5`: run [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), **476 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
+- No real account metrics or live TikTok app approval is implied.
+
+## BUILD-00073 — platform analytics documentation alignment
+
+- Updated the root README to describe the current TikTok Login Kit, Content Posting API and Display API setup, separate `video.list` consent, `SELF_ONLY` visibility, TikTok counters, and the four-service Compose topology.
+- Corrected the metrics description: the dedicated collector refreshes YouTube and TikTok independently; TikTok counters are views, likes, comments and shares only. Retention, swipe-away, watch time and revenue are not inferred.
+- Updated backend/API documentation to reflect the actual approved staged-media and immutable upload-snapshot workflow, YouTube private upload and TikTok private Direct Post APIs, and authenticated read-only TikTok metrics endpoint.
+- Updated the operator runbook launch checklist for TikTok Display API enablement, `video.publish` / `video.list` consent, `SELF_ONLY` test publishing and real counter retrieval. Updated handover documentation with BUILD-00071/00072 boundaries.
+- Corrected the documented validation reference to the latest verified analytics dashboard run: [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), 476 automated tests passed. This is not a live-account verification.
+- Documentation-only changes do not trigger the path-filtered CI workflow; code validation remains the verified run above.
+
+## BUILD-00074 — YouTube Analytics watch-time and engagement collection
+
+- Added `backend/youtube_analytics.py` with a separate read-only YouTube Analytics API v2 collector. It requests a 28-day report (ending two days before the current UTC date) for confirmed uploaded video IDs only.
+- Captures views, Shorts engaged views, estimated minutes watched, average view duration, average view percentage, likes, comments, shares and subscribers gained. No monetary/revenue metrics are requested.
+- Uses a dedicated SQLite snapshot store, collection status and fenced lease. Batches are limited to 50 videos and due selection rotates across the full bounded uploaded inventory based on snapshot freshness, preventing newest-batch starvation.
+- Integrated into the existing metrics collector as an independent provider, with separate handling for missing `yt-analytics.readonly` consent, invalid OAuth credentials and other API errors. A failure does not suppress YouTube Data API or TikTok collection.
+- Added authenticated read-only `GET /api/youtube/analytics-metrics` and dashboard display for watch time/average view percentage. Recommendation score changes remain disabled.
+- The channel refresh token must be reauthorized with `yt-analytics.readonly` in addition to existing YouTube scopes; the YouTube Analytics API must be enabled in Google Cloud. This external consent/API setup has not been performed.
+- GitHub Actions passed at code commit `3984e759e618c6aaa93c744830b775908dfa7618`: run [43716302094](https://github.com/justinhblee-prog/shorts/actions/runs/43716302094), **489 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
+- Live YouTube Analytics report retrieval, OAuth scope consent, and actual channel data remain unverified.
+
+## BUILD-00075 — Analytics-informed recommendation evidence (display-only)
+
+- Updated `PerformanceAnalyzer` to join each confirmed uploaded video to its latest YouTube Analytics snapshot, exposing Shorts engaged views, estimated minutes watched, average view duration, average view percentage, likes, comments, shares and subscribers gained.
+- Comparable brand/region/topic/publication-age/duration/format cohorts now calculate median average view percentage and average view duration, with explicit analytics sample counts. Sparse or missing observations remain null and are not fabricated.
+- Extended trend recommendation context and the operator dashboard to show watch-quality evidence alongside views/hour and interaction metrics.
+- The new analytics fields are contextual only: they do not enter recommendation score calculation, reorder candidates, enable live assignment, trigger production or publish content. `ranking_score_adjustment=0` remains enforced.
+- Detailed per-second audience-retention curves and causal effect claims remain unavailable; the metrics are rolling 28-day channel reports.
+- GitHub Actions passed at code commit `aeb9a12760ddc1e4ae41cb791d0d8c7fb6e68148`: run [43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969), **490 tests passed**; frontend validation reported **107 unique IDs / 91 literal selectors** and `scripts/validate.sh` succeeded.
+- Live YouTube Analytics OAuth consent and actual channel report retrieval remain unverified.

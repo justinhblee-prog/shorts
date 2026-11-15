@@ -111,16 +111,13 @@ Request body: `{"reviewer_id":"operator-1","comment":"Optional approval note"}`.
 
 Configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REFRESH_TOKEN` as runtime secrets. The refresh token must be granted `youtube.upload` and `youtube.readonly` scopes. Never commit credentials or token files.
 
-The upload endpoint requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-Token` and a job with a recorded `approved` human decision:
-- `POST /api/youtube/upload/{job_id}`
-- `GET /api/youtube/uploads/{job_id}`
-- `POST /api/youtube/videos/{video_id}/refresh-metrics`
+Approved publishing requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-Token`, a job with a recorded human `approved` decision, the immutable approved artifact snapshot, and the staged-media SHA-256 fingerprint. The API stages only the artifact URL stored on that production job (`POST /api/production/jobs/{job_id}/stage-media`); it does not accept an arbitrary caller-supplied URL or host path. Upload attempts use a private immutable byte snapshot and are serialized per job.
 
-Upload body includes a server-local `media_path`, title, description, tags and category ID. The API forces `privacyStatus=private`; there is no public/unlisted override. The server must already have the rendered file at that local path. Current render providers return artifact URLs, so downloading/staging remote artifacts into trusted local storage is a separate deployment integration and is not silently performed by this endpoint.
+YouTube routes include `POST /api/youtube/upload/{job_id}`, `GET /api/youtube/uploads/{job_id}`, and `POST /api/youtube/videos/{video_id}/refresh-metrics`. The publisher forces `privacyStatus=private`; there is no public/unlisted override.
 
-Uploads use the Google API client resumable media upload interface. The upload record and source-provided view/like/comment counters are persisted. A missing first metrics response does not invalidate a confirmed upload. Data API counters are not revenue; estimated or actual monetization revenue is handled separately in BUILD-00009.
+TikTok routes include OAuth start/callback/status/disconnect, `POST /api/tiktok/publish/{job_id}`, `GET /api/tiktok/publications/{job_id}`, operator reconciliation/status refresh, and read-only `GET /api/tiktok/metrics?limit=100`. TikTok Direct Post is fixed to `SELF_ONLY`; public visibility is not enabled. TikTok OAuth requests `video.publish` and `video.list`. Publishing requires `video.publish`; the metrics collector separately requires `video.list`, so existing connected accounts may need to reauthorize. The collector queries only video IDs already confirmed in this account's completed publication records.
 
-OAuth credentials are supplied through environment secrets; an interactive OAuth consent UI/token provisioning flow is not included. The initial adapter supports one authenticated YouTube channel per runtime. Mocked tests are committed; real OAuth, upload quota, media processing and live metrics have not been validated.
+The separate metrics service refreshes YouTube Data API counters, YouTube Analytics API v2 reports and TikTok counters independently. YouTube Analytics reports include engaged views, estimated minutes watched, average view duration/percentage, likes, comments, shares and subscribers gained. TikTok Display API v2 counters are views, likes, comments and shares; no TikTok retention, swipe-away or revenue values are fabricated. Dashboard reads are authenticated and read-only. Mocked/automated tests do not validate real OAuth consent, live uploads, actual remote visibility, provider quotas or live metric retrieval.
 
 ## BUILD-00009 — financial ledger
 
@@ -132,7 +129,7 @@ Use entry types `youtube_ads`, `affiliate`, `sponsor`, `production_cost`, `platf
 
 ## BUILD-00010 — performance insights
 
-GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports brand-level video snapshot differences and recorded ledger totals. It does not estimate earnings from views or infer trends from a single snapshot. Recommendations are rule-based and include their evidence basis. YouTube retention/watch-time, controlled experiments and autonomous strategy updates are not implemented.
+GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports brand-level video snapshot differences and recorded ledger totals. It does not estimate earnings from views or infer trends from a single snapshot. Recommendations are rule-based and include their evidence basis. Detailed per-second audience-retention curves, controlled experiments and autonomous strategy updates are not implemented. Aggregate YouTube watch-time and average view duration/percentage are collected separately by BUILD-00074.
 
 ## BUILD-00011 — persistent scheduler
 
@@ -189,7 +186,7 @@ The integrated single-page control center is served from the backend:
 http://localhost:8502/
 ```
 
-The UI includes production job intake, trends, competitors, profitability scoring, human review, approved/private upload, schedules, financial ledger and performance insights. Enter the configured `NEXUS_REVIEW_TOKEN` using the settings button. The token is kept in browser memory only and is cleared on reload. Public publishing is not offered by the UI; YouTube uploads remain private.
+The UI includes production job intake, trends, competitors, profitability scoring, human review, approved/private YouTube upload, TikTok `SELF_ONLY` publishing, schedules, financial ledger and YouTube/TikTok performance insights. Enter the configured `NEXUS_REVIEW_TOKEN` using the settings button. The token is kept in browser memory only and is cleared on reload. Public publishing is not offered by the UI; YouTube uploads remain private.
 
 ### Integration preflight
 
@@ -423,3 +420,17 @@ Immediately before creating a YouTube upload attempt, the upload store checks th
 ### Immutable upload policy-version audit stamps
 
 The YouTube upload record and immutable `upload_attempt_started` audit event now retain the exact local policy version and checked-on date that passed the upload-time freshness gate. Existing databases are migrated additively; old records retain null values and are not retroactively represented as having been checked under the current version.
+
+## BUILD-00074 — YouTube Analytics watch-time and engagement metrics
+
+The dedicated `metrics_collector.py` process also runs a separate, read-only YouTube Analytics API v2 collector for this channel's confirmed uploaded video IDs. It requests a rolling 28-day report, ending two days before the current UTC date to avoid relying on a partial current day. Queries are batched in groups of at most 50 video IDs and use the `video` dimension with an explicit owned-video filter.
+
+The collector stores snapshots for views, Shorts engaged views, estimated minutes watched, average view duration, average view percentage, likes, comments, shares and subscribers gained. It uses a separate SQLite lease and collection state from the YouTube Data API and TikTok collectors. Due-video selection is freshness-aware and rotates across the full bounded uploaded-video inventory rather than repeatedly querying only the newest batch. API reads are authenticated, bounded and read-only; no monetary metrics are requested.
+
+The refresh token must include `https://www.googleapis.com/auth/yt-analytics.readonly` in addition to the existing YouTube upload/read scopes. Reauthorize the channel after enabling the YouTube Analytics API and granting this scope. Missing scope, invalid credentials and ordinary API failures are reported separately. Automated tests do not verify real account authorization or live report availability.
+
+## BUILD-00075 — Analytics-informed comparable recommendation evidence
+
+The performance analyzer now joins the latest YouTube Analytics snapshot to each confirmed uploaded video and includes average view percentage, average view duration, estimated minutes watched and Shorts engaged views in the operator performance response. Comparable brand/region/topic/age/duration/format cohorts report median average view percentage and duration when those observations exist.
+
+The trend recommendation context exposes these metrics as descriptive evidence only. They do not enter the editorial recommendation score, do not reorder candidates, and do not trigger production or publishing actions. Cohorts still require at least three measured videos for observed status; sparse data remains explicitly limited. This is not a causal estimate and does not claim per-second audience-retention curves.

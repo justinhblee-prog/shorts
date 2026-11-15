@@ -31,8 +31,9 @@ Re-check these sources at upload time and after platform policy updates. Rules c
 - Visual, audio, or likeness rights are not explicitly cleared.
 - Synthetic-media status is unknown.
 - Realistic AI-generated/altered content lacks the disclosure acknowledgement for each selected platform:
-  - YouTube: `platform_disclosures.youtube_altered_content`
-  - TikTok: `platform_disclosures.tiktok_ai_generated_content`
+  - YouTube: `platform_disclosures.youtube_altered_content` and an explicit `youtube_contains_synthetic_media` classification.
+  - TikTok: `platform_disclosures.tiktok_ai_generated_content`.
+- For YouTube, the API boolean must reflect whether the content contains realistic altered or synthetic material; generic AI generation alone is not enough to infer the value.
 
 The acknowledgement is an operator attestation. It does not itself apply the platform label. The upload/publishing workflow must still apply the platform's actual disclosure setting.
 
@@ -61,6 +62,7 @@ Production briefs may carry:
 - `rights`: `visuals_cleared`, `audio_cleared`, `likeness_authorized`.
 - `synthetic_media_status`: `none`, `ai_assisted_nonrealistic`, `ai_generated`, `realistic_alteration`, or `unknown`.
 - `platform_disclosures`: platform-specific AI disclosure acknowledgements.
+- `youtube_contains_synthetic_media`: required boolean realism classification for YouTube AI-generated content; set true for realistic altered/synthetic content and false only when it is not realistic A/S content.
 - `policy_flags`: explicit hard-block flags.
 - `risk_flags`: elevated-review categories.
 - `claim_evidence_notes`, `source_urls`, `transformative_contribution`, `commercial_relationship_disclosed`, and `child_safety_review_confirmed`.
@@ -71,10 +73,11 @@ The generated policy report is stored with the script artifact and included in t
 
 1. The preflight is metadata-based. Automated frame/audio/transcript scanning and asset-level copyright matching are not implemented.
 2. Rights, consent, and factuality declarations are not independently verified.
-3. Platform disclosures are not yet automatically applied to the platform upload metadata. YouTube's API support for the relevant upload disclosure setting and TikTok publishing API capabilities must be separately verified before automation is added.
-4. Monetization eligibility is channel- and content-level. A per-video checklist cannot certify YouTube Partner Program eligibility.
-5. Regional legal review is still required for privacy, publicity/likeness, health, financial, advertising, and regulated-goods topics.
-6. Public publishing remains disabled by default. YouTube upload remains private-only and requires explicit human approval.
+3. YouTube Data API v3 supports `status.containsSyntheticMedia` on `videos.insert` and `videos.update`; the YouTube upload branch now maps the explicit policy classification to this field and blocks unresolved classifications. See https://developers.google.com/youtube/data/reference/rest/v3/videos and https://developers.google.com/youtube/v3/revision_history.
+4. TikTok Content Posting API documents `is_aigc` for Direct Post and labels the post when true. The private Direct Post adapter maps the approved classification to this field, enforces `SELF_ONLY`, and tracks status. Live developer-app audit, creator authorization and account-level label verification remain pending. See https://developers.tiktok.com/doc/content-posting-api-reference-direct-post.
+5. Monetization eligibility is channel- and content-level. A per-video checklist cannot certify YouTube Partner Program eligibility.
+6. Regional legal review is still required for privacy, publicity/likeness, health, financial, advertising, and regulated-goods topics.
+7. Public publishing remains disabled by default. YouTube upload remains private-only and requires explicit human approval. TikTok Direct Post is restricted to `SELF_ONLY`, requires per-post operator consent, and uses server-side OAuth tokens encrypted at rest.
 
 ## Validation
 

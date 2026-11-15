@@ -2,6 +2,7 @@
 
 Approval is an explicit operator action. This module never uploads or publishes media.
 """
+import hashlib
 import json
 import secrets
 import sqlite3
@@ -55,6 +56,11 @@ class ReviewStore:
             CREATE INDEX IF NOT EXISTS idx_policy_evidence_job
               ON policy_evidence_events(job_id,id);
             """)
+            columns = {row["name"] for row in c.execute("PRAGMA table_info(review_decisions)")}
+            if "staged_media_sha256" not in columns:
+                c.execute("ALTER TABLE review_decisions ADD COLUMN staged_media_sha256 TEXT")
+            if "staged_media_size_bytes" not in columns:
+                c.execute("ALTER TABLE review_decisions ADD COLUMN staged_media_size_bytes INTEGER")
 
     @contextmanager
     def db(self):
@@ -258,7 +264,7 @@ class ReviewStore:
                 "created_at": row["created_at"],
             } for row in rows]
 
-    def decide(self, job_id, decision, reviewer_id, comment=""):
+    def decide(self, job_id, decision, reviewer_id, comment="", staged_media_path=None):
         if decision not in self.DECISIONS:
             raise ValueError("Unsupported review decision")
         reviewer_id = str(reviewer_id or "").strip()
@@ -323,14 +329,36 @@ class ReviewStore:
                 "artifact_url": a["artifact_url"],
                 "metadata": json.loads(a["metadata_json"])
             } for a in artifacts]
+            staged_media_sha256 = None
+            staged_media_size_bytes = None
+            if decision == "approved" and staged_media_path is not None:
+                staged_path = Path(staged_media_path)
+                if staged_path.is_symlink() or not staged_path.is_file():
+                    raise ReviewConflict("A regular staged video file is required before approval")
+                digest = hashlib.sha256()
+                staged_media_size_bytes = 0
+                try:
+                    with staged_path.open("rb") as stream:
+                        while True:
+                            chunk = stream.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            staged_media_size_bytes += len(chunk)
+                            digest.update(chunk)
+                except OSError as exc:
+                    raise ReviewConflict("Staged video could not be fingerprinted before approval") from exc
+                if staged_media_size_bytes <= 0:
+                    raise ReviewConflict("An empty staged video cannot be approved")
+                staged_media_sha256 = digest.hexdigest()
             timestamp = _now()
             c.execute("""
               INSERT INTO review_decisions
                 (job_id,decision,previous_status,reviewer_id,comment,
-                 artifact_snapshot_json,created_at)
-              VALUES(?,?,?,?,?,?,?)
+                 artifact_snapshot_json,created_at,staged_media_sha256,staged_media_size_bytes)
+              VALUES(?,?,?,?,?,?,?,?,?)
             """, (job_id, decision, run["status"], reviewer_id, comment,
-                  json.dumps(snapshot, ensure_ascii=False), timestamp))
+                  json.dumps(snapshot, ensure_ascii=False), timestamp,
+                  staged_media_sha256, staged_media_size_bytes))
             updated=c.execute("""
               UPDATE production_runs SET status=?,current_stage='review',
                 error=?,updated_at=? WHERE job_id=? AND status='review_pending'
@@ -359,7 +387,7 @@ class ReviewStore:
     def _history(c, job_id):
         rows = c.execute("""
           SELECT id,job_id,decision,previous_status,reviewer_id,comment,
-                 artifact_snapshot_json,created_at
+                 artifact_snapshot_json,created_at,staged_media_sha256,staged_media_size_bytes
           FROM review_decisions WHERE job_id=? ORDER BY id
         """, (job_id,)).fetchall()
         return [{
@@ -367,7 +395,9 @@ class ReviewStore:
             "previous_status": r["previous_status"],
             "reviewer_id": r["reviewer_id"], "comment": r["comment"],
             "artifact_snapshot": json.loads(r["artifact_snapshot_json"]),
-            "created_at": r["created_at"]
+            "created_at": r["created_at"],
+            "staged_media_sha256": r["staged_media_sha256"],
+            "staged_media_size_bytes": r["staged_media_size_bytes"]
         } for r in rows]
 
 

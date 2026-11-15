@@ -844,3 +844,23 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Stamp the same values into the immutable `upload_attempt_started` event so the audit trail preserves the exact local policy ruleset used.
 - Additive SQLite migrations extend existing upload and event tables without rewriting historical records; legacy rows retain null policy stamps.
 - CI validation pending on this branch.
+
+### TikTok metrics collector and performance dashboard — 2026-11-15
+- BUILD-00071 adds a dedicated TikTok Display API v2 collector for confirmed completed publication IDs, with `video.list` consent, bounded requests, durable snapshots, lease fencing, response validation and independent provider failure handling.
+- BUILD-00072 adds authenticated read-only `GET /api/tiktok/metrics` and displays latest views/likes/comments/shares alongside YouTube insights. The API does not trigger network refreshes or alter publication state or recommendation scores.
+- The Compose metrics-collector service now runs both YouTube and TikTok collectors. A TikTok connection must have `video.list` consent in addition to `video.publish`; existing accounts may need to reconnect/reauthorize.
+- Automated validation: run [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), 476 tests passed; 107 unique HTML IDs / 91 JS selectors. This does not establish live OAuth, real TikTok posting, visibility, analytics or monetization.
+- TikTok remains `SELF_ONLY`; YouTube remains `private`. No public posting or automatic recommendation-score adjustment is enabled.
+
+### YouTube Analytics watch-time metrics — 2026-11-15
+- BUILD-00074 adds a separate YouTube Analytics API v2 collector for completed owned uploads, requesting a rolling 28-day report through two days before the current UTC date.
+- Metrics: views, Shorts engaged views, estimated minutes watched, average view duration, average view percentage, likes, comments, shares and subscribers gained. Monetary metrics are deliberately excluded.
+- Uses `yt-analytics.readonly` plus the existing `youtube.readonly`/`youtube.upload` scopes. Existing refresh-token consent must be updated; enable the YouTube Analytics API and reauthorize the channel before live collection.
+- Collection is separate from YouTube Data API/TikTok, uses its own SQLite lease/state, 50-video batches, freshness rotation across the uploaded inventory, and read-only snapshot API/dashboard. Missing scope and invalid credentials have distinct statuses.
+- GitHub Actions passed at code commit `3984e759e618c6aaa93c744830b775908dfa7618`: run [43716302094](https://github.com/justinhblee-prog/shorts/actions/runs/43716302094), 489 tests passed; 107 unique HTML IDs / 91 JS selectors. No real OAuth or Analytics report request has been performed.
+
+### Analytics-informed recommendation evidence — 2026-11-15
+- BUILD-00075 joins the latest YouTube Analytics snapshot to uploaded-video performance records and exposes engaged views, watch time, average view duration and average view percentage.
+- Comparable cohorts now include median average view percentage and duration when available. The trend recommendation context exposes these values for operator review.
+- No score, rank, production selection or publishing action uses the new metrics. `ranking_score_adjustment=0`; the values are descriptive and observational, not causal or detailed per-second retention curves.
+- GitHub Actions run [43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969) passed **490 tests**, with 107 unique HTML IDs / 91 JS selectors. Live Analytics OAuth/data remains unverified.

@@ -1,5 +1,6 @@
 """Evidence-bound performance analysis; no synthetic metrics or predictive claims."""
 import json
+import math
 import re
 import sqlite3
 import statistics
@@ -37,11 +38,13 @@ def _publication_age_bucket(uploaded_at, measured_at):
 
 
 def _duration_bucket(value):
+    if isinstance(value, bool):
+        return "unknown"
     try:
         seconds = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return "unknown"
-    if seconds <= 0:
+    if not math.isfinite(seconds) or seconds <= 0:
         return "unknown"
     if seconds < 20:
         return "under_20s"
@@ -102,12 +105,22 @@ class PerformanceAnalyzer:
             videos = c.execute("""
                 SELECT r.job_id,r.brand,r.region,r.topic,u.video_id,u.uploaded_at,
                        a.metadata_json AS rendering_metadata_json,
-                       s.view_count,s.like_count,s.comment_count,s.collected_at
+                       s.view_count,s.like_count,s.comment_count,s.collected_at,
+                       ya.start_date AS analytics_start_date,ya.end_date AS analytics_end_date,
+                       ya.engaged_views,ya.estimated_minutes_watched,
+                       ya.average_view_duration,ya.average_view_percentage,
+                       ya.likes AS analytics_likes,ya.comments AS analytics_comments,
+                       ya.shares AS analytics_shares,ya.subscribers_gained,
+                       ya.collected_at AS analytics_collected_at
                 FROM production_runs r
                 JOIN youtube_uploads u ON u.job_id=r.job_id AND u.status='uploaded'
                 LEFT JOIN production_artifacts a
                   ON a.job_id=r.job_id AND a.stage='rendering' AND a.artifact_type='video'
                 LEFT JOIN youtube_video_snapshots s ON s.video_id=u.video_id
+                LEFT JOIN youtube_analytics_snapshots ya ON ya.id=(
+                  SELECT MAX(analytics_row.id) FROM youtube_analytics_snapshots analytics_row
+                  WHERE analytics_row.video_id=u.video_id
+                )
             """ + where + " ORDER BY r.brand,r.region,r.job_id,s.collected_at", args).fetchall()
 
             ledger_where = "WHERE 1=1"
@@ -129,6 +142,19 @@ class PerformanceAnalyzer:
                 "topic": row["topic"], "video_id": row["video_id"],
                 "uploaded_at": row["uploaded_at"],
                 "rendering_metadata_json": row["rendering_metadata_json"],
+                "analytics": ({
+                    "start_date": row["analytics_start_date"],
+                    "end_date": row["analytics_end_date"],
+                    "engaged_views": row["engaged_views"],
+                    "estimated_minutes_watched": row["estimated_minutes_watched"],
+                    "average_view_duration": row["average_view_duration"],
+                    "average_view_percentage": row["average_view_percentage"],
+                    "likes": row["analytics_likes"],
+                    "comments": row["analytics_comments"],
+                    "shares": row["analytics_shares"],
+                    "subscribers_gained": row["subscribers_gained"],
+                    "collected_at": row["analytics_collected_at"],
+                } if row["analytics_collected_at"] is not None else None),
                 "snapshots": []
             })
             if row["collected_at"] is not None:
@@ -175,6 +201,21 @@ class PerformanceAnalyzer:
                 "publication_age_bucket": "unknown",
                 "measurement_status": "insufficient_snapshots"
             }
+            analytics = video.get("analytics") or {}
+            result.update({
+                "analytics_available": bool(analytics),
+                "analytics_start_date": analytics.get("start_date"),
+                "analytics_end_date": analytics.get("end_date"),
+                "analytics_collected_at": analytics.get("collected_at"),
+                "engaged_views": analytics.get("engaged_views"),
+                "estimated_minutes_watched": analytics.get("estimated_minutes_watched"),
+                "average_view_duration": analytics.get("average_view_duration"),
+                "average_view_percentage": analytics.get("average_view_percentage"),
+                "analytics_likes": analytics.get("likes"),
+                "analytics_comments": analytics.get("comments"),
+                "analytics_shares": analytics.get("shares"),
+                "subscribers_gained": analytics.get("subscribers_gained"),
+            })
             if len(snaps) >= 2:
                 first, last = snaps[0], snaps[-1]
                 deltas = {}
@@ -309,8 +350,16 @@ class PerformanceAnalyzer:
                 "topic_signature": key[5],
                 "_views_per_hour": [],
                 "_interaction_rates": [],
+                "_average_view_percentages": [],
+                "_average_view_durations": [],
             })
             cohort["_views_per_hour"].append(float(rate))
+            average_view_percentage = video.get("average_view_percentage")
+            if isinstance(average_view_percentage, (int, float)) and average_view_percentage >= 0:
+                cohort["_average_view_percentages"].append(float(average_view_percentage))
+            average_view_duration = video.get("average_view_duration")
+            if isinstance(average_view_duration, (int, float)) and average_view_duration >= 0:
+                cohort["_average_view_durations"].append(float(average_view_duration))
             interaction_rate = video.get("interactions_per_1000_view_delta")
             if isinstance(interaction_rate, (int, float)) and interaction_rate >= 0:
                 cohort["_interaction_rates"].append(float(interaction_rate))
@@ -319,10 +368,21 @@ class PerformanceAnalyzer:
         for cohort in cohort_groups.values():
             rates = cohort.pop("_views_per_hour")
             interaction_rates = cohort.pop("_interaction_rates")
+            average_view_percentages = cohort.pop("_average_view_percentages")
+            average_view_durations = cohort.pop("_average_view_durations")
             count = len(rates)
             cohort.update({
                 "sample_count": count,
                 "median_views_per_hour": round(statistics.median(rates), 2),
+                "analytics_sample_count": len(average_view_percentages),
+                "median_average_view_percentage": (
+                    round(statistics.median(average_view_percentages), 2)
+                    if average_view_percentages else None
+                ),
+                "median_average_view_duration_seconds": (
+                    round(statistics.median(average_view_durations), 2)
+                    if average_view_durations else None
+                ),
                 "interaction_rate_sample_count": len(interaction_rates),
                 "median_interactions_per_1000_view_delta": (
                     round(statistics.median(interaction_rates), 2)
@@ -339,6 +399,69 @@ class PerformanceAnalyzer:
                 item["duration_bucket"], item["format"], item["topic_signature"]
             )
         )
+
+        # Actionable suggestions remain descriptive hypotheses. Compare only
+        # cohorts sharing brand, region, publication-age bucket and format.
+        comparison_groups = {}
+        for cohort in cohorts:
+            key = (cohort["brand"], cohort["region"],
+                   cohort["publication_age_bucket"], cohort["duration_bucket"], cohort["format"])
+            comparison_groups.setdefault(key, []).append(cohort)
+        cohort_insights = []
+        for key, comparable in comparison_groups.items():
+            eligible = [item for item in comparable
+                        if item["sample_count"] >= 3
+                        and item["evidence_status"] == "observed"]
+            if len(eligible) < 2:
+                for item in comparable:
+                    cohort_insights.append({
+                        "brand": item["brand"], "region": item["region"],
+                        "topic_signature": item["topic_signature"],
+                        "duration_bucket": item["duration_bucket"],
+                        "publication_age_bucket": item["publication_age_bucket"],
+                        "format": item["format"],
+                        "sample_count": item["sample_count"],
+                        "analytics_sample_count": item["analytics_sample_count"],
+                        "median_average_view_percentage": item["median_average_view_percentage"],
+                        "comparison_cohort_count": len(eligible),
+                        "status": "insufficient_comparable_cohorts",
+                        "suggested_action": "Keep collecting comparable videos; do not infer a winning topic from sparse data.",
+                        "ranking_score_adjustment": 0,
+                    })
+                continue
+            ordered = sorted(eligible, key=lambda item: item["median_views_per_hour"])
+            median_rates = [item["median_views_per_hour"] for item in eligible]
+            overall_median = statistics.median(median_rates)
+            for item in comparable:
+                if item not in eligible:
+                    status = "limited_evidence"
+                    action = "Collect at least three measured videos in this cohort before comparison."
+                elif item is ordered[-1] and item["median_views_per_hour"] > overall_median:
+                    status = "observed_candidate"
+                    action = "Run a controlled follow-up using this topic signature; preserve the current format and audience region."
+                elif item is ordered[0] and item["median_views_per_hour"] < overall_median:
+                    status = "review_candidate"
+                    action = "Review the opening hook and topic packaging; test one controlled variation before changing the format."
+                else:
+                    status = "no_clear_difference"
+                    action = "Continue collecting comparable samples; no change is justified yet."
+                cohort_insights.append({
+                    "brand": item["brand"], "region": item["region"],
+                    "topic_signature": item["topic_signature"],
+                    "duration_bucket": item["duration_bucket"],
+                    "publication_age_bucket": item["publication_age_bucket"],
+                    "format": item["format"], "sample_count": item["sample_count"],
+                    "median_views_per_hour": item["median_views_per_hour"],
+                    "analytics_sample_count": item["analytics_sample_count"],
+                    "median_average_view_percentage": item["median_average_view_percentage"],
+                    "comparison_cohort_count": len(eligible),
+                    "comparison_median_views_per_hour": round(overall_median, 2),
+                    "status": status, "suggested_action": action,
+                    "ranking_score_adjustment": 0,
+                })
+        cohort_insights.sort(key=lambda item: (
+            item["brand"], item["region"], item["topic_signature"]
+        ))
 
         financial = {}
         for row in ledger:
@@ -364,6 +487,8 @@ class PerformanceAnalyzer:
             "regions": list(by_region.values()),
             "videos": video_results,
             "cohorts": cohorts,
+            "cohort_insights": cohort_insights,
+            "cohort_insight_policy": "Descriptive within-brand/region/publication-age/duration/format comparisons only; minimum three measured videos per cohort; no ranking score adjustment or automated action.",
             "cohort_method": "Brand + region + exact normalized topic-token signature + publication-age-at-last-snapshot + duration bucket + format; descriptive only.",
             "financial": list(financial.values()),
             "limitations": [

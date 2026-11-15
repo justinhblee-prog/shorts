@@ -1,3 +1,4 @@
+import hashlib
 import os
 import tempfile
 import unittest
@@ -158,6 +159,31 @@ class ReviewWorkflowTests(unittest.TestCase):
             "Reviewed actual rendered dimensions and captions manually"
         )
         self.assertEqual(result["production"]["status"], "approved")
+
+    def test_approval_persists_staged_media_sha256_and_size(self):
+        staged = os.path.join(self.tmp.name, "staged.mp4")
+        payload = b"exact-approved-video-bytes"
+        with open(staged, "wb") as stream:
+            stream.write(payload)
+        result = self.review.decide(
+            "job-1", "approved", "operator-1", staged_media_path=staged
+        )
+        self.assertEqual(
+            result["decision"]["staged_media_sha256"], hashlib.sha256(payload).hexdigest()
+        )
+        self.assertEqual(result["decision"]["staged_media_size_bytes"], len(payload))
+        self.assertEqual(
+            self.review.history("job-1")[-1]["staged_media_sha256"],
+            hashlib.sha256(payload).hexdigest(),
+        )
+
+    def test_approval_rejects_missing_staged_media_when_fingerprint_requested(self):
+        with self.assertRaisesRegex(ReviewConflict, "regular staged video file"):
+            self.review.decide(
+                "job-1", "approved", "operator-1",
+                staged_media_path=os.path.join(self.tmp.name, "missing.mp4"),
+            )
+        self.assertEqual(self.production.get("job-1")["status"], "review_pending")
 
     def test_approval_is_explicit_and_audited_with_snapshot(self):
         result = self.review.decide("job-1", "approved", "operator-1", "Looks good")

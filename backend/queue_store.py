@@ -227,6 +227,90 @@ class JobQueue:
             self.event(c,jid,"failed","running",status,worker,{"error_code":error_code,"retryable":retry})
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
+    def list_jobs(self, job_type=None, limit=50, offset=0, status=None):
+        """Return bounded, metadata-only queue rows for read-only operator dashboards."""
+        limit = max(1, min(int(limit), 100))
+        offset = max(0, int(offset))
+        clauses = []
+        params = []
+        if job_type:
+            clauses.append("job_type=?")
+            params.append(str(job_type))
+        if status:
+            clauses.append("status=?")
+            params.append(str(status))
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self.db() as c:
+            total = c.execute("SELECT COUNT(*) FROM pipeline_jobs" + where, params).fetchone()[0]
+            rows = c.execute(
+                """SELECT id,job_type,channel_name,status,priority,attempt,max_attempts,
+                   available_at,worker_id,lease_expires_at,error_code,error_message,
+                   created_at,updated_at,started_at,completed_at
+                   FROM pipeline_jobs""" + where +
+                " ORDER BY updated_at DESC,created_at DESC LIMIT ? OFFSET ?",
+                (*params, limit, offset),
+            ).fetchall()
+            counts = c.execute(
+                "SELECT status,COUNT(*) AS count FROM pipeline_jobs" + where + " GROUP BY status",
+                params,
+            ).fetchall()
+        return {
+            "items": [dict(row) for row in rows],
+            "total": int(total),
+            "limit": limit,
+            "offset": offset,
+            "status_counts": {row["status"]: int(row["count"]) for row in counts},
+        }
+
+    def lifecycle_summaries(self, job_ids):
+        """Fetch compact lifecycle state for a page in one indexed read query.
+
+        Deliberately excludes artifacts, payloads, event bodies, tokens and snapshots.
+        """
+        ids = list(dict.fromkeys(str(value) for value in (job_ids or []) if value))
+        if not ids:
+            return {}
+        if len(ids) > 100:
+            raise ValueError("At most 100 job IDs may be summarized")
+        placeholders = ",".join("?" for _ in ids)
+        sql = f"""
+            SELECT q.id AS job_id,
+                   p.status AS production_status,
+                   p.current_stage AS current_stage,
+                   p.brand AS brand,
+                   p.topic AS topic,
+                   (SELECT r.decision FROM review_decisions r
+                    WHERE r.job_id=q.id ORDER BY r.id DESC LIMIT 1) AS latest_review_decision,
+                   y.status AS youtube_status,
+                   y.attempt_id AS youtube_attempt_id,
+                   y.video_id AS youtube_video_id,
+                   EXISTS(SELECT 1 FROM youtube_upload_events ye
+                          WHERE ye.job_id=q.id AND ye.event_type='upload_attempt_started')
+                       AS youtube_attempt_started,
+                   t.status AS tiktok_status,
+                   t.attempt_id AS tiktok_attempt_id,
+                   t.video_id AS tiktok_video_id,
+                   EXISTS(SELECT 1 FROM tiktok_publication_events te
+                          WHERE te.job_id=q.id AND te.event_type IN
+                          ('operator_consent_recorded','publish_initialization_started',
+                           'publication_attempt_started'))
+                       AS tiktok_attempt_started
+            FROM pipeline_jobs q
+            LEFT JOIN production_runs p ON p.job_id=q.id
+            LEFT JOIN youtube_uploads y ON y.job_id=q.id
+            LEFT JOIN tiktok_publications t ON t.job_id=q.id
+            WHERE q.id IN ({placeholders})
+        """
+        with self.db() as c:
+            rows = c.execute(sql, ids).fetchall()
+        return {row["job_id"]: {
+            **dict(row),
+            "youtube_events": ([{"event_type": "upload_attempt_started"}]
+                               if row["youtube_attempt_started"] else []),
+            "tiktok_events": ([{"event_type": "publication_attempt_started"}]
+                              if row["tiktok_attempt_started"] else []),
+        } for row in rows}
+
     def get(self,jid):
         with self.db() as c:
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
@@ -356,6 +440,63 @@ class JobQueue:
             if row["last_seen_at"] < cutoff:
                 row["status"] = "offline"
         return rows
+
+    def operational_health(self):
+        """Read-only operational safety snapshot; never requeues, pauses or contacts providers."""
+        current = stamp(now())
+        stale_cutoff = stamp(now() - timedelta(seconds=max(30, self.lease_seconds)))
+        with self.db() as c:
+            status_rows = c.execute(
+                "SELECT status,COUNT(*) AS n FROM pipeline_jobs GROUP BY status"
+            ).fetchall()
+            control = c.execute(
+                "SELECT paused,pause_reason,paused_job_id,updated_at FROM worker_control WHERE id=1"
+            ).fetchone()
+            expired = c.execute("""SELECT COUNT(*) AS n FROM pipeline_jobs
+                WHERE status='running' AND lease_expires_at IS NOT NULL
+                  AND lease_expires_at<=?""", (current,)).fetchone()["n"]
+            missing_lease = c.execute("""SELECT COUNT(*) AS n FROM pipeline_jobs
+                WHERE status='running' AND
+                  (worker_id IS NULL OR worker_id='' OR lease_token IS NULL OR lease_token=''
+                   OR lease_expires_at IS NULL OR lease_expires_at='')""").fetchone()["n"]
+            worker_rows = c.execute("""SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN last_seen_at>=? THEN 1 ELSE 0 END) AS online,
+                SUM(CASE WHEN last_seen_at<? THEN 1 ELSE 0 END) AS stale
+                FROM worker_registry""", (stale_cutoff, stale_cutoff)).fetchone()
+        statuses = {row["status"]: row["n"] for row in status_rows}
+        control = dict(control) if control else {
+            "paused": 0, "pause_reason": None, "paused_job_id": None, "updated_at": None
+        }
+        blockers = []
+        warnings = []
+        if control["paused"]:
+            blockers.append({"code":"production_queue_paused","message":"Production queue is paused"})
+        if expired:
+            blockers.append({"code":"worker_lease_expired","message":"One or more running jobs have expired worker leases","count":expired})
+        if missing_lease:
+            blockers.append({"code":"worker_lease_incomplete","message":"One or more running jobs have incomplete lease ownership fields","count":missing_lease})
+        stale_workers = int(worker_rows["stale"] or 0)
+        if stale_workers:
+            warnings.append({"code":"workers_stale","message":"One or more registered workers have stale heartbeats","count":stale_workers})
+        retryable = int(statuses.get("failed_retriable", 0))
+        if retryable:
+            warnings.append({"code":"retryable_failures","message":"Jobs are waiting for an eligible retry","count":retryable})
+        return {
+            "status": "blocked" if blockers else ("attention_required" if warnings else "healthy"),
+            "checked_at": current,
+            "read_only": True,
+            "queue": {"total":sum(statuses.values()),"status_counts":statuses,
+                      "paused":bool(control["paused"])},
+            "workers": {"total":int(worker_rows["total"] or 0),
+                        "online":int(worker_rows["online"] or 0),"stale":stale_workers,
+                        "stale_after_seconds":max(30,self.lease_seconds)},
+            "leases": {"expired_running":int(expired),"running_missing_ownership":int(missing_lease)},
+            "control": control,
+            "blockers": blockers,
+            "warnings": warnings,
+            "actions_taken": [],
+        }
 
     def stats(self):
         with self.db() as c:
