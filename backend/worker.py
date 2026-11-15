@@ -9,7 +9,8 @@ import socket
 import threading
 import uuid
 
-from production_pipeline import ProductionPipeline, ProductionStore, ProductionLeaseConflict, ProviderError
+from production_pipeline import (ProductionPipeline, ProductionStore,
+                                 ProductionLeaseConflict, ProviderError, PolicyBlocked)
 from queue_store import JobQueue, LeaseConflict
 from worker_runtime import heartbeat_interval, request_worker_shutdown
 
@@ -113,6 +114,13 @@ def run_once():
             except LeaseConflict:
                 pass
         raise
+    except PolicyBlocked as exc:
+        try:
+            queue.fail(job["id"], WORKER_ID, job["lease_token"],
+                       "policy_blocked", str(exc), False)
+        except LeaseConflict:
+            print(f"lease_lost job={job['id']}")
+        print(f"policy_blocked job={job['id']} stage={exc.stage}")
     except ProviderError as exc:
         stopping.set()
         try:
