@@ -421,3 +421,8 @@ for loopback development endpoints. The current pipeline adapter is
 contract. A configured endpoint is not proof of vendor compatibility, successful
 generation, artifact availability or billing. This preflight performs no network
 request and makes no paid provider call.
+
+
+## Vendor adapter implementation guide
+
+The exact script, TTS and renderer request/response fields, error semantics, media artifact requirements, and vendor onboarding checklist are documented in [`docs/PROVIDER_ADAPTER_CONTRACT.md`](../docs/PROVIDER_ADAPTER_CONTRACT.md). The generic JSON adapter is only a transport contract: choose a vendor and implement/map its API before configuring production credentials. Do not assume a vendor endpoint is compatible merely because it accepts JSON.
