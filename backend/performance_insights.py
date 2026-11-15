@@ -1,4 +1,6 @@
 """Evidence-bound performance analysis; no synthetic metrics or predictive claims."""
+import json
+import re
 import sqlite3
 import statistics
 from contextlib import contextmanager
@@ -19,6 +21,61 @@ def _elapsed_hours(start, end):
         return round(seconds / 3600.0, 6) if seconds >= 60 else None
     except (TypeError, ValueError):
         return None
+
+
+def _publication_age_bucket(uploaded_at, measured_at):
+    hours = _elapsed_hours(uploaded_at, measured_at)
+    if hours is None:
+        return "unknown"
+    if hours < 24:
+        return "under_24h"
+    if hours < 24 * 7:
+        return "1_7d"
+    if hours < 24 * 30:
+        return "7_30d"
+    return "over_30d"
+
+
+def _duration_bucket(value):
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return "unknown"
+    if seconds <= 0:
+        return "unknown"
+    if seconds < 20:
+        return "under_20s"
+    if seconds < 40:
+        return "20_40s"
+    if seconds < 60:
+        return "40_60s"
+    return "over_60s"
+
+
+def _topic_signature(value):
+    tokens = set(re.findall(r"[a-z0-9가-힣]{2,}", str(value or "").lower()))
+    tokens -= {"the", "and", "for", "with", "why", "how", "what", "this", "that"}
+    return " ".join(sorted(tokens)) if tokens else "unknown"
+
+
+def _render_format(metadata):
+    value = str(metadata.get("format") or "").strip().lower()
+    if value in ("vertical_short", "vertical", "9:16"):
+        return "vertical_short"
+    if value in ("horizontal", "16:9"):
+        return "horizontal_16_9"
+    if value in ("square", "1:1"):
+        return "square"
+    ratio = str(metadata.get("aspect_ratio") or "").strip()
+    if ratio == "9:16":
+        return "vertical_short"
+    if ratio == "16:9":
+        return "horizontal_16_9"
+    if ratio == "1:1":
+        return "square"
+    # All production jobs in this pipeline request 9:16; distinguish requested
+    # format from verified rendered dimensions when the provider omits metadata.
+    return "vertical_short_requested"
 
 
 class PerformanceAnalyzer:
@@ -43,10 +100,13 @@ class PerformanceAnalyzer:
                 where += " AND r.brand=?"
                 args.append(brand)
             videos = c.execute("""
-                SELECT r.job_id,r.brand,r.region,r.topic,u.video_id,
+                SELECT r.job_id,r.brand,r.region,r.topic,u.video_id,u.uploaded_at,
+                       a.metadata_json AS rendering_metadata_json,
                        s.view_count,s.like_count,s.comment_count,s.collected_at
                 FROM production_runs r
                 JOIN youtube_uploads u ON u.job_id=r.job_id AND u.status='uploaded'
+                LEFT JOIN production_artifacts a
+                  ON a.job_id=r.job_id AND a.stage='rendering' AND a.artifact_type='video'
                 LEFT JOIN youtube_video_snapshots s ON s.video_id=u.video_id
             """ + where + " ORDER BY r.brand,r.region,r.job_id,s.collected_at", args).fetchall()
 
@@ -66,7 +126,10 @@ class PerformanceAnalyzer:
             key = row["job_id"]
             item = groups.setdefault(key, {
                 "job_id": key, "brand": row["brand"], "region": row["region"],
-                "topic": row["topic"], "video_id": row["video_id"], "snapshots": []
+                "topic": row["topic"], "video_id": row["video_id"],
+                "uploaded_at": row["uploaded_at"],
+                "rendering_metadata_json": row["rendering_metadata_json"],
+                "snapshots": []
             })
             if row["collected_at"] is not None:
                 item["snapshots"].append({
@@ -93,10 +156,23 @@ class PerformanceAnalyzer:
             brand_row["videos"] += 1
             region_row["videos"] += 1
             snaps = video["snapshots"]
+            try:
+                render_metadata = json.loads(video["rendering_metadata_json"] or "{}")
+                if not isinstance(render_metadata, dict):
+                    render_metadata = {}
+            except (TypeError, ValueError):
+                render_metadata = {}
+            duration_seconds = render_metadata.get("duration_seconds")
             result = {
                 "job_id": video["job_id"], "brand": video["brand"],
                 "region": video["region"], "topic": video["topic"],
-                "video_id": video["video_id"], "snapshot_count": len(snaps),
+                "topic_signature": _topic_signature(video["topic"]),
+                "video_id": video["video_id"], "uploaded_at": video["uploaded_at"],
+                "duration_seconds": duration_seconds,
+                "duration_bucket": _duration_bucket(duration_seconds),
+                "format": _render_format(render_metadata),
+                "snapshot_count": len(snaps),
+                "publication_age_bucket": "unknown",
                 "measurement_status": "insufficient_snapshots"
             }
             if len(snaps) >= 2:
@@ -110,6 +186,12 @@ class PerformanceAnalyzer:
                 result.update(deltas)
                 result["first_snapshot_at"] = first["collected_at"]
                 result["last_snapshot_at"] = last["collected_at"]
+                result["publication_age_bucket"] = _publication_age_bucket(
+                    video["uploaded_at"], last["collected_at"]
+                )
+                result["publication_age_hours_at_last_snapshot"] = _elapsed_hours(
+                    video["uploaded_at"], last["collected_at"]
+                )
                 result["elapsed_hours"] = _elapsed_hours(
                     first["collected_at"], last["collected_at"]
                 )
@@ -201,6 +283,63 @@ class PerformanceAnalyzer:
                 })
             item["view_delta_is_snapshot_difference"] = True
 
+        # Comparable cohorts are descriptive only. Sparse or mismatched samples
+        # never alter trend recommendation scores.
+        cohort_groups = {}
+        for video in video_results:
+            if video.get("measurement_status") != "measured":
+                continue
+            rate = video.get("views_per_hour")
+            if not isinstance(rate, (int, float)) or rate < 0:
+                continue
+            key = (
+                str(video.get("brand") or "unknown"),
+                str(video.get("region") or "unknown").upper(),
+                video.get("publication_age_bucket", "unknown"),
+                video.get("duration_bucket", "unknown"),
+                video.get("format", "unknown"),
+                video.get("topic_signature", "unknown"),
+            )
+            cohort = cohort_groups.setdefault(key, {
+                "brand": key[0],
+                "region": key[1],
+                "publication_age_bucket": key[2],
+                "duration_bucket": key[3],
+                "format": key[4],
+                "topic_signature": key[5],
+                "_views_per_hour": [],
+                "_interaction_rates": [],
+            })
+            cohort["_views_per_hour"].append(float(rate))
+            interaction_rate = video.get("interactions_per_1000_view_delta")
+            if isinstance(interaction_rate, (int, float)) and interaction_rate >= 0:
+                cohort["_interaction_rates"].append(float(interaction_rate))
+
+        cohorts = []
+        for cohort in cohort_groups.values():
+            rates = cohort.pop("_views_per_hour")
+            interaction_rates = cohort.pop("_interaction_rates")
+            count = len(rates)
+            cohort.update({
+                "sample_count": count,
+                "median_views_per_hour": round(statistics.median(rates), 2),
+                "interaction_rate_sample_count": len(interaction_rates),
+                "median_interactions_per_1000_view_delta": (
+                    round(statistics.median(interaction_rates), 2)
+                    if interaction_rates else None
+                ),
+                "evidence_status": "limited" if count < 3 else "observed",
+                "ranking_score_adjustment": 0,
+                "usage": "display_only_pending_held_out_validation",
+            })
+            cohorts.append(cohort)
+        cohorts.sort(
+            key=lambda item: (
+                item["brand"], item["region"], item["publication_age_bucket"],
+                item["duration_bucket"], item["format"], item["topic_signature"]
+            )
+        )
+
         financial = {}
         for row in ledger:
             key = (row["brand"], row["currency"])
@@ -224,6 +363,8 @@ class PerformanceAnalyzer:
             "brands": list(by_brand.values()),
             "regions": list(by_region.values()),
             "videos": video_results,
+            "cohorts": cohorts,
+            "cohort_method": "Brand + region + exact normalized topic-token signature + publication-age-at-last-snapshot + duration bucket + format; descriptive only.",
             "financial": list(financial.values()),
             "limitations": [
                 "View deltas are differences between stored snapshots, not real-time platform analytics.",
@@ -231,6 +372,9 @@ class PerformanceAnalyzer:
                 "Interactions per 1000 view delta uses like and comment counter differences only; it is not audience-retention or satisfaction data.",
                 "Negative view-counter differences are treated as resets or invalid measurements and excluded from aggregate growth; negative interaction deltas are omitted.",
                 "Audience retention, average view duration, viewed-versus-swiped-away and subscriber conversion require eligible YouTube Analytics data and are not inferred from Data API counters.",
+                "Comparable cohorts use exact normalized topic-token signatures, region, age at the last stored snapshot, render duration and format; lexical signatures are not semantic topic classification.",
+                "Cohorts with fewer than three measured videos are marked limited; no cohort metric changes recommendation ranking until held-out evaluation validates an adjustment.",
+                "Format defaults to vertical_short_requested when the renderer does not return verifiable format metadata; this is a requested format, not proof of rendered dimensions.",
                 "Recommendations are operational heuristics, not causal claims or forecasts.",
                 "Financial totals include only recorded ledger entries.",
                 "Financials are separated by brand and currency; no implicit foreign-exchange conversion is applied."

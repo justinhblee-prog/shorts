@@ -737,3 +737,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added authenticated `POST /api/review/{job_id}/policy-evidence` so a reviewer can resolve required attestations during `review_pending` without changing the generated media. The server recomputes the report from the durable queue payload, updates the script artifact metadata, and records append-only `policy_evidence_events`.
 - Added a review-workspace action for rights, synthetic-media classification, factuality and platform disclosure attestations. The UI shows non-overridable approval blockers and disables approval until they are resolved.
 - Evidence updates are allowed only while both the production record and durable queue job are in `review_pending`; the endpoint rejects stale/terminal jobs and unsupported declaration fields.
+
+
+### Comparable historical performance cohorts — 2026-11-15
+
+- Extended `GET /api/performance/insights` with measured-video cohorts grouped by region, publication-age bucket at the latest stored snapshot, render-duration bucket, format, and exact normalized topic-token signature.
+- Cohort outputs include sample count, median observed views/hour, median interactions per 1,000 gained views, and an explicit evidence status. Fewer than three measured videos are marked `limited`.
+- Render duration is read from the stored rendering artifact metadata. Format uses provider-returned format/aspect ratio when available; otherwise it is labeled `vertical_short_requested`, not misrepresented as verified rendered dimensions.
+- Topic grouping is lexical and exact-signature based, not semantic clustering. The method and its limitations are returned by the API.
+- Added the cohort section to the performance insights workspace.
+- Cohort metrics remain display-only with `ranking_score_adjustment=0`. They must not reorder recommendations until a held-out evaluation demonstrates stable improvement against a baseline.
+
+- Cohort identity also includes brand, preventing one channel/brand's historical performance from contaminating another brand's comparison.
