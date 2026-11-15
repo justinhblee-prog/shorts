@@ -1361,3 +1361,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - This prevents approval from silently carrying forward when the rendered media, script, quality report, or policy metadata changes after review.
 - No external publish was performed. Human approval remains mandatory; YouTube remains private and TikTok remains SELF_ONLY. Recommendation score changes remain disabled.
 - GitHub Actions passed **442 tests** at code commit `191cd1d` (run [43709004157](https://github.com/justinhblee-prog/shorts/actions/runs/43709004157)). Live provider/OAuth/account posting and monetization remain unverified.
+
+
+## BUILD-00066 — canonical staged-media binding
+
+- The production staging endpoint no longer returns an existing job-named media file without checking the current renderer artifact. Each explicit staging request downloads the current artifact again through the existing HTTPS host allowlist, DNS/IP checks, size limits, and atomic replacement.
+- YouTube and TikTok API publish routes now accept only the deterministic staging file belonging to that exact production job. Arbitrary media-root files, cross-job paths, missing files, and symlink substitutions fail closed before the publisher is called.
+- Added regression coverage for canonical-path acceptance, cross-job rejection, symlink rejection, and refreshing an existing staged file from the current renderer URL.
+- Direct publisher unit tests remain available for isolated adapter validation; the production API boundary enforces canonical staging.
+- External platform posting remains unperformed. This does not independently prove that the renderer URL itself is immutable; a content-hash approval binding remains a follow-on hardening item.
+- CI validation for BUILD-00066 is pending.
