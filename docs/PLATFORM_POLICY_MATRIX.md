@@ -62,7 +62,7 @@ Production briefs may carry:
 - `rights`: `visuals_cleared`, `audio_cleared`, `likeness_authorized`.
 - `synthetic_media_status`: `none`, `ai_assisted_nonrealistic`, `ai_generated`, `realistic_alteration`, or `unknown`.
 - `platform_disclosures`: platform-specific AI disclosure acknowledgements.
-- `youtube_contains_synthetic_media`: required boolean realism classification for YouTube AI-generated content; set true for realistic altered/synthetic content and false only when it is not realistic A/S content.
+- `youtube_contains_synthetic_media`: required boolean realism classification for YouTube AI-generated content; set true for realistic altered/synthetic content and false only when it is not realistic A/S content. The authenticated review-evidence API and review screen collect and persist this value explicitly; the uploader fails closed if it is absent.
 - `policy_flags`: explicit hard-block flags.
 - `risk_flags`: elevated-review categories.
 - `claim_evidence_notes`, `source_urls`, `transformative_contribution`, `commercial_relationship_disclosed`, and `child_safety_review_confirmed`.
