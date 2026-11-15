@@ -8,7 +8,9 @@ Scope: single-host Docker deployment and supervised operation.
 Copy `.env.example` to `.env`. Never commit the real file.
 
 Required for protected operations:
-- `NEXUS_REVIEW_TOKEN`: long, random operator token.
+- Preferred: `NEXUS_REVIEW_CREDENTIALS_JSON`, a JSON object mapping each individual operator ID to a unique random token of at least 32 characters. Example: `{"alice":"<alice-token>","bob":"<bob-token>"}`. Generate each token with `python -c "import secrets; print(secrets.token_urlsafe(48))"` and distribute it only to that operator through a secure secret channel.
+- Temporary migration fallback: `NEXUS_REVIEW_TOKEN`. If the individual credential map is configured, the shared token is ignored. If only the legacy token is configured, all requests are attributed to the fixed identity `legacy-operator`; caller-supplied reviewer IDs are never trusted for audit attribution.
+- Malformed individual credential configuration fails closed with HTTP 503. Invalid credentials receive HTTP 401. Keep the JSON value and all tokens out of source control and logs.
 
 Required for end-to-end AI production:
 - `SCRIPT_PROVIDER_URL`, `SCRIPT_PROVIDER_TOKEN`
@@ -40,7 +42,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Open `http://localhost:8502/`. The API, worker, scheduler and metrics collector use the same persistent SQLite volume. The scheduler uses a shared-database leader lease; multiple instances may run safely, with one active dispatcher at a time. The dashboard's token is held in browser memory only; refreshing the browser clears it.
+Open `http://localhost:8502/`. The API, worker, scheduler and metrics collector use the same persistent SQLite volume. The scheduler uses a shared-database leader lease; multiple instances may run safely, with one active dispatcher at a time. The dashboard token is held in browser memory only; refreshing the browser clears it. Each operator should use their own token.
 
 ## 3. Production lifecycle
 
