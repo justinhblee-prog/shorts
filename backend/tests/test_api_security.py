@@ -225,6 +225,35 @@ class ApiSecurityTests(unittest.TestCase):
         finish.assert_not_called()
         pause.assert_called()
 
+    def test_api_production_heartbeat_renews_short_lease_before_expiry(self):
+        import time
+        job = {"id": "job-short-lease", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+
+        def brief_execution(*args, **kwargs):
+            time.sleep(0.55)
+            return {"artifacts": []}
+
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "lease_seconds", 1),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "heartbeat", return_value=job) as heartbeat,
+            mock.patch.object(app_module.production_pipeline, "execute",
+                              side_effect=brief_execution),
+            mock.patch.object(app_module.queue, "finish"),
+            mock.patch.object(app_module.production_store, "reconcile_review_pending"),
+            mock.patch.object(app_module.production_store, "get",
+                              return_value={"status": "review_pending"}),
+        ):
+            result = execute_production_job("job-short-lease", body,
+                                            x_review_token="test-token")
+
+        self.assertEqual(result["status"], "review_pending")
+        heartbeat.assert_called()
+
     def test_api_production_execution_rejects_stale_pipeline_lease(self):
         job = {"id": "job-1", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
