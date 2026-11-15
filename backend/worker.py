@@ -66,7 +66,7 @@ def run_once():
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}")
-    except LeaseConflict:
+    except (LeaseConflict, ProductionLeaseConflict):
         print(f"lease_lost job={job['id']}")
     except Exception as exc:
         try:
