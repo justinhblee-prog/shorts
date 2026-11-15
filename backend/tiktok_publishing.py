@@ -435,14 +435,24 @@ class TikTokPublisher:
             raise TikTokPublishError("TikTok returned an untrusted upload URL")
         return upload_url
 
-    def _upload_chunks(self, upload_url, media_path, mime, size):
+    @staticmethod
+    def _chunk_plan(size):
+        if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+            raise TikTokPublishError("TikTok upload size must be a positive integer")
         chunk_size = min(CHUNK_SIZE, size)
-        if size > CHUNK_SIZE:
-            chunk_count = size // chunk_size
-        else:
-            chunk_count = 1
-        if chunk_count < 1 or chunk_count > 1000:
+        # TikTok requires files larger than 64 MiB to use multiple chunks.
+        # Near the 64 MiB boundary, a 64 MiB chunk would floor-divide to one;
+        # reduce the base chunk so the final chunk remains within TikTok's
+        # documented 128 MiB maximum (the final chunk may exceed chunk_size).
+        if size > CHUNK_SIZE and size // chunk_size < 2:
+            chunk_size = size // 2
+        chunk_count = max(1, size // chunk_size)
+        if chunk_count > 1000:
             raise TikTokPublishError("TikTok chunk count is outside the supported range")
+        return chunk_size, chunk_count
+
+    def _upload_chunks(self, upload_url, media_path, mime, size):
+        chunk_size, chunk_count = self._chunk_plan(size)
         with open(media_path, "rb") as media:
             offset = 0
             for index in range(chunk_count):
@@ -592,8 +602,7 @@ class TikTokPublisher:
             if not supported_container:
                 raise TikTokPublishError("TikTok video container does not match its supported file format")
             remote_started = True
-            chunk_size = min(CHUNK_SIZE, size)
-            chunk_count = max(1, size // chunk_size)
+            chunk_size, chunk_count = self._chunk_plan(size)
             initialized = self._call(
                 API_ROOT + "/v2/post/publish/video/init/",
                 payload={
