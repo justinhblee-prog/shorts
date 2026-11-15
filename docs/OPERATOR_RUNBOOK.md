@@ -285,3 +285,4 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - Do not embed usernames, passwords, access tokens or API keys in provider URLs. Keep credentials in their dedicated environment variables / secret store.
 - The API preflight rejects malformed or non-HTTPS provider URLs without displaying their values. It performs no network request; a configured result is not a live connectivity or provider compatibility test.
 - Provider HTTP error response bodies are not retained. Automatic redirects are disabled; configure the final HTTPS provider URL directly. Diagnose provider failures using the sanitized stage and HTTP status, then consult the provider console with appropriate access controls.
+- The existing TikTok status-poll backoff regression fixture uses margins away from SQLite's one-second timestamp boundary to avoid timing-dependent false failures.
