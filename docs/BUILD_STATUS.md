@@ -1330,3 +1330,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - BUILD-00061 branch-head Actions run [43707065436](https://github.com/justinhblee-prog/shorts/actions/runs/43707065436) completed successfully: **427 tests passed**.
 - BUILD-00062 branch-head Actions run [43707209959](https://github.com/justinhblee-prog/shorts/actions/runs/43707209959) completed successfully: **432 tests passed**, including repository validation and the new statistical decision-gate regressions.
+
+
+## BUILD-00063 — experiment evidence integrity audit
+
+- Added a read-only, authenticated experiment-integrity report at `GET /api/recommendations/experiments/integrity`.
+- Audits persisted assignment arms and modes, per-experiment participant-fingerprint uniqueness, and assignment foreign-key integrity; reports unexpected modes/arms and duplicate fingerprint groups as integrity warnings.
+- Separately reports shadow assignment counts and client-reported viewport acknowledgements. It explicitly records that these evidence streams have no experiment/arm join and that randomized served-exposure and arm-attributed outcome counts remain zero.
+- The endpoint is diagnostic only: no live assignment, variant delivery, outcome attribution, rollout, or recommendation-score adjustment is enabled.
+- Regression tests cover the distinction between shadow assignments and viewport acknowledgements, plus detection of an unexpected persisted assignment mode.
+- CI validation pending for this branch head; do not claim test success until the latest Actions run completes.
