@@ -107,6 +107,13 @@ class TikTokOAuthStore:
         missing = [key for key, value in values.items() if not value]
         if missing:
             raise TikTokOAuthError("Missing TikTok OAuth configuration: " + ", ".join(missing))
+        redirect = urlparse(values["redirect_uri"])
+        if (redirect.scheme != "https" or not redirect.hostname
+                or redirect.username or redirect.password
+                or redirect.query or redirect.fragment):
+            raise TikTokOAuthError(
+                "TIKTOK_REDIRECT_URI must be a registered static HTTPS URL without query or fragment"
+            )
         return values
 
     @classmethod
