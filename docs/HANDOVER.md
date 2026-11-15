@@ -450,5 +450,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Both claim-time lease recovery and explicit `recover()` apply this rule. Non-production queue jobs retain their existing retry policy.
 - Ctrl+C during provider execution pauses first so the current queue job and production record are terminalized atomically before the worker exits. Hard process/host kills are handled by lease-expiry recovery.
 - Regression coverage verifies no replacement worker receives an ambiguous production job, stale workers cannot write, and the durable pause survives recovery.
-- Prior branch validation [run 43666853835](https://github.com/justinhblee-prog/shorts/actions/runs/43666853835) passed **119 tests**. This refreshed branch includes the same code changes rebased onto the latest main plus the corrected interruption ordering; its CI is pending.
+- Final GitHub Actions validation [run 43667201896](https://github.com/justinhblee-prog/shorts/actions/runs/43667201896) passed **121 tests** on the refreshed branch head.
 - Operators must inspect remote provider history, artifacts and billing before creating a replacement request. A lease expiry cannot establish whether the remote service completed the original request.
