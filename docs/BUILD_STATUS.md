@@ -778,3 +778,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a regression test for heartbeat lease loss and confirmed the API path does not call queue.finish after lease loss.
 - GitHub Actions runs 43674812239 and 43674806863 passed on commit 4ffc4af752cfcda6e2f20f80ba3826189596b72d; each ran compile/Compose/frontend validation and all 203 backend unit tests.
 - Still not merged or deployed. Live provider behavior has not been exercised.
+
+### API production lease renewal hardening — 2026-11-15
+
+- Corrected API-triggered production heartbeat cadence to renew at one-third of the configured lease duration, with a 100 ms lower bound. The previous one-second minimum could equal or exceed very short lease durations and cause healthy work to lose its lease.
+- Added a regression test proving a one-second lease is renewed during a 550 ms execution window.
+- GitHub Actions PR run 43674925201 passed on commit `92cca54d4901b065f92adce697a2f89e88c4e480`: validation script and all 204 backend tests passed.
+- External provider credentials, real provider calls, production deployment and live YouTube publishing remain unverified.
