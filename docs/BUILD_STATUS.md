@@ -1297,3 +1297,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Exposure events are immutable; invalid run/trend pairs, malformed event IDs and out-of-range visibility durations are rejected.
 - Safety/evidence boundary: viewport acknowledgement is client-reported, not proof of human attention. This milestone does not randomize traffic, deliver experiment arms, estimate causal lift, or change ranking scores / production / publishing behavior. Ranking score adjustment remains zero.
 - GitHub Actions run [43705912745](https://github.com/justinhblee-prog/shorts/actions/runs/43705912745) passed **418 tests**; `scripts/validate.sh` completed successfully, including Python compileall, YAML validation, frontend syntax/ID checks and full unittest discovery.
+
+## BUILD-00060 — randomized experiment statistical validity gate
+
+- Added `backend/experiment_statistics.py` with a fail-closed two-arm Welch mean-difference evaluator and approximate 95% confidence interval.
+- Rejects boolean, non-numeric and non-finite outcomes; bounds input samples and minimum sample configuration; reports insufficient-arm samples and zero-variance comparisons as inconclusive.
+- The evaluator refuses to estimate an effect unless randomized assignment and served exposure are explicitly verified by a trusted caller. Shadow assignment and client-reported viewport acknowledgements are not sufficient.
+- No public API accepts caller-asserted verification flags: the current experiment pipeline has no verified live arm delivery or randomized served-exposure ledger, so wiring an operator-controlled endpoint would create false statistical evidence. The evaluator is intentionally an internal gate until trusted assignment/exposure/outcome joins exist.
+- No p-value is reported; the interval is an approximate Welch interval and does not address repeated peeking, multiple testing, clustering, missing-not-at-random outcomes or metric pre-registration.
+- No automated decision, recommendation score adjustment, variant delivery, publication or production behavior is enabled. Ranking score adjustment remains zero.
+- Added regression tests for shadow-only blocking, client-render-only blocking, minimum sample size, finite numeric validation, Welch interval, and zero-variance inconclusiveness.
+- CI validation is pending for this commit; do not claim test success until the branch-head Actions run completes.
