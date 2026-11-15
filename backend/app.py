@@ -532,6 +532,60 @@ def get_lifecycle_queue(
     }
 
 
+@app.get("/api/lifecycle/publishing")
+def get_lifecycle_publishing_dashboard(
+    limit:int=50, offset:int=0, x_review_token:str|None=Header(default=None),
+):
+    """Bounded read-only cross-platform publishing state; never polls or mutates providers."""
+    require_review_access(x_review_token)
+    if limit < 1 or limit > 100 or offset < 0:
+        raise HTTPException(422,"limit must be 1..100 and offset must be non-negative")
+    page=queue.list_jobs(job_type="short_video_production",limit=limit,offset=offset)
+    items=[]
+    youtube_counts={"not_started":0}
+    tiktok_counts={"not_started":0}
+    for job in page["items"]:
+        job_id=job["id"]
+        youtube=youtube_upload_store.get(job_id) or {}
+        tiktok=tiktok_publish_store.get(job_id) or {}
+        ystatus=youtube.get("status") or "not_started"
+        tstatus=tiktok.get("status") or "not_started"
+        youtube_counts[ystatus]=youtube_counts.get(ystatus,0)+1
+        tiktok_counts[tstatus]=tiktok_counts.get(tstatus,0)+1
+        items.append({
+            "job_id":job_id,"queue_status":job.get("status"),
+            "brand":job.get("brand") or (job.get("payload") or {}).get("brand"),
+            "updated_at":job.get("updated_at"),
+            "youtube":{
+                "status":ystatus,"video_id":youtube.get("video_id"),
+                "attempt_id":youtube.get("attempt_id"),
+                "uploaded_at":youtube.get("uploaded_at"),
+                "updated_at":youtube.get("updated_at"),
+                "error":youtube.get("error"),
+                "reconciliation_required":bool(youtube.get("reconciliation_required")),
+                "events":(youtube.get("events") or [])[-10:],
+            },
+            "tiktok":{
+                "status":tstatus,"publish_id":tiktok.get("publish_id"),
+                "video_id":tiktok.get("video_id"),
+                "attempt_id":tiktok.get("attempt_id"),
+                "privacy_level":tiktok.get("privacy_level") or "SELF_ONLY",
+                "updated_at":tiktok.get("updated_at"),
+                "fail_reason":tiktok.get("fail_reason"),
+                "error":tiktok.get("error"),
+                "reconciliation_required":tstatus=="reconciliation_required",
+                "events":(tiktok.get("events") or [])[-10:],
+            },
+        })
+    return {
+        "items":items,"total":page["total"],"limit":page["limit"],
+        "offset":page["offset"],"youtube_status_counts":youtube_counts,
+        "tiktok_status_counts":tiktok_counts,"read_only":True,
+        "remote_status_refresh_performed":False,"automatic_retry_performed":False,
+        "publishing_performed":False,
+    }
+
+
 @app.post("/api/production/jobs/{job_id}/execute")
 def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
