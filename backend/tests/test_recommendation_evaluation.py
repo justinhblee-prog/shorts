@@ -310,6 +310,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(history["count"], 1)
         self.assertEqual(history["items"][0]["input_fingerprint"],
                          result["input_fingerprint"])
+        self.assertEqual(self.store.list_evaluation_snapshots(500)["limit"], 50)
         with self.store.db() as connection:
             with self.assertRaisesRegex(Exception, "immutable"):
                 connection.execute(
