@@ -782,3 +782,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Persists a `quality_check` report artifact and shows blockers/warnings and verification limitations in the human review workspace. Human approval remains mandatory; no score changes or public publication are enabled.
 - **Boundary:** the gate evaluates provider-returned metadata and basic script length only. It does not download or inspect media bytes, verify captions, prove factual accuracy or rights, assess visual quality, or establish platform compliance. Provider attestations are not independent verification.
 - CI validation pending on this branch; do not mark verified until GitHub Actions passes.
+
+- Approval enforcement is server-side: quality blockers cannot be overridden by a reviewer comment, and `review_required` warnings require an explicit reviewer confirmation note. The review UI requests that note and displays the recorded quality report.
