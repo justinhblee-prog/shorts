@@ -16,6 +16,7 @@ from policy_engine import evaluate_content_policy
 from production_quality import evaluate_production_quality
 from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
+from script_originality import build_script_originality_report
 
 
 class ProviderError(RuntimeError):
@@ -271,6 +272,33 @@ class ProductionStore:
                     repaired.append(job_id)
         return {"reconciled": len(repaired), "job_ids": repaired}
 
+    def check_script_originality(self, job_id, language, script_text,
+                                 threshold=0.82, limit=500):
+        """Compare against previously produced scripts across brands in the same language."""
+        with self.db() as c:
+            rows = c.execute("""SELECT r.job_id,r.brand,r.region,r.topic,a.metadata_json
+                FROM production_runs r
+                JOIN production_artifacts a ON a.job_id=r.job_id
+                WHERE r.job_id<>? AND r.language=?
+                  AND r.status IN ('rendered','review_pending','approved','uploaded')
+                  AND a.stage='script' AND a.artifact_type='text'
+                ORDER BY a.created_at DESC LIMIT ?""",
+                (job_id, language, max(1, min(int(limit), 1000)))).fetchall()
+        previous = []
+        for row in rows:
+            try:
+                metadata = json.loads(row["metadata_json"])
+            except (TypeError, ValueError):
+                continue
+            script = metadata.get("script")
+            if not isinstance(script, str) or not script.strip():
+                continue
+            previous.append({
+                "job_id": row["job_id"], "brand": row["brand"],
+                "region": row["region"], "topic": row["topic"], "script": script,
+            })
+        return build_script_originality_report(script_text, previous, threshold)
+
     def get(self, job_id):
         with self.db() as c:
             run = c.execute("SELECT * FROM production_runs WHERE job_id=?", (job_id,)).fetchone()
@@ -458,11 +486,17 @@ class ProductionPipeline:
                     "source_urls", "factual_claims_verified", "fact_check_notes"
                 ) if key in script
             }
+            originality_report = self.store.check_script_originality(
+                job_id, brief["language"], script_text
+            )
+            script_metadata["originality_check"] = originality_report
             self.store.artifact(job_id, "script", "text", script.get("artifact_url"),
                                 {"script": script_text, "provider": script.get("provider"),
                                  "provider_quality_metadata": script_metadata,
                                  "policy_preflight": policy_report},
                                 **lease)
+            self.store.artifact(job_id, "originality_check", "report", None,
+                                originality_report, **lease)
 
             self._check_stop(stop_event)
             self.store.stage(job_id, "voice_generation", **lease)
