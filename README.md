@@ -46,7 +46,7 @@ With Python dependencies installed:
 sh scripts/validate.sh
 ```
 
-This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified GitHub Actions run [43668701509](https://github.com/justinhblee-prog/shorts/actions/runs/43668403972) completed successfully on main; **137 tests passed**. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
+This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified GitHub Actions run [43668839781](https://github.com/justinhblee-prog/shorts/actions/runs/43668403972) completed successfully on main; **138 tests passed**. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
 
 ## Documentation
 
