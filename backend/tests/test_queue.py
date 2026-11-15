@@ -323,6 +323,19 @@ class QueueTests(unittest.TestCase):
    self.q.resume(actor="admin-7",note="")
   self.q.resume(actor="admin-7",note="Reviewed queue and provider state")
   self.assertEqual(self.q.worker_control_events()[0]["event_type"],"resumed")
+ def test_stale_worker_instance_cannot_refresh_presence_after_restart(self):
+  self.q.register_worker("shared-worker","host-old","instance-old")
+  self.assertTrue(self.q.touch_worker("shared-worker","instance-old"))
+  self.q.register_worker("shared-worker","host-new","instance-new")
+  self.assertFalse(self.q.touch_worker("shared-worker","instance-old"))
+  self.assertTrue(self.q.touch_worker("shared-worker","instance-new"))
+  with self.q.db() as c:
+   row=c.execute("SELECT hostname,status,instance_token FROM worker_registry WHERE worker_id=?",
+                 ("shared-worker",)).fetchone()
+  self.assertEqual(row["hostname"],"host-new")
+  self.assertEqual(row["status"],"online")
+  self.assertEqual(row["instance_token"],"instance-new")
+
  def test_idle_worker_presence_refresh_and_stale_offline_detection(self):
   first=self.q.register_worker("idle-worker","host-a")
   self.assertEqual(first["status"],"online")
