@@ -37,6 +37,8 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop):
 
 
 def run_once():
+    # Recover the cross-store crash window before claiming new work.
+    store.reconcile_review_pending(queue)
     job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production")
     if job is None:
         return False
