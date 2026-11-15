@@ -211,6 +211,7 @@ def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
 @app.post("/api/production/jobs/{job_id}/execute")
 def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
+    heartbeat_pause_recorded=threading.Event()
     try:
         job=queue.get(job_id)
         if job["job_type"]!="short_video_production":
@@ -222,7 +223,6 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
         # pipeline stop signal before another external side effect can begin.
         lost_lease=threading.Event()
         heartbeat_stop=threading.Event()
-        heartbeat_pause_recorded=threading.Event()
         def renew_api_lease():
             interval=max(0.1,queue.lease_seconds/3.0)
             while not heartbeat_stop.wait(interval):
@@ -273,7 +273,7 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
     except JobNotFound:
         raise HTTPException(404,"Job not found")
     except ProductionLeaseConflict as e:
-        if not locals().get("heartbeat_pause_recorded",threading.Event()).is_set():
+        if not heartbeat_pause_recorded.is_set():
             try:
                 queue.pause(f"API production lease conflict: {e}", job_id)
             except Exception:
