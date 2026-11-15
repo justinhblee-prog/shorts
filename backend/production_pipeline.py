@@ -167,33 +167,31 @@ class ProductionStore:
 
 
     def reconcile_review_pending(self, queue, limit=100):
-        """Repair the crash window after queue.finish and before DB review-state update.
-
-        The durable queue transition is authoritative. Only a queue job already in
-        review_pending may advance a rendered production record into review_pending.
-        """
-        with self.db() as c:
-            rows = c.execute("""SELECT job_id FROM production_runs
-                WHERE status='rendered' ORDER BY updated_at LIMIT ?""",
-                (max(1, min(int(limit), 500)),)).fetchall()
+        """Atomically repair only queue jobs durably completed into review_pending."""
+        if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
+            raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
         repaired = []
-        for row in rows:
-            job_id = row["job_id"]
-            try:
-                job = queue.get(job_id)
-            except Exception as exc:
-                from queue_store import JobNotFound
-                if isinstance(exc, JobNotFound):
-                    continue
-                raise
-            if job.get("job_type") != "short_video_production" or job.get("status") != "review_pending":
-                continue
-            with self.db() as c:
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            rows = c.execute("""SELECT r.job_id FROM production_runs r
+                JOIN pipeline_jobs j ON j.id=r.job_id
+                WHERE r.status='rendered'
+                  AND j.job_type='short_video_production'
+                  AND j.status='review_pending'
+                ORDER BY r.updated_at LIMIT ?""",
+                (max(1, min(int(limit), 500)),)).fetchall()
+            for row in rows:
+                job_id = row["job_id"]
                 c.execute("""UPDATE production_runs
                     SET status='review_pending',current_stage='review_pending',
                         error=NULL,updated_at=?
-                    WHERE job_id=? AND status='rendered'""",
-                    (utc_now(), job_id))
+                    WHERE job_id=? AND status='rendered'
+                      AND EXISTS (
+                        SELECT 1 FROM pipeline_jobs j
+                        WHERE j.id=production_runs.job_id
+                          AND j.job_type='short_video_production'
+                          AND j.status='review_pending'
+                      )""", (utc_now(), job_id))
                 if c.rowcount:
                     repaired.append(job_id)
         return {"reconciled": len(repaired), "job_ids": repaired}
