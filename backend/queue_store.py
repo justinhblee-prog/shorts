@@ -14,6 +14,7 @@ def stamp(value):
 
 class LeaseConflict(Exception): pass
 class JobNotFound(Exception): pass
+class IdempotencyConflict(ValueError): pass
 
 
 class JobQueue:
@@ -79,7 +80,21 @@ class JobQueue:
             c.execute("BEGIN IMMEDIATE")
             if idempotency_key:
                 old=c.execute("SELECT * FROM pipeline_jobs WHERE idempotency_key=?",(idempotency_key,)).fetchone()
-                if old: c.commit(); return self.decode(old)
+                if old:
+                    try:
+                        old_payload=json.loads(old["payload_json"])
+                    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                        raise IdempotencyConflict(
+                            "Existing idempotency record cannot be safely compared"
+                        ) from exc
+                    if (old["job_type"] != job_type
+                            or old["channel_name"] != channel_name
+                            or old_payload != payload):
+                        raise IdempotencyConflict(
+                            "Idempotency key is already used by a different job request"
+                        )
+                    c.commit()
+                    return self.decode(old)
             c.execute("""INSERT INTO pipeline_jobs(id,job_type,channel_name,payload_json,status,priority,max_attempts,available_at,idempotency_key,created_at,updated_at)
               VALUES(?,?,?,?, 'queued',?,?,?,?,?,?)""",
               (jid,job_type,channel_name,json.dumps(payload,ensure_ascii=False),int(priority),max(1,int(max_attempts)),n,idempotency_key,n,n))
