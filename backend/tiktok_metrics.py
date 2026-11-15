@@ -128,25 +128,50 @@ class TikTokMetricsStore:
                   error, int(requested), int(collected), int(missing), source, stamp))
 
     def save_snapshot(self, job_id, video):
-        video_id = video.get("id")
-        if not isinstance(video_id, str) or not video_id.strip():
-            raise TikTokMetricsError("TikTok metrics response omitted a video ID")
-        values = {}
-        for key in ("view_count", "like_count", "comment_count", "share_count"):
-            value = video.get(key)
-            if value is None:
-                values[key] = None
-            elif isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                raise TikTokMetricsError("TikTok returned an invalid " + key)
-            else:
-                values[key] = value
+        self.save_snapshots([(job_id, video)])
+
+    def save_snapshots(self, items):
+        if not isinstance(items, (list, tuple)):
+            raise TikTokMetricsError("TikTok metrics batch must be a list")
+        normalized, seen = [], set()
+        for item in items:
+            if not isinstance(item, (list, tuple)) or len(item) != 2:
+                raise TikTokMetricsError("TikTok metrics batch item is malformed")
+            job_id, video = item
+            if not isinstance(job_id, str) or not job_id.strip() or len(job_id) > 128:
+                raise TikTokMetricsError("TikTok metrics job ID is invalid")
+            if not isinstance(video, dict):
+                raise TikTokMetricsError("TikTok metrics video record is malformed")
+            video_id = video.get("id")
+            if (not isinstance(video_id, str) or not video_id.strip()
+                    or len(video_id) > 256 or any(ord(char) < 32 for char in video_id)):
+                raise TikTokMetricsError("TikTok metrics response omitted a valid video ID")
+            if video_id in seen:
+                raise TikTokMetricsError("TikTok metrics response contained duplicate video IDs")
+            seen.add(video_id)
+            values = {}
+            for key in ("view_count", "like_count", "comment_count", "share_count"):
+                value = video.get(key)
+                if value is None:
+                    values[key] = None
+                elif (isinstance(value, bool) or not isinstance(value, int)
+                      or value < 0 or value > 9223372036854775807):
+                    raise TikTokMetricsError("TikTok returned an invalid " + key)
+                else:
+                    values[key] = value
+            normalized.append((job_id, video_id, values))
+        if not normalized:
+            return
+        stamp = _stamp()
         with self.db() as c:
-            c.execute("""
+            c.execute("BEGIN IMMEDIATE")
+            c.executemany("""
               INSERT INTO tiktok_video_metric_snapshots
                 (job_id,video_id,view_count,like_count,comment_count,share_count,collected_at)
               VALUES(?,?,?,?,?,?,?)
-            """, (job_id, video_id, values["view_count"], values["like_count"],
-                  values["comment_count"], values["share_count"], _stamp()))
+            """, [(job_id, video_id, values["view_count"], values["like_count"],
+                   values["comment_count"], values["share_count"], stamp)
+                  for job_id, video_id, values in normalized])
 
     def latest_snapshot_times(self):
         with self.db() as c:
@@ -293,12 +318,21 @@ class TikTokMetricsCollector:
         if not isinstance(videos, list):
             raise TikTokMetricsError("TikTok metrics response omitted data.videos")
         jobs = {x["video_id"]: x["job_id"] for x in due}
-        collected_ids = set()
+        if len(videos) > len(ids):
+            raise TikTokMetricsError("TikTok metrics returned more videos than requested")
+        collected_ids, snapshot_items = set(), []
         for video in videos:
-            if not isinstance(video, dict) or video.get("id") not in jobs:
+            if not isinstance(video, dict):
+                raise TikTokMetricsError("TikTok metrics returned a malformed video record")
+            video_id = video.get("id")
+            if not isinstance(video_id, str) or video_id not in jobs:
                 raise TikTokMetricsError("TikTok metrics returned an unrequested video")
-            self.store.save_snapshot(jobs[video["id"]], video)
-            collected_ids.add(video["id"])
+            if video_id in collected_ids:
+                raise TikTokMetricsError("TikTok metrics returned duplicate video IDs")
+            collected_ids.add(video_id)
+            snapshot_items.append((jobs[video_id], video))
+        # Validate the complete upstream batch before one atomic database write.
+        self.store.save_snapshots(snapshot_items)
         missing = [video_id for video_id in ids if video_id not in collected_ids]
         return {"requested": len(ids), "collected": len(collected_ids),
                 "missing": missing, "source": "TikTok Display API v2"}
