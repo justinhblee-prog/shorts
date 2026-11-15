@@ -301,7 +301,7 @@ class YouTubePublishingTests(unittest.TestCase):
                 "UPDATE production_artifacts SET metadata_json=? WHERE id=?",
                 (json.dumps(metadata), row["id"]),
             )
-        with self.assertRaisesRegex(YouTubeUploadError, "rules changed"):
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
             self.uploads.begin("job-1", "Title", "Description")
         self.assertIsNone(self.uploads.get("job-1"))
 
@@ -336,7 +336,7 @@ class YouTubePublishingTests(unittest.TestCase):
                 "UPDATE production_artifacts SET metadata_json=? WHERE id=?",
                 (json.dumps(metadata), row["id"]),
             )
-        with self.assertRaisesRegex(YouTubeUploadError, "blocking requirements"):
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
             self.uploads.begin("job-1", "Title", "Description")
         self.assertIsNone(self.uploads.get("job-1"))
 
