@@ -475,6 +475,7 @@ class YouTubePublisher:
         upload_confirmed=False
         confirmed_video_id=None
         heartbeat_stop=threading.Event()
+        heartbeat_lost=threading.Event()
         heartbeat_thread=None
         try:
             from googleapiclient.http import MediaFileUpload
@@ -493,17 +494,29 @@ class YouTubePublisher:
             def refresh_upload_activity():
                 while not heartbeat_stop.wait(heartbeat_interval):
                     try:
-                        self.store.touch_upload(job_id,upload_attempt.get("attempt_id"))
+                        if not self.store.touch_upload(job_id,upload_attempt.get("attempt_id")):
+                            heartbeat_lost.set()
+                            return
                     except Exception:
-                        # The upload itself remains authoritative; a later poll can retry.
-                        continue
+                        # A failed ownership refresh is fail-closed: do not start another
+                        # remote chunk when the local attempt can no longer be confirmed.
+                        heartbeat_lost.set()
+                        return
             heartbeat_thread=threading.Thread(target=refresh_upload_activity,daemon=True)
             heartbeat_thread.start()
             response=None
             while response is None:
+                if heartbeat_lost.is_set():
+                    raise YouTubeUploadError(
+                        "Upload lease ownership could not be refreshed; remote outcome requires reconciliation"
+                    )
                 _,response=request.next_chunk()
-                if response is None:
-                    self.store.touch_upload(job_id,upload_attempt.get("attempt_id"))
+                if response is None and not self.store.touch_upload(
+                    job_id,upload_attempt.get("attempt_id")
+                ):
+                    raise YouTubeUploadError(
+                        "Upload attempt was superseded; remote outcome requires reconciliation"
+                    )
             video_id=response.get("id")
             if not video_id:
                 raise YouTubeUploadError("YouTube response did not contain a video ID")
