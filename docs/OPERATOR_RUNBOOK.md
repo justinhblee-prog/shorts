@@ -192,3 +192,12 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - Verified GitHub Actions run [43665751844](https://github.com/justinhblee-prog/shorts/actions/runs/43665751844) completed checkout, Python setup, dependency installation and `sh scripts/validate.sh` successfully; the log confirms 113 tests ran.
 - CI success is limited to automated backend tests. It does not verify real AI-provider calls, generated media quality, actual YouTube OAuth/upload, real analytics/revenue ingestion, or deployed service behavior.
 - Before the next release merge, reconcile the post-PR validation-fix branch with the merged `main` baseline and rerun CI on the resulting release head.
+
+
+### Brand-specific AI production profile propagation — 2026-11-15
+
+- Production submission now snapshots the selected active brand's editorial profile into the durable queue payload: positioning, target audience, tone, risk level and review rules. Later profile edits do not silently rewrite already queued work.
+- The worker validates this optional profile before provider calls and forwards it to all three production stages: script receives positioning/audience/tone/risk and explicit editorial constraints; voice receives tone and target audience; rendering receives the full brand profile.
+- Added regression tests for provider-stage propagation, malformed-profile fail-closed validation, and API-level profile snapshotting at submission.
+- GitHub Actions run [43666178495](https://github.com/justinhblee-prog/shorts/actions/runs/43666178495) on commit `f7d7c20c396d8ea05fb60ed8414b84d5301e63d8` completed successfully. The full validation script passed and the log confirms **116 tests ran**.
+- This verifies profile propagation through the mocked provider contract and API test boundary. Actual provider prompt adherence, voice characteristics and rendered visual branding still require live provider credentials and real media review.
