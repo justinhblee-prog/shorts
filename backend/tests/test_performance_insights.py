@@ -4,12 +4,13 @@ from youtube_publishing import YouTubeUploadStore
 from review_workflow import ReviewStore
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer, _duration_bucket
+from youtube_analytics import YouTubeAnalyticsStore, NUMERIC_FIELDS
 from policy_engine import evaluate_content_policy
 
 class PerformanceTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.db=os.path.join(self.tmp.name,"x.db")
-  self.p=ProductionStore(self.db); self.review=ReviewStore(self.db); self.u=YouTubeUploadStore(self.db); self.l=LedgerStore(self.db)
+  self.p=ProductionStore(self.db); self.review=ReviewStore(self.db); self.u=YouTubeUploadStore(self.db); self.l=LedgerStore(self.db); self.analytics=YouTubeAnalyticsStore(self.db)
  def tearDown(self): self.tmp.cleanup()
  def video(self,job,brand,region,topic,video):
   self.p.create(job,{"brand":brand,"region":region,"language":"English","topic":topic})
@@ -40,6 +41,27 @@ class PerformanceTests(unittest.TestCase):
   r=PerformanceAnalyzer(self.db).analyze()
   self.assertEqual(r["brands"][0]["measured_videos"],0)
   self.assertIn("insufficient_evidence",[x["type"] for x in r["brands"][0]["recommendations"]])
+ def test_analytics_watch_metrics_flow_into_comparable_cohort_without_score_change(self):
+  self.video("j1","Brain Glitch","US","Sleep","vid1")
+  self.video("j2","Brain Glitch","US","Sleep","vid2")
+  for video in ("vid1","vid2"):
+   self.u.snapshot(video,{"viewCount":"100","likeCount":"5","commentCount":"1"})
+   self.u.snapshot(video,{"viewCount":"180","likeCount":"9","commentCount":"2"})
+  first={key:1 for key in NUMERIC_FIELDS}
+  first["averageViewPercentage"]=50.0
+  first["averageViewDuration"]=12.0
+  second={key:1 for key in NUMERIC_FIELDS}
+  second["averageViewPercentage"]=80.0
+  second["averageViewDuration"]=18.0
+  self.analytics.save_snapshot("vid1","2026-10-01","2026-10-28",first)
+  self.analytics.save_snapshot("vid2","2026-10-01","2026-10-28",second)
+  result=PerformanceAnalyzer(self.db).analyze()
+  cohort=result["cohorts"][0]
+  self.assertEqual(cohort["analytics_sample_count"],2)
+  self.assertEqual(cohort["median_average_view_percentage"],65.0)
+  self.assertEqual(cohort["median_average_view_duration_seconds"],15.0)
+  self.assertEqual(cohort["ranking_score_adjustment"],0)
+  self.assertEqual(result["videos"][0]["average_view_percentage"],50.0)
  def test_snapshot_difference_and_recorded_finance(self):
   self.video("j1","Brain Glitch","US","Sleep","vid1")
   self.u.snapshot("vid1",{"viewCount":"100","likeCount":"5","commentCount":"1"})
