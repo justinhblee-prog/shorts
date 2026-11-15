@@ -103,9 +103,9 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 
 ## 9. Current known blockers
 
-GitHub Actions runs have repeatedly ended before runner allocation with `runner_id=0`, empty runner name and no steps. This is an infrastructure/runner allocation failure, not evidence that tests passed or failed. A rerun has been requested, but no successful test execution has been observed.
-
-Real provider credentials, renderer CDN hostnames, YouTube OAuth and financial integrations are external dependencies. No real revenue outcome is established by the committed source code.
+- GitHub Actions hosted-runner allocation is operational. Latest full backend validation on this branch is pending.
+- Real provider credentials, renderer CDN hostnames, YouTube OAuth and financial integrations remain external dependencies. CI does not establish live provider compatibility, actual media generation, private YouTube upload, revenue ingestion or deployment readiness.
+- The application still uses a single-host SQLite architecture; multi-host distributed worker/scheduler operation is not established.
 
 ### Review queue recovery
 
