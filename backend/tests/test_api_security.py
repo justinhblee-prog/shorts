@@ -2,7 +2,8 @@ import os
 import unittest
 import app as app_module
 from unittest import mock
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
+from types import SimpleNamespace
 from pydantic import ValidationError
 from app import (app, require_review_access, YouTubeLateSuccessResolution, Enqueue,
                  enqueue, IdempotencyConflict, ProductionExecute, execute_production_job,
@@ -78,21 +79,38 @@ class ApiSecurityTests(unittest.TestCase):
             self.assertIn("x_review_token", route.endpoint.__annotations__)
 
     def test_tiktok_oauth_start_returns_authorization_url(self):
+        response = Response()
         with (
             mock.patch("app.require_review_access"),
             mock.patch("app.tiktok_oauth_manager.start_authorization",
-                       return_value={"authorization_url": "https://www.tiktok.com/v2/auth/authorize/?state=x"}),
+                       return_value={"authorization_url": "https://www.tiktok.com/v2/auth/authorize/?state=x",
+                                     "state": "state-x", "expires_in": 600}),
         ):
-            result = start_tiktok_oauth(x_review_token="test-token")
+            result = start_tiktok_oauth(response=response, x_review_token="test-token")
         self.assertIn("authorization_url", result)
+        self.assertIn("tiktok_oauth_state=state-x", response.headers["set-cookie"])
+        self.assertIn("httponly", response.headers["set-cookie"].lower())
+        self.assertIn("secure", response.headers["set-cookie"].lower())
 
     def test_tiktok_oauth_callback_consumes_code_and_redirects_back_to_portal(self):
         with mock.patch("app.tiktok_oauth_manager.exchange_code",
                         return_value={"connected": True, "open_id": "creator-1"}) as exchange:
-            result = tiktok_oauth_callback(code="code-1", state="state-1")
+            result = tiktok_oauth_callback(
+                request=SimpleNamespace(cookies={"tiktok_oauth_state": "state-1"}),
+                code="code-1", state="state-1"
+            )
         self.assertEqual(result.status_code, 303)
         self.assertIn("tiktok_oauth=connected", result.headers["location"])
         exchange.assert_called_once_with("code-1", "state-1")
+
+    def test_tiktok_oauth_callback_rejects_state_not_bound_to_browser_cookie(self):
+        with mock.patch("app.tiktok_oauth_manager.exchange_code") as exchange:
+            result = tiktok_oauth_callback(
+                request=SimpleNamespace(cookies={"tiktok_oauth_state": "different"}),
+                code="code-1", state="state-1"
+            )
+        self.assertIn("tiktok_oauth=error", result.headers["location"])
+        exchange.assert_not_called()
 
     def test_tiktok_oauth_status_never_returns_token_values(self):
         with (
