@@ -8,6 +8,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from policy_engine import evaluate_content_policy
 
 
 class ReviewNotFound(Exception):
@@ -43,6 +44,16 @@ class ReviewStore:
             );
             CREATE INDEX IF NOT EXISTS idx_review_job ON review_decisions(job_id,id);
             CREATE INDEX IF NOT EXISTS idx_review_decision ON review_decisions(decision,created_at);
+            CREATE TABLE IF NOT EXISTS policy_evidence_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              job_id TEXT NOT NULL,
+              reviewer_id TEXT NOT NULL,
+              declarations_json TEXT NOT NULL,
+              report_json TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_policy_evidence_job
+              ON policy_evidence_events(job_id,id);
             """)
 
     @contextmanager
@@ -129,6 +140,117 @@ class ReviewStore:
                 profile = None
         run["brand_profile"] = profile
         return run
+
+    def update_policy_evidence(self, job_id, reviewer_id, declarations):
+        """Persist explicit operator attestations and recompute the policy report."""
+        reviewer_id = str(reviewer_id or "").strip()
+        if not reviewer_id or len(reviewer_id) > 128:
+            raise ValueError("reviewer_id is required (max 128 characters)")
+        if not isinstance(declarations, dict) or not declarations:
+            raise ValueError("policy declarations are required")
+
+        allowed = {
+            "rights", "synthetic_media_status", "platform_disclosures", "platforms",
+            "risk_flags", "factual_claims_verified", "originality_notes",
+            "claim_evidence_notes", "source_urls", "transformative_contribution",
+            "commercial_relationship_disclosed", "child_safety_review_confirmed",
+        }
+        unknown = sorted(set(declarations) - allowed)
+        if unknown:
+            raise ValueError("Unsupported policy declaration fields: " + ", ".join(unknown))
+
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            run = c.execute(
+                "SELECT status FROM production_runs WHERE job_id=?", (job_id,)
+            ).fetchone()
+            if run is None:
+                raise ReviewNotFound(job_id)
+            if run["status"] != "review_pending":
+                raise ReviewConflict("Policy evidence can only be updated while review is pending")
+            has_queue = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
+            ).fetchone()
+            if not has_queue:
+                raise ReviewConflict("Durable queue payload is unavailable for policy evidence")
+            job = c.execute(
+                "SELECT payload_json,status FROM pipeline_jobs WHERE id=? AND job_type='short_video_production'",
+                (job_id,),
+            ).fetchone()
+            if job is None or job["status"] != "review_pending":
+                raise ReviewConflict("Queue job is not in review_pending state")
+            try:
+                payload = json.loads(job["payload_json"])
+            except (TypeError, ValueError) as exc:
+                raise ReviewConflict("Production payload is not valid JSON") from exc
+            if not isinstance(payload, dict):
+                raise ReviewConflict("Production payload must be an object")
+
+            updated_payload = dict(payload)
+            for key, value in declarations.items():
+                updated_payload[key] = value
+            report = evaluate_content_policy(updated_payload)
+
+            artifact = c.execute("""
+              SELECT id,metadata_json FROM production_artifacts
+              WHERE job_id=? AND stage='script' AND artifact_type='text'
+              ORDER BY created_at DESC,id DESC LIMIT 1
+            """, (job_id,)).fetchone()
+            if artifact is None:
+                raise ReviewConflict("Script artifact is required before policy evidence can be updated")
+            try:
+                metadata = json.loads(artifact["metadata_json"])
+            except (TypeError, ValueError) as exc:
+                raise ReviewConflict("Script artifact metadata is invalid") from exc
+            if not isinstance(metadata, dict):
+                raise ReviewConflict("Script artifact metadata must be an object")
+            metadata["policy_preflight"] = report
+            timestamp = _now()
+            c.execute(
+                "UPDATE production_artifacts SET metadata_json=? WHERE id=?",
+                (json.dumps(metadata, ensure_ascii=False), artifact["id"]),
+            )
+            updated_payload["policy_report"] = report
+            c.execute(
+                "UPDATE pipeline_jobs SET payload_json=?,updated_at=? WHERE id=?",
+                (json.dumps(updated_payload, ensure_ascii=False), timestamp, job_id),
+            )
+            cursor = c.execute("""
+              INSERT INTO policy_evidence_events
+                (job_id,reviewer_id,declarations_json,report_json,created_at)
+              VALUES(?,?,?,?,?)
+            """, (
+                job_id, reviewer_id,
+                json.dumps(declarations, ensure_ascii=False),
+                json.dumps(report, ensure_ascii=False), timestamp,
+            ))
+            c.commit()
+            return {
+                "job_id": job_id,
+                "reviewer_id": reviewer_id,
+                "event_id": cursor.lastrowid,
+                "policy_preflight": report,
+                "created_at": timestamp,
+            }
+
+    def policy_evidence_history(self, job_id):
+        with self.db() as c:
+            exists = c.execute(
+                "SELECT 1 FROM production_runs WHERE job_id=?", (job_id,)
+            ).fetchone()
+            if exists is None:
+                raise ReviewNotFound(job_id)
+            rows = c.execute("""
+              SELECT id,job_id,reviewer_id,declarations_json,report_json,created_at
+              FROM policy_evidence_events WHERE job_id=? ORDER BY id
+            """, (job_id,)).fetchall()
+            return [{
+                "id": row["id"], "job_id": row["job_id"],
+                "reviewer_id": row["reviewer_id"],
+                "declarations": json.loads(row["declarations_json"]),
+                "policy_preflight": json.loads(row["report_json"]),
+                "created_at": row["created_at"],
+            } for row in rows]
 
     def decide(self, job_id, decision, reviewer_id, comment=""):
         if decision not in self.DECISIONS:
