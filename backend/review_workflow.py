@@ -188,7 +188,13 @@ class ReviewStore:
 
             updated_payload = dict(payload)
             for key, value in declarations.items():
-                updated_payload[key] = value
+                if key in ("rights", "platform_disclosures", "risk_flags"):
+                    existing = updated_payload.get(key) or {}
+                    if not isinstance(existing, dict) or not isinstance(value, dict):
+                        raise ValueError(f"{key} must be an object")
+                    updated_payload[key] = {**existing, **value}
+                else:
+                    updated_payload[key] = value
             report = evaluate_content_policy(updated_payload)
 
             artifact = c.execute("""
