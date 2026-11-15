@@ -146,6 +146,41 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(result["status"], "publish_complete")
         self.assertEqual(result["video_id"], "123456789")
 
+    def test_scheduler_poll_refreshes_pending_status_and_stops_after_completion(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True,
+        )
+        self.transport.responses.append((200, {
+            "data": {"status": "PUBLISH_COMPLETE",
+                     "publicaly_available_post_id": []},
+            "error": {"code": "ok"},
+        }))
+        result = self.publisher.refresh_due_statuses(limit=5, min_age_seconds=0)
+        self.assertEqual(result["checked"], 1)
+        self.assertEqual(result["updated"], 1)
+        self.assertEqual(self.store.get("job-1")["status"], "publish_complete")
+        again = self.publisher.refresh_due_statuses(limit=5, min_age_seconds=0)
+        self.assertEqual(again["checked"], 0)
+
+    def test_scheduler_poll_errors_are_audited_and_backed_off(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True,
+        )
+        self.transport.responses.append((200, {
+            "error": {"code": "rate_limit_exceeded", "message": "slow down"}
+        }))
+        result = self.publisher.refresh_due_statuses(limit=5, min_age_seconds=0)
+        self.assertEqual(result["checked"], 1)
+        self.assertEqual(len(result["errors"]), 1)
+        record = self.store.get("job-1")
+        self.assertEqual(record["status"], "uploading")
+        self.assertEqual(record["events"][-1]["event_type"], "status_poll_failed")
+        self.assertEqual(
+            self.store.due_status_job_ids(limit=5, min_age_seconds=60), []
+        )
+
     def test_media_path_must_be_inside_media_root(self):
         outside = os.path.join(self.tmp.name, "..", "outside.mp4")
         with self.assertRaisesRegex(TikTokPublishError, "inside NEXUS_MEDIA_DIR"):
