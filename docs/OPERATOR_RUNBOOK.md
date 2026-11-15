@@ -379,6 +379,7 @@ Available roles:
 - `analyst`: analytics and financial report reads.
 - `operator`: operational reads, queue controls, brand/schedule/media management, production creation/execution, trend collection and recommendation experiment management.
 - `finance`: financial ledger writes and report reads.
+- `worker`: queue job claim, heartbeat, completion and failure API calls only; does not grant queue pause/resume/cancel.
 
 When the role map is present, authenticated operators omitted from it are denied role-protected actions (HTTP 403); malformed role configuration fails closed (HTTP 503). Multiple roles combine their grants. Do not grant `admin` to service or review accounts unnecessarily. The role map is separate from the token map and must use the exact reviewer IDs configured in `NEXUS_REVIEW_CREDENTIALS_JSON`.
 
