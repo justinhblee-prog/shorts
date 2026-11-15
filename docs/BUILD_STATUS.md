@@ -1606,3 +1606,16 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Push CI [43728064603](https://github.com/justinhblee-prog/shorts/actions/runs/43728064603): 522 tests passed.
 - PR merge-result CI [43728086152](https://github.com/justinhblee-prog/shorts/actions/runs/43728086152): 522 tests passed.
 - Tests cover local registry and health-state behavior; no OS-level SIGKILL or production supervisor behavior is claimed.
+
+
+
+## BUILD-00086–00092 combined integration — 2026-11-15
+
+- Combined branch: `integration/build-00086-00092-combined`.
+- Merge commit: `f4f204ad5f38ead70ff583d99ba4d3897d36b97c`, with BUILD-00086–00089 and BUILD-00090–00092 as its two parents.
+- The merge retained YouTube Analytics response bounds, TikTok atomic batch validation, production cancellation lifecycle, renewable/fenced metrics leases, scheduler leadership fencing and graceful worker-offline state.
+- Combined push CI [43729728665](https://github.com/justinhblee-prog/shorts/actions/runs/43729728665): **544 tests passed**.
+- Combined pull-request CI [43729767443](https://github.com/justinhblee-prog/shorts/actions/runs/43729767443): **544 tests passed**.
+- Integration review PR: [#57](https://github.com/justinhblee-prog/shorts/pull/57), Open / Draft / unmerged. Superseded conflict probe PR #56 was closed.
+- Individual implementation PRs remain Open / Draft / unmerged. The integration branch is not deployed to production.
+- Automated validation does not prove live YouTube/TikTok OAuth, AI-provider generation, production rendering, real-account publishing, analytics retrieval or revenue.

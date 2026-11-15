@@ -51,7 +51,7 @@ With Python dependencies installed:
 sh scripts/validate.sh
 ```
 
-This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified code validation for the YouTube Analytics and TikTok performance dashboards: GitHub Actions run [43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969), **490 tests passed**; frontend validation reported 107 unique IDs / 91 literal selectors. This validates automated checks only, not live provider connectivity, OAuth consent, real-account publishing, metric retrieval or monetization. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
+This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified combined integration validation for BUILD-00086 through BUILD-00092: GitHub Actions run [43729767443](https://github.com/justinhblee-prog/shorts/actions/runs/43729767443), **544 tests passed**; frontend validation reported 107 unique IDs / 91 literal selectors. This validates automated checks only, not live provider connectivity, OAuth consent, real-account publishing, metric retrieval or monetization. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
 
 ## Documentation
 
