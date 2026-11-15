@@ -1165,3 +1165,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Integrated the checklist into the control center with an explicit operator checkbox and confirmation dialog. Pause remains independently available and audited.
 - The checklist is guidance/attestation, not automated proof that external provider, billing, artifact, or policy evidence was actually inspected. No automatic recovery, retry, or publishing is performed.
 - CI validation pending.
+
+### BUILD-00049 — deterministic failure classification and operator diagnostics
+
+- Added a conservative failure classifier for provider ambiguity, worker lease/ownership, policy/compliance blocks, pipeline/artifact defects, throttling, and unknown error codes.
+- Classification includes severity, rationale, evidence-based operator actions, and retry recommendation. Queue retryable flags are exposed as evidence only and never grant retry authorization.
+- Added authenticated read-only `GET /api/jobs/{job_id}/failure-analysis`, returning the latest persisted failure event and classification without changing queue or production state.
+- Integrated failure category, severity, rationale, recommended operator action, and retry disposition into each job's lifecycle diagnostics in the control center.
+- Added deterministic classifier, API authorization/response, and frontend regression tests.
+- Unknown and ambiguous failures fail closed; automatic retry, replay, cancellation, or publishing is not performed.
+- CI validation pending.
