@@ -4,10 +4,21 @@ from pathlib import Path
 from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import app as app_module
-from app import trend_recommendations
+from app import trend_recommendations, capture_trend_recommendations
 
 
 class TrendRecommendationApiTests(unittest.TestCase):
+    def test_read_only_recommendation_get_does_not_record_an_exposure(self):
+        with (mock.patch("app.require_review_access"),
+              mock.patch("app.trend_store.list", return_value=[]),
+              mock.patch("app.brand_store.list", return_value=[]),
+              mock.patch("app.performance_analyzer.analyze", return_value={"brands": [], "videos": [], "cohorts": []}),
+              mock.patch("app.recommendation_evaluation_store.record_run") as record_run):
+            result = trend_recommendations(region="US", limit=10, x_review_token="valid")
+        self.assertEqual(result["count"], 0)
+        self.assertNotIn("evaluation_run_id", result)
+        record_run.assert_not_called()
+
     def test_holdout_evaluation_endpoint_is_review_protected_and_delegates_report(self):
         route = next(r for r in app_module.app.routes
                      if getattr(r, "path", None) == "/api/recommendations/evaluation")
@@ -23,7 +34,8 @@ class TrendRecommendationApiTests(unittest.TestCase):
 
     def test_endpoint_requires_review_token_and_returns_explained_editorial_rank(self):
         route = next(r for r in app_module.app.routes
-                     if getattr(r, "path", None) == "/api/trends/recommendations")
+                     if getattr(r, "path", None) == "/api/trends/recommendations/snapshot")
+        self.assertIn("POST", route.methods)
         self.assertIn("x_review_token", route.endpoint.__annotations__)
         trend = {"id": "t1", "title": "AI technology research", "region": "US",
                  "published_at": "2026-11-15T00:00:00+00:00"}
@@ -57,7 +69,9 @@ class TrendRecommendationApiTests(unittest.TestCase):
               mock.patch("app.performance_analyzer.analyze", return_value=performance),
               mock.patch("app.recommendation_evaluation_store.record_run",
                          return_value={"run_id": "run-123", "recorded_candidates": 1}) as record_run):
-            result = trend_recommendations(region="US", limit=10, x_review_token="valid")
+            result = capture_trend_recommendations(
+                region="US", limit=10, x_review_token="valid"
+            )
         self.assertEqual(result["count"], 1)
         self.assertEqual(result["evaluation_run_id"], "run-123")
         self.assertEqual(result["evaluation_candidates_recorded"], 1)

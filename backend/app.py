@@ -664,28 +664,47 @@ def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Heade
         raise HTTPException(422,str(e))
 
 
-@app.get("/api/trends/recommendations")
-def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|None=Header(default=None)):
-    """Return evidence-bounded trend-to-brand recommendations for operator review."""
-    require_review_access(x_review_token)
+def _build_trend_recommendations(region, limit):
     trends=trend_store.list(region=region,limit=200)
     brands=brand_store.list(active_only=True)
     performance=performance_analyzer.analyze()
     performance_by_brand={item["brand"]:item for item in performance.get("brands",[])}
-    ranked=rank_trend_candidates(
+    return rank_trend_candidates(
         trends,brands,competitor_store,limit,
         performance_by_brand=performance_by_brand,
         performance_videos=performance.get("videos",[]),
         performance_cohorts=performance.get("cohorts",[])
     )
-    exposure=recommendation_evaluation_store.record_run(region,ranked)
+
+
+def _trend_recommendation_payload(ranked):
     return {
         "items":ranked,
         "count":len(ranked),
-        "evaluation_run_id":exposure["run_id"],
-        "evaluation_candidates_recorded":exposure["recorded_candidates"],
         "method":"100-point editorial score: freshness (0-40), editorial brand fit (0-40), source provenance completeness (0-10), and topic distinctiveness (0-10). Brand/topic-matched historical performance cohorts are displayed separately and are not scored.",
         "warning":"Editorial recommendation score only. Brand/region/topic-matched cohort evidence is contextual, may be sparse, and does not alter ranking until held-out validation demonstrates stable improvement. This is not a profitability forecast, search-volume estimate, or automatic production approval."
+    }
+
+
+@app.get("/api/trends/recommendations")
+def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|None=Header(default=None)):
+    """Read-only recommendation retrieval; does not create an evaluation exposure."""
+    require_review_access(x_review_token)
+    return _trend_recommendation_payload(_build_trend_recommendations(region,limit))
+
+
+@app.post("/api/trends/recommendations/snapshot")
+def capture_trend_recommendations(region:str|None=None,limit:int=30,
+                                  x_review_token:str|None=Header(default=None)):
+    """Explicitly capture the recommendation set returned to the production workspace."""
+    require_review_access(x_review_token)
+    ranked=_build_trend_recommendations(region,limit)
+    exposure=recommendation_evaluation_store.record_run(region,ranked)
+    return {
+        **_trend_recommendation_payload(ranked),
+        "evaluation_run_id":exposure["run_id"],
+        "evaluation_candidates_recorded":exposure["recorded_candidates"],
+        "evaluation_snapshot_deduplicated":exposure.get("deduplicated",False),
     }
 
 @app.get("/api/recommendations/evaluation")
