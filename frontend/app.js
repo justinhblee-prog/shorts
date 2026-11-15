@@ -116,8 +116,21 @@
     $("preflightList").innerHTML=Object.entries(data.checks||{}).map(([key,value])=>'<div class="data-item"><b>'+esc(labels[key]||key)+' · <span class="'+(value.configured?"ready-text":"missing-text")+'">'+(value.configured?"설정 확인":"설정 누락")+'</span></b><small>'+esc((value.missing||[]).join(", ")||"필수 설정값 존재")+'</small></div>').join("")+'<div class="notice"><b>'+(data.capabilities.end_to_end_configured?"필수 설정값 구성 완료":"외부 연동 설정이 더 필요합니다")+'</b><span>'+esc(data.note)+'</span></div>';
   }
   async function loadQueue(){
-    const [q,w]=await Promise.all([api("/api/queue/stats"),api("/api/workers")]);
-    $("queueDetails").innerHTML='<div class="data-item"><b>Queue status</b><small>'+esc(JSON.stringify(q))+'</small></div>'+(w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status)+'</b><small>'+esc(x.hostname||"")+' · '+esc(x.last_seen_at||"")+'</small></div>').join("");
+    const [q,w,control]=await Promise.all([
+      api("/api/queue/stats"),api("/api/workers"),api("/api/queue/control")
+    ]);
+    const state=control.control||{};
+    $("pauseQueue").disabled=!!state.paused;
+    $("resumeQueue").disabled=!state.paused;
+    const status=state.paused
+      ? '<span class="missing-text">중지됨</span> · '+esc(state.pause_reason||"사유 없음")
+      : '<span class="ready-text">정상 운영</span>';
+    const events=(control.events||[]).slice(0,8).map(x=>'<div class="data-item"><b>'+esc(x.event_type)+' · '+esc(x.actor)+'</b><small>'+esc(x.created_at)+' · '+esc(x.reason)+'</small></div>').join("");
+    $("queueDetails").innerHTML=
+      '<div class="data-item"><b>생산 큐 제어 · '+status+'</b><small>중지 작업: '+esc(state.paused_job_id||"없음")+' · 갱신 '+esc(state.updated_at||"")+'</small></div>'+
+      '<div class="data-item"><b>Queue status</b><small>'+esc(JSON.stringify(q))+'</small></div>'+
+      (w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status)+'</b><small>'+esc(x.hostname||"")+' · '+esc(x.last_seen_at||"")+'</small></div>').join("")+
+      '<h4>운영 중지·재개 감사 기록</h4>'+(events||'<div class="empty-state">아직 제어 이력이 없습니다.</div>');
   }
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
@@ -127,6 +140,30 @@
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
   function requireToken(){if(!token){$("settingsDialog").showModal();return false;}return true;}
+  function queueControlPayload(){
+    const operator_id=$("queueOperator").value.trim();
+    const note=$("queueControlNote").value.trim();
+    if(!operator_id||!note){toast("운영자 ID와 조치 사유를 입력하세요.");return null;}
+    return {operator_id,note};
+  }
+  $("pauseQueue").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    const body=queueControlPayload();if(!body)return;
+    if(!confirm("숏폼 제작 큐를 중지하고 현재 실행 중인 제작 작업을 안전하게 차단하시겠습니까?"))return;
+    try{
+      await api("/api/queue/pause",{method:"POST",body:JSON.stringify(body)});
+      toast("숏폼 제작 큐가 중지되었습니다.");await loadQueue();
+    }catch(e){toast(e.message);}
+  });
+  $("resumeQueue").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    const body=queueControlPayload();if(!body)return;
+    if(!confirm("외부 AI 공급자 기록, 생성 파일, 과금 상태를 확인하셨습니까? 확인 후 제작 큐를 재개합니다."))return;
+    try{
+      await api("/api/queue/resume",{method:"POST",body:JSON.stringify(body)});
+      toast("운영자 확인 기록과 함께 제작 큐가 재개되었습니다.");await loadQueue();
+    }catch(e){toast(e.message);}
+  });
   $("openSettings").addEventListener("click",()=>$("settingsDialog").showModal());
   $("saveToken").addEventListener("click",async()=>{
     token=$("tokenInput").value.trim();reviewer=$("reviewerInput").value.trim()||"operator";
