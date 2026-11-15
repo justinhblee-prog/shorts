@@ -255,7 +255,8 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("/api/metrics/collection-status", app_js)
         self.assertIn("성과 데이터 수집 상태", app_js)
         self.assertIn("오래된 스냅샷", app_js)
-        self.assertIn("TikTok 분석 수집은 아직 구현되지 않았으며", app_js)
+        self.assertIn("video.list 권한으로 조회수·좋아요·댓글·공유 수를 수집합니다", app_js)
+        self.assertIn("리텐션·예상 수익은 제공하지 않습니다", app_js)
 
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
