@@ -259,6 +259,9 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("리텐션·예상 수익은 제공하지 않습니다", app_js)
         self.assertIn("/api/tiktok/metrics?limit=100", app_js)
         self.assertIn("TikTok 영상 성과", app_js)
+        self.assertIn("/api/youtube/analytics-metrics?limit=100", app_js)
+        self.assertIn("YouTube 고급 분석", app_js)
+        self.assertIn("yt-analytics.readonly", app_js)
 
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
