@@ -24,7 +24,7 @@ class MediaInspector:
         command = [
             self.ffmpeg_path, "-hide_banner", "-nostats", "-nostdin", "-v", "info",
             "-protocol_whitelist", "file,pipe", "-i", str(media_path),
-            "-map", f"0:{stream_type}:0", "-filter:a" if stream_type == "a" else "-filter:v",
+            "-map", f"0:{stream_type}:0", "-af" if stream_type == "a" else "-vf",
             filter_name, "-f", "null", "-",
         ]
         try:
