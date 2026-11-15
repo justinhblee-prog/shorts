@@ -130,6 +130,58 @@ def _topic_performance_context(trend_tokens, brand_name, region, videos):
     }
 
 
+def _comparable_cohort_context(trend_tokens, brand_name, region, cohorts):
+    """Expose brand/region/topic-matched cohorts without using them in ranking."""
+    region = str(region or "").upper()
+    matches = []
+    for cohort in cohorts or []:
+        if cohort.get("brand") != brand_name:
+            continue
+        cohort_region = str(cohort.get("region") or "").upper()
+        if region and region != "GLOBAL" and cohort_region != region:
+            continue
+        if cohort.get("format") not in ("vertical_short", "vertical_short_requested"):
+            continue
+        topic_tokens = _tokens(cohort.get("topic_signature"))
+        overlap = (
+            len(trend_tokens & topic_tokens) / len(trend_tokens)
+            if trend_tokens else 0.0
+        )
+        if overlap < 0.25:
+            continue
+        matches.append({
+            "region": cohort_region,
+            "publication_age_bucket": cohort.get("publication_age_bucket"),
+            "duration_bucket": cohort.get("duration_bucket"),
+            "format": cohort.get("format"),
+            "topic_signature": cohort.get("topic_signature"),
+            "sample_count": int(cohort.get("sample_count") or 0),
+            "median_views_per_hour": cohort.get("median_views_per_hour"),
+            "interaction_rate_sample_count": int(
+                cohort.get("interaction_rate_sample_count") or 0
+            ),
+            "median_interactions_per_1000_view_delta": cohort.get(
+                "median_interactions_per_1000_view_delta"
+            ),
+            "evidence_status": cohort.get("evidence_status", "limited"),
+            "topic_overlap": round(overlap, 3),
+        })
+    matches.sort(
+        key=lambda item: (
+            item["sample_count"], item["topic_overlap"],
+            item["publication_age_bucket"] == "under_24h"
+        ),
+        reverse=True,
+    )
+    return {
+        "matched_cohort_count": len(matches),
+        "cohorts": matches[:5],
+        "ranking_score_adjustment": 0,
+        "method": "brand + region + lexical topic overlap; publication age and duration remain separate cohort dimensions",
+        "reason": "Comparable cohorts are contextual evidence only and do not change recommendation ranking before held-out validation.",
+    }
+
+
 def _source_evidence_score(trend, age):
     """Score source provenance completeness, not source popularity or trustworthiness."""
     score = 0.0
@@ -162,11 +214,13 @@ def _novelty_scores(trends):
 
 
 def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=None,
-                          performance_by_brand=None, performance_videos=None):
+                          performance_by_brand=None, performance_videos=None,
+                          performance_cohorts=None):
     """Rank collected trends for editorial review; never fabricate demand or revenue."""
     now = now or datetime.now(timezone.utc)
     performance_by_brand = performance_by_brand or {}
     performance_videos = performance_videos or []
+    performance_cohorts = performance_cohorts or []
     brand_rows = []
     for brand in brands:
         if not brand.get("active", True):
@@ -239,6 +293,9 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
                 },
                 "topic_performance": _topic_performance_context(
                     trend_tokens, brand.get("name"), trend.get("region"), performance_videos
+                ),
+                "comparable_cohort_performance": _comparable_cohort_context(
+                    trend_tokens, brand.get("name"), trend.get("region"), performance_cohorts
                 ),
                 "supported_languages": config.get("languages", [])
             })

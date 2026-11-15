@@ -144,7 +144,12 @@
       const topicHistorySummary=topicHistory.evidence_status==="observed"
         ? '<small>동일 주제·시장 실측 '+Number(topicHistory.matched_video_count)+'개 · 시간당 조회 증가 중앙값 '+Number(topicHistory.median_views_per_hour).toLocaleString()+' · 1,000회당 상호작용 '+(topicHistory.median_interactions_per_1000_view_delta===null?'—':Number(topicHistory.median_interactions_per_1000_view_delta).toFixed(1))+'</small>'
         : '<small>동일 주제·시장 실측 '+Number(topicHistory.matched_video_count||0)+'개 · 추천 점수 미반영(최소 3개 표본 필요)</small>';
-      return '<div class="data-item trend-item"><div class="recommendation-head"><b>'+esc(trend.title||"Untitled trend")+'</b><strong>'+Number(item.recommendation_score||0).toFixed(1)+'/100</strong></div><small>'+esc(trend.region||"")+' · 최신성 '+Number(item.freshness_score||0).toFixed(1)+' · '+esc(item.score_type||"")+'</small>'+(item.best_brand?'<small>최적 브랜드: '+esc(item.best_brand.brand_name)+' · 적합도 '+Number(item.best_brand.fit_score||0).toFixed(1)+'</small>':'<small>적합 브랜드 미확인</small>')+topicHistorySummary+historySummary+competitorSummary+controls+'<small class="recommendation-caveat">과거 실측값은 동일 주제·시장 기준 표본을 별도로 표시하며, 현재 추천 점수에는 반영되지 않습니다. 경쟁 지표도 저장된 최대 10개 채널의 최근 영상 표본으로 시장 전체 수요나 수익을 뜻하지 않습니다.</small></div>';
+      const cohortContext=item.best_brand?.comparable_cohort_performance||{};
+      const cohortRows=(cohortContext.cohorts||[]).slice(0,2);
+      const cohortSummary=cohortRows.length
+        ? '<small>비교 코호트 · '+cohortRows.map(x=>esc(x.publication_age_bucket)+' / '+esc(x.duration_bucket)+' · '+Number(x.sample_count)+'개 · '+Number(x.median_views_per_hour||0).toLocaleString()+' views/hour').join(' | ')+'</small>'
+        : '<small>동일 브랜드·시장·주제의 비교 코호트 표본 부족</small>';
+      return '<div class="data-item trend-item"><div class="recommendation-head"><b>'+esc(trend.title||"Untitled trend")+'</b><strong>'+Number(item.recommendation_score||0).toFixed(1)+'/100</strong></div><small>'+esc(trend.region||"")+' · 최신성 '+Number(item.freshness_score||0).toFixed(1)+' · '+esc(item.score_type||"")+'</small>'+(item.best_brand?'<small>최적 브랜드: '+esc(item.best_brand.brand_name)+' · 적합도 '+Number(item.best_brand.fit_score||0).toFixed(1)+'</small>':'<small>적합 브랜드 미확인</small>')+topicHistorySummary+cohortSummary+historySummary+competitorSummary+controls+'<small class="recommendation-caveat">과거 실측값은 동일 브랜드·시장·주제 및 게시 경과·영상 길이별 비교 표본을 별도로 표시하며, 현재 추천 점수에는 반영되지 않습니다. 경쟁 지표도 저장된 최대 10개 채널의 최근 영상 표본으로 시장 전체 수요나 수익을 뜻하지 않습니다.</small></div>';
     }).join("")||'<div class="empty-state">선택한 시장에 추천할 트렌드가 없습니다.</div>';
   }
 

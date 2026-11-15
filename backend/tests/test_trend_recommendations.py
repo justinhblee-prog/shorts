@@ -156,6 +156,47 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(context["evidence_status"], "observed")
         self.assertEqual(context["ranking_score_adjustment"], 0)
 
+    def test_comparable_cohorts_are_brand_region_topic_scoped_and_display_only(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        trend = {"id": "ai", "title": "AI robotics explained", "region": "US",
+                 "published_at": now.isoformat()}
+        brand = {"slug": "future-leak", "name": "Future Leak", "active": True,
+                 "config": {"positioning": "AI robotics technology", "regions": ["US"]}}
+        cohorts = [
+            {"brand": "Future Leak", "region": "US",
+             "publication_age_bucket": "under_24h", "duration_bucket": "20_40s",
+             "format": "vertical_short", "topic_signature": "ai explained robotics",
+             "sample_count": 4, "median_views_per_hour": 150.0,
+             "interaction_rate_sample_count": 3,
+             "median_interactions_per_1000_view_delta": 22.0,
+             "evidence_status": "observed"},
+            {"brand": "Future Leak", "region": "JP",
+             "publication_age_bucket": "under_24h", "duration_bucket": "20_40s",
+             "format": "vertical_short", "topic_signature": "ai explained robotics",
+             "sample_count": 10, "median_views_per_hour": 900.0,
+             "evidence_status": "observed"},
+            {"brand": "Money Glitch", "region": "US",
+             "publication_age_bucket": "under_24h", "duration_bucket": "20_40s",
+             "format": "vertical_short", "topic_signature": "ai explained robotics",
+             "sample_count": 20, "median_views_per_hour": 999.0,
+             "evidence_status": "observed"},
+            {"brand": "Future Leak", "region": "US",
+             "publication_age_bucket": "under_24h", "duration_bucket": "20_40s",
+             "format": "vertical_short", "topic_signature": "cooking recipes",
+             "sample_count": 20, "median_views_per_hour": 888.0,
+             "evidence_status": "observed"},
+        ]
+        baseline = rank_trend_candidates([trend], [brand], now=now)[0]
+        enriched = rank_trend_candidates(
+            [trend], [brand], now=now, performance_cohorts=cohorts
+        )[0]
+        context = enriched["best_brand"]["comparable_cohort_performance"]
+        self.assertEqual(enriched["recommendation_score"], baseline["recommendation_score"])
+        self.assertEqual(context["matched_cohort_count"], 1)
+        self.assertEqual(context["cohorts"][0]["sample_count"], 4)
+        self.assertEqual(context["cohorts"][0]["median_views_per_hour"], 150.0)
+        self.assertEqual(context["ranking_score_adjustment"], 0)
+
     def test_competitor_evidence_is_region_scoped_and_does_not_change_editorial_score(self):
         store = Mock()
         store.list_channels.return_value = [
