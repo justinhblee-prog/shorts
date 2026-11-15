@@ -82,6 +82,7 @@ class TikTokPublishingTests(unittest.TestCase):
             self.publisher.publish_private_approved(
                 "job-1", self.media, self.review, "AI generated short", "operator-1",
                 explicit_consent=True,
+            privacy_level="SELF_ONLY",
             )
         self.assertEqual(len(self.transport.calls), 1)
         self.assertEqual(self.store.get("job-1")["status"], "failed")
@@ -113,6 +114,7 @@ class TikTokPublishingTests(unittest.TestCase):
         result = self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
             explicit_consent=True,
+            privacy_level="SELF_ONLY",
         )
         self.assertEqual(result["status"], "uploading")
         init = self.transport.calls[1]
@@ -143,6 +145,7 @@ class TikTokPublishingTests(unittest.TestCase):
             self.publisher.publish_private_approved(
                 "job-1", self.media, self.review, "Caption", "operator-1",
                 explicit_consent=True,
+            privacy_level="SELF_ONLY",
             )
 
     def test_upload_url_rejects_unapproved_tiktok_subdomain(self):
@@ -187,18 +190,21 @@ class TikTokPublishingTests(unittest.TestCase):
             publisher.publish_private_approved(
                 "job-1", self.media, self.review, "Caption", "operator-1",
                 explicit_consent=True,
+            privacy_level="SELF_ONLY",
             )
         self.assertEqual(self.store.get("job-1")["status"], "reconciliation_required")
         with self.assertRaisesRegex(TikTokPublishError, "unresolved"):
             publisher.publish_private_approved(
                 "job-1", self.media, self.review, "Caption", "operator-1",
                 explicit_consent=True,
+            privacy_level="SELF_ONLY",
             )
 
     def test_send_to_user_inbox_status_is_tracked_separately(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
             explicit_consent=True,
+            privacy_level="SELF_ONLY",
         )
         self.transport.responses.append((200, {
             "data": {"status": "SEND_TO_USER_INBOX",
@@ -212,6 +218,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
             explicit_consent=True,
+            privacy_level="SELF_ONLY",
         )
         self.transport.responses.append((200, {
             "data": {"status": "PUBLISH_COMPLETE",
@@ -226,6 +233,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
             explicit_consent=True,
+            privacy_level="SELF_ONLY",
         )
         attempt_id = self.store.get("job-1")["attempt_id"]
         complete = self.store.mark_status(
@@ -242,6 +250,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
             explicit_consent=True,
+            privacy_level="SELF_ONLY",
         )
         self.transport.responses.append((200, {
             "data": ["unexpected"], "error": {"code": "ok"}
@@ -253,6 +262,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
             explicit_consent=True,
+            privacy_level="SELF_ONLY",
         )
         self.transport.responses.append((200, {
             "data": {"status": "PUBLISH_COMPLETE",
@@ -270,6 +280,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
             explicit_consent=True,
+            privacy_level="SELF_ONLY",
         )
         self.transport.responses.append((200, {
             "error": {"code": "rate_limit_exceeded", "message": "slow down"}
@@ -288,6 +299,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
             explicit_consent=True,
+            privacy_level="SELF_ONLY",
         )
         attempt_id = self.store.get("job-1")["attempt_id"]
         self.store.record_status_poll_error("job-1", attempt_id, "temporary error")
@@ -334,6 +346,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
             explicit_consent=True,
+            privacy_level="SELF_ONLY",
         )
         with self.store.db() as connection:
             with self.assertRaises(Exception):
