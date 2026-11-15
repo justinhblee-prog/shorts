@@ -9,7 +9,8 @@ on:
   pull_request:
     paths:
       - "backend/**"
-      - "scripts/validate.sh"
+      - "frontend/**"
+      - "scripts/**"
       - ".github/workflows/backend-tests.yml"
 jobs:
   test:
