@@ -348,7 +348,7 @@ class PerformanceAnalyzer:
         comparison_groups = {}
         for cohort in cohorts:
             key = (cohort["brand"], cohort["region"],
-                   cohort["publication_age_bucket"], cohort["format"])
+                   cohort["publication_age_bucket"], cohort["duration_bucket"], cohort["format"])
             comparison_groups.setdefault(key, []).append(cohort)
         cohort_insights = []
         for key, comparable in comparison_groups.items():
@@ -423,7 +423,7 @@ class PerformanceAnalyzer:
             "videos": video_results,
             "cohorts": cohorts,
             "cohort_insights": cohort_insights,
-            "cohort_insight_policy": "Descriptive within-brand/region/publication-age/format comparisons only; minimum three measured videos per cohort; no ranking score adjustment or automated action.",
+            "cohort_insight_policy": "Descriptive within-brand/region/publication-age/duration/format comparisons only; minimum three measured videos per cohort; no ranking score adjustment or automated action.",
             "cohort_method": "Brand + region + exact normalized topic-token signature + publication-age-at-last-snapshot + duration bucket + format; descriptive only.",
             "financial": list(financial.values()),
             "limitations": [
