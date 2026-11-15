@@ -91,6 +91,7 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(resolved["status"], "uploaded")
         self.assertEqual(resolved["video_id"], "late-video-id")
         self.assertEqual(resolved["events"][-1]["operator_id"], "reviewer-ops")
+        self.assertEqual(resolved["events"][-1]["attempt_id"],first_attempt["attempt_id"])
 
     def test_operator_can_keep_current_video_when_stale_duplicate_arrives(self):
         first=self.uploads.begin("job-1","First attempt","")
@@ -122,6 +123,7 @@ class YouTubePublishingTests(unittest.TestCase):
         )
         self.assertEqual(resolved["status"],"uploaded")
         self.assertEqual(resolved["video_id"],"current-video")
+        self.assertEqual(resolved["events"][-1]["attempt_id"],second["attempt_id"])
 
     def test_superseded_attempt_uncertainty_blocks_new_attempt(self):
         first=self.uploads.begin("job-1","First attempt","")
