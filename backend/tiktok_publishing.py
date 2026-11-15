@@ -148,11 +148,14 @@ class TikTokPublishStore:
         allowed = {
             "PROCESSING_UPLOAD": "processing",
             "PUBLISH_COMPLETE": "publish_complete",
+            "SEND_TO_INBOX": "send_to_inbox",
             "FAILED": "failed",
         }
         normalized = allowed.get(status)
-        if normalized is None:
+        if normalized is None and status in ("PROCESSING_UPLOAD", "PROCESSING_DOWNLOAD"):
             normalized = "processing"
+        if normalized is None:
+            raise TikTokPublishError("TikTok returned an unsupported publication status")
         video_id = (video_ids or [None])[0]
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
