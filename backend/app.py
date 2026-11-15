@@ -549,6 +549,15 @@ def tiktok_oauth_status(x_review_token:str|None=Header(default=None)):
     return result
 
 
+@app.post("/api/tiktok/oauth/disconnect")
+def disconnect_tiktok_oauth(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_oauth_manager.disconnect()
+    except TikTokOAuthError as e:
+        raise HTTPException(502,str(e))
+
+
 @app.get("/api/tiktok/creator-info")
 def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
