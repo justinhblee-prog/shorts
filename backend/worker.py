@@ -132,7 +132,7 @@ def main():
             if queue.is_paused():
                 # Docker may restart this process automatically. Keep it alive but
                 # inert until an operator explicitly clears the durable pause.
-                stopping.wait(IDLE_SECONDS)
+                threading.Event().wait(IDLE_SECONDS)
                 continue
             if stopping.is_set():
                 return
