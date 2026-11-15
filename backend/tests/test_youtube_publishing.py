@@ -42,6 +42,7 @@ class YouTubePublishingTests(unittest.TestCase):
         self.prod.artifact("job-1","rendering","video",
                            "https://media.example/video.mp4",{})
         self.review.decide("job-1","approved","reviewer-1")
+        os.environ["NEXUS_MEDIA_DIR"]=self.tmp.name
         self.media=os.path.join(self.tmp.name,"video.mp4")
         Path(self.media).write_bytes(b"fake-media-for-unit-test")
         self.service=FakeService()
@@ -68,6 +69,17 @@ class YouTubePublishingTests(unittest.TestCase):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         second=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         self.assertEqual(first["video_id"],second["video_id"])
+
+    def test_path_outside_media_root_rejected(self):
+        outside=os.path.join(self.tmp.name,"..","outside.mp4")
+        with self.assertRaises(YouTubeUploadError):
+            self.publisher.upload_approved("job-1",outside,self.review,"Title")
+
+    def test_unsupported_extension_rejected(self):
+        bad=os.path.join(self.tmp.name,"payload.txt")
+        Path(bad).write_text("not video")
+        with self.assertRaises(YouTubeUploadError):
+            self.publisher.upload_approved("job-1",bad,self.review,"Title")
 
     def test_missing_media_rejected(self):
         with self.assertRaises(YouTubeUploadError):
