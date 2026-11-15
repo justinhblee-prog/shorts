@@ -631,7 +631,8 @@ def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|N
     performance_by_brand={item["brand"]:item for item in performance.get("brands",[])}
     ranked=rank_trend_candidates(
         trends,brands,competitor_store,limit,
-        performance_by_brand=performance_by_brand
+        performance_by_brand=performance_by_brand,
+        performance_videos=performance.get("videos",[])
     )
     return {
         "items":ranked,
