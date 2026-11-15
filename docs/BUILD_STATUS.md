@@ -1823,4 +1823,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Extended role grants with explicit read scopes for production, review, publishing, queue, operations, trends, competitor intelligence and recommendation data.
 - Applied role authorization to lifecycle views, review history, queue/worker diagnostics, preflight, analytics, publishing dashboard, trends, competitor intelligence, recommendation reports and job/event inspection.
 - Role separation now applies to mutations and sensitive read endpoints; public health and public brand catalog endpoints remain intentionally public.
-- Added tests for role-specific read grants and denial of operational/review data outside the assigned role. CI pending.
+- Added tests for role-specific read grants and denial of operational/review data outside the assigned role. Final-head push CI [43775380140](https://github.com/justinhblee-prog/shorts/actions/runs/43775380140), PR CI [43775428525](https://github.com/justinhblee-prog/shorts/actions/runs/43775428525), and post-merge integration CI [43775520491](https://github.com/justinhblee-prog/shorts/actions/runs/43775520491): **623 tests passed**.
