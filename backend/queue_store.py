@@ -102,6 +102,27 @@ class JobQueue:
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit()
             return self.decode(row)
 
+    def _pause_production_in_transaction(self, c, reason, job_id, timestamp):
+        """Persist pause and fence all running production jobs in caller transaction."""
+        reason = str(reason)[:2000]
+        c.execute("""UPDATE worker_control SET paused=1,pause_reason=?,
+          paused_job_id=?,updated_at=? WHERE id=1""", (reason, job_id, timestamp))
+        running = c.execute("""SELECT id,worker_id FROM pipeline_jobs
+            WHERE status='running' AND job_type='short_video_production'""").fetchall()
+        has_runs = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'").fetchone()
+        for row in running:
+            c.execute("""UPDATE pipeline_jobs SET status='failed_terminal',
+                worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
+                updated_at=?,error_code='worker_paused',error_message=?
+                WHERE id=? AND status='running'""",
+                (timestamp, ("Queue paused: " + reason)[:2000], row["id"]))
+            self.event(c, row["id"], "worker_pause", "running", "failed_terminal",
+                       row["worker_id"], {"reason": reason, "paused_job_id": job_id})
+            if has_runs:
+                c.execute("""UPDATE production_runs SET status='failed_terminal',
+                    current_stage='worker_paused',error=?,updated_at=?
+                    WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                    (("Queue paused: " + reason)[:2000], timestamp, row["id"]))
     def claim(self,worker_id,hostname=None,job_type=None):
         if not worker_id.strip(): raise ValueError("worker_id required")
         dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds)); token=str(uuid.uuid4())
@@ -114,13 +135,34 @@ class JobQueue:
                 return None
             c.execute("""INSERT INTO worker_registry VALUES(?,?,?,'online') ON CONFLICT(worker_id)
               DO UPDATE SET hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",(worker_id,hostname,n))
-            expired=c.execute("""SELECT id,attempt,max_attempts FROM pipeline_jobs WHERE status='running'
+            expired=c.execute("""SELECT id,job_type,attempt,max_attempts FROM pipeline_jobs WHERE status='running'
               AND lease_expires_at IS NOT NULL AND lease_expires_at<=?""",(n,)).fetchall()
+            production_expired = []
             for e in expired:
-                target="queued" if e["attempt"]<e["max_attempts"] else "failed_terminal"
+                ambiguous = e["job_type"] == "short_video_production"
+                target = "failed_terminal" if ambiguous or e["attempt"]>=e["max_attempts"] else "queued"
+                code = "production_lease_expired_ambiguous" if ambiguous else "lease_expired"
+                message = "Production lease expired; external provider outcome is ambiguous" if ambiguous else "Worker lease expired"
                 c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
-                  available_at=?,updated_at=?,error_code='lease_expired',error_message='Worker lease expired' WHERE id=?""",(target,n,n,e["id"]))
-                self.event(c,e["id"],"lease_expired","running",target,None,{"attempt":e["attempt"]})
+                  available_at=?,updated_at=?,error_code=?,error_message=? WHERE id=?""",
+                  (target,n,n,code,message,e["id"]))
+                self.event(c,e["id"],"lease_expired","running",target,None,
+                           {"attempt":e["attempt"],"ambiguous_external_work":ambiguous})
+                if ambiguous:
+                    production_expired.append(e["id"])
+                    if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'").fetchone():
+                        c.execute("""UPDATE production_runs SET status='failed_terminal',
+                            current_stage='lease_expired_ambiguous',error=?,updated_at=?
+                            WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                            (message,n,e["id"]))
+            if production_expired:
+                self._pause_production_in_transaction(c,
+                    "Production worker lease expired; provider result may be ambiguous",
+                    production_expired[0], n)
+            production_paused = bool(c.execute("SELECT paused FROM worker_control WHERE id=1").fetchone()["paused"])
+            if production_paused and job_type == "short_video_production":
+                c.commit()
+                return None
             if job_type:
                 row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
                   AND available_at<=? AND attempt<max_attempts AND job_type=?
@@ -208,48 +250,43 @@ class JobQueue:
         n=stamp(now()); recovered=0; terminal=0
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            rows=c.execute("""SELECT id,attempt,max_attempts FROM pipeline_jobs WHERE status='running'
+            rows=c.execute("""SELECT id,job_type,attempt,max_attempts FROM pipeline_jobs WHERE status='running'
               AND lease_expires_at IS NOT NULL AND lease_expires_at<=?""",(n,)).fetchall()
+            production_expired = []
             for row in rows:
-                target="queued" if row["attempt"]<row["max_attempts"] else "failed_terminal"
+                ambiguous = row["job_type"] == "short_video_production"
+                target = "failed_terminal" if ambiguous or row["attempt"]>=row["max_attempts"] else "queued"
+                code = "production_lease_expired_ambiguous" if ambiguous else "lease_expired"
+                message = "Production lease expired; external provider outcome is ambiguous" if ambiguous else "Worker lease expired"
                 c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,
-                  lease_expires_at=NULL,available_at=?,updated_at=?,error_code='lease_expired',
-                  error_message='Worker lease expired' WHERE id=?""",(target,n,n,row["id"]))
-                self.event(c,row["id"],"lease_recovered","running",target,None,{"attempt":row["attempt"]})
+                  lease_expires_at=NULL,available_at=?,updated_at=?,error_code=?,error_message=? WHERE id=?""",
+                  (target,n,n,code,message,row["id"]))
+                self.event(c,row["id"],"lease_recovered","running",target,None,
+                           {"attempt":row["attempt"],"ambiguous_external_work":ambiguous})
+                if ambiguous:
+                    production_expired.append(row["id"])
+                    if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'").fetchone():
+                        c.execute("""UPDATE production_runs SET status='failed_terminal',
+                            current_stage='lease_expired_ambiguous',error=?,updated_at=?
+                            WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                            (message,n,row["id"]))
                 if target=="queued": recovered+=1
                 else: terminal+=1
+            if production_expired:
+                self._pause_production_in_transaction(c,
+                    "Production worker lease expired; provider result may be ambiguous",
+                    production_expired[0], n)
             c.commit()
         return {"requeued":recovered,"terminal":terminal}
 
     def pause(self, reason, job_id=None):
         """Persist a global pause and fence every in-flight worker lease."""
         n=stamp(now())
-        reason=str(reason)[:2000]
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            c.execute("""UPDATE worker_control SET paused=1,pause_reason=?,
-              paused_job_id=?,updated_at=? WHERE id=1""", (reason, job_id, n))
-            running=c.execute("""SELECT id,worker_id FROM pipeline_jobs
-                WHERE status='running' AND job_type='short_video_production'""").fetchall()
-            for row in running:
-                c.execute("""UPDATE pipeline_jobs SET status='failed_terminal',
-                    worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
-                    updated_at=?,error_code='worker_paused',error_message=?
-                    WHERE id=? AND status='running'""",
-                    (n, ("Queue paused: " + reason)[:2000], row["id"]))
-                self.event(c,row["id"],"worker_pause","running","failed_terminal",
-                           row["worker_id"],{"reason":reason,"paused_job_id":job_id})
-                has_production_runs=c.execute(
-                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
-                ).fetchone()
-                if has_production_runs:
-                    c.execute("""UPDATE production_runs SET status='failed_terminal',
-                        current_stage='worker_paused',error=?,updated_at=?
-                        WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
-                        (("Queue paused: " + reason)[:2000], n, row["id"]))
+            self._pause_production_in_transaction(c, reason, job_id, n)
             c.commit()
             return self.worker_control()
-
     def resume(self):
         """Explicitly clear a persisted worker pause after operator investigation."""
         n=stamp(now())
