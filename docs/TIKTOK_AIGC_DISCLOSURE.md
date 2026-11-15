@@ -44,4 +44,4 @@ Unknown or unsupported values fail closed. This helper does not upload or publis
 
 ## Validation
 
-The adapter tests cover consent, private-only publishing, AIGC labels, status polling, sponsorship declarations, operator reconciliation, chunk sizing, untrusted upload URLs and retry blocking. GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43690777187 passed 258 tests on branch commit 0d1499e. This is branch CI evidence only; live TikTok OAuth and publishing remain unverified.
+The adapter tests cover consent, private-only publishing, AIGC labels, status polling, sponsorship declarations, operator reconciliation, chunk sizing, untrusted upload URLs and retry blocking. GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43690904131 passed 260 tests on branch commit b4123f5. This is branch CI evidence only; live TikTok OAuth and publishing remain unverified.
