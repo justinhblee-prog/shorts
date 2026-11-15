@@ -869,6 +869,6 @@ The latest workflow run observed during this update was [run 43662557760](https:
 ### Provider endpoint security — BUILD-00077
 - Provider adapters now reject non-HTTPS or malformed endpoint URLs before network access. URLs with embedded credentials or fragments are invalid. Validation is enforced immediately before each credential-bearing provider request, not only in preflight.
 - Preflight identifies missing/invalid provider URL keys without exposing endpoint values or tokens. Optional transcription URL errors are reported only when that integration is configured.
-- Provider HTTP error response bodies are no longer retained; only status codes are recorded to avoid leaking echoed bearer tokens, signed URLs or submitted content.
-- GitHub Actions run [43719484041](https://github.com/justinhblee-prog/shorts/actions/runs/43719484041) passed **496 tests**, with 107 unique HTML IDs / 91 JS selectors.
+- Provider HTTP error response bodies are no longer retained; only status codes are recorded to avoid leaking echoed bearer tokens, signed URLs or submitted content. Automatic redirects are disabled to prevent credential-bearing requests from being forwarded to another host.
+- Initial GitHub Actions run [43719484041](https://github.com/justinhblee-prog/shorts/actions/runs/43719484041) passed 496 tests before the final redirect-hardening regression was added. Final branch-head CI is pending.
 - This is transport/configuration hardening only. Live provider connectivity, generation, media inspection, OAuth, remote publishing and monetization remain unverified.
