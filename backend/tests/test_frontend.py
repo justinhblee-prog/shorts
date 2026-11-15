@@ -54,6 +54,8 @@ class FrontendPortalTests(unittest.TestCase):
         html = (frontend / "index.html").read_text(encoding="utf-8")
         self.assertIn("/api/trends/recommendations", app_js)
         self.assertIn("data-recommend-draft", app_js)
+        self.assertIn("loadTrendRecommendations()", app_js)
+        self.assertIn("data-recommend-brand", app_js)
         self.assertIn("EDITORIAL MATCH", html)
         self.assertIn("trendRecommendations", html)
         self.assertIn("수익성이나 조회수 예측 점수가 아닙니다", html)
