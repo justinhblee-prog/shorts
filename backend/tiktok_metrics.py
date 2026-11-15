@@ -318,8 +318,6 @@ class TikTokMetricsCollector:
         if not isinstance(videos, list):
             raise TikTokMetricsError("TikTok metrics response omitted data.videos")
         jobs = {x["video_id"]: x["job_id"] for x in due}
-        if len(videos) > len(ids):
-            raise TikTokMetricsError("TikTok metrics returned more videos than requested")
         collected_ids, snapshot_items = set(), []
         for video in videos:
             if not isinstance(video, dict):

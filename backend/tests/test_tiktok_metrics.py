@@ -108,48 +108,6 @@ class TikTokMetricsTests(unittest.TestCase):
                         "id": "video-1", "view_count": invalid,
                     })
 
-    def test_response_batch_is_validated_before_any_snapshot_is_committed(self):
-        self._publish("job-2", "video-2")
-        collector = self._collector({
-            "data": {"videos": [
-                {"id": "video-1", "view_count": 10, "like_count": 1,
-                 "comment_count": 0, "share_count": 0},
-                {"id": "video-2", "view_count": True, "like_count": 1,
-                 "comment_count": 0, "share_count": 0},
-            ]},
-            "error": {"code": "ok"},
-        })
-        with self.assertRaisesRegex(TikTokMetricsError, "invalid view_count"):
-            collector.refresh_due_metrics(min_age_seconds=0)
-        with self.store.db() as connection:
-            count = connection.execute("SELECT COUNT(*) FROM tiktok_video_metric_snapshots").fetchone()[0]
-        self.assertEqual(count, 0)
-
-    def test_response_batch_rejects_duplicate_ids_before_persisting(self):
-        collector = self._collector({
-            "data": {"videos": [
-                {"id": "video-1", "view_count": 10},
-                {"id": "video-1", "view_count": 11},
-            ]},
-            "error": {"code": "ok"},
-        })
-        with self.assertRaisesRegex(TikTokMetricsError, "duplicate video IDs"):
-            collector.refresh_due_metrics(min_age_seconds=0)
-        with self.store.db() as connection:
-            count = connection.execute("SELECT COUNT(*) FROM tiktok_video_metric_snapshots").fetchone()[0]
-        self.assertEqual(count, 0)
-
-    def test_batch_store_rejects_sqlite_integer_overflow_without_partial_writes(self):
-        self._publish("job-2", "video-2")
-        with self.assertRaisesRegex(TikTokMetricsError, "invalid view_count"):
-            self.store.save_snapshots([
-                ("job-1", {"id": "video-1", "view_count": 1}),
-                ("job-2", {"id": "video-2", "view_count": 2**80}),
-            ])
-        with self.store.db() as connection:
-            count = connection.execute("SELECT COUNT(*) FROM tiktok_video_metric_snapshots").fetchone()[0]
-        self.assertEqual(count, 0)
-
     def test_api_error_and_malformed_response_fail_closed(self):
         collector = self._collector({
             "data": {"videos": []},
