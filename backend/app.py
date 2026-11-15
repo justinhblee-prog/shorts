@@ -707,7 +707,6 @@ def review_history(job_id:str, x_review_token:str|None=Header(default=None)):
 
 
 
-@app.post("/api/production/jobs/{job_id}/stage-media")
 def require_canonical_staged_media(job_id:str,media_path:str):
     """Accept only the current job's deterministic staging file, never an arbitrary media-root file."""
     expected=media_stager.staged_path(job_id)
@@ -724,6 +723,7 @@ def require_canonical_staged_media(job_id:str,media_path:str):
     return str(resolved)
 
 
+@app.post("/api/production/jobs/{job_id}/stage-media")
 def stage_production_media(job_id:str,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     production=production_store.get(job_id)
