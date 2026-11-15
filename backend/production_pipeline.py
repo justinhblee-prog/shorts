@@ -522,6 +522,7 @@ class ProductionPipeline:
                                 **lease)
 
             speech_report = None
+            transcript_text = None
             if self.transcription is not None:
                 self._check_stop(stop_event)
                 self.store.stage(job_id, "speech_alignment", **lease)
