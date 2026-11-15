@@ -72,7 +72,7 @@ class MediaStager:
 
     def staged_path(self, job_id):
         filename = hashlib.sha256(str(job_id).encode("utf-8")).hexdigest() + ".mp4"
-        return (self.media_dir / filename).resolve()
+        return self.media_dir / filename
 
     def cleanup_uploaded(self, job_id, upload_store):
         """Delete only this job's staged file, and only after durable upload confirmation."""
@@ -80,11 +80,11 @@ class MediaStager:
         if upload is None or upload.get("status") != "uploaded" or not upload.get("video_id"):
             raise MediaStagingError("Media can be removed only after a confirmed YouTube upload")
         target = self.staged_path(job_id)
+        if target.is_symlink():
+            raise MediaStagingError("Refusing to remove a symlink from the media staging area")
         try:
-            target.relative_to(self.media_dir)
-        except ValueError as exc:
-            raise MediaStagingError("Staged media path escaped the media directory") from exc
-        try:
+            if target.parent.resolve() != self.media_dir:
+                raise MediaStagingError("Staged media path escaped the media directory")
             target.unlink(missing_ok=True)
         except OSError as exc:
             raise MediaStagingError("Staged media could not be removed") from exc
