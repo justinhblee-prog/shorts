@@ -1781,4 +1781,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Legacy-only configuration remains supported for migration but is always attributed to the fixed identity `legacy-operator`; malformed individual credential configuration fails closed with HTTP 503.
 - Added tests for unique identity resolution, invalid/duplicate/weak credentials, legacy fallback, malformed configuration and audit spoofing attempts.
 - This is per-operator bearer-token authentication, not full IdP/RBAC/session management. HTTPS, secure distribution and token rotation are required; broader RBAC remains open.
-- CI evidence pending.
+- Final-head push CI [43773111981](https://github.com/justinhblee-prog/shorts/actions/runs/43773111981) and PR CI [43773117502](https://github.com/justinhblee-prog/shorts/actions/runs/43773117502): **588 tests passed**.
