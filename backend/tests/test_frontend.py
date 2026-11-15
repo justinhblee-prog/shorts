@@ -207,6 +207,14 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("P90", app_js)
         self.assertIn("최근 최대 100개 작업", app_js)
 
+    def test_global_dashboard_shows_quality_and_recorded_economics(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/analytics/operations-economics?limit=500", app_js)
+        self.assertIn("제작 품질·검수·게시·기록 재무 분석", app_js)
+        self.assertIn("단계별 실패율", app_js)
+        self.assertIn("작업 연결 재무 기록", app_js)
+        self.assertIn("통화 환산·추정 매출은 포함하지 않습니다", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
