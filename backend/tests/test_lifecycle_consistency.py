@@ -22,6 +22,21 @@ class LifecycleConsistencyTests(unittest.TestCase):
         self.assertIn("review_handoff_incomplete",
                       {item["code"] for item in result["findings"]})
 
+    def test_approved_production_after_queue_review_handoff_is_consistent(self):
+        result = inspect_lifecycle_consistency(
+            self.job, {"status": "approved"}, self.review
+        )
+        self.assertEqual(result["status"], "consistent")
+        self.assertEqual(result["findings"], [])
+
+    def test_rejected_production_after_queue_review_handoff_is_consistent(self):
+        result = inspect_lifecycle_consistency(
+            self.job, {"status": "rejected"},
+            {"latest": {"decision": "rejected"}},
+        )
+        self.assertEqual(result["status"], "consistent")
+        self.assertEqual(result["findings"], [])
+
     def test_unapproved_publication_attempt_is_blocker(self):
         youtube = {"status": "uploaded", "events": [
             {"event_type": "upload_attempt_started"}
