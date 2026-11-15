@@ -884,3 +884,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - TikTok API responses are limited to 2 MiB at both the HTTP-read and shared transport boundaries. Oversized responses fail closed before JSON parsing.
 - Error codes are reflected only when they match a short safe identifier format; arbitrary provider text is replaced with a generic request failure.
 - Regression tests cover bounded reads, custom transport output and error-code redaction. CI for this branch is pending.
+
+
+### TikTok OAuth response safety — BUILD-00080
+- OAuth token exchange, refresh and revoke responses are capped at 256 KiB at both the HTTP-read and custom-transport boundaries.
+- Automatic redirects are disabled for OAuth POSTs carrying client secrets or refresh tokens.
+- Upstream error descriptions are not copied into exceptions; only short safe error identifiers/log IDs are allowed.
+- CI validation is pending. No live OAuth authorization or token refresh is claimed.

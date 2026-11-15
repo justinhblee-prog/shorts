@@ -299,3 +299,11 @@ Provider JSON responses are limited to 2 MiB. If a provider returns an oversized
 - Invalid HTTP status values and non-binary response bodies fail closed.
 - Upstream error codes are exposed only when they match a short safe identifier format. Arbitrary text is not persisted in job errors.
 - This does not alter media upload chunking, SELF_ONLY privacy, human approval, or publishing consent requirements.
+
+
+## BUILD-00080 — TikTok OAuth transport safeguards
+
+- OAuth token requests do not follow redirects. Configure the final official HTTPS endpoint directly; credentials must never be forwarded to a redirect target.
+- OAuth response bodies are limited to 256 KiB. Oversized or malformed responses fail closed.
+- Upstream error descriptions are discarded. Only a short safe error code and safe log ID may be shown in diagnostics.
+- These checks do not establish that TikTok app credentials, scopes, consent or account authorization are valid.
