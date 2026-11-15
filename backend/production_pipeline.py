@@ -381,13 +381,13 @@ class ProductionPipeline:
             raise ValueError("worker_id and lease_token must be supplied together")
         lease = {"worker_id": worker_id, "lease_token": lease_token}
         policy_report = brief.get("policy_report") or evaluate_content_policy(brief)
-        if policy_report.get("status") == "blocked":
-            raise PolicyBlocked("policy_preflight",
-                                "Production blocked by explicit policy risk flags: "
-                                + ", ".join(policy_report.get("blocking_reasons", [])),
-                                retryable=False)
         try:
             self._check_stop(stop_event)
+            if policy_report.get("status") == "blocked":
+                raise PolicyBlocked("policy_preflight",
+                                    "Production blocked by explicit policy risk flags: "
+                                    + ", ".join(policy_report.get("blocking_reasons", [])),
+                                    retryable=False)
             self.store.stage(job_id, "script", **lease)
             self._check_stop(stop_event)
             script = self.script.post("script", {
