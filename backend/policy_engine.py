@@ -208,6 +208,7 @@ def evaluate_content_policy(brief):
             "claim_evidence_notes_present": _nonblank(brief.get("claim_evidence_notes")),
             "source_urls": sources,
             "transformative_contribution_present": _nonblank(brief.get("transformative_contribution")),
+            "commercial_relationship_disclosed": brief.get("commercial_relationship_disclosed") is True,
         },
         "policy_sources": POLICY_SOURCES,
         "limitations": [
