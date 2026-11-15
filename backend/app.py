@@ -45,6 +45,10 @@ class Fail(Lease):
     error_message:str="Worker failed"
     retryable:bool=True
 
+class ReviewDecision(BaseModel):
+    reviewer_id:str=Field(min_length=1,max_length=128)
+    comment:str=Field(default="",max_length=4000)
+
 class BrandActivation(BaseModel):
     active:bool
 
