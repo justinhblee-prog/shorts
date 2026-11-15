@@ -111,16 +111,13 @@ Request body: `{"reviewer_id":"operator-1","comment":"Optional approval note"}`.
 
 Configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REFRESH_TOKEN` as runtime secrets. The refresh token must be granted `youtube.upload` and `youtube.readonly` scopes. Never commit credentials or token files.
 
-The upload endpoint requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-Token` and a job with a recorded `approved` human decision:
-- `POST /api/youtube/upload/{job_id}`
-- `GET /api/youtube/uploads/{job_id}`
-- `POST /api/youtube/videos/{video_id}/refresh-metrics`
+Approved publishing requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-Token`, a job with a recorded human `approved` decision, the immutable approved artifact snapshot, and the staged-media SHA-256 fingerprint. The API stages only the artifact URL stored on that production job (`POST /api/production/jobs/{job_id}/stage-media`); it does not accept an arbitrary caller-supplied URL or host path. Upload attempts use a private immutable byte snapshot and are serialized per job.
 
-Upload body includes a server-local `media_path`, title, description, tags and category ID. The API forces `privacyStatus=private`; there is no public/unlisted override. The server must already have the rendered file at that local path. Current render providers return artifact URLs, so downloading/staging remote artifacts into trusted local storage is a separate deployment integration and is not silently performed by this endpoint.
+YouTube routes include `POST /api/youtube/upload/{job_id}`, `GET /api/youtube/uploads/{job_id}`, and `POST /api/youtube/videos/{video_id}/refresh-metrics`. The publisher forces `privacyStatus=private`; there is no public/unlisted override.
 
-Uploads use the Google API client resumable media upload interface. The upload record and source-provided view/like/comment counters are persisted. A missing first metrics response does not invalidate a confirmed upload. Data API counters are not revenue; estimated or actual monetization revenue is handled separately in BUILD-00009.
+TikTok routes include OAuth start/callback/status/disconnect, `POST /api/tiktok/publish/{job_id}`, `GET /api/tiktok/publications/{job_id}`, operator reconciliation/status refresh, and read-only `GET /api/tiktok/metrics?limit=100`. TikTok Direct Post is fixed to `SELF_ONLY`; public visibility is not enabled. TikTok OAuth requests `video.publish` and `video.list`. Publishing requires `video.publish`; the metrics collector separately requires `video.list`, so existing connected accounts may need to reauthorize. The collector queries only video IDs already confirmed in this account's completed publication records.
 
-OAuth credentials are supplied through environment secrets; an interactive OAuth consent UI/token provisioning flow is not included. The initial adapter supports one authenticated YouTube channel per runtime. Mocked tests are committed; real OAuth, upload quota, media processing and live metrics have not been validated.
+The separate metrics service refreshes YouTube and TikTok counters independently. TikTok Display API v2 counters are views, likes, comments and shares; no retention, swipe-away, watch-time or revenue values are fabricated. Dashboard reads are authenticated and read-only. Mocked/automated tests do not validate real OAuth consent, live uploads, actual remote visibility, provider quotas or live metric retrieval.
 
 ## BUILD-00009 — financial ledger
 
@@ -189,7 +186,7 @@ The integrated single-page control center is served from the backend:
 http://localhost:8502/
 ```
 
-The UI includes production job intake, trends, competitors, profitability scoring, human review, approved/private upload, schedules, financial ledger and performance insights. Enter the configured `NEXUS_REVIEW_TOKEN` using the settings button. The token is kept in browser memory only and is cleared on reload. Public publishing is not offered by the UI; YouTube uploads remain private.
+The UI includes production job intake, trends, competitors, profitability scoring, human review, approved/private YouTube upload, TikTok `SELF_ONLY` publishing, schedules, financial ledger and YouTube/TikTok performance insights. Enter the configured `NEXUS_REVIEW_TOKEN` using the settings button. The token is kept in browser memory only and is cleared on reload. Public publishing is not offered by the UI; YouTube uploads remain private.
 
 ### Integration preflight
 
