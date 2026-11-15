@@ -810,11 +810,10 @@ class ApiSecurityTests(unittest.TestCase):
         job = {"id": "job-1", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
                "lease_token": "lease-1", "payload": {"topic": "test"}}
-        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1", instance_token="instance-1")
         with (
             mock.patch("app.require_review_access"),
             mock.patch.object(app_module.queue, "get", return_value=job),
-            mock.patch.object(app_module.queue, "assert_current_worker_instance"),
             mock.patch.object(app_module.queue, "assert_current_worker_instance"),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProductionLeaseConflict("stale lease")),
@@ -830,10 +829,11 @@ class ApiSecurityTests(unittest.TestCase):
         job = {"id": "job-provider", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
                "lease_token": "lease-1", "payload": {"topic": "test"}}
-        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1", instance_token="instance-1")
         with (
             mock.patch("app.require_review_access"),
             mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "assert_current_worker_instance"),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProviderError("script", "provider timeout", True)),
             mock.patch.object(app_module.queue, "fail") as fail,
@@ -849,10 +849,11 @@ class ApiSecurityTests(unittest.TestCase):
         job = {"id": "job-internal", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
                "lease_token": "lease-1", "payload": {"topic": "test"}}
-        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1", instance_token="instance-1")
         with (
             mock.patch("app.require_review_access"),
             mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "assert_current_worker_instance"),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=RuntimeError("unexpected")),
             mock.patch.object(app_module.queue, "fail") as fail,
