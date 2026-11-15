@@ -976,6 +976,21 @@ def performance_insights(brand:str|None=None,x_review_token:str|None=Header(defa
     return performance_analyzer.analyze(brand)
 
 
+@app.get("/api/tiktok/metrics")
+def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    bounded=max(1,min(limit,200))
+    items=tiktok_metrics_store.recent_metrics(tiktok_publish_store,bounded)
+    return {
+        "items": items,
+        "count": len(items),
+        "limit": bounded,
+        "source": "TikTok Display API v2",
+        "read_only": True,
+        "ranking_score_adjustment": 0,
+    }
+
+
 @app.get("/api/metrics/collection-status")
 def metrics_collection_status(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
