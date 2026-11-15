@@ -48,6 +48,14 @@ class TikTokOAuthTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_redirect_uri_must_be_registered_style_static_https(self):
+        with mock.patch.dict(os.environ, {"TIKTOK_REDIRECT_URI": "http://localhost/callback"}):
+            with self.assertRaisesRegex(TikTokOAuthError, "static HTTPS"):
+                self.store.create_authorization("operator")
+        with mock.patch.dict(os.environ, {"TIKTOK_REDIRECT_URI": "https://nexus.example/callback?next=home"}):
+            with self.assertRaisesRegex(TikTokOAuthError, "static HTTPS"):
+                self.store.create_authorization("operator")
+
     def test_authorization_uses_scoped_state_and_callback_uri(self):
         result = self.store.create_authorization("operator-1")
         query = parse_qs(urlparse(result["authorization_url"]).query)
