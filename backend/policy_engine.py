@@ -5,7 +5,7 @@ It evaluates declarations supplied by the operator; it does not inspect media by
 """
 from datetime import datetime, timezone
 
-POLICY_VERSION = "2026-11-15.2"
+POLICY_VERSION = "2026-11-15.3"
 POLICY_CHECKED_ON = "2026-11-15"
 PLATFORMS = ("youtube", "tiktok")
 
