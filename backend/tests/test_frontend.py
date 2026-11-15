@@ -105,7 +105,8 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("/api/tiktok/oauth/disconnect", app_js)
         self.assertIn("/api/tiktok/oauth/start", app_js)
         self.assertIn("window.location.assign", app_js)
-        self.assertIn("tiktok_oauth=connected", app_js)
+        self.assertIn('get("tiktok_oauth")', app_js)
+        self.assertIn('tiktokOAuthResult==="connected"', app_js)
         self.assertIn("/api/tiktok/oauth/status", app_js)
 
     def test_dashboard_has_single_page_workspaces(self):
