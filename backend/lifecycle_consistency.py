@@ -14,6 +14,21 @@ def inspect_lifecycle_consistency(job, production, review, youtube=None, tiktok=
         findings.append({"code": code, "severity": severity,
                          "message": message, "stage": stage})
 
+    if queue_status == "running":
+        missing_lease = [
+            field for field in ("worker_id", "lease_token", "lease_expires_at")
+            if not (job or {}).get(field)
+        ]
+        if missing_lease:
+            add("queue_running_without_lease", "blocker",
+                "Running queue job is missing lease ownership fields: "
+                + ", ".join(missing_lease), "queue")
+    elif any((job or {}).get(field) for field in (
+        "worker_id", "lease_token", "lease_expires_at"
+    )):
+        add("queue_stale_lease_fields", "blocker",
+            "Non-running queue job still contains worker lease ownership fields", "queue")
+
     terminal_pairs = {
         "cancelled": {"cancelled"},
         "failed_terminal": {"failed_terminal"},
@@ -51,13 +66,26 @@ def inspect_lifecycle_consistency(job, production, review, youtube=None, tiktok=
     if yt_status in unresolved:
         add("youtube_manual_reconciliation_required", "blocker",
             "YouTube outcome is unresolved; verify YouTube Studio before any retry", "youtube")
+    if yt_status in ("uploading", "reconciliation_required") and not youtube.get("attempt_id"):
+        add("youtube_attempt_id_missing", "blocker",
+            "YouTube upload state has no attempt identifier for safe reconciliation", "youtube")
+    if yt_status == "uploaded" and not youtube.get("video_id"):
+        add("youtube_success_missing_video_id", "blocker",
+            "YouTube is marked uploaded without a confirmed video ID", "youtube")
     if tt_status in unresolved:
         add("tiktok_manual_reconciliation_required", "blocker",
             "TikTok outcome is unresolved; verify the creator account before any retry", "tiktok")
+    if tt_status in ("initializing", "uploading", "processing", "reconciliation_required") and not tiktok.get("attempt_id"):
+        add("tiktok_attempt_id_missing", "blocker",
+            "TikTok publication state has no attempt identifier for safe reconciliation", "tiktok")
+    if tt_status == "publish_complete" and not tiktok.get("video_id"):
+        add("tiktok_success_missing_video_id", "blocker",
+            "TikTok is marked publish-complete without a confirmed video ID", "tiktok")
 
     findings.sort(key=lambda item: ({"blocker": 0, "warning": 1}.get(item["severity"], 2), item["code"]))
+    has_blocker = any(item["severity"] == "blocker" for item in findings)
     return {
-        "status": "attention_required" if findings else "consistent",
+        "status": "blocked" if has_blocker else "attention_required" if findings else "consistent",
         "read_only": True,
         "automatic_retry_performed": False,
         "findings": findings,
