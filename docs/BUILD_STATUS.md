@@ -1279,3 +1279,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions run [43703549995](https://github.com/justinhblee-prog/shorts/actions/runs/43703549995) passed **411 tests**; `scripts/validate.sh` completed successfully, including Python compileall, YAML validation, frontend syntax/ID checks and unittest discovery.
 - Added per-experiment HMAC participant fingerprinting after review to prevent cross-experiment participant correlation; the final CI run includes the regression test.
 - This confirms repository CI only. No production traffic was randomized and no actual platform outcome was measured.
+
+
+## BUILD-00058 — shadow experiment operator workspace
+- Added a dedicated controlled-experiment panel to the single-page operations workspace.
+- Operators can create draft experiments, inspect control/treatment shadow counts, generate an opaque random sample assignment, and view the experiment report.
+- The browser creates a short-lived random sample key; it does not ask for a real customer identifier. The backend stores only an experiment-scoped HMAC fingerprint.
+- The workspace explicitly shows zero real exposures, no measured outcomes, no causal estimate, and zero ranking-score adjustment. No live variant delivery or production behavior is enabled.
+- Added frontend integration regression coverage. CI validation pending.
