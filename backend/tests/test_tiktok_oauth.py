@@ -320,7 +320,7 @@ class TikTokOAuthTests(unittest.TestCase):
             dict(valid, refresh_token="r" * (16 * 1024 + 1)),
             dict(valid, open_id="i" * 257),
             dict(valid, access_token=" leading-space"),
-            dict(valid, refresh_token="embedded\\ncontrol"),
+            dict(valid, refresh_token="embedded\ncontrol"),
             dict(valid, scope="s" * 4097),
             dict(valid, scope=["video.publish"]),
             dict(valid, token_type="MAC"),
