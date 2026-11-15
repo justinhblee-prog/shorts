@@ -37,6 +37,13 @@ class YouTubeUploadStore:
               source TEXT NOT NULL DEFAULT 'YouTube Data API v3 videos.list',
               collected_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS youtube_upload_events(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
+              event_type TEXT NOT NULL, outcome TEXT, video_id TEXT,
+              operator_id TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
+              previous_status TEXT, resulting_status TEXT, created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_youtube_upload_events_job ON youtube_upload_events(job_id,id);
             CREATE INDEX IF NOT EXISTS idx_youtube_snapshots_video
               ON youtube_video_snapshots(video_id,collected_at);
             """)
@@ -71,7 +78,7 @@ class YouTubeUploadStore:
             row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
             if row and row["status"]=="uploaded":
                 return dict(row)
-            if row and row["status"] in ("uploading", "reconciliation_required"):
+            if row and row["status"] in ("uploading", "reconciliation_required", "late_success_review_required"):
                 raise YouTubeUploadError(
                     "Upload outcome requires reconciliation in YouTube Studio before retry; "
                     "automatic retry is blocked to prevent duplicate videos"
@@ -88,6 +95,8 @@ class YouTubeUploadStore:
     def finish(self,job_id,video_id):
         if not isinstance(video_id,str) or not video_id.strip():
             raise YouTubeUploadError("A confirmed YouTube video ID is required")
+        late_conflict=False
+        state_error=None
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
@@ -95,9 +104,35 @@ class YouTubeUploadStore:
               WHERE job_id=? AND status='uploading'""",
               (video_id.strip(),_now(),_now(),job_id))
             if c.rowcount != 1:
-                raise YouTubeUploadError(
-                    "Upload state changed before completion; preserve the result for operator reconciliation"
-                )
+                row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
+                if row is None:
+                    state_error="Upload record disappeared before remote completion could be recorded"
+                elif row["status"]=="uploaded" and row["video_id"]==video_id.strip():
+                    return
+                else:
+                    latest=c.execute("""SELECT * FROM youtube_upload_events
+                      WHERE job_id=? AND event_type='operator_reconciliation'
+                      ORDER BY id DESC LIMIT 1""",(job_id,)).fetchone()
+                    if row["status"]=="failed" and latest and latest["outcome"]=="not_uploaded":
+                        now=_now()
+                        c.execute("""INSERT INTO youtube_upload_events
+                          (job_id,event_type,outcome,video_id,operator_id,note,
+                           previous_status,resulting_status,created_at)
+                          VALUES(?,'late_remote_success','uploaded',?,'system:youtube_response',
+                           'Remote upload returned a video ID after operator confirmed not_uploaded',
+                           'failed','late_success_review_required',?)""",
+                          (job_id,video_id.strip(),now))
+                        c.execute("""UPDATE youtube_uploads SET video_id=?,
+                          status='late_success_review_required',error=?,updated_at=?
+                          WHERE job_id=? AND status='failed'""",
+                          (video_id.strip(),"Late remote success detected after not_uploaded reconciliation; manual resolution required",now,job_id))
+                        late_conflict=True
+                    else:
+                        state_error="Upload state changed before completion; remote result requires manual investigation"
+        if late_conflict:
+            raise YouTubeUploadError("Late YouTube success detected. Retry is blocked; the returned video ID is preserved for operator review.")
+        if state_error:
+            raise YouTubeUploadError(state_error)
 
     def fail(self,job_id,error):
         with self.db() as c:
@@ -134,11 +169,14 @@ class YouTubeUploadStore:
             if c.rowcount != 1:
                 raise YouTubeUploadError("Upload record is not in a reconcilable state")
 
-    def reconcile(self,job_id,outcome,video_id=None,note=""):
+    def reconcile(self,job_id,outcome,video_id=None,note="",operator_id="unspecified"):
         """Resolve an ambiguous remote upload only after explicit operator verification."""
         note=str(note or "").strip()
         if not note or len(note)>2000:
             raise YouTubeUploadError("A reconciliation note is required (max 2000 characters)")
+        operator_id=str(operator_id or "").strip()
+        if not operator_id or len(operator_id)>128:
+            raise YouTubeUploadError("A valid operator ID is required (max 128 characters)")
         if outcome not in ("uploaded","not_uploaded"):
             raise YouTubeUploadError("Outcome must be uploaded or not_uploaded")
         if outcome=="uploaded" and (not isinstance(video_id,str) or not video_id.strip()):
@@ -150,8 +188,10 @@ class YouTubeUploadStore:
                 raise YouTubeUploadError("Upload record not found")
             if row["status"]=="uploaded":
                 if outcome=="uploaded" and row["video_id"]==video_id:
-                    return self.get(job_id)
+                    return dict(row)
                 raise YouTubeUploadError("Upload is already finalized; conflicting reconciliation rejected")
+            if row["status"]=="late_success_review_required":
+                raise YouTubeUploadError("A late remote success is preserved; use the late-result resolution action")
             if row["status"]=="uploading" and not self.is_stale_upload(row):
                 raise YouTubeUploadError(
                     "Upload is still within its active window; wait for completion or timeout before reconciliation"
@@ -169,6 +209,34 @@ class YouTubeUploadStore:
                   ("Operator verified no matching remote upload. "+note,_now(),job_id))
             if c.rowcount != 1:
                 raise YouTubeUploadError("Upload state changed during reconciliation")
+            resulting="uploaded" if outcome=="uploaded" else "failed"
+            c.execute("""INSERT INTO youtube_upload_events
+              (job_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
+              VALUES(?,'operator_reconciliation',?,?,?,?,?,?,?)""",
+              (job_id,outcome,video_id.strip() if isinstance(video_id,str) else None,
+               operator_id,note,row["status"],resulting,_now()))
+        return self.get(job_id)
+
+    def resolve_late_success(self,job_id,operator_id,note):
+        operator_id=str(operator_id or "").strip()
+        note=str(note or "").strip()
+        if not operator_id or len(operator_id)>128 or not note or len(note)>2000:
+            raise YouTubeUploadError("Operator ID and resolution note are required")
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
+            if row is None or row["status"]!="late_success_review_required" or not row["video_id"]:
+                raise YouTubeUploadError("No preserved late remote success is awaiting resolution")
+            now=_now()
+            c.execute("""UPDATE youtube_uploads SET status='uploaded',privacy_status='private',
+              uploaded_at=COALESCE(uploaded_at,?),error=NULL,updated_at=?
+              WHERE job_id=? AND status='late_success_review_required'""",(now,now,job_id))
+            if c.rowcount!=1:
+                raise YouTubeUploadError("Late success state changed during resolution")
+            c.execute("""INSERT INTO youtube_upload_events
+              (job_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
+              VALUES(?,'late_success_resolved','uploaded',?,?,?,?,?,?)""",
+              (job_id,row["video_id"],operator_id,note,row["status"],"uploaded",now))
         return self.get(job_id)
 
     def snapshot(self,video_id,stats):
@@ -191,8 +259,12 @@ class YouTubeUploadStore:
                     "SELECT * FROM youtube_video_snapshots WHERE video_id=? ORDER BY id",
                     (row["video_id"],)).fetchall()]
             else: result["snapshots"]=[]
+            result["events"]=[dict(x) for x in c.execute(
+                "SELECT * FROM youtube_upload_events WHERE job_id=? ORDER BY id",(job_id,)
+            ).fetchall()]
             result["reconciliation_required"]=(
-                row["status"]=="reconciliation_required" or self.is_stale_upload(row)
+                row["status"] in ("reconciliation_required","late_success_review_required")
+                or self.is_stale_upload(row)
             )
             return result
 
