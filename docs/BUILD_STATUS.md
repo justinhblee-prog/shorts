@@ -1009,3 +1009,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Link production outcomes and skip decisions only to the exact exposed candidate matching both trend and brand; generic trend drafts no longer get silently attributed to whichever matching recommendation happened to be newest.
 - Add tests for exact candidate linkage, stale/wrong trend or brand IDs, deduplicated snapshot IDs, API payload propagation, and frontend wiring.
 - CI passed at code commit 718f339 (322 tests).
+
+
+### BUILD-00036 — Recommendation metric input validation (2026-11-15)
+
+- Reject boolean, NaN, infinite, negative, missing and non-numeric views-per-hour observations before evaluation.
+- Ignore malformed performance rows and require a non-empty production job ID.
+- Make duplicate job outcome handling deterministic: the first valid observation for a job is retained rather than overwritten by payload order.
+- Add a regression test covering invalid values, malformed rows and duplicate outcomes.
+- CI validation pending.
