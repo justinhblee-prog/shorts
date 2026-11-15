@@ -20,6 +20,31 @@ class BrandOperationsTests(unittest.TestCase):
         self.assertEqual(len({b["slug"] for b in brands}), 10)
         self.assertTrue(all("KR" in b["config"]["regions"] for b in brands))
 
+    def test_default_keyword_taxonomy_is_seeded_for_every_brand(self):
+        brands = self.store.list()
+        self.assertTrue(all(b["config"].get("keywords") for b in brands))
+        self.assertIn("neuroscience", self.store.get("brain-glitch")["config"]["keywords"])
+        self.assertIn("robotics", self.store.get("future-leak")["config"]["keywords"])
+
+    def test_taxonomy_migration_preserves_operator_customizations(self):
+        with self.store.db() as connection:
+            row = connection.execute(
+                "SELECT config_json FROM brand_profiles WHERE slug='future-leak'"
+            ).fetchone()
+            import json
+            config = json.loads(row["config_json"])
+            config.pop("keywords", None)
+            config["positioning"] = "Operator's custom positioning"
+            config["custom_field"] = "keep-me"
+            connection.execute(
+                "UPDATE brand_profiles SET config_json=? WHERE slug='future-leak'",
+                (json.dumps(config),)
+            )
+        migrated = BrandStore(self.db).get("future-leak")["config"]
+        self.assertEqual(migrated["positioning"], "Operator's custom positioning")
+        self.assertEqual(migrated["custom_field"], "keep-me")
+        self.assertIn("robotics", migrated["keywords"])
+
     def test_activation_persists_and_filters(self):
         updated = self.store.set_active("money-glitch", False)
         self.assertFalse(updated["active"])
