@@ -539,6 +539,18 @@ class YouTubeUploadStore:
             ).fetchall()
         return [item for row in rows if (item := self.get(row["job_id"])) is not None]
 
+    def list_uploaded_video_ids(self, limit=10000):
+        limit = max(1, min(int(limit), 10000))
+        with self.db() as connection:
+            rows = connection.execute(
+                """SELECT job_id,video_id,uploaded_at,updated_at
+                   FROM youtube_uploads
+                   WHERE status='uploaded' AND video_id IS NOT NULL
+                   ORDER BY COALESCE(uploaded_at,updated_at),job_id LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def get(self,job_id):
         with self.db() as c:
             row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
