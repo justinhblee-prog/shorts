@@ -323,6 +323,15 @@
       window.location.assign(result.authorization_url);
     }catch(err){toast(err.message);}
   });
+  $("disconnectTikTok").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    if(!confirm("TikTok 연결을 해제하고 TikTok 측 토큰을 폐기하시겠습니까?"))return;
+    try{
+      await api("/api/tiktok/oauth/disconnect",{method:"POST"});
+      toast("TikTok 계정 연결이 해제되었습니다.");
+      await loadPreflight();
+    }catch(err){toast(err.message);}
+  });
   $("productionForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
     try{const result=await api("/api/production/jobs",{method:"POST",body:JSON.stringify({brand:$("brandSelect").value,region:$("regionSelect").value,language:$("languageSelect").value,topic:$("topicInput").value.trim()})});msg("productionMessage","작업 등록 완료 · "+result.job.id);$("topicInput").value="";await refreshAll();}
