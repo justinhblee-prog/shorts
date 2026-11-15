@@ -119,7 +119,11 @@
       const controls=trend.id&&options
         ? '<div class="trend-actions"><select aria-label="추천 제작 브랜드" data-recommend-brand="'+esc(trend.id)+'">'+options+'</select><button type="button" class="button button-secondary" data-recommend-draft="'+esc(trend.id)+'" data-recommend-language="'+language+'">추천 브랜드로 기획</button></div>'
         : '<small class="trend-unavailable">현재 시장·언어에 맞는 활성 브랜드가 없습니다.</small>';
-      return '<div class="data-item trend-item"><div class="recommendation-head"><b>'+esc(trend.title||"Untitled trend")+'</b><strong>'+Number(item.recommendation_score||0).toFixed(1)+'/80</strong></div><small>'+esc(trend.region||"")+' · 최신성 '+Number(item.freshness_score||0).toFixed(1)+' · '+esc(item.score_type||"")+'</small>'+(item.best_brand?'<small>최적 브랜드: '+esc(item.best_brand.brand_name)+' · 적합도 '+Number(item.best_brand.fit_score||0).toFixed(1)+'</small>':'<small>적합 브랜드 미확인</small>')+controls+'<small class="recommendation-caveat">수익·검색량·Shorts 수요 미검증</small></div>';
+      const competitor=item.competitor_context||{};
+      const competitorSummary=Number(competitor.observed_videos||0)>0
+        ? '<small>경쟁 표본 '+Number(competitor.observed_videos).toLocaleString()+'개 · 주제 일치 '+Number(competitor.topic_matched_videos||0).toLocaleString()+'개 · 일치 영상 중앙 조회수 '+(competitor.median_matched_views===null?'—':Number(competitor.median_matched_views).toLocaleString())+'</small>'
+        : '<small>경쟁 영상 표본 미수집</small>';
+      return '<div class="data-item trend-item"><div class="recommendation-head"><b>'+esc(trend.title||"Untitled trend")+'</b><strong>'+Number(item.recommendation_score||0).toFixed(1)+'/80</strong></div><small>'+esc(trend.region||"")+' · 최신성 '+Number(item.freshness_score||0).toFixed(1)+' · '+esc(item.score_type||"")+'</small>'+(item.best_brand?'<small>최적 브랜드: '+esc(item.best_brand.brand_name)+' · 적합도 '+Number(item.best_brand.fit_score||0).toFixed(1)+'</small>':'<small>적합 브랜드 미확인</small>')+competitorSummary+controls+'<small class="recommendation-caveat">경쟁 지표는 저장된 최대 10개 채널의 최근 영상 표본이며 시장 전체 수요나 수익을 뜻하지 않습니다. 수익·검색량·Shorts 수요 미검증</small></div>';
     }).join("")||'<div class="empty-state">선택한 시장에 추천할 트렌드가 없습니다.</div>';
   }
 
