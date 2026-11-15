@@ -42,6 +42,32 @@ class ApiSecurityTests(unittest.TestCase):
         for route in found.values():
             self.assertIn("x_review_token", route.endpoint.__annotations__)
 
+    def test_approved_review_queue_includes_tiktok_status_for_selected_platform(self):
+        item = {
+            "job_id": "job-tiktok",
+            "artifacts": [{
+                "stage": "script", "artifact_type": "text",
+                "metadata": {"policy_preflight": {
+                    "policy_version": app_module.POLICY_VERSION,
+                    "status": "ready_for_human_review",
+                    "platforms": ["youtube", "tiktok"],
+                    "approval_blockers": [],
+                }},
+            }],
+        }
+        publication = {"status": "processing", "publish_id": "publish-1",
+                       "video_id": None, "events": [], "is_aigc": True}
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch("app.review_store.list_approved", return_value=[item]),
+            mock.patch("app.youtube_upload_store.get", return_value=None),
+            mock.patch("app.tiktok_publish_store.get", return_value=publication),
+        ):
+            result = approved_reviews(limit=50, x_review_token="test-token")
+        self.assertEqual(result["items"][0]["tiktok_status"], "processing")
+        self.assertTrue(result["items"][0]["tiktok_eligible"])
+        self.assertEqual(result["items"][0]["tiktok_publish_id"], "publish-1")
+
     def test_tiktok_creator_info_route_returns_available_privacy_options(self):
         with (
             mock.patch("app.require_review_access"),
