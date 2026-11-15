@@ -193,11 +193,13 @@ class TrendCollect(BaseModel):
 class TrendProductionDraft(BaseModel):
     brand:str=Field(min_length=1,max_length=100)
     language:str=Field(min_length=2,max_length=40)
+    recommendation_candidate_id:str|None=Field(default=None,max_length=128)
     idempotency_key:str|None=None
 
 class RecommendationSkipFeedback(BaseModel):
     trend_id:str=Field(min_length=1,max_length=128)
     brand_slug:str=Field(min_length=1,max_length=100)
+    recommendation_candidate_id:str=Field(min_length=1,max_length=128)
     reviewer_id:str=Field(min_length=1,max_length=128)
     reason:str=Field(default="",max_length=1000)
 
@@ -759,9 +761,11 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
             },
         }
         submitted=submit_production(queue,production_store,brief)
-        recommendation_evaluation_store.link_production(
-            trend_id,brand["slug"],submitted["job"]["id"]
+        recommendation_link = recommendation_evaluation_store.link_production(
+            trend_id, brand["slug"], submitted["job"]["id"],
+            candidate_id=body.recommendation_candidate_id,
         )
+        submitted["recommendation_evaluation_link"] = recommendation_link
         return submitted
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
@@ -857,13 +861,17 @@ def _build_trend_recommendations(region, limit):
     )
 
 
-def _trend_recommendation_payload(ranked):
+def _trend_recommendation_payload(ranked, candidate_ids=None):
+    candidate_ids = candidate_ids or {}
     for item in ranked:
         trend_id=(item.get("trend") or {}).get("id")
         for candidate in item.get("brand_candidates") or []:
             if trend_id and candidate.get("brand"):
                 candidate["human_decision"]=recommendation_evaluation_store.latest_decision(
                     trend_id,candidate["brand"]
+                )
+                candidate["evaluation_candidate_id"] = candidate_ids.get(
+                    (str(trend_id), str(candidate["brand"]))
                 )
     return {
         "items":ranked,
@@ -887,8 +895,12 @@ def capture_trend_recommendations(region:str|None=None,limit:int=30,
     require_review_access(x_review_token)
     ranked=_build_trend_recommendations(region,limit)
     exposure=recommendation_evaluation_store.record_run(region,ranked)
+    candidate_ids = {
+        (item["trend_id"], item["brand_slug"]): item["candidate_id"]
+        for item in exposure.get("candidate_ids", [])
+    }
     return {
-        **_trend_recommendation_payload(ranked),
+        **_trend_recommendation_payload(ranked, candidate_ids),
         "evaluation_run_id":exposure["run_id"],
         "evaluation_candidates_recorded":exposure["recorded_candidates"],
         "evaluation_snapshot_deduplicated":exposure.get("deduplicated",False),
@@ -909,7 +921,8 @@ def skip_recommendation_feedback(
     require_review_access(x_review_token)
     try:
         result=recommendation_evaluation_store.record_skip(
-            body.trend_id,body.brand_slug,body.reviewer_id,body.reason
+            body.trend_id, body.brand_slug, body.reviewer_id, body.reason,
+            candidate_id=body.recommendation_candidate_id,
         )
     except ValueError as e:
         raise HTTPException(422,str(e))
