@@ -36,7 +36,7 @@ Unknown or unsupported values fail closed. This helper does not upload or publis
 
 ## Integration boundary
 
-- This is a backend publishing adapter; the creator-facing export/consent screen is not yet implemented. Do not expose a public-facing auto-publish control until that screen is connected to the explicit consent and caption confirmation fields.
+- The current dashboard uses an explicit operator confirmation prompt for creator consent and caption confirmation, plus an explicit commercial relationship choice. A dedicated TikTok export screen that renders creator identity, account privacy choices and interaction settings is still pending; do not broaden the UI or enable public posting before that UX is implemented and audited.
 - When the Content Posting API client is added, merge the returned mapping into the Direct Post request body and persist the requested disclosure value with the publish audit record.
 - Keep the user's explicit review/approval gate. Do not auto-publish publicly until OAuth scopes, creator eligibility, privacy options, moderation, and the full publish-status lifecycle have been verified.
 - The API field applies the TikTok label; an operator checkbox in the local UI alone is not a substitute.
@@ -44,4 +44,4 @@ Unknown or unsupported values fail closed. This helper does not upload or publis
 
 ## Validation
 
-The adapter tests cover consent, private-only publishing, AIGC labels, status polling, sponsorship declarations, operator reconciliation, chunk sizing, untrusted upload URLs and retry blocking. CI must pass before this branch is considered ready to integrate.
+The adapter tests cover consent, private-only publishing, AIGC labels, status polling, sponsorship declarations, operator reconciliation, chunk sizing, untrusted upload URLs and retry blocking. GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43690777187 passed 258 tests on branch commit 0d1499e. This is branch CI evidence only; live TikTok OAuth and publishing remain unverified.
