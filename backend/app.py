@@ -79,6 +79,7 @@ class PolicyEvidenceInput(BaseModel):
     synthetic_media_status:Literal[
         "none","ai_assisted_nonrealistic","ai_generated","realistic_alteration","unknown"
     ]|None=None
+    youtube_contains_synthetic_media:bool|None=None
     platform_disclosures:dict[str,bool]|None=None
     platforms:list[Literal["youtube","tiktok"]]|None=None
     risk_flags:dict[str,bool]|None=None
