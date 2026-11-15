@@ -192,3 +192,12 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - Verified GitHub Actions run [43665751844](https://github.com/justinhblee-prog/shorts/actions/runs/43665751844) completed checkout, Python setup, dependency installation and `sh scripts/validate.sh` successfully; the log confirms 113 tests ran.
 - CI success is limited to automated backend tests. It does not verify real AI-provider calls, generated media quality, actual YouTube OAuth/upload, real analytics/revenue ingestion, or deployed service behavior.
 - Before the next release merge, reconcile the post-PR validation-fix branch with the merged `main` baseline and rerun CI on the resulting release head.
+
+
+### Ambiguous production worker loss — fail-closed recovery
+
+- A short-video production job whose worker lease expires is **not automatically requeued**. The provider may have completed an external side effect even if the worker died before persisting its result.
+- Expired production work is moved to `failed_terminal` with `production_lease_expired_ambiguous`; the matching production record is synchronized and the production queue is durably paused.
+- A normal worker interruption (Ctrl+C) during provider execution records a non-retriable ambiguous failure, pauses production, and exits. A hard process/host kill is handled by the lease-expiry path on the next claim or recovery.
+- Operators must inspect the provider's job history and billing/artifact state before deciding whether to create a new production request. Do not simply retry the same ambiguous job.
+- Non-production queue jobs retain their existing lease-expiry retry behavior.
