@@ -49,6 +49,15 @@
       return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'">승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
+
+  async function loadApproved(){
+    const data=await api("/api/review/approved?limit=100");
+    const items=data.items||[];
+    $("approvedList").innerHTML=items.length?items.map(item=>{
+      const video=(item.artifacts||[]).find(a=>a.artifact_type==="video");
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">비공개 업로드</button></div></article>';
+    }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
+  }
   async function loadTrends(){
     const data=await api("/api/trends?limit=12");
     $("trendList").innerHTML=(data.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.title||x.query||"Untitled signal")+'</b><small>'+esc(x.region||"")+' · '+esc(x.source||"")+' · '+esc(x.published_at||x.collected_at||"")+'</small></div>').join("")||'<div class="empty-state">저장된 트렌드 신호가 없습니다.</div>';
@@ -68,7 +77,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadReviews(),loadTrends(),loadSchedules(),loadInsights(),loadQueue()]);
+      await Promise.all([loadMetrics(),loadReviews(),loadApproved(),loadTrends(),loadSchedules(),loadInsights(),loadQueue()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -123,6 +132,21 @@
       }
     }catch(err){toast(err.message);}
   });
+
+  $("approvedList").addEventListener("click",async e=>{
+    const b=e.target.closest("button[data-upload-id]");if(!b)return;if(!requireToken())return;
+    const id=b.dataset.uploadId;
+    const title=prompt("YouTube 영상 제목 (최대 100자)", "Shorts · "+id.slice(0,8));
+    if(title===null)return;
+    const cleanTitle=title.trim().slice(0,100);
+    if(!cleanTitle){toast("영상 제목을 입력하세요.");return;}
+    try{
+      const staged=await api("/api/production/jobs/"+encodeURIComponent(id)+"/stage-media",{method:"POST"});
+      $("upload-"+CSS.escape(id)).textContent="미디어 스테이징 완료 · "+staged.size_bytes+" bytes";
+      await api("/api/youtube/upload/"+encodeURIComponent(id),{method:"POST",body:JSON.stringify({media_path:staged.media_path,title:cleanTitle,description:"Created with NEXUS STUDIO PRO",tags:["shorts"],category_id:"22"})});
+      toast("YouTube 비공개 업로드 완료");await refreshAll();
+    }catch(err){$("upload-"+CSS.escape(id)).textContent=err.message;toast(err.message);}
+  });
   $("scheduleForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
     try{await api("/api/schedules",{method:"POST",body:JSON.stringify({name:$("scheduleName").value,interval_seconds:Number($("scheduleHours").value)*3600,brand:$("scheduleBrand").value,region:$("scheduleRegion").value,language:$("scheduleLanguage").value,topic:$("scheduleTopic").value})});toast("예약 제작 등록 완료");await loadSchedules();}
@@ -130,7 +154,7 @@
   });
   $("ledgerForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
-    try{await api("/api/finance/ledger",{method:"POST",body:JSON.stringify({brand:$("ledgerBrand").value,region:$("ledgerRegion").value,entry_type:$("ledgerType").value,amount:Number($("ledgerAmount").value),currency:"USD",source_type:"manual_verified_entry",source_reference:$("ledgerReference").value,occurred_at:new Date($("ledgerDate").value+"T12:00:00Z").toISOString(),note:"Entered via NEXUS dashboard"})});msg("ledgerMessage","거래 장부 기록 완료");await loadMetrics();}
+    try{await api("/api/finance/ledger",{method:"POST",body:JSON.stringify({brand:$("ledgerBrand").value,region:$("ledgerRegion").value,entry_type:$("ledgerType").value,amount:Number($("ledgerAmount").value),currency:"USD",source_type:"operator_receipt",source_reference:$("ledgerReference").value,occurred_at:new Date($("ledgerDate").value+"T12:00:00Z").toISOString(),note:"Entered via NEXUS dashboard"})});msg("ledgerMessage","거래 장부 기록 완료");await loadMetrics();}
     catch(err){msg("ledgerMessage",err.message,true);}
   });
   $("ledgerDate").value=new Date().toISOString().slice(0,10);
