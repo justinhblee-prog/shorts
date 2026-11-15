@@ -136,6 +136,16 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertGreaterEqual(last_chunk, 5 * 1024 * 1024)
         self.assertEqual(last_chunk, 10_000_123)
 
+    def test_caption_limit_uses_utf16_code_units(self):
+        with self.assertRaisesRegex(TikTokPublishError, "UTF-16"):
+            self.publisher.publish_approved("job-tt", self.media, self.review,
+                "😀" * 1101, True, True, "reviewer", False, False)
+
+    def test_upload_url_length_is_bounded(self):
+        long_url = "https://open-upload.tiktokapis.com/" + ("x" * 230)
+        with self.assertRaisesRegex(TikTokPublishError, "oversized"):
+            TikTokPublisher._upload_url_allowed(long_url)
+
     def test_untrusted_upload_url_is_rejected(self):
         self.assertRaises(TikTokPublishError,
             TikTokPublisher._upload_url_allowed, "https://evil.example/upload")
