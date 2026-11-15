@@ -73,6 +73,16 @@ class YouTubePublishingTests(unittest.TestCase):
         with self.assertRaises(YouTubeUploadError):
             self.publisher.upload_approved("job-2",self.media,self.review,"Title")
 
+    def test_prior_approval_is_invalidated_by_a_later_revision_decision(self):
+        self.review.decide("job-1","approved","reviewer-1","Initial approval")
+        self.prod.stage("job-1","review","review_pending")
+        self.review.decide("job-1","revision_requested","reviewer-2","Correct captions")
+        with self.assertRaisesRegex(YouTubeUploadError,"latest human review decision"):
+            self.publisher.upload_approved(
+                "job-1",self.media,self.review,"Sleep short"
+            )
+        self.assertIsNone(self.uploads.get("job-1"))
+
     def test_upload_is_always_private_and_persists_source_stats(self):
         result=self.publisher.upload_approved("job-1",self.media,self.review,
                                               "A useful short","Description")
