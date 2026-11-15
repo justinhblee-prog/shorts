@@ -76,7 +76,7 @@
       const guidance=profile.risk_level
         ? '<section class="review-guidance"><div><strong>브랜드 검수 기준</strong><span class="risk-level risk-'+esc(profile.risk_level)+'">위험도 '+esc(profile.risk_level)+'</span></div>'+(profile.positioning?'<p>'+esc(profile.positioning)+'</p>':'')+(rules.length?'<ul>'+rules.map(rule=>'<li>'+esc(rule)+'</li>').join('')+'</ul>':'')+'</section>'
         : '';
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+scriptPreview+audioPreview+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'">승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+scriptPreview+audioPreview+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'">승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
 
@@ -313,8 +313,17 @@
         $("stage-"+CSS.escape(id)).textContent="스테이징 완료 · "+r.media_path+" · "+r.size_bytes+" bytes";
         toast("미디어 스테이징 완료. 검수 승인 후 YouTube 업로드를 진행할 수 있습니다.");
       }else{
-        const comment=action==="approve"?"Approved after human review":prompt(action==="reject"?"반려 사유":"수정 요청 내용");
-        if(comment===null)return;
+        let comment;
+        if(action==="approve"){
+          const policyStatus=b.dataset.policyStatus||"missing";
+          comment=policyStatus==="review_required"
+            ? prompt("정책 추가 확인 항목을 실제 자료로 확인한 뒤 근거를 승인 메모에 기록하세요: "+(b.dataset.policyRequired||"추가 확인 항목"),"권리·AI 표시·사실성·독창성 확인 완료")
+            : "Approved after human review";
+          if(comment===null||!String(comment).trim())return;
+        }else{
+          comment=prompt(action==="reject"?"반려 사유":"수정 요청 내용");
+          if(comment===null)return;
+        }
         const endpoint=action==="approve"?"approve":action==="reject"?"reject":"request-revision";
         await api("/api/review/"+encodeURIComponent(id)+"/"+endpoint,{method:"POST",body:JSON.stringify({reviewer_id:reviewer,comment})});
         toast("검수 결정이 기록되었습니다.");await refreshAll();
