@@ -111,9 +111,9 @@ class EndToEndLifecycleTests(unittest.TestCase):
                                              lease_token=claimed["lease_token"])
         self.assertEqual(generated["status"], "rendered")
         self.assertEqual([a["artifact_type"] for a in generated["artifacts"]],
-                         ["text", "audio", "video", "report"])
+                         ["text", "report", "audio", "video", "report"])
         quality = next(a["metadata"] for a in generated["artifacts"]
-                       if a["artifact_type"] == "report")
+                       if a["stage"] == "quality_check")
         self.assertEqual(quality["status"], "review_required")
 
         self.queue.finish(job_id, "integration-worker", claimed["lease_token"],

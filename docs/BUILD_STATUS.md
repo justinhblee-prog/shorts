@@ -812,3 +812,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The human review UI shows actual dimensions, duration, codecs, subtitle stream presence, and black/silence segment counts.
 - Analysis uses bounded execution time and a local-file-only protocol whitelist. No media is uploaded to a third-party inspection service.
 - Validation pending on this branch; the prior BUILD-00014 baseline passed 210 tests before this extension.
+
+
+### BUILD-00016 — historical script originality similarity check (2026-11-15)
+
+- Before voice generation, compare the new script against up to 500 prior completed/reviewed scripts in the same language across the ten-brand portfolio.
+- Uses normalized token-sequence exact matching and 5-token shingle Jaccard similarity; threshold 0.82.
+- Stores an `originality_check` report artifact and includes matching brand/topic/job references in the quality report and review UI.
+- Similarity is a reviewer warning, not an automatic rejection. Topic overlap/common phrasing can cause false positives; substantial paraphrasing can evade detection.
+- This is not a copyright check, plagiarism verdict, reused-content policy determination, or guarantee of monetization eligibility.
+- No generated script is automatically published; human review and approval remain required.
+- Validation pending on this branch.
