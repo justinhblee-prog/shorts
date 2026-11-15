@@ -76,8 +76,13 @@
           +'<small>YouTube / TikTok 사전 위험 점검입니다. 영상 전체 검사나 플랫폼 승인·수익화 보증이 아니며, 게시 전 최신 공식 정책과 사용 권리를 확인해야 합니다.</small></section>'
         : '<section class="review-policy"><strong>정책 사전검사 자료 없음</strong><small>게시 전 권리·AI 표시·사실성·독창성을 직접 확인하세요.</small></section>';
       const qualityLabels={blocked:"품질 게이트 차단",review_required:"사람 확인 필요",ready_for_human_review:"메타데이터 검사 통과 · 사람 승인 필요"};
+      const mediaCheck=quality.media_inspection||{};
+      const mediaSummary=mediaCheck.status==="inspected"
+        ? '<p>실제 파일 검사: '+esc(mediaCheck.width)+'×'+esc(mediaCheck.height)+' px · '+esc(Number(mediaCheck.duration_seconds).toFixed(1))+'초 · 영상 '+esc(mediaCheck.video_codec||"알 수 없음")+' · 오디오 '+esc(mediaCheck.audio_codec||"없음")+' · 자막 스트림 '+(mediaCheck.subtitle_stream_present?"있음":"없음")+'</p>'
+        : '';
       const qualitySummary=qualityArtifact
         ? '<section class="review-policy"><strong>자동 제작 품질 검사 · '+esc(qualityLabels[quality.status]||quality.status)+'</strong>'
+          +mediaSummary
           +(qualityBlocks.length?'<p>차단 사유: '+qualityBlocks.map(esc).join(', ')+'</p>':'')
           +(qualityWarnings.length?'<p>확인 경고: '+qualityWarnings.map(esc).join(', ')+'</p>':'')
           +'<small>'+esc(quality.verification_boundary||"메타데이터 기반 검사이며 실제 미디어 검증은 아닙니다.")+'</small></section>'
