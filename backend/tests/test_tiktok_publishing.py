@@ -11,11 +11,25 @@ from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublish
 
 
 class FakeMediaInspector:
-    def __init__(self, duration_seconds=30):
+    def __init__(self, duration_seconds=30, width=1080, height=1920,
+                 frame_rate=30, video_codec="h264", format_names=None):
         self.duration_seconds = duration_seconds
+        self.width = width
+        self.height = height
+        self.frame_rate = frame_rate
+        self.video_codec = video_codec
+        self.format_names = format_names or ["mov", "mp4"]
 
     def inspect(self, media_path):
-        return {"status": "inspected", "duration_seconds": self.duration_seconds}
+        return {
+            "status": "inspected",
+            "duration_seconds": self.duration_seconds,
+            "width": self.width,
+            "height": self.height,
+            "frame_rate": self.frame_rate,
+            "video_codec": self.video_codec,
+            "format_names": self.format_names,
+        }
 
 
 class TikTokTransport:
@@ -88,7 +102,7 @@ class TikTokPublishingTests(unittest.TestCase):
             },
             "error": {"code": "ok"},
         })
-        with self.assertRaisesRegex(TikTokPublishError, "exceeds this creator's TikTok limit"):
+        with self.assertRaisesRegex(TikTokPublishError, "exceeds the TikTok limit"):
             self.publisher.publish_private_approved(
                 "job-1", self.media, self.review, "AI generated short", "operator-1",
                 explicit_consent=True,
@@ -96,6 +110,36 @@ class TikTokPublishingTests(unittest.TestCase):
             )
         self.assertEqual(len(self.transport.calls), 1)
         self.assertEqual(self.store.get("job-1")["status"], "failed")
+
+    def test_tiktok_rejects_video_outside_supported_frame_rate(self):
+        self.publisher.media_inspector = FakeMediaInspector(frame_rate=20)
+        with self.assertRaisesRegex(TikTokPublishError, "23 and 60 FPS"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True,
+                privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(len(self.transport.calls), 1)
+
+    def test_tiktok_rejects_video_with_unsupported_dimensions(self):
+        self.publisher.media_inspector = FakeMediaInspector(width=240, height=1920)
+        with self.assertRaisesRegex(TikTokPublishError, "dimensions"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True,
+                privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(len(self.transport.calls), 1)
+
+    def test_tiktok_rejects_unsupported_video_codec(self):
+        self.publisher.media_inspector = FakeMediaInspector(video_codec="mpeg4")
+        with self.assertRaisesRegex(TikTokPublishError, "codec"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True,
+                privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(len(self.transport.calls), 1)
 
     def test_api_error_string_is_reported_without_attribute_error(self):
         transport = TikTokTransport([(200, {"error": "access_denied"})])
