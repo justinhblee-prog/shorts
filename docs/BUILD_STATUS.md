@@ -1799,3 +1799,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Request-body actor IDs remain accepted for compatibility but no longer determine audit attribution for these operations.
 - Added regression tests for forged actor IDs across the covered mutation endpoints.
 - Operators still share the same permissions; role separation and external IdP integration remain open. Final-head push CI [43773950141](https://github.com/justinhblee-prog/shorts/actions/runs/43773950141) and PR CI [43773953927](https://github.com/justinhblee-prog/shorts/actions/runs/43773953927): **603 tests passed**.
+
+
+## BUILD-00109 — authenticated encrypted SQLite backups (2026-11-16)
+
+- Added optional streaming AES-256-GCM encryption for online SQLite backups, using dedicated `NEXUS_BACKUP_ENCRYPTION_KEY` material.
+- Encrypted backups use `.sqlite3.enc`; verify/restore authenticate ciphertext and fail closed on wrong keys, tampering or truncation.
+- Temporary plaintext is removed; restore remains no-clobber; retention includes encrypted and plaintext backups.
+- Added tests for encrypted restore, wrong-key/tamper detection, combined retention, key requirements and temporary-file cleanup. CI evidence pending.
+- Encryption remains opt-in. Secure key custody and off-host replication/restore drills remain operator requirements.
