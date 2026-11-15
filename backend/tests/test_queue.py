@@ -62,6 +62,18 @@ class QueueTests(unittest.TestCase):
   self.assertIsNone(self.q.claim("worker-a"))
   self.q.resume()
   self.assertIsNotNone(self.q.claim("worker-a"))
+ def test_pause_revokes_every_in_flight_lease(self):
+  job=self.q.enqueue("render", {"topic":"active"})
+  claimed=self.q.claim("worker-active")
+  self.assertEqual(claimed["id"],job["id"])
+  self.q.pause("another worker failed", "job-other")
+  stopped=self.q.get(job["id"])
+  self.assertEqual(stopped["status"],"failed_terminal")
+  self.assertEqual(stopped["error_code"],"worker_paused")
+  self.assertIsNone(stopped["lease_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"worker-active",claimed["lease_token"])
+  self.assertEqual(self.q.events(job["id"])[-1]["event_type"],"worker_pause")
  def test_worker_pause_persists_until_explicit_resume(self):
   self.q.pause("provider outcome uncertain", "job-123")
   self.assertTrue(self.q.is_paused())
