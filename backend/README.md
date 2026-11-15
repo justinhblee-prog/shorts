@@ -420,3 +420,11 @@ Immediately before creating a YouTube upload attempt, the upload store checks th
 ### Immutable upload policy-version audit stamps
 
 The YouTube upload record and immutable `upload_attempt_started` audit event now retain the exact local policy version and checked-on date that passed the upload-time freshness gate. Existing databases are migrated additively; old records retain null values and are not retroactively represented as having been checked under the current version.
+
+## BUILD-00074 — YouTube Analytics watch-time and engagement metrics
+
+The dedicated `metrics_collector.py` process also runs a separate, read-only YouTube Analytics API v2 collector for this channel's confirmed uploaded video IDs. It requests a rolling 28-day report, ending two days before the current UTC date to avoid relying on a partial current day. Queries are batched in groups of at most 50 video IDs and use the `video` dimension with an explicit owned-video filter.
+
+The collector stores snapshots for views, Shorts engaged views, estimated minutes watched, average view duration, average view percentage, likes, comments, shares and subscribers gained. It uses a separate SQLite lease and collection state from the YouTube Data API and TikTok collectors. Due-video selection is freshness-aware and rotates across the full bounded uploaded-video inventory rather than repeatedly querying only the newest batch. API reads are authenticated, bounded and read-only; no monetary metrics are requested.
+
+The refresh token must include `https://www.googleapis.com/auth/yt-analytics.readonly` in addition to the existing YouTube upload/read scopes. Reauthorize the channel after enabling the YouTube Analytics API and granting this scope. Missing scope, invalid credentials and ordinary API failures are reported separately. Automated tests do not verify real account authorization or live report availability.
