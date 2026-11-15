@@ -657,3 +657,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added tests for collector singleton lease, due-video filtering, one-request multi-video refresh, rate normalization and counter reset handling.
 - GitHub Actions run [43672298086](https://github.com/justinhblee-prog/shorts/actions/runs/43672298086) passed **178 tests** on commit `4d4fcde7f4571cd69d0997da1acd580dfad10554`; frontend validation passed (84 unique IDs, 69 literal selectors), and Compose YAML validation passed.
 - **Not yet live-validated:** actual OAuth credentials, YouTube API quota consumption, production container startup and real channel counter collection. These remain unverified until deployed with valid credentials.
+
+ 
+### Historical performance feedback wired into recommendation workspace — 2026-11-15
+
+- `PerformanceAnalyzer` now reports brand-level median observed views-per-hour and median interactions per 1,000 gained views, with explicit sample counts. These are derived only from valid stored YouTube Data API counter snapshots.
+- The trend recommendation endpoint now attaches each candidate brand's historical performance context. The dashboard shows the measured sample count and observed rates alongside the editorial recommendation.
+- **No premature score adjustment:** brand-level performance is not topic-matched and can be confounded by publication age, packaging and audience differences. It is displayed for operator context only; `ranking_score_adjustment=0` until comparable topic-level evidence and a sufficient sample exist.
+- Corrected the dashboard score display from `/80` to `/100` and aligned the API method description with the implemented 100-point rubric: freshness 40, editorial brand fit 40, source provenance completeness 10, topic distinctiveness 10.
+- Added tests for the performance context, no-score-adjustment guarantee and endpoint integration.
+- GitHub Actions run [43672582331](https://github.com/justinhblee-prog/shorts/actions/runs/43672582331) completed its validation steps successfully on source commit `3d52e5d713967d419c5c7f6fbdceadd83557c2f9`; full test count is being read from the completed job log.
+- This remains historical brand-level context, not a prediction of a specific trend's results. Topic-level performance learning is a separate next step.
