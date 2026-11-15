@@ -1,0 +1,192 @@
+"""YouTube private upload and public counter snapshots.
+
+Uploads require a prior human approval record. This module never publishes publicly.
+"""
+import json
+import os
+import sqlite3
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+class YouTubeUploadError(RuntimeError):
+    pass
+
+
+def _now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+class YouTubeUploadStore:
+    def __init__(self, db_path="data/nexus.sqlite3"):
+        self.db_path=str(db_path)
+        Path(self.db_path).parent.mkdir(parents=True,exist_ok=True)
+        with self.db() as c:
+            c.executescript("""
+            CREATE TABLE IF NOT EXISTS youtube_uploads(
+              job_id TEXT PRIMARY KEY, video_id TEXT, status TEXT NOT NULL,
+              privacy_status TEXT NOT NULL DEFAULT 'private',
+              title TEXT NOT NULL, description TEXT NOT NULL,
+              uploaded_at TEXT, error TEXT, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS youtube_video_snapshots(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, video_id TEXT NOT NULL,
+              view_count INTEGER, like_count INTEGER, comment_count INTEGER,
+              source TEXT NOT NULL DEFAULT 'YouTube Data API v3 videos.list',
+              collected_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_youtube_snapshots_video
+              ON youtube_video_snapshots(video_id,collected_at);
+            """)
+    @contextmanager
+    def db(self):
+        c=sqlite3.connect(self.db_path,timeout=30)
+        c.row_factory=sqlite3.Row
+        c.execute("PRAGMA busy_timeout=30000")
+        try:
+            yield c
+            c.commit()
+        except Exception:
+            c.rollback()
+            raise
+        finally:
+            c.close()
+
+    def begin(self,job_id,title,description):
+        with self.db() as c:
+            row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
+            if row and row["status"]=="uploaded":
+                return dict(row)
+            if row and row["status"]=="uploading":
+                raise YouTubeUploadError("An upload is already in progress for this job")
+            c.execute("""INSERT INTO youtube_uploads
+              (job_id,status,privacy_status,title,description,updated_at)
+              VALUES(?,'uploading','private',?,?,?)
+              ON CONFLICT(job_id) DO UPDATE SET status='uploading',
+                privacy_status='private',title=excluded.title,
+                description=excluded.description,error=NULL,updated_at=excluded.updated_at
+            """,(job_id,title,description,_now()))
+            return dict(c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone())
+
+    def finish(self,job_id,video_id):
+        with self.db() as c:
+            c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
+              privacy_status='private',uploaded_at=?,updated_at=?,error=NULL WHERE job_id=?""",
+              (video_id,_now(),_now(),job_id))
+
+    def fail(self,job_id,error):
+        with self.db() as c:
+            c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
+                         WHERE job_id=? AND status='uploading'""",(str(error)[:2000],_now(),job_id))
+
+    def snapshot(self,video_id,stats):
+        def count(key):
+            value=stats.get(key)
+            return int(value) if value is not None else None
+        with self.db() as c:
+            c.execute("""INSERT INTO youtube_video_snapshots
+              (video_id,view_count,like_count,comment_count,collected_at)
+              VALUES(?,?,?,?,?)""",(video_id,count("viewCount"),count("likeCount"),
+                                     count("commentCount"),_now()))
+
+    def get(self,job_id):
+        with self.db() as c:
+            row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
+            if row is None: return None
+            result=dict(row)
+            if row["video_id"]:
+                result["snapshots"]=[dict(x) for x in c.execute(
+                    "SELECT * FROM youtube_video_snapshots WHERE video_id=? ORDER BY id",
+                    (row["video_id"],)).fetchall()]
+            else: result["snapshots"]=[]
+            return result
+
+
+class YouTubePublisher:
+    def __init__(self,store,service=None):
+        self.store=store
+        self.service=service
+
+    def _service(self):
+        if self.service is not None:
+            return self.service
+        refresh=os.getenv("YOUTUBE_REFRESH_TOKEN")
+        client_id=os.getenv("YOUTUBE_CLIENT_ID")
+        client_secret=os.getenv("YOUTUBE_CLIENT_SECRET")
+        if not all((refresh,client_id,client_secret)):
+            raise YouTubeUploadError(
+                "YOUTUBE_REFRESH_TOKEN, YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET are required"
+            )
+        try:
+            from google.oauth2.credentials import Credentials
+            from google.auth.transport.requests import Request
+            from googleapiclient.discovery import build
+            creds=Credentials(
+                token=None,refresh_token=refresh,token_uri="https://oauth2.googleapis.com/token",
+                client_id=client_id,client_secret=client_secret,
+                scopes=["https://www.googleapis.com/auth/youtube.upload",
+                        "https://www.googleapis.com/auth/youtube.readonly"])
+            creds.refresh(Request())
+            return build("youtube","v3",credentials=creds,cache_discovery=False)
+        except Exception as exc:
+            raise YouTubeUploadError("YouTube OAuth initialization failed: "+type(exc).__name__) from exc
+
+    def upload_approved(self,job_id,media_path,review_store,title,description="",tags=None,
+                        category_id="22"):
+        history=review_store.history(job_id)
+        approvals=[item for item in history if item["decision"]=="approved"]
+        if not approvals:
+            raise YouTubeUploadError("A recorded human approval is required before upload")
+        if not isinstance(media_path,str) or not Path(media_path).is_file():
+            raise YouTubeUploadError("A readable local rendered video file is required")
+        if Path(media_path).stat().st_size <= 0:
+            raise YouTubeUploadError("Rendered video file is empty")
+        existing=self.store.get(job_id)
+        if existing and existing["status"]=="uploaded":
+            return existing
+        self.store.begin(job_id,title,description)
+        try:
+            from googleapiclient.http import MediaFileUpload
+            service=self._service()
+            body={
+                "snippet":{"title":title,"description":description,
+                           "tags":list(tags or []),"categoryId":str(category_id)},
+                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False}
+            }
+            request=service.videos().insert(
+                part="snippet,status",body=body,
+                media_body=MediaFileUpload(media_path,mimetype="video/*",
+                                           chunksize=8*1024*1024,resumable=True))
+            response=None
+            while response is None:
+                _,response=request.next_chunk()
+            video_id=response.get("id")
+            if not video_id:
+                raise YouTubeUploadError("YouTube response did not contain a video ID")
+            self.store.finish(job_id,video_id)
+            try:
+                result=service.videos().list(part="statistics,status",id=video_id).execute()
+                items=result.get("items",[])
+                if items:
+                    self.store.snapshot(video_id,items[0].get("statistics",{}))
+            except Exception:
+                # Upload is confirmed even if the first metrics snapshot is unavailable.
+                pass
+            return self.store.get(job_id)
+        except Exception as exc:
+            self.store.fail(job_id,type(exc).__name__+": "+str(exc))
+            if isinstance(exc,YouTubeUploadError):
+                raise
+            raise YouTubeUploadError("YouTube upload failed: "+type(exc).__name__) from exc
+
+    def refresh_metrics(self,video_id):
+        service=self._service()
+        response=service.videos().list(part="statistics,status",id=video_id).execute()
+        items=response.get("items",[])
+        if not items:
+            raise YouTubeUploadError("Video not found or inaccessible")
+        item=items[0]
+        self.store.snapshot(video_id,item.get("statistics",{}))
+        return {"video_id":video_id,"statistics":item.get("statistics",{}),
+                "status":item.get("status",{}),"source":"YouTube Data API v3"}
