@@ -233,6 +233,35 @@ class TikTokPublishingTests(unittest.TestCase):
             self.store.due_status_job_ids(limit=5, min_age_seconds=60), []
         )
 
+    def test_scheduler_poll_backoff_grows_and_success_resets_it(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True,
+        )
+        # First failure: 60-second base interval remains the minimum.
+        self.store.record_status_poll_error(
+            "job-1", self.store.get("job-1")["attempt_id"], "temporary error"
+        )
+        self.assertEqual(
+            self.store.due_status_job_ids(limit=5, min_age_seconds=60), []
+        )
+        # Two consecutive failures require at least 240 seconds.
+        self.store.record_status_poll_error(
+            "job-1", self.store.get("job-1")["attempt_id"], "temporary error"
+        )
+        self.assertEqual(
+            self.store.due_status_job_ids(limit=5, min_age_seconds=120), []
+        )
+        # A successful status refresh clears the consecutive-failure window.
+        self.transport.responses.append((200, {
+            "data": {"status": "PROCESSING_UPLOAD", "publicaly_available_post_id": []},
+            "error": {"code": "ok"},
+        }))
+        self.publisher.refresh_status("job-1")
+        self.assertEqual(
+            self.store.due_status_job_ids(limit=5, min_age_seconds=60), []
+        )
+
     def test_media_path_must_be_inside_media_root(self):
         outside = os.path.join(self.tmp.name, "..", "outside.mp4")
         with self.assertRaisesRegex(TikTokPublishError, "inside NEXUS_MEDIA_DIR"):
