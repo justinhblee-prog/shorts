@@ -818,6 +818,84 @@ class RecommendationEvaluationStore:
         }
 
 
+    def experiment_integrity_report(self):
+        """Read-only audit of experiment evidence boundaries and persisted assignments."""
+        with self.db() as c:
+            experiments = c.execute("""
+                SELECT e.id,e.name,e.status,e.created_at,
+                       COUNT(a.id) AS assignment_count,
+                       SUM(CASE WHEN a.arm='control' THEN 1 ELSE 0 END) AS control_count,
+                       SUM(CASE WHEN a.arm='treatment' THEN 1 ELSE 0 END) AS treatment_count,
+                       SUM(CASE WHEN a.assignment_mode='shadow' THEN 1 ELSE 0 END) AS shadow_mode_count,
+                       SUM(CASE WHEN a.assignment_mode!='shadow' OR a.assignment_mode IS NULL
+                                THEN 1 ELSE 0 END) AS unexpected_mode_count,
+                       SUM(CASE WHEN a.arm NOT IN ('control','treatment')
+                                THEN 1 ELSE 0 END) AS unexpected_arm_count,
+                       COUNT(DISTINCT a.participant_fingerprint) AS distinct_participant_count
+                FROM recommendation_experiments e
+                LEFT JOIN recommendation_experiment_assignments a ON a.experiment_id=e.id
+                GROUP BY e.id ORDER BY e.created_at DESC,e.id DESC
+            """).fetchall()
+            foreign_key_issues = c.execute(
+                "PRAGMA foreign_key_check(recommendation_experiment_assignments)"
+            ).fetchall()
+            duplicate_fingerprints = c.execute("""
+                SELECT COUNT(*) AS n FROM (
+                  SELECT experiment_id,participant_fingerprint
+                  FROM recommendation_experiment_assignments
+                  GROUP BY experiment_id,participant_fingerprint HAVING COUNT(*)>1
+                )
+            """).fetchone()["n"]
+            rendered_count = c.execute(
+                "SELECT COUNT(*) AS n FROM recommendation_rendered_exposures"
+            ).fetchone()["n"]
+        items = []
+        invalid_count = 0
+        assignment_total = 0
+        for row in experiments:
+            item = dict(row)
+            for key in ("assignment_count","control_count","treatment_count",
+                        "shadow_mode_count","unexpected_mode_count","unexpected_arm_count",
+                        "distinct_participant_count"):
+                item[key] = int(item[key] or 0)
+            item["participant_deduplication_ok"] = (
+                item["assignment_count"] == item["distinct_participant_count"]
+            )
+            item["integrity_status"] = (
+                "integrity_warning"
+                if item["unexpected_mode_count"] or item["unexpected_arm_count"]
+                   or not item["participant_deduplication_ok"]
+                else "shadow_records_consistent"
+            )
+            if item["integrity_status"] != "shadow_records_consistent":
+                invalid_count += 1
+            assignment_total += item["assignment_count"]
+            items.append(item)
+        if foreign_key_issues or duplicate_fingerprints:
+            invalid_count += 1
+        return {
+            "status": "integrity_warning" if invalid_count else "shadow_only_no_verified_exposure",
+            "experiment_count": len(items),
+            "shadow_assignment_count": assignment_total,
+            "rendered_viewport_acknowledgement_count": int(rendered_count),
+            "verified_randomized_served_exposure_count": 0,
+            "assignment_exposure_join_available": False,
+            "outcome_attribution_to_experiment_arm_available": False,
+            "foreign_key_issue_count": len(foreign_key_issues),
+            "duplicate_fingerprint_group_count": int(duplicate_fingerprints),
+            "integrity_warning_experiment_count": invalid_count,
+            "items": items,
+            "live_assignment_enabled": False,
+            "ranking_score_adjustment": 0,
+            "deployment_authorized": False,
+            "limitations": [
+                "Shadow assignments are not delivered recommendation variants.",
+                "Client-reported viewport acknowledgements have no experiment or arm identity and cannot be joined to shadow assignments.",
+                "No trusted randomized served-exposure ledger or experiment-arm outcome attribution exists.",
+                "No causal effect, rollout, or recommendation score change is authorized."
+            ]
+        }
+
     def record_rendered_exposures(self, run_id, exposures):
         """Persist client-confirmed viewport impressions for cards in a captured run."""
         run_id = str(run_id or "").strip()
