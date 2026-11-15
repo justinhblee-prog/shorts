@@ -111,6 +111,17 @@
     const dispatches=(outbox.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.schedule_id)+'</b><small>'+esc(x.scheduled_for)+' · attempts '+x.attempts+(x.last_error?' · '+esc(x.last_error):'')+'</small></div>').join("");
     $("scheduleList").innerHTML='<div class="notice">Outbox pending/retry: '+Number(outbox.pending_retries||0)+' · dispatched: '+Number((outbox.counts||{}).dispatched||0)+'</div>'+schedules+'<h4>예약 실행 복구 로그</h4>'+(dispatches||'<div class="empty-state">예약 실행 이력이 없습니다.</div>');
   }
+  async function loadOpportunities(){
+    const data=await api("/api/opportunities?limit=20");
+    const items=data.opportunities||[];
+    $("opportunityList").innerHTML=items.length?items.map((item,index)=>{
+      const scenario=item.scenario||{};
+      const context=scenario.competitive_context||{};
+      const penalty=scenario.score_breakdown?.competitor_pressure_penalty||0;
+      return '<div class="data-item opportunity-rank-item"><div class="opportunity-rank-head"><b>#'+(index+1)+' '+esc(item.title||"Untitled opportunity")+'</b><strong>'+Number(item.priority_score||0).toFixed(1)+'/100</strong></div><small>'+esc(item.currency||"")+' · 예상 순이익 '+esc(scenario.net_profit?.low??"—")+' ~ '+esc(scenario.net_profit?.high??"—")+' · 경쟁 조정 -'+Number(penalty).toFixed(1)+'점</small><small>경쟁 표본 '+Number(context.observed_videos||0)+'개 · 주제 일치 '+Number(context.topic_matched_videos||0)+'개 · '+esc(item.created_at||"")+'</small></div>';
+    }).join(""):'<div class="empty-state">저장된 수익성 평가가 없습니다.</div>';
+  }
+
   async function loadInsights(){
     const data=await api("/api/performance/insights");
     const brands=(data.brands||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+Number(x.view_delta||0).toLocaleString()+' views (snapshot delta)</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+' · 미측정 '+x.unmeasured_videos+' · '+esc((x.recommendations||[]).map(r=>r.action).join(" / "))+'</small></div>').join("");
@@ -145,7 +156,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTrends(),loadSchedules(),loadInsights(),loadQueue(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTrends(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -213,6 +224,10 @@
     }catch(err){toast(err.message);}
     finally{button.disabled=false;}
   });
+  $("loadOpportunities").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    try{await loadOpportunities();}catch(err){toast(err.message);}
+  });
   $("competitorForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
     try{const r=await api("/api/competitors/search?q="+encodeURIComponent($("competitorQuery").value.trim()));$("competitorList").innerHTML=(r.channels||r.items||[]).map(x=>'<div class="data-item competitor-item"><b>'+esc(x.title||x.name||x.channel_title||x.channel_id)+'</b><small>'+esc(x.custom_url||x.channel_id||"")+' · '+esc(x.subscriber_count??"subscriber count hidden")+'</small><div class="competitor-actions"><label><input type="checkbox" data-competitor-select value="'+esc(x.channel_id)+'"> 점수 비교에 포함</label><button type="button" class="button button-quiet button-small" data-inspect-channel="'+esc(x.channel_id)+'">최근 영상 분석</button></div><div class="competitor-evidence" id="competitor-'+esc(x.channel_id)+'"></div></div>').join("")||'<div class="empty-state">검색 결과가 없습니다.</div>';}
@@ -235,7 +250,7 @@
     e.preventDefault();if(!requireToken())return;
     const num=id=>Number($(id).value);
     const body={title:$("oppTitle").value,currency:$("oppCurrency").value,forecast_source:$("forecastSource").value,forecast_views_low:num("viewsLow"),forecast_views_high:num("viewsHigh"),rpm_low:num("rpmLow"),rpm_high:num("rpmHigh"),cost_low:num("costLow"),cost_high:num("costHigh"),monetization_eligible:$("monetizationEligible").checked,competitor_channel_ids:Array.from(document.querySelectorAll("[data-competitor-select]:checked")).map(x=>x.value)};
-    try{const r=await api("/api/opportunities/score",{method:"POST",body:JSON.stringify(body)});const market=r.competitive_context||{};msg("opportunityResult","우선순위 점수 "+r.priority_score+" / 100 · 비교 표본 "+market.observed_videos+"개 · 주제 유사 "+market.topic_matched_videos+"개 · 경쟁 조정 "+(market.score_adjustment??0)+"점. "+(market.method||"경쟁 표본 미선택")+". 예상치이며 실제 수익이 아닙니다.");}
+    try{const r=await api("/api/opportunities/score",{method:"POST",body:JSON.stringify(body)});const market=r.competitive_context||{};msg("opportunityResult","우선순위 점수 "+r.priority_score+" / 100 · 비교 표본 "+market.observed_videos+"개 · 주제 유사 "+market.topic_matched_videos+"개 · 경쟁 조정 "+(market.score_adjustment??0)+"점. "+(market.method||"경쟁 표본 미선택")+". 예상치이며 실제 수익이 아닙니다.");await loadOpportunities();}
     catch(err){msg("opportunityResult",err.message,true);}
   });
   $("reviewList").addEventListener("click",async e=>{
