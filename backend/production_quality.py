@@ -10,7 +10,8 @@ def _positive_number(value):
 
 
 def evaluate_production_quality(script_text, script_metadata, voice_metadata,
-                               render_metadata, brief, media_inspection=None):
+                               render_metadata, brief, media_inspection=None,
+                               speech_report=None):
     script_metadata = script_metadata if isinstance(script_metadata, dict) else {}
     voice_metadata = voice_metadata if isinstance(voice_metadata, dict) else {}
     render_metadata = render_metadata if isinstance(render_metadata, dict) else {}
@@ -51,6 +52,33 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
         "similarity_threshold": originality.get("threshold") if isinstance(originality, dict) else None,
         "similar_matches": originality.get("similar_matches", []) if isinstance(originality, dict) else [],
     })
+
+    speech_report = speech_report if isinstance(speech_report, dict) else None
+    if speech_report is None:
+        warnings.append("speech_transcription_not_configured")
+        checks.append({
+            "name": "speech_script_alignment",
+            "status": "not_configured",
+            "reason": "Configure TRANSCRIPTION_PROVIDER_URL to compare an independent audio transcript with the generated script.",
+        })
+    else:
+        speech_status = speech_report.get("status")
+        if speech_status == "material_mismatch":
+            warnings.append("spoken_audio_differs_from_generated_script")
+        elif speech_status == "insufficient_text":
+            warnings.append("speech_transcript_too_short_to_compare")
+        checks.append({
+            "name": "speech_script_alignment",
+            "status": speech_status or "unknown",
+            "provider": speech_report.get("provider"),
+            "script_token_count": speech_report.get("script_token_count"),
+            "transcript_token_count": speech_report.get("transcript_token_count"),
+            "word_error_rate": speech_report.get("word_error_rate"),
+            "match_rate": speech_report.get("match_rate"),
+            "threshold_word_error_rate": speech_report.get("threshold_word_error_rate"),
+            "method": speech_report.get("method"),
+            "warning": speech_report.get("warning"),
+        })
 
     voice_duration = _positive_number(voice_metadata.get("duration_seconds"))
     if voice_duration is None:
@@ -190,9 +218,15 @@ def evaluate_production_quality(script_text, script_metadata, voice_metadata,
         "checks": checks,
         "script_word_count": words,
         "originality_check": originality if isinstance(originality, dict) else None,
+        "speech_alignment": {
+            key: value for key, value in (speech_report or {}).items()
+            if key != "transcript"
+        } if speech_report else None,
         "verification_boundary": (
             "When configured, staged video bytes are inspected with ffprobe for container, "
             "duration, dimensions, codecs and audio/subtitle streams. This does not verify "
+            "spoken narration alignment unless a separately configured transcription "
+            "provider is used; even then ASR can misrecognize speech. It does not verify "
             "burned-in caption text or legibility, visual quality, factual accuracy, rights, "
             "music licensing, platform compliance or monetization eligibility. Provider "
             "attestations are not independent verification. Human review remains mandatory."
