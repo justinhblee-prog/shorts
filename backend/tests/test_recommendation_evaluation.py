@@ -70,8 +70,8 @@ class RecommendationEvaluationTests(unittest.TestCase):
 
     def test_later_selection_supersedes_skip_but_preserves_feedback_event_history(self):
         self.store.record_run("US", [self.item()])
-        self.store.record_skip("trend-1", "alpha", "reviewer-1", "Not suitable today")
-        linked = self.store.link_production("trend-1", "alpha", "job-after-reconsideration")
+        self.store.record_skip("trend-1", "future-leak", "reviewer-1", "Not suitable today")
+        linked = self.store.link_production("trend-1", "future-leak", "job-after-reconsideration")
         self.assertTrue(linked["linked"])
         evaluation = self.store.evaluate()
         self.assertEqual(evaluation["feedback_summary"]["selected_count"], 1)
