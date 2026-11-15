@@ -217,16 +217,31 @@ class TikTokPublishStore:
             """, (message[:1000], _now(), job_id, attempt_id))
 
     def due_status_job_ids(self, limit=5, min_age_seconds=60):
-        cutoff = datetime.now(timezone.utc).timestamp() - max(0, int(min_age_seconds))
-        cutoff_iso = datetime.fromtimestamp(cutoff, timezone.utc).isoformat()
+        minimum_age = max(0, int(min_age_seconds))
         with self.db() as c:
             rows = c.execute("""
-              SELECT job_id FROM tiktok_publications
-              WHERE publish_id IS NOT NULL
-                AND status IN ('uploading','processing','reconciliation_required')
-                AND updated_at<=?
-              ORDER BY updated_at ASC LIMIT ?
-            """, (cutoff_iso, max(1, min(int(limit), 20)))).fetchall()
+              SELECT p.job_id FROM tiktok_publications AS p
+              WHERE p.publish_id IS NOT NULL
+                AND p.status IN ('uploading','processing','reconciliation_required')
+                AND julianday(p.updated_at) <= julianday('now') - (
+                  MAX(?, MIN(3600, 60 * (
+                    1 << MIN(6, (
+                      SELECT COUNT(*) FROM tiktok_publication_events AS failed
+                      WHERE failed.job_id=p.job_id
+                        AND failed.attempt_id=p.attempt_id
+                        AND failed.event_type='status_poll_failed'
+                        AND failed.id > COALESCE((
+                          SELECT MAX(success.id)
+                          FROM tiktok_publication_events AS success
+                          WHERE success.job_id=p.job_id
+                            AND success.attempt_id=p.attempt_id
+                            AND success.event_type='status_refreshed'
+                        ), 0)
+                    ))
+                  ))) / 86400.0
+                )
+              ORDER BY p.updated_at ASC LIMIT ?
+            """, (minimum_age, max(1, min(int(limit), 20)))).fetchall()
             return [row["job_id"] for row in rows]
 
     def record_status_poll_error(self, job_id, attempt_id, message):
