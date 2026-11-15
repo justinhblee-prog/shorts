@@ -139,6 +139,19 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("attempt_id", app_js)
         self.assertIn("reference_id", app_js)
 
+    def test_approved_workspace_exposes_integrated_consistency_and_recovery_diagnostics(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("상태·복구 진단", app_js)
+        self.assertIn("renderLifecycleOperations", app_js)
+        self.assertIn('"/consistency"', app_js)
+        self.assertIn('"/recovery"', app_js)
+        self.assertIn("Promise.all([", app_js)
+        self.assertIn("상태 일관성 진단", app_js)
+        self.assertIn("운영자 복구 절차", app_js)
+        self.assertIn("재처리 정책", app_js)
+        self.assertIn("필요 증거", app_js)
+        self.assertIn("map(esc)", app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
