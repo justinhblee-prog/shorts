@@ -1287,3 +1287,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The browser creates a short-lived random sample key; it does not ask for a real customer identifier. The backend stores only an experiment-scoped HMAC fingerprint.
 - The workspace explicitly shows zero real exposures, no measured outcomes, no causal estimate, and zero ranking-score adjustment. No live variant delivery or production behavior is enabled.
 - Added frontend integration regression coverage. GitHub Actions run [43703819165](https://github.com/justinhblee-prog/shorts/actions/runs/43703819165) passed **412 tests** at branch head; frontend ID validation, JavaScript syntax check, Python compileall, YAML validation and full unittest discovery succeeded.
+
+
+## BUILD-00059 — verified viewport exposure evidence
+- Added append-only rendered-exposure events linked to an existing captured recommendation run and trend card. Events are accepted only for trend IDs present in that run; UUID idempotency keys prevent accidental duplicate submissions.
+- The single-page workspace uses IntersectionObserver and records an acknowledgement only after at least 50% of a recommendation card remains in the viewport for at least one second. No user/account identifier or persistent participant key is sent.
+- Added authenticated batch-ingest and per-run report endpoints. Reports distinguish rendered-card impressions, unseen cards, candidate counts, post-render production selections and measured views/hour outcomes.
+- Outcome attribution is limited to a selected production job whose selection timestamp is at or after the first server-recorded render event and whose outcome is explicitly marked measured. Unrelated or missing outcomes are excluded.
+- Exposure events are immutable; invalid run/trend pairs, malformed event IDs and out-of-range visibility durations are rejected.
+- Safety/evidence boundary: viewport acknowledgement is client-reported, not proof of human attention. This milestone does not randomize traffic, deliver experiment arms, estimate causal lift, or change ranking scores / production / publishing behavior. Ranking score adjustment remains zero.
+- CI validation pending.
