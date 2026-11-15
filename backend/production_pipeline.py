@@ -17,7 +17,7 @@ from production_quality import evaluate_production_quality
 from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
 from script_originality import build_script_originality_report
-from speech_alignment import build_speech_alignment_report
+from speech_alignment import build_speech_alignment_report, build_caption_alignment_report
 
 
 class ProviderError(RuntimeError):
@@ -569,6 +569,7 @@ class ProductionPipeline:
                 raise ProviderError("rendering", "Renderer returned no valid video_url", False)
             render_metadata = {k: v for k, v in rendered.items() if k != "video_url"}
             media_inspection = None
+            caption_report = None
             if self.media_stager is not None and self.media_inspector is not None:
                 try:
                     staged = self.media_stager.stage(job_id, video_url)
@@ -577,6 +578,31 @@ class ProductionPipeline:
                     )
                     media_inspection = {**inspected, "media_path": staged["media_path"],
                                         "size_bytes": staged["size_bytes"]}
+                    subtitle_text = media_inspection.pop("subtitle_text", None)
+                    extraction = media_inspection.get("subtitle_extraction") or {}
+                    if extraction.get("status") == "extracted" and subtitle_text:
+                        caption_report = build_caption_alignment_report(
+                            script_text, subtitle_text, asr_transcript=transcript_text
+                        )
+                        caption_report["extraction_status"] = "extracted"
+                    else:
+                        caption_report = {
+                            "version": "caption_alignment_v1",
+                            "status": extraction.get("status", "unknown"),
+                            "extraction_status": extraction.get("status", "unknown"),
+                            "reference": (
+                                "independent_asr_transcript" if transcript_text
+                                else "generated_script"
+                            ),
+                            "warning": extraction.get(
+                                "note", extraction.get("error",
+                                "Subtitle text could not be extracted for comparison.")
+                            ),
+                        }
+                    self.store.artifact(
+                        job_id, "caption_alignment", "report", None,
+                        caption_report, **lease
+                    )
                     render_metadata["media_staging"] = staged
                 except (MediaStagingError, MediaInspectionError) as exc:
                     raise ProviderError(
@@ -591,6 +617,7 @@ class ProductionPipeline:
                 {k: v for k, v in voice.items() if k != "audio_url"},
                 render_metadata, brief, media_inspection=media_inspection,
                 speech_report=speech_report,
+                caption_report=caption_report,
             )
             if media_inspection is not None:
                 quality_report["media_inspection"] = media_inspection
