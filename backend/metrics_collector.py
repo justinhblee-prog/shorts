@@ -7,6 +7,7 @@ This collects Data API counters only; it does not claim audience-retention analy
 import logging
 import os
 import socket
+import threading
 import time
 import uuid
 
@@ -29,6 +30,50 @@ logging.basicConfig(
 logger = logging.getLogger("nexus.metrics_collector")
 
 
+class CollectorLeaseLost(RuntimeError):
+    """Raised when a metrics collector can no longer prove lease ownership."""
+
+
+class LeaseHeartbeat:
+    def __init__(self, renew, lease_seconds=300):
+        self.renew = renew
+        self.lease_seconds = max(30, int(lease_seconds))
+        self.interval = max(5, min(30, self.lease_seconds // 3))
+        self.lost = threading.Event()
+        self.stopped = threading.Event()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self):
+        self.thread.start()
+
+    def _renew(self):
+        try:
+            owned = self.renew()
+        except Exception:
+            owned = False
+        if not owned:
+            self.lost.set()
+            return False
+        return True
+
+    def _run(self):
+        while not self.stopped.wait(self.interval):
+            if not self._renew():
+                return
+
+    def assert_owned(self):
+        if self.lost.is_set() or not self._renew():
+            self.lost.set()
+            raise CollectorLeaseLost(
+                "Metrics collector lease expired or was replaced; stale results were discarded"
+            )
+
+    def close(self):
+        self.stopped.set()
+        if self.thread.is_alive():
+            self.thread.join(timeout=min(5, self.interval))
+
+
 def run_once(store=None, publisher=None):
     store = store or YouTubeUploadStore(DB)
     publisher = publisher or YouTubePublisher(store)
@@ -36,18 +81,25 @@ def run_once(store=None, publisher=None):
     if token is None:
         logger.info("metrics_collection_skipped reason=another_collector_holds_lease")
         return {"skipped": True, "requested": 0, "collected": 0}
+    heartbeat = LeaseHeartbeat(
+        lambda: store.renew_metrics_collector_lease(OWNER_ID, lease_seconds=300)
+    )
+    heartbeat.start()
     try:
+        heartbeat.assert_owned()
         store.record_metrics_collection("running", source="YouTube Data API v3")
         try:
             result = publisher.refresh_due_metrics(
                 limit=BATCH_SIZE, min_age_seconds=MIN_AGE
             )
         except Exception as exc:
+            heartbeat.assert_owned()
             store.record_metrics_collection(
                 "failed", error=type(exc).__name__,
                 source="YouTube Data API v3"
             )
             raise
+        heartbeat.assert_owned()
         store.record_metrics_collection(
             "succeeded", requested=result["requested"],
             collected=result["collected"], missing=len(result["missing"]),
@@ -59,6 +111,7 @@ def run_once(store=None, publisher=None):
         )
         return result
     finally:
+        heartbeat.close()
         store.release_metrics_collector_lease(OWNER_ID)
 
 
@@ -72,11 +125,17 @@ def run_youtube_analytics_once(store=None, collector=None, upload_store=None):
     if token is None:
         logger.info("youtube_analytics_collection_skipped reason=another_collector_holds_lease")
         return {"skipped": True, "requested": 0, "collected": 0}
+    heartbeat = LeaseHeartbeat(
+        lambda: store.renew_lease(OWNER_ID, token, lease_seconds=300)
+    )
+    heartbeat.start()
     try:
+        heartbeat.assert_owned()
         store.record_collection("running")
         try:
             result = collector.refresh(limit=BATCH_SIZE, days=28, min_age_seconds=MIN_AGE)
         except Exception as exc:
+            heartbeat.assert_owned()
             reasons = {item.get("reason") for item in (getattr(exc, "error_details", None) or []) if isinstance(item, dict)}
             scope_missing = "insufficientPermissions" in reasons or (
                 isinstance(exc, YouTubeAnalyticsError) and "yt-analytics.readonly" in str(exc)
@@ -90,6 +149,7 @@ def run_youtube_analytics_once(store=None, collector=None, upload_store=None):
             )
             store.record_collection(status, error=error)
             raise
+        heartbeat.assert_owned()
         collection_status = "succeeded" if result["requested"] else "waiting_for_uploaded_videos"
         store.record_collection(
             collection_status, requested=result["requested"],
@@ -99,6 +159,7 @@ def run_youtube_analytics_once(store=None, collector=None, upload_store=None):
                     result["requested"], result["collected"], len(result["missing"]))
         return result
     finally:
+        heartbeat.close()
         store.release_lease(OWNER_ID, token)
 
 
@@ -114,15 +175,22 @@ def run_tiktok_once(store=None, collector=None, publication_store=None, token_ma
     if token is None:
         logger.info("tiktok_metrics_collection_skipped reason=another_collector_holds_lease")
         return {"skipped": True, "requested": 0, "collected": 0}
+    heartbeat = LeaseHeartbeat(
+        lambda: store.renew_lease(OWNER_ID, token, lease_seconds=300)
+    )
+    heartbeat.start()
     try:
+        heartbeat.assert_owned()
         store.record_collection("running")
         try:
             result = collector.refresh_due_metrics(
                 limit=min(20, BATCH_SIZE), min_age_seconds=MIN_AGE
             )
         except Exception as exc:
+            heartbeat.assert_owned()
             store.record_collection("failed", error=type(exc).__name__)
             raise
+        heartbeat.assert_owned()
         store.record_collection(
             "succeeded", requested=result["requested"],
             collected=result["collected"], missing=len(result["missing"]),
@@ -132,6 +200,7 @@ def run_tiktok_once(store=None, collector=None, publication_store=None, token_ma
                     result["requested"], result["collected"], len(result["missing"]))
         return result
     finally:
+        heartbeat.close()
         store.release_lease(OWNER_ID, token)
 
 

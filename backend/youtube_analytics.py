@@ -127,6 +127,20 @@ class YouTubeAnalyticsStore:
                   datetime.fromtimestamp(now, timezone.utc).isoformat()))
         return token
 
+    def renew_lease(self, owner_id, token, lease_seconds=300, now=None):
+        """Renew a still-live analytics lease without allowing a stale owner to revive it."""
+        now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            updated = connection.execute(
+                """UPDATE youtube_analytics_lease SET lease_until=?,updated_at=?
+                   WHERE id=1 AND owner_id=? AND token=? AND lease_until>?""",
+                (now + max(30, int(lease_seconds)),
+                 datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                 owner_id, token, now),
+            )
+            return updated.rowcount == 1
+
     def release_lease(self, owner_id, token):
         with self.db() as connection:
             connection.execute(

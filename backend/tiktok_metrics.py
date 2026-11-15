@@ -78,10 +78,12 @@ class TikTokMetricsStore:
         finally:
             c.close()
 
-    def acquire_lease(self, owner_id, lease_seconds=300):
+    def acquire_lease(self, owner_id, lease_seconds=300, now=None):
         if not isinstance(owner_id, str) or not owner_id.strip():
             raise ValueError("A valid TikTok metrics collector owner ID is required")
-        now = _now()
+        now = now or _now()
+        if isinstance(now, (int, float)):
+            now = datetime.fromtimestamp(float(now), timezone.utc)
         token = uuid.uuid4().hex
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
@@ -93,8 +95,24 @@ class TikTokMetricsStore:
               VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET
               owner_id=excluded.owner_id,lease_token=excluded.lease_token,
               expires_at=excluded.expires_at
-            """, (owner_id, token, _stamp(now + timedelta(seconds=lease_seconds))))
+            """, (owner_id, token, _stamp(now + timedelta(seconds=max(30, int(lease_seconds))))))
         return token
+
+    def renew_lease(self, owner_id, lease_token, lease_seconds=300, now=None):
+        """Renew only the current, unexpired TikTok collector lease."""
+        now = now or _now()
+        if isinstance(now, (int, float)):
+            now = datetime.fromtimestamp(float(now), timezone.utc)
+        stamp = _stamp(now)
+        expires = _stamp(now + timedelta(seconds=max(30, int(lease_seconds))))
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            cur = c.execute(
+                """UPDATE tiktok_metrics_collector_lease SET expires_at=?
+                   WHERE id=1 AND owner_id=? AND lease_token=? AND expires_at>?""",
+                (expires, owner_id, lease_token, stamp),
+            )
+            return cur.rowcount == 1
 
     def release_lease(self, owner_id, lease_token):
         with self.db() as c:

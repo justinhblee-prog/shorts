@@ -374,6 +374,24 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertTrue(self.uploads.release_metrics_collector_lease("collector-a"))
         self.assertEqual(second_store.acquire_metrics_collector_lease("collector-b"),"collector-b")
 
+    def test_metrics_collector_lease_can_be_renewed_but_not_revived_after_expiry(self):
+        self.assertEqual(
+            self.uploads.acquire_metrics_collector_lease("collector-a", 60, now=1000),
+            "collector-a",
+        )
+        self.assertTrue(self.uploads.renew_metrics_collector_lease(
+            "collector-a", 60, now=1040
+        ))
+        self.assertIsNone(self.uploads.acquire_metrics_collector_lease(
+            "collector-b", 60, now=1090
+        ))
+        self.assertFalse(self.uploads.renew_metrics_collector_lease(
+            "collector-a", 60, now=1101
+        ))
+        self.assertEqual(self.uploads.acquire_metrics_collector_lease(
+            "collector-b", 60, now=1101
+        ), "collector-b")
+
     def test_due_metrics_batch_refreshes_multiple_videos_in_one_api_request(self):
         self.prod.create("job-2",{"brand":"Future Leak","region":"US",
                                   "language":"English","topic":"Robotics"})

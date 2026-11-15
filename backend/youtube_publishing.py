@@ -415,12 +415,12 @@ class YouTubeUploadStore:
             """, (cutoff, limit)).fetchall()
         return [row["video_id"] for row in rows]
 
-    def acquire_metrics_collector_lease(self, owner_id, lease_seconds=300):
+    def acquire_metrics_collector_lease(self, owner_id, lease_seconds=300, now=None):
         """Acquire a database-backed singleton lease for the periodic metrics collector."""
         owner_id = str(owner_id or "").strip()
         if not owner_id or len(owner_id) > 200:
             raise ValueError("A valid metrics collector owner ID is required")
-        now = datetime.now(timezone.utc).timestamp()
+        now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute(
@@ -435,6 +435,20 @@ class YouTubeUploadStore:
                   lease_until=excluded.lease_until,updated_at=excluded.updated_at
             """, (owner_id, now + max(30, int(lease_seconds)), _now()))
         return owner_id
+
+    def renew_metrics_collector_lease(self, owner_id, lease_seconds=300, now=None):
+        """Extend only a still-live lease owned by this collector instance."""
+        now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            updated = c.execute(
+                """UPDATE youtube_metrics_collector_lease
+                   SET lease_until=?,updated_at=?
+                   WHERE id=1 AND owner_id=? AND lease_until>?""",
+                (now + max(30, int(lease_seconds)),
+                 datetime.fromtimestamp(now, timezone.utc).isoformat(), owner_id, now),
+            )
+            return updated.rowcount == 1
 
     def release_metrics_collector_lease(self, owner_id):
         with self.db() as c:

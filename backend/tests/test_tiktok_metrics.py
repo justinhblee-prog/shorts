@@ -202,6 +202,8 @@ class TikTokMetricsTests(unittest.TestCase):
                 self.released = False
             def acquire_lease(self, owner_id, lease_seconds=300):
                 return "lease-token"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return True
             def release_lease(self, owner_id, token):
                 self.released = True
             def record_collection(self, status, **kwargs):
@@ -226,6 +228,8 @@ class TikTokMetricsTests(unittest.TestCase):
                 self.released = False
             def acquire_lease(self, owner_id, lease_seconds=300):
                 return "lease-token"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return True
             def release_lease(self, owner_id, token):
                 self.released = True
             def record_collection(self, status, **kwargs):
