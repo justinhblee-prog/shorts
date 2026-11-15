@@ -196,11 +196,7 @@ def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(de
             "risk_level": profile.get("risk_level", "standard"),
             "review_rules": profile.get("review_rules", []),
         }
-        submitted=submit_production(queue,production_store,brief)
-        recommendation_evaluation_store.link_production(
-            trend_id,brand["slug"],submitted["job"]["id"]
-        )
-        return submitted
+        return submit_production(queue,production_store,brief)
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
     except ValueError as e:
@@ -582,7 +578,11 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
                 "published_at":trend.get("published_at"),"region":region,
             },
         }
-        return submit_production(queue,production_store,brief)
+        submitted=submit_production(queue,production_store,brief)
+        recommendation_evaluation_store.link_production(
+            trend_id,brand["slug"],submitted["job"]["id"]
+        )
+        return submitted
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
     except ValueError as e:
