@@ -12,6 +12,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("검증 결과 이력 저장", index_html)
         self.assertIn("불변 검증 이력", app_js)
         self.assertIn("노출 단위 학습", app_js)
+        self.assertIn("서로 다른 추천 노출 횟수 부족", app_js)
         self.assertIn("점수 자동 조정은 비활성", app_js)
 
     def test_insights_show_evidence_gated_cohort_experiments(self):
