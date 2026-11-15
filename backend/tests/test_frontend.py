@@ -190,6 +190,14 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("recovery_confirmed", app_js)
         self.assertIn("복구 체크리스트를 직접 확인", app_js)
 
+    def test_lifecycle_workspace_displays_observed_stage_performance(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("단계별 체류시간 분석", app_js)
+        self.assertIn("total_observed_seconds", app_js)
+        self.assertIn("state_durations", app_js)
+        self.assertIn("공급자 실행시간이나 렌더링 CPU 시간과 동일하지 않습니다", app_js)
+        self.assertIn('"/overview"', app_js)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
