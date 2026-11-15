@@ -382,6 +382,7 @@ def get_lifecycle_queue(
     )
     items=[]
     risk_counts={"blocked":0,"attention_required":0,"consistent":0,"missing_production":0}
+    production_status_counts={}
     for job in page["items"]:
         job_id=job["id"]
         production=production_store.get(job_id)
@@ -400,6 +401,8 @@ def get_lifecycle_queue(
             )
         risk=consistency["status"]
         risk_counts[risk]=risk_counts.get(risk,0)+1
+        production_state=(production or {}).get("status") or "missing"
+        production_status_counts[production_state]=production_status_counts.get(production_state,0)+1
         if production is None:
             risk_counts["missing_production"]+=1
         findings=consistency.get("findings",[])
@@ -421,6 +424,7 @@ def get_lifecycle_queue(
     return {
         "items":items,"total":page["total"],"limit":page["limit"],
         "offset":page["offset"],"status_counts":page["status_counts"],
+        "production_status_counts":production_status_counts,
         "risk_counts":risk_counts,"read_only":True,
         "automatic_retry_performed":False,
     }
