@@ -30,9 +30,9 @@ The publish body contains `media_path`, `title`, `operator_id`, `explicit_consen
 2. Initialize Direct Post with `privacy_level=SELF_ONLY`, the explicit `is_aigc` disclosure, and both commercial-content declarations.
 3. Upload the staged media to TikTok's returned HTTPS upload URL using HTTP PUT in byte-range chunks. Do not forward the OAuth bearer token to the signed upload URL.
 4. Persist the publish ID, operator consent, AIGC declaration, commercial-content declarations and local audit events.
-5. Poll the status endpoint through the explicit refresh route. Supported statuses include PROCESSING_UPLOAD, PROCESSING_DOWNLOAD, SEND_TO_USER_INBOX, PUBLISH_COMPLETE and FAILED.
+5. The scheduler automatically polls pending publish IDs in small batches (up to five per scheduler interval, no more often than once per minute per record). Operators can also refresh status manually. Supported statuses include PROCESSING_UPLOAD, PROCESSING_DOWNLOAD, SEND_TO_USER_INBOX, PUBLISH_COMPLETE and FAILED.
 
-A network failure after a remote request begins is marked `reconciliation_required`. The adapter blocks duplicate retries. An operator must investigate the TikTok creator inbox/status before any future retry.
+A network failure after a remote request begins is marked `reconciliation_required`. The adapter blocks duplicate retries. When a publish ID exists, the scheduler continues status reconciliation with backoff; if no publish ID was returned, an operator must investigate the TikTok creator inbox before any future retry. Poll failures are retained as immutable audit events.
 
 ## Credentials and authorization
 
