@@ -942,7 +942,7 @@ class ApiSecurityTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as invalid:
                 require_review_access("wrong-secret")
             self.assertEqual(invalid.exception.status_code, 401)
-            self.assertIsNone(require_review_access("unit-test-secret"))
+            self.assertEqual(require_review_access("unit-test-secret"), "legacy-operator")
         finally:
             if previous is None:
                 os.environ.pop("NEXUS_REVIEW_TOKEN", None)

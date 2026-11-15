@@ -16,6 +16,7 @@ from trend_recommendations import rank_trend_candidates
 from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError, ProductionLeaseConflict
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
+from reviewer_auth import resolve_review_principal, ReviewCredentialConfigurationError
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
@@ -615,9 +616,14 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
 
 
 def require_review_access(token):
-    expected=os.getenv("NEXUS_REVIEW_TOKEN")
-    if not valid_review_token(token, expected):
+    try:
+        reviewer_id = resolve_review_principal(token)
+    except ReviewCredentialConfigurationError:
+        # Broken operator configuration must never fall back to a shared token.
+        raise HTTPException(503,"Review authentication is not configured safely")
+    if not reviewer_id:
         raise HTTPException(401,"Valid review token required")
+    return reviewer_id
 
 
 @app.get("/api/review/pending")
@@ -675,11 +681,11 @@ def update_review_policy_evidence(
     job_id:str, body:PolicyEvidenceInput,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    authenticated_reviewer = require_review_access(x_review_token)
     declarations=body.model_dump(exclude={"reviewer_id"},exclude_none=True)
     try:
         return review_store.update_policy_evidence(
-            job_id,body.reviewer_id,declarations
+            job_id,authenticated_reviewer or body.reviewer_id,declarations
         )
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
@@ -692,11 +698,11 @@ def update_review_policy_evidence(
 @app.post("/api/review/{job_id}/approve")
 def approve_review(job_id:str, body:ReviewDecision,
                    x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_reviewer = require_review_access(x_review_token)
     try:
         staged_path=media_stager.staged_path(job_id)
         return review_store.decide(
-            job_id,"approved",body.reviewer_id,body.comment,
+            job_id,"approved",authenticated_reviewer or body.reviewer_id,body.comment,
             staged_media_path=staged_path
         )
     except ReviewNotFound:
@@ -710,9 +716,9 @@ def approve_review(job_id:str, body:ReviewDecision,
 @app.post("/api/review/{job_id}/reject")
 def reject_review(job_id:str, body:ReviewDecision,
                   x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_reviewer = require_review_access(x_review_token)
     try:
-        return review_store.decide(job_id,"rejected",body.reviewer_id,body.comment)
+        return review_store.decide(job_id,"rejected",authenticated_reviewer or body.reviewer_id,body.comment)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -724,9 +730,9 @@ def reject_review(job_id:str, body:ReviewDecision,
 @app.post("/api/review/{job_id}/request-revision")
 def request_revision(job_id:str, body:ReviewDecision,
                      x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_reviewer = require_review_access(x_review_token)
     try:
-        return review_store.decide(job_id,"revision_requested",body.reviewer_id,body.comment)
+        return review_store.decide(job_id,"revision_requested",authenticated_reviewer or body.reviewer_id,body.comment)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:

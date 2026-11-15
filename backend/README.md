@@ -97,7 +97,7 @@ are KR, US, JP and GB; supported languages are Korean, English and Japanese.
 
 ## BUILD-00007 — human review
 
-Configure a strong `NEXUS_REVIEW_TOKEN` secret in the API environment. Review endpoints require it in the `X-Review-Token` header and fail closed if unset.
+Preferred multi-operator setup: configure `NEXUS_REVIEW_CREDENTIALS_JSON` as a JSON object mapping each operator ID to a unique random token (minimum 32 characters). Each operator sends their own token in `X-Review-Token`. When this map is present, `NEXUS_REVIEW_TOKEN` is ignored. The legacy shared token remains a migration fallback only and is attributed to the fixed identity `legacy-operator`.
 
 - `GET /api/review/pending`
 - `POST /api/review/{job_id}/approve`
@@ -105,13 +105,13 @@ Configure a strong `NEXUS_REVIEW_TOKEN` secret in the API environment. Review en
 - `POST /api/review/{job_id}/request-revision`
 - `GET /api/review/{job_id}/history`
 
-Request body: `{"reviewer_id":"operator-1","comment":"Optional approval note"}`. Rejection and revision requests require a comment. Decisions record the reviewed artifact snapshot and are append-only; a decision cannot be overwritten. Approval does not trigger upload or public publishing. The current reviewer ID is asserted by the caller; integrate a real identity provider and role-based authorization before multi-user production deployment.
+Request body: `{"reviewer_id":"operator-1","comment":"Optional approval note"}`. The body reviewer_id is retained for client compatibility but is not trusted: the API derives the audit reviewer identity from the credential that authenticated the request. Rejection and revision requests require a comment. Decisions record the reviewed artifact snapshot and are append-only; a decision cannot be overwritten. Approval does not trigger upload or public publishing. This is per-operator token authentication, not a full identity-provider integration or role-based authorization system; add an external IdP/RBAC layer before broad multi-user or public deployment.
 
 ## BUILD-00008 — YouTube private publishing and counters
 
 Configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REFRESH_TOKEN` as runtime secrets. The refresh token must be granted `youtube.upload` and `youtube.readonly` scopes. Never commit credentials or token files.
 
-Approved publishing requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-Token`, a job with a recorded human `approved` decision, the immutable approved artifact snapshot, and the staged-media SHA-256 fingerprint. The API stages only the artifact URL stored on that production job (`POST /api/production/jobs/{job_id}/stage-media`); it does not accept an arbitrary caller-supplied URL or host path. Upload attempts use a private immutable byte snapshot and are serialized per job.
+Approved publishing requires an accepted operator credential in `X-Review-Token`, a job with a recorded human `approved` decision, the immutable approved artifact snapshot, and the staged-media SHA-256 fingerprint. The API stages only the artifact URL stored on that production job (`POST /api/production/jobs/{job_id}/stage-media`); it does not accept an arbitrary caller-supplied URL or host path. Upload attempts use a private immutable byte snapshot and are serialized per job.
 
 YouTube routes include `POST /api/youtube/upload/{job_id}`, `GET /api/youtube/uploads/{job_id}`, and `POST /api/youtube/videos/{video_id}/refresh-metrics`. The publisher forces `privacyStatus=private`; there is no public/unlisted override.
 
@@ -137,7 +137,7 @@ Run `python scheduler.py` as a separate supervised process from the API and prod
 
 ## Integrated Docker Compose deployment
 
-At repository root, copy `.env.example` to `.env`, set a long random `NEXUS_REVIEW_TOKEN`, configure provider URLs/tokens and YouTube OAuth secrets. Then run:
+At repository root, copy `.env.example` to `.env`, configure individual `NEXUS_REVIEW_CREDENTIALS_JSON` tokens (or the temporary legacy `NEXUS_REVIEW_TOKEN` fallback), provider URLs/tokens and YouTube OAuth secrets. Then run:
 
 ```bash
 docker compose build

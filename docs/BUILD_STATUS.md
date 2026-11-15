@@ -1772,3 +1772,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added `NEXUS_MEDIA_SCAN_ENABLED`, `NEXUS_CLAMSCAN_PATH` and `NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS`; included ClamAV/freshclam in the shared container image and documented signature refresh.
 - GitHub Actions PR run [43771112826](https://github.com/justinhblee-prog/shorts/actions/runs/43771112826): **577 tests passed**.
 - Scanning remains opt-in and disabled by default. Operators must initialize and refresh the ClamAV database before enabling it. CI uses fake scanner results; no real artifact, database, deployment or platform upload was validated.
+
+
+## BUILD-00106 — per-operator reviewer identity binding (2026-11-16)
+
+- Added individual review credentials through `NEXUS_REVIEW_CREDENTIALS_JSON`, mapping each operator ID to a unique random token. Individual credentials supersede the legacy shared token.
+- Approval, rejection and policy-evidence audit records now use the identity resolved from the authenticated token, not the caller-supplied request-body reviewer ID.
+- Legacy-only configuration remains supported for migration but is always attributed to the fixed identity `legacy-operator`; malformed individual credential configuration fails closed with HTTP 503.
+- Added tests for unique identity resolution, invalid/duplicate/weak credentials, legacy fallback, malformed configuration and audit spoofing attempts.
+- This is per-operator bearer-token authentication, not full IdP/RBAC/session management. HTTPS, secure distribution and token rotation are required; broader RBAC remains open.
+- Final-head push CI [43773111981](https://github.com/justinhblee-prog/shorts/actions/runs/43773111981) and PR CI [43773117502](https://github.com/justinhblee-prog/shorts/actions/runs/43773117502): **588 tests passed**.
