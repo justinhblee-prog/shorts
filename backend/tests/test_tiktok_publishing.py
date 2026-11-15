@@ -89,6 +89,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(self.transport.calls, [])
 
     def test_unapproved_or_stale_policy_is_rejected(self):
+        self.prod.stage("job-1", "rendered", "review_pending")
         self.review.decide("job-1", "revision_requested", "reviewer-2",
                            comment="Please correct the disclosure metadata.")
         with self.assertRaisesRegex(TikTokPublishError, "latest human review"):
