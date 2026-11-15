@@ -86,6 +86,16 @@ class TikTokPublishingTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_publish_rejects_media_mutated_after_human_approval(self):
+        Path(self.media).write_bytes(b"mutated-after-approval")
+        with self.assertRaisesRegex(TikTokPublishError, "changed after human approval"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(self.transport.calls, [])
+        self.assertIsNone(self.store.get("job-1"))
+
     def test_missing_explicit_privacy_choice_is_blocked_before_network_request(self):
         with self.assertRaisesRegex(TikTokPublishError, "explicitly select SELF_ONLY"):
             self.publisher.publish_private_approved(
