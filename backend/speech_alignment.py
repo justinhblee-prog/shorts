@@ -55,16 +55,16 @@ def compare_transcript_to_script(script, transcript, max_word_error_rate=0.25):
 def _subtitle_payload_to_text(value):
     text = str(value or "")
     text = re.sub(
-        r"^\\s*\\d+\\s*$", "", text, flags=re.MULTILINE
+        r"^\s*\d+\s*$", "", text, flags=re.MULTILINE
     )
     text = re.sub(
-        r"^\\s*\\d{2}:\\d{2}:\\d{2}[,.]\\d{3}\\s+-->\\s+"
-        r"\\d{2}:\\d{2}:\\d{2}[,.]\\d{3}.*$",
+        r"^\s*\d{2}:\d{2}:\d{2}[,.]\d{3}\s+-->\s+"
+        r"\d{2}:\d{2}:\d{2}[,.]\d{3}.*$",
         "", text, flags=re.MULTILINE,
     )
     text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\\{\\\\an\\d+\\}", " ", text)
-    return re.sub(r"\\s+", " ", text).strip()
+    text = re.sub(r"\{\\an\d+\}", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def build_caption_alignment_report(script, subtitle_text, asr_transcript=None,
