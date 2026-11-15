@@ -168,6 +168,12 @@ class ReviewStore:
             if decision == "approved" and policy_report:
                 if policy_report.get("status") == "blocked":
                     raise ReviewConflict("Policy-blocked content cannot be approved")
+                approval_blockers = policy_report.get("approval_blockers") or []
+                if approval_blockers:
+                    raise ReviewConflict(
+                        "Policy approval blockers must be resolved before approval: "
+                        + ", ".join(sorted(str(item) for item in approval_blockers))
+                    )
                 if policy_report.get("status") == "review_required" and not comment:
                     raise ValueError("Policy review requires an explicit reviewer confirmation note")
             snapshot = [{
