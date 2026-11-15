@@ -36,6 +36,18 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(new["id"],j["id"])
   with self.assertRaises(LeaseConflict):
    self.q.finish(j["id"],"worker-old",old["lease_token"])
+ def test_cancel_running_production_pauses_instead_of_claiming_clean_cancel(self):
+  job=self.q.enqueue("short_video_production", {"topic":"may-have-started"})
+  claimed=self.q.claim("worker-active")
+  result=self.q.cancel(job["id"],"operator requested cancellation")
+  self.assertEqual(result["status"],"failed_terminal")
+  self.assertEqual(result["error_code"],"worker_paused")
+  self.assertIsNone(result["lease_token"])
+  self.assertTrue(self.q.is_paused())
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"worker-active",claimed["lease_token"])
+  events=self.q.events(job["id"])
+  self.assertEqual(events[-1]["event_type"],"worker_pause")
  def test_cancel_revokes_worker_lease(self):
   j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
   cancelled=self.q.cancel(j["id"],"operator stop")
