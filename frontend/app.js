@@ -149,7 +149,9 @@
         if(tiktokStatus==="publish_complete"){
           tiktokAction='<button class="button button-quiet" disabled>TikTok 게시 완료</button>';
         }else if(tiktokStatus==="reconciliation_required"){
-          tiktokAction='<button class="button button-quiet" disabled>TikTok 운영자 확인 필요</button>';
+          tiktokAction=item.tiktok_publish_id
+            ? '<button class="button button-outline" data-tiktok-refresh-id="'+esc(item.job_id)+'">TikTok 결과 대조</button>'
+            : '<button class="button button-quiet" disabled>TikTok 운영자 확인 필요</button>';
         }else if(["initializing","uploading","processing","send_to_inbox"].includes(tiktokStatus)){
           tiktokAction='<button class="button button-outline" data-tiktok-refresh-id="'+esc(item.job_id)+'">TikTok 상태 갱신</button>';
         }else{
