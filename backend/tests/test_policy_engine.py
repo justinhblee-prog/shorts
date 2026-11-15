@@ -21,6 +21,7 @@ class PolicyEngineTests(unittest.TestCase):
             "rights": {"visuals_cleared": True, "audio_cleared": True,
                        "likeness_authorized": True},
             "synthetic_media_status": "ai_generated",
+            "youtube_contains_synthetic_media": False,
             "platform_disclosures": {
                 "youtube_altered_content": True,
                 "tiktok_ai_generated_content": True,
@@ -33,6 +34,61 @@ class PolicyEngineTests(unittest.TestCase):
         self.assertEqual(report["approval_blockers"], [])
         self.assertEqual(len(report["policy_sources"]), 6)
         self.assertTrue(report["limitations"])
+
+    def test_youtube_realistic_alteration_requires_explicit_api_disclosure(self):
+        base = {
+            "platforms": ["youtube"],
+            "synthetic_media_status": "realistic_alteration",
+            "platform_disclosures": {"youtube_altered_content": True},
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "factual_claims_verified": True,
+            "originality_notes": "Original scene.",
+        }
+        report = evaluate_content_policy(base)
+        self.assertTrue(report["youtube_contains_synthetic_media"])
+        self.assertNotIn("youtube_contains_synthetic_media", report["approval_blockers"])
+        base["youtube_contains_synthetic_media"] = False
+        with self.assertRaises(ValueError):
+            evaluate_content_policy(base)
+
+    def test_youtube_ai_generated_requires_realism_classification(self):
+        report = evaluate_content_policy({
+            "platforms": ["youtube"],
+            "synthetic_media_status": "ai_generated",
+            "platform_disclosures": {"youtube_altered_content": True},
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+        })
+        self.assertIn("youtube_contains_synthetic_media", report["approval_blockers"])
+
+    def test_nonrealistic_youtube_ai_does_not_trigger_realistic_media_label(self):
+        report = evaluate_content_policy({
+            "platforms": ["youtube"],
+            "synthetic_media_status": "ai_generated",
+            "youtube_contains_synthetic_media": False,
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "factual_claims_verified": True,
+            "originality_notes": "Stylized non-photorealistic animation.",
+        })
+        self.assertNotIn("platform_disclosures.youtube_altered_content",
+                         report["approval_blockers"])
+        self.assertNotIn("youtube_contains_synthetic_media",
+                         report["approval_blockers"])
+
+    def test_tiktok_ai_generated_disclosure_is_separate_from_youtube_realism_field(self):
+        report = evaluate_content_policy({
+            "platforms": ["tiktok"],
+            "synthetic_media_status": "ai_generated",
+            "platform_disclosures": {"tiktok_ai_generated_content": True},
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "factual_claims_verified": True,
+            "originality_notes": "Original stylized animation.",
+        })
+        self.assertIsNone(report["youtube_contains_synthetic_media"])
+        self.assertEqual(report["approval_blockers"], [])
 
     def test_explicit_denial_of_asset_rights_blocks(self):
         report = evaluate_content_policy({"rights": {"visuals_cleared": False}})
