@@ -48,13 +48,33 @@ class ProviderEndpointTests(unittest.TestCase):
             "https://api.example.test/generate", 401, "Unauthorized", {},
             BytesIO(b"upstream echoed bearer=secret-value"),
         )
-        with patch("urllib.request.urlopen", side_effect=error):
+        opener = unittest.mock.Mock()
+        opener.open.side_effect = error
+        with patch("urllib.request.build_opener", return_value=opener):
             with self.assertRaises(ProviderError) as caught:
                 JsonProvider._request(
                     "https://api.example.test/generate", {}, b"{}", 1
                 )
         self.assertNotIn("secret-value", str(caught.exception))
         self.assertIn("401", str(caught.exception))
+        opener.open.assert_called_once()
+
+    def test_provider_redirect_is_not_followed(self):
+        redirect = HTTPError(
+            "https://api.example.test/generate", 302, "Found",
+            {"Location": "http://attacker.example/steal"}, BytesIO(b"redirect"),
+        )
+        opener = unittest.mock.Mock()
+        opener.open.side_effect = redirect
+        with patch("urllib.request.build_opener", return_value=opener):
+            with self.assertRaises(ProviderError) as caught:
+                JsonProvider._request(
+                    "https://api.example.test/generate",
+                    {"Authorization": "Bearer secret-value"}, b"{}", 1
+                )
+        self.assertIn("302", str(caught.exception))
+        self.assertNotIn("secret-value", str(caught.exception))
+        opener.open.assert_called_once()
 
 
 if __name__ == "__main__":
