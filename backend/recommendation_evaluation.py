@@ -182,7 +182,7 @@ class RecommendationEvaluationStore:
             "minimum_total_observations": 10,
             "warning": (
                 "Observational only: outcomes exist only for recommendations selected "
-                "for production. Selection bias and unobserved candidates prevent "
+                "for production. selection bias and unobserved candidates prevent "
                 "causal or market-wide conclusions."
             ),
         }
