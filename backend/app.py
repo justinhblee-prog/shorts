@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from pydantic import BaseModel, Field
-from queue_store import JobQueue, JobNotFound, LeaseConflict
+from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflict
 from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
 from profitability import OpportunityStore, score_opportunity
@@ -156,6 +156,8 @@ def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(de
         brief = body.model_dump()
         brief["brand"] = brand["name"]
         return submit_production(queue,production_store,brief)
+    except IdempotencyConflict as e:
+        raise HTTPException(409,str(e))
     except ValueError as e:
         raise HTTPException(422,str(e))
 
