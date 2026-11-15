@@ -355,10 +355,10 @@
     const finance=(data.financial||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+esc(x.currency)+' · net '+money(x.net,x.currency)+'</b><small>매출 '+money(x.revenue,x.currency)+' · 비용 '+money(x.costs,x.currency)+' · '+x.entries+'건</small></div>').join("");
     const collectionPanel='<h4>성과 데이터 수집 상태</h4>'+Object.values(collection.platforms||{}).map(x=>{
       const coverage=x.coverage||{};
-      const status=x.status==="succeeded"?"최근 수집 성공":x.status==="running"?"수집 중":x.status==="failed"?"최근 수집 실패":x.status==="not_implemented"?"수집 기능 미구현":"수집 이력 없음";
+      const status=x.status==="succeeded"?"최근 수집 성공":x.status==="running"?"수집 중":x.status==="failed"?"최근 수집 실패":x.status==="not_implemented"?"수집 기능 미구현":x.status==="scope_missing"?"TikTok video.list 권한 필요":"수집 이력 없음";
       const time=x.last_success_at||"성공 이력 없음";
-      return '<div class="data-item"><b>'+esc(x.platform)+' · '+esc(status)+'</b><small>최근 성공 '+esc(time)+' · 최근 오류 '+esc(x.last_error||"없음")+'</small><small>수집 표본 '+Number(coverage.with_snapshot||0)+'/'+Number(coverage.uploaded_videos||0)+' · 미수집 '+Number(coverage.without_snapshot||0)+' · 오래된 스냅샷 '+Number(coverage.stale_snapshots||0)+'</small><small>제공 지표 '+esc((x.available_metrics||[]).join(", ")||"없음")+' · 미제공 지표 '+esc((x.unavailable_metrics||[]).join(", ")||"없음")+'</small></div>';
-    }).join("")+'<div class="notice">수집 상태는 저장된 실행 기록 기준입니다. TikTok 분석 수집은 아직 구현되지 않았으며, YouTube Data API 조회수·좋아요·댓글만 수집합니다.</div>';
+      return '<div class="data-item"><b>'+esc(x.platform)+' · '+esc(status)+'</b><small>최근 성공 '+esc(time)+' · 최근 오류 '+esc(x.last_error||"없음")+'</small><small>수집 표본 '+Number(coverage.with_snapshot||0)+'/'+Number(coverage.uploaded_videos||coverage.published_videos||0)+' · 미수집 '+Number(coverage.without_snapshot||0)+' · 오래된 스냅샷 '+Number(coverage.stale_snapshots||0)+'</small><small>제공 지표 '+esc((x.available_metrics||[]).join(", ")||"없음")+' · 미제공 지표 '+esc((x.unavailable_metrics||[]).join(", ")||"없음")+'</small></div>';
+    }).join("")+'<div class="notice">수집 상태는 저장된 실행 기록 기준입니다. TikTok은 본인 게시 영상에 한해 video.list 권한으로 조회수·좋아요·댓글·공유 수를 수집합니다. 시청 지속시간·리텐션·예상 수익은 제공하지 않습니다. OAuth 재승인 및 앱 권한 승인이 필요할 수 있습니다.</div>';
     const evalStatus=evaluation.status==="holdout_available"?"노출 단위 시계열 홀드아웃 진단 가능":evaluation.status==="holdout_inconclusive"?"홀드아웃 결과 불충분":evaluation.status==="insufficient_run_coverage"?"서로 다른 추천 노출 횟수 부족":"검증 표본 수집 중";
     const within=evaluation.within_run_validation||{};
     const withinStatus=within.status==="holdout_available"?"동일 추천 세트 기준 홀드아웃 가능":"동일 추천 세트 표본 부족";
