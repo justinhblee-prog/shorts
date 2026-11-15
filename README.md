@@ -8,7 +8,7 @@ Global short-form content operations platform. The system coordinates topic disc
 2. Set a long random `NEXUS_REVIEW_TOKEN`.
 3. Configure the script, voice and render provider endpoints/tokens.
 4. Set `RENDER_ARTIFACT_HOSTS` to the exact HTTPS CDN hostnames returned by your renderer.
-5. Add YouTube OAuth refresh credentials with `youtube.upload`, `youtube.readonly` and `yt-analytics.readonly` scopes, plus the YouTube Data API key. Reauthorize the channel after adding the Analytics scope.
+5. Add YouTube OAuth refresh credentials with `youtube.upload`, `youtube.readonly` and `yt-analytics.readonly` scopes, plus the YouTube Data API key. Enable the YouTube Analytics API in Google Cloud and reauthorize the channel after adding the Analytics scope.
 6. Register TikTok Login Kit, Content Posting API and Display API, configure the exact HTTPS callback URI, set TikTok client credentials, and generate a stable Fernet encryption key as shown in `.env.example`. TikTok metrics additionally require creator consent to the `video.list` scope; existing connections must reauthorize after this scope is added.
 7. Start the services:
 
@@ -29,7 +29,7 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 - **TikTok:** connect the creator account from Integration Readiness. OAuth state is one-time and expires after ten minutes; access/refresh tokens are encrypted in SQLite, access tokens refresh proactively, and rotated refresh tokens replace the previous value. Direct Post is fixed to `SELF_ONLY`. The Display API collector separately requires `video.list` consent and records views, likes, comments and shares for confirmed owned publications.
 - **Ambiguous upload recovery:** if a resumable upload times out after starting, automatic retries are blocked. Check YouTube Studio and use the dashboard reconciliation action after the stale threshold (`NEXUS_UPLOAD_STALE_SECONDS`, default 900 seconds).
 - **Operations:** configure interval schedules, record verified financial entries, inspect snapshot-based performance insights, and pause/resume production with an audited operator note.
-- **Metrics collection:** the separate `metrics-collector` service independently refreshes YouTube and TikTok counters, records collection health/coverage, and isolates provider failures. TikTok collection requires `video.list`; only views, likes, comments and shares are reported. Retention, swipe-away, watch-time and revenue are not inferred.
+- **Metrics collection:** the separate `metrics-collector` service independently refreshes YouTube Data API counters, YouTube Analytics reports and TikTok counters, records collection health/coverage, and isolates provider failures. YouTube Analytics adds engaged views, watch time, average view duration/percentage, likes, comments, shares and subscribers gained, requiring `yt-analytics.readonly`. TikTok collection requires `video.list`; only views, likes, comments and shares are reported. Detailed retention curves, swipe-away and revenue are not inferred.
 - **Recommendation experiments:** chronological holdout splits complete recommendation exposure runs, reports pre/holdout association stability, and supports operator-captured immutable evaluation snapshots with input fingerprints. Outcomes remain observational and selection-biased; ranking scores are not auto-adjusted.
 
 ## Services
@@ -51,7 +51,7 @@ With Python dependencies installed:
 sh scripts/validate.sh
 ```
 
-This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified code validation for the TikTok performance dashboard: GitHub Actions run [43715567685](https://github.com/justinhblee-prog/shorts/actions/runs/43715567685), **476 tests passed**; frontend validation reported 107 unique IDs / 91 literal selectors. This validates automated checks only, not live provider connectivity, OAuth consent, real-account publishing, metric retrieval or monetization. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
+This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified code validation for the YouTube Analytics and TikTok performance dashboards: GitHub Actions run [43716302094](https://github.com/justinhblee-prog/shorts/actions/runs/43716302094), **489 tests passed**; frontend validation reported 107 unique IDs / 91 literal selectors. This validates automated checks only, not live provider connectivity, OAuth consent, real-account publishing, metric retrieval or monetization. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
 
 ## Documentation
 
