@@ -1093,7 +1093,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Failed platform attempts require evidence that no remote post exists before a new attempt is considered.
 - No automatic retry, upload, publication, or remote mutation is performed by the recovery-plan endpoint.
 - Added regression tests for ambiguous YouTube outcomes, late success, TikTok inbox handoff, missing current approval, and retry prohibition.
-- Automated CI validation pending. Live YouTube/TikTok account recovery remains unverified and requires an authorized operator.
+- Automated GitHub Actions passed **385 tests** at code commit `96d78a4` (run `43700040116`). Live YouTube/TikTok account recovery remains unverified and requires an authorized operator.
 
 
 ### BUILD-00043 — lifecycle consistency false-positive correction (2026-11-15)
