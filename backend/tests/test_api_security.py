@@ -2,6 +2,7 @@ import os
 import unittest
 import logging
 import tempfile
+import threading
 from pathlib import Path
 import app as app_module
 from unittest import mock
@@ -25,6 +26,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  require_canonical_staged_media, stage_production_media, approve_review,
                  publishing_dashboard, tiktok_metrics, youtube_analytics_metrics)
 from production_pipeline import ProviderError
+from queue_store import LeaseConflict
 
 class ApiSecurityTests(unittest.TestCase):
     def test_canonical_staged_media_accepts_only_current_job_file(self):
@@ -784,6 +786,40 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertIsInstance(execute.call_args.kwargs["stop_event"], __import__("threading").Event)
         finish.assert_called_once()
         reconcile.assert_called_once_with(app_module.queue)
+
+    def test_api_production_execution_stops_when_heartbeat_loses_lease(self):
+        job = {"id": "job-heartbeat", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        observed_stop = threading.Event()
+
+        def wait_for_lease_loss(*args, **kwargs):
+            stop_event = kwargs["stop_event"]
+            if stop_event.wait(timeout=2):
+                observed_stop.set()
+            return {"artifacts": []}
+
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "lease_seconds", 0.3),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "heartbeat",
+                              side_effect=LeaseConflict("lease ownership lost")),
+            mock.patch.object(app_module.queue, "pause") as pause,
+            mock.patch.object(app_module.queue, "finish") as finish,
+            mock.patch.object(app_module.production_pipeline, "execute",
+                              side_effect=wait_for_lease_loss),
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job(
+                    "job-heartbeat", body, x_review_token="test-token"
+                )
+
+        self.assertEqual(caught.exception.status_code, 409)
+        self.assertTrue(observed_stop.is_set())
+        finish.assert_not_called()
+        pause.assert_called_once()
 
     def test_api_production_execution_rejects_stale_pipeline_lease(self):
         job = {"id": "job-1", "job_type": "short_video_production",
