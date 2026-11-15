@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import sqlite3
+import statistics
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -270,10 +271,10 @@ class RecommendationEvaluationStore:
                 "holdout_start": run_holdout[0]["generated_at"],
                 "holdout_end": run_holdout[-1]["generated_at"],
                 "holdout_median_score_views_spearman": round(
-                    __import__("statistics").median(score_values), 4
+                    statistics.median(score_values), 4
                 ),
                 "holdout_median_rank_views_spearman": round(
-                    __import__("statistics").median(rank_values), 4
+                    statistics.median(rank_values), 4
                 ),
                 "holdout_positive_score_association_share": round(
                     sum(value > 0 for value in score_values) / len(score_values), 4
