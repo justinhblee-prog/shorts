@@ -72,6 +72,11 @@ class TrendStore:
       x.get("published_at"),x.get("source_score"),x.get("source_comments"),
       json.dumps(x.get("source_metrics",{}),ensure_ascii=False),x["collected_at"]))
   return {"processed":len(items)}
+ def get(self,trend_id):
+  with sqlite3.connect(self.path,timeout=30) as db:
+   db.row_factory=sqlite3.Row
+   row=db.execute("SELECT * FROM trend_signals WHERE id=?",(trend_id,)).fetchone()
+   return dict(row) if row else None
  def list(self,region=None,source=None,q=None,limit=50):
   sql="SELECT * FROM trend_signals WHERE 1=1"; args=[]
   if region: sql+=" AND region=?"; args.append(region.upper())
