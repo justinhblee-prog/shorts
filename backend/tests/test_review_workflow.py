@@ -41,16 +41,17 @@ class ReviewWorkflowTests(unittest.TestCase):
                 "review_rules": ["Cite sources", "No diagnosis"],
             },
         })
-        with self.production.db() as connection:
-            connection.execute("UPDATE production_runs SET job_id=? WHERE job_id=?",
-                               (job["id"], "job-1"))
-            connection.execute("UPDATE production_artifacts SET job_id=? WHERE job_id=?",
-                               (job["id"], "job-1"))
+        self.production.create(job["id"], {
+            "brand": "Brain Glitch", "region": "US",
+            "language": "English", "topic": "Sleep",
+        })
+        self.production.stage(job["id"], "rendered", "review_pending")
         pending = self.review.list_pending()
-        self.assertEqual(pending[0]["brand_profile"]["risk_level"], "high")
-        self.assertEqual(pending[0]["brand_profile"]["review_rules"],
+        item = next(entry for entry in pending if entry["job_id"] == job["id"])
+        self.assertEqual(item["brand_profile"]["risk_level"], "high")
+        self.assertEqual(item["brand_profile"]["review_rules"],
                          ["Cite sources", "No diagnosis"])
-        self.assertNotIn("job_payload_json", pending[0])
+        self.assertNotIn("job_payload_json", item)
 
     def test_approval_is_explicit_and_audited_with_snapshot(self):
         result = self.review.decide("job-1", "approved", "operator-1", "Looks good")
