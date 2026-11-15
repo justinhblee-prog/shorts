@@ -73,9 +73,6 @@ def run_once():
     job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production")
     if job is None:
         return False
-    # Close the enqueue/worker race: repair a missing production row after claim too.
-    store.reconcile_missing_runs(queue, job_ids=[job["id"]])
-
     lost_lease = threading.Event()
     heartbeat_stop = threading.Event()
     global active_job_id, active_lost_lease_event
@@ -84,8 +81,14 @@ def run_once():
     heartbeat = threading.Thread(
         target=heartbeat_loop, args=(job["id"], job["lease_token"], lost_lease, heartbeat_stop),
         daemon=True)
-    heartbeat.start()
     try:
+        heartbeat.start()
+        # Close the enqueue/worker race: repair a missing production row after claim.
+        # Start the heartbeat first so SIGTERM or lease loss during reconciliation
+        # is still fenced before any external provider request begins.
+        store.reconcile_missing_runs(queue, job_ids=[job["id"]])
+        if lost_lease.is_set():
+            raise LeaseConflict("Worker lease was lost before provider execution")
         result = pipeline.execute(job["id"], job["payload"],
                                   worker_id=WORKER_ID, lease_token=job["lease_token"],
                                   stop_event=lost_lease)
@@ -148,7 +151,8 @@ def run_once():
         print(f"worker_failure job={job['id']} error={type(exc).__name__}")
     finally:
         heartbeat_stop.set()
-        heartbeat.join(timeout=5)
+        if heartbeat.is_alive():
+            heartbeat.join(timeout=5)
         active_job_id = None
         active_lost_lease_event = None
     return True
