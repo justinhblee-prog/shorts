@@ -178,6 +178,11 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("health.blockers", app_js)
         self.assertIn("health.warnings", app_js)
         self.assertIn("자동 복구·중지·재개를 실행하지 않습니다", html)
+        self.assertIn("/api/ops/recovery-plan", app_js)
+        self.assertIn("recovery.operator_checks", app_js)
+        self.assertIn('id="recoveryConfirmed"', html)
+        self.assertIn("recovery_confirmed", app_js)
+        self.assertIn("복구 체크리스트를 직접 확인", app_js)
 
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
