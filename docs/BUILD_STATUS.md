@@ -1042,4 +1042,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The endpoint rejects missing jobs and non-production queue jobs rather than returning a misleading partial lifecycle.
 - Publishing states remain platform-specific and are returned independently; a YouTube upload or TikTok inbox handoff is not collapsed into a generic "published" state.
 - Added API regression tests for joined lifecycle data and non-production job rejection.
-- Validation pending on this commit; no live platform posting or external service validation is implied.
+- GitHub Actions passed **328 tests** at code commit `e695a0a`; no live platform posting or external service validation is implied.
