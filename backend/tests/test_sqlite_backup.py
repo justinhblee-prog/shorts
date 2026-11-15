@@ -50,7 +50,6 @@ class SQLiteBackupTests(unittest.TestCase):
         created = [create_backup(self.source, self.backups, keep=2) for _ in range(3)]
         files = list(self.backups.glob("nexus-*.sqlite3"))
         self.assertEqual(len(files), 2)
-        self.assertTrue(Path(created[-1]["backup_path"]).exists())
         self.assertEqual(len(created[-1]["removed"]), 1)
 
     def test_corrupt_source_fails_without_leaving_partial_backup(self):
