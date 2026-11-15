@@ -129,6 +129,26 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertTrue(self.store.release_lease("collector-a", first))
         self.assertIsNotNone(self.store.acquire_lease("collector-b", 60))
 
+    def test_recent_metrics_returns_latest_snapshot_only_for_completed_owned_publications(self):
+        self.store.save_snapshot("job-1", {
+            "id": "video-1", "view_count": 10, "like_count": 1,
+            "comment_count": 0, "share_count": 0,
+        })
+        self.store.save_snapshot("job-1", {
+            "id": "video-1", "view_count": 20, "like_count": 2,
+            "comment_count": 1, "share_count": 1,
+        })
+        self._publish("job-2", "video-2")
+        self.store.save_snapshot("job-2", {
+            "id": "video-2", "view_count": 5, "like_count": 0,
+            "comment_count": 0, "share_count": 0,
+        })
+        items = self.store.recent_metrics(self.publications, limit=10)
+        by_id = {x["video_id"]: x for x in items}
+        self.assertEqual(by_id["video-1"]["view_count"], 20)
+        self.assertEqual(by_id["video-1"]["privacy_level"], "SELF_ONLY")
+        self.assertEqual(by_id["video-2"]["view_count"], 5)
+
     def test_status_reports_coverage_and_never_claims_unavailable_metrics(self):
         self.store.save_snapshot("job-1", {
             "id": "video-1", "view_count": 10, "like_count": 1,
