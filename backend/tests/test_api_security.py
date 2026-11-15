@@ -6,7 +6,8 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from app import (app, require_review_access, YouTubeLateSuccessResolution, Enqueue,
                  enqueue, IdempotencyConflict, ProductionExecute, execute_production_job,
-                 ProductionLeaseConflict, ProductionBrief, create_production_job)
+                 ProductionLeaseConflict, ProductionBrief, create_production_job,
+                 QueueControlAction, queue_control, pause_queue, resume_queue)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -158,6 +159,40 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 500)
         fail.assert_called_once()
         pause.assert_called_once()
+    def test_queue_control_endpoints_are_authenticated_and_audited(self):
+        body = QueueControlAction(operator_id="operator-1", note="Reviewed worker state")
+        control = {"paused": True, "pause_reason": body.note, "paused_job_id": "job-1"}
+        events = [{"event_type": "paused", "actor": body.operator_id}]
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "pause", return_value=control) as pause,
+            mock.patch.object(app_module.queue, "worker_control", return_value=control),
+            mock.patch.object(app_module.queue, "worker_control_events", return_value=events),
+        ):
+            paused = pause_queue(body, x_review_token="test-token")
+        pause.assert_called_once_with(body.note, actor=body.operator_id)
+        self.assertTrue(paused["control"]["paused"])
+        self.assertEqual(paused["events"], events)
+
+        resumed_control = {"paused": False, "pause_reason": None, "paused_job_id": None}
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "resume", return_value=resumed_control) as resume,
+            mock.patch.object(app_module.queue, "worker_control_events", return_value=[]),
+        ):
+            resumed = resume_queue(body, x_review_token="test-token")
+        resume.assert_called_once_with(actor=body.operator_id, note=body.note)
+        self.assertFalse(resumed["control"]["paused"])
+
+    def test_queue_resume_rejects_unpaused_queue(self):
+        body = QueueControlAction(operator_id="operator-1", note="Checked state")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "resume", side_effect=ValueError("not paused")),
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                resume_queue(body, x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code, 409)
     def test_review_token_fails_closed(self):
         previous = os.environ.get("NEXUS_REVIEW_TOKEN")
         os.environ["NEXUS_REVIEW_TOKEN"] = "unit-test-secret"
