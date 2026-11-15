@@ -185,6 +185,21 @@ class TikTokOAuthTests(unittest.TestCase):
         self.assertFalse(manager.status()["connected"])
         self.assertEqual(manager.status()["status"], "encryption_key_invalid")
 
+    def test_account_without_video_publish_scope_cannot_publish(self):
+        self.manager._save_token_response({
+            "access_token": "access-no-publish",
+            "refresh_token": "refresh-no-publish",
+            "open_id": "creator-123",
+            "scope": "user.info.basic",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        self.assertFalse(self.manager.status()["connected"])
+        self.assertEqual(self.manager.status()["status"], "required_scope_missing")
+        with self.assertRaisesRegex(TikTokOAuthError, "video.publish scope"):
+            self.manager.get_access_token()
+
     def test_refresh_lease_fences_concurrent_processes(self):
         first = self.store.acquire_refresh_lease("process-a", 60)
         second = self.store.acquire_refresh_lease("process-b", 60)
