@@ -194,3 +194,5 @@ The UI includes production job intake, trends, competitors, profitability scorin
 ### Integration preflight
 
 Use protected `GET /api/preflight` (header `X-Review-Token`) or the dashboard readiness panel to identify missing environment settings. It checks configuration presence only; it does not make provider, OAuth or YouTube API calls.
+
+Dashboard supports USD, KRW, JPY and GBP for ledger entries and profitability scenarios. Financial reports filter by one currency at a time; currency conversion is not inferred or applied.
