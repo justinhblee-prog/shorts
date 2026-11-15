@@ -120,6 +120,25 @@ class TikTokPublishingTests(unittest.TestCase):
         publisher = TikTokPublisher(self.store, "test-token", transport)
         self.assertTrue(publisher._call("https://open.tiktokapis.com/v2/test/")["data"]["ready"])
 
+    def test_atomic_begin_result_prevents_duplicate_publish_after_completion_race(self):
+        completed = {
+            "job_id": "job-1",
+            "status": "publish_complete",
+            "attempt_id": "already-completed-attempt",
+            "video_id": "video-123",
+        }
+        # Simulate the first read missing a concurrent completion, followed by
+        # BEGIN IMMEDIATE observing the authoritative terminal row.
+        self.store.get = lambda job_id: None
+        self.store.begin = lambda *args, **kwargs: completed
+        result = self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True,
+            privacy_level="SELF_ONLY",
+        )
+        self.assertEqual(result, completed)
+        self.assertEqual(self.transport.calls, [])
+
     def test_publish_approved_video_as_private_with_aigc_label(self):
         result = self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
