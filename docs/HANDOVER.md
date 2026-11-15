@@ -229,3 +229,5 @@ The scheduler atomically reserves due occurrences and writes them to `schedule_d
 Scheduler observability endpoint: authenticated `GET /api/schedules/outbox` returns pending/dispatched counts and recent occurrence attempts/errors. It is diagnostic only; the scheduler process retries pending records on its normal polling loop.
 
 Latest CI run 114 (commit `b3f6ae65669af361f4c7fa6314e9d9c2c832fd30`) again failed before runner allocation: `runner_id=0`, empty runner name, `steps=[]`. The new analytics and scheduler outbox tests are not executed.
+
+Latest run 115 (2026-11-15) again failed before runner allocation (`runner_id=0`, empty runner name, zero steps). The source and test commits are present, but test execution remains unverified.
