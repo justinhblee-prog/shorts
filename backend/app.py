@@ -1,6 +1,9 @@
 import os
 from typing import Any
 from fastapi import FastAPI, HTTPException, Header
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from pydantic import BaseModel, Field
 from queue_store import JobQueue, JobNotFound, LeaseConflict
 from trends import TrendStore, TrendIngestor
@@ -503,6 +506,15 @@ def get_events(jid:str,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
     try: queue.get(jid); return {"events":queue.events(jid)}
     except JobNotFound: raise HTTPException(404,"Job not found")
+
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+@app.get("/", include_in_schema=False)
+def portal_home():
+    return FileResponse(str(FRONTEND_DIR / "index.html"))
+
+app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR)), name="assets")
 
 if __name__=="__main__":
     import uvicorn
