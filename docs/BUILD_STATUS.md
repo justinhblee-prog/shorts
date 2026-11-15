@@ -38,7 +38,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00009 | Revenue, cost and ROI analytics | Source-referenced financial ledger and separate revenue/cost reports committed; provider reconciliation pending |
 | BUILD-00010 | AI performance analysis and strategy updates | Not started |
 | BUILD-00011 | Scheduling and recovery operations | Not started |
-| BUILD-00012 | Integrated validation and deployment | Not started |
+| BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
 
 ## BUILD-00001 — durable queue and Worker Lease
 
@@ -175,3 +175,12 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - APIs: POST/GET `/api/schedules`; PUT `/api/schedules/{id}/activation?active=true|false`; all protected by review token. Creation validates active brand and region/language.
 - Added tests for dispatch, missed interval handling and minimum interval.
 - **Not validated:** runtime tests, process supervision, multi-instance scheduler leadership, timezone/DST calendar schedules or production alerting. Run one scheduler instance until distributed leader election is added.
+
+## BUILD-00012 — integrated packaging and validation
+
+- Added `backend/Dockerfile` for the FastAPI API, worker and scheduler image.
+- Added root `compose.yaml` with API, production worker and one scheduler sharing a persistent SQLite volume.
+- Added `.env.example`; secrets are placeholders only. Copy to `.env`, replace values, and never commit `.env`.
+- Added `scripts/validate.sh` to run compileall and the complete unittest suite.
+- Docker Compose deployment is a local/single-host baseline. SQLite shared-volume operation is not a horizontally scalable production database architecture.
+- **Not validated:** image build, compose startup, tests, provider credentials, OAuth, YouTube upload, media playback, monitoring, backups, restore, TLS/reverse proxy or production traffic.
