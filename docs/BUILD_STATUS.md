@@ -620,3 +620,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Corrected the paused-worker loop to check the stop flag before sleeping, allowing a terminated worker to exit even when production is already paused.
 - Added tests for signal-driven pause and for local stop behavior when pause persistence itself fails.
 - GitHub Actions run [43669995888](https://github.com/justinhblee-prog/shorts/actions/runs/43669995888) passed **151 tests**, frontend syntax and DOM ID checks, and Python compilation.
+
+
+### Region-scoped competitor evidence retrieval — 2026-11-15
+
+- Corrected trend recommendations so competitor video samples are fetched only for channels eligible for each trend's region, with per-channel caching to avoid duplicate reads across trends.
+- This prevents irrelevant regions from being queried and fixes a regression where the test expected one regional channel but the implementation queried both US and JP channels.
+- GitHub Actions run [43670180646](https://github.com/justinhblee-prog/shorts/actions/runs/43670180646) passed **152 tests**, frontend syntax/DOM validation and Python compilation on commit `82263617c14f7c2fe6ace864cf5510a0d66fe21d`.
