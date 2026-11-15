@@ -590,6 +590,7 @@
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
   $("loadLifecycleQueue").addEventListener("click",()=>loadLifecycleQueue().catch(e=>toast(e.message)));
+  $("loadPublishingDashboard").addEventListener("click",()=>loadPublishingDashboard().catch(e=>toast(e.message)));
   $("lifecycleStatusFilter").addEventListener("change",()=>{lifecycleOffset=0;loadLifecycleQueue().catch(e=>toast(e.message));});
   $("lifecyclePrev").addEventListener("click",()=>{lifecycleOffset=Math.max(0,lifecycleOffset-50);loadLifecycleQueue().catch(e=>toast(e.message));});
   $("lifecycleNext").addEventListener("click",()=>{lifecycleOffset+=50;loadLifecycleQueue().catch(e=>toast(e.message));});
