@@ -62,10 +62,10 @@ class MediaInspectorTests(unittest.TestCase):
                 return SimpleNamespace(returncode=0, stdout=json.dumps(probe), stderr="")
             return SimpleNamespace(
                 returncode=0,
-                stdout=("1\\n00:00:00,000 --> 00:00:02,000\\n"
-                        "The human brain predicts what happens next.\\n\\n"
-                        "2\\n00:00:02,000 --> 00:00:04,000\\n"
-                        "Patterns help the brain learn.\\n"),
+                stdout=("1\n00:00:00,000 --> 00:00:02,000\n"
+                        "The human brain predicts what happens next.\n\n"
+                        "2\n00:00:02,000 --> 00:00:04,000\n"
+                        "Patterns help the brain learn.\n"),
                 stderr="",
             )
         report = MediaInspector(analyze_signals=False, runner=runner).inspect(self.path)
@@ -116,7 +116,7 @@ class MediaInspectorTests(unittest.TestCase):
                 )
             return SimpleNamespace(
                 returncode=0, stdout="",
-                stderr=("silence_start: 0\\nsilence_end: 2.1 | silence_duration: 2.1\\n"
+                stderr=("silence_start: 0\nsilence_end: 2.1 | silence_duration: 2.1\n"
                         "silence_start: 28.0"),
             )
         report = MediaInspector(runner=runner).inspect(self.path)
