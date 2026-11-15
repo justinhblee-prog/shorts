@@ -87,6 +87,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 - Inspect queue state, worker heartbeats, and production pause state from **운영 관제 · 수익 분석 → 예약·작업 현황**.
 - If production is paused, inspect the displayed pause reason and audit history. Before resuming, verify the remote provider's job history, generated artifacts, and billing/usage state. Enter the operator ID and a non-empty investigation note, then use **검증 후 생산 재개**. The resume action is confirmed in the UI and permanently recorded in `worker_control_events`.
 - The authenticated control API is `GET /api/queue/control`, `POST /api/queue/pause`, and `POST /api/queue/resume`; all require `X-Review-Token`. Pause/resume request bodies contain `operator_id` and `note`. Resume returns HTTP 409 when the queue is not paused.
+- When production is paused, the scheduler still reserves due occurrences in its durable outbox but does not enqueue production jobs. Those pending occurrences are replayed idempotently after an operator resumes production. Scheduler logs include actionable exception details and an explicit paused-dispatch warning.
 - Worker leases are fenced; stale workers cannot complete a job after losing ownership.
 - Scheduler dispatch uses deterministic idempotency keys. Run one scheduler process until distributed leadership is implemented.
 - Back up the persistent SQLite volume and test restoration before real operation.
