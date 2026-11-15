@@ -83,6 +83,14 @@ class YouTubePublishingTests(unittest.TestCase):
             )
         self.assertIsNone(self.uploads.get("job-1"))
 
+    def test_current_production_status_must_still_be_approved(self):
+        self.prod.stage("job-1","review","review_pending")
+        with self.assertRaisesRegex(YouTubeUploadError,"must remain approved"):
+            self.publisher.upload_approved(
+                "job-1",self.media,self.review,"Sleep short"
+            )
+        self.assertIsNone(self.uploads.get("job-1"))
+
     def test_upload_is_always_private_and_persists_source_stats(self):
         result=self.publisher.upload_approved("job-1",self.media,self.review,
                                               "A useful short","Description")
