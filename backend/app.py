@@ -196,6 +196,13 @@ def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None)):
     return {"items":review_store.list_pending(limit)}
 
 
+
+@app.get("/api/review/approved")
+def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return {"items":review_store.list_approved(limit)}
+
+
 @app.post("/api/review/{job_id}/approve")
 def approve_review(job_id:str, body:ReviewDecision,
                    x_review_token:str|None=Header(default=None)):
@@ -255,7 +262,7 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
     production=production_store.get(job_id)
     if production is None:
         raise HTTPException(404,"Production job not found")
-    if production["status"] not in ("rendered","review_pending"):
+    if production["status"] not in ("rendered","review_pending","approved"):
         raise HTTPException(409,"Only rendered production jobs can be staged")
     video=next((item for item in production["artifacts"]
                 if item["artifact_type"]=="video" and item["artifact_url"]),None)
