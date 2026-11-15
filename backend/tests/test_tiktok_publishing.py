@@ -349,6 +349,22 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(stale["status"], "publish_complete")
         self.assertEqual(stale["video_id"], "123456789")
 
+    def test_late_processing_status_cannot_downgrade_inbox_handoff(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True,
+            privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        inbox = self.store.mark_status(
+            "job-1", attempt_id, "SEND_TO_USER_INBOX", [], None
+        )
+        self.assertEqual(inbox["status"], "send_to_inbox")
+        stale = self.store.mark_status(
+            "job-1", attempt_id, "PROCESSING_UPLOAD", [], None
+        )
+        self.assertEqual(stale["status"], "send_to_inbox")
+
     def test_status_fetch_rejects_malformed_nested_data(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
