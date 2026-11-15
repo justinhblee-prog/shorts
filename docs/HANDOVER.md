@@ -315,3 +315,12 @@ The upload path now avoids a duplicate-video hazard when a resumable upload has 
 - Fixed the YouTube upload race regression tests to use the actual YouTubeUploadStore fixture (self.uploads), eliminating a test-time AttributeError that static review had missed.
 - Hardened ReviewStore.decide() to verify the guarded production status update via its statement-level rowcount, not SQLite connection-wide cumulative total_changes.
 - No runtime test result is claimed; GitHub Actions runner allocation and local Python execution remain unavailable.
+
+
+## 2026-11-15 — YouTube late-success preservation and reconciliation audit
+
+- Added append-only `youtube_upload_events` records for operator reconciliation, late remote success, and operator resolution. Each record includes job ID, outcome, returned video ID where available, operator ID, note, previous/resulting state and UTC timestamp.
+- A late YouTube response arriving after an operator marked `not_uploaded` is now persisted as `late_success_review_required`; the video ID is retained and new upload attempts are blocked. The late response cannot be overwritten by the stale request's error handler.
+- Added authenticated `POST /api/youtube/uploads/{job_id}/resolve-late-result`. An operator must acknowledge the preserved video ID and provide an audit note before the upload is finalized as private.
+- The dashboard distinguishes this state from ordinary ambiguous uploads and provides an explicit resolution action. Reconciliation requests include the dashboard reviewer ID; this is caller-supplied identity, not cryptographic user authentication. The shared review token remains a transitional access control.
+- Added regression assertions for preserved late IDs, retry blocking, operator attribution and event timestamps. These tests are committed but have not yet been executed in a Python runtime; do not treat source review as a passing test run.
