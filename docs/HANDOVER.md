@@ -379,3 +379,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - The late-result resolver now records the attempt generation associated with the selected video ID, rather than always attributing resolution to the currently active/latest attempt. Selecting a late video ID records that late response's attempt token; retaining the current video ID records the current attempt token.
 - Regression tests assert both attribution paths.
+
+
+### Late-upload API and dashboard regression coverage — 2026-11-15
+
+- Added test coverage that the late-result resolution endpoint is registered and requires the review token, that the request model requires a video ID, and that the dashboard includes the current/late ID selection controls and API call.
+- These are committed regression tests; they have not run in GitHub Actions because the hosted runner fails before job allocation.
