@@ -58,6 +58,37 @@ def _competitor_context(topic, region, channels, videos_by_channel):
     }
 
 
+def _source_evidence_score(trend, age):
+    """Score source provenance completeness, not source popularity or trustworthiness."""
+    score = 0.0
+    if str(trend.get("source") or "").strip():
+        score += 3.0
+    url = str(trend.get("url") or "").strip().lower()
+    if url.startswith("https://"):
+        score += 3.0
+    if age is not None:
+        score += 4.0
+    return score
+
+
+def _novelty_scores(trends):
+    """Penalize near-duplicate topic candidates using Jaccard similarity."""
+    token_sets = [
+        _tokens(str(item.get("title") or "") + " " + str(item.get("summary") or ""))
+        for item in trends
+    ]
+    scores = []
+    for index, tokens in enumerate(token_sets):
+        similarities = []
+        for other_index, other in enumerate(token_sets):
+            if index == other_index or not tokens or not other:
+                continue
+            similarities.append(len(tokens & other) / len(tokens | other))
+        maximum = max(similarities, default=0.0)
+        scores.append(round(10.0 * (1.0 - maximum), 2))
+    return scores
+
+
 def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=None):
     """Rank collected trends for editorial review; never fabricate demand or revenue."""
     now = now or datetime.now(timezone.utc)
@@ -87,7 +118,8 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
     } if competitor_store else {}
 
     ranked = []
-    for trend in trends:
+    novelty_by_index = _novelty_scores(trends)
+    for trend_index, trend in enumerate(trends):
         title = str(trend.get("title") or "").strip()
         if not title:
             continue
@@ -136,12 +168,25 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
             evidence_gaps.append("competitor_video_sample_unavailable")
         elif competitor_context["topic_matched_videos"] == 0:
             evidence_gaps.append("no_topic_matched_competitor_videos")
-        # The remaining 20 points are deliberately unallocated: competitor samples
-        # are selected-channel observations, not a comparable market-demand measure.
-        score = round(freshness + (best["fit_score"] if best else 0), 2)
+        # The final 20 points measure provenance completeness and topic distinctiveness,
+        # not market demand, views, or monetization.
+        source_evidence = _source_evidence_score(trend, age)
+        novelty = novelty_by_index[trend_index] if best else 0.0
+        score = round(freshness + (best["fit_score"] if best else 0)
+                      + source_evidence + novelty, 2)
+        if source_evidence < 10:
+            evidence_gaps.append("trend_source_provenance_incomplete")
         ranked.append({
             "trend": trend, "recommendation_score": score,
-            "freshness_score": freshness, "brand_candidates": candidates[:3],
+            "freshness_score": freshness, "source_evidence_score": source_evidence,
+            "topic_distinctiveness_score": novelty,
+            "score_breakdown": {
+                "freshness": freshness,
+                "brand_fit": best["fit_score"] if best else 0,
+                "source_provenance_completeness": source_evidence,
+                "topic_distinctiveness": novelty,
+            },
+            "brand_candidates": candidates[:3],
             "best_brand": best, "competitor_context": competitor_context,
             "score_type": "editorial_signal_not_profitability",
             "evidence_gaps": evidence_gaps
