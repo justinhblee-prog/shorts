@@ -46,6 +46,10 @@ class JobQueue:
             CREATE TABLE IF NOT EXISTS worker_control(
               id INTEGER PRIMARY KEY CHECK(id=1), paused INTEGER NOT NULL DEFAULT 0,
               pause_reason TEXT, paused_job_id TEXT, updated_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS worker_control_events(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, event_type TEXT NOT NULL,
+              actor TEXT NOT NULL, reason TEXT NOT NULL, paused_job_id TEXT,
+              created_at TEXT NOT NULL);
             INSERT OR IGNORE INTO worker_control(id,paused,updated_at)
               VALUES(1,0,'1970-01-01T00:00:00+00:00');
             """)
@@ -102,11 +106,14 @@ class JobQueue:
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit()
             return self.decode(row)
 
-    def _pause_production_in_transaction(self, c, reason, job_id, timestamp):
+    def _pause_production_in_transaction(self, c, reason, job_id, timestamp, actor="system"):
         """Persist pause and fence all running production jobs in caller transaction."""
         reason = str(reason)[:2000]
         c.execute("""UPDATE worker_control SET paused=1,pause_reason=?,
           paused_job_id=?,updated_at=? WHERE id=1""", (reason, job_id, timestamp))
+        c.execute("""INSERT INTO worker_control_events
+            (event_type,actor,reason,paused_job_id,created_at)
+            VALUES('paused',?,?,?,?)""", (str(actor)[:128], reason, job_id, timestamp))
         running = c.execute("""SELECT id,worker_id FROM pipeline_jobs
             WHERE status='running' AND job_type='short_video_production'""").fetchall()
         has_runs = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'").fetchone()
@@ -279,24 +286,45 @@ class JobQueue:
             c.commit()
         return {"requeued":recovered,"terminal":terminal}
 
-    def pause(self, reason, job_id=None):
-        """Persist a global pause and fence every in-flight worker lease."""
+    def pause(self, reason, job_id=None, actor="system"):
+        """Persist a production pause, fence in-flight leases, and audit the action."""
         n=stamp(now())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            self._pause_production_in_transaction(c, reason, job_id, n)
-            c.commit()
-            return self.worker_control()
-    def resume(self):
-        """Explicitly clear a persisted worker pause after operator investigation."""
-        n=stamp(now())
-        with self.db() as c:
-            c.execute("BEGIN IMMEDIATE")
-            c.execute("""UPDATE worker_control SET paused=0,pause_reason=NULL,
-              paused_job_id=NULL,updated_at=? WHERE id=1""", (n,))
+            self._pause_production_in_transaction(c, reason, job_id, n, actor)
             c.commit()
             return self.worker_control()
 
+    def resume(self, actor="operator", note="Operator confirmed recovery checks"):
+        """Explicitly resume after operator investigation and record the decision."""
+        actor = str(actor).strip()[:128]
+        note = str(note).strip()[:2000]
+        if not actor or not note:
+            raise ValueError("operator_id and resume note are required")
+        n=stamp(now())
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row=c.execute("SELECT paused,pause_reason,paused_job_id FROM worker_control WHERE id=1").fetchone()
+            if not row or not row["paused"]:
+                raise ValueError("Production queue is not paused")
+            prior_reason = row["pause_reason"] or ""
+            paused_job_id = row["paused_job_id"]
+            c.execute("""UPDATE worker_control SET paused=0,pause_reason=NULL,
+              paused_job_id=NULL,updated_at=? WHERE id=1""", (n,))
+            c.execute("""INSERT INTO worker_control_events
+              (event_type,actor,reason,paused_job_id,created_at)
+              VALUES('resumed',?,?,?,?)""",
+              (actor, ("Resume note: " + note + " | Previous pause: " + prior_reason)[:2000],
+               paused_job_id, n))
+            c.commit()
+            return self.worker_control()
+
+    def worker_control_events(self, limit=20):
+        with self.db() as c:
+            rows=c.execute("""SELECT id,event_type,actor,reason,paused_job_id,created_at
+              FROM worker_control_events ORDER BY id DESC LIMIT ?""",
+              (max(1,min(int(limit),100)),)).fetchall()
+            return [dict(row) for row in rows]
     def worker_control(self):
         with self.db() as c:
             row=c.execute("SELECT * FROM worker_control WHERE id=1").fetchone()
