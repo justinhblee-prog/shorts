@@ -1,8 +1,11 @@
 import json, sys, tempfile, unittest
+from unittest import mock
+from urllib.error import HTTPError
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from trends import GoogleNewsRSS, HackerNews, TrendStore, TrendIngestor
+from trends import (GoogleNewsRSS, HackerNews, TrendStore, TrendIngestor, fetch,
+                    TrendFetchError, MAX_TREND_RESPONSE_BYTES)
 
 class TrendTests(unittest.TestCase):
  def setUp(self):
@@ -40,4 +43,59 @@ class TrendTests(unittest.TestCase):
   self.assertIsNone(self.store.get("not-a-real-trend"))
  def test_rejects_unknown_region(self):
   with self.assertRaises(ValueError): GoogleNewsRSS(lambda url:b"").collect("XX","test")
+ def test_source_fetch_reads_only_configured_response_limit(self):
+  response=mock.MagicMock()
+  response.status=200
+  response.headers={}
+  response.read.return_value=b"x"*(MAX_TREND_RESPONSE_BYTES+1)
+  response.__enter__.return_value=response
+  opener=mock.Mock()
+  opener.open.return_value=response
+  with mock.patch("urllib.request.build_opener",return_value=opener):
+   with self.assertRaisesRegex(TrendFetchError,"512 KiB"):
+    fetch("https://news.google.com/rss/search?q=ai")
+  response.read.assert_called_once_with(MAX_TREND_RESPONSE_BYTES+1)
+
+ def test_source_fetch_validates_content_length_before_and_after_read(self):
+  response=mock.MagicMock()
+  response.status=200
+  response.headers={"Content-Length":"-1"}
+  response.__enter__.return_value=response
+  opener=mock.Mock()
+  opener.open.return_value=response
+  with mock.patch("urllib.request.build_opener",return_value=opener):
+   with self.assertRaisesRegex(TrendFetchError,"Content-Length|512 KiB"):
+    fetch("https://news.google.com/rss/search?q=ai")
+  response.read.assert_not_called()
+
+  response.headers={"Content-Length":"4"}
+  response.read.return_value=b"abc"
+  with mock.patch("urllib.request.build_opener",return_value=opener):
+   with self.assertRaisesRegex(TrendFetchError,"does not match"):
+    fetch("https://news.google.com/rss/search?q=ai")
+
+ def test_source_fetch_rejects_redirects_without_following_them(self):
+  opener=mock.Mock()
+  opener.open.side_effect=HTTPError(
+   "https://news.google.com/rss/search?q=ai",302,"Found",
+   {"Location":"https://attacker.example/collect"},None
+  )
+  with mock.patch("urllib.request.build_opener",return_value=opener) as build:
+   with self.assertRaisesRegex(TrendFetchError,"HTTP status 302"):
+    fetch("https://news.google.com/rss/search?q=ai")
+  build.assert_called_once()
+  opener.open.assert_called_once()
+
+ def test_source_fetch_rejects_non_success_status(self):
+  response=mock.MagicMock()
+  response.status=503
+  response.headers={}
+  response.__enter__.return_value=response
+  opener=mock.Mock()
+  opener.open.return_value=response
+  with mock.patch("urllib.request.build_opener",return_value=opener):
+   with self.assertRaisesRegex(TrendFetchError,"HTTP status"):
+    fetch("https://hacker-news.firebaseio.com/v0/topstories.json")
+  response.read.assert_not_called()
+
 if __name__=="__main__": unittest.main()

@@ -1,4 +1,4 @@
-import hashlib, json, os, sqlite3, urllib.parse, urllib.request
+import hashlib, json, os, sqlite3, urllib.error, urllib.parse, urllib.request
 from contextlib import contextmanager
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -13,6 +13,16 @@ REGIONS = {
 GOOGLE_RSS="https://news.google.com/rss/search"
 HN_TOP="https://hacker-news.firebaseio.com/v0/topstories.json"
 HN_ITEM="https://hacker-news.firebaseio.com/v0/item/{}.json"
+MAX_TREND_RESPONSE_BYTES = 512 * 1024
+
+
+class TrendFetchError(RuntimeError):
+ pass
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+ def redirect_request(self, req, fp, code, msg, headers, newurl):
+  return None
 
 
 @contextmanager
@@ -44,7 +54,29 @@ def uid(source,url):
 
 def fetch(url,timeout=12):
  req=urllib.request.Request(url,headers={"User-Agent":"NexusStudioPro/0.1"})
- with urllib.request.urlopen(req,timeout=timeout) as response: return response.read()
+ try:
+  opener=urllib.request.build_opener(_NoRedirectHandler())
+  with opener.open(req,timeout=timeout) as response:
+   status=getattr(response,"status",None)
+   if isinstance(status,bool) or not isinstance(status,int) or status != 200:
+    raise TrendFetchError("Trend source returned an invalid HTTP status")
+   declared=response.headers.get("Content-Length") if getattr(response,"headers",None) else None
+   if declared is not None:
+    try: expected=int(declared)
+    except (TypeError,ValueError) as exc:
+     raise TrendFetchError("Trend source returned an invalid Content-Length") from exc
+    if expected < 0 or expected > MAX_TREND_RESPONSE_BYTES:
+     raise TrendFetchError("Trend source response exceeds the 512 KiB limit")
+   raw=response.read(MAX_TREND_RESPONSE_BYTES+1)
+   if len(raw)>MAX_TREND_RESPONSE_BYTES:
+    raise TrendFetchError("Trend source response exceeds the 512 KiB limit")
+   if declared is not None and len(raw)!=expected:
+    raise TrendFetchError("Trend source Content-Length does not match the received bytes")
+   return raw
+ except urllib.error.HTTPError as exc:
+  raise TrendFetchError("Trend source returned HTTP status "+str(exc.code)) from exc
+ except (urllib.error.URLError,TimeoutError,OSError) as exc:
+  raise TrendFetchError("Trend source network request failed: "+type(exc).__name__) from exc
 
 class TrendStore:
  def __init__(self,path="data/nexus.sqlite3"):
