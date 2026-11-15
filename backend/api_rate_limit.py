@@ -1,9 +1,9 @@
 """SQLite-backed API rate limiting shared by processes using the same database."""
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
-import math
 import sqlite3
 import time
 from pathlib import Path
@@ -155,7 +155,8 @@ class ApiRateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        result = self.store.consume(
+        result = await asyncio.to_thread(
+            self.store.consume,
             self._client_identity(scope),
             policy,
             self.limits[policy],
