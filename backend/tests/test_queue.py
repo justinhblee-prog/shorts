@@ -34,6 +34,17 @@ class QueueTests(unittest.TestCase):
   self.assertTrue(self.q.mark_worker_offline("worker-reused","instance-new"))
   self.assertEqual(self.q.workers()[0]["status"],"offline")
 
+ def test_stale_worker_instance_cannot_refresh_registry_or_claim(self):
+  self.q.register_worker("worker-reused","host-a","instance-old")
+  self.q.register_worker("worker-reused","host-b","instance-new")
+  self.assertFalse(self.q.touch_worker("worker-reused","instance-old"))
+  with self.assertRaises(LeaseConflict):
+   self.q.claim("worker-reused",job_type="render",instance_token="instance-old")
+  with self.q.db() as c:
+   row=c.execute("SELECT instance_token,status FROM worker_registry WHERE worker_id=?",("worker-reused",)).fetchone()
+  self.assertEqual(row["instance_token"],"instance-new")
+  self.assertEqual(row["status"],"online")
+
  def test_stale_worker_instance_cannot_heartbeat_after_restart(self):
   job=self.q.enqueue("render",{})
   claimed=self.q.claim("worker-reused",instance_token="instance-old")
