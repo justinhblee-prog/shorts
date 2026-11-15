@@ -30,6 +30,7 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 - **Ambiguous upload recovery:** if a resumable upload times out after starting, automatic retries are blocked. Check YouTube Studio and use the dashboard reconciliation action after the stale threshold (`NEXUS_UPLOAD_STALE_SECONDS`, default 900 seconds).
 - **Operations:** configure interval schedules, record verified financial entries, inspect snapshot-based performance insights, and pause/resume production with an audited operator note.
 - **Metrics collection:** the separate collector records last attempt/success, failures and snapshot coverage. The dashboard distinguishes YouTube Data API counters from unsupported retention/swipe-away/watch-time metrics; TikTok analytics collection is not implemented.
+- **Recommendation experiments:** chronological holdout splits complete recommendation exposure runs, reports pre/holdout association stability, and supports operator-captured immutable evaluation snapshots with input fingerprints. Outcomes remain observational and selection-biased; ranking scores are not auto-adjusted.
 
 ## Services
 
