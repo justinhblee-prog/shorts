@@ -86,6 +86,18 @@ class Enqueue(BaseModel):
     max_attempts:int=3
     idempotency_key:str|None=None
 
+class RecommendationExperimentCreate(BaseModel):
+    name:str=Field(min_length=1,max_length=160)
+    operator_id:str=Field(min_length=1,max_length=128)
+    control_label:str=Field(default="control",min_length=1,max_length=64)
+    treatment_label:str=Field(default="treatment",min_length=1,max_length=64)
+    treatment_allocation_basis_points:int=Field(default=5000,ge=1000,le=9000)
+
+
+class RecommendationExperimentAssignment(BaseModel):
+    participant_key:str=Field(min_length=1,max_length=256)
+
+
 class QueueControlAction(BaseModel):
     operator_id:str=Field(min_length=1,max_length=128)
     note:str=Field(min_length=1,max_length=2000)
@@ -1210,6 +1222,57 @@ def list_recommendation_evaluation_snapshots(
 ):
     require_review_access(x_review_token)
     return recommendation_evaluation_store.list_evaluation_snapshots(limit)
+
+
+@app.post("/api/recommendations/experiments")
+def create_recommendation_experiment(
+    body:RecommendationExperimentCreate,
+    x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    try:
+        return recommendation_evaluation_store.create_experiment(
+            body.name,body.operator_id,body.control_label,body.treatment_label,
+            body.treatment_allocation_basis_points
+        )
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+
+@app.get("/api/recommendations/experiments")
+def list_recommendation_experiments(
+    limit:int=20,x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    return recommendation_evaluation_store.list_experiments(limit)
+
+
+@app.post("/api/recommendations/experiments/{experiment_id}/shadow-assignment")
+def assign_recommendation_experiment_shadow(
+    experiment_id:str,body:RecommendationExperimentAssignment,
+    x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    try:
+        result=recommendation_evaluation_store.assign_shadow(
+            experiment_id,body.participant_key
+        )
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    if result is None:
+        raise HTTPException(404,"Recommendation experiment not found")
+    return result
+
+
+@app.get("/api/recommendations/experiments/{experiment_id}/report")
+def recommendation_experiment_report(
+    experiment_id:str,x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    result=recommendation_evaluation_store.experiment_report(experiment_id)
+    if result is None:
+        raise HTTPException(404,"Recommendation experiment not found")
+    return result
 
 
 @app.post("/api/recommendations/feedback/skip")
