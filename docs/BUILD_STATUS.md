@@ -208,18 +208,7 @@ The latest checked run (run 94) failed before runner allocation: `runner_id=0`, 
 - Added protected API: POST `/api/production/jobs/{job_id}/stage-media`; it uses the stored render artifact, not a caller-supplied URL.
 - **Not validated:** actual renderer CDN hosts, live TLS/download, media playback, full test suite and YouTube upload. Configure exact artifact hostnames before use.
 
-Latest observed Actions run: [43656898926](https://github.com/justinhblee-prog/shorts/actions/runs/43656898926). Job metadata: `runner_id=0`, empty runner name, `steps=[]`; no test command executed. Latest media staging changes are committed after this run and have not been executed in CI.
-
-## Single-page operations dashboard
-
-- Added `frontend/index.html`, `frontend/styles.css`, and `frontend/app.js`; FastAPI now serves the dashboard at `/` and static assets at `/assets`.
-- Dashboard sections: production job creation, global trend collection, competitor search, profitability scoring, human review, approved private uploads, interval schedules, financial ledger/report and performance insights.
-- API token is held in browser memory only and cleared on refresh; the user explicitly enters the configured `NEXUS_REVIEW_TOKEN`.
-- Added an approved queue endpoint `GET /api/review/approved`; dashboard supports explicit private upload from approved items.
-- Docker image now includes frontend assets.
-- **Not validated:** browser rendering, cross-device UI, complete user journey, API integration in a live browser or YouTube upload.
-
-Latest observed Actions run 94: https://github.com/justinhblee-prog/shorts/actions/runs/43657260929. It failed before runner allocation (`runner_id=0`, empty runner name, `steps=[]`). A rerun was requested; its result is not yet established. No tests have been executed by CI.
+Latest observed Actions run: [43657516480](https://github.com/justinhblee-prog/shorts/actions/runs/43657516480). Job metadata: `runner_id=0`, empty runner name, `steps=[]`; no test command executed. No tests have been executed by CI.
 
 ## Web operations portal and approved upload workflow
 
@@ -237,3 +226,7 @@ Latest observed Actions run 94: https://github.com/justinhblee-prog/shorts/actio
 - Does not expose secret values and explicitly reports that configuration presence is not live connectivity verification.
 - Dashboard includes an external-integration readiness panel.
 - Added unit tests for fail-closed missing configuration and the distinction between configured and live-verified.
+
+## Current validation state — 2026-11-15
+
+Latest run 103 (`43657516480`) still fails before runner allocation: `runner_id=0`, `runner_name` empty and `steps=[]`. The latest commits include API token hardening, safe media staging, approved upload queue, single-page dashboard, Docker path correction, and configuration preflight. They are committed but not runtime-tested. Dashboard and integration preflight are source-level implementation only; browser behavior, external provider execution, OAuth, YouTube upload and revenue reconciliation remain unverified.
