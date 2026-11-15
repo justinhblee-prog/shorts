@@ -2,6 +2,7 @@
 
 Run: python worker.py
 The worker only claims short_video_production jobs; it does not consume other queue types.
+A job/provider/lease error is fail-closed: this process stops claiming work and exits.
 """
 import os
 import socket
@@ -30,14 +31,19 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop):
             queue.heartbeat(job_id, WORKER_ID, token)
         except LeaseConflict:
             lost_lease.set()
+            stopping.set()
             return
         except Exception:
-            # A transient DB error is retried on the next heartbeat interval.
-            continue
+            # A heartbeat DB failure makes lease ownership uncertain. Never silently
+            # continue the worker loop; fenced stage writes remain the final guard.
+            lost_lease.set()
+            stopping.set()
+            return
 
 
 def run_once():
-    # Recover the cross-store crash window before claiming new work.
+    # Recovery failures are intentionally allowed to escape: no job may be claimed
+    # when the durable queue/production state cannot be reconciled.
     store.reconcile_missing_runs(queue)
     store.reconcile_terminal_jobs(queue)
     store.reconcile_review_pending(queue)
@@ -55,30 +61,33 @@ def run_once():
     heartbeat.start()
     try:
         result = pipeline.execute(job["id"], job["payload"],
-                                    worker_id=WORKER_ID, lease_token=job["lease_token"])
+                                  worker_id=WORKER_ID, lease_token=job["lease_token"])
         if lost_lease.is_set():
-            raise LeaseConflict("Worker lease was lost while generating media")
+            raise LeaseConflict("Worker lease/heartbeat was lost while generating media")
         queue.finish(job["id"], WORKER_ID, job["lease_token"],
                      {"production_status": "review_pending",
                       "artifact_count": len(result["artifacts"])})
         store.reconcile_review_pending(queue)
         print(f"review_pending job={job['id']}")
     except ProviderError as exc:
+        stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
                        "provider_" + exc.stage, str(exc), exc.retryable)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
-        print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}")
+        print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}; worker_stopped")
     except (LeaseConflict, ProductionLeaseConflict):
-        print(f"lease_lost job={job['id']}")
+        stopping.set()
+        print(f"lease_lost job={job['id']}; worker_stopped")
     except Exception as exc:
+        stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
                        "worker_error", str(exc), False)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
-        print(f"worker_failure job={job['id']} error={type(exc).__name__}")
+        print(f"worker_failure job={job['id']} error={type(exc).__name__}; worker_stopped")
     finally:
         heartbeat_stop.set()
         heartbeat.join(timeout=5)
@@ -93,6 +102,12 @@ def main():
                 stopping.wait(IDLE_SECONDS)
     except KeyboardInterrupt:
         print("worker_stopping")
+    except Exception as exc:
+        # Reconciliation/claim/database failures are fatal to this process. Do not
+        # catch-and-continue into another queue claim with uncertain durable state.
+        stopping.set()
+        print(f"worker_fatal error={type(exc).__name__}; worker_stopped")
+        raise
 
 
 if __name__ == "__main__":
