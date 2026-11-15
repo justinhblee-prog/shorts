@@ -416,6 +416,30 @@ class YouTubePublishingTests(unittest.TestCase):
                     "DELETE FROM youtube_upload_events WHERE id=?",(event_id,)
                 )
 
+    def test_upload_stops_after_attempt_lease_is_lost_between_chunks(self):
+        class TwoChunkRequest:
+            def __init__(self):
+                self.calls=0
+            def next_chunk(self):
+                self.calls+=1
+                if self.calls==1:
+                    return None,None
+                return None,{"id":"should-not-upload"}
+
+        request=TwoChunkRequest()
+        videos=mock.Mock()
+        videos.insert.return_value=request
+        service=mock.Mock()
+        service.videos.return_value=videos
+        publisher=YouTubePublisher(self.uploads,service)
+        with mock.patch.object(self.uploads,"touch_upload",return_value=False):
+            with self.assertRaisesRegex(YouTubeUploadError,"superseded"):
+                publisher.upload_approved(
+                    "job-1",self.media,self.review,"Sleep short"
+                )
+        self.assertEqual(request.calls,1)
+        self.assertEqual(self.uploads.get("job-1")["status"],"reconciliation_required")
+
     def test_active_upload_cannot_be_reconciled_early(self):
         self.uploads.begin("job-1","Sleep short","")
         with self.assertRaisesRegex(YouTubeUploadError,"active window"):
