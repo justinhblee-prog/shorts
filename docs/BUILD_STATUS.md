@@ -983,7 +983,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Close a time-of-check/time-of-use race where a second worker could read a non-terminal state, then observe a completed publication from the atomic BEGIN IMMEDIATE operation, but ignore that completed row and issue a second remote Direct Post initialization.
 - The publisher now returns the authoritative completed row from the atomic begin operation without making another TikTok request.
 - Add a regression test simulating the race and asserting that no network request is sent.
-- CI passed at code commit d06d940 (320 tests).
+- CI passed at code commit 4a9fef4 (315 tests).
 
 
 ### BUILD-00033 — TikTok media-spec byte inspection (2026-11-15)
@@ -999,4 +999,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Fix the boundary case where a file just above 64 MiB could be initialized with one 64 MiB chunk, despite TikTok requiring videos larger than 64 MiB to use multiple chunks.
 - Compute one shared chunk plan for both Direct Post initialization and the sequential PUT uploader. Near the boundary, reduce the base chunk so the final chunk stays within TikTok's documented 128 MiB cap.
 - Add a sparse-file regression test for a 64 MiB + 17 byte upload, checking two sequential Content-Range requests and exact byte counts.
-- CI validation pending.
+- CI passed at code commit d06d940 (320 tests).
