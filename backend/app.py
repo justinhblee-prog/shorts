@@ -194,6 +194,12 @@ class TrendProductionDraft(BaseModel):
     language:str=Field(min_length=2,max_length=40)
     idempotency_key:str|None=None
 
+class RecommendationSkipFeedback(BaseModel):
+    trend_id:str=Field(min_length=1,max_length=128)
+    brand_slug:str=Field(min_length=1,max_length=100)
+    reviewer_id:str=Field(min_length=1,max_length=128)
+    reason:str=Field(default="",max_length=1000)
+
 @app.get("/api/brands")
 def list_brands(active_only:bool=False):
     return {"brands":brand_store.list(active_only)}
@@ -884,6 +890,23 @@ def recommendation_evaluation(x_review_token:str|None=Header(default=None)):
     """Report chronological holdout diagnostics for selected recommendation outcomes."""
     require_review_access(x_review_token)
     return recommendation_evaluation_store.evaluate(performance_analyzer.analyze())
+
+
+@app.post("/api/recommendations/feedback/skip")
+def skip_recommendation_feedback(
+    body:RecommendationSkipFeedback,
+    x_review_token:str|None=Header(default=None)
+):
+    require_review_access(x_review_token)
+    try:
+        result=recommendation_evaluation_store.record_skip(
+            body.trend_id,body.brand_slug,body.reviewer_id,body.reason
+        )
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    if not result.get("recorded"):
+        raise HTTPException(409,result.get("reason","Recommendation exposure not found"))
+    return result
 
 
 @app.get("/api/opportunities")
