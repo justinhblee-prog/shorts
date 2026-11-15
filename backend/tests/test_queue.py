@@ -86,6 +86,21 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(production["current_stage"],"failed_terminal")
   self.assertEqual(production["error"],"Provider returned an ambiguous response")
 
+ def test_cancel_queued_production_atomically_syncs_production_run(self):
+  from production_pipeline import ProductionStore
+  job=self.q.enqueue("short_video_production", {
+   "brand":"test-brand","region":"KR","language":"ko","topic":"queued cancellation"
+  })
+  store=ProductionStore(self.q.db_path)
+  store.create(job["id"], {
+   "brand":"test-brand","region":"KR","language":"ko","topic":"queued cancellation"
+  })
+  cancelled=self.q.cancel(job["id"],"Operator cancelled before provider execution")
+  self.assertEqual(cancelled["status"],"cancelled")
+  production=store.get(job["id"])
+  self.assertEqual(production["status"],"cancelled")
+  self.assertEqual(production["current_stage"],"cancelled")
+
  def test_pause_revokes_every_in_flight_lease(self):
   job=self.q.enqueue("short_video_production", {"topic":"active"})
   claimed=self.q.claim("worker-active")
