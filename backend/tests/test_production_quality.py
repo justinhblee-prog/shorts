@@ -49,6 +49,20 @@ class ProductionQualityTests(unittest.TestCase):
 
 
 
+
+    def test_generic_vertical_format_without_ratio_is_not_treated_as_verified_9_16(self):
+        report = evaluate_production_quality(
+            "A clear opening explains the problem. Evidence supports the claim. "
+            "The ending gives viewers a useful next step with a concise summary.",
+            {"factual_claims_verified": True},
+            {"duration_seconds": 30},
+            {"duration_seconds": 30, "format": "vertical",
+             "audio_track_present": True, "subtitles_enabled": True},
+            {},
+        )
+        self.assertEqual(report["status"], "review_required")
+        self.assertIn("render_aspect_ratio_not_reported", report["warnings"])
+
     def test_explicit_string_false_audio_flag_blocks_review(self):
         report = evaluate_production_quality(
             "A clear opening explains the problem. Evidence supports the claim. "
