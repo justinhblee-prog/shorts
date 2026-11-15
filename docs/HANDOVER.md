@@ -261,3 +261,12 @@ The upload path now avoids a duplicate-video hazard when a resumable upload has 
 - YouTube upload now requires the **latest** review decision to be `approved`; an earlier approval does not survive a later revision/rejection decision.
 - The upload claim re-checks both `production_runs.status='approved'` and the latest `review_decisions.decision='approved'` under `BEGIN IMMEDIATE` in the same SQLite database transaction that claims the upload. This closes the check-then-claim gap against concurrent review-state changes.
 - Regression tests cover a later revision decision and a production record that is no longer approved. Tests are committed but remain unexecuted pending a working GitHub Actions runner.
+
+### Worker lease fencing for production writes — 2026-11-15
+
+- `ProductionStore.stage()` and `ProductionStore.artifact()` accept worker identity plus lease token and validate the live `pipeline_jobs` row under `BEGIN IMMEDIATE` before changing production state or artifact records.
+- `ProductionPipeline.execute()` carries the claim's worker ID and token through every stage and artifact write. Lease conflicts are propagated without marking the production run failed, preventing an expired worker from overwriting a replacement worker's state.
+- The worker now passes its claim token into the pipeline. The end-to-end lifecycle test does the same.
+- Added a regression test that expires and reclaims a job, proves the old token cannot start or write an artifact, and proves the new token can complete production.
+- Existing direct pipeline unit tests remain supported without a lease context for isolated component tests; the production worker always supplies one.
+- Tests are committed but not executed because GitHub Actions jobs continue to fail before runner allocation (no steps/logs available).
