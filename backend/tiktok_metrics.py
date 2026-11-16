@@ -221,8 +221,7 @@ class TikTokMetricsStore:
 
     def recent_metrics(self, publication_store, limit=100):
         limit = max(1, min(int(limit), 200))
-        records = publication_store.list_recent(200)
-        eligible = [x for x in records if x.get("status") == "publish_complete" and x.get("video_id")]
+        eligible = publication_store.list_metrics_eligible(limit=limit)
         by_video = {x["video_id"]: x for x in eligible}
         if not by_video:
             return []
@@ -256,8 +255,7 @@ class TikTokMetricsStore:
             count = c.execute("""
               SELECT COUNT(DISTINCT video_id) FROM tiktok_video_metric_snapshots
             """).fetchone()[0]
-        records = publication_store.list_recent(200)
-        eligible = [x for x in records if x.get("status") == "publish_complete" and x.get("video_id")]
+        eligible = publication_store.list_metrics_eligible()
         latest = self.latest_snapshot_times()
         cutoff = _stamp(_now() - timedelta(seconds=max(0, freshness_seconds)))
         with_snapshot = sum(1 for x in eligible if x["video_id"] in latest)
@@ -304,8 +302,7 @@ class TikTokMetricsCollector:
                             lease_owner=None, lease_token=None):
         limit = max(1, min(int(limit), 20))
         min_age_seconds = max(0, int(min_age_seconds))
-        records = self.publication_store.list_recent(200)
-        eligible = [x for x in records if x.get("status") == "publish_complete" and x.get("video_id")]
+        eligible = self.publication_store.list_metrics_eligible()
         latest = self.store.latest_snapshot_times()
         cutoff = _stamp(_now() - timedelta(seconds=min_age_seconds))
         due = [x for x in eligible if x["video_id"] not in latest or latest[x["video_id"]] < cutoff][:limit]
