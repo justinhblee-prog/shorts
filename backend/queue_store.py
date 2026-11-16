@@ -201,9 +201,10 @@ class JobQueue:
 
     def claim(self,worker_id,hostname=None,job_type=None):
         if not worker_id.strip(): raise ValueError("worker_id required")
-        dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds)); token=str(uuid.uuid4())
+        token=str(uuid.uuid4())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds))
             control=c.execute("SELECT paused FROM worker_control WHERE id=1").fetchone()
             production_paused=bool(control and control["paused"])
             if production_paused and job_type == "short_video_production":
@@ -248,9 +249,9 @@ class JobQueue:
             raise LeaseConflict("Lease expired or no longer owned by this worker")
 
     def heartbeat(self,jid,worker,token):
-        dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds))
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds))
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); self.assert_lease(row,worker,token,n)
             c.execute("UPDATE pipeline_jobs SET lease_expires_at=?,updated_at=? WHERE id=?",(expiry,n,jid))
             c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",(n,worker))
@@ -258,9 +259,8 @@ class JobQueue:
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
     def finish(self,jid,worker,token,result=None):
-        n=stamp(now())
         with self.db() as c:
-            c.execute("BEGIN IMMEDIATE"); row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            c.execute("BEGIN IMMEDIATE"); n=stamp(now()); row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             self.assert_lease(row,worker,token,n)
             c.execute("""UPDATE pipeline_jobs SET status='review_pending',worker_id=NULL,lease_token=NULL,
               lease_expires_at=NULL,completed_at=?,updated_at=? WHERE id=?""",(n,n,jid))
@@ -268,9 +268,8 @@ class JobQueue:
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
     def fail(self,jid,worker,token,error_code,error_message,retryable=True):
-        n=stamp(now())
         with self.db() as c:
-            c.execute("BEGIN IMMEDIATE"); row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            c.execute("BEGIN IMMEDIATE"); n=stamp(now()); row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             self.assert_lease(row,worker,token,n)
             retry=bool(retryable and row["attempt"]<row["max_attempts"]); status="failed_retriable" if retry else "failed_terminal"
             c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
@@ -434,9 +433,10 @@ class JobQueue:
                 (job_id,)).fetchall()]
 
     def recover(self):
-        n=stamp(now()); recovered=0; terminal=0
+        recovered=0; terminal=0
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            n=stamp(now())
             expiry_result = self._recover_expired_leases_in_transaction(c, n)
             recovered = expiry_result["requeued"]
             terminal = expiry_result["terminal"]
