@@ -46,6 +46,8 @@ class BackupRestoreTests(unittest.TestCase):
         result = create_backup(self.db, self.media, self.backups)
         self.assertTrue(Path(result["backup_path"]).is_file())
         self.assertEqual(result["media_file_count"], 2)
+        if os.name != "nt":
+            self.assertEqual(Path(result["backup_path"]).stat().st_mode & 0o777, 0o600)
         with tarfile.open(result["backup_path"], "r:gz") as archive:
             names = set(archive.getnames())
         self.assertIn("manifest.json", names)
@@ -235,6 +237,27 @@ class BackupRestoreTests(unittest.TestCase):
                 self.db, self.media, self.backups, encryption_key="not@a-valid-key"
             )
         self.assertEqual(list(self.backups.iterdir()), [])
+
+    def test_retention_prunes_expired_plaintext_and_encrypted_archives(self):
+        key = base64.urlsafe_b64encode(b"r" * 32).decode("ascii")
+        plain = Path(create_backup(
+            self.db, self.media, self.backups, encryption_key=None
+        )["backup_path"])
+        encrypted = Path(create_backup(
+            self.db, self.media, self.backups, encryption_key=key
+        )["backup_path"])
+        os.utime(plain, (1, 1))
+        os.utime(encrypted, (1, 1))
+
+        fresh = create_backup(
+            self.db, self.media, self.backups, retain_days=1, encryption_key=key
+        )
+
+        self.assertFalse(plain.exists())
+        self.assertFalse(encrypted.exists())
+        self.assertTrue(Path(fresh["backup_path"]).exists())
+        self.assertIn(plain.name, fresh["pruned_backups"])
+        self.assertIn(encrypted.name, fresh["pruned_backups"])
 
     def test_backup_refuses_media_symlinks(self):
         target = self.root / "outside.txt"
