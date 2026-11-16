@@ -961,7 +961,7 @@ class ApiSecurityTests(unittest.TestCase):
     def test_youtube_reconciliation_requires_video_id_for_uploaded_outcome(self):
         from app import YouTubeUploadReconciliation, reconcile_youtube_upload
         body = YouTubeUploadReconciliation(
-            outcome="uploaded", confirmed=True, video_id=None,
+            attempt_id="attempt-1", outcome="uploaded", confirmed=True, video_id=None,
             note="Operator confirms upload", operator_id="operator-1",
         )
         with (
