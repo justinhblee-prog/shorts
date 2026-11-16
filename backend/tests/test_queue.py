@@ -847,4 +847,28 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(result["updated_at"],decision.isoformat())
   self.assertEqual(event["created_at"],decision.isoformat())
 
+ def test_worker_lifecycle_events_reuse_transition_timestamp(self):
+  completed=self.q.enqueue("render",{"topic":"finish-event-time"})
+  finished=self.q.claim("worker-finish-event")
+  decision=datetime(2034,5,6,7,8,9,tzinfo=timezone.utc)
+  later=decision+timedelta(seconds=19)
+  with patch.object(queue_store,"now",side_effect=[decision,later]):
+   self.q.finish(completed["id"],"worker-finish-event",finished["lease_token"],{"ok":True})
+  finish_event=[item for item in self.q.events(completed["id"])
+                if item["event_type"]=="completed"][-1]
+  self.assertEqual(self.q.get(completed["id"])["updated_at"],decision.isoformat())
+  self.assertEqual(finish_event["created_at"],decision.isoformat())
+
+  failed=self.q.enqueue("render",{"topic":"fail-event-time"})
+  claimed=self.q.claim("worker-fail-event")
+  decision=datetime(2034,5,6,7,9,9,tzinfo=timezone.utc)
+  later=decision+timedelta(seconds=23)
+  with patch.object(queue_store,"now",side_effect=[decision,later]):
+   self.q.fail(failed["id"],"worker-fail-event",claimed["lease_token"],
+               "render_failed","controlled failure",retryable=True)
+  fail_event=[item for item in self.q.events(failed["id"])
+              if item["event_type"]=="failed"][-1]
+  self.assertEqual(self.q.get(failed["id"])["updated_at"],decision.isoformat())
+  self.assertEqual(fail_event["created_at"],decision.isoformat())
+
 if __name__=="__main__": unittest.main()
