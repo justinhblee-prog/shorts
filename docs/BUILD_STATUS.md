@@ -2126,3 +2126,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Avoid independently sampling the wall clock inside the audit helper, which could make the immutable event timestamp disagree with the queue-control event and job transition timestamp.
 - Add a deterministic regression that supplies a controlled transition timestamp and checks the job, job-event, and worker-control-event records all persist the same value.
 - Validation pending GitHub Actions; this change adds deterministic SQLite coverage only and does not claim production multi-host validation.
+
+
+## BUILD-00285 — Report every production job terminalized during lease recovery
+- When an expired production lease triggers the global pause, count the other still-running production jobs that the same transaction terminalizes.
+- Keep the recovery API's terminal count aligned with the durable state changes instead of reporting only the expired lease rows.
+- Add a regression with one expired and one still-valid production lease; recovery must report both terminalized jobs.
+- GitHub Actions validation pending. Deterministic SQLite coverage only; no live provider execution is claimed.
