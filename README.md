@@ -83,3 +83,6 @@ YouTube Shorts performance insights now support authenticated YouTube Analytics 
 
 
 BUILD-00032 YouTube Analytics integration passed **336 backend tests** in GitHub Actions run [43785987107](https://github.com/justinhblee-prog/shorts/actions/runs/43785987107). Live channel consent, real Analytics responses and eligible retention curves remain deployment checks.
+
+
+Recommendation analysis now exposes topic-matched YouTube watch-quality evidence and separate holdout diagnostics for average view percentage, average view duration and audience-retention checkpoints. These metrics are not blended into views/hour or used to change ranking scores; only future evidence-backed controlled evaluation can justify that.
