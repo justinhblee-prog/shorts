@@ -219,12 +219,17 @@ def _topic_performance_context(trend_tokens, brand_name, region, videos):
     }
 
 
+def _nonnegative_integer(value):
+    """Accept actual nonnegative integer counts, excluding booleans and coercions."""
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
 def _comparable_cohort_context(trend_tokens, brand_name, region, cohorts):
-    """Expose brand/region/topic-matched cohorts without using them in ranking."""
+    """Expose matched cohorts only after validating their aggregate evidence."""
     region = str(region or "").upper()
     matches = []
     for cohort in cohorts or []:
-        if cohort.get("brand") != brand_name:
+        if not isinstance(cohort, dict) or cohort.get("brand") != brand_name:
             continue
         cohort_region = str(cohort.get("region") or "").upper()
         if region and region != "GLOBAL" and cohort_region != region:
@@ -238,21 +243,28 @@ def _comparable_cohort_context(trend_tokens, brand_name, region, cohorts):
         )
         if overlap < 0.25:
             continue
+        sample_count = _nonnegative_integer(cohort.get("sample_count"))
+        interaction_count = _nonnegative_integer(
+            cohort.get("interaction_rate_sample_count")
+        )
+        median_views = _finite_nonnegative(cohort.get("median_views_per_hour"))
+        median_interactions = _finite_nonnegative(
+            cohort.get("median_interactions_per_1000_view_delta")
+        )
         matches.append({
             "region": cohort_region,
             "publication_age_bucket": cohort.get("publication_age_bucket"),
             "duration_bucket": cohort.get("duration_bucket"),
             "format": cohort.get("format"),
             "topic_signature": cohort.get("topic_signature"),
-            "sample_count": int(cohort.get("sample_count") or 0),
-            "median_views_per_hour": cohort.get("median_views_per_hour"),
-            "interaction_rate_sample_count": int(
-                cohort.get("interaction_rate_sample_count") or 0
+            "sample_count": sample_count,
+            "median_views_per_hour": median_views,
+            "interaction_rate_sample_count": interaction_count,
+            "median_interactions_per_1000_view_delta": median_interactions,
+            "evidence_status": (
+                "no_data" if sample_count == 0
+                else "limited" if sample_count < 3 else "observed"
             ),
-            "median_interactions_per_1000_view_delta": cohort.get(
-                "median_interactions_per_1000_view_delta"
-            ),
-            "evidence_status": cohort.get("evidence_status", "limited"),
             "topic_overlap": round(overlap, 3),
         })
     matches.sort(

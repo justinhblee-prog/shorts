@@ -1182,3 +1182,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Reject boolean competitor view counts and malformed interaction-rate metrics.
 - Add regression coverage for malformed topic evidence and competitor counters.
 - GitHub Actions run [43800466202](https://github.com/justinhblee-prog/shorts/actions/runs/43800466202) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
+
+
+## BUILD-00146 — comparable cohort evidence validation
+
+- Reject malformed cohort records and boolean/negative/coerced sample counts.
+- Normalize cohort medians to finite nonnegative metrics and derive evidence status from validated counts.
+- Preserve display-only cohort context; ranking adjustment remains zero.
+- Add regression coverage for invalid and valid cohort aggregates.
+- GitHub Actions run [43802473568](https://github.com/justinhblee-prog/shorts/actions/runs/43802473568) passed the complete `scripts/validate.sh` workflow on the regression-test commit.
