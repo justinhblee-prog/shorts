@@ -27,7 +27,7 @@ def _now():
 
 
 def _stamp():
-    return _now().strftime("%Y%m%dT%H%M%SZ")
+    return _now().strftime("%Y%m%dT%H%M%S%fZ")
 
 
 def _sha256(path):
