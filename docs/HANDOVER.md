@@ -859,3 +859,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a fail-closed approval snapshot integrity check before YouTube upload initialization.
 - The complete current artifact set must match the latest human-approved snapshot by order, stage, type, URL and metadata. Any added, removed or modified artifact requires a fresh human review.
 - Regression coverage targets artifact modification and late artifact addition. CI validation pending on this branch.
+
+
+### BUILD-00025 — bind YouTube upload bytes to human approval (2026-11-16)
+
+- Renderer staging records SHA-256 and byte length in rendering artifact metadata.
+- Upload requires staged filename and bytes to match the human-approved fingerprint, then uploads a private immutable snapshot rather than the mutable staging path.
+- Manual restaging persists the fingerprint and resets the production run to review_pending when it changes, requiring fresh human approval.
+- Regression tests cover media mutation, filename mismatch and fingerprint generation. CI validation pending.
