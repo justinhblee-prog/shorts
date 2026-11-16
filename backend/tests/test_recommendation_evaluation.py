@@ -404,6 +404,59 @@ class RecommendationEvaluationTests(unittest.TestCase):
             self.assertFalse(analytics[metric]["score_adjustment_enabled"])
         self.assertFalse(result["ranking_score_adjustment_enabled"])
 
+    def test_evaluation_rejects_boolean_nonfinite_and_out_of_range_metrics(self):
+        exposure = self.store.record_run(
+            "US", [self.item(31, 80), self.item(32, 70), self.item(33, 60)],
+            "2026-11-01T00:00:00+00:00",
+        )
+        jobs = ["invalid-bool", "invalid-overflow", "valid-average"]
+        for index, job_id in enumerate(jobs):
+            self.store.link_production(
+                f"trend-{31 + index}", "future-leak", job_id,
+                run_id=exposure["run_id"],
+            )
+        result = self.store.evaluate({"videos": [
+            {
+                "job_id": jobs[0], "measurement_status": "measured",
+                "views_per_hour": True, "engaged_view_share": True,
+                "average_view_percentage": False,
+                "average_view_duration_seconds": float("inf"),
+                "audience_retention_curve": [
+                    {"elapsed_video_time_ratio": True, "audience_watch_ratio": 0.9},
+                    {"elapsed_video_time_ratio": 0.5, "audience_watch_ratio": 1.2},
+                ],
+            },
+            {
+                "job_id": jobs[1], "measurement_status": "measured",
+                "views_per_hour": 10 ** 10000,
+                "average_view_percentage": float("nan"),
+                "average_view_duration_seconds": -1,
+                "audience_retention_curve": [
+                    {"elapsed_video_time_ratio": float("inf"),
+                     "audience_watch_ratio": 0.8},
+                ],
+            },
+            {
+                "job_id": jobs[2], "measurement_status": "insufficient_snapshots",
+                "views_per_hour": None, "engaged_view_share": 0.8,
+                "average_view_percentage": 125.0,
+                "average_view_duration_seconds": 12.5,
+                "audience_retention_curve": [
+                    {"elapsed_video_time_ratio": 0.25, "audience_watch_ratio": 0.7},
+                    {"elapsed_video_time_ratio": 0.5, "audience_watch_ratio": 0.6},
+                ],
+                "brand": "Future Leak", "region": "US",
+                "publication_age_bucket": "under_24h",
+                "duration_bucket": "15_30s", "format": "vertical_short",
+            },
+        ]})
+        self.assertEqual(result["selected_production_count"], 3)
+        self.assertEqual(result["measured_outcome_count"], 1)
+        self.assertEqual(result["analytics_measured_outcome_count"], 1)
+        self.assertEqual(result["any_metric_measured_outcome_count"], 1)
+        self.assertEqual(result["unmeasured_selected_count"], 2)
+        self.assertFalse(result["ranking_score_adjustment_enabled"])
+
     def test_spearman_handles_ties_and_constant_values(self):
         self.assertEqual(_spearman([1, 2, 3], [10, 20, 30]), 1.0)
         self.assertIsNone(_spearman([1, 1, 1], [10, 20, 30]))
