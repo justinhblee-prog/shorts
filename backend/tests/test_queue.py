@@ -308,6 +308,22 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(self.q.workers(stale_after_seconds=30)[0]["status"],"stale")
   self.q.register_worker("idle-worker","host-a")
   self.assertEqual(self.q.workers(stale_after_seconds=30)[0]["status"],"online")
+ def test_stale_worker_generation_cannot_mark_restarted_process_offline(self):
+  first=self.q.register_worker("reused-worker","host-a")
+  second=self.q.register_worker("reused-worker","host-a")
+  self.assertNotEqual(first["generation_token"],second["generation_token"])
+  self.assertFalse(self.q.mark_worker_offline("reused-worker",first["generation_token"]))
+  current=self.q.workers()[0]
+  self.assertEqual(current["status"],"online")
+  self.assertEqual(current["generation_token"],second["generation_token"])
+  self.assertTrue(self.q.mark_worker_offline("reused-worker",second["generation_token"]))
+  self.assertEqual(self.q.workers()[0]["status"],"offline")
+ def test_worker_offline_requires_generation_token(self):
+  current=self.q.register_worker("generation-required","host-b")
+  self.assertFalse(self.q.mark_worker_offline("generation-required"))
+  self.assertEqual(self.q.workers()[0]["generation_token"],current["generation_token"])
+  self.assertEqual(self.q.workers()[0]["status"],"online")
+
  def test_worker_pause_persists_until_explicit_resume(self):
   self.q.pause("provider outcome uncertain", "job-123")
   self.assertTrue(self.q.is_paused())
