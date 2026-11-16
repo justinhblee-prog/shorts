@@ -150,10 +150,16 @@ class ScheduleStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute("SELECT * FROM scheduler_leader_lease WHERE id=1").fetchone()
-            if row and row["owner_id"] != owner_id and row["expires_at"] > current_s:
-                c.commit()
-                return None
-            token = row["lease_token"] if row and row["owner_id"] == owner_id else str(uuid.uuid4())
+            if row and row["expires_at"] > current_s:
+                if row["owner_id"] != owner_id:
+                    c.commit()
+                    return None
+                # Same live leader may renew its lease, retaining its fencing token.
+                token = row["lease_token"]
+            else:
+                # Every expired-lease reacquisition is a new ownership epoch,
+                # even when the owner ID is unchanged.
+                token = str(uuid.uuid4())
             c.execute("""INSERT INTO scheduler_leader_lease
                 (id,owner_id,lease_token,expires_at,updated_at) VALUES(1,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET owner_id=excluded.owner_id,

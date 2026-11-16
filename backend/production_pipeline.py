@@ -156,7 +156,7 @@ class ProductionStore:
                brief["topic"], utc_now(), utc_now()))
 
     @staticmethod
-    def _assert_worker_lease(c, job_id, worker_id, lease_token):
+    def _assert_worker_lease(c, job_id, worker_id, lease_token, instance_token=None):
         if not worker_id or not lease_token:
             raise ProductionLeaseConflict("Worker ID and fencing token are required")
         row = c.execute("""SELECT status,worker_id,lease_token,lease_expires_at
@@ -170,13 +170,20 @@ class ProductionStore:
             raise ProductionLeaseConflict(
                 "Worker lease expired or was replaced; stale production write rejected"
             )
+        if instance_token is not None:
+            owner = c.execute("SELECT instance_token FROM worker_registry WHERE worker_id=?",
+                              (worker_id,)).fetchone()
+            if owner is None or owner["instance_token"] != instance_token:
+                raise ProductionLeaseConflict(
+                    "Worker process instance no longer owns this worker ID; stale production write rejected"
+                )
 
     def stage(self, job_id, stage, status="running", error=None,
-              worker_id=None, lease_token=None):
+              worker_id=None, lease_token=None, instance_token=None):
         with self.db() as c:
             if worker_id is not None or lease_token is not None:
                 c.execute("BEGIN IMMEDIATE")
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, instance_token)
             if stage == "script" and status == "running":
                 # A fresh attempt invalidates every artifact from the previous attempt.
                 # Keep this in the same transaction as the fenced stage transition.
@@ -187,7 +194,7 @@ class ProductionStore:
                 raise KeyError(job_id)
 
     def artifact(self, job_id, stage, artifact_type, url, metadata,
-                 worker_id=None, lease_token=None):
+                 worker_id=None, lease_token=None, instance_token=None):
         if artifact_type in ("audio", "video") and (
             not isinstance(url, str) or not url.startswith(("https://", "http://"))
         ):
@@ -197,7 +204,7 @@ class ProductionStore:
         with self.db() as c:
             if worker_id is not None or lease_token is not None:
                 c.execute("BEGIN IMMEDIATE")
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, instance_token)
             c.execute("""INSERT INTO production_artifacts
               (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
               VALUES(?,?,?,?,?,?,?)
@@ -478,11 +485,12 @@ class ProductionPipeline:
                 "Worker heartbeat/stop signal was lost; no further provider calls are allowed"
             )
 
-    def execute(self, job_id, brief, worker_id=None, lease_token=None, stop_event=None):
+    def execute(self, job_id, brief, worker_id=None, lease_token=None, instance_token=None, stop_event=None):
         brief = self.validate_brief(brief)
         if (worker_id is None) != (lease_token is None):
             raise ValueError("worker_id and lease_token must be supplied together")
-        lease = {"worker_id": worker_id, "lease_token": lease_token}
+        lease = {"worker_id": worker_id, "lease_token": lease_token,
+                 "instance_token": instance_token}
         policy_report = brief.get("policy_report") or evaluate_content_policy(brief)
         try:
             self._check_stop(stop_event)

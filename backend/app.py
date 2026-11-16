@@ -16,6 +16,7 @@ from trend_recommendations import rank_trend_candidates
 from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError, ProductionLeaseConflict
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
+from reviewer_auth import resolve_review_principal, ReviewCredentialConfigurationError
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
@@ -34,6 +35,8 @@ from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
 from policy_engine import POLICY_VERSION
+from api_rate_limit import ApiRateLimitMiddleware, SQLiteRateLimitStore
+from operator_rbac import has_permission, OperatorRoleConfigurationError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 class TikTokOAuthAccessLogRedaction(logging.Filter):
@@ -57,6 +60,20 @@ for access_handler in uvicorn_access_logger.handlers:
 
 
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
+rate_limit_store=SQLiteRateLimitStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+app.add_middleware(
+    ApiRateLimitMiddleware,
+    store=rate_limit_store,
+    trusted_proxy_cidrs=os.getenv("NEXUS_TRUSTED_PROXY_CIDRS", ""),
+    limits={
+        "default": int(os.getenv("NEXUS_API_RATE_LIMIT_PER_MINUTE", "120")),
+        "auth": int(os.getenv("NEXUS_API_AUTH_RATE_LIMIT_PER_MINUTE", "20")),
+        "publish": int(os.getenv("NEXUS_API_PUBLISH_RATE_LIMIT_PER_MINUTE", "10")),
+        "control": int(os.getenv("NEXUS_API_CONTROL_RATE_LIMIT_PER_MINUTE", "30")),
+        "review": int(os.getenv("NEXUS_API_REVIEW_RATE_LIMIT_PER_MINUTE", "60")),
+        "production": int(os.getenv("NEXUS_API_PRODUCTION_RATE_LIMIT_PER_MINUTE", "30")),
+    },
+)
 trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 trend_ingestor=TrendIngestor(trend_store)
 competitor_store=CompetitorStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
@@ -226,6 +243,7 @@ class ProductionBrief(BaseModel):
 class ProductionExecute(BaseModel):
     worker_id:str=Field(min_length=1,max_length=128)
     lease_token:str=Field(min_length=1,max_length=128)
+    instance_token:str=Field(min_length=1,max_length=128)
 
 class TrendCollect(BaseModel):
     region:str="US"
@@ -258,7 +276,7 @@ def get_brand(slug:str):
 
 @app.put("/api/brands/{slug}/activation")
 def set_brand_activation(slug:str,body:BrandActivation,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "brand.manage")
     try:
         return brand_store.set_active(slug,body.active)
     except BrandNotFound:
@@ -266,7 +284,7 @@ def set_brand_activation(slug:str,body:BrandActivation,x_review_token:str|None=H
 
 @app.post("/api/production/jobs",status_code=201)
 def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "production.create")
     try:
         brand = next((b for b in brand_store.list(active_only=True)
                       if body.brand in (b["slug"], b["name"])), None)
@@ -295,7 +313,7 @@ def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(de
 
 @app.get("/api/production/jobs/{job_id}")
 def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "production.read")
     result=production_store.get(job_id)
     if result is None: raise HTTPException(404,"Production job not found")
     return result
@@ -303,7 +321,7 @@ def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
 @app.get("/api/lifecycle/jobs/{job_id}")
 def get_job_lifecycle(job_id:str,x_review_token:str|None=Header(default=None)):
     """Return the authoritative cross-system lifecycle record for one production job."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "production.read")
     try:
         job=queue.get(job_id)
     except JobNotFound:
@@ -366,7 +384,7 @@ def get_job_lifecycle(job_id:str,x_review_token:str|None=Header(default=None)):
 @app.get("/api/lifecycle/jobs/{job_id}/consistency")
 def get_job_lifecycle_consistency(job_id:str,x_review_token:str|None=Header(default=None)):
     """Read-only cross-platform consistency diagnostics; never retries or mutates."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "operations.read")
     try:
         job=queue.get(job_id)
     except JobNotFound:
@@ -388,7 +406,7 @@ def get_job_lifecycle_consistency(job_id:str,x_review_token:str|None=Header(defa
 @app.get("/api/lifecycle/jobs/{job_id}/recovery")
 def get_job_recovery_plan(job_id:str,x_review_token:str|None=Header(default=None)):
     """Return an operator checklist; this endpoint never performs recovery actions."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "operations.read")
     try:
         job=queue.get(job_id)
     except JobNotFound:
@@ -409,7 +427,7 @@ def get_job_recovery_plan(job_id:str,x_review_token:str|None=Header(default=None
 @app.get("/api/lifecycle/jobs/{job_id}/overview")
 def get_job_lifecycle_overview(job_id:str,x_review_token:str|None=Header(default=None)):
     """Return a single read-only operational view across all production stages."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "operations.read")
     trace=get_job_lifecycle(job_id,x_review_token)
     consistency=get_job_lifecycle_consistency(job_id,x_review_token)
     recovery=get_job_recovery_plan(job_id,x_review_token)
@@ -460,7 +478,7 @@ def get_lifecycle_queue(
     x_review_token:str|None=Header(default=None),
 ):
     """Bounded, read-only global production queue and lifecycle risk overview."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "operations.read")
     if status and status not in {
         "queued","running","review_pending","approved","rejected",
         "revision_requested","failed_retriable","failed_terminal","cancelled",
@@ -538,27 +556,31 @@ def get_lifecycle_queue(
 
 @app.post("/api/production/jobs/{job_id}/execute")
 def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "production.execute")
     try:
         job=queue.get(job_id)
         if job["job_type"]!="short_video_production":
             raise HTTPException(409,"Job is not a short-video production job")
         if job["status"]!="running" or job["worker_id"]!=body.worker_id or job["lease_token"]!=body.lease_token:
             raise HTTPException(409,"Current worker lease is required")
+        queue.assert_current_worker_instance(body.worker_id,body.instance_token)
         result=production_pipeline.execute(
-            job_id,job["payload"],worker_id=body.worker_id,lease_token=body.lease_token
+            job_id,job["payload"],worker_id=body.worker_id,lease_token=body.lease_token,
+            instance_token=body.instance_token
         )
-        queue.finish(job_id,body.worker_id,body.lease_token,{"production_status":"review_pending"})
+        queue.finish(job_id,body.worker_id,body.lease_token,
+                     {"production_status":"review_pending"},instance_token=body.instance_token)
         production_store.reconcile_review_pending(queue)
         return production_store.get(job_id)
     except ProviderError as e:
         try:
             queue.fail(job_id,body.worker_id,body.lease_token,
-                       "provider_"+e.stage,str(e),e.retryable)
+                       "provider_"+e.stage,str(e),e.retryable,instance_token=body.instance_token)
         except Exception:
             pass
         try:
-            queue.pause(f"API provider failure at {e.stage}: {e}", job_id)
+            queue.pause(f"API provider failure at {e.stage}: {e}", job_id,
+                        worker_id=body.worker_id,instance_token=body.instance_token)
         except Exception:
             pass
         raise HTTPException(502,{"stage":e.stage,"error":str(e),"retryable":e.retryable})
@@ -566,13 +588,15 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
         raise HTTPException(404,"Job not found")
     except ProductionLeaseConflict as e:
         try:
-            queue.pause(f"API production lease conflict: {e}", job_id)
+            queue.pause(f"API production lease conflict: {e}", job_id,
+                        worker_id=body.worker_id,instance_token=body.instance_token)
         except Exception:
             pass
         raise HTTPException(409,str(e))
     except LeaseConflict as e:
         try:
-            queue.pause(f"API queue lease conflict: {e}", job_id)
+            queue.pause(f"API queue lease conflict: {e}", job_id,
+                        worker_id=body.worker_id,instance_token=body.instance_token)
         except Exception:
             pass
         raise HTTPException(409,str(e))
@@ -581,25 +605,44 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
     except Exception as e:
         try:
             queue.fail(job_id,body.worker_id,body.lease_token,
-                       "pipeline_internal_error",type(e).__name__,False)
+                       "pipeline_internal_error",type(e).__name__,False,
+                       instance_token=body.instance_token)
         except Exception:
             pass
         try:
-            queue.pause(f"API pipeline internal error: {type(e).__name__}: {e}", job_id)
+            queue.pause(f"API pipeline internal error: {type(e).__name__}: {e}", job_id,
+                        worker_id=body.worker_id,instance_token=body.instance_token)
         except Exception:
             pass
         raise HTTPException(500,"Production pipeline failed internally")
 
 
 def require_review_access(token):
-    expected=os.getenv("NEXUS_REVIEW_TOKEN")
-    if not valid_review_token(token, expected):
+    try:
+        reviewer_id = resolve_review_principal(token)
+    except ReviewCredentialConfigurationError:
+        # Broken operator configuration must never fall back to a shared token.
+        raise HTTPException(503,"Review authentication is not configured safely")
+    if not reviewer_id:
         raise HTTPException(401,"Valid review token required")
+    return reviewer_id
+
+
+def require_review_permission(token, permission):
+    """Authenticate the bearer token and enforce its configured operator role."""
+    operator_id = require_review_access(token)
+    try:
+        allowed = has_permission(operator_id, permission)
+    except OperatorRoleConfigurationError:
+        raise HTTPException(503,"Operator role configuration is not configured safely")
+    if not allowed:
+        raise HTTPException(403,"Operator role does not grant this action")
+    return operator_id
 
 
 @app.get("/api/review/pending")
 def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "review.read")
     production_store.reconcile_review_pending(queue)
     return {"items":review_store.list_pending(limit)}
 
@@ -607,7 +650,7 @@ def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None)):
 
 @app.get("/api/review/approved")
 def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "review.read")
     items=review_store.list_approved(limit)
     pending=[]
     for item in items:
@@ -652,11 +695,11 @@ def update_review_policy_evidence(
     job_id:str, body:PolicyEvidenceInput,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    authenticated_reviewer = require_review_permission(x_review_token, "review.evidence")
     declarations=body.model_dump(exclude={"reviewer_id"},exclude_none=True)
     try:
         return review_store.update_policy_evidence(
-            job_id,body.reviewer_id,declarations
+            job_id,authenticated_reviewer or body.reviewer_id,declarations
         )
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
@@ -669,11 +712,11 @@ def update_review_policy_evidence(
 @app.post("/api/review/{job_id}/approve")
 def approve_review(job_id:str, body:ReviewDecision,
                    x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_reviewer = require_review_permission(x_review_token, "review.decide")
     try:
         staged_path=media_stager.staged_path(job_id)
         return review_store.decide(
-            job_id,"approved",body.reviewer_id,body.comment,
+            job_id,"approved",authenticated_reviewer or body.reviewer_id,body.comment,
             staged_media_path=staged_path
         )
     except ReviewNotFound:
@@ -687,9 +730,9 @@ def approve_review(job_id:str, body:ReviewDecision,
 @app.post("/api/review/{job_id}/reject")
 def reject_review(job_id:str, body:ReviewDecision,
                   x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_reviewer = require_review_permission(x_review_token, "review.decide")
     try:
-        return review_store.decide(job_id,"rejected",body.reviewer_id,body.comment)
+        return review_store.decide(job_id,"rejected",authenticated_reviewer or body.reviewer_id,body.comment)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -701,9 +744,9 @@ def reject_review(job_id:str, body:ReviewDecision,
 @app.post("/api/review/{job_id}/request-revision")
 def request_revision(job_id:str, body:ReviewDecision,
                      x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_reviewer = require_review_permission(x_review_token, "review.decide")
     try:
-        return review_store.decide(job_id,"revision_requested",body.reviewer_id,body.comment)
+        return review_store.decide(job_id,"revision_requested",authenticated_reviewer or body.reviewer_id,body.comment)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -714,7 +757,7 @@ def request_revision(job_id:str, body:ReviewDecision,
 
 @app.get("/api/review/{job_id}/history")
 def review_history(job_id:str, x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "review.read")
     try:
         return {"items":review_store.history(job_id)}
     except ReviewNotFound:
@@ -741,7 +784,7 @@ def require_canonical_staged_media(job_id:str,media_path:str):
 
 @app.post("/api/production/jobs/{job_id}/stage-media")
 def stage_production_media(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "media.manage")
     production=production_store.get(job_id)
     if production is None:
         raise HTTPException(404,"Production job not found")
@@ -761,7 +804,7 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
 
 @app.post("/api/production/jobs/{job_id}/cleanup-media")
 def cleanup_production_media(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "media.manage")
     try:
         return media_stager.cleanup_uploaded(job_id,youtube_upload_store)
     except MediaStagingError as e:
@@ -771,7 +814,7 @@ def cleanup_production_media(job_id:str,x_review_token:str|None=Header(default=N
 @app.post("/api/youtube/upload/{job_id}",status_code=201)
 def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
                          x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publish.execute")
     staged_path=require_canonical_staged_media(job_id,body.media_path)
     try:
         return youtube_publisher.upload_approved(
@@ -785,7 +828,7 @@ def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
 
 @app.get("/api/youtube/uploads/{job_id}")
 def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publishing.read")
     result=youtube_upload_store.get(job_id)
     if result is None:
         raise HTTPException(404,"YouTube upload record not found")
@@ -795,14 +838,15 @@ def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
 @app.post("/api/youtube/uploads/{job_id}/reconcile")
 def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
                               x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_permission(x_review_token, "publish.reconcile")
     if not body.confirmed:
         raise HTTPException(422,"Explicit operator confirmation is required")
     if body.outcome=="uploaded" and not body.video_id:
         raise HTTPException(422,"A verified YouTube video ID is required")
     try:
         return youtube_upload_store.reconcile(
-            job_id,body.outcome,body.video_id,body.note,body.operator_id
+            job_id,body.outcome,body.video_id,body.note,
+            authenticated_operator or body.operator_id
         )
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
@@ -811,10 +855,10 @@ def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
 @app.post("/api/youtube/uploads/{job_id}/resolve-late-result")
 def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
                                 x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_permission(x_review_token, "publish.reconcile")
     try:
         return youtube_upload_store.resolve_late_success(
-            job_id,body.operator_id,body.note,body.video_id
+            job_id,authenticated_operator or body.operator_id,body.note,body.video_id
         )
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
@@ -822,7 +866,7 @@ def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
 
 @app.post("/api/youtube/videos/{video_id}/refresh-metrics")
 def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "analytics.read")
     try:
         return youtube_publisher.refresh_metrics(video_id)
     except YouTubeUploadError as e:
@@ -832,7 +876,7 @@ def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=
 def start_tiktok_oauth(
     response:Response,x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publish.manage")
     try:
         result=tiktok_oauth_manager.start_authorization()
         response.set_cookie(
@@ -873,7 +917,7 @@ def tiktok_oauth_callback(
 
 @app.get("/api/tiktok/oauth/status")
 def tiktok_oauth_status(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publishing.read")
     result=tiktok_oauth_manager.status()
     if not result.get("connected") and os.getenv("TIKTOK_ACCESS_TOKEN"):
         result={"connected":True,"status":"static_token_configured","mode":"static_env"}
@@ -882,7 +926,7 @@ def tiktok_oauth_status(x_review_token:str|None=Header(default=None)):
 
 @app.post("/api/tiktok/oauth/disconnect")
 def disconnect_tiktok_oauth(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publish.manage")
     if os.getenv("TIKTOK_ACCESS_TOKEN"):
         raise HTTPException(
             409,"Static TIKTOK_ACCESS_TOKEN is configured; remove it from the runtime before disconnecting OAuth."
@@ -895,7 +939,7 @@ def disconnect_tiktok_oauth(x_review_token:str|None=Header(default=None)):
 
 @app.get("/api/tiktok/creator-info")
 def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publish.execute")
     try:
         return tiktok_publisher.creator_info()
     except TikTokPublishError as e:
@@ -905,11 +949,12 @@ def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
 @app.post("/api/tiktok/publish/{job_id}",status_code=201)
 def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
                          x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_permission(x_review_token, "publish.execute")
     staged_path=require_canonical_staged_media(job_id,body.media_path)
     try:
         return tiktok_publisher.publish_private_approved(
-            job_id,staged_path,review_store,body.title,body.operator_id,
+            job_id,staged_path,review_store,body.title,
+            authenticated_operator or body.operator_id,
             explicit_consent=body.explicit_consent,
             privacy_level=body.privacy_level,
             brand_content_toggle=body.brand_content_toggle,
@@ -923,7 +968,7 @@ def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
 
 @app.get("/api/tiktok/publications/{job_id}")
 def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publishing.read")
     result=tiktok_publish_store.get(job_id)
     if result is None:
         raise HTTPException(404,"TikTok publication record not found")
@@ -935,10 +980,10 @@ def reconcile_tiktok_publication(
     job_id:str, body:TikTokPublicationReconciliation,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_permission(x_review_token, "publish.reconcile")
     try:
         return tiktok_publish_store.reconcile(
-            job_id, body.outcome, body.operator_id, body.note,
+            job_id, body.outcome, authenticated_operator or body.operator_id, body.note,
             video_id=body.video_id, confirmed=body.confirmed,
         )
     except TikTokPublishError as e:
@@ -947,7 +992,7 @@ def reconcile_tiktok_publication(
 
 @app.post("/api/tiktok/publications/{job_id}/refresh-status")
 def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publish.reconcile")
     try:
         return tiktok_publisher.refresh_status(job_id)
     except TikTokPublishError as e:
@@ -957,7 +1002,7 @@ def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(
 
 @app.post("/api/finance/ledger",status_code=201)
 def record_financial_entry(body:LedgerEntry,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "finance.write")
     try:
         return ledger_store.record(body.model_dump())
     except (ValueError,KeyError) as e:
@@ -967,7 +1012,7 @@ def record_financial_entry(body:LedgerEntry,x_review_token:str|None=Header(defau
 @app.get("/api/finance/report")
 def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|None=None,
                      currency:str="USD",x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "finance.read")
     try:
         return ledger_store.report(brand,from_date,to_date,currency)
     except ValueError as e:
@@ -977,13 +1022,13 @@ def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|Non
 
 @app.get("/api/performance/insights")
 def performance_insights(brand:str|None=None,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "analytics.read")
     return performance_analyzer.analyze(brand)
 
 
 @app.get("/api/youtube/analytics-metrics")
 def youtube_analytics_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "analytics.read")
     bounded=max(1,min(limit,200))
     items=youtube_analytics_store.recent_metrics(youtube_upload_store,bounded)
     return {
@@ -998,7 +1043,7 @@ def youtube_analytics_metrics(limit:int=100,x_review_token:str|None=Header(defau
 
 @app.get("/api/tiktok/metrics")
 def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "analytics.read")
     bounded=max(1,min(limit,200))
     items=tiktok_metrics_store.recent_metrics(tiktok_publish_store,bounded)
     return {
@@ -1013,7 +1058,7 @@ def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
 
 @app.get("/api/metrics/collection-status")
 def metrics_collection_status(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "analytics.read")
     interval=max(300,int(os.getenv("NEXUS_METRICS_COLLECTION_INTERVAL_SECONDS","21600")))
     youtube=youtube_upload_store.metrics_collection_status(interval*2)
     youtube["credentials_configured"]=all(os.getenv(key) for key in (
@@ -1055,7 +1100,7 @@ def metrics_collection_status(x_review_token:str|None=Header(default=None)):
 
 @app.post("/api/schedules",status_code=201)
 def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "schedules.manage")
     brand=next((b for b in brand_store.list(active_only=True)
                 if body.brand in (b["slug"],b["name"])),None)
     if brand is None: raise HTTPException(422,"Unknown or inactive brand")
@@ -1069,21 +1114,21 @@ def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=No
 
 @app.get("/api/schedules")
 def list_schedules(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "schedules.manage")
     return {"items":schedule_store.list()}
 
 
 
 @app.get("/api/schedules/outbox")
 def schedule_outbox(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "schedules.manage")
     return schedule_store.outbox_status()
 
 
 @app.put("/api/schedules/{schedule_id}/activation")
 def activate_schedule(schedule_id:str,active:bool,
                       x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "schedules.manage")
     result=schedule_store.set_active(schedule_id,active)
     if result is None:raise HTTPException(404,"Schedule not found")
     return result
@@ -1091,7 +1136,7 @@ def activate_schedule(schedule_id:str,active:bool,
 
 @app.post("/api/trends/collect")
 def collect_trends(body:TrendCollect,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "trends.collect")
     try:
         return trend_ingestor.collect(body.region,body.query,body.limit,body.include_hacker_news)
     except ValueError as e:
@@ -1101,7 +1146,7 @@ def collect_trends(body:TrendCollect,x_review_token:str|None=Header(default=None
 
 @app.get("/api/trends")
 def list_trends(region:str|None=None,source:str|None=None,q:str|None=None,limit:int=50,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "trends.read")
     try:
         return {"items":trend_store.list(region,source,q,limit)}
     except ValueError as e:
@@ -1111,7 +1156,7 @@ def list_trends(region:str|None=None,source:str|None=None,q:str|None=None,limit:
 @app.post("/api/trends/{trend_id}/draft-production",status_code=201)
 def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
                                 x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "production.create")
     try:
         trend=trend_store.get(trend_id)
         if trend is None:
@@ -1163,7 +1208,7 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
 
 @app.get("/api/competitors/search")
 def search_competitors(q:str,limit:int=5,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "intelligence.read")
     if len(q)<2 or len(q)>100: raise HTTPException(422,"q must contain 2-100 characters")
     try:
         return competitor_intel.search(q,limit)
@@ -1174,12 +1219,12 @@ def search_competitors(q:str,limit:int=5,x_review_token:str|None=Header(default=
 
 @app.get("/api/competitors")
 def list_competitors(limit:int=50,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "intelligence.read")
     return {"channels":competitor_store.list_channels(limit)}
 
 @app.get("/api/competitors/{channel_id}")
 def inspect_competitor(channel_id:str,video_limit:int=10,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "intelligence.read")
     try:
         result=competitor_intel.inspect(channel_id,video_limit)
         if result is None: raise HTTPException(404,"Channel not found")
@@ -1215,7 +1260,7 @@ class OpportunityInput(BaseModel):
 
 @app.post("/api/opportunities/score",status_code=201)
 def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "opportunities.manage")
     try:
         data=body.model_dump()
         channel_ids=data.pop("competitor_channel_ids",[])
@@ -1272,7 +1317,7 @@ def _trend_recommendation_payload(ranked, candidate_ids=None):
 @app.get("/api/trends/recommendations")
 def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|None=Header(default=None)):
     """Read-only recommendation retrieval; does not create an evaluation exposure."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.read")
     return _trend_recommendation_payload(_build_trend_recommendations(region,limit))
 
 
@@ -1280,7 +1325,7 @@ def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|N
 def capture_trend_recommendations(region:str|None=None,limit:int=30,
                                   x_review_token:str|None=Header(default=None)):
     """Explicitly capture the recommendation set returned to the production workspace."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.manage")
     ranked=_build_trend_recommendations(region,limit)
     exposure=recommendation_evaluation_store.record_run(region,ranked)
     candidate_ids = {
@@ -1297,13 +1342,13 @@ def capture_trend_recommendations(region:str|None=None,limit:int=30,
 @app.get("/api/recommendations/evaluation")
 def recommendation_evaluation(x_review_token:str|None=Header(default=None)):
     """Report chronological holdout diagnostics for selected recommendation outcomes."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.read")
     return recommendation_evaluation_store.evaluate(performance_analyzer.analyze())
 
 @app.post("/api/recommendations/evaluation/snapshots")
 def capture_recommendation_evaluation_snapshot(x_review_token:str|None=Header(default=None)):
     """Capture an immutable evaluation record on explicit operator request."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.manage")
     result=recommendation_evaluation_store.evaluate(performance_analyzer.analyze())
     snapshot=recommendation_evaluation_store.record_evaluation_snapshot(result)
     return {
@@ -1320,7 +1365,7 @@ def capture_recommendation_evaluation_snapshot(x_review_token:str|None=Header(de
 def list_recommendation_evaluation_snapshots(
     limit:int=20,x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.read")
     return recommendation_evaluation_store.list_evaluation_snapshots(limit)
 
 
@@ -1329,7 +1374,7 @@ def record_recommendation_rendered_exposures(
     body:RecommendationRenderedExposureBatch,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.manage")
     try:
         result=recommendation_evaluation_store.record_rendered_exposures(
             body.run_id,[item.model_dump() for item in body.exposures]
@@ -1345,7 +1390,7 @@ def record_recommendation_rendered_exposures(
 def recommendation_rendered_exposure_report(
     run_id:str,x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.read")
     result=recommendation_evaluation_store.rendered_exposure_report(
         run_id,performance_analyzer.analyze()
     )
@@ -1358,7 +1403,7 @@ def recommendation_rendered_exposure_report(
 def recommendation_experiment_integrity_report(
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.read")
     return recommendation_evaluation_store.experiment_integrity_report()
 
 
@@ -1367,10 +1412,10 @@ def create_recommendation_experiment(
     body:RecommendationExperimentCreate,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_permission(x_review_token, "recommendations.manage")
     try:
         return recommendation_evaluation_store.create_experiment(
-            body.name,body.operator_id,body.control_label,body.treatment_label,
+            body.name,authenticated_operator or body.operator_id,body.control_label,body.treatment_label,
             body.treatment_allocation_basis_points
         )
     except ValueError as e:
@@ -1381,7 +1426,7 @@ def create_recommendation_experiment(
 def list_recommendation_experiments(
     limit:int=20,x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.read")
     return recommendation_evaluation_store.list_experiments(limit)
 
 
@@ -1390,7 +1435,7 @@ def assign_recommendation_experiment_shadow(
     experiment_id:str,body:RecommendationExperimentAssignment,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.manage")
     try:
         result=recommendation_evaluation_store.assign_shadow(
             experiment_id,body.participant_key
@@ -1406,7 +1451,7 @@ def assign_recommendation_experiment_shadow(
 def recommendation_experiment_report(
     experiment_id:str,x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "recommendations.read")
     result=recommendation_evaluation_store.experiment_report(experiment_id)
     if result is None:
         raise HTTPException(404,"Recommendation experiment not found")
@@ -1418,10 +1463,10 @@ def skip_recommendation_feedback(
     body:RecommendationSkipFeedback,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    authenticated_operator = require_review_permission(x_review_token, "recommendations.manage")
     try:
         result=recommendation_evaluation_store.record_skip(
-            body.trend_id, body.brand_slug, body.reviewer_id, body.reason,
+            body.trend_id, body.brand_slug, authenticated_operator or body.reviewer_id, body.reason,
             candidate_id=body.recommendation_candidate_id,
         )
     except ValueError as e:
@@ -1433,7 +1478,7 @@ def skip_recommendation_feedback(
 
 @app.get("/api/opportunities")
 def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "analytics.read")
     return {"opportunities":opportunity_store.list(limit)}
 
 @app.get("/api/publishing/dashboard")
@@ -1441,7 +1486,7 @@ def publishing_dashboard(
     limit:int=100, x_review_token:str|None=Header(default=None)
 ):
     """Read-only cross-platform publication state with platform-specific evidence."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "publishing.read")
     if limit < 1 or limit > 200:
         raise HTTPException(422, "limit must be between 1 and 200")
     youtube = youtube_upload_store.list_recent(limit)
@@ -1516,12 +1561,12 @@ def publishing_dashboard(
 def health(): return {"status":"ok","service":"nexus-studio-pro"}
 @app.get("/api/ops/health")
 def operational_health(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "operations.read")
     return queue.operational_health()
 
 @app.get("/api/ops/recovery-plan")
 def operational_recovery_plan(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "operations.read")
     health = queue.operational_health()
     checks = [
         {"id":"provider_outcomes","label":"외부 AI·게시 공급자의 이전 작업 결과와 중복 실행 여부 확인","operator_required":True},
@@ -1542,17 +1587,17 @@ def operational_recovery_plan(x_review_token:str|None=Header(default=None)):
     }
 @app.get("/api/queue/stats")
 def stats(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "queue.read")
     return queue.stats()
 @app.get("/api/queue/control")
 def queue_control(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "queue.read")
     return {"control":queue.worker_control(),"events":queue.worker_control_events(30)}
 
 @app.post("/api/queue/pause")
 def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
-    operator_id=body.operator_id.strip()
+    authenticated_operator = require_review_permission(x_review_token, "queue.control")
+    operator_id=(authenticated_operator or body.operator_id).strip()
     note=body.note.strip()
     if not operator_id or not note:
         raise HTTPException(422,"operator_id and note must not be blank")
@@ -1561,8 +1606,9 @@ def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=N
 
 @app.post("/api/queue/resume")
 def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
-    if not body.operator_id.strip() or not body.note.strip():
+    authenticated_operator = require_review_permission(x_review_token, "queue.control")
+    operator_id=(authenticated_operator or body.operator_id).strip()
+    if not operator_id or not body.note.strip():
         raise HTTPException(422,"operator_id and note must not be blank")
     if not body.recovery_confirmed:
         raise HTTPException(422,"Explicit recovery checklist confirmation is required")
@@ -1570,58 +1616,58 @@ def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=
     if health["blockers"]:
         raise HTTPException(409,{"message":"Queue recovery is blocked by unresolved operational safety signals","blockers":health["blockers"]})
     try:
-        control=queue.resume(actor=body.operator_id.strip(),note=body.note.strip())
+        control=queue.resume(actor=operator_id,note=body.note.strip())
         return {"control":control,"events":queue.worker_control_events(30)}
     except ValueError as e:
         raise HTTPException(409,str(e))
 
 @app.post("/api/jobs",status_code=201)
 def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "queue.enqueue")
     try:
         return queue.enqueue(**body.model_dump())
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
 @app.post("/api/jobs/claim")
 def claim(body:Claim,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "worker.execute")
     return {"job":queue.claim(body.worker_id,body.hostname)}
 @app.post("/api/jobs/{jid}/heartbeat")
 def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "worker.execute")
     try: return queue.heartbeat(jid,body.worker_id,body.lease_token)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/complete")
 def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "worker.execute")
     try: return queue.finish(jid,body.worker_id,body.lease_token,body.result)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/fail")
 def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "worker.execute")
     try: return queue.fail(jid,body.worker_id,body.lease_token,body.error_code,body.error_message,body.retryable)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/cancel")
 def cancel(jid:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "queue.control")
     try: return queue.cancel(jid)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except ValueError as e: raise HTTPException(409,str(e))
 @app.post("/api/queue/recover")
 def recover(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "queue.control")
     return queue.recover()
 @app.get("/api/workers")
 def workers(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "operations.read")
     return {"workers":queue.workers()}
 @app.get("/api/jobs/{jid}/failure-analysis")
 def get_job_failure_analysis(jid:str,x_review_token:str|None=Header(default=None)):
     """Read-only classification of the most recent persisted job failure."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "operations.read")
     try:
         job=queue.get(jid)
         events=queue.events(jid)
@@ -1647,7 +1693,7 @@ def get_operations_economics(
     limit:int=500, x_review_token:str|None=Header(default=None),
 ):
     """Read-only bounded production quality, publishing and recorded-financial analytics."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "analytics.read")
     if limit < 1 or limit > 500:
         raise HTTPException(422,"limit must be between 1 and 500")
     try:
@@ -1663,7 +1709,7 @@ def get_pipeline_performance(
     x_review_token:str|None=Header(default=None),
 ):
     """Return bounded cohort statistics from durable queue event timestamps."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "analytics.read")
     if min_samples < 1 or min_samples > 100:
         raise HTTPException(422,"min_samples must be between 1 and 100")
     page=queue.list_jobs(job_type="short_video_production",limit=min(100,max(1,limit)))
@@ -1678,7 +1724,7 @@ def get_pipeline_performance(
 @app.get("/api/jobs/{jid}/stage-performance")
 def get_job_stage_performance(jid:str,x_review_token:str|None=Header(default=None)):
     """Return read-only observed queue-state dwell times for one job."""
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "analytics.read")
     try:
         job=queue.get(jid)
     except JobNotFound:
@@ -1689,12 +1735,12 @@ def get_job_stage_performance(jid:str,x_review_token:str|None=Header(default=Non
 
 @app.get("/api/jobs/{jid}")
 def get_job(jid:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "production.read")
     try: return queue.get(jid)
     except JobNotFound: raise HTTPException(404,"Job not found")
 @app.get("/api/jobs/{jid}/events")
 def get_events(jid:str,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "production.read")
     try: queue.get(jid); return {"events":queue.events(jid)}
     except JobNotFound: raise HTTPException(404,"Job not found")
 
@@ -1702,7 +1748,7 @@ def get_events(jid:str,x_review_token:str|None=Header(default=None)):
 
 @app.get("/api/preflight")
 def preflight(x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    require_review_permission(x_review_token, "operations.read")
     result=build_preflight()
     oauth_status=tiktok_oauth_manager.status()
     tiktok_connected=bool(oauth_status.get("connected") or os.getenv("TIKTOK_ACCESS_TOKEN"))

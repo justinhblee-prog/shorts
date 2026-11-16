@@ -31,11 +31,13 @@ pipeline = ProductionPipeline(store)
 stopping = threading.Event()
 active_job_id = None
 active_lost_lease_event = None
+INSTANCE_TOKEN = str(uuid.uuid4())
 
 
 def handle_shutdown_signal(signum, frame):
     request_worker_shutdown(
-        queue, stopping, active_job_id, active_lost_lease_event, signum
+        queue, stopping, active_job_id, active_lost_lease_event, signum,
+        worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN
     )
 
 
@@ -43,12 +45,12 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
     interval = HEARTBEAT_SECONDS if interval is None else max(0, interval)
     while not heartbeat_stop.wait(interval):
         try:
-            queue.heartbeat(job_id, WORKER_ID, token)
+            queue.heartbeat(job_id, WORKER_ID, token, INSTANCE_TOKEN)
         except LeaseConflict as exc:
             lost_lease.set()
             stopping.set()
             try:
-                queue.pause(f"heartbeat lease conflict: {exc}", job_id)
+                queue.pause(f"heartbeat lease conflict: {exc}", job_id, worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
             except Exception:
                 pass
             return
@@ -58,7 +60,7 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
             lost_lease.set()
             stopping.set()
             try:
-                queue.pause(f"heartbeat failure: {type(exc).__name__}: {exc}", job_id)
+                queue.pause(f"heartbeat failure: {type(exc).__name__}: {exc}", job_id, worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
             except Exception:
                 pass
             return
@@ -71,7 +73,8 @@ def run_once():
     store.reconcile_missing_runs(queue)
     store.reconcile_terminal_jobs(queue)
     store.reconcile_review_pending(queue)
-    job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production")
+    job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production",
+                      instance_token=INSTANCE_TOKEN)
     if job is None:
         return False
     lost_lease = threading.Event()
@@ -92,12 +95,13 @@ def run_once():
             raise LeaseConflict("Worker lease was lost before provider execution")
         result = pipeline.execute(job["id"], job["payload"],
                                   worker_id=WORKER_ID, lease_token=job["lease_token"],
-                                  stop_event=lost_lease)
+                                  instance_token=INSTANCE_TOKEN, stop_event=lost_lease)
         if lost_lease.is_set():
             raise LeaseConflict("Worker lease was lost while generating media")
         queue.finish(job["id"], WORKER_ID, job["lease_token"],
                      {"production_status": "review_pending",
-                      "artifact_count": len(result["artifacts"])})
+                      "artifact_count": len(result["artifacts"])},
+                     instance_token=INSTANCE_TOKEN)
         store.reconcile_review_pending(queue)
         print(f"review_pending job={job['id']}")
     except KeyboardInterrupt:
@@ -106,18 +110,18 @@ def run_once():
         try:
             # Pause first so the current running job and production record are
             # terminalized atomically before its lease can be released.
-            queue.pause(reason, job["id"])
+            queue.pause(reason, job["id"], worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
         except Exception:
             try:
                 queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                           "worker_interrupted_ambiguous", reason, False)
+                           "worker_interrupted_ambiguous", reason, False, instance_token=INSTANCE_TOKEN)
             except LeaseConflict:
                 pass
         raise
     except PolicyBlocked as exc:
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "policy_blocked", str(exc), False)
+                       "policy_blocked", str(exc), False, instance_token=INSTANCE_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         print(f"policy_blocked job={job['id']} stage={exc.stage}")
@@ -125,11 +129,11 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "provider_" + exc.stage, str(exc), exc.retryable)
+                       "provider_" + exc.stage, str(exc), exc.retryable, instance_token=INSTANCE_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
-            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
+            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"], worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
         except Exception:
             pass
         print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}")
@@ -137,11 +141,11 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "worker_interrupted_ambiguous", str(exc), False)
+                       "worker_interrupted_ambiguous", str(exc), False, instance_token=INSTANCE_TOKEN)
         except LeaseConflict:
             pass
         try:
-            queue.pause(f"lease/production conflict: {exc}", job["id"])
+            queue.pause(f"lease/production conflict: {exc}", job["id"], worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
         except Exception:
             pass
         print(f"lease_lost job={job['id']}; worker_paused")
@@ -149,11 +153,11 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "worker_error", str(exc), False)
+                       "worker_error", str(exc), False, instance_token=INSTANCE_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
-            queue.pause(f"fatal worker error: {type(exc).__name__}: {exc}", job["id"])
+            queue.pause(f"fatal worker error: {type(exc).__name__}: {exc}", job["id"], worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
         except Exception:
             pass
         print(f"worker_failure job={job['id']} error={type(exc).__name__}")
@@ -170,10 +174,12 @@ def main():
     signal.signal(signal.SIGTERM, handle_shutdown_signal)
     print(f"worker_started id={WORKER_ID} lease_seconds={LEASE_SECONDS} heartbeat_seconds={HEARTBEAT_SECONDS}")
     try:
+        # Registration acquires ownership once per process. Re-registering in
+        # the loop would let an old process reclaim a worker ID after restart.
+        queue.register_worker(WORKER_ID, socket.gethostname(), INSTANCE_TOKEN)
         while True:
-            # Keep idle and paused workers visible; job heartbeats alone only
-            # refresh registry timestamps while a production lease is running.
-            queue.register_worker(WORKER_ID, socket.gethostname())
+            if not queue.touch_worker(WORKER_ID, INSTANCE_TOKEN):
+                raise LeaseConflict("Worker process instance lost registry ownership")
             if stopping.is_set():
                 return
             if queue.is_paused():
@@ -186,11 +192,18 @@ def main():
     except Exception as exc:
         stopping.set()
         try:
-            queue.pause(f"fatal worker startup/reconciliation error: {type(exc).__name__}: {exc}")
+            queue.pause(f"fatal worker startup/reconciliation error: {type(exc).__name__}: {exc}",
+                        worker_id=WORKER_ID, instance_token=INSTANCE_TOKEN)
         except Exception:
             pass
         print(f"worker_fatal error={type(exc).__name__}; worker_paused")
         raise
+    finally:
+        try:
+            queue.mark_worker_offline(WORKER_ID, INSTANCE_TOKEN)
+        except Exception as exc:
+            # Do not hide the original worker failure if shutdown bookkeeping fails.
+            print(f"worker_offline_record_failed error={type(exc).__name__}")
 
 
 if __name__ == "__main__":

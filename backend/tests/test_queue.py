@@ -1,4 +1,4 @@
-import sys, tempfile, unittest
+import sqlite3, sys, tempfile, unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -8,6 +8,80 @@ class QueueTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.q=JobQueue(Path(self.tmp.name)/"test.db",10)
  def tearDown(self): self.tmp.cleanup()
+
+ def test_worker_registry_instance_token_migrates_existing_database(self):
+  legacy_path=Path(self.tmp.name)/"legacy.db"
+  with sqlite3.connect(legacy_path) as c:
+   c.execute("CREATE TABLE worker_registry(worker_id TEXT PRIMARY KEY, hostname TEXT, last_seen_at TEXT NOT NULL, status TEXT NOT NULL)")
+   c.execute("INSERT INTO worker_registry VALUES('legacy-worker','old-host','2026-01-01T00:00:00+00:00','online')")
+  migrated=JobQueue(legacy_path,10)
+  with migrated.db() as c:
+   columns={row["name"] for row in c.execute("PRAGMA table_info(worker_registry)")}
+   row=c.execute("SELECT worker_id,instance_token FROM worker_registry").fetchone()
+  self.assertIn("instance_token",columns)
+  self.assertEqual(row["worker_id"],"legacy-worker")
+  self.assertIsNone(row["instance_token"])
+
+ def test_stale_worker_instance_cannot_mark_restarted_instance_offline(self):
+  self.q.register_worker("worker-reused","host-a","instance-old")
+  self.q.register_worker("worker-reused","host-b","instance-new")
+  self.assertFalse(self.q.mark_worker_offline("worker-reused","instance-old"))
+  row=self.q.workers()[0]
+  self.assertEqual(row["status"],"online")
+  self.assertNotIn("instance_token",row)
+  with self.q.db() as c:
+   self.assertEqual(c.execute("SELECT instance_token FROM worker_registry WHERE worker_id=?",("worker-reused",)).fetchone()[0],"instance-new")
+  self.assertTrue(self.q.mark_worker_offline("worker-reused","instance-new"))
+  self.assertEqual(self.q.workers()[0]["status"],"offline")
+
+ def test_stale_worker_instance_cannot_heartbeat_after_restart(self):
+  job=self.q.enqueue("render",{})
+  claimed=self.q.claim("worker-reused",instance_token="instance-old")
+  self.q.register_worker("worker-reused","host-b","instance-new")
+  with self.assertRaises(LeaseConflict):
+   self.q.heartbeat(job["id"],"worker-reused",claimed["lease_token"],"instance-old")
+  self.assertEqual(self.q.get(job["id"])["lease_expires_at"],claimed["lease_expires_at"])
+
+ def test_stale_worker_instance_cannot_reclaim_or_steal_registry_ownership(self):
+  self.q.register_worker("worker-reused","host-new","instance-new")
+  self.q.enqueue("render",{})
+  with self.assertRaises(LeaseConflict):
+   self.q.claim("worker-reused","host-old",job_type="render",instance_token="instance-old")
+  with self.q.db() as c:
+   owner=c.execute("SELECT instance_token FROM worker_registry WHERE worker_id=?",
+                   ("worker-reused",)).fetchone()[0]
+  self.assertEqual(owner,"instance-new")
+  claimed=self.q.claim("worker-reused","host-new",job_type="render",instance_token="instance-new")
+  self.assertIsNotNone(claimed)
+
+ def test_stale_worker_instance_cannot_finish_or_fail_job(self):
+  job=self.q.enqueue("render",{})
+  old=self.q.claim("worker-reused",instance_token="instance-old")
+  self.q.register_worker("worker-reused","host-b","instance-new")
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"worker-reused",old["lease_token"],instance_token="instance-old")
+  with self.assertRaises(LeaseConflict):
+   self.q.fail(job["id"],"worker-reused",old["lease_token"],"stale","stale",False,instance_token="instance-old")
+  self.assertEqual(self.q.get(job["id"])["status"],"running")
+
+ def test_stale_worker_instance_cannot_pause_production_queue(self):
+  self.q.register_worker("worker-reused","host-a","instance-old")
+  self.q.register_worker("worker-reused","host-b","instance-new")
+  with self.assertRaises(LeaseConflict):
+   self.q.pause("stale process attempted pause",worker_id="worker-reused",instance_token="instance-old")
+  self.assertFalse(self.q.is_paused())
+
+ def test_graceful_worker_shutdown_is_persisted_as_offline_not_stale(self):
+  self.q.register_worker("worker-clean","host-a")
+  self.assertTrue(self.q.mark_worker_offline("worker-clean"))
+  self.assertEqual(self.q.workers()[0]["status"],"offline")
+  health=self.q.operational_health()
+  self.assertEqual(health["workers"]["total"],1)
+  self.assertEqual(health["workers"]["online"],0)
+  self.assertEqual(health["workers"]["stale"],0)
+  self.assertEqual(health["status"],"healthy")
+  self.assertFalse(self.q.mark_worker_offline("missing-worker"))
+
  def test_operational_health_reports_worker_staleness_without_mutation(self):
   job=self.q.enqueue("render",{})
   claimed=self.q.claim("worker-stale")
@@ -249,6 +323,19 @@ class QueueTests(unittest.TestCase):
    self.q.resume(actor="admin-7",note="")
   self.q.resume(actor="admin-7",note="Reviewed queue and provider state")
   self.assertEqual(self.q.worker_control_events()[0]["event_type"],"resumed")
+ def test_stale_worker_instance_cannot_refresh_presence_after_restart(self):
+  self.q.register_worker("shared-worker","host-old","instance-old")
+  self.assertTrue(self.q.touch_worker("shared-worker","instance-old"))
+  self.q.register_worker("shared-worker","host-new","instance-new")
+  self.assertFalse(self.q.touch_worker("shared-worker","instance-old"))
+  self.assertTrue(self.q.touch_worker("shared-worker","instance-new"))
+  with self.q.db() as c:
+   row=c.execute("SELECT hostname,status,instance_token FROM worker_registry WHERE worker_id=?",
+                 ("shared-worker",)).fetchone()
+  self.assertEqual(row["hostname"],"host-new")
+  self.assertEqual(row["status"],"online")
+  self.assertEqual(row["instance_token"],"instance-new")
+
  def test_idle_worker_presence_refresh_and_stale_offline_detection(self):
   first=self.q.register_worker("idle-worker","host-a")
   self.assertEqual(first["status"],"online")

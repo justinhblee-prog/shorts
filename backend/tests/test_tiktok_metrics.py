@@ -203,6 +203,20 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertTrue(self.store.release_lease("collector-a", first))
         self.assertIsNotNone(self.store.acquire_lease("collector-b", 60))
 
+    def test_collection_state_write_rejects_a_replaced_lease_token(self):
+        token = self.store.acquire_lease("collector-a", lease_seconds=300)
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_metrics_collector_lease SET lease_token=?,expires_at=? WHERE id=1",
+                ("replacement-token", "9999-12-31T23:59:59+00:00"),
+            )
+        with self.assertRaisesRegex(RuntimeError, "lease lost"):
+            self.store.record_collection(
+                "succeeded", requested=1, collected=1,
+                lease_owner="collector-a", lease_token=token,
+            )
+        self.assertEqual(self.store.status(self.publications)["status"], "not_started")
+
     def test_recent_metrics_returns_latest_snapshot_only_for_completed_owned_publications(self):
         self.store.save_snapshot("job-1", {
             "id": "video-1", "view_count": 10, "like_count": 1,
@@ -244,6 +258,8 @@ class TikTokMetricsTests(unittest.TestCase):
                 self.released = False
             def acquire_lease(self, owner_id, lease_seconds=300):
                 return "lease-token"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return True
             def release_lease(self, owner_id, token):
                 self.released = True
             def record_collection(self, status, **kwargs):
@@ -268,6 +284,8 @@ class TikTokMetricsTests(unittest.TestCase):
                 self.released = False
             def acquire_lease(self, owner_id, lease_seconds=300):
                 return "lease-token"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return True
             def release_lease(self, owner_id, token):
                 self.released = True
             def record_collection(self, status, **kwargs):

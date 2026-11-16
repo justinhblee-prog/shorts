@@ -97,7 +97,7 @@ are KR, US, JP and GB; supported languages are Korean, English and Japanese.
 
 ## BUILD-00007 — human review
 
-Configure a strong `NEXUS_REVIEW_TOKEN` secret in the API environment. Review endpoints require it in the `X-Review-Token` header and fail closed if unset.
+Preferred multi-operator setup: configure `NEXUS_REVIEW_CREDENTIALS_JSON` as a JSON object mapping each operator ID to a unique random token (minimum 32 characters). Each operator sends their own token in `X-Review-Token`. When this map is present, `NEXUS_REVIEW_TOKEN` is ignored. The legacy shared token remains a migration fallback only and is attributed to the fixed identity `legacy-operator`.
 
 - `GET /api/review/pending`
 - `POST /api/review/{job_id}/approve`
@@ -105,13 +105,13 @@ Configure a strong `NEXUS_REVIEW_TOKEN` secret in the API environment. Review en
 - `POST /api/review/{job_id}/request-revision`
 - `GET /api/review/{job_id}/history`
 
-Request body: `{"reviewer_id":"operator-1","comment":"Optional approval note"}`. Rejection and revision requests require a comment. Decisions record the reviewed artifact snapshot and are append-only; a decision cannot be overwritten. Approval does not trigger upload or public publishing. The current reviewer ID is asserted by the caller; integrate a real identity provider and role-based authorization before multi-user production deployment.
+Request body: `{"reviewer_id":"operator-1","comment":"Optional approval note"}`. The body reviewer_id is retained for client compatibility but is not trusted: the API derives the audit reviewer identity from the credential that authenticated the request. Rejection and revision requests require a comment. Decisions record the reviewed artifact snapshot and are append-only; a decision cannot be overwritten. Approval does not trigger upload or public publishing. This is per-operator token authentication, not a full identity-provider integration or role-based authorization system; add an external IdP/RBAC layer before broad multi-user or public deployment.
 
 ## BUILD-00008 — YouTube private publishing and counters
 
 Configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REFRESH_TOKEN` as runtime secrets. The refresh token must be granted `youtube.upload` and `youtube.readonly` scopes. Never commit credentials or token files.
 
-Approved publishing requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-Token`, a job with a recorded human `approved` decision, the immutable approved artifact snapshot, and the staged-media SHA-256 fingerprint. The API stages only the artifact URL stored on that production job (`POST /api/production/jobs/{job_id}/stage-media`); it does not accept an arbitrary caller-supplied URL or host path. Upload attempts use a private immutable byte snapshot and are serialized per job.
+Approved publishing requires an accepted operator credential in `X-Review-Token`, a job with a recorded human `approved` decision, the immutable approved artifact snapshot, and the staged-media SHA-256 fingerprint. The API stages only the artifact URL stored on that production job (`POST /api/production/jobs/{job_id}/stage-media`); it does not accept an arbitrary caller-supplied URL or host path. Upload attempts use a private immutable byte snapshot and are serialized per job.
 
 YouTube routes include `POST /api/youtube/upload/{job_id}`, `GET /api/youtube/uploads/{job_id}`, and `POST /api/youtube/videos/{video_id}/refresh-metrics`. The publisher forces `privacyStatus=private`; there is no public/unlisted override.
 
@@ -137,7 +137,7 @@ Run `python scheduler.py` as a separate supervised process from the API and prod
 
 ## Integrated Docker Compose deployment
 
-At repository root, copy `.env.example` to `.env`, set a long random `NEXUS_REVIEW_TOKEN`, configure provider URLs/tokens and YouTube OAuth secrets. Then run:
+At repository root, copy `.env.example` to `.env`, configure individual `NEXUS_REVIEW_CREDENTIALS_JSON` tokens (or the temporary legacy `NEXUS_REVIEW_TOKEN` fallback), provider URLs/tokens and YouTube OAuth secrets. Then run:
 
 ```bash
 docker compose build
@@ -450,3 +450,47 @@ GitHub Actions PR run [43719673855](https://github.com/justinhblee-prog/shorts/a
 Provider JSON adapters read no more than 2 MiB plus one detection byte and reject oversized responses before JSON parsing. The same limit is enforced after custom/injected transports return, preventing a custom adapter from bypassing the boundary. This protects worker memory from unexpectedly large or malformed provider responses. Renderer media artifacts are separate binary downloads and continue to use the media staging size limit.
 
 GitHub Actions PR run [43720002960](https://github.com/justinhblee-prog/shorts/actions/runs/43720002960) passed **499 tests** and frontend validation passed with **107 unique IDs / 91 literal selectors**.
+
+
+## Trusted reverse proxies for API rate limits
+
+By default, rate-limit buckets use the direct ASGI peer IP and ignore `X-Forwarded-For`. When operating behind a reverse proxy, configure `NEXUS_TRUSTED_PROXY_CIDRS` with only the exact proxy IPv4/IPv6 CIDRs you control. Forwarded addresses are honored only when the direct peer is trusted; the middleware walks the chain right-to-left and stops at the first untrusted hop. Invalid, duplicate, oversized or malformed headers fall back to the proxy peer. Ensure your proxy appends or overwrites forwarding metadata safely. Never trust all public addresses or allow direct untrusted traffic to supply forwarding headers. Invalid CIDR configuration fails API startup.
+
+
+## Authenticated operator audit attribution
+
+When `NEXUS_REVIEW_CREDENTIALS_JSON` is configured, the token-resolved operator identity is used for human-review decisions, policy-evidence events, queue pause/resume events, YouTube upload reconciliation and late-success resolution, TikTok publishing/reconciliation, recommendation experiment creation and recommendation-skip feedback. Client-supplied `reviewer_id` and `operator_id` body fields remain for compatibility but are not trusted for these audit records. The legacy shared-token fallback maps all requests to `legacy-operator`. Tokens currently grant the same operational permissions; role separation and external identity-provider integration remain future work.
+
+
+## Encrypted SQLite backups
+
+Set a dedicated `NEXUS_BACKUP_ENCRYPTION_KEY` using a URL-safe base64 32-byte key generated with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Do not reuse the TikTok token-encryption key. With the variable set, `sqlite_backup.py backup` emits authenticated AES-256-GCM `.sqlite3.enc` files; `verify` and `restore` automatically use the same key. The encryption/decryption path streams in bounded chunks, validates the GCM authentication tag, refuses overwrite, and removes temporary plaintext on failure. Without the key, the tool retains its legacy plaintext backup behavior. Keep the key separately and securely backed up; loss of the key makes encrypted backups unrecoverable. Encrypted backup files still need off-host replication and retention controls.
+
+
+## Operator role-based access control
+
+Per-operator bearer tokens are resolved by `NEXUS_REVIEW_CREDENTIALS_JSON`. To activate role-based permissions, also configure `NEXUS_REVIEW_ROLE_MAP_JSON` as a JSON object mapping each authenticated operator ID to a non-empty array of roles. Example:
+
+```json
+{
+  "content-producer": ["producer"],
+  "human-reviewer": ["reviewer"],
+  "publishing-operator": ["publisher"],
+  "finance-analyst": ["analyst", "finance"],
+  "system-admin": ["admin"]
+}
+```
+
+Available roles:
+- `admin`: all permissions.
+- `producer`: production creation/execution, trend collection, schedule management, queue enqueue and media staging/cleanup.
+- `reviewer`: pending/approved review reads, policy evidence and approve/reject/revision decisions.
+- `publisher`: YouTube/TikTok publish actions, publication reconciliation and TikTok OAuth lifecycle.
+- `analyst`: analytics and financial report reads.
+- `operator`: operational reads, queue controls, brand/schedule/media management, production creation/execution, trend collection and recommendation experiment management.
+- `finance`: financial ledger writes and report reads.
+- `worker`: queue job claim, heartbeat, completion and failure API calls only; does not grant queue pause/resume/cancel.
+
+When the role map is present, authenticated operators omitted from it are denied role-protected actions (HTTP 403); malformed role configuration fails closed (HTTP 503). Multiple roles combine their grants. Do not grant `admin` to service or review accounts unnecessarily. The role map is separate from the token map and must use the exact reviewer IDs configured in `NEXUS_REVIEW_CREDENTIALS_JSON`.
+
+For migration compatibility, if `NEXUS_REVIEW_ROLE_MAP_JSON` is absent or blank, authenticated operators retain the legacy full-access permission set. This is not RBAC enforcement: populate and validate the role map before production use. Token authentication remains bearer-token based; external IdP, user sessions, token expiry/rotation automation and production identity lifecycle are not included.

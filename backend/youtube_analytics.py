@@ -130,6 +130,20 @@ class YouTubeAnalyticsStore:
                   datetime.fromtimestamp(now, timezone.utc).isoformat()))
         return token
 
+    def renew_lease(self, owner_id, token, lease_seconds=300, now=None):
+        """Renew a still-live analytics lease without allowing a stale owner to revive it."""
+        now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            updated = connection.execute(
+                """UPDATE youtube_analytics_lease SET lease_until=?,updated_at=?
+                   WHERE id=1 AND owner_id=? AND token=? AND lease_until>?""",
+                (now + max(30, int(lease_seconds)),
+                 datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                 owner_id, token, now),
+            )
+            return updated.rowcount == 1
+
     def release_lease(self, owner_id, token):
         with self.db() as connection:
             connection.execute(
@@ -137,9 +151,19 @@ class YouTubeAnalyticsStore:
                 (owner_id, token),
             )
 
-    def record_collection(self, status, requested=0, collected=0, missing=0, error=None):
+    def record_collection(self, status, requested=0, collected=0, missing=0, error=None,
+                          lease_owner=None, lease_token=None):
         now = datetime.now(timezone.utc).isoformat()
         with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if lease_owner is not None:
+                lease = connection.execute(
+                    "SELECT owner_id,token,lease_until FROM youtube_analytics_lease WHERE id=1"
+                ).fetchone()
+                if (lease is None or lease["owner_id"] != lease_owner
+                        or lease["token"] != lease_token
+                        or lease["lease_until"] <= datetime.now(timezone.utc).timestamp()):
+                    raise RuntimeError("YouTube Analytics lease lost; collection state write rejected")
             connection.execute("""
               INSERT INTO youtube_analytics_collection_state
                 (id,status,last_attempt_at,last_success_at,last_error,requested,collected,

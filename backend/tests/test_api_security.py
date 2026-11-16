@@ -25,6 +25,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  require_canonical_staged_media, stage_production_media, approve_review,
                  publishing_dashboard, tiktok_metrics, youtube_analytics_metrics)
 from production_pipeline import ProviderError
+from queue_store import LeaseConflict
 
 class ApiSecurityTests(unittest.TestCase):
     def test_canonical_staged_media_accepts_only_current_job_file(self):
@@ -524,14 +525,14 @@ class ApiSecurityTests(unittest.TestCase):
             reviewer_id="reviewer-1", reason="Already covered",
         )
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_access", return_value="authenticated-operator"),
             mock.patch("app.recommendation_evaluation_store.record_skip",
                        return_value={"recorded": True, "candidate_id": "candidate-1"}) as record,
         ):
             result = skip_recommendation_feedback(body, x_review_token="test-token")
         self.assertTrue(result["recorded"])
         record.assert_called_once_with(
-            "trend-1", "alpha", "reviewer-1", "Already covered",
+            "trend-1", "alpha", "authenticated-operator", "Already covered",
             candidate_id="candidate-1",
         )
 
@@ -764,9 +765,10 @@ class ApiSecurityTests(unittest.TestCase):
                "status": "running", "worker_id": "worker-1",
                "lease_token": "lease-1", "payload": {"topic": "test"}}
         response = {"status": "review_pending"}
-        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1", instance_token="instance-1")
         with (
             mock.patch("app.require_review_access"),
+            mock.patch("app.queue.assert_current_worker_instance"),
             mock.patch("app.queue.get", return_value=job),
             mock.patch("app.production_pipeline.execute",
                               return_value={"artifacts": []}) as execute,
@@ -778,19 +780,42 @@ class ApiSecurityTests(unittest.TestCase):
 
         self.assertEqual(result, response)
         execute.assert_called_once_with(
-            "job-1", job["payload"], worker_id="worker-1", lease_token="lease-1"
+            "job-1", job["payload"], worker_id="worker-1", lease_token="lease-1",
+            instance_token="instance-1"
         )
-        finish.assert_called_once()
+        finish.assert_called_once_with("job-1","worker-1","lease-1",
+            {"production_status":"review_pending"},instance_token="instance-1")
         reconcile.assert_called_once_with(app_module.queue)
+
+    def test_api_production_execution_rejects_stale_worker_instance(self):
+        job = {"id":"job-stale","job_type":"short_video_production","status":"running",
+               "worker_id":"worker-1","lease_token":"lease-1","payload":{"topic":"test"}}
+        body = ProductionExecute(worker_id="worker-1",lease_token="lease-1",
+                                 instance_token="instance-old")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue,"get",return_value=job),
+            mock.patch.object(app_module.queue,"assert_current_worker_instance",
+                              side_effect=LeaseConflict("stale worker instance")),
+            mock.patch.object(app_module.production_pipeline,"execute") as execute,
+            mock.patch.object(app_module.queue,"pause") as pause,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job("job-stale",body,x_review_token="test-token")
+        self.assertEqual(caught.exception.status_code,409)
+        execute.assert_not_called()
+        pause.assert_called_once_with("API queue lease conflict: stale worker instance","job-stale",
+                                      worker_id="worker-1",instance_token="instance-old")
 
     def test_api_production_execution_rejects_stale_pipeline_lease(self):
         job = {"id": "job-1", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
                "lease_token": "lease-1", "payload": {"topic": "test"}}
-        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1", instance_token="instance-1")
         with (
             mock.patch("app.require_review_access"),
             mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "assert_current_worker_instance"),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProductionLeaseConflict("stale lease")),
             mock.patch.object(app_module.queue, "fail") as fail,
@@ -805,10 +830,11 @@ class ApiSecurityTests(unittest.TestCase):
         job = {"id": "job-provider", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
                "lease_token": "lease-1", "payload": {"topic": "test"}}
-        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1", instance_token="instance-1")
         with (
             mock.patch("app.require_review_access"),
             mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "assert_current_worker_instance"),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProviderError("script", "provider timeout", True)),
             mock.patch.object(app_module.queue, "fail") as fail,
@@ -824,10 +850,11 @@ class ApiSecurityTests(unittest.TestCase):
         job = {"id": "job-internal", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
                "lease_token": "lease-1", "payload": {"topic": "test"}}
-        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1", instance_token="instance-1")
         with (
             mock.patch("app.require_review_access"),
             mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "assert_current_worker_instance"),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=RuntimeError("unexpected")),
             mock.patch.object(app_module.queue, "fail") as fail,
@@ -843,24 +870,24 @@ class ApiSecurityTests(unittest.TestCase):
         control = {"paused": True, "pause_reason": body.note, "paused_job_id": "job-1"}
         events = [{"event_type": "paused", "actor": body.operator_id}]
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_access", return_value="authenticated-operator"),
             mock.patch.object(app_module.queue, "pause", return_value=control) as pause,
             mock.patch.object(app_module.queue, "worker_control", return_value=control),
             mock.patch.object(app_module.queue, "worker_control_events", return_value=events),
         ):
             paused = pause_queue(body, x_review_token="test-token")
-        pause.assert_called_once_with(body.note, actor=body.operator_id)
+        pause.assert_called_once_with(body.note, actor="authenticated-operator")
         self.assertTrue(paused["control"]["paused"])
         self.assertEqual(paused["events"], events)
 
         resumed_control = {"paused": False, "pause_reason": None, "paused_job_id": None}
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_access", return_value="authenticated-operator"),
             mock.patch.object(app_module.queue, "resume", return_value=resumed_control) as resume,
             mock.patch.object(app_module.queue, "worker_control_events", return_value=[]),
         ):
             resumed = resume_queue(body, x_review_token="test-token")
-        resume.assert_called_once_with(actor=body.operator_id, note=body.note)
+        resume.assert_called_once_with(actor="authenticated-operator", note=body.note)
         self.assertFalse(resumed["control"]["paused"])
 
     def test_queue_resume_requires_explicit_recovery_confirmation(self):
@@ -915,7 +942,7 @@ class ApiSecurityTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as invalid:
                 require_review_access("wrong-secret")
             self.assertEqual(invalid.exception.status_code, 401)
-            self.assertIsNone(require_review_access("unit-test-secret"))
+            self.assertEqual(require_review_access("unit-test-secret"), "legacy-operator")
         finally:
             if previous is None:
                 os.environ.pop("NEXUS_REVIEW_TOKEN", None)

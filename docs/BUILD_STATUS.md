@@ -137,15 +137,15 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 ## Remaining blockers before a real revenue-producing launch
 
-1. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
-2. **Media handoff:** current renderer output is a remote artifact URL, while YouTube upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
-4. **YouTube OAuth:** issue and configure a refresh token with `youtube.upload` and `youtube.readonly`; validate channel identity, quota, private upload and processing on a test channel.
-5. **Financial integrations:** connect YouTube Analytics, affiliate networks and sponsor billing to the source-backed ledger. Reconcile actual currency, refunds, taxes and platform adjustments.
-6. **Security/operations:** replace shared review token with real user identity and roles; add HTTPS, secret rotation, audit export, backups/restore, monitoring, rate limits and incident recovery.
-7. **Scale:** migrate SQLite to PostgreSQL and add distributed worker/scheduler coordination before multi-instance deployment.
-8. **Commercial validation:** test one controlled content cohort across the ten brands; compare verified net revenue and costs before increasing production volume. No actual revenue or monetization is established yet.
+1. **Provider credentials and contracts:** configure real script, TTS and renderer providers; validate each vendor's request/response contract, licensing, cost, latency, reliability and output quality.
+2. **Live media handoff validation:** secure renderer artifact download, exact-host allowlisting, byte limits, MP4 validation, atomic staging and ffprobe quality checks are implemented. Still configure the real renderer CDN hostnames and verify real generated files, playback, retention and vendor-side cleanup. Malware scanning is not included.
+3. **YouTube OAuth and channel validation:** issue and configure a refresh token with `youtube.upload`, `youtube.readonly` and `yt-analytics.readonly`; validate channel identity, quota, private test upload, processing and real analytics retrieval.
+4. **Financial integrations:** reconcile YouTube Analytics, affiliate networks and sponsor billing against the source-backed ledger, including actual currency, refunds, taxes, fees and platform adjustments.
+5. **Security and operations:** replace the shared review token with real user identity and roles; configure public HTTPS, secret rotation, audit export, monitoring and alerting. SQLite backup, integrity verification and non-destructive restore tooling are implemented, but encrypted off-host storage and restore drills remain operator tasks. API mutation rate limiting is implemented and must be tuned for the deployment.
+6. **Scale:** migrate SQLite to PostgreSQL and validate distributed worker/scheduler coordination before multi-instance deployment.
+7. **Commercial validation:** test one controlled content cohort across the ten brands; compare verified net revenue and costs before increasing production volume. No actual revenue or monetization is established yet.
 
-BUILD-00001 through BUILD-00023 describe implemented source milestones, but are not equivalent to a tested production system or a completed revenue-generating business. This is **not** equivalent to a tested production system or a completed revenue-generating business. External credentials, real provider execution, YouTube channel authorization and actual financial data remain necessary.
+Automated CI validates source behavior, not a production deployment. Real provider execution, OAuth consent, real-account publishing, production analytics, off-host backup/restore and actual financial reconciliation remain unverified. This repository is not yet a verified production system or a proven revenue-generating business.
 
 ## Versioning
 
@@ -1568,3 +1568,267 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Live YouTube OAuth, Data API upload and Analytics API report retrieval remain unverified.
 - Real provider generation, real rendered artifact delivery, remote platform visibility, quotas/billing, production hosting, backup/restore and revenue remain unverified.
 - Unit and mocked transport tests must not be represented as successful live integration or revenue validation.
+
+
+
+## Parallel development update — BUILD-00090 and BUILD-00091 (2026-11-15)
+
+| Build | Workstream | Pull request | Push CI | PR CI |
+|---|---|---|---:|---:|
+| BUILD-00090 | Renewable and transaction-fenced leases for YouTube Data API counters, YouTube Analytics and TikTok metrics collectors | [#51](https://github.com/justinhblee-prog/shorts/pull/51) | 528 tests | passed |
+| BUILD-00091 | Require scheduler leadership renewal and post-poll validation before/after TikTok status polling | [#52](https://github.com/justinhblee-prog/shorts/pull/52) | 525 tests | passed |
+
+### BUILD-00090 validation
+- Push CI [43727205026](https://github.com/justinhblee-prog/shorts/actions/runs/43727205026): **528 tests passed**.
+- Final-head PR merge-result CI [43727332336](https://github.com/justinhblee-prog/shorts/actions/runs/43727332336): passed.
+- Lease renewal is expiry-aware and fenced by owner/token. Collection-state writes verify the same live lease inside the write transaction to prevent stale collectors from overwriting newer state.
+- Tests are deterministic SQLite/runner tests, not live provider latency or remote API validation.
+
+### BUILD-00091 validation
+- Push CI [43727567497](https://github.com/justinhblee-prog/shorts/actions/runs/43727567497): **525 tests passed**.
+- PR merge-result CI [43727592372](https://github.com/justinhblee-prog/shorts/actions/runs/43727592372): passed.
+- Scheduler TikTok status polling now requires a live leadership token, renews before polling and checks ownership after the poll. Losing leadership prevents further polling and returns the scheduler to standby.
+- Tests use a fake publisher and do not call TikTok.
+
+### Current state
+- PR #51 and #52 are Open / Draft / unmerged, based independently on BUILD-00085.
+- No production deployment, OAuth consent or live platform request was performed.
+- Existing BUILD-00086 through BUILD-00089 integration evidence remains the 532-test run [43725622356](https://github.com/justinhblee-prog/shorts/actions/runs/43725622356). BUILD-00090 and BUILD-00091 have passed individual CI but have not yet been combined with that integration branch.
+
+
+
+## BUILD-00092 — explicit worker offline lifecycle (2026-11-15)
+
+- Pull request: [#54](https://github.com/justinhblee-prog/shorts/pull/54), Open / Draft / unmerged.
+- Workers now persist a graceful offline transition from the worker main loop's `finally` block.
+- Operational health counts only fresh `status='online'` workers as online; stale-heartbeat warnings apply only to online records whose heartbeat expired.
+- Abrupt process termination remains detected through the existing stale-heartbeat threshold.
+- Push CI [43728064603](https://github.com/justinhblee-prog/shorts/actions/runs/43728064603): 522 tests passed.
+- PR merge-result CI [43728086152](https://github.com/justinhblee-prog/shorts/actions/runs/43728086152): 522 tests passed.
+- Tests cover local registry and health-state behavior; no OS-level SIGKILL or production supervisor behavior is claimed.
+
+
+
+## BUILD-00086–00092 combined integration — 2026-11-15
+
+- Combined branch: `integration/build-00086-00092-combined`.
+- Merge commit: `f4f204ad5f38ead70ff583d99ba4d3897d36b97c`, with BUILD-00086–00089 and BUILD-00090–00092 as its two parents.
+- The merge retained YouTube Analytics response bounds, TikTok atomic batch validation, production cancellation lifecycle, renewable/fenced metrics leases, scheduler leadership fencing and graceful worker-offline state.
+- Combined push CI [43729728665](https://github.com/justinhblee-prog/shorts/actions/runs/43729728665): **544 tests passed**.
+- Combined pull-request CI [43729767443](https://github.com/justinhblee-prog/shorts/actions/runs/43729767443): **544 tests passed**.
+- Integration review PR: [#57](https://github.com/justinhblee-prog/shorts/pull/57), Open / Draft / unmerged. Superseded conflict probe PR #56 was closed.
+- Individual implementation PRs remain Open / Draft / unmerged. The integration branch is not deployed to production.
+- Automated validation does not prove live YouTube/TikTok OAuth, AI-provider generation, production rendering, real-account publishing, analytics retrieval or revenue.
+
+
+
+## BUILD-00093 — TikTok approval-media fingerprint regression (2026-11-15)
+
+- Pull request: [#58](https://github.com/justinhblee-prog/shorts/pull/58), merged into the integration-only validation branch (not production).
+- Added a regression test that mutates the staged video after human approval and verifies the TikTok publisher rejects it before making any provider request or creating a publication row.
+- The production code already uses the shared no-follow, hash-verified upload snapshot; this build closes a missing regression-test gap.
+- Push CI [43730328484](https://github.com/justinhblee-prog/shorts/actions/runs/43730328484): **545 tests passed**.
+- PR merge-result CI [43730353235](https://github.com/justinhblee-prog/shorts/actions/runs/43730353235): **545 tests passed**.
+- Tests use a fake transport and do not make a real TikTok request.
+
+
+
+## BUILD-00094 and BUILD-00095 — idempotent publishing cleanup (2026-11-15)
+
+| Build | Change | PR | Push CI | PR CI |
+|---|---|---|---:|---:|
+| BUILD-00094 | Avoid TikTok verified-media snapshot leaks on already-complete and concurrent-completion early returns; allow completed retry after staging cleanup | [#59](https://github.com/justinhblee-prog/shorts/pull/59) | 547 tests | 547 tests |
+| BUILD-00095 | Return confirmed YouTube uploads before checking staged-file retention; preserve all preflight checks for new uploads | [#60](https://github.com/justinhblee-prog/shorts/pull/60) | 546 tests | 546 tests |
+
+### CI evidence
+- BUILD-00094 push [43730820864](https://github.com/justinhblee-prog/shorts/actions/runs/43730820864) and PR [43730841177](https://github.com/justinhblee-prog/shorts/actions/runs/43730841177): **547 tests passed**.
+- BUILD-00095 final-head push [43731150850](https://github.com/justinhblee-prog/shorts/actions/runs/43731150850) and PR [43731156176](https://github.com/justinhblee-prog/shorts/actions/runs/43731156176): **546 tests passed**.
+- BUILD-00094 specifically covers temporary-file cleanup when a concurrent publisher has already completed.
+- BUILD-00095 verifies an already-confirmed YouTube upload remains idempotent after local staged media has been cleaned up.
+- Both workstreams use local fake transports; neither makes live platform requests.
+
+
+
+## BUILD-00086–00095 combined validation — 2026-11-15
+
+- Integration branch: `integration/build-00086-00092-combined` (branch name retained; includes BUILD-00093, BUILD-00094 and BUILD-00095).
+- Latest two-parent integration commit: `5ae1500c9f59bb45cc25a82d3ad38fc423f90e07`.
+- Push CI [43731448059](https://github.com/justinhblee-prog/shorts/actions/runs/43731448059): **548 tests passed**.
+- Pull-request CI [43731454247](https://github.com/justinhblee-prog/shorts/actions/runs/43731454247): **548 tests passed**.
+- PR #58 (BUILD-00093), #59 (BUILD-00094) and #60 (BUILD-00095) are merged into this integration-only branch.
+- PR #57 remains Open / Draft as the combined review PR against `integration/build-00086-00089-parallel`.
+- No PR was merged to `main`; no production deployment was made.
+- Live YouTube/TikTok OAuth, real AI-provider generation, renderer delivery, real-account publishing and revenue remain unverified.
+
+
+
+## BUILD-00096 — YouTube metrics lease token fencing (2026-11-15)
+
+- Pull request: [#62](https://github.com/justinhblee-prog/shorts/pull/62), merged into the integration-only branch.
+- The YouTube Data API metrics collector now uses a unique fencing token per lease acquisition.
+- Any unexpired lease blocks all new acquisitions, including attempts by the same owner ID.
+- Renewal, release and collection-state writes require the exact owner/token pair.
+- Existing SQLite lease tables are migrated with a `lease_token` column; legacy empty tokens cannot renew or release the lease.
+- Push CI [43732243418](https://github.com/justinhblee-prog/shorts/actions/runs/43732243418): **550 tests passed**.
+- PR merge-result CI [43732267560](https://github.com/justinhblee-prog/shorts/actions/runs/43732267560): **550 tests passed**.
+- Tests are local SQLite/runner checks; no live YouTube API request was made.
+
+
+
+## BUILD-00097 — worker process-instance fencing (2026-11-15)
+
+- Pull request: [#64](https://github.com/justinhblee-prog/shorts/pull/64), merged into the integration-only branch.
+- Added a UUID instance token to each worker process and an additive SQLite migration for `worker_registry.instance_token`.
+- Registration, claim, heartbeat and shutdown now carry the worker process identity; stale heartbeats and stale shutdowns cannot overwrite the current registry owner.
+- Worker registry responses omit the internal instance token.
+- Regression tests cover legacy DB migration, worker restart/offline fencing, stale heartbeat rejection and token privacy.
+- Push CI [43733525754](https://github.com/justinhblee-prog/shorts/actions/runs/43733525754): passed.
+- PR merge-result CI [43733532796](https://github.com/justinhblee-prog/shorts/actions/runs/43733532796): passed.
+- No production deployment or live provider request was performed.
+
+
+## BUILD-00098 — worker-instance fencing for completion and production writes (2026-11-15)
+
+- Pull request: [#65](https://github.com/justinhblee-prog/shorts/pull/65), merged into the integration-only branch.
+- Job `finish()` and `fail()` now require the current process-instance token when invoked by the production worker.
+- Production stage and artifact writes validate both the job lease and the current worker process instance.
+- Worker-originated pause requests, including heartbeat failure, SIGTERM and startup failure paths, are fenced by the same process token so a stale process cannot pause the production queue after restart.
+- Added regression coverage for stale finish/fail, stale queue pause, production stage/artifact writes, and shutdown token propagation.
+- An initial CI run exposed a missing instance-token check in artifact writes; that specific defect was corrected before the successful final run.
+- Final push CI [43734147538](https://github.com/justinhblee-prog/shorts/actions/runs/43734147538): **556 tests passed**.
+- PR merge-result CI [43734151885](https://github.com/justinhblee-prog/shorts/actions/runs/43734151885): passed.
+- Tests use local SQLite and fake providers; no live AI generation, platform publishing or production deployment was performed.
+
+
+
+## BUILD-00099 — worker claim ownership fencing (2026-11-15)
+
+- Pull request: [#66](https://github.com/justinhblee-prog/shorts/pull/66), merged into the integration-only branch.
+- A claim carrying an instance token now rejects a worker process that no longer owns the registry entry, preventing stale claim attempts from taking over a reused worker ID.
+- Added regression coverage for stale claim rejection and current-instance claim continuity.
+- Integration push CI [43734470042](https://github.com/justinhblee-prog/shorts/actions/runs/43734470042) and PR CI [43734475291](https://github.com/justinhblee-prog/shorts/actions/runs/43734475291): passed.
+- No production deployment or live provider request was performed.
+
+## BUILD-00100 — worker registration / presence-refresh fencing (2026-11-15)
+
+- Pull request: [#67](https://github.com/justinhblee-prog/shorts/pull/67), merged into the integration-only branch at `318f21da8c8bad40a2bd33e2d88c29c24c5efb49`.
+- Identified a remaining restart race: the worker main loop re-registered the same worker ID on every idle iteration, allowing an old process to reclaim the registry row after a replacement process had registered.
+- Worker registration is now a one-time ownership acquisition at process startup. Recurring liveness updates use `touch_worker(worker_id, instance_token)`, which updates only the exact online owner.
+- If a process loses registry ownership, its next presence refresh fails closed and the worker exits through the existing fenced error/shutdown path.
+- Added a regression test proving an old instance cannot refresh presence after the worker ID is reassigned.
+- Final-head push CI [43737410463](https://github.com/justinhblee-prog/shorts/actions/runs/43737410463) and PR merge-result CI [43737420594](https://github.com/justinhblee-prog/shorts/actions/runs/43737420594): passed.
+- Validation uses local SQLite and GitHub Actions; no production deployment, live OAuth, AI generation or platform publishing was performed.
+
+
+## BUILD-00101 — scheduler same-owner lease epoch fencing (2026-11-15)
+
+- Pull request: [#68](https://github.com/justinhblee-prog/shorts/pull/68), merged into the integration-only branch at `054d49be6c1cc2ed6b6c33dd575b42763aeb7e36`.
+- Found that an expired scheduler lease reacquired by the same owner ID reused its previous fencing token.
+- Live same-owner renewals continue to retain the active token; reacquisition after expiry now always creates a new UUID token, including when the owner ID is unchanged.
+- A delayed operation holding the prior token can no longer renew, release or validate against the new lease epoch.
+- Regression coverage verifies live renewal stability, same-owner expired reacquisition token rotation, and stale-token rejection.
+- Final-head push CI [43737597720](https://github.com/justinhblee-prog/shorts/actions/runs/43737597720) and PR merge-result CI [43737605403](https://github.com/justinhblee-prog/shorts/actions/runs/43737605403): passed.
+- No production deployment or live provider request was performed.
+
+
+## BUILD-00102 — API production execution instance fencing (2026-11-15)
+
+- Pull request: [#69](https://github.com/justinhblee-prog/shorts/pull/69), merged into the integration-only branch at `31b927de69d4ae016f0804c496a3f1c61f293a8a`.
+- Found that the authenticated API production-execution route still accepted only the queue lease token and therefore bypassed the worker process-instance fencing added in BUILD-00098.
+- `ProductionExecute` now requires the worker `instance_token`; the API verifies current registry ownership before invoking the pipeline.
+- The token is passed through pipeline execution, job finish/fail and pause handling so stale API callers cannot mutate state after worker restart.
+- Added tests for stale-instance rejection and token propagation across successful and failure paths.
+- Initial CI attempts caught incomplete test fixture updates; the fixtures and imports were corrected.
+- Final-head push CI [43737807891](https://github.com/justinhblee-prog/shorts/actions/runs/43737807891) and PR merge-result CI [43737821405](https://github.com/justinhblee-prog/shorts/actions/runs/43737821405): **560 tests passed**.
+- No production deployment, live AI generation or platform publishing was performed.
+
+
+## BUILD-00103 — SQLite backup integrity and non-destructive restore tooling (2026-11-15)
+
+- Pull request: [#70](https://github.com/justinhblee-prog/shorts/pull/70), merged into the integration-only branch at `e0145a216f7a61997240208e09c6b21919a78088`.
+- Added `backend/sqlite_backup.py` with SQLite online snapshot backup, full `PRAGMA integrity_check`, atomic publication, restrictive file permissions and configurable retention.
+- Added a restore-verification command that writes only to a new target path and refuses to overwrite an existing database.
+- Added tests for committed WAL data, integrity verification, retention, corrupt-source rejection, symlink rejection and non-destructive restore.
+- Updated `docs/OPERATOR_RUNBOOK.md` with backup, verification and restore-drill commands.
+- Final-head PR CI [43738024437](https://github.com/justinhblee-prog/shorts/actions/runs/43738024437): **565 tests passed**.
+- The utility does not encrypt backups or upload them off-host; operators must provide encrypted, access-controlled external storage. No production database was backed up or restored.
+
+
+## BUILD-00104 — persistent API mutation rate limiting (2026-11-15)
+
+- Pull request: [#71](https://github.com/justinhblee-prog/shorts/pull/71), merged into the integration-only branch at `dbfc69d4da79b546035ea298f15d1610c4548c20`.
+- Added SQLite-backed fixed-window rate limits shared by processes using the same database.
+- Applied configurable per-client limits to OAuth callbacks/start, publishing mutations, queue controls, review actions, production mutations and other API writes; read-only health/GET endpoints remain unthrottled.
+- Rate-limited responses return HTTP 429 with `Retry-After` and `X-RateLimit-*` headers. Client identifiers are hashed before persistence; caller-supplied `X-Forwarded-For` is not trusted.
+- SQLite transactions run off the ASGI event loop. Added concurrency, window reset, hashed identity, middleware and health-bypass tests.
+- Final-head push CI [43738239941](https://github.com/justinhblee-prog/shorts/actions/runs/43738239941) and PR merge-result CI [43738249951](https://github.com/justinhblee-prog/shorts/actions/runs/43738249951): **570 tests passed**.
+- Rate limiting uses the ASGI peer IP; proxy deployments must configure the trusted proxy boundary. No production deployment was performed.
+
+
+## BUILD-00105 — optional ClamAV media scanning (2026-11-16)
+
+- PR #72 adds a ClamAV CLI scanner for renderer artifacts and gates the atomic media-staging publish step when explicitly enabled.
+- Scanner exit code 0 is clean; infected results, scanner errors, missing executable, timeout and symlink targets fail closed. Failed scans remove the temporary artifact.
+- Added `NEXUS_MEDIA_SCAN_ENABLED`, `NEXUS_CLAMSCAN_PATH` and `NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS`; included ClamAV/freshclam in the shared container image and documented signature refresh.
+- GitHub Actions PR run [43771112826](https://github.com/justinhblee-prog/shorts/actions/runs/43771112826): **577 tests passed**.
+- Scanning remains opt-in and disabled by default. Operators must initialize and refresh the ClamAV database before enabling it. CI uses fake scanner results; no real artifact, database, deployment or platform upload was validated.
+
+
+## BUILD-00106 — per-operator reviewer identity binding (2026-11-16)
+
+- Added individual review credentials through `NEXUS_REVIEW_CREDENTIALS_JSON`, mapping each operator ID to a unique random token. Individual credentials supersede the legacy shared token.
+- Approval, rejection and policy-evidence audit records now use the identity resolved from the authenticated token, not the caller-supplied request-body reviewer ID.
+- Legacy-only configuration remains supported for migration but is always attributed to the fixed identity `legacy-operator`; malformed individual credential configuration fails closed with HTTP 503.
+- Added tests for unique identity resolution, invalid/duplicate/weak credentials, legacy fallback, malformed configuration and audit spoofing attempts.
+- This is per-operator bearer-token authentication, not full IdP/RBAC/session management. HTTPS, secure distribution and token rotation are required; broader RBAC remains open.
+- Final-head push CI [43773111981](https://github.com/justinhblee-prog/shorts/actions/runs/43773111981) and PR CI [43773117502](https://github.com/justinhblee-prog/shorts/actions/runs/43773117502): **588 tests passed**.
+
+
+## BUILD-00107 — trusted proxy-aware API rate-limit identity (2026-11-16)
+
+- Added explicit `NEXUS_TRUSTED_PROXY_CIDRS`; direct peer IP remains authoritative unless the peer belongs to an operator-configured trusted proxy network.
+- Safely parses a bounded single `X-Forwarded-For` chain, walks trusted hops right-to-left, and ignores malformed/duplicate/oversized chains.
+- Invalid CIDR configuration fails API startup. Added IPv4/IPv6, spoofing, chain and malformed-header tests.
+- Corrected escaped newlines accidentally introduced in the BUILD-00106 `.env.example` reviewer-credential section.
+- Final-head push CI [43773527527](https://github.com/justinhblee-prog/shorts/actions/runs/43773527527) and PR CI [43773552365](https://github.com/justinhblee-prog/shorts/actions/runs/43773552365): **595 tests passed**.
+
+
+## BUILD-00108 — authenticated operator audit attribution (2026-11-16)
+
+- Extended token-resolved actor identity to queue pause/resume, YouTube reconciliation/late-success resolution, TikTok private publishing/reconciliation, recommendation experiment creation and recommendation-skip feedback.
+- Request-body actor IDs remain accepted for compatibility but no longer determine audit attribution for these operations.
+- Added regression tests for forged actor IDs across the covered mutation endpoints.
+- Operators still share the same permissions; role separation and external IdP integration remain open. Final-head push CI [43773950141](https://github.com/justinhblee-prog/shorts/actions/runs/43773950141) and PR CI [43773953927](https://github.com/justinhblee-prog/shorts/actions/runs/43773953927): **603 tests passed**.
+
+
+## BUILD-00109 — authenticated encrypted SQLite backups (2026-11-16)
+
+- Added optional streaming AES-256-GCM encryption for online SQLite backups, using dedicated `NEXUS_BACKUP_ENCRYPTION_KEY` material.
+- Encrypted backups use `.sqlite3.enc`; verify/restore authenticate ciphertext and fail closed on wrong keys, tampering or truncation.
+- Temporary plaintext is removed; restore remains no-clobber; retention includes encrypted and plaintext backups.
+- Added tests for encrypted restore, wrong-key/tamper detection, combined retention, key requirements and temporary-file cleanup. Final-head push CI [43774559417](https://github.com/justinhblee-prog/shorts/actions/runs/43774559417) and PR CI [43774562521](https://github.com/justinhblee-prog/shorts/actions/runs/43774562521): **609 tests passed**.
+- Encryption remains opt-in. Secure key custody and off-host replication/restore drills remain operator requirements.
+
+
+## BUILD-00110 — operator role-based access control (2026-11-16)
+
+- Added explicit role-to-permission grants and `NEXUS_REVIEW_ROLE_MAP_JSON` keyed by authenticated reviewer IDs.
+- Applied role checks across review, production, media, publishing/OAuth, finance, analytics, schedules, trends, recommendations, brand activation and queue controls.
+- Unmapped identities are denied when a role map is active; malformed configuration fails closed. Roles: admin, producer, reviewer, publisher, analyst, operator, finance, worker.
+- Legacy full-access behavior remains only when the role map is absent/blank; production migration must populate the role map. External IdP and token lifecycle remain future work. Final-head push CI [43775131523](https://github.com/justinhblee-prog/shorts/actions/runs/43775131523), PR CI [43775135385](https://github.com/justinhblee-prog/shorts/actions/runs/43775135385), and post-merge integration CI [43775221344](https://github.com/justinhblee-prog/shorts/actions/runs/43775221344): **620 tests passed**.
+
+
+## BUILD-00111 — role-scoped read-only API coverage
+
+- Extended role grants with explicit read scopes for production, review, publishing, queue, operations, trends, competitor intelligence and recommendation data.
+- Applied role authorization to lifecycle views, review history, queue/worker diagnostics, preflight, analytics, publishing dashboard, trends, competitor intelligence, recommendation reports and job/event inspection.
+- Role separation now applies to mutations and sensitive read endpoints; public health and public brand catalog endpoints remain intentionally public.
+- Added tests for role-specific read grants and denial of operational/review data outside the assigned role. Final-head push CI [43775380140](https://github.com/justinhblee-prog/shorts/actions/runs/43775380140), PR CI [43775428525](https://github.com/justinhblee-prog/shorts/actions/runs/43775428525), and post-merge integration CI [43775520491](https://github.com/justinhblee-prog/shorts/actions/runs/43775520491): **623 tests passed**.
+
+
+## BUILD-00112 — complete API RBAC coverage
+
+- Added role guards to the remaining authenticated production/publishing reads, OAuth status/creator info, metrics refresh, opportunity scoring, rendered recommendation exposure capture, and queue worker endpoints.
+- Added a static route-coverage regression test: every `/api/*` route must declare an explicit RBAC permission except the documented public health, brand catalog and OAuth callback routes.
+- Added a dedicated `worker` role for API claim/heartbeat/complete/fail calls; queue cancellation remains a separate operator control permission.
+- Producer and analyst roles can manage opportunity scoring. Final-head push CI [43775696071](https://github.com/justinhblee-prog/shorts/actions/runs/43775696071), PR CI [43775800790](https://github.com/justinhblee-prog/shorts/actions/runs/43775800790), and post-merge integration CI [43775888584](https://github.com/justinhblee-prog/shorts/actions/runs/43775888584): **625 tests passed**.

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from youtube_publishing import YouTubeUploadStore
 from metrics_collector import run_once
+from metrics_collector import OWNER_ID
 
 
 class MetricsCollectionStatusTests(unittest.TestCase):
@@ -71,11 +72,14 @@ class MetricsCollectorRunTests(unittest.TestCase):
             self.released = False
 
         def acquire_metrics_collector_lease(self, owner_id, lease_seconds=300):
-            return owner_id if self.lease else None
+            return "fake-lease-token" if self.lease else None
 
-        def release_metrics_collector_lease(self, owner_id):
-            self.released = True
-            return True
+        def renew_metrics_collector_lease(self, owner_id, lease_token, lease_seconds=300):
+            self.renewed = (owner_id, lease_token)
+            return self.lease
+        def release_metrics_collector_lease(self, owner_id, lease_token):
+            self.released = (owner_id, lease_token) == (OWNER_ID, "fake-lease-token")
+            return self.released
 
         def record_metrics_collection(self, status, **kwargs):
             self.states.append((status, kwargs))
@@ -111,6 +115,21 @@ class MetricsCollectorRunTests(unittest.TestCase):
         self.assertTrue(result["skipped"])
         self.assertEqual(store.states, [])
         self.assertFalse(store.released)
+
+
+class LeaseHeartbeatTests(unittest.TestCase):
+    def test_heartbeat_assertion_detects_fencing_loss_without_waiting_for_timer(self):
+        from metrics_collector import LeaseHeartbeat, CollectorLeaseLost
+        heartbeat = LeaseHeartbeat(lambda: False, lease_seconds=30)
+        with self.assertRaises(CollectorLeaseLost):
+            heartbeat.assert_owned()
+        self.assertTrue(heartbeat.lost.is_set())
+
+    def test_heartbeat_uses_a_bounded_fraction_of_lease_duration(self):
+        from metrics_collector import LeaseHeartbeat
+        heartbeat = LeaseHeartbeat(lambda: True, lease_seconds=300)
+        self.assertLess(heartbeat.interval, heartbeat.lease_seconds)
+        self.assertLessEqual(heartbeat.interval, 30)
 
 
 if __name__ == "__main__":

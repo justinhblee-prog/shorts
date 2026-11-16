@@ -8,7 +8,9 @@ Scope: single-host Docker deployment and supervised operation.
 Copy `.env.example` to `.env`. Never commit the real file.
 
 Required for protected operations:
-- `NEXUS_REVIEW_TOKEN`: long, random operator token.
+- Preferred: `NEXUS_REVIEW_CREDENTIALS_JSON`, a JSON object mapping each individual operator ID to a unique random token of at least 32 characters. Example: `{"alice":"<alice-token>","bob":"<bob-token>"}`. Generate each token with `python -c "import secrets; print(secrets.token_urlsafe(48))"` and distribute it only to that operator through a secure secret channel.
+- Temporary migration fallback: `NEXUS_REVIEW_TOKEN`. If the individual credential map is configured, the shared token is ignored. If only the legacy token is configured, all requests are attributed to the fixed identity `legacy-operator`; caller-supplied reviewer IDs are never trusted for audit attribution.
+- Malformed individual credential configuration fails closed with HTTP 503. Invalid credentials receive HTTP 401. Keep the JSON value and all tokens out of source control and logs.
 
 Required for end-to-end AI production:
 - `SCRIPT_PROVIDER_URL`, `SCRIPT_PROVIDER_TOKEN`
@@ -40,7 +42,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Open `http://localhost:8502/`. The API, worker, scheduler and metrics collector use the same persistent SQLite volume. The scheduler uses a shared-database leader lease; multiple instances may run safely, with one active dispatcher at a time. The dashboard's token is held in browser memory only; refreshing the browser clears it.
+Open `http://localhost:8502/`. The API, worker, scheduler and metrics collector use the same persistent SQLite volume. The scheduler uses a shared-database leader lease; multiple instances may run safely, with one active dispatcher at a time. The dashboard token is held in browser memory only; refreshing the browser clears it. Each operator should use their own token.
 
 ## 3. Production lifecycle
 
@@ -92,7 +94,20 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 - The production worker heartbeats active job leases every 10 seconds by default (configurable with `NEXUS_HEARTBEAT_SECONDS`, capped at one-third of the lease). This reduces the delay before a worker detects an operator pause or lost lease. In-flight provider HTTP requests still run until their configured timeout; the stop signal prevents the worker from starting the next stage once the request returns. Worker presence is refreshed on every idle/paused polling cycle, not only during a leased job. The API reports workers as offline when their last heartbeat exceeds the queue lease window (minimum 30 seconds), so dead worker records do not remain falsely online.
 - Worker leases are fenced; stale workers cannot complete a job after losing ownership.
 - Scheduler dispatch uses deterministic idempotency keys. Run one scheduler process until distributed leadership is implemented.
-- Back up the persistent SQLite volume and test restoration before real operation.
+- Use the online SQLite backup utility for a consistent snapshot (including WAL data), integrity check and bounded retention. For encrypted backups, set a dedicated `NEXUS_BACKUP_ENCRYPTION_KEY` in the runtime secret store. Generate it with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. This key is consumed by the backup CLI automatically; do not reuse the TikTok token-encryption key. Store the key separately from the backup files and keep a recoverable secure copy. Loss of the key makes encrypted backups unrecoverable. Set the backup directory to an encrypted, access-controlled off-host mount:
+  ```bash
+  BACKUP_DIR=/secure/off-host/nexus-backups
+  # With NEXUS_BACKUP_ENCRYPTION_KEY set, output is authenticated AES-256-GCM ciphertext (.sqlite3.enc).
+  python backend/sqlite_backup.py backup --source data/nexus.sqlite3 --backup-dir "$BACKUP_DIR" --keep 14
+  LATEST_BACKUP="$(ls -1t "$BACKUP_DIR"/nexus-* | head -n 1)"
+  python backend/sqlite_backup.py verify --path "$LATEST_BACKUP"
+  python backend/sqlite_backup.py restore --backup "$LATEST_BACKUP" --target data/nexus-restore-check.sqlite3
+  python backend/sqlite_backup.py verify --path data/nexus-restore-check.sqlite3
+  ```
+  Restore always creates a new file and refuses to overwrite an existing database. Encrypted backups use streaming AES-256-GCM authentication; wrong keys or tampered ciphertext fail closed, and temporary plaintext is removed. Retention applies to encrypted and plaintext backup files together. For a real cutover, stop all services, preserve the original database, and explicitly configure the restored file as `NEXUS_DB_PATH`. Keep the encryption key separately backed up; encryption does not itself provide off-host replication.
+
+- API mutations are rate-limited per direct client IP using the shared SQLite database. Defaults are 120/minute for general mutations, 20/minute for OAuth, 10/minute for publishing, 30/minute for queue controls and production execution, and 60/minute for review actions. Tune the `NEXUS_API_*_RATE_LIMIT_PER_MINUTE` values for the expected operator traffic.
+- Rate-limit identity uses the ASGI peer address by default and ignores `X-Forwarded-For`. If deployed behind a reverse proxy, set `NEXUS_TRUSTED_PROXY_CIDRS` to the exact IPv4/IPv6 CIDRs of proxies you operate. The middleware honors a single, bounded `X-Forwarded-For` chain only when the immediate ASGI peer is in those CIDRs, walking from right to left through trusted hops and stopping at the first untrusted address. Malformed, duplicate, oversized or overlong forwarded chains fall back to the proxy peer. Configure the proxy to append/overwrite forwarding metadata correctly; never trust broad public ranges or caller-supplied headers from untrusted peers. Invalid CIDR configuration prevents API startup.
 - Do not scale multiple API/worker/scheduler instances on shared SQLite as if it were a production distributed database.
 
 ## 8. Validation checklist before launch
@@ -110,7 +125,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 
 ## 9. Current known blockers
 
-- Latest verified YouTube Analytics/TikTok performance dashboard code validation: [GitHub Actions run 43716613969](https://github.com/justinhblee-prog/shorts/actions/runs/43716613969), **490 tests passed**. This is automated validation only; live TikTok app approval, OAuth scope consent, publication and analytics remain external checks.
+- Latest integrated code validation for BUILD-00104: [GitHub Actions PR run 43738249951](https://github.com/justinhblee-prog/shorts/actions/runs/43738249951), **570 tests passed**. This is automated validation only; live provider credentials, OAuth consent, real generation, publication, analytics and revenue remain external checks.
 - Real provider credentials, renderer CDN hostnames, YouTube OAuth and financial integrations remain external dependencies. CI does not establish live provider compatibility, actual media generation, private YouTube upload, revenue ingestion or deployment readiness.
 - The application still uses a single-host SQLite architecture; multi-host distributed worker/scheduler operation is not established.
 
@@ -322,3 +337,50 @@ Provider JSON responses are limited to 2 MiB. If a provider returns an oversized
 - Content-Length is checked for valid nonnegative syntax, configured maximum size, and exact match with the streamed byte count.
 - Streaming byte limits, pinned public-IP TLS connection, MP4 signature check and atomic replacement remain in force.
 - On any failure, temporary staging files are removed. A successful stage still requires subsequent ffprobe media inspection before approval/publishing.
+
+
+## BUILD-00105 — optional ClamAV malware scanning for staged media
+
+- The API image includes `clamscan` and `freshclam`. Enable the gate with `NEXUS_MEDIA_SCAN_ENABLED=true`; set `NEXUS_CLAMSCAN_PATH` only when the executable is installed at a non-default path. The scan timeout defaults to 120 seconds and is controlled by `NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS`.
+- Before enabling the gate, initialize and periodically refresh the ClamAV signatures inside the API container:
+  ```bash
+  docker compose exec api freshclam
+  docker compose exec api clamscan --version
+  ```
+- When enabled, the artifact is scanned after bounded download, Content-Length and MP4 signature checks, but before the atomic move into the final staged filename. An infected result, missing scanner, unavailable/outdated database, scanner error or timeout rejects staging and removes the temporary file. The application never treats a scanner error as a clean result.
+- Staging responses report `malware_scan=clean` when the scan succeeds and `malware_scan=disabled` when the gate is off. The default remains disabled for backward-compatible rollout; operators must explicitly enable it and maintain fresh signatures before claiming malware scanning is active.
+- ClamAV scanning is one layer of defense, not a guarantee that a media file is safe. Keep the renderer host allowlist, size caps, MP4/ffprobe validation and human review in place. No production artifact or live ClamAV database was scanned by CI.
+
+
+## 9. Operator audit identity
+
+With `NEXUS_REVIEW_CREDENTIALS_JSON` configured, use a unique token per operator. The API attributes review decisions, policy attestations, queue pause/resume, YouTube reconciliation, TikTok private publishing/reconciliation and recommendation experiment/skip-feedback events to the operator ID mapped to the presented token. Request-body `operator_id` / `reviewer_id` values are retained for client compatibility but do not determine the audit actor. Legacy shared-token deployments are attributed to `legacy-operator`. All configured operators currently share the same permission set; configure a future IdP/RBAC layer before delegating different operational privileges.
+
+
+## Operator role-based access control
+
+Per-operator bearer tokens are resolved by `NEXUS_REVIEW_CREDENTIALS_JSON`. To activate role-based permissions, also configure `NEXUS_REVIEW_ROLE_MAP_JSON` as a JSON object mapping each authenticated operator ID to a non-empty array of roles. Example:
+
+```json
+{
+  "content-producer": ["producer"],
+  "human-reviewer": ["reviewer"],
+  "publishing-operator": ["publisher"],
+  "finance-analyst": ["analyst", "finance"],
+  "system-admin": ["admin"]
+}
+```
+
+Available roles:
+- `admin`: all permissions.
+- `producer`: production creation/execution, trend collection, schedule management, queue enqueue and media staging/cleanup.
+- `reviewer`: pending/approved review reads, policy evidence and approve/reject/revision decisions.
+- `publisher`: YouTube/TikTok publish actions, publication reconciliation and TikTok OAuth lifecycle.
+- `analyst`: analytics and financial report reads.
+- `operator`: operational reads, queue controls, brand/schedule/media management, production creation/execution, trend collection and recommendation experiment management.
+- `finance`: financial ledger writes and report reads.
+- `worker`: queue job claim, heartbeat, completion and failure API calls only; does not grant queue pause/resume/cancel.
+
+When the role map is present, authenticated operators omitted from it are denied role-protected actions (HTTP 403); malformed role configuration fails closed (HTTP 503). Multiple roles combine their grants. Do not grant `admin` to service or review accounts unnecessarily. The role map is separate from the token map and must use the exact reviewer IDs configured in `NEXUS_REVIEW_CREDENTIALS_JSON`.
+
+For migration compatibility, if `NEXUS_REVIEW_ROLE_MAP_JSON` is absent or blank, authenticated operators retain the legacy full-access permission set. This is not RBAC enforcement: populate and validate the role map before production use. Token authentication remains bearer-token based; external IdP, user sessions, token expiry/rotation automation and production identity lifecycle are not included.

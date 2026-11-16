@@ -532,6 +532,30 @@ class ProductionTests(unittest.TestCase):
                                 "https://media.example/stale.mp4", {},
                                 worker_id="worker-old",
                                 lease_token=old_claim["lease_token"])
+    def test_restarted_worker_instance_cannot_write_production_stages_or_artifacts(self):
+        db = self.store.db_path
+        queue = JobQueue(db, lease_seconds=30)
+        submitted = submit_production(queue, self.store, self.brief)
+        job_id = submitted["job"]["id"]
+        old = queue.claim("worker-reused", "host-a",
+                          job_type="short_video_production",
+                          instance_token="instance-old")
+        queue.register_worker("worker-reused", "host-b", "instance-new")
+        script = FakeProvider({"script": "must not execute"})
+        pipeline = ProductionPipeline(self.store, script,
+            FakeProvider({"audio_url": "https://media.example/audio.mp3"}),
+            FakeProvider({"video_url": "https://media.example/video.mp4"}))
+        with self.assertRaises(ProductionLeaseConflict):
+            pipeline.execute(job_id, self.brief, worker_id="worker-reused",
+                             lease_token=old["lease_token"],
+                             instance_token="instance-old")
+        self.assertEqual(script.calls, [])
+        with self.assertRaises(ProductionLeaseConflict):
+            self.store.artifact(job_id, "rendering", "video",
+                "https://media.example/stale.mp4", {},
+                worker_id="worker-reused", lease_token=old["lease_token"],
+                instance_token="instance-old")
+
     def test_queue_job_without_production_row_is_recovered_after_enqueue_crash(self):
         queue = JobQueue(self.store.db_path)
         job = queue.enqueue("short_video_production", self.brief,
