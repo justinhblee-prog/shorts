@@ -713,7 +713,8 @@ class YouTubePublisher:
                 except OSError:
                     pass
 
-    def refresh_due_metrics(self, limit=50, min_age_seconds=21600):
+    def refresh_due_metrics(self, limit=50, min_age_seconds=21600,
+                            lease_owner=None, lease_token=None):
         """Refresh due uploaded videos in one quota-efficient videos.list request."""
         video_ids = self.store.due_metric_video_ids(limit, min_age_seconds)
         if not video_ids:
@@ -727,7 +728,10 @@ class YouTubePublisher:
         for item in items:
             video_id = item.get("id")
             if video_id in video_ids:
-                self.store.snapshot(video_id, item.get("statistics", {}))
+                self.store.snapshot(
+                    video_id, item.get("statistics", {}),
+                    lease_owner=lease_owner, lease_token=lease_token,
+                )
                 collected.append(video_id)
         missing = sorted(set(video_ids) - set(collected))
         return {
