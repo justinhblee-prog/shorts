@@ -3,10 +3,43 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from worker_runtime import heartbeat_interval, request_worker_shutdown
+from worker_runtime import (heartbeat_interval, parse_worker_runtime_config,
+                            request_worker_shutdown)
 
 
 class WorkerRuntimeTests(unittest.TestCase):
+
+    def test_worker_runtime_config_defaults(self):
+        self.assertEqual(parse_worker_runtime_config(), (300, 3, 10))
+
+    def test_worker_runtime_config_bounds_and_heartbeat_cap(self):
+        self.assertEqual(parse_worker_runtime_config("30", "1", "3600"), (30, 1, 10))
+        self.assertEqual(parse_worker_runtime_config("3600", "300", "15"),
+                         (3600, 300, 15))
+        self.assertEqual(parse_worker_runtime_config("90", "10", "5"), (90, 10, 5))
+
+    def test_worker_runtime_config_rejects_non_decimal_values(self):
+        invalid = ["", " 30", "30 ", "+30", "-30", "3.0", "3e1", "٣٠"]
+        for value in invalid:
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    parse_worker_runtime_config(value, "3", "10")
+                with self.assertRaises(ValueError):
+                    parse_worker_runtime_config("300", value, "10")
+                with self.assertRaises(ValueError):
+                    parse_worker_runtime_config("300", "3", value)
+
+    def test_worker_runtime_config_rejects_out_of_range_values(self):
+        cases = [
+            ("29", "3", "10"), ("3601", "3", "10"),
+            ("300", "0", "10"), ("300", "301", "10"),
+            ("300", "3", "4"), ("300", "3", "3601"),
+        ]
+        for values in cases:
+            with self.subTest(values=values):
+                with self.assertRaises(ValueError):
+                    parse_worker_runtime_config(*values)
+
     def test_default_heartbeat_is_ten_seconds(self):
         self.assertEqual(heartbeat_interval(300), 10)
 

@@ -1,6 +1,31 @@
 """Pure worker runtime configuration helpers."""
 
 
+import re
+
+
+def _strict_env_integer(value, name, minimum, maximum):
+    """Parse an unsigned decimal environment value without Python coercions."""
+    if not isinstance(value, str) or re.fullmatch(r"[0-9]+", value) is None:
+        raise ValueError(f"{name} must be a decimal integer")
+    parsed = int(value)
+    if parsed < minimum or parsed > maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return parsed
+
+
+def parse_worker_runtime_config(lease_seconds="300", idle_seconds="3",
+                                heartbeat_seconds="10"):
+    """Validate worker environment settings and keep heartbeats inside the lease."""
+    lease = _strict_env_integer(lease_seconds, "NEXUS_LEASE_SECONDS", 30, 3600)
+    idle = _strict_env_integer(idle_seconds, "NEXUS_IDLE_SECONDS", 1, 300)
+    configured_heartbeat = _strict_env_integer(
+        heartbeat_seconds, "NEXUS_HEARTBEAT_SECONDS", 5, 3600
+    )
+    heartbeat = min(configured_heartbeat, lease // 3)
+    return lease, idle, heartbeat
+
+
 def heartbeat_interval(lease_seconds, configured_seconds=10):
     """Keep pause/lost-lease detection responsive within the active lease."""
     return max(5, min(int(configured_seconds), max(5, int(lease_seconds) // 3)))

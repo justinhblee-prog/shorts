@@ -12,18 +12,16 @@ import uuid
 from production_pipeline import (ProductionPipeline, ProductionStore,
                                  ProductionLeaseConflict, ProviderError, PolicyBlocked)
 from queue_store import JobQueue, LeaseConflict
-from worker_runtime import heartbeat_interval, request_worker_shutdown
+from worker_runtime import parse_worker_runtime_config, request_worker_shutdown
 
 
 DB_PATH = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
-LEASE_SECONDS = max(30, int(os.getenv("NEXUS_LEASE_SECONDS", "300")))
-WORKER_ID = os.getenv("NEXUS_WORKER_ID", "nexus-production-" + str(uuid.uuid4())[:8])
-IDLE_SECONDS = max(1, int(os.getenv("NEXUS_IDLE_SECONDS", "3")))
-
-
-HEARTBEAT_SECONDS = heartbeat_interval(
-    LEASE_SECONDS, os.getenv("NEXUS_HEARTBEAT_SECONDS", "10")
+LEASE_SECONDS, IDLE_SECONDS, HEARTBEAT_SECONDS = parse_worker_runtime_config(
+    os.getenv("NEXUS_LEASE_SECONDS", "300"),
+    os.getenv("NEXUS_IDLE_SECONDS", "3"),
+    os.getenv("NEXUS_HEARTBEAT_SECONDS", "10"),
 )
+WORKER_ID = os.getenv("NEXUS_WORKER_ID", "nexus-production-" + str(uuid.uuid4())[:8])
 
 queue = JobQueue(DB_PATH, LEASE_SECONDS)
 store = ProductionStore(DB_PATH)
