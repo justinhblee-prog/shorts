@@ -16,6 +16,78 @@ from production_pipeline import ProviderError
 class ApiSecurityTests(unittest.TestCase):
 
 
+    def test_publishing_status_endpoints_redact_raw_provider_errors(self):
+        upload = {
+            "job_id": "job-safe", "status": "failed",
+            "error": "Authorization: Bearer youtube-secret",
+            "events": [{"event_type": "upload_failed", "error": "youtube-body-secret"}],
+        }
+        tiktok = {
+            "job_id": "job-safe", "status": "failed",
+            "error": "Authorization: Bearer tiktok-secret",
+            "events": [{"event_type": "publish_failed", "error": "tiktok-body-secret"}],
+        }
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.youtube_upload_store, "get", return_value=upload),
+        ):
+            safe_upload = app_module.get_youtube_upload(
+                "job-safe", x_review_token="review-token"
+            )
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.tiktok_publish_store, "get", return_value=tiktok),
+        ):
+            safe_tiktok = app_module.get_tiktok_publication(
+                "job-safe", x_review_token="review-token"
+            )
+        serialized = json.dumps({"upload": safe_upload, "tiktok": safe_tiktok})
+        for secret in (
+            "youtube-secret", "youtube-body-secret",
+            "tiktok-secret", "tiktok-body-secret",
+        ):
+            self.assertNotIn(secret, serialized)
+        self.assertEqual(safe_upload["error"], app_module.review_store.SAFE_ERROR_NOTICE)
+        self.assertEqual(safe_tiktok["error"], app_module.review_store.SAFE_ERROR_NOTICE)
+        self.assertEqual(
+            safe_upload["events"][0]["error"], app_module.review_store.SAFE_ERROR_NOTICE
+        )
+        self.assertEqual(
+            safe_tiktok["events"][0]["error"], app_module.review_store.SAFE_ERROR_NOTICE
+        )
+
+    def test_approved_review_list_redacts_platform_publication_errors(self):
+        upload = {
+            "status": "failed", "error": "youtube-private-error",
+            "events": [{"error": "youtube-event-secret"}],
+        }
+        tiktok = {
+            "status": "failed", "error": "tiktok-private-error",
+            "events": [{"error": "tiktok-event-secret"}],
+        }
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.review_store, "list_approved",
+                              return_value=[{"job_id": "job-safe"}]),
+            mock.patch.object(app_module.youtube_upload_store, "get", return_value=upload),
+            mock.patch.object(app_module.tiktok_publish_store, "get", return_value=tiktok),
+        ):
+            result = app_module.approved_reviews()
+        item = result["items"][0]
+        serialized = json.dumps(item)
+        for secret in (
+            "youtube-private-error", "youtube-event-secret",
+            "tiktok-private-error", "tiktok-event-secret",
+        ):
+            self.assertNotIn(secret, serialized)
+        self.assertEqual(item["tiktok_error"], app_module.review_store.SAFE_ERROR_NOTICE)
+        self.assertEqual(
+            item["upload_events"][0]["error"], app_module.review_store.SAFE_ERROR_NOTICE
+        )
+        self.assertEqual(
+            item["tiktok_events"][0]["error"], app_module.review_store.SAFE_ERROR_NOTICE
+        )
+
     def test_production_detail_redacts_raw_error_and_nested_provider_secrets(self):
         record = {
             "job_id": "job-safe",

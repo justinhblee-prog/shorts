@@ -70,6 +70,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Add regression coverage for nested provider secrets and raw errors in pending and approved review responses.
 - Automated validation is pending.
 
+## BUILD-00192 — redact platform publishing diagnostics
+
+- Apply the shared response-time sanitizer to YouTube upload and TikTok publication detail APIs.
+- Sanitize platform error fields and immutable event payloads in the approved-review list while preserving statuses, reconciliation flags, video IDs, and operator-visible audit context.
+- Keep raw diagnostic details in protected server-side storage; never return bearer-like provider error text through routine publishing reads.
+- Add API regression tests for both platform detail routes and the combined approved-review payload.
+- Automated validation is pending.
+
 ## BUILD-00001 — durable queue and Worker Lease
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.
