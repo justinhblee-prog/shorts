@@ -189,8 +189,10 @@ class TikTokOAuthStore:
                 "SELECT operation_id,access_token_fingerprint,expires_at "
                 "FROM tiktok_oauth_disconnect_lease WHERE id=1"
             ).fetchone()
-            if (lease is None or lease["operation_id"] != operation_id
-                    or lease["expires_at"] <= _stamp(_now())):
+            # Expiry prevents a new disconnect from inheriting this operation,
+            # but the original owner may still be finishing a successful remote
+            # revoke after a slow response. The operation id fences replacements.
+            if lease is None or lease["operation_id"] != operation_id:
                 return False
             if success:
                 current = c.execute(
