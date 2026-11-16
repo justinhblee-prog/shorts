@@ -2009,3 +2009,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Cover provider-error handling when the lease is lost concurrently; the stale worker must not write a failed collection state either.
 - Verify the collector releases only its own lease in both cases.
 - GitHub Actions [run #3484](https://github.com/justinhblee-prog/shorts/actions/runs/43913434527) succeeded on commit `22f456ea042f1441917b9c56e872aff4bd030b41`; `scripts/validate.sh` passed. Mocked-store/collector tests only; no live YouTube OAuth or Analytics API validation is claimed.
+
+
+## BUILD-00268 — Fence TikTok metrics OAuth refresh and provider dispatch
+- Expose a read-only lease assertion for the TikTok metrics collector.
+- Reject an already-expired/replaced collector before invoking the OAuth token provider, because token refresh may itself make an outbound request.
+- Revalidate after token acquisition and immediately before the TikTok Display API request to cover lease loss during OAuth refresh.
+- Add regressions for a stale lease before OAuth initialization and lease replacement during token refresh; both must prevent the Display API transport call.
+- GitHub Actions validation pending. Tests use local SQLite and fake token/transport providers; no live TikTok OAuth/account/API validation is claimed.
