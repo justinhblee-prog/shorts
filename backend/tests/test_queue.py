@@ -720,4 +720,46 @@ class QueueTests(unittest.TestCase):
          if event["event_type"]=="operator_reconciliation"]
   self.assertEqual(len(audit),1)
 
+    def test_re_registering_worker_with_active_production_lease_quarantines_job(self):
+        registration = self.q.register_worker("replaced-active-worker", "host-a")
+        job = self.q.enqueue("short_video_production", {"topic": "generation-replacement"})
+        claimed = self.q.claim(
+            "replaced-active-worker", "host-a",
+            job_type="short_video_production",
+            generation_token=registration["generation_token"],
+        )
+        self.assertEqual(claimed["id"], job["id"])
+
+        replacement = self.q.register_worker("replaced-active-worker", "host-a")
+
+        self.assertNotEqual(
+            registration["generation_token"], replacement["generation_token"]
+        )
+        self.assertTrue(self.q.is_paused())
+        quarantined = self.q.get(job["id"])
+        self.assertEqual(quarantined["status"], "failed_terminal")
+        self.assertEqual(
+            quarantined["error_code"],
+            "production_pause_external_outcome_ambiguous",
+        )
+        self.assertIsNone(quarantined["lease_token"])
+        self.assertEqual(
+            [item["id"] for item in self.q.ambiguous_production_jobs()],
+            [job["id"]],
+        )
+        with self.assertRaises(LeaseConflict):
+            self.q.heartbeat(
+                job["id"], "replaced-active-worker", claimed["lease_token"],
+                registration["generation_token"],
+            )
+        self.assertIsNone(self.q.claim(
+            "replaced-active-worker", "host-a",
+            job_type="short_video_production",
+            generation_token=replacement["generation_token"],
+        ))
+        worker = self.q.workers()[0]
+        self.assertEqual(worker["generation_token"], replacement["generation_token"])
+        self.assertEqual(worker["status"], "online")
+
+
 if __name__=="__main__": unittest.main()
