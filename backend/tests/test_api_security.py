@@ -13,6 +13,31 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
+
+    def test_readiness_requires_queue_and_scheduler_storage(self):
+        with mock.patch.object(app_module.queue, "stats", return_value={"total": 0}), \
+             mock.patch.object(app_module.schedule_store, "outbox_status",
+                               return_value={"counts": {}, "items": []}):
+            result = app_module.readiness()
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["checks"], {
+            "queue_store": "ok", "scheduler_store": "ok"
+        })
+
+    def test_readiness_fails_closed_when_durable_storage_is_unavailable(self):
+        with mock.patch.object(app_module.queue, "stats",
+                               side_effect=OSError("database unavailable")):
+            with self.assertRaises(HTTPException) as unavailable:
+                app_module.readiness()
+        self.assertEqual(unavailable.exception.status_code, 503)
+        self.assertEqual(unavailable.exception.detail,
+                         "Application storage is not ready")
+
+    def test_liveness_remains_independent_from_database_readiness(self):
+        with mock.patch.object(app_module.queue, "stats",
+                               side_effect=OSError("database unavailable")):
+            self.assertEqual(app_module.health()["status"], "ok")
+
     def test_all_operational_routes_require_review_token(self):
         public = {"/api/health", "/api/brands", "/api/brands/{slug}", "/api/tiktok/oauth/callback", "/api/youtube/oauth/callback"}
         unprotected = []
