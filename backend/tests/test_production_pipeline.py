@@ -660,17 +660,25 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"response_received")
 
     def test_pipeline_resumes_adopted_script_and_voice_without_provider_calls(self):
-        self.store.create("job-resume-adopted",self.brief)
-        self.store.artifact("job-resume-adopted","script","text",None,{"script":
-            "A sufficiently detailed recovered script with context and a useful takeaway.",
-            "provider_quality_metadata":{},"policy_preflight":{"status":"review_required"}})
-        self.store.artifact("job-resume-adopted","voice_generation","audio",
-            "https://media.example/recovered.mp3",{"voice":"en-US"})
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        script_key=self.store.begin_provider_attempt(job_id,"script",1)
+        self.store.finish_provider_attempt(job_id,"script",1,script_key,{
+            "script":"A sufficiently detailed recovered script with context and a useful takeaway.",
+            "provider":"test-script"})
+        script_attempt=self.store.provider_attempts(job_id)[0]
+        self.store.adopt_recovered_provider_artifact(job_id,script_attempt["id"])
+        voice_key=self.store.begin_provider_attempt(job_id,"voice_generation",1)
+        self.store.finish_provider_attempt(job_id,"voice_generation",1,voice_key,{
+            "audio_url":"https://media.example/recovered.mp3","voice":"en-US"})
+        voice_attempt=next(item for item in self.store.provider_attempts(job_id)
+            if item["stage"]=="voice_generation")
+        self.store.adopt_recovered_provider_artifact(job_id,voice_attempt["id"])
         script=FakeProvider({"script":"must not be called"})
         voice=FakeProvider({"audio_url":"https://media.example/new.mp3"})
         render=FakeProvider({"video_url":"https://media.example/video.mp4","duration_seconds":30})
-        result=ProductionPipeline(self.store,script,voice,render).execute(
-            "job-resume-adopted",self.brief)
+        result=ProductionPipeline(self.store,script,voice,render).execute(job_id,self.brief)
         self.assertEqual(result["status"],"rendered")
         self.assertEqual(script.calls,[])
         self.assertEqual(voice.calls,[])
