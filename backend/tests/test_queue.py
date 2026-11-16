@@ -12,6 +12,39 @@ class QueueTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.q=JobQueue(Path(self.tmp.name)/"test.db",10)
  def tearDown(self): self.tmp.cleanup()
+ def test_enqueue_audit_timestamp_is_captured_after_write_lock(self):
+  decision=datetime(2035,6,7,8,9,10,tzinfo=timezone.utc)
+  clock_called=Event()
+  started=Event()
+  outcome={}
+  def controlled_now():
+   clock_called.set()
+   return decision
+  def enqueue():
+   started.set()
+   try:
+    outcome["job"]=self.q.enqueue("render",{"topic":"lock-timestamp"})
+   except Exception as exc:
+    outcome["error"]=exc
+  with self.q.db() as holder:
+   holder.execute("BEGIN IMMEDIATE")
+   with patch.object(queue_store,"now",side_effect=controlled_now):
+    thread=Thread(target=enqueue)
+    thread.start()
+    self.assertTrue(started.wait(1))
+    time.sleep(0.1)
+    self.assertFalse(clock_called.is_set(),
+                     "enqueue must not sample its transition time while waiting for the write lock")
+    holder.commit()
+    thread.join(2)
+   self.assertFalse(thread.is_alive(),"enqueue did not finish after the write lock was released")
+  self.assertNotIn("error",outcome)
+  job=outcome["job"]
+  event=[item for item in self.q.events(job["id"]) if item["event_type"]=="enqueued"][-1]
+  self.assertEqual(job["created_at"],decision.isoformat())
+  self.assertEqual(job["updated_at"],decision.isoformat())
+  self.assertEqual(event["created_at"],decision.isoformat())
+
  def test_idempotency(self):
   a=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
   b=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
