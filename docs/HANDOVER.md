@@ -1008,3 +1008,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions run [43787457716](https://github.com/justinhblee-prog/shorts/actions/runs/43787457716) passed **339 backend tests** and `scripts/validate.sh`.
 - Regression coverage confirms that out-of-order retention rows are sorted before display.
 - Frontend JavaScript syntax and DOM-ID validation passed. Live retention data remains dependent on channel OAuth and video eligibility.
+
+
+## BUILD-00036 — encrypted YouTube OAuth account connection
+
+- New module: `backend/youtube_oauth.py`; tests: `backend/tests/test_youtube_oauth.py`.
+- Endpoints: protected `GET /api/youtube/oauth/start`, `GET /api/youtube/oauth/status`, protected `POST /api/youtube/oauth/disconnect`, and public one-time-state `GET /api/youtube/oauth/callback`.
+- The start endpoint requests offline access and consent. Callback state is random, hashed in SQLite, one-time, and bound to a Secure/HttpOnly/SameSite=Lax cookie. Callback query parameters are redacted from Uvicorn access logs.
+- Refresh token is Fernet-encrypted at rest; only the refresh token is stored. Both YouTubePublisher and YouTubeAnalyticsCollector now receive the stored token through a provider. Static YOUTUBE_REFRESH_TOKEN remains a fallback and prevents disconnect until removed.
+- Required scopes: `youtube.upload` and `youtube.readonly`; `yt-analytics.readonly` is requested as an additional scope. A token missing required scopes is rejected.
+- Configure Google Cloud OAuth consent and register the exact HTTPS YOUTUBE_REDIRECT_URI. Set YOUTUBE_TOKEN_ENCRYPTION_KEY to a valid Fernet key before connecting.
+- No live Google OAuth, refresh, channel access or upload is claimed until the operator connects a real account and verifies it.
+- Validation pending.
