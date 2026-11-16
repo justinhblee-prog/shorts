@@ -1244,8 +1244,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 ## BUILD-00152 — chronological production-outcome holdout ordering
 
-- Sort pooled views/hour observations by the production selection timestamp before computing the chronological holdout; exposure creation order can differ when older recommendations are selected later.
+- Sort pooled views/hour observations by absolute production selection timestamp before computing the chronological holdout; exposure creation order can differ when older recommendations are selected later, and ISO strings with different timezone offsets are not lexicographically chronological.
 - Keep within-exposure diagnostics ordered by exposure generation time.
-- Add regression coverage with intentionally reversed exposure and selection chronology.
+- Parse timestamps for absolute ordering in pooled and within-run holdouts; add regression coverage for reversed exposure/selection chronology and mixed timezone offsets.
 - GitHub Actions validation: pending.
 - Ranking score adjustment remains disabled; no live provider validation is claimed.
