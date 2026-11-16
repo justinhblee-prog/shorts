@@ -852,3 +852,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Reject missing or stale check dates before any remote YouTube API call; audit stamps cannot represent stale or missing evidence as current.
 - Regression coverage targets stale current evidence and stale approval snapshots.
 - GitHub Actions PR run [43779365868](https://github.com/justinhblee-prog/shorts/actions/runs/43779365868) passed **247 backend tests** and `scripts/validate.sh`. PR #80 was squash-merged into `main` as `5dba9163a20e8fbc4e68bca260c962f944500b0a`. The test run was on the exact PR head before squash; the merge commit itself has not had a separate CI run.
+
+
+### BUILD-00024 — invalidate approval when production artifacts change (2026-11-16)
+
+- Added a fail-closed approval snapshot integrity check before YouTube upload initialization.
+- The complete current artifact set must match the latest human-approved snapshot by order, stage, type, URL and metadata. Any added, removed or modified artifact requires a fresh human review.
+- Regression coverage targets artifact modification and late artifact addition. CI validation pending on this branch.
