@@ -1022,6 +1022,39 @@ class TikTokPublishingTests(unittest.TestCase):
             self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"]
         )
 
+    def test_manual_status_refresh_cannot_bypass_scheduler_poll_lease(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        scheduler_token = self.store.acquire_status_poll_lease(
+            "job-1", attempt_id, lease_seconds=45
+        )
+        self.assertIsNotNone(scheduler_token)
+        self.transport.calls.clear()
+        with self.assertRaisesRegex(TikTokPublishError, "already being refreshed"):
+            self.publisher.refresh_status("job-1")
+        self.assertEqual(self.transport.calls, [])
+        self.assertTrue(self.store.release_status_poll_lease(
+            "job-1", attempt_id, scheduler_token
+        ))
+
+    def test_manual_status_refresh_acquires_and_releases_shared_poll_lease(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        self.transport.responses.append((200, {
+            "data": {"status": "PROCESSING_UPLOAD", "publicaly_available_post_id": []},
+            "error": {"code": "ok"},
+        }))
+        result = self.publisher.refresh_status("job-1")
+        self.assertEqual(result["status"], "processing")
+        self.assertEqual(
+            self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"]
+        )
+
     def test_expired_poll_result_cannot_overwrite_publication_state_after_takeover(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
