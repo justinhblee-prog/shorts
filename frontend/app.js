@@ -185,7 +185,7 @@
       const scopeLabel=data.scopes&&data.scopes.length?" · "+data.scopes.join(", "):"";
       const mode=data.mode==="environment_refresh_token"?"환경 토큰(권한 목록 확인 불가)":"암호화 OAuth";
       $("youtubeConnectionStatus").textContent=connected
-        ? "OAuth 승인·토큰 저장됨 · "+(data.channel_title?esc(data.channel_title)+" · ":"")+(data.data_api_verified?"Data API 확인":"Data API 미검증")+" · "+(data.analytics_api_verified?"Analytics 확인":"Analytics 미검증")+" · "+mode+scopeLabel
+        ? "OAuth 승인·토큰 저장됨 · "+(data.channel_title?data.channel_title+" · ":"")+(data.data_api_verified?"Data API 확인":"Data API 미검증")+" · "+(data.analytics_api_verified?"Analytics 확인":"Analytics 미검증")+" · "+mode+scopeLabel
         : "연결 필요 · YouTube 업로드와 Analytics 권한 승인 필요";
       const managed=data.mode==="encrypted_oauth"&&connected;
       $("youtubeConnect").textContent=managed?"YouTube OAuth 연결됨":(data.mode==="encrypted_oauth"?"YouTube 권한 재승인":(connected?"암호화 OAuth로 전환":"YouTube 계정 연결"));
@@ -422,7 +422,7 @@
     try{
       const result=await api("/api/youtube/oauth/verify",{method:"POST"});
       if(result.data_api_verified&&result.analytics_api_verified){
-        toast("YouTube 실계정 연결 확인 완료 · "+esc(result.channel_title||result.channel_id));
+        toast("YouTube 실계정 연결 확인 완료 · "+(result.channel_title||result.channel_id));
       }else if(result.data_api_verified){
         toast("YouTube Data API 연결 확인 · Analytics 권한/접근은 미확인");
       }else{
