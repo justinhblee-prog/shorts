@@ -952,4 +952,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add platform selection to the normal production request and recurring schedule API/UI.
 - Persist selected platform as the production brief's `platforms` list through the schedule outbox and queue dispatch, so scheduled TikTok jobs receive TikTok policy preflight and TikTok publishing eligibility.
 - Display the platform on each scheduled job and add regression tests for schedule payload persistence and API model validation.
-- CI validation pending.
+- GitHub Actions run [43783409343](https://github.com/justinhblee-prog/shorts/actions/runs/43783409343) passed **322 backend tests** and `scripts/validate.sh`. PR #93 was squash-merged into `main` as `cd5f8c4f1c1e780732457450ae2f215d4ef13950`.
