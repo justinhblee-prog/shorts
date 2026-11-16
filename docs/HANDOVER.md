@@ -1166,3 +1166,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - YouTube Analytics reports are schema-checked before mapping; the single-video query is limited to one row and known metric columns. Audience-retention reports are independently validated and bounded to 200 points.
 - TikTok response rows are fully validated in memory, then inserted together in one SQLite transaction. Duplicate, unrequested, malformed or overflowing values prevent all writes for that batch.
 - CI validation pending.
+
+
+### BUILD-00135 validation record
+
+- GitHub Actions PR run [43795614217](https://github.com/justinhblee-prog/shorts/actions/runs/43795614217) completed successfully.
+- The complete validation script passed with **446 backend tests**.
+- Tests cover YouTube report schema/metric validation, retention range/size limits, TikTok duplicate and malformed rows, and all-or-nothing SQLite persistence.
+- Live provider API and production account behavior remain unverified.
