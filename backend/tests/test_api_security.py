@@ -15,6 +15,36 @@ from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
 
+
+    def test_production_detail_redacts_raw_error_and_nested_provider_secrets(self):
+        record = {
+            "job_id": "job-safe",
+            "status": "review_pending",
+            "error": "Authorization: Bearer production-secret",
+            "artifacts": [{
+                "stage": "script",
+                "artifact_type": "text",
+                "artifact_url": None,
+                "metadata": {
+                    "script": "Safe script",
+                    "provider_token": "detail-provider-token",
+                    "nested": {"api_key": "detail-api-key", "quality_score": 0.9},
+                },
+            }],
+        }
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.production_store, "get", return_value=record),
+        ):
+            result = app_module.get_production_job("job-safe", x_review_token="review-token")
+        serialized = json.dumps(result)
+        self.assertNotIn("production-secret", serialized)
+        self.assertNotIn("detail-provider-token", serialized)
+        self.assertNotIn("detail-api-key", serialized)
+        self.assertEqual(result["error"], app_module.review_store.SAFE_ERROR_NOTICE)
+        self.assertEqual(result["artifacts"][0]["metadata"]["script"], "Safe script")
+        self.assertEqual(result["artifacts"][0]["metadata"]["nested"]["quality_score"], 0.9)
+
     def test_readiness_requires_queue_and_scheduler_storage(self):
         with mock.patch.object(app_module.queue, "stats", return_value={"total": 0}), \
              mock.patch.object(app_module.schedule_store, "outbox_status",
