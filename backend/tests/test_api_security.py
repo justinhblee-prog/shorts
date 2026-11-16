@@ -27,6 +27,30 @@ class ApiSecurityTests(unittest.TestCase):
                 unprotected.append(path)
         self.assertEqual(unprotected, [])
 
+
+    def test_per_operator_rbac_uses_token_identity_and_denies_ungranted_actions(self):
+        token = "alice-token-" + ("a" * 40)
+        with mock.patch.dict(os.environ, {
+            "NEXUS_REVIEW_CREDENTIALS_JSON": '{"alice":"' + token + '"}',
+            "NEXUS_REVIEW_ROLE_MAP_JSON": '{"alice":["reviewer"]}',
+        }, clear=False):
+            self.assertEqual(
+                app_module.require_review_permission(token, "review.decide"),
+                "alice",
+            )
+            with self.assertRaises(HTTPException) as denied:
+                app_module.require_review_permission(token, "publish.execute")
+            self.assertEqual(denied.exception.status_code, 403)
+
+    def test_malformed_per_operator_credentials_fail_closed(self):
+        with mock.patch.dict(os.environ, {
+            "NEXUS_REVIEW_CREDENTIALS_JSON": "not-json",
+            "NEXUS_REVIEW_TOKEN": "legacy-token",
+        }, clear=False):
+            with self.assertRaises(HTTPException) as invalid:
+                require_review_access("legacy-token")
+            self.assertEqual(invalid.exception.status_code, 503)
+
     def test_youtube_oauth_routes_and_callback_state_are_protected(self):
         routes = {
             (getattr(route, "path", ""), tuple(sorted(getattr(route, "methods", []) or []))): route
