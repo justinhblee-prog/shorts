@@ -471,14 +471,18 @@ class YouTubeUploadStore:
 
 
 class YouTubePublisher:
-    def __init__(self,store,service=None):
+    def __init__(self,store,service=None,token_provider=None):
         self.store=store
         self.service=service
+        self.token_provider=token_provider
 
     def _service(self):
         if self.service is not None:
             return self.service
-        refresh=os.getenv("YOUTUBE_REFRESH_TOKEN")
+        try:
+            refresh=(self.token_provider() if self.token_provider else os.getenv("YOUTUBE_REFRESH_TOKEN"))
+        except Exception as exc:
+            raise YouTubeUploadError("YouTube refresh-token retrieval failed: "+type(exc).__name__) from exc
         client_id=os.getenv("YOUTUBE_CLIENT_ID")
         client_secret=os.getenv("YOUTUBE_CLIENT_SECRET")
         if not all((refresh,client_id,client_secret)):

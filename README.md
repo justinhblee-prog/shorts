@@ -95,3 +95,6 @@ Shorts performance reporting also tracks YouTube Analytics `engagedViews` separa
 
 
 BUILD-00034 adds YouTube Shorts engagedViews as a separate quality signal and displays a derived engaged-view share without changing recommendation ranking. The implementation passed **339 backend tests** in [GitHub Actions run 43787047727](https://github.com/justinhblee-prog/shorts/actions/runs/43787047727).
+
+
+YouTube account connection now supports a server-side OAuth flow with one-time state, encrypted refresh-token storage and dashboard status controls. Live Google consent and account verification still require the operator's Google Cloud OAuth client and registered HTTPS callback.

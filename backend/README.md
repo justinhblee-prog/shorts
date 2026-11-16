@@ -481,3 +481,14 @@ The performance dashboard now renders a sorted per-video retention sparkline and
 
 
 BUILD-00035 validation: GitHub Actions run [43787457716](https://github.com/justinhblee-prog/shorts/actions/runs/43787457716) passed **339 backend tests** and `scripts/validate.sh`.
+
+
+## BUILD-00036 — secure YouTube OAuth connection
+
+Configure YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REDIRECT_URI (registered exactly in Google Cloud Console) and YOUTUBE_TOKEN_ENCRYPTION_KEY. Generate the encryption key with:
+
+```bash
+python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+```
+
+The dashboard's YouTube Connect action starts an authorization-code flow with offline access and explicit consent. The callback validates a one-time hashed state bound to a Secure/HttpOnly/SameSite=Lax cookie, exchanges the code, checks required upload/read-only scopes, and stores only the Fernet-encrypted refresh token. Access tokens are refreshed by the Google client when required. Both publishing and Analytics use the encrypted token store; YOUTUBE_REFRESH_TOKEN remains a legacy fallback. Remove the environment fallback before using the dashboard disconnect action. No OAuth tokens are returned by the status endpoint.

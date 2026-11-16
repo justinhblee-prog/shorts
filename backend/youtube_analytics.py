@@ -211,15 +211,19 @@ class YouTubeAnalyticsStore:
 
 
 class YouTubeAnalyticsCollector:
-    def __init__(self, store, service=None, today=None):
+    def __init__(self, store, service=None, today=None, token_provider=None):
         self.store = store
         self.service = service
         self.today = today or date.today
+        self.token_provider = token_provider
 
     def _service(self):
         if self.service is not None:
             return self.service
-        refresh = os.getenv("YOUTUBE_REFRESH_TOKEN")
+        try:
+            refresh = self.token_provider() if self.token_provider else os.getenv("YOUTUBE_REFRESH_TOKEN")
+        except Exception as exc:
+            raise RuntimeError("YouTube refresh-token retrieval failed: " + type(exc).__name__) from exc
         client_id = os.getenv("YOUTUBE_CLIENT_ID")
         client_secret = os.getenv("YOUTUBE_CLIENT_SECRET")
         if not all((refresh, client_id, client_secret)):

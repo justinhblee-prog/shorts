@@ -15,7 +15,7 @@ def _group(source, required, optional=()):
     }
 
 
-def build_preflight(env=None):
+def build_preflight(env=None, youtube_refresh_token_configured=None):
     source = os.environ if env is None else env
     checks = {
         "operator_auth": _group(source, ["NEXUS_REVIEW_TOKEN"]),
@@ -32,11 +32,29 @@ def build_preflight(env=None):
         ),
         "artifact_staging": _group(source, ["RENDER_ARTIFACT_HOSTS"]),
         "youtube_upload": _group(
-            source,
-            ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"],
+            source, ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET"]
         ),
         "youtube_data_api": _group(source, ["YOUTUBE_DATA_API_KEY"]),
     }
+
+    youtube_oauth = _group(
+        source, [], ["YOUTUBE_REDIRECT_URI", "YOUTUBE_TOKEN_ENCRYPTION_KEY"]
+    )
+    youtube_oauth["configured"] = not youtube_oauth["optional_missing"]
+    youtube_oauth["optional"] = True
+    checks["youtube_oauth"] = youtube_oauth
+
+    refresh_configured = (
+        bool(str(source.get("YOUTUBE_REFRESH_TOKEN", "")).strip())
+        if youtube_refresh_token_configured is None
+        else bool(youtube_refresh_token_configured)
+    )
+    if not refresh_configured:
+        checks["youtube_upload"]["configured"] = False
+        checks["youtube_upload"]["missing"].append("YOUTUBE_REFRESH_TOKEN")
+    checks["youtube_upload"]["optional_missing"] = (
+        [] if refresh_configured else ["Connect YouTube OAuth to store an encrypted refresh token"]
+    )
 
     media_dir = Path(source.get("NEXUS_MEDIA_DIR", "data/media"))
     ancestor = media_dir
@@ -101,6 +119,7 @@ def build_preflight(env=None):
             "ai_generation_configured": generation,
             "artifact_staging_configured": staging,
             "youtube_upload_configured": youtube_upload,
+            "youtube_oauth_configured": checks["youtube_oauth"]["configured"],
             "youtube_metrics_configured": youtube_metrics,
             "tiktok_oauth_configured": tiktok_oauth,
             "tiktok_publish_configured": tiktok_publish,

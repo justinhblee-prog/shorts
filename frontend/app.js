@@ -178,6 +178,27 @@
       return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><p>'+esc(tiktokStatusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokIdSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
   }
+  async function loadYouTubeConnection(){
+    try{
+      const data=await api("/api/youtube/oauth/status");
+      const connected=!!data.connected;
+      const scopeLabel=data.scopes&&data.scopes.length?" · "+data.scopes.join(", "):"";
+      const mode=data.mode==="environment_refresh_token"?"환경 토큰(권한 목록 확인 불가)":"암호화 OAuth";
+      $("youtubeConnectionStatus").textContent=connected
+        ? "OAuth 승인·토큰 저장됨 · 실계정 API 확인 전 · "+mode+scopeLabel
+        : "연결 필요 · YouTube 업로드와 Analytics 권한 승인 필요";
+      const managed=data.mode==="encrypted_oauth"&&connected;
+      $("youtubeConnect").textContent=managed?"YouTube OAuth 연결됨":(data.mode==="encrypted_oauth"?"YouTube 권한 재승인":(connected?"암호화 OAuth로 전환":"YouTube 계정 연결"));
+      $("youtubeConnect").disabled=managed;
+      $("youtubeDisconnect").disabled=!managed||!!data.static_fallback_configured;
+    }catch(err){
+      $("youtubeConnectionStatus").textContent="연결 설정 확인 필요 · "+err.message;
+      $("youtubeConnect").textContent="YouTube 연결";
+      $("youtubeConnect").disabled=false;
+      $("youtubeDisconnect").disabled=true;
+    }
+  }
+
   async function loadTikTokConnection(){
     try{
       const data=await api("/api/tiktok/oauth/status");
@@ -320,7 +341,7 @@
 
   async function loadPreflight(){
     const data=await api("/api/preflight");
-    const labels={operator_auth:"운영자 인증",script_generation:"AI 대본",voice_generation:"AI 음성",video_rendering:"영상 렌더링",artifact_staging:"렌더링 파일 스테이징",youtube_upload:"YouTube OAuth",youtube_data_api:"YouTube 데이터 API",tiktok_oauth:"TikTok Login Kit OAuth",tiktok_static_token:"TikTok 정적 토큰 대체 설정",media_directory:"미디어 저장소"};
+    const labels={operator_auth:"운영자 인증",script_generation:"AI 대본",voice_generation:"AI 음성",video_rendering:"영상 렌더링",artifact_staging:"렌더링 파일 스테이징",youtube_upload:"YouTube 업로드 OAuth",youtube_oauth:"YouTube OAuth 암호화 저장",youtube_data_api:"YouTube 데이터 API",tiktok_oauth:"TikTok Login Kit OAuth",tiktok_static_token:"TikTok 정적 토큰 대체 설정",media_directory:"미디어 저장소"};
     const checks=Object.entries(data.checks||{}).map(([key,value])=>{const missing=(value.missing||[]).join(", ");const optional=(value.optional_missing||[]).length?"선택 항목(미설정): "+value.optional_missing.join(", "):"";return '<div class="data-item"><b>'+esc(labels[key]||key)+' · <span class="'+(value.configured?"ready-text":"missing-text")+'">'+(value.configured?"필수 설정 확인":"필수 설정 누락")+'</span></b><small>'+esc([missing,optional].filter(Boolean).join(" · ")||(value.configured?"필수 설정값 존재":"설정 필요"))+'</small></div>';}).join("");
     const platforms=Object.entries(data.platforms||{}).map(([key,value])=>{const label=key==="youtube"?"YouTube Shorts":"TikTok";return '<div class="data-item"><b>'+label+' 제작·게시 준비 · <span class="'+(value.configuration_ready?"ready-text":"missing-text")+'">'+(value.configuration_ready?"설정 확인":"설정 미완료")+'</span></b><small>측정 API 설정: '+(value.metrics_configured?"확인":"미확인")+' · 실계정 연결·통신 검증: '+(value.live_connectivity_verified?"완료":"미실행")+(value.static_token_fallback?" · 정적 토큰 대체 방식":"")+(value.oauth_configured===false&&key==="tiktok"?" · OAuth 설정 필요":"")+'</small></div>';}).join("");
     $("preflightList").innerHTML=checks+platforms+'<div class="notice"><b>'+(data.capabilities.end_to_end_configured?"YouTube 설정 구성 완료":"외부 연동 설정이 더 필요합니다")+'</b><span>'+esc(data.note)+'</span></div>';
@@ -345,7 +366,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -383,6 +404,24 @@
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
+  $("youtubeConnect").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    try{
+      const result=await api("/api/youtube/oauth/start");
+      if(!result.authorization_url)throw new Error("Google authorization URL was not returned");
+      window.location.assign(result.authorization_url);
+    }catch(err){toast(err.message);}
+  });
+  $("loadYouTubeConnection").addEventListener("click",()=>loadYouTubeConnection().catch(e=>toast(e.message)));
+  $("youtubeDisconnect").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    if(!confirm("저장된 YouTube OAuth 연결을 해제하시겠습니까? 업로드와 Analytics 갱신이 중지됩니다."))return;
+    try{
+      await api("/api/youtube/oauth/disconnect",{method:"POST"});
+      toast("YouTube OAuth 연결을 해제했습니다.");
+      await loadYouTubeConnection();
+    }catch(err){toast(err.message);}
+  });
   $("tiktokConnect").addEventListener("click",async()=>{
     if(!requireToken())return;
     try{
@@ -681,5 +720,8 @@
   });
   $("ledgerCurrency").addEventListener("change",()=>loadFinance().catch(e=>toast(e.message)));
   $("ledgerDate").value=new Date().toISOString().slice(0,10);
+  const youtubeOAuthResult=new URLSearchParams(window.location.search).get("youtube_oauth");
+  if(youtubeOAuthResult==="connected")toast("YouTube OAuth 승인 및 암호화 토큰 저장 완료 · 실계정 API 검증은 별도입니다.");
+  else if(youtubeOAuthResult==="error"||youtubeOAuthResult==="denied")toast("YouTube OAuth 연결이 완료되지 않았습니다. 설정과 동의 권한을 확인하세요.");
   loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
 })();

@@ -98,6 +98,31 @@ class PreflightTests(unittest.TestCase):
         self.assertNotIn("TIKTOK_CLIENT_KEY", result["missing"])
         self.assertNotIn("static-secret", str(result))
 
+
+
+    def test_youtube_oauth_redirect_and_encryption_are_optional_preflight_settings(self):
+        result = build_preflight({})
+        self.assertFalse(result["checks"]["youtube_oauth"]["configured"])
+        self.assertTrue(result["checks"]["youtube_oauth"]["optional"])
+        self.assertIn(
+            "YOUTUBE_REDIRECT_URI",
+            result["checks"]["youtube_oauth"]["optional_missing"],
+        )
+        self.assertNotIn("YOUTUBE_REDIRECT_URI", result["missing"])
+        self.assertNotIn("YOUTUBE_TOKEN_ENCRYPTION_KEY", result["missing"])
+
+    def test_encrypted_youtube_oauth_token_satisfies_refresh_token_preflight(self):
+        env = {
+            "NEXUS_REVIEW_TOKEN": "operator-secret",
+            "YOUTUBE_CLIENT_ID": "client-id",
+            "YOUTUBE_CLIENT_SECRET": "client-secret",
+            "YOUTUBE_DATA_API_KEY": "data-api-key",
+        }
+        result = build_preflight(env, youtube_refresh_token_configured=True)
+        self.assertTrue(result["checks"]["youtube_upload"]["configured"])
+        self.assertNotIn("YOUTUBE_REFRESH_TOKEN", result["missing"])
+        self.assertTrue(result["capabilities"]["youtube_upload_configured"])
+
     def test_complete_environment_reports_configuration_not_live_success(self):
         with tempfile.TemporaryDirectory() as media_dir:
             env = {

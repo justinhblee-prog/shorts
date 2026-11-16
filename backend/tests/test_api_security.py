@@ -14,7 +14,7 @@ from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
     def test_all_operational_routes_require_review_token(self):
-        public = {"/api/health", "/api/brands", "/api/brands/{slug}", "/api/tiktok/oauth/callback"}
+        public = {"/api/health", "/api/brands", "/api/brands/{slug}", "/api/tiktok/oauth/callback", "/api/youtube/oauth/callback"}
         unprotected = []
         for route in app.routes:
             path = getattr(route, "path", "")
@@ -26,6 +26,53 @@ class ApiSecurityTests(unittest.TestCase):
             if "x_review_token" not in endpoint.__annotations__:
                 unprotected.append(path)
         self.assertEqual(unprotected, [])
+
+    def test_youtube_oauth_routes_and_callback_state_are_protected(self):
+        routes = {
+            (getattr(route, "path", ""), tuple(sorted(getattr(route, "methods", []) or []))): route
+            for route in app.routes
+        }
+        for path, method in (
+            ("/api/youtube/oauth/start", "GET"),
+            ("/api/youtube/oauth/status", "GET"),
+            ("/api/youtube/oauth/disconnect", "POST"),
+        ):
+            route = routes.get((path, (method,)))
+            self.assertIsNotNone(route)
+            self.assertIn("x_review_token", route.endpoint.__annotations__)
+
+        from starlette.requests import Request
+        request = Request({
+            "type": "http", "method": "GET", "path": "/api/youtube/oauth/callback",
+            "headers": [(b"cookie", b"youtube_oauth_state=state-123")],
+            "query_string": b"",
+        })
+        with mock.patch.object(
+            app_module.youtube_oauth_manager, "exchange_code",
+            return_value={"connected": True},
+        ) as exchange:
+            response = app_module.youtube_oauth_callback(
+                request, code="one-time-code", state="state-123"
+            )
+        exchange.assert_called_once_with("one-time-code", "state-123")
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/?youtube_oauth=connected")
+        self.assertIn("youtube_oauth_state", response.headers.get("set-cookie", ""))
+
+    def test_youtube_oauth_callback_rejects_missing_or_mismatched_state_cookie(self):
+        from starlette.requests import Request
+        request = Request({
+            "type": "http", "method": "GET", "path": "/api/youtube/oauth/callback",
+            "headers": [(b"cookie", b"youtube_oauth_state=other-state")],
+            "query_string": b"",
+        })
+        with mock.patch.object(app_module.youtube_oauth_manager, "exchange_code") as exchange:
+            response = app_module.youtube_oauth_callback(
+                request, code="one-time-code", state="attacker-state"
+            )
+        exchange.assert_not_called()
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/?youtube_oauth=error")
 
     def test_policy_evidence_input_accepts_platform_specific_blocking_flags(self):
         body = PolicyEvidenceInput(
@@ -76,6 +123,25 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertIsNotNone(report)
         self.assertIn("x_review_token", refresh.endpoint.__annotations__)
         self.assertIn("x_review_token", report.endpoint.__annotations__)
+
+    def test_youtube_oauth_start_status_and_disconnect_routes_are_registered_and_protected(self):
+        routes = {
+            (getattr(route, "path", ""), tuple(sorted(getattr(route, "methods", []) or []))): route
+            for route in app.routes
+        }
+        for path, method in (
+            ("/api/youtube/oauth/start", "GET"),
+            ("/api/youtube/oauth/status", "GET"),
+            ("/api/youtube/oauth/disconnect", "POST"),
+        ):
+            route = routes.get((path, (method,)))
+            self.assertIsNotNone(route, path)
+            self.assertIn("x_review_token", route.endpoint.__annotations__)
+        callback = routes.get(("/api/youtube/oauth/callback", ("GET",)))
+        self.assertIsNotNone(callback)
+        # OAuth redirect callback is public by design; the one-time state and
+        # secure HttpOnly cookie protect it instead of the dashboard token.
+        self.assertNotIn("x_review_token", callback.endpoint.__annotations__)
 
     def test_late_upload_resolution_route_is_registered_and_token_protected(self):
         route = next((r for r in app.routes

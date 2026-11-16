@@ -993,3 +993,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Label checkpoint values as ratios (x), not percentages, because the absolute audience-watch ratio can exceed 1 when viewers replay a segment.
 - Preserve unavailable/empty retention as an explicit no-data state; no curve is synthesized.
 - Validation pending.
+
+
+### BUILD-00036 — encrypted YouTube OAuth account connection (2026-11-16)
+
+- Add server-side Google OAuth authorization-code flow with random one-time state, secure HttpOnly callback cookie and access-log query redaction.
+- Request YouTube upload, YouTube read-only and YouTube Analytics read-only scopes; require upload and YouTube read-only scopes before storing a connection.
+- Encrypt the refresh token at rest with Fernet using YOUTUBE_TOKEN_ENCRYPTION_KEY; do not persist the access token or expose token values in status.
+- Use the encrypted token store for YouTube uploads and Analytics, with the legacy YOUTUBE_REFRESH_TOKEN environment variable as a compatibility fallback.
+- Add protected connect/status/disconnect endpoints and dashboard connection controls.
+- Validation pending. Live Google consent, account selection, refresh and real upload remain deployment checks.

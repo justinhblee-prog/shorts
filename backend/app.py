@@ -18,6 +18,7 @@ from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_r
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
+from youtube_oauth import YouTubeOAuthStore, YouTubeOAuthManager, YouTubeOAuthError
 from tiktok_metrics import TikTokMetricsStore
 from youtube_analytics import YouTubeAnalyticsStore, YouTubeAnalyticsCollector
 from ledger import LedgerStore
@@ -34,9 +35,12 @@ class TikTokOAuthAccessLogRedaction(logging.Filter):
         args=record.args
         if isinstance(args,tuple) and len(args)>=3:
             path=args[2]
-            if isinstance(path,str) and path.startswith("/api/tiktok/oauth/callback"):
+            if isinstance(path,str) and (
+                path.startswith("/api/tiktok/oauth/callback")
+                or path.startswith("/api/youtube/oauth/callback")
+            ):
                 sanitized=list(args)
-                sanitized[2]="/api/tiktok/oauth/callback?[REDACTED]"
+                sanitized[2]="/api/oauth/callback?[REDACTED]"
                 record.args=tuple(sanitized)
         return True
 
@@ -59,9 +63,15 @@ production_pipeline=ProductionPipeline(production_store)
 brand_store=BrandStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
-youtube_publisher=YouTubePublisher(youtube_upload_store)
+youtube_oauth_store=YouTubeOAuthStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+youtube_oauth_manager=YouTubeOAuthManager(youtube_oauth_store)
+youtube_publisher=YouTubePublisher(
+    youtube_upload_store,token_provider=youtube_oauth_manager.get_refresh_token
+)
 youtube_analytics_store=YouTubeAnalyticsStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
-youtube_analytics_collector=YouTubeAnalyticsCollector(youtube_analytics_store)
+youtube_analytics_collector=YouTubeAnalyticsCollector(
+    youtube_analytics_store,token_provider=youtube_oauth_manager.get_refresh_token
+)
 tiktok_publish_store=TikTokPublishStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 tiktok_oauth_store=TikTokOAuthStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 tiktok_oauth_manager=TikTokOAuthManager(tiktok_oauth_store)
@@ -555,6 +565,59 @@ def get_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=No
 
 
 
+@app.get("/api/youtube/oauth/start")
+def start_youtube_oauth(response:Response,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        result=youtube_oauth_manager.start_authorization()
+        response.set_cookie("youtube_oauth_state",result["state"],max_age=600,
+            httponly=True,secure=True,samesite="lax",path="/api/youtube/oauth/callback")
+        result.pop("state",None)
+        return result
+    except YouTubeOAuthError as e:
+        raise HTTPException(503,str(e))
+
+
+@app.get("/api/youtube/oauth/callback")
+def youtube_oauth_callback(request:Request,code:str|None=None,state:str|None=None,
+                           error:str|None=None,error_description:str|None=None):
+    cookie_state=request.cookies.get("youtube_oauth_state")
+    if error or not state or not cookie_state or not secrets.compare_digest(cookie_state,state):
+        redirect=RedirectResponse(
+            url="/?youtube_oauth=denied" if error else "/?youtube_oauth=error",
+            status_code=303,
+        )
+        redirect.delete_cookie("youtube_oauth_state",path="/api/youtube/oauth/callback")
+        return redirect
+    try:
+        youtube_oauth_manager.exchange_code(code,state)
+        redirect=RedirectResponse(url="/?youtube_oauth=connected",status_code=303)
+    except YouTubeOAuthError:
+        redirect=RedirectResponse(url="/?youtube_oauth=error",status_code=303)
+    redirect.delete_cookie("youtube_oauth_state",path="/api/youtube/oauth/callback")
+    return redirect
+
+
+@app.get("/api/youtube/oauth/status")
+def youtube_oauth_status(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    return youtube_oauth_manager.status()
+
+
+@app.post("/api/youtube/oauth/disconnect")
+def disconnect_youtube_oauth(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    if os.getenv("YOUTUBE_REFRESH_TOKEN"):
+        raise HTTPException(
+            409,
+            "Static YOUTUBE_REFRESH_TOKEN is configured; remove it from the runtime before disconnecting OAuth.",
+        )
+    try:
+        return youtube_oauth_manager.disconnect()
+    except YouTubeOAuthError as e:
+        raise HTTPException(502,str(e))
+
+
 @app.get("/api/tiktok/oauth/start")
 def start_tiktok_oauth(response:Response,x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
@@ -1033,7 +1096,11 @@ def get_events(jid:str,x_review_token:str|None=Header(default=None)):
 @app.get("/api/preflight")
 def preflight(x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    return build_preflight()
+    try:
+        refresh_configured=bool(youtube_oauth_manager.get_refresh_token())
+    except YouTubeOAuthError:
+        refresh_configured=False
+    return build_preflight(youtube_refresh_token_configured=refresh_configured)
 
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
