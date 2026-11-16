@@ -178,6 +178,24 @@
       return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><p>'+esc(tiktokStatusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokIdSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
   }
+  async function loadYouTubeConnection(){
+    try{
+      const data=await api("/api/youtube/oauth/status");
+      const connected=!!data.connected;
+      const scopeLabel=data.scopes&&data.scopes.length?" · "+data.scopes.join(", "):"";
+      const mode=data.mode==="environment_refresh_token"?"환경 토큰(권한 목록 확인 불가)":"암호화 OAuth";
+      $("youtubeConnectionStatus").textContent=connected
+        ? "연결됨 · "+mode+scopeLabel
+        : "연결 필요 · YouTube 업로드와 Analytics 권한 승인 필요";
+      $("youtubeConnect").textContent=connected?"YouTube 연결됨":"YouTube 계정 연결";
+      $("youtubeConnect").disabled=connected;
+    }catch(err){
+      $("youtubeConnectionStatus").textContent="연결 설정 확인 필요 · "+err.message;
+      $("youtubeConnect").textContent="YouTube 연결";
+      $("youtubeConnect").disabled=false;
+    }
+  }
+
   async function loadTikTokConnection(){
     try{
       const data=await api("/api/tiktok/oauth/status");
@@ -345,7 +363,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -383,6 +401,15 @@
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
+  $("youtubeConnect").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    try{
+      const result=await api("/api/youtube/oauth/start");
+      if(!result.authorization_url)throw new Error("Google authorization URL was not returned");
+      window.location.assign(result.authorization_url);
+    }catch(err){toast(err.message);}
+  });
+  $("loadYouTubeConnection").addEventListener("click",()=>loadYouTubeConnection().catch(e=>toast(e.message)));
   $("tiktokConnect").addEventListener("click",async()=>{
     if(!requireToken())return;
     try{
