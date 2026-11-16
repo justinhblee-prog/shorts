@@ -333,10 +333,16 @@ class YouTubeUploadStore:
                   (job_id,attempt_id,event_type,attempt_video_id,str(error)[:2000],now))
                 return
             if row["attempt_id"]!=attempt_id:
+                # Preserve any provider video ID already observed for this exact
+                # old attempt; never substitute the current attempt's video ID.
+                prior_video = c.execute("""SELECT video_id FROM youtube_upload_events
+                  WHERE job_id=? AND attempt_id=? AND video_id IS NOT NULL
+                  ORDER BY id DESC LIMIT 1""",(job_id,attempt_id)).fetchone()
                 c.execute("""INSERT INTO youtube_upload_events
                   (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
-                  VALUES(?,?,'superseded_attempt_uncertain','uncertain',NULL,'system:upload_worker',?,?, 'reconciliation_required',?)""",
-                  (job_id,attempt_id,str(error)[:2000],row["status"],now))
+                  VALUES(?,?,'superseded_attempt_uncertain','uncertain',?,'system:upload_worker',?,?, 'reconciliation_required',?)""",
+                  (job_id,attempt_id,prior_video["video_id"] if prior_video else None,
+                   str(error)[:2000],row["status"],now))
                 # A superseded attempt can still have an unknown remote outcome.
                 # Keep the current job blocked until an operator rechecks the channel.
                 c.execute("""UPDATE youtube_uploads SET status='reconciliation_required',

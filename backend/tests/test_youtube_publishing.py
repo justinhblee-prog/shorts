@@ -213,6 +213,30 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(event["attempt_id"],first["attempt_id"])
         self.assertIsNone(event["video_id"])
 
+    def test_superseded_worker_error_preserves_old_video_id_while_new_attempt_uploads(self):
+        first=self.uploads.begin("job-1","First attempt","")
+        self.uploads.mark_reconciliation_required("job-1","first timeout",first["attempt_id"])
+        self.uploads.reconcile("job-1","not_uploaded",note="Verified no upload")
+        with self.uploads.db() as connection:
+            connection.execute("""INSERT INTO youtube_upload_events
+              (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,
+               previous_status,resulting_status,created_at)
+              VALUES(?,?,'late_remote_success','informational','old-attempt-video',
+                     'system:youtube_response','Old remote video observed',
+                     'uploading','late_success_review_required',?)""",
+              ("job-1",first["attempt_id"],"2026-01-01T00:00:00+00:00"))
+        second=self.uploads.begin("job-1","Second attempt","")
+        self.uploads.mark_reconciliation_required(
+            "job-1","late error from old worker",first["attempt_id"]
+        )
+        result=self.uploads.get("job-1")
+        self.assertEqual(result["attempt_id"],second["attempt_id"])
+        self.assertEqual(result["status"],"reconciliation_required")
+        self.assertIsNone(result["video_id"])
+        event=result["events"][-1]
+        self.assertEqual(event["attempt_id"],first["attempt_id"])
+        self.assertEqual(event["video_id"],"old-attempt-video")
+
     def test_operator_can_keep_current_video_when_stale_duplicate_arrives(self):
         first=self.uploads.begin("job-1","First attempt","")
         self.uploads.mark_reconciliation_required(
