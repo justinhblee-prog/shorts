@@ -1087,6 +1087,28 @@ class TikTokPublisher:
                 pass
 
     def refresh_status(self, job_id, poll_lease_token=None):
+        # Manual/API-triggered polls must use the same durable lease as the
+        # scheduler. Otherwise an operator refresh can race a scheduled poll.
+        if poll_lease_token is None:
+            record = self.store.get(job_id)
+            if record is None:
+                raise TikTokPublishError("TikTok publication record not found")
+            owned_token = self.store.acquire_status_poll_lease(
+                job_id, record["attempt_id"], lease_seconds=45,
+            )
+            if owned_token is None:
+                raise TikTokPublishError(
+                    "TikTok publication status is already being refreshed"
+                )
+            try:
+                return self._refresh_status_with_lease(job_id, owned_token)
+            finally:
+                self.store.release_status_poll_lease(
+                    job_id, record["attempt_id"], owned_token,
+                )
+        return self._refresh_status_with_lease(job_id, poll_lease_token)
+
+    def _refresh_status_with_lease(self, job_id, poll_lease_token):
         record = self.store.get(job_id)
         if record is None:
             raise TikTokPublishError("TikTok publication record not found")
