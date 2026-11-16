@@ -356,9 +356,12 @@ class TikTokOAuthManager:
         }
         saved = self.store.save_tokens(values, refresh_lease=refresh_lease)
         if not saved:
-            raise TikTokOAuthError(
+            message = (
+                "TikTok refresh lease was lost before token persistence; refusing stale token overwrite"
+                if refresh_lease is not None else
                 "TikTok token persistence was fenced by a concurrent token operation; retry authorization"
             )
+            raise TikTokOAuthError(message)
         return values
 
     def exchange_code(self, code, state):
