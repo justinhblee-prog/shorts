@@ -1254,3 +1254,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Preserve independently valid metrics such as views/hour for the affected production outcome; retention checkpoints remain null when no valid curve is supplied.
 - Add regression coverage for malformed curve containers and verify the evaluation batch remains available.
 - Recommendation ranking remains unchanged; no live provider/account validation is claimed.
+
+
+## BUILD-00154 — YouTube Analytics storage-boundary numeric validation
+
+- Reject Python booleans as numeric Analytics values instead of coercing `True`/`False` to 1/0.
+- Enforce 0–1 bounds for elapsed-video-time and audience-watch retention ratios at the persistence boundary; keep valid relative-retention negative values.
+- Preserve valid average view percentages above 100% and other valid metrics when unrelated fields are malformed.
+- Add direct-store regression coverage for booleans, negative/out-of-range ratios and valid boundary values.
