@@ -122,7 +122,8 @@ def _normalized_outcome(item):
         item.get("average_view_duration_seconds")
     )
     curve = []
-    for point in item.get("audience_retention_curve", []):
+    raw_curve = item.get("audience_retention_curve", [])
+    for point in raw_curve if isinstance(raw_curve, list) else []:
         if not isinstance(point, dict):
             continue
         elapsed = _normalized_ratio(point.get("elapsed_video_time_ratio"))
