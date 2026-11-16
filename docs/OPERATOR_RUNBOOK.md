@@ -417,3 +417,12 @@ ClamAV adds image size and signature-volume storage. CI validates the fail-close
 ### BUILD-00132 validation checkpoint
 
 GitHub Actions run [43794456586](https://github.com/justinhblee-prog/shorts/actions/runs/43794456586) passed **431 backend tests** and the complete validation script. This verifies code paths with synthetic fixtures; it does not prove that a live YouTube channel has enough authorized Analytics reports to populate matched cohorts.
+
+
+### Scheduled YouTube Analytics collector — BUILD-00133
+
+- Complete the YouTube OAuth connection in the dashboard and confirm the token is stored; the periodic metrics collector now reads the encrypted OAuth token store, the same as manual Analytics refresh.
+- `YOUTUBE_ANALYTICS_MIN_AGE_SECONDS` controls the minimum age before a video is refreshed (default 86400 seconds).
+- `YOUTUBE_ANALYTICS_LEASE_SECONDS` controls the renewable collector lease (default 900 seconds). The collector renews the lease during long batches and refuses to resurrect an expired lease.
+- Check `docker compose logs -f metrics-collector` for `youtube_analytics_collection_completed` or `youtube_analytics_collection_failed`. A successful scheduler cycle with zero due videos is not evidence that Analytics reports were retrieved.
+- Confirm actual collection by checking the per-video Analytics timestamp and report status in the dashboard/API. OAuth scopes and channel eligibility can still make individual reports unavailable.
