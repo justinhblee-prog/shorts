@@ -1212,6 +1212,26 @@ class ProductionTests(unittest.TestCase):
             )
         return queue, job["id"], request_key, claimed["lease_token"]
 
+    def test_fresh_script_stage_preserves_artifacts_when_provider_outcome_unresolved(self):
+        queue, job_id, request_key, lease_token = self._create_claimed_production_job()
+        self.store.artifact(
+            job_id, "script", "text", None, {"script": "last known-good script"}
+        )
+
+        with self.assertRaises(ProductionLeaseConflict):
+            self.store.stage(
+                job_id, "script", worker_id="worker-old", lease_token=lease_token
+            )
+
+        artifacts = self.store.artifacts(job_id)
+        self.assertTrue(any(
+            item["stage"] == "script"
+            and item["metadata"].get("script") == "last known-good script"
+            for item in artifacts
+        ))
+        attempt = self.store.provider_attempts(job_id)[0]
+        self.assertEqual(attempt["state"], "request_started")
+
     def test_replaced_process_generation_cannot_write_provider_or_artifact_state(self):
         queue = JobQueue(self.store.db_path)
         job = queue.enqueue("short_video_production", self.brief)
