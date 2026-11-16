@@ -84,10 +84,10 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 ## Validation — current truth
 
-- Latest verified GitHub Actions run: [43787047727](https://github.com/justinhblee-prog/shorts/actions/runs/43787047727), which passed **339 backend tests** and the complete `scripts/validate.sh` command on the BUILD-00034 implementation.
+- Latest verified GitHub Actions run: [43788265493](https://github.com/justinhblee-prog/shorts/actions/runs/43788265493), which passed **352 backend tests** and the complete `scripts/validate.sh` command on the BUILD-00036 implementation.
 - CI executed Python 3.11 tests on a GitHub-hosted runner. Provider/API tests use controlled test doubles where credentials or external services are required; this verifies application logic, not live provider success.
 - The validation script also checks Python compilation, frontend JavaScript syntax/DOM IDs and Docker Compose YAML parsing.
-- Recent verified milestones: BUILD-00031 — 326 tests; BUILD-00032 — 336 tests; BUILD-00033 — 338 tests; BUILD-00034 — 339 tests.
+- Recent verified milestones: BUILD-00031 — 326 tests; BUILD-00032 — 336 tests; BUILD-00033 — 338 tests; BUILD-00034 — 339 tests; BUILD-00036 — 352 tests.
 - Not yet verified in a deployed environment: live AI provider generation, actual media rendering/staging, YouTube/TikTok OAuth and account permissions, real uploads, analytics coverage, revenue reconciliation, production worker/scheduler recovery, PostgreSQL migration, backups and restore.
 - No real earnings, monetization eligibility, platform-policy approval or complete unattended business cycle is claimed.
 - Production public publishing remains gated by explicit human approval.
@@ -1003,3 +1003,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Use the encrypted token store for YouTube uploads and Analytics, with the legacy YOUTUBE_REFRESH_TOKEN environment variable as a compatibility fallback.
 - Add protected connect/status/disconnect endpoints and dashboard connection controls.
 - Validation pending. Live Google consent, account selection, refresh and real upload remain deployment checks.
+
+
+### BUILD-00036 validation record
+
+- GitHub Actions PR run [43788265493](https://github.com/justinhblee-prog/shorts/actions/runs/43788265493) passed **352 backend tests** and `scripts/validate.sh`.
+- Test coverage includes one-time OAuth state, required-scope enforcement, encrypted token persistence, disconnect, static-token fallback, preflight and protected/public callback route boundaries.
+- Live Google consent, refresh-token usability, actual channel API access and a real upload remain deployment checks.
