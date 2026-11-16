@@ -131,7 +131,8 @@ def run_once():
             raise LeaseConflict("Worker lease was lost while generating media")
         queue.finish(job["id"], WORKER_ID, job["lease_token"],
                      {"production_status": "review_pending",
-                      "artifact_count": len(result["artifacts"])})
+                      "artifact_count": len(result["artifacts"])},
+                     generation_token=WORKER_GENERATION_TOKEN)
         store.reconcile_review_pending(queue)
         print(f"review_pending job={job['id']}")
     except KeyboardInterrupt:
