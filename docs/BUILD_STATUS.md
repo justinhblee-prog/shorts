@@ -1258,3 +1258,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression tests for future-dated false deduplication, the exact one-minute boundary, and equivalent timestamps expressed with different offsets.
 - GitHub Actions runs [43806219957](https://github.com/justinhblee-prog/shorts/actions/runs/43806219957) and [43806222522](https://github.com/justinhblee-prog/shorts/actions/runs/43806222522) passed the complete `scripts/validate.sh` workflow on the latest source and regression-test commit; documentation-only updates followed.
 - Ranking score adjustment remains disabled; no live provider validation is claimed.
+
+
+## BUILD-00154 — trend ranking with no active brands
+
+- Fix an unbound local region variable when the active brand set is empty; the ranking endpoint previously crashed instead of returning valid unbranded trend candidates.
+- Compute each trend's region before iterating active brands and preserve the existing no-brand ranking behavior.
+- Add regression coverage for both an empty brand list and a list containing only inactive brands; ensure unittest discovery collects the regression.
+- GitHub Actions run [43806438008](https://github.com/justinhblee-prog/shorts/actions/runs/43806438008) passed the complete `scripts/validate.sh` workflow with **478 backend tests**, including the corrected empty-brand regression.
+- No ranking score adjustment is enabled; no live provider validation is claimed.
