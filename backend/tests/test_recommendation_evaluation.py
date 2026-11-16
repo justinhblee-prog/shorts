@@ -97,6 +97,57 @@ class RecommendationEvaluationTests(unittest.TestCase):
             run_id=exposure["run_id"],
         )["linked"])
 
+    def test_selection_links_to_the_exact_exposure_not_a_later_refresh(self):
+        first = self.store.record_run(
+            "US", [self.item(7, 88.0)], "2026-11-01T00:00:00+00:00"
+        )
+        second = self.store.record_run(
+            "US", [self.item(7, 91.0)], "2026-11-01T00:02:00+00:00"
+        )
+        self.assertNotEqual(first["run_id"], second["run_id"])
+
+        linked = self.store.link_production(
+            "trend-7", "future-leak", "job-from-first-screen",
+            "2026-11-01T00:03:00+00:00", run_id=first["run_id"],
+        )
+        self.assertTrue(linked["linked"])
+        self.assertEqual(linked["run_id"], first["run_id"])
+
+        with self.store.db() as connection:
+            first_row = connection.execute(
+                "SELECT selected_job_id FROM recommendation_candidates WHERE run_id=?",
+                (first["run_id"],),
+            ).fetchone()
+            second_row = connection.execute(
+                "SELECT selected_job_id FROM recommendation_candidates WHERE run_id=?",
+                (second["run_id"],),
+            ).fetchone()
+        self.assertEqual(first_row["selected_job_id"], "job-from-first-screen")
+        self.assertIsNone(second_row["selected_job_id"])
+
+    def test_missing_or_unknown_exposure_never_falls_back_to_latest_run(self):
+        self.store.record_run(
+            "US", [self.item(8, 88.0)], "2026-11-01T00:00:00+00:00"
+        )
+        missing = self.store.link_production(
+            "trend-8", "future-leak", "job-without-run"
+        )
+        stale = self.store.link_production(
+            "trend-8", "future-leak", "job-with-stale-run",
+            run_id="stale-run-id",
+        )
+        self.assertFalse(missing["linked"])
+        self.assertEqual(missing["reason"], "recommendation_run_id_required")
+        self.assertFalse(stale["linked"])
+        self.assertEqual(
+            stale["reason"], "no_matching_candidate_in_recommendation_run"
+        )
+        with self.store.db() as connection:
+            row = connection.execute(
+                "SELECT selected_job_id FROM recommendation_candidates"
+            ).fetchone()
+        self.assertIsNone(row["selected_job_id"])
+
     def test_holdout_is_chronological_and_reports_score_outcome_association(self):
         videos = []
         for index in range(10):
