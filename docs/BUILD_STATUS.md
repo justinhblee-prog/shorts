@@ -62,7 +62,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Reject approval, rejection, or revision decisions if the queue table or job row is missing; do not silently allow a production-ledger-only transition.
 - Keep the production decision, queue transition, and audit event in one SQLite transaction.
 - Update legacy-style unit fixtures to use matching queue-backed review records and add missing-table/missing-row rollback regressions.
-- Automated validation is pending.
+- CI passed: run 43838159960; 564 backend tests, including missing-queue table/job rollback and queue-backed approval fixtures for YouTube, TikTok, and analytics.
 
 ## BUILD-00188 — integrity API input boundaries
 
