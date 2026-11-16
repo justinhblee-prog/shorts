@@ -374,10 +374,36 @@ class YouTubePublishingTests(unittest.TestCase):
 
     def test_metrics_collector_lease_is_single_owner_and_releasable(self):
         second_store=YouTubeUploadStore(self.db)
-        self.assertEqual(self.uploads.acquire_metrics_collector_lease("collector-a"),"collector-a")
+        first = self.uploads.acquire_metrics_collector_lease("collector-a")
+        self.assertTrue(first)
         self.assertIsNone(second_store.acquire_metrics_collector_lease("collector-b"))
-        self.assertTrue(self.uploads.release_metrics_collector_lease("collector-a"))
-        self.assertEqual(second_store.acquire_metrics_collector_lease("collector-b"),"collector-b")
+        self.assertTrue(self.uploads.renew_metrics_collector_lease("collector-a", first))
+        self.assertTrue(self.uploads.release_metrics_collector_lease("collector-a", first))
+        second = second_store.acquire_metrics_collector_lease("collector-b")
+        self.assertTrue(second)
+        self.assertNotEqual(first, second)
+
+    def test_stale_metrics_lease_cannot_write_snapshot_or_collection_state(self):
+        token = self.uploads.acquire_metrics_collector_lease("collector-a")
+        with self.uploads.db() as connection:
+            connection.execute(
+                "UPDATE youtube_metrics_collector_lease SET token='replacement' WHERE id=1"
+            )
+        with self.assertRaisesRegex(RuntimeError, "stale write rejected"):
+            self.uploads.snapshot(
+                "yt-stale", {"viewCount": "5"},
+                lease_owner="collector-a", lease_token=token,
+            )
+        with self.assertRaisesRegex(RuntimeError, "stale write rejected"):
+            self.uploads.record_metrics_collection(
+                "succeeded", requested=1, collected=1,
+                lease_owner="collector-a", lease_token=token,
+            )
+        with self.uploads.db() as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM youtube_video_snapshots WHERE video_id='yt-stale'"
+            ).fetchone()[0]
+        self.assertEqual(count, 0)
 
     def test_due_metrics_batch_refreshes_multiple_videos_in_one_api_request(self):
         self.prod.create("job-2",{"brand":"Future Leak","region":"US",
