@@ -1186,6 +1186,56 @@ class ProductionTests(unittest.TestCase):
         self.assertIsNone(attempt["error"])
         self.assertEqual(queue.get(job_id)["lease_token"], "replacement-fencing-token")
 
+    def test_concurrent_provider_attempt_starts_allow_only_one_external_request(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+
+        self.store.create("job-concurrent-provider-start", self.brief)
+        gate = Barrier(2)
+
+        def start_attempt():
+            gate.wait()
+            try:
+                return self.store.begin_provider_attempt(
+                    "job-concurrent-provider-start", "rendering", 1
+                )
+            except ProviderAttemptConflict as exc:
+                return exc
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(lambda _: start_attempt(), range(2)))
+
+        keys = [value for value in outcomes if isinstance(value, str)]
+        conflicts = [value for value in outcomes
+                     if isinstance(value, ProviderAttemptConflict)]
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(len(conflicts), 1)
+        attempts = self.store.provider_attempts("job-concurrent-provider-start")
+        self.assertEqual(len(attempts), 1)
+        self.assertEqual(attempts[0]["state"], "request_started")
+        self.assertEqual(attempts[0]["idempotency_key"], keys[0])
+
+        # A second worker cannot create a new provider request while the first
+        # request's external outcome is unresolved.
+        with self.assertRaises(ProviderAttemptConflict):
+            self.store.begin_provider_attempt(
+                "job-concurrent-provider-start", "rendering", 2
+            )
+
+        self.store.confirm_provider_attempt_not_executed(
+            "job-concurrent-provider-start", attempts[0]["id"],
+            "operator-1", "provider-console:request-not-found",
+            "Provider history confirms the request was not executed",
+        )
+        replacement = self.store.begin_provider_attempt(
+            "job-concurrent-provider-start", "rendering", 2
+        )
+        self.assertNotEqual(replacement, keys[0])
+        final_attempts = self.store.provider_attempts("job-concurrent-provider-start")
+        self.assertEqual([item["state"] for item in final_attempts],
+                         ["not_executed_confirmed", "request_started"])
+        self.assertEqual([item["attempt_number"] for item in final_attempts], [1, 2])
+
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
             ProductionPipeline.validate_brief({"brand": "x", "region": "US",
