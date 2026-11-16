@@ -101,7 +101,7 @@ class YouTubeUploadStore:
         finally:
             c.close()
 
-    def begin(self,job_id,title,description):
+    def begin(self,job_id,title,description,require_current_approval=False):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             run=c.execute(
@@ -116,6 +116,21 @@ class YouTubeUploadStore:
                 raise YouTubeUploadError(
                     "The production job must remain approved by its latest human review decision"
                 )
+
+            # The real publisher enables this stricter guard. Keep the default
+            # permissive for low-level fixture/metrics seeding, but never let a
+            # publish reservation race a queue reopen or a missing queue row.
+            if require_current_approval:
+                queue_job=c.execute(
+                    "SELECT job_type,status FROM pipeline_jobs WHERE id=?",
+                    (job_id,)
+                ).fetchone()
+                if (queue_job is None
+                        or queue_job["job_type"]!="short_video_production"
+                        or queue_job["status"]!="approved"):
+                    raise YouTubeUploadError(
+                        "The durable short-video queue job must remain approved before upload"
+                    )
 
             # A previous human approval cannot silently carry forward after
             # the deterministic policy checklist has changed.
@@ -651,7 +666,7 @@ class YouTubePublisher:
         heartbeat_thread=None
         try:
             snapshot_path,_=create_verified_media_snapshot(resolved,approved_sha256,approved_size)
-            upload_attempt=self.store.begin(job_id,title,description)
+            upload_attempt=self.store.begin(job_id,title,description,require_current_approval=True)
             from googleapiclient.http import MediaFileUpload
             service=self._service()
             body={
