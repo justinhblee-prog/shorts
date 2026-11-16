@@ -1174,3 +1174,19 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The complete validation script passed with **446 backend tests**.
 - Tests cover YouTube report schema/metric validation, retention range/size limits, TikTok duplicate and malformed rows, and all-or-nothing SQLite persistence.
 - Live provider API and production account behavior remain unverified.
+
+
+## BUILD-00136 — safe external media links and previews
+
+- `frontend/app.js` validates renderer media URLs before adding them to anchor `href` or audio `src` attributes.
+- Only absolute HTTPS URLs without embedded credentials are accepted. Unsafe/malformed URLs are hidden.
+- External links opened in a new tab use `rel="noopener noreferrer"`.
+- CI validation pending.
+
+
+### BUILD-00136 validation record
+
+- GitHub Actions PR run [43795822579](https://github.com/justinhblee-prog/shorts/actions/runs/43795822579) completed successfully.
+- The full validation script passed with **447 backend tests**.
+- Frontend checks verify the review video, approved video and narration audio paths use the HTTPS-only URL validator and `noopener noreferrer`.
+- Static source tests do not replace browser-level testing or backend media host/DNS/TLS checks.

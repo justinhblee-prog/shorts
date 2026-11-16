@@ -5,6 +5,14 @@
   let brands = [];
   let toastTimer;
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  function safeExternalMediaUrl(value){
+    if(typeof value!=="string"||!value.trim())return "";
+    try{
+      const url=new URL(value);
+      if(url.protocol!=="https:"||url.username||url.password)return "";
+      return url.href;
+    }catch{return "";}
+  }
   function retentionCheckpoint(points,target){
     const valid=(Array.isArray(points)?points:[]).filter(p=>p&&Number.isFinite(Number(p.elapsed_video_time_ratio))&&Number.isFinite(Number(p.audience_watch_ratio)));
     if(!valid.length)return "—";
@@ -73,6 +81,7 @@
     $("reviewList").innerHTML=items.length?items.map(item=>{
       const artifacts=item.artifacts||[];
       const video=artifacts.find(a=>a.artifact_type==="video");
+      const videoUrl=safeExternalMediaUrl(video?.artifact_url);
       const scriptArtifact=artifacts.find(a=>a.artifact_type==="text"&&a.stage==="script");
       const audioArtifact=artifacts.find(a=>a.artifact_type==="audio");
       const qualityArtifact=artifacts.find(a=>a.stage==="quality_check"&&a.artifact_type==="report");
@@ -128,15 +137,16 @@
           +(qualityWarnings.length?'<p>확인 경고: '+qualityWarnings.map(esc).join(', ')+'</p>':'')
           +'<small>'+esc(quality.verification_boundary||"메타데이터 기반 검사이며 실제 미디어 검증은 아닙니다.")+'</small></section>'
         : '<section class="review-policy"><strong>자동 제작 품질 검사 자료 없음</strong><small>영상·음성·자막·대본을 직접 확인하세요.</small></section>';
-      const audioPreview=audioArtifact?.artifact_url
-        ? '<div class="review-audio"><label>내레이션 미리 듣기</label><audio controls preload="metadata" src="'+esc(audioArtifact.artifact_url)+'"></audio></div>'
+      const audioUrl=safeExternalMediaUrl(audioArtifact?.artifact_url);
+      const audioPreview=audioUrl
+        ? '<div class="review-audio"><label>내레이션 미리 듣기</label><audio controls preload="metadata" src="'+esc(audioUrl)+'"></audio></div>'
         : '';
       const profile=item.brand_profile||{};
       const rules=Array.isArray(profile.review_rules)?profile.review_rules:[];
       const guidance=profile.risk_level
         ? '<section class="review-guidance"><div><strong>브랜드 검수 기준</strong><span class="risk-level risk-'+esc(profile.risk_level)+'">위험도 '+esc(profile.risk_level)+'</span></div>'+(profile.positioning?'<p>'+esc(profile.positioning)+'</p>':'')+(rules.length?'<ul>'+rules.map(rule=>'<li>'+esc(rule)+'</li>').join('')+'</ul>':'')+'</section>'
         : '';
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
 
@@ -145,6 +155,7 @@
     const items=data.items||[];
     $("approvedList").innerHTML=items.length?items.map(item=>{
       const video=(item.artifacts||[]).find(a=>a.artifact_type==="video");
+      const videoUrl=safeExternalMediaUrl(video?.artifact_url);
       const uncertain=!!item.upload_reconciliation_required;
       const status=item.upload_status||"not_uploaded";
       const tiktokStatus=item.tiktok_status||"not_published";
@@ -175,7 +186,7 @@
         (tiktokStatus==="failed"?"TikTok 이전 시도 실패":"TikTok 게시 대기"))));
       const tiktokIdSummary=item.tiktok_video_id?'<p>TikTok 영상 ID: '+esc(item.tiktok_video_id)+'</p>':"";
       const statusText=status==="late_success_review_required"?"늦은 업로드 성공 · 운영자 확인 필요":(uncertain?"업로드 결과 확인 필요":(status==="uploading"?"업로드 진행 중":(status==="failed"?"이전 업로드 실패 · 재시도 가능":(status==="uploaded"?"업로드 완료":"업로드 대기"))));
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><p>'+esc(tiktokStatusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(video?'<p><a target="_blank" rel="noopener" href="'+esc(video.artifact_url)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokIdSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><p>'+esc(tiktokStatusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokIdSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
   }
   async function loadYouTubeConnection(){

@@ -88,5 +88,17 @@ class FrontendPortalTests(unittest.TestCase):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
             self.assertIn(section, html)
+
+    def test_external_media_urls_require_https_without_embedded_credentials(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("function safeExternalMediaUrl(value)", app_js)
+        self.assertIn('url.protocol!=="https:"', app_js)
+        self.assertIn("url.username||url.password", app_js)
+        self.assertIn("safeExternalMediaUrl(audioArtifact?.artifact_url)", app_js)
+        self.assertGreaterEqual(app_js.count("safeExternalMediaUrl(video?.artifact_url)"), 2)
+        self.assertGreaterEqual(app_js.count('rel="noopener noreferrer"'), 2)
+        self.assertNotIn("esc(video.artifact_url)", app_js)
+        self.assertNotIn("esc(audioArtifact.artifact_url)", app_js)
+
 if __name__ == "__main__":
     unittest.main()

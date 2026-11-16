@@ -588,3 +588,8 @@ The authenticated `GET /api/youtube/analytics/collection-status` endpoint and th
 ### BUILD-00135 — provider metrics response validation
 
 YouTube Analytics responses are checked for known unique headers, correct row shape, finite numeric metrics and bounded response sizes before use. Retention curves are independently validated; a malformed retention response does not discard valid watch-time metrics. TikTok metrics responses are fully validated before any persistence and accepted rows are committed in one SQLite transaction. A malformed later row cannot leave a partial batch.
+
+
+### BUILD-00136 — external media URL policy
+
+The review and approved-content workspaces accept external renderer media URLs only when they are absolute HTTPS URLs without embedded credentials. Unsafe URLs are not placed in video-link or audio-preview attributes. External links opened in a new tab use `noopener noreferrer`. This is a frontend scheme/credential check; media host allowlisting and byte-level validation remain enforced separately by the backend staging pipeline.

@@ -1115,3 +1115,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Validate the complete TikTok response batch, reject unrequested/duplicate IDs and SQLite integer overflow, then persist all accepted rows in one transaction.
 - Add regression tests proving a malformed later TikTok row cannot leave an earlier partial snapshot, and malformed YouTube report values are rejected.
 - GitHub Actions PR run [43795614217](https://github.com/justinhblee-prog/shorts/actions/runs/43795614217) passed **446 backend tests** and the complete `scripts/validate.sh` command.
+
+
+## BUILD-00136 — safe external media URL rendering (2026-11-16)
+
+- Add a single URL validator for external renderer video links and narration audio previews.
+- Permit only absolute HTTPS URLs and reject malformed URLs, non-HTTPS schemes and embedded username/password credentials.
+- Hide unsafe media controls instead of placing untrusted URLs in href/src attributes.
+- Opened media links use both `noopener` and `noreferrer`.
+- Add frontend regression tests for review video, approved video and audio preview paths.
+- GitHub Actions PR run [43795822579](https://github.com/justinhblee-prog/shorts/actions/runs/43795822579) passed **447 backend tests** and the complete `scripts/validate.sh` command.
