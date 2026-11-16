@@ -1241,3 +1241,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **464 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully, including the frontend validation steps.
 - No live YouTube/TikTok publishing or real recommendation performance validation is claimed.
+
+
+## BUILD-00140 — capture all selectable brand candidates
+
+- The recommendation dashboard exposes up to three selectable brands for each trend, but the prior exposure recorder persisted only `best_brand`. Selecting another displayed brand therefore had no candidate row to link, causing missing evaluation outcomes.
+- `RecommendationEvaluationStore.record_run` now records every valid, distinct brand option from `brand_candidates` (bounded to ten) and preserves the legacy `best_brand` fallback.
+- Each stored brand candidate retains its own fit score and comparable-cohort context. The trend-level rank and recommendation score remain unchanged.
+- Exposure deduplication now includes every selectable brand option and its candidate-specific evidence.
+- Regression coverage verifies alternate-brand linking and deduplication when available brand choices change.
