@@ -649,3 +649,28 @@ class RecommendationEvaluationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_evaluate_ignores_malformed_retention_curve_container(self):
+        exposure = self.store.record_run(
+            "US", [self.item(153, 82.5)], "2026-11-01T00:00:00+00:00"
+        )
+        self.store.link_production(
+            "trend-153", "future-leak", "job-malformed-retention",
+            "2026-11-01T01:00:00+00:00", run_id=exposure["run_id"],
+        )
+        for malformed_curve in (None, 42, True, "not-a-retention-curve"):
+            with self.subTest(curve=malformed_curve):
+                result = self.store.evaluate({"videos": [{
+                    "job_id": "job-malformed-retention",
+                    "measurement_status": "measured",
+                    "views_per_hour": 125,
+                    "audience_retention_curve": malformed_curve,
+                }]})
+                self.assertEqual(result["selected_production_count"], 1)
+                self.assertEqual(result["measured_outcome_count"], 1)
+                self.assertEqual(result["any_metric_measured_outcome_count"], 1)
+                observation = result["observations"][0]
+                self.assertIsNone(observation["audience_watch_ratio_25"])
+                self.assertIsNone(observation["audience_watch_ratio_50"])
+                self.assertIsNone(observation["audience_watch_ratio_75"])
