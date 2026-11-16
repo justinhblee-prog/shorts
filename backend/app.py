@@ -12,7 +12,7 @@ from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
 from profitability import OpportunityStore, score_opportunity, analyze_competition
 from trend_recommendations import rank_trend_candidates
-from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError, ProductionLeaseConflict
+from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError, PolicyBlocked, ProductionLeaseConflict
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict
 from reviewer_auth import resolve_review_principal, ReviewCredentialConfigurationError
@@ -398,6 +398,19 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
         queue.finish(job_id,body.worker_id,body.lease_token,{"production_status":"review_pending"})
         production_store.reconcile_review_pending(queue)
         return production_store.get(job_id)
+    except PolicyBlocked as e:
+        # A deterministic preflight block is local to this job; it must not
+        # pause unrelated production workers.
+        try:
+            queue.fail(job_id,body.worker_id,body.lease_token,
+                       "policy_blocked",str(e),False)
+        except Exception:
+            pass
+        raise HTTPException(422,{
+            "stage":e.stage,
+            "error":"Production blocked by policy preflight.",
+            "retryable":False,
+        })
     except ProviderError as e:
         try:
             queue.fail(job_id,body.worker_id,body.lease_token,

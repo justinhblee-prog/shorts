@@ -103,6 +103,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - This validates the local supervised worker path; it does not claim external API clients automatically renew leases.
 - Automated validation is pending.
 
+## BUILD-00196 — keep deterministic policy blocks job-scoped
+
+- Handle `PolicyBlocked` before the generic provider-error branch in the production execution API.
+- Terminalize only the blocked job with a dedicated `policy_blocked` error code and HTTP 422 response.
+- Do not pause the shared production queue for a deterministic content-policy preflight block; unrelated eligible jobs remain runnable.
+- Add an API regression proving the job is failed and the global worker pause is not invoked.
+- Automated validation is pending.
+
 ## BUILD-00001 — durable queue and Worker Lease
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.
