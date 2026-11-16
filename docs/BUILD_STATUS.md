@@ -2047,3 +2047,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Wait for the heartbeat thread to exit before clearing active-job state.
 - Add a regression that blocks the heartbeat database call and asserts cleanup joins without a timeout.
 - GitHub Actions [run #3500](https://github.com/justinhblee-prog/shorts/actions/runs/43916192844) succeeded on commit `7c647861481854ed91216dac9d9b69c4ce1d89ba`; `scripts/validate.sh` passed. Unit tests use a controlled thread and mocked provider execution; no live production worker/database deployment validation is claimed.
+
+
+## BUILD-00273 — Pause ambiguous production work on worker process restart
+- Detect when a new process generation registers under a worker ID that is still marked online and owns running short-video production work.
+- Atomically pause the production queue and terminalize active production leases before allowing the replacement generation to proceed.
+- Preserve normal idle worker restarts: registering a new generation without an active production lease does not pause the queue.
+- Add queue-level regressions for active-work restart fencing and idle restart behavior.
+- GitHub Actions validation pending. Tests use a local SQLite database; no live multi-process production deployment validation is claimed.
