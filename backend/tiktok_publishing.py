@@ -313,10 +313,10 @@ class TikTokPublishStore:
                     return
                 c.execute("""
                   INSERT INTO tiktok_publication_events
-                    (job_id,attempt_id,event_type,outcome,publish_id,video_id,operator_id,
+                    (job_id,attempt_id,event_type,outcome,publish_id,operator_id,
                      note,created_at,policy_version)
-                  VALUES(?,?,'superseded_attempt_uncertain','unknown',?,?,?,?,?,?)
-                """, (job_id, attempt_id, prior_publish_id, prior_video_id, prior_operator_id,
+                  VALUES(?,?,'superseded_attempt_uncertain','unknown',?,?,?,?,?)
+                """, (job_id, attempt_id, prior_publish_id, prior_operator_id,
                       message[:1000], now, row["policy_version"]))
                 return
             if row and row["attempt_id"] == attempt_id:

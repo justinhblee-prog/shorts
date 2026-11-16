@@ -206,6 +206,21 @@ class TikTokPublishingTests(unittest.TestCase):
             "job-1", "not_published", "operator-ops",
             "Verified no post existed before retry", confirmed=True,
         )
+        # Preserve a known video ID even when a later audit row omits it.
+        with self.store.db() as connection:
+            connection.execute(
+                """
+                INSERT INTO tiktok_publication_events
+                  (job_id,attempt_id,event_type,outcome,publish_id,video_id,
+                   operator_id,note,created_at,policy_version)
+                VALUES(?,?,'provider_video_observed','informational',
+                       NULL,'old-video-id','operator-1',?,?,?)
+                """,
+                (
+                    "job-1", first_attempt, "Observed provider video ID",
+                    "2026-01-01T00:00:00+00:00", POLICY_VERSION,
+                ),
+            )
         # A later audit row without provider identifiers must not hide the
         # identifiers recorded by the earlier initialization event.
         with self.store.db() as connection:
@@ -237,7 +252,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(current["events"][-1]["event_type"], "superseded_attempt_uncertain")
         self.assertEqual(current["events"][-1]["attempt_id"], first_attempt)
         self.assertEqual(current["events"][-1]["publish_id"], "old-publish-id")
-        self.assertIsNone(current["events"][-1]["video_id"])
+        self.assertEqual(current["events"][-1]["video_id"], "old-video-id")
         self.assertEqual(current["events"][-1]["operator_id"], "operator-1")
         self.assertEqual(current["events"][-1]["publish_id"], "old-publish-id")
         with self.assertRaisesRegex(TikTokPublishError, "unresolved or already active"):

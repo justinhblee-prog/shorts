@@ -1833,9 +1833,3 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - This avoids audit events that identify the attempt but omit the remote video already associated with it.
 - Regression asserts the late-success review event carries the preserved video ID.
 - Deterministic backend CI only; no live YouTube API verification.
-
-## BUILD-00223 — Preserve TikTok provider identifiers in nonterminal uncertainty events
-- Superseded-attempt uncertainty events that block a newer nonterminal attempt now retain the prior attempt's video ID as well as its publish ID and operator ID.
-- The event query already retrieves the latest non-null provider identifiers independently, so the audit row now persists all of them consistently in both terminal and nonterminal branches.
-- Regression asserts the publish ID and operator identity survive a later diagnostic row with null provider identifiers.
-- Backend deterministic CI only; no live TikTok API verification.
