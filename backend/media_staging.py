@@ -45,12 +45,9 @@ class MediaStager:
         elif isinstance(scan_enabled, str):
             scan_enabled = scan_enabled.strip().lower() in {"1", "true", "yes", "on"}
         self.scan_enabled = bool(scan_enabled)
-        # Do not even construct the scanner when disabled: a broken optional
-        # scanner setting must not prevent the normal API from starting.
-        self.scanner = (
-            scanner if scanner is not None
-            else (ClamAVScanner() if self.scan_enabled else None)
-        )
+        # Construct the optional scanner lazily during staging so malformed
+        # scan settings are reported by preflight and do not prevent API startup.
+        self.scanner = scanner
 
     @staticmethod
     def _resolve(host):
@@ -215,10 +212,14 @@ class MediaStager:
                 raise MediaStagingError("Downloaded artifact does not contain an MP4 file signature")
             scan_status = "disabled"
             if self.scan_enabled:
-                if self.scanner is None:
-                    raise MediaStagingError("Malware scanner is enabled but no scanner is configured")
+                scanner = self.scanner
+                if scanner is None:
+                    try:
+                        scanner = ClamAVScanner()
+                    except Exception as exc:
+                        raise MediaStagingError("Malware scanner configuration is invalid") from exc
                 try:
-                    scan_result = self.scanner.scan(temporary)
+                    scan_result = scanner.scan(temporary)
                 except MediaScanError as exc:
                     raise MediaStagingError(str(exc)) from exc
                 except Exception as exc:
