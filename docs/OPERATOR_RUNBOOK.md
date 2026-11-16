@@ -508,3 +508,8 @@ The scheduler reads two environment settings at process startup:
 - `NEXUS_SCHEDULER_LEASE_SECONDS`: integer from 15 to 3600; default 90.
 
 Both values must be decimal integer strings. The poll interval must not exceed one-third of the leader lease TTL. Invalid values stop startup with a clear configuration error rather than being silently clamped or coerced. For example, a 90-second lease permits a polling interval of at most 30 seconds.
+
+
+### BUILD-00163 — schedule controls and outbox limits
+
+Internal schedule-store callers must pass a real boolean to activate/deactivate a schedule. Outbox listing limits are integers from 1–500 for pending items and 1–100 for status summaries; dispatch batch limits are integers from 1–100. The scheduler validates its lease TTL before processing, even when there are no due schedules or pending outbox rows. Invalid values raise a clear `ValueError` rather than being coerced or clamped.
