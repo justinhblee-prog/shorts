@@ -1279,6 +1279,49 @@ class ProductionTests(unittest.TestCase):
             queue.get(job["id"])["lease_token"], claimed["lease_token"]
         )
 
+    def test_late_provider_response_is_journaled_after_worker_generation_replacement(self):
+        queue = JobQueue(self.store.db_path)
+        job = queue.enqueue("short_video_production", self.brief)
+        self.store.create(job["id"], self.brief)
+        old = queue.register_worker("worker-late", "host-a")
+        claimed = queue.claim(
+            "worker-late", job_type="short_video_production",
+            generation_token=old["generation_token"],
+        )
+
+        class ReplacedDuringRequest:
+            def post(inner_self, stage, payload):
+                inner_self.replacement = queue.register_worker("worker-late", "host-a")
+                return {"script": "late but durable", "request_id": "provider-req-1"}
+
+        provider = ReplacedDuringRequest()
+        pipeline = ProductionPipeline(
+            self.store, provider, FakeProvider({}), FakeProvider({})
+        )
+        with self.assertRaises(ProductionLeaseConflict):
+            pipeline._provider_request(
+                job["id"], "script", 1, provider, {"task": "script"},
+                "worker-late", claimed["lease_token"], old["generation_token"],
+            )
+
+        attempt = self.store.provider_attempts(job["id"])[0]
+        self.assertEqual(attempt["state"], "response_received")
+        self.assertEqual(json.loads(attempt["response_json"])["script"], "late but durable")
+        self.assertEqual(
+            queue.get(job["id"])["lease_token"], claimed["lease_token"]
+        )
+        self.assertEqual(self.store.artifacts(job["id"]), [])
+
+        current = queue.claim(
+            "worker-late", job_type="short_video_production",
+            generation_token=provider.replacement["generation_token"],
+        )
+        recovered = self.store.recover_provider_response(
+            job["id"], "script", "worker-late", current["lease_token"],
+            provider.replacement["generation_token"],
+        )
+        self.assertEqual(recovered["script"], "late but durable")
+
     def test_stale_worker_cannot_finalize_provider_response_after_lease_replacement(self):
         queue, job_id, request_key, old_token = self._create_claimed_production_job()
         with self.assertRaises(ProductionLeaseConflict):
