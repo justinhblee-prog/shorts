@@ -660,3 +660,10 @@ The integrity report requires the `production.read` permission. A configured rev
 The integrity report scans three cases: state mismatches, short-video queue jobs with no production row, and production rows with no matching short-video queue job. Queue-only records are normally restored only by the existing payload-validated recovery path. If they remain missing after that path, the worker pauses and requires operator investigation. Production-only records are never converted into queue jobs automatically.
 
 The report is bounded (maximum 200 records per call) and read-only. It does not create, delete, retry, approve, upload, or publish records. The worker blocks new claims when an orphan remains after recovery. A displayed limit is a scan bound, not a complete inventory count.
+
+
+## BUILD-00183 — Integrity report totals and bounded samples
+
+The integrity report's `unresolved` and `orphaned` fields are aggregate counts across the full matching tables, not just the displayed sample. `scanned` is the number of detail rows returned, `has_more` indicates that the sample is truncated, and `counts` breaks the totals into state mismatches, queue-only rows, and production-only rows.
+
+Detail rows remain capped at 200. Orphan rows are prioritized in the sample so the worker's bounded safety check sees orphan records before ordinary status mismatches. The dashboard labels the total separately from the displayed detail count; a truncated report is not a complete item listing.

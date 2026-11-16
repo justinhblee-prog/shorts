@@ -754,11 +754,31 @@ class ProductionTests(unittest.TestCase):
                                            "language": "en", "topic": ""},
                 channel_name=f"orphan-{index}"
             )
-        report = self.store.integrity_report(queue, limit=2)
-        self.assertEqual(report["limit"], 2)
-        self.assertEqual(report["scanned"], 2)
-        self.assertEqual(report["orphaned"], 2)
-        self.assertEqual(len(report["items"]), 2)
+        production_only_id = "production-without-queue-bounded"
+        self.store.create(production_only_id, self.brief)
+        mismatch_id = submit_production(queue, self.store, {
+            **self.brief, "topic": "A mismatched lifecycle row"
+        })["job"]["id"]
+        with queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                (mismatch_id,)
+            )
+        report = self.store.integrity_report(queue, limit=1)
+        self.assertEqual(report["limit"], 1)
+        self.assertEqual(report["scanned"], 1)
+        self.assertEqual(report["unresolved"], 5)
+        self.assertEqual(report["orphaned"], 4)
+        self.assertTrue(report["has_more"])
+        self.assertEqual(report["counts"], {
+            "state_mismatch": 1,
+            "queue_without_production": 3,
+            "production_without_queue": 1,
+        })
+        self.assertIn(report["items"][0]["record_kind"], (
+            "queue_without_production", "production_without_queue"
+        ))
+        self.assertEqual(len(report["items"]), 1)
 
     def test_integrity_report_explains_mismatch_without_mutating_either_ledger(self):
         queue = JobQueue(self.store.db_path)

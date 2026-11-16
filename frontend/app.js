@@ -405,8 +405,10 @@
   async function loadIntegrityReport(){
     const report=await api("/api/production/integrity-report?limit=50");
     const paused=!!report.worker_control?.paused,count=Number(report.unresolved||0);
-    $("integritySummary").innerHTML='<div class="integrity-status '+(count?"integrity-warning":"integrity-clear")+'"><b>'+count.toLocaleString()+'건 불일치</b><span>조회 '+Number(report.scanned||0).toLocaleString()+'건 · '+(paused?"작업 큐 중지":"작업 큐 정상")+'</span></div>';
-    const labels={approval_or_upload_boundary:"승인·업로드 경계",ambiguous_external_outcome:"외부 실행 결과 불명확",terminal_state_mismatch:"종료 상태 불일치",review_handoff_mismatch:"검수 인계 불일치",unclassified_lifecycle_mismatch:"분류되지 않은 상태 불일치"};
+    const scanned=Number(report.scanned||0);
+    const more=report.has_more?" · 일부 항목만 표시":"";
+    $("integritySummary").innerHTML='<div class="integrity-status '+(count?"integrity-warning":"integrity-clear")+'"><b>'+count.toLocaleString()+'건 미해결</b><span>표시 '+scanned.toLocaleString()+'건 / 전체 '+count.toLocaleString()+'건'+more+' · '+(paused?"작업 큐 중지":"작업 큐 정상")+'</span></div>';
+    const labels={approval_or_upload_boundary:"승인·업로드 경계",ambiguous_external_outcome:"외부 실행 결과 불명확",terminal_state_mismatch:"종료 상태 불일치",review_handoff_mismatch:"검수 인계 불일치",unclassified_lifecycle_mismatch:"분류되지 않은 상태 불일치",queue_without_production_record:"제작 원장 누락",production_without_queue_record:"작업 큐 누락"};
     const items=Array.isArray(report.items)?report.items:[];
     $("integrityList").innerHTML=items.length?items.map(item=>{
       const history=Array.isArray(item.audit_history)?item.audit_history:[];

@@ -1519,3 +1519,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Keep orphan diagnostics read-only; do not fabricate or delete either ledger row.
 - Pause the production worker when an orphan remains after the existing validated queue-to-production recovery attempt.
 - Add tests for both orphan directions, bounded scanning, and non-mutation.
+
+
+## BUILD-00183 — accurate bounded integrity totals
+
+- Calculate total mismatch, queue-only, and production-only record counts independently of the returned sample limit.
+- Return accurate unresolved/orphan totals, per-class counts, and a `has_more` indicator while keeping detail rows bounded.
+- Prioritize orphan records in the returned sample so the worker's bounded fail-closed check cannot overlook them behind newer state mismatches.
+- Update the Operations panel to distinguish total unresolved records from the number of displayed details.
+- Extend tests to verify aggregate counts and orphan prioritization under a restrictive sample limit.
