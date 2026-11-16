@@ -9,6 +9,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from policy_engine import POLICY_VERSION, POLICY_CHECKED_ON
+from approval_integrity import approval_snapshot_matches_current_artifacts
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -121,6 +122,13 @@ class YouTubeUploadStore:
             except (TypeError,ValueError,AttributeError):
                 raise YouTubeUploadError(
                     "Saved policy evidence or approval snapshot is invalid; return to review"
+                )
+            artifacts_match, integrity_reason = approval_snapshot_matches_current_artifacts(
+                c, job_id, approval_snapshot
+            )
+            if not artifacts_match:
+                raise YouTubeUploadError(
+                    integrity_reason or "Production artifacts changed after human approval; return to review"
                 )
             approved_script=next((
                 item for item in approval_snapshot
