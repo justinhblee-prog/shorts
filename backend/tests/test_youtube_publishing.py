@@ -825,8 +825,11 @@ class YouTubePublishingTests(unittest.TestCase):
             futures=[pool.submit(publish,index) for index in range(8)]
             gate.set()
             results=[future.result() for future in futures]
-        winners=[result for result in results if result is not None]
-        self.assertEqual(len(winners),1)
+        successes=[result for result in results if result is not None]
+        self.assertGreaterEqual(len(successes),1)
+        self.assertEqual({result["attempt_id"] for result in successes},
+                         {self.uploads.get("job-1")["attempt_id"]})
+        self.assertTrue(all(result["status"]=="uploaded" for result in successes))
         self.assertEqual(self.service._videos.insert_calls,1)
         current=self.uploads.get("job-1")
         self.assertEqual(current["status"],"uploaded")
