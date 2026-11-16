@@ -427,13 +427,15 @@ class TikTokPublishStore:
             """, (minimum_age, max(1, min(int(limit), 20)))).fetchall()
             return [row["job_id"] for row in rows]
 
-    def record_status_poll_error(self, job_id, attempt_id, message):
+    def record_status_poll_error(self, job_id, attempt_id, message, expected_status=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
             if not row or row["attempt_id"] != attempt_id:
+                return False
+            if expected_status is not None and row["status"] != expected_status:
                 return False
             stamp = _now()
             if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
@@ -934,7 +936,8 @@ class TikTokPublisher:
                 updated.append({"job_id": job_id, "status": result["status"]})
             except TikTokPublishError as exc:
                 self.store.record_status_poll_error(
-                    job_id, record["attempt_id"], str(exc)
+                    job_id, record["attempt_id"], str(exc),
+                    expected_status=record["status"],
                 )
                 errors.append({"job_id": job_id, "error": str(exc)})
         return {
