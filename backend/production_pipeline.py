@@ -582,7 +582,7 @@ class ProductionPipeline:
                     "Verify claims independently, cite the source in the script notes, and "
                     "do not invent facts or imply that popularity proves truth."
                 ),
-            })
+            }, **lease)
             self._check_stop(stop_event)
             script_text = script.get("script")
             if not isinstance(script_text, str) or not script_text.strip():
@@ -612,7 +612,7 @@ class ProductionPipeline:
                 "brand": brief["brand"], "format": "narration",
                 "voice_tone": brief.get("brand_profile", {}).get("tone", []),
                 "target_audience": brief.get("brand_profile", {}).get("audience", ""),
-            })
+            }, **lease)
             self._check_stop(stop_event)
             audio_url = voice.get("audio_url")
             if not isinstance(audio_url, str) or not audio_url.startswith(("https://", "http://")):
@@ -663,7 +663,7 @@ class ProductionPipeline:
                 "language": brief["language"], "aspect_ratio": "9:16",
                 "subtitles": True,
                 "brand_profile": brief.get("brand_profile", {}),
-            })
+            }, **lease)
             self._check_stop(stop_event)
             video_url = rendered.get("video_url")
             if not isinstance(video_url, str) or not video_url.startswith(("https://", "http://")):
