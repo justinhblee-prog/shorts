@@ -308,5 +308,36 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertEqual(len(requested_ids), 20)
         self.assertIn("video-205", requested_ids)
 
+
+    def test_missing_video_results_back_off_without_starving_older_publications(self):
+        for index in range(2, 22):
+            self._publish("job-" + str(index), "video-" + str(index))
+        empty_payload = {
+            "data": {"videos": []}, "error": {"code": "ok", "message": ""},
+        }
+        first = self._collector(empty_payload)
+        first_result = first.refresh_due_metrics(limit=20, min_age_seconds=0)
+        self.assertEqual(first_result["requested"], 20)
+        self.assertEqual(first_result["collected"], 0)
+        self.assertEqual(len(first_result["missing"]), 20)
+        deferred = self.store.deferred_video_ids()
+        self.assertEqual(deferred, set(first_result["missing"]))
+
+        self.calls.clear()
+        second = self._collector(empty_payload)
+        second_result = second.refresh_due_metrics(limit=20, min_age_seconds=0)
+        self.assertEqual(second_result["requested"], 1)
+        self.assertEqual(second_result["missing"], ["video-1"])
+        self.assertTrue(set(second_result["missing"]).isdisjoint(deferred))
+
+    def test_successful_snapshot_clears_missing_video_retry_state(self):
+        self.store.record_missing_video_ids(["video-1"])
+        self.assertIn("video-1", self.store.deferred_video_ids())
+        self.store.save_snapshot("job-1", {
+            "id": "video-1", "view_count": 8, "like_count": 1,
+            "comment_count": 0, "share_count": 0,
+        })
+        self.assertNotIn("video-1", self.store.deferred_video_ids())
+
 if __name__ == "__main__":
     unittest.main()
