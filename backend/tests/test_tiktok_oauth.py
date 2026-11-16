@@ -212,6 +212,36 @@ class TikTokOAuthTests(unittest.TestCase):
         with self.assertRaisesRegex(TikTokOAuthError, "video.list scope"):
             self.manager.get_access_token(required_scope="video.list")
 
+    def test_refresh_response_cannot_overwrite_tokens_after_lease_is_replaced(self):
+        self.manager._save_token_response({
+            "access_token": "access-old",
+            "refresh_token": "refresh-old",
+            "open_id": "creator-123",
+            "scope": "user.info.basic,video.publish,video.list",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        lease_a = self.store.acquire_refresh_lease("process-a", 60)
+        self.assertIsNotNone(lease_a)
+        lease_b = self.store.acquire_refresh_lease("process-b", 60)
+        self.assertIsNotNone(lease_b)
+        before = self.store.token_record()
+        with self.assertRaisesRegex(TikTokOAuthError, "lease was lost"):
+            self.manager._save_token_response({
+                "access_token": "stale-access",
+                "refresh_token": "stale-rotated-refresh",
+                "open_id": "creator-123",
+                "scope": "user.info.basic,video.publish,video.list",
+                "token_type": "Bearer",
+                "expires_in": 7200,
+                "refresh_expires_in": 15552000,
+            }, refresh_lease=(self.manager._owner_id, lease_a))
+        after = self.store.token_record()
+        self.assertEqual(after["access_token_encrypted"], before["access_token_encrypted"])
+        self.assertEqual(after["refresh_token_encrypted"], before["refresh_token_encrypted"])
+        self.assertTrue(self.store.release_refresh_lease("process-b", lease_b))
+
     def test_refresh_lease_fences_concurrent_processes(self):
         first = self.store.acquire_refresh_lease("process-a", 60)
         second = self.store.acquire_refresh_lease("process-b", 60)
