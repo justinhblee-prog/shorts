@@ -72,7 +72,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Add regressions for approval invalidation and queue-state mismatch immediately before attempt reservation.
 - TikTok remains private-only (`SELF_ONLY`) and still requires explicit operator consent.
 
-- Automated validation is pending.
+- CI passed: run 43838656483; 566 backend tests, including transactional current-approval and queue-state fencing regressions. Earlier runs exposed and corrected a test-call flag mismatch; final run passed.
 
 ## BUILD-00188 — integrity API input boundaries
 
