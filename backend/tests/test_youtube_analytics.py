@@ -17,8 +17,20 @@ class FakeRequest:
 
 class FakeReports:
     def __init__(self, metrics=None, retention=None, retention_error=None):
-        self.metrics = metrics or {}
-        self.retention = retention or {}
+        self.metrics = metrics if metrics is not None else {
+            "columnHeaders": [{"name": name} for name in (
+                "views", "engagedViews", "estimatedMinutesWatched",
+                "averageViewDuration", "averageViewPercentage",
+            )],
+            "rows": [],
+        }
+        self.retention = retention if retention is not None else {
+            "columnHeaders": [{"name": name} for name in (
+                "elapsedVideoTimeRatio", "audienceWatchRatio",
+                "relativeRetentionPerformance",
+            )],
+            "rows": [],
+        }
         self.retention_error = retention_error
         self.calls = []
 
@@ -47,6 +59,65 @@ class YouTubeAnalyticsTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+
+    def test_metrics_parser_rejects_malformed_headers_and_rows(self):
+        invalid_responses = [
+            {"columnHeaders": [{"name": []}], "rows": []},
+            {"columnHeaders": [{"name": "views"}] * 2, "rows": []},
+            {"columnHeaders": [{"name": "views"}], "rows": []},
+            {"columnHeaders": [
+                {"name": name} for name in (
+                    "views", "engagedViews", "estimatedMinutesWatched",
+                    "averageViewDuration", "averageViewPercentage",
+                )
+            ], "rows": [[1, 2]]},
+        ]
+        for response in invalid_responses:
+            with self.subTest(response=response):
+                with self.assertRaises(RuntimeError):
+                    YouTubeAnalyticsCollector._row_map(response)
+
+    def test_metrics_parser_rejects_boolean_nonfinite_and_negative_values(self):
+        headers = [{"name": name} for name in (
+            "views", "engagedViews", "estimatedMinutesWatched",
+            "averageViewDuration", "averageViewPercentage",
+        )]
+        for invalid in (True, float("nan"), float("inf"), -1):
+            with self.subTest(value=invalid):
+                with self.assertRaises(RuntimeError):
+                    YouTubeAnalyticsCollector._row_map({
+                        "columnHeaders": headers,
+                        "rows": [[1, invalid, 3, 4, 5]],
+                    })
+
+    def test_metrics_parser_rejects_more_than_one_row(self):
+        headers = [{"name": name} for name in (
+            "views", "engagedViews", "estimatedMinutesWatched",
+            "averageViewDuration", "averageViewPercentage",
+        )]
+        with self.assertRaisesRegex(RuntimeError, "single-video row limit"):
+            YouTubeAnalyticsCollector._row_map({
+                "columnHeaders": headers,
+                "rows": [[1, 2, 3, 4, 5], [1, 2, 3, 4, 5]],
+            })
+
+    def test_retention_parser_rejects_out_of_range_and_oversized_responses(self):
+        headers = [{"name": name} for name in (
+            "elapsedVideoTimeRatio", "audienceWatchRatio",
+            "relativeRetentionPerformance",
+        )]
+        for row in ((1.2, 0.5, 0.2), (0.5, 1.2, 0.2), (0.5, True, 0.2)):
+            with self.subTest(row=row):
+                with self.assertRaises(RuntimeError):
+                    YouTubeAnalyticsCollector._parse_retention_response({
+                        "columnHeaders": headers, "rows": [list(row)],
+                    })
+        with self.assertRaisesRegex(RuntimeError, "200-row limit"):
+            YouTubeAnalyticsCollector._parse_retention_response({
+                "columnHeaders": headers,
+                "rows": [[0.5, 0.5, 0.1]] * 201,
+            })
 
     def test_collects_watch_time_and_retention_using_header_names(self):
         reports = FakeReports(
@@ -93,8 +164,11 @@ class YouTubeAnalyticsTests(unittest.TestCase):
     def test_retention_permission_error_does_not_discard_watch_time_metrics(self):
         reports = FakeReports(
             metrics={
-                "columnHeaders": [{"name": "views"}, {"name": "averageViewDuration"}],
-                "rows": [[25, 9.5]],
+                "columnHeaders": [{"name": name} for name in (
+                    "views", "engagedViews", "estimatedMinutesWatched",
+                    "averageViewDuration", "averageViewPercentage",
+                )],
+                "rows": [[25, 20, 4.5, 9.5, 50.0]],
             },
             retention_error=PermissionError("not eligible"),
         )
