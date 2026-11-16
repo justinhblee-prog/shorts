@@ -1458,4 +1458,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Display provider attempt ID, staged media filename, SHA-256 and byte size from the recovered artifact metadata.
 - Explicitly state that recovery and automated file inspection do not constitute human approval or permission to publish.
 - Add frontend regression coverage for provenance and review-boundary messaging.
-- CI validation pending.
+- GitHub Actions run [43818084149](https://github.com/justinhblee-prog/shorts/actions/runs/43818084149) passed the complete `scripts/validate.sh` workflow, including 526 backend tests.
