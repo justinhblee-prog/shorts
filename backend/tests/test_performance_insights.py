@@ -220,4 +220,83 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(result["brands"][0]["view_delta"],0)
   self.assertEqual(result["brands"][0]["measured_videos"],0)
   self.assertEqual(result["videos"][0]["measurement_status"],"counter_reset_or_invalid")
+
+ def test_retention_diagnostics_report_largest_observed_drop_without_causal_claim(self):
+  from performance_insights import _retention_diagnostics
+  result=_retention_diagnostics([
+   {"elapsed_video_time_ratio":0.5,"audience_watch_ratio":0.4},
+   {"elapsed_video_time_ratio":0.01,"audience_watch_ratio":1.0},
+   {"elapsed_video_time_ratio":0.8,"audience_watch_ratio":0.1},
+   {"elapsed_video_time_ratio":0.9,"audience_watch_ratio":0.2},
+   {"elapsed_video_time_ratio":float("nan"),"audience_watch_ratio":0.9},
+   {"elapsed_video_time_ratio":1.2,"audience_watch_ratio":0.8},
+  ])
+  self.assertEqual(result["status"],"available")
+  self.assertEqual(result["point_count"],4)
+  self.assertEqual(result["early_retention"],1.0)
+  self.assertEqual(result["end_retention"],0.2)
+  self.assertEqual(result["largest_dropoff"],{
+   "start_video_ratio":0.5,"end_video_ratio":0.8,
+   "drop_percentage_points":30.0,
+  })
+
+ def test_matched_analytics_cohort_adds_observations_only_with_three_videos(self):
+  analytics=YouTubeAnalyticsStore(self.db)
+  values=[
+   ("j-a","retention-a",80.0,16.0,0.70),
+   ("j-b","retention-b",60.0,12.0,0.55),
+   ("j-c","retention-c",70.0,14.0,0.65),
+  ]
+  for job,video,percentage,duration,engaged_share in values:
+   self.video(job,"Brain Glitch","US","AI robotics explained",video)
+   self.p.artifact(job,"rendering","video","https://media.example/"+video+".mp4",
+                   {"duration_seconds":30,"aspect_ratio":"9:16"})
+   analytics.save(video,"2026-11-01","2026-11-14",{
+    "views":1000,"engagedViews":int(1000*engaged_share),
+    "averageViewDuration":duration,
+    "averageViewPercentage":percentage,
+   },[
+    {"elapsedVideoTimeRatio":0.01,"audienceWatchRatio":1.0},
+    {"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.5},
+    {"elapsedVideoTimeRatio":1.0,"audienceWatchRatio":0.2},
+   ])
+  result=PerformanceAnalyzer(self.db).analyze()
+  cohort=next(x for x in result["analytics_cohorts"] if x["brand"]=="Brain Glitch")
+  self.assertEqual(cohort["video_count"],3)
+  self.assertEqual(cohort["evidence_status"],"observed")
+  self.assertEqual(cohort["metrics"]["average_view_percentage"]["median"],70.0)
+  self.assertEqual(cohort["ranking_score_adjustment"],0)
+  below=next(x for x in result["videos"] if x["video_id"]=="retention-b")
+  self.assertEqual(
+   below["analytics_cohort_comparison"]["average_view_percentage"]["difference_from_median"],
+   -10.0,
+  )
+  self.assertEqual(
+   below["analytics_observations"][0]["type"],
+   "below_matched_cohort_retention",
+  )
+  self.assertEqual(below["retention_diagnostics"]["largest_dropoff"]["drop_percentage_points"],30.0)
+  self.assertEqual(
+   below["analytics_observations"][0]["ranking_score_adjustment"],0,
+  )
+
+ def test_sparse_analytics_cohort_does_not_emit_comparative_observation(self):
+  self.video("j-sparse","Brain Glitch","US","AI robotics explained","retention-sparse")
+  self.p.artifact("j-sparse","rendering","video","https://media.example/sparse.mp4",
+                  {"duration_seconds":30,"aspect_ratio":"9:16"})
+  YouTubeAnalyticsStore(self.db).save(
+   "retention-sparse","2026-11-01","2026-11-14",
+   {"views":100,"averageViewPercentage":35.0},[],
+  )
+  result=PerformanceAnalyzer(self.db).analyze()
+  cohort=result["analytics_cohorts"][0]
+  self.assertEqual(cohort["evidence_status"],"limited")
+  self.assertEqual(cohort["metrics"]["average_view_percentage"]["sample_count"],1)
+  video=result["videos"][0]
+  self.assertEqual(
+   video["analytics_cohort_comparison"]["average_view_percentage"]["status"],
+   "insufficient_sample",
+  )
+  self.assertNotIn("analytics_observations",video)
+
 if __name__=="__main__":unittest.main()
