@@ -1773,3 +1773,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - API handlers forward the supplied attempt identity to the transactional store. The store compares it with the selected current/late-success attempt before changing publication state or writing reconciliation audit events.
 - Added regression tests proving stale YouTube and TikTok attempt IDs leave the uncertain state and audit history unchanged.
 - This is a contract-level and deterministic SQLite test improvement; it does not constitute live YouTube/TikTok account verification.
+
+## BUILD-00213 — Compare-and-set YouTube reconciliation attempt
+- YouTube reconciliation now includes the locked row's `attempt_id` in both terminal-state UPDATE predicates, in addition to the job ID and allowed source statuses.
+- This aligns YouTube's final state mutation with TikTok's existing attempt-scoped compare-and-set and makes the attempt ownership invariant explicit at the SQL write boundary.
+- Extended the stale-attempt regression to prove a stale ID leaves state/audit unchanged while the matching ID can resolve the same uncertain attempt.
+- Deterministic SQLite regression only; no live YouTube API validation is implied.
