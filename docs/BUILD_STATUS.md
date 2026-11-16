@@ -1087,3 +1087,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Emit video-level descriptive observations for above/below cohort median retention, with controlled-test suggestions. Never modify recommendation ranking scores.
 - Ignore malformed, non-finite and out-of-range retention points; do not infer causal reasons from curve shape.
 - GitHub Actions PR run [43794456586](https://github.com/justinhblee-prog/shorts/actions/runs/43794456586) passed **431 backend tests** and the complete `scripts/validate.sh` command.
+
+
+## BUILD-00133 — scheduled YouTube Analytics OAuth and lease renewal (2026-11-16)
+
+- Wire the periodic Analytics collector to the same encrypted `YouTubeOAuthManager` token store used by the API/manual refresh path; do not require the legacy plaintext `YOUTUBE_REFRESH_TOKEN` environment variable after OAuth setup.
+- Renew the collector's SQLite lease during long batches; renewal is conditional on the same owner and an unexpired lease, so an expired owner cannot resurrect its lease.
+- Make the lease duration configurable with `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds); heartbeat interval is one-third of the lease.
+- Preserve provider failure isolation and ensure the lease is released in all exit paths.
+- Validation pending.
