@@ -6,6 +6,7 @@ from tiktok_metrics import TikTokMetricsStore
 from review_workflow import ReviewStore
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
+from youtube_analytics import YouTubeAnalyticsStore
 from policy_engine import evaluate_content_policy
 
 class PerformanceTests(unittest.TestCase):
@@ -60,6 +61,32 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(result["videos"][0]["interaction_delta"],40)
   self.assertEqual(result["videos"][0]["interactions_per_1000_view_delta"],66.67)
   self.assertEqual(result["metric_boundary"]["ranking_score_adjustment"],0)
+
+
+ def test_youtube_analytics_watch_time_and_retention_are_exposed_without_inference(self):
+  self.video("j-analytics","Brain Glitch","US","Sleep","yt-analytics-1")
+  analytics=YouTubeAnalyticsStore(self.db)
+  analytics.save("yt-analytics-1","2026-11-01","2026-11-14",{
+   "views":1200,"estimatedMinutesWatched":310.5,
+   "averageViewDuration":15.5,"averageViewPercentage":68.2
+  },[
+   {"elapsedVideoTimeRatio":0.01,"audienceWatchRatio":1.0,
+    "relativeRetentionPerformance":0.9},
+   {"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.4,
+    "relativeRetentionPerformance":1.1},
+  ])
+  result=PerformanceAnalyzer(self.db).analyze()
+  video=result["videos"][0]
+  brand=result["brands"][0]
+  self.assertEqual(video["analytics_status"],"available")
+  self.assertEqual(video["retention_status"],"available")
+  self.assertEqual(video["average_view_duration_seconds"],15.5)
+  self.assertEqual(video["average_view_percentage"],68.2)
+  self.assertEqual(video["estimated_minutes_watched"],310.5)
+  self.assertEqual(len(video["audience_retention_curve"]),2)
+  self.assertEqual(brand["median_average_view_duration_seconds"],15.5)
+  self.assertEqual(brand["median_average_view_percentage"],68.2)
+  self.assertEqual(brand["analytics_measured_videos"],1)
 
  def test_insufficient_snapshots_not_misrepresented_as_growth(self):
   self.video("j1","Brain Glitch","US","Sleep","vid1")
