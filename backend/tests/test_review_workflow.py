@@ -1,6 +1,8 @@
+import json
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 
 from production_pipeline import ProductionStore
 from review_workflow import ReviewStore, ReviewConflict, ReviewNotFound, valid_review_token
@@ -15,11 +17,28 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.production = ProductionStore(self.db)
         self.queue = JobQueue(self.db)
         self.review = ReviewStore(self.db)
-        self.production.create("job-1", {
+        brief = {
             "brand": "Brain Glitch", "region": "US",
             "language": "English", "topic": "Sleep"
-        })
+        }
+        self.production.create("job-1", brief)
         self.production.stage("job-1", "rendered", "review_pending")
+        timestamp = datetime.now(timezone.utc).isoformat()
+        with self.queue.db() as connection:
+            connection.execute("""
+                INSERT INTO pipeline_jobs
+                  (id,job_type,payload_json,status,priority,attempt,max_attempts,
+                   available_at,created_at,updated_at)
+                VALUES(?,?,?,'review_pending',100,0,3,?,?,?)
+            """, (
+                "job-1", "short_video_production",
+                json.dumps(brief, ensure_ascii=False),
+                timestamp, timestamp, timestamp,
+            ))
+            self.queue.event(
+                connection, "job-1", "rendered", "running",
+                "review_pending", "test-worker",
+            )
         self.production.artifact("job-1", "rendering", "video",
                                   "https://media.example/video.mp4", {"duration": 30})
 
@@ -232,6 +251,23 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.production.stage(job["id"], "rendered", "review_pending")
         self.queue.finish(job["id"], "review-worker", claimed["lease_token"], {})
         return job["id"]
+
+    def test_review_decision_fails_closed_when_durable_queue_job_is_missing(self):
+        with self.queue.db() as connection:
+            connection.execute("DELETE FROM pipeline_jobs WHERE id=?", ("job-1",))
+        with self.assertRaisesRegex(ReviewConflict, "Durable queue job is missing"):
+            self.review.decide("job-1", "approved", "operator-1", "Reviewed")
+        self.assertEqual(self.production.get("job-1")["status"], "review_pending")
+        self.assertEqual(self.review.history("job-1"), [])
+
+    def test_review_decision_fails_closed_when_durable_queue_table_is_missing(self):
+        with self.queue.db() as connection:
+            connection.execute("DROP TABLE job_events")
+            connection.execute("DROP TABLE pipeline_jobs")
+        with self.assertRaisesRegex(ReviewConflict, "Durable queue is unavailable"):
+            self.review.decide("job-1", "approved", "operator-1", "Reviewed")
+        self.assertEqual(self.production.get("job-1")["status"], "review_pending")
+        self.assertEqual(self.review.history("job-1"), [])
 
     def test_approval_atomically_synchronizes_queue_and_audit_event(self):
         job_id = self._create_queue_backed_review_job("unused")
