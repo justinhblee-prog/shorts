@@ -9,7 +9,8 @@ import threading
 import uuid
 from contextlib import contextmanager
 from policy_engine import POLICY_VERSION, POLICY_CHECKED_ON
-from approval_integrity import approval_snapshot_matches_current_artifacts
+from approval_integrity import (approval_snapshot_matches_current_artifacts,
+                                 create_verified_media_snapshot)
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -529,6 +530,24 @@ class YouTubePublisher:
             raise YouTubeUploadError("Rendered video file is empty")
         if size>max_bytes:
             raise YouTubeUploadError("Rendered video exceeds NEXUS_MAX_MEDIA_BYTES")
+        approved_artifacts=history[-1].get("artifact_snapshot") or []
+        approved_video=next((
+            item for item in approved_artifacts
+            if isinstance(item,dict) and item.get("stage")=="rendering"
+            and item.get("artifact_type")=="video"
+        ),None)
+        approved_metadata=approved_video.get("metadata") if isinstance(approved_video,dict) else None
+        approved_staging=approved_metadata.get("media_staging") if isinstance(approved_metadata,dict) else None
+        if not isinstance(approved_staging,dict):
+            raise YouTubeUploadError(
+                "Approved media fingerprint is missing; stage media and obtain a new human approval"
+            )
+        if approved_staging.get("media_path")!=resolved.name:
+            raise YouTubeUploadError(
+                "Staged media path does not match the human-approved media artifact"
+            )
+        approved_sha256=approved_staging.get("sha256")
+        approved_size=approved_staging.get("size_bytes")
         if not isinstance(title,str) or not title.strip() or len(title)>100:
             raise YouTubeUploadError("Video title must contain 1 to 100 characters")
         if not isinstance(description,str) or len(description)>5000:
@@ -538,11 +557,14 @@ class YouTubePublisher:
         existing=self.store.get(job_id)
         if existing and existing["status"]=="uploaded":
             return existing
-        upload_attempt=self.store.begin(job_id,title,description)
+        upload_attempt=None
+        snapshot_path=None
         remote_request_started=False
         heartbeat_stop=threading.Event()
         heartbeat_thread=None
         try:
+            snapshot_path,_=create_verified_media_snapshot(resolved,approved_sha256,approved_size)
+            upload_attempt=self.store.begin(job_id,title,description)
             from googleapiclient.http import MediaFileUpload
             service=self._service()
             body={
@@ -552,7 +574,7 @@ class YouTubePublisher:
             }
             request=service.videos().insert(
                 part="snippet,status",body=body,
-                media_body=MediaFileUpload(str(resolved),mimetype=media_type,
+                media_body=MediaFileUpload(str(snapshot_path),mimetype=media_type,
                                            chunksize=8*1024*1024,resumable=True))
             remote_request_started=True
             heartbeat_interval=max(5,min(30,self.store.upload_stale_seconds()//3))
@@ -585,15 +607,20 @@ class YouTubePublisher:
             return self.store.get(job_id)
         except Exception as exc:
             detail=type(exc).__name__+": "+str(exc)
-            if remote_request_started:
-                self.store.mark_reconciliation_required(
-                    job_id,"Remote upload outcome is uncertain. "+detail,
-                    upload_attempt.get("attempt_id")
-                )
-            else:
-                self.store.fail(job_id,detail,upload_attempt.get("attempt_id"))
+            if upload_attempt is not None:
+                if remote_request_started:
+                    self.store.mark_reconciliation_required(
+                        job_id,"Remote upload outcome is uncertain. "+detail,
+                        upload_attempt.get("attempt_id")
+                    )
+                else:
+                    self.store.fail(job_id,detail,upload_attempt.get("attempt_id"))
             if isinstance(exc,YouTubeUploadError):
                 raise
+            if upload_attempt is None:
+                raise YouTubeUploadError(
+                    "Approved media verification or upload initialization failed: "+str(exc)
+                ) from exc
             if remote_request_started:
                 raise YouTubeUploadError(
                     "YouTube upload outcome is uncertain. Check YouTube Studio and reconcile "
@@ -604,6 +631,11 @@ class YouTubePublisher:
             heartbeat_stop.set()
             if heartbeat_thread is not None:
                 heartbeat_thread.join(timeout=2)
+            if snapshot_path:
+                try:
+                    os.unlink(snapshot_path)
+                except OSError:
+                    pass
 
     def refresh_due_metrics(self, limit=50, min_age_seconds=21600):
         """Refresh due uploaded videos in one quota-efficient videos.list request."""

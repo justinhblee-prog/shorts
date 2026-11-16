@@ -1,4 +1,5 @@
 import json
+import hashlib
 import os
 import sqlite3
 import tempfile
@@ -79,8 +80,16 @@ class YouTubePublishingTests(unittest.TestCase):
         self.prod.create("job-1",{"brand":"Brain Glitch","region":"US",
                                   "language":"English","topic":"Sleep"})
         self.prod.stage("job-1","rendered","review_pending")
+        os.environ["NEXUS_MEDIA_DIR"]=self.tmp.name
+        self.media=os.path.join(self.tmp.name,"video.mp4")
+        media_bytes=b"fake-media-for-unit-test"
+        Path(self.media).write_bytes(media_bytes)
+        media_staging={"media_path":"video.mp4","size_bytes":len(media_bytes),
+                       "sha256":hashlib.sha256(media_bytes).hexdigest(),
+                       "content_type":"video/mp4"}
         self.prod.artifact("job-1","rendering","video",
-                           "https://media.example/video.mp4",{})
+                           "https://media.example/video.mp4",
+                           {"media_staging":media_staging})
         policy_brief = {
             "rights": {"visuals_cleared": True, "audio_cleared": True,
                        "likeness_authorized": True},
@@ -94,9 +103,6 @@ class YouTubePublishingTests(unittest.TestCase):
              "policy_preflight": evaluate_content_policy(policy_brief)},
         )
         self.review.decide("job-1","approved","reviewer-1")
-        os.environ["NEXUS_MEDIA_DIR"]=self.tmp.name
-        self.media=os.path.join(self.tmp.name,"video.mp4")
-        Path(self.media).write_bytes(b"fake-media-for-unit-test")
         self.service=FakeService()
         self.publisher=YouTubePublisher(self.uploads,self.service)
 
@@ -324,6 +330,21 @@ class YouTubePublishingTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
             self.uploads.begin("job-1", "Title", "Description")
+        self.assertIsNone(self.uploads.get("job-1"))
+
+    def test_upload_rejects_staged_media_modified_after_approval(self):
+        Path(self.media).write_bytes(b"modified-after-human-approval")
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
+            self.publisher.upload_approved("job-1",self.media,self.review,"Title")
+        self.assertFalse(hasattr(self.service._videos,"body"))
+        self.assertIsNone(self.uploads.get("job-1"))
+
+    def test_upload_rejects_media_path_not_matching_approved_fingerprint(self):
+        other=os.path.join(self.tmp.name,"other.mp4")
+        Path(other).write_bytes(Path(self.media).read_bytes())
+        with self.assertRaisesRegex(YouTubeUploadError, "does not match"):
+            self.publisher.upload_approved("job-1",other,self.review,"Title")
+        self.assertFalse(hasattr(self.service._videos,"body"))
         self.assertIsNone(self.uploads.get("job-1"))
 
     def test_upload_requires_approval(self):

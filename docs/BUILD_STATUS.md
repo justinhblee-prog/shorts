@@ -901,3 +901,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Compare stage, artifact type, artifact URL and parsed metadata; reject additions, removals, reorderings, malformed metadata or modifications after approval.
 - Keep policy version/date freshness checks as an additional independent gate.
 - Add regression tests for post-approval artifact modification and artifact addition. Validation pending on this branch.
+
+
+### BUILD-00025 — bind YouTube upload bytes to human approval (2026-11-16)
+
+- Compute a streaming SHA-256 digest and byte length when renderer media is staged.
+- Persist the fingerprint in rendering artifact metadata so it is included in the immutable human approval snapshot.
+- At upload, require the staged filename, byte length and SHA-256 to match the approved snapshot; copy verified bytes through a no-follow file descriptor into a private temporary snapshot and upload only that immutable copy.
+- Remove the temporary snapshot after success or failure. Manual staging persists the fingerprint and returns the production run to review_pending when the fingerprint changes, requiring fresh human approval.
+- Regression tests cover staged-media mutation, mismatched path and SHA-256 capture. Validation pending on this branch.
