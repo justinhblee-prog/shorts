@@ -1000,7 +1000,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Encrypt the refresh token at rest with Fernet using YOUTUBE_TOKEN_ENCRYPTION_KEY; do not persist the access token or expose token values in status.
 - Use the encrypted token store for YouTube uploads and Analytics, with the legacy YOUTUBE_REFRESH_TOKEN environment variable as a compatibility fallback.
 - Add protected connect/status/disconnect endpoints and dashboard connection controls.
-- Validation pending. Live Google consent, account selection, refresh and real upload remain deployment checks.
+- GitHub Actions PR run [43794744350](https://github.com/justinhblee-prog/shorts/actions/runs/43794744350) passed **436 backend tests** and the complete `scripts/validate.sh` command. Live Google consent, account selection, refresh and real upload remain deployment checks.
 
 
 ### BUILD-00036 validation record
