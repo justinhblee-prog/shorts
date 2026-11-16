@@ -2,46 +2,123 @@
 import os
 from pathlib import Path
 
+
+def _group(source, required, optional=()):
+    missing = [key for key in required if not str(source.get(key, "")).strip()]
+    optional_missing = [
+        key for key in optional if not str(source.get(key, "")).strip()
+    ]
+    return {
+        "configured": not missing,
+        "missing": missing,
+        "optional_missing": optional_missing,
+    }
+
+
 def build_preflight(env=None):
     source = os.environ if env is None else env
-    requirements = {
-        "operator_auth": ["NEXUS_REVIEW_TOKEN"],
-        "script_generation": ["SCRIPT_PROVIDER_URL", "SCRIPT_PROVIDER_TOKEN"],
-        "voice_generation": ["VOICE_PROVIDER_URL", "VOICE_PROVIDER_TOKEN"],
-        "video_rendering": ["RENDER_PROVIDER_URL", "RENDER_PROVIDER_TOKEN"],
-        "artifact_staging": ["RENDER_ARTIFACT_HOSTS"],
-        "youtube_upload": ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"],
-        "youtube_data_api": ["YOUTUBE_DATA_API_KEY"],
+    checks = {
+        "operator_auth": _group(source, ["NEXUS_REVIEW_TOKEN"]),
+        # Provider bearer tokens are optional: endpoint adapters support
+        # unauthenticated providers as well as bearer-authenticated providers.
+        "script_generation": _group(
+            source, ["SCRIPT_PROVIDER_URL"], ["SCRIPT_PROVIDER_TOKEN"]
+        ),
+        "voice_generation": _group(
+            source, ["VOICE_PROVIDER_URL"], ["VOICE_PROVIDER_TOKEN"]
+        ),
+        "video_rendering": _group(
+            source, ["RENDER_PROVIDER_URL"], ["RENDER_PROVIDER_TOKEN"]
+        ),
+        "artifact_staging": _group(source, ["RENDER_ARTIFACT_HOSTS"]),
+        "youtube_upload": _group(
+            source,
+            ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"],
+        ),
+        "youtube_data_api": _group(source, ["YOUTUBE_DATA_API_KEY"]),
+        "tiktok_oauth": _group(
+            source,
+            [
+                "TIKTOK_CLIENT_KEY",
+                "TIKTOK_CLIENT_SECRET",
+                "TIKTOK_REDIRECT_URI",
+                "TIKTOK_TOKEN_ENCRYPTION_KEY",
+            ],
+        ),
+        "tiktok_static_token": _group(source, [], ["TIKTOK_ACCESS_TOKEN"]),
     }
-    checks = {}
-    missing = []
-    for group, keys in requirements.items():
-        absent = [key for key in keys if not str(source.get(key, "")).strip()]
-        checks[group] = {"configured": not absent, "missing": absent}
-        missing.extend(absent)
+
     media_dir = Path(source.get("NEXUS_MEDIA_DIR", "data/media"))
     ancestor = media_dir
     while not ancestor.exists() and ancestor != ancestor.parent:
         ancestor = ancestor.parent
-    writable = (not media_dir.exists() or media_dir.is_dir()) and ancestor.is_dir() and os.access(str(ancestor), os.W_OK)
-    checks["media_directory"] = {"configured": writable,
-        "missing": [] if writable else ["NEXUS_MEDIA_DIR (directory/parent must be writable)"]}
-    generation = all(checks[k]["configured"] for k in
-                     ("script_generation","voice_generation","video_rendering"))
-    staging = checks["artifact_staging"]["configured"] and checks["media_directory"]["configured"]
-    upload = checks["youtube_upload"]["configured"]
+    writable = (
+        (not media_dir.exists() or media_dir.is_dir())
+        and ancestor.is_dir()
+        and os.access(str(ancestor), os.W_OK)
+    )
+    checks["media_directory"] = {
+        "configured": writable,
+        "missing": []
+        if writable
+        else ["NEXUS_MEDIA_DIR (directory/parent must be writable)"],
+        "optional_missing": [],
+    }
+
     operation = checks["operator_auth"]["configured"]
+    generation = all(
+        checks[key]["configured"]
+        for key in ("script_generation", "voice_generation", "video_rendering")
+    )
+    staging = (
+        checks["artifact_staging"]["configured"]
+        and checks["media_directory"]["configured"]
+    )
+    youtube_upload = checks["youtube_upload"]["configured"]
+    youtube_metrics = checks["youtube_data_api"]["configured"]
+    tiktok_oauth = checks["tiktok_oauth"]["configured"]
+    tiktok_static = bool(str(source.get("TIKTOK_ACCESS_TOKEN", "")).strip())
+    tiktok_publish = tiktok_oauth or tiktok_static
+
+    youtube_ready = operation and generation and staging and youtube_upload
+    tiktok_ready = operation and generation and staging and tiktok_publish
+    missing = []
+    for value in checks.values():
+        missing.extend(value["missing"])
+
     return {
         "checks": checks,
         "capabilities": {
             "protected_operations": operation,
             "ai_generation_configured": generation,
             "artifact_staging_configured": staging,
-            "youtube_upload_configured": upload,
-            "end_to_end_configured": operation and generation and staging and upload
-                and checks["youtube_data_api"]["configured"],
+            "youtube_upload_configured": youtube_upload,
+            "youtube_metrics_configured": youtube_metrics,
+            "tiktok_oauth_configured": tiktok_oauth,
+            "tiktok_publish_configured": tiktok_publish,
+            "end_to_end_configured": youtube_ready and youtube_metrics,
         },
-        "missing": sorted(set(missing + checks["media_directory"]["missing"])),
+        "platforms": {
+            "youtube": {
+                "configuration_ready": youtube_ready,
+                "metrics_configured": youtube_metrics,
+                "live_connectivity_verified": False,
+            },
+            "tiktok": {
+                "configuration_ready": tiktok_ready,
+                "oauth_configured": tiktok_oauth,
+                "static_token_fallback": tiktok_static,
+                # OAuth scopes and account capabilities are only known after
+                # completing authorization and creator-info verification.
+                "metrics_configured": False,
+                "live_connectivity_verified": False,
+            },
+        },
+        "missing": sorted(set(missing)),
         "live_connectivity_verified": False,
-        "note": "Configuration presence only; this endpoint does not call external providers or prove OAuth, quota, rendering, upload or billing works."
+        "note": (
+            "Configuration presence only. Optional provider bearer tokens may be omitted. "
+            "This endpoint does not call external providers or prove OAuth, account scopes, "
+            "quota, rendering, upload or billing works."
+        ),
     }
