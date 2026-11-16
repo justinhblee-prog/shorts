@@ -1010,3 +1010,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions PR run [43788265493](https://github.com/justinhblee-prog/shorts/actions/runs/43788265493) passed **352 backend tests** and `scripts/validate.sh`.
 - Test coverage includes one-time OAuth state, required-scope enforcement, encrypted token persistence, disconnect, static-token fallback, preflight and protected/public callback route boundaries.
 - Live Google consent, refresh-token usability, actual channel API access and a real upload remain deployment checks.
+
+
+### BUILD-00037 — live YouTube account and Analytics verification (2026-11-16)
+
+- Add an explicit protected verification action that refreshes the stored OAuth token and calls YouTube Data API v3 `channels.list(mine=true)`.
+- Independently call YouTube Analytics API v2 for a channel-level views report; Data API success remains visible if Analytics permission is missing.
+- Persist channel ID/title, last verification time and separate Data API/Analytics API outcomes; status distinguishes stored OAuth approval from live connectivity.
+- Require the encrypted OAuth connection for persistent verification; legacy environment tokens remain usable for compatibility but do not produce a persisted verified-account status.
+- Validation pending. Live verification only occurs when the operator runs the action with a real account.
