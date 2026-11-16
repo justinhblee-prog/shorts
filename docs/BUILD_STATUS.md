@@ -1317,3 +1317,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression tests for invalid types, lower/upper bounds and valid boundary values.
 - This protects direct/internal ScheduleStore callers as well as HTTP clients; it does not alter the supported scheduling cadence.
 - CI validation pending.
+
+
+## BUILD-00162 — bounded scheduler runtime configuration
+
+- Replace implicit integer coercion and lower-bound clamping for scheduler polling/leader-lease environment settings with strict decimal-integer parsing.
+- Bound polling to 5–300 seconds and leader lease TTL to 15–3600 seconds; reject malformed, negative, fractional, zero and out-of-range configuration at startup.
+- Require the poll interval to be no more than one-third of the lease TTL so a healthy scheduler has time to renew leadership before expiry.
+- Add isolated unit coverage for defaults, invalid values, bounds and poll/lease relationship.
+- CI validation pending; deployment-level multi-instance behavior remains separate.
