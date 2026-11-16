@@ -46,7 +46,7 @@ With Python dependencies installed:
 sh scripts/validate.sh
 ```
 
-This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified policy validation is GitHub Actions PR run [43780970297](https://github.com/justinhblee-prog/shorts/actions/runs/43780970297), which passed **255 backend tests** and `scripts/validate.sh` before PR #85 was squash-merged into `main` (`8c5b6731`). The merge commit itself has not had a separate CI run recorded. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
+This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified TikTok backend validation is GitHub Actions PR run [43781739033](https://github.com/justinhblee-prog/shorts/actions/runs/43781739033), which passed **317 backend tests** and `scripts/validate.sh` before PR #87 was squash-merged into `main` (`43b8c004`). The merge commit itself has not had a separate CI run recorded. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
 
 ## Documentation
 
