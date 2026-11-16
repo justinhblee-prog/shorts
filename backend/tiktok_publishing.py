@@ -288,11 +288,13 @@ class TikTokPublishStore:
                     """, (job_id, attempt_id, row["publish_id"], row["video_id"],
                           row["operator_id"], message[:1000], now, row["policy_version"]))
                     return
-                c.execute("""
+                updated = c.execute("""
                   UPDATE tiktok_publications SET status='reconciliation_required',
                     error=?,updated_at=? WHERE job_id=? AND attempt_id=?
-                    AND status NOT IN ('publish_complete','failed','send_to_inbox')
+                    AND status IN ('initializing','uploading')
                 """, (message[:1000], now, job_id, attempt_id))
+                if updated.rowcount != 1:
+                    return
                 c.execute("""
                   INSERT INTO tiktok_publication_events
                     (job_id,attempt_id,event_type,outcome,publish_id,operator_id,

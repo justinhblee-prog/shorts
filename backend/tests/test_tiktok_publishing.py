@@ -668,6 +668,23 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(stale["status"], "publish_complete")
         self.assertEqual(stale["video_id"], "123456789")
 
+    def test_late_publish_timeout_cannot_override_processing_status(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        processing = self.store.mark_status(
+            "job-1", attempt_id, "PROCESSING_UPLOAD", [], None
+        )
+        before = len(processing["events"])
+        self.store.mark_uncertain(
+            "job-1", attempt_id, "late upload transport timeout",
+        )
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], "processing")
+        self.assertEqual(len(after["events"]), before)
+
     def test_late_poll_error_cannot_downgrade_published_result(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
