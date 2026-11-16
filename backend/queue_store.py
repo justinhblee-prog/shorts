@@ -350,18 +350,16 @@ class JobQueue:
         """List production jobs blocked because an external provider outcome is unknown."""
         bounded = max(1, min(int(limit), 200))
         with self.db() as c:
-            rows = c.execute("""SELECT j.id,j.status,j.attempt,j.max_attempts,
-                    j.error_code,j.error_message,j.updated_at,
-                    r.brand,r.region,r.language,r.topic,r.current_stage
-                FROM pipeline_jobs j
-                LEFT JOIN production_runs r ON r.job_id=j.id
-                WHERE j.job_type='short_video_production'
-                  AND j.status='failed_terminal'
-                  AND j.error_code IN (
+            rows = c.execute("""SELECT id,status,attempt,max_attempts,
+                    error_code,error_message,updated_at
+                FROM pipeline_jobs
+                WHERE job_type='short_video_production'
+                  AND status='failed_terminal'
+                  AND error_code IN (
                     'production_lease_expired_ambiguous',
                     'cancelled_external_outcome_ambiguous'
                   )
-                ORDER BY j.updated_at DESC,j.id LIMIT ?""", (bounded,)).fetchall()
+                ORDER BY updated_at DESC,id LIMIT ?""", (bounded,)).fetchall()
             return [dict(row) for row in rows]
 
     def reconcile_production_retry(self, job_id, operator_id, evidence_reference, note):
