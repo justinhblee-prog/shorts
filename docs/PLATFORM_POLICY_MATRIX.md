@@ -1,8 +1,8 @@
 # Platform Policy Preflight Matrix
 
 **Version:** 0.2  
-**Policy pack:** `2026-11-15.2`  
-**Checked:** 2026-11-15  
+**Policy pack:** `2026-11-16.1`  
+**Checked:** 2026-11-16  
 **Scope:** YouTube Shorts and TikTok short-form production
 
 This matrix is an operational risk screen, not legal advice, platform approval, a monetization guarantee, or a complete moderation system. The engine evaluates operator-supplied declarations and evidence references; it does not inspect rendered video/audio bytes, thumbnails, captions, or the full channel history.
@@ -16,6 +16,8 @@ This matrix is an operational risk screen, not legal advice, platform approval, 
 | YouTube | Realistic altered or synthetic media disclosure | https://support.google.com/youtube/answer/14328491 |
 | YouTube | Advertiser-friendly content | https://support.google.com/youtube/answer/6162278 |
 | TikTok | AI-generated content and realistic media disclosure | https://support.tiktok.com/en/using-tiktok/creating-videos/ai-generated-content |
+| TikTok | Direct Post disclosure field and privacy/creator options | https://developers.tiktok.com/docs/en/content-posting-api-reference-direct-post |
+| TikTok | Latest creator privacy options required by posting UX | https://developers.tiktok.com/docs/en/content-posting-api-reference-query-creator-info |
 | TikTok | Community Guidelines | https://www.tiktok.com/community-guidelines/en/ |
 
 Re-check these sources at upload time and after platform policy updates. Rules can differ by country, product surface, monetization program, and content category.
@@ -51,7 +53,7 @@ The acknowledgement is an operator attestation. It does not itself apply the pla
 | `regulated_goods_or_services` | Regional restrictions and age/platform rules |
 | `sensitive_personal_data` | Data minimization, consent, and lawful-use review |
 
-The hard-block flags include known unauthorized assets, non-consensual likeness, deceptive impersonation, prohibited content, fake engagement/platform evasion, child-safety violations, scams/fraud, and private personal-data exposure.
+The hard-block flags include known unauthorized assets, non-consensual likeness, deceptive impersonation, prohibited content, fake engagement/platform evasion, child-safety violations, scams/fraud, and private personal-data exposure. TikTok-specific non-overridable flags additionally block AI-generated likenesses of minors, AI-generated likenesses of private adults without permission, fake authoritative sources/crisis events, and false public-figure endorsements. These are explicit operator declarations; the system cannot reliably infer them from metadata alone.
 
 ## Data contract
 
@@ -61,13 +63,13 @@ Production briefs may carry:
 - `rights`: `visuals_cleared`, `audio_cleared`, `likeness_authorized`.
 - `synthetic_media_status`: `none`, `ai_assisted_nonrealistic`, `ai_generated`, `realistic_alteration`, or `unknown`.
 - `platform_disclosures`: platform-specific AI disclosure acknowledgements.
-- `policy_flags`: explicit hard-block flags.
+- `policy_flags`: explicit hard-block flags, including TikTok-specific prohibited AIGC/impersonation categories.
 - `risk_flags`: elevated-review categories.
 - `claim_evidence_notes`, `source_urls`, `transformative_contribution`, `commercial_relationship_disclosed`, and `child_safety_review_confirmed`.
 
 The generated policy report is stored with the script artifact and included in the review snapshot. A policy-blocked job is stopped before the first AI provider call. A review report with approval blockers cannot be approved, even if the reviewer supplies a comment.
 
-## Current limitations and next controls
+## TikTok-specific prohibited AIGC controls\n\nThe current TikTok help guidance says realistic AI-generated images, audio and video must be labeled, and lists categories that remain prohibited even when labeled: AI-generated likenesses of young people under 18, adult private figures without permission, fake authoritative sources/crisis events, and false public-figure endorsements. The policy engine exposes explicit non-overridable flags for these categories. The declarations must be made by a human; the engine does not identify faces, age, public/private-figure status, impersonation, or endorsement claims from media.\n\n## Current limitations and next controls
 
 1. The preflight is metadata-based. Automated frame/audio/transcript scanning and asset-level copyright matching are not implemented.
 2. Rights, consent, and factuality declarations are not independently verified.
@@ -78,4 +80,4 @@ The generated policy report is stored with the script artifact and included in t
 
 ## Validation
 
-Unit tests cover explicit blocking, unknown/denied rights, platform-specific realistic-AI disclosure, selected-platform scoping, high-impact claim evidence, news source requirements, invalid flag rejection, and non-overridable approval blockers. CI results must be recorded after this branch's workflow completes.
+Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonation flags, unknown/denied rights, platform-specific realistic-AI disclosure, selected-platform scoping, high-impact claim evidence, news source requirements, invalid flag rejection, and non-overridable approval blockers. CI results must be recorded after this branch's workflow completes.
