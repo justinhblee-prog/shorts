@@ -1779,3 +1779,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - This aligns YouTube's final state mutation with TikTok's existing attempt-scoped compare-and-set and makes the attempt ownership invariant explicit at the SQL write boundary.
 - Extended the stale-attempt regression to prove a stale ID leaves state/audit unchanged while the matching ID can resolve the same uncertain attempt.
 - Deterministic SQLite regression only; no live YouTube API validation is implied.
+
+## BUILD-00214 — Fence TikTok status refresh writes
+- TikTok status polling now applies its state update only when both the expected `attempt_id` matches and the row remains non-terminal.
+- The store checks the affected-row count before appending a status-refresh audit event. If the compare-and-set does not apply, it returns an already-terminal result for the same attempt or raises a state-change error without writing a misleading audit event.
+- Added a SQLite trigger regression that suppresses the attempted state update and verifies state and audit history remain unchanged.
+- Deterministic local database validation only; no live TikTok API verification is implied.
