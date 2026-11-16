@@ -651,6 +651,12 @@ class ProductionTests(unittest.TestCase):
         queue=JobQueue(self.store.db_path)
         job_id=queue.enqueue("short_video_production",self.brief)["id"]
         self.store.create(job_id,self.brief)
+        self.store.artifact(job_id,"script","text",None,{
+            "script":"A sufficiently detailed recovered video script with useful context.",
+            "provider_quality_metadata":{"factual_claims_verified":True},
+            "policy_preflight":{"status":"review_required","approval_blockers":[]}})
+        self.store.artifact(job_id,"voice_generation","audio",
+            "https://cdn.example.test/audio.mp3",{"duration_seconds":32.5})
         key=self.store.begin_provider_attempt(job_id,"rendering",1)
         self.store.finish_provider_attempt(
             job_id,"rendering",1,key,
@@ -668,8 +674,13 @@ class ProductionTests(unittest.TestCase):
         production=self.store.get(job_id)
         self.assertEqual(production["status"],"review_pending")
         self.assertEqual(production["current_stage"],"recovered_render_adopted")
-        self.assertEqual(len(production["artifacts"]),1)
-        artifact=production["artifacts"][0]
+        self.assertEqual(len(production["artifacts"]),4)
+        artifact=next(item for item in production["artifacts"]
+                      if item["stage"]=="rendering")
+        quality=next(item for item in production["artifacts"]
+                     if item["stage"]=="quality_check")
+        self.assertIn(quality["metadata"]["status"],("ready_for_human_review","review_required"))
+        self.assertIsNotNone(quality["metadata"]["checks"])
         self.assertEqual(artifact["artifact_url"],"https://cdn.example.test/output.mp4")
         self.assertEqual(artifact["metadata"]["media_staging"]["sha256"],"a"*64)
         self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"adopted")
