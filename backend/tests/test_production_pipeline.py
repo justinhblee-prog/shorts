@@ -112,7 +112,7 @@ class ProductionTests(unittest.TestCase):
         attempts=self.store.provider_attempts("job-1")
         self.assertEqual([item["stage"] for item in attempts],
                          ["script","voice_generation","rendering"])
-        self.assertTrue(all(item["state"]=="response_received" for item in attempts))
+        self.assertTrue(all(item["state"]=="adopted" for item in attempts))
         self.assertTrue(all(item["response_json"] for item in attempts))
 
     def test_pipeline_transcribes_generated_audio_and_records_script_alignment(self):
@@ -636,6 +636,20 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(attempt["error"],"connection timed out")
         self.assertEqual(self.store.next_provider_attempt_number(
             "job-provider-unknown","voice_generation"),2)
+        with self.assertRaisesRegex(ProviderError,"remains outcome_unknown"):
+            self.store.begin_provider_attempt("job-provider-unknown","voice_generation",2)
+
+    def test_provider_response_must_be_adopted_before_a_new_attempt(self):
+        self.store.create("job-provider-unadopted",self.brief)
+        key=self.store.begin_provider_attempt("job-provider-unadopted","script",1)
+        self.store.finish_provider_attempt(
+            "job-provider-unadopted","script",1,key,{"script":"durable result"})
+        with self.assertRaisesRegex(ProviderError,"remains response_received"):
+            self.store.begin_provider_attempt("job-provider-unadopted","script",2)
+        self.store.mark_provider_attempt_adopted(
+            "job-provider-unadopted","script",1,key)
+        next_key=self.store.begin_provider_attempt("job-provider-unadopted","script",2)
+        self.assertTrue(next_key)
 
     def test_provider_response_rejects_oversized_or_non_object_payload(self):
         self.store.create("job-provider-bounds",self.brief)
