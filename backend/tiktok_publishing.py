@@ -466,11 +466,36 @@ class TikTokPublishStore:
             return resolved
 
     def mark_failed_before_remote(self, job_id, attempt_id, message):
+        # Record the local/preflight failure and its audit event atomically.
+        # A stale attempt must not mutate the current publication or emit an
+        # event that could be mistaken for the active attempt's failure.
         with self.db() as c:
-            c.execute("""
+            c.execute("BEGIN IMMEDIATE")
+            row = c.execute(
+                "SELECT * FROM tiktok_publications WHERE job_id=? AND attempt_id=?",
+                (job_id, attempt_id),
+            ).fetchone()
+            if row is None or row["status"] != "initializing":
+                c.commit()
+                return False
+            timestamp = _now()
+            updated = c.execute("""
               UPDATE tiktok_publications SET status='failed',error=?,updated_at=?
               WHERE job_id=? AND attempt_id=? AND status='initializing'
-            """, (message[:1000], _now(), job_id, attempt_id))
+            """, (message[:1000], timestamp, job_id, attempt_id))
+            if updated.rowcount != 1:
+                c.commit()
+                return False
+            c.execute("""
+              INSERT INTO tiktok_publication_events
+                (job_id,attempt_id,event_type,outcome,publish_id,video_id,
+                 operator_id,note,created_at,policy_version,policy_checked_on)
+              VALUES(?,?,'pre_remote_failure','failed',?,?,?, ?,?,?,?)
+            """, (job_id, attempt_id, row["publish_id"], row["video_id"],
+                  row["operator_id"], message[:1000], timestamp,
+                  row["policy_version"], row["policy_checked_on"]))
+            c.commit()
+            return True
 
     def due_status_job_ids(self, limit=5, min_age_seconds=60):
         minimum_age = max(0, int(min_age_seconds))

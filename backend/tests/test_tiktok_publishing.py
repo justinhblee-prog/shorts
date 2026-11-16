@@ -1111,6 +1111,42 @@ class TikTokPublishingTests(unittest.TestCase):
                     "UPDATE tiktok_publication_events SET note='changed' WHERE job_id='job-1'"
                 )
 
+ 
+    def test_pre_remote_failure_updates_state_and_writes_one_audit_event(self):
+        attempt = "pre-remote-failure-attempt"
+        self.store.begin("job-1", "Approved caption", True, "operator-1",
+                         attempt, False, False)
+        self.assertTrue(self.store.mark_failed_before_remote(
+            "job-1", attempt, "media snapshot could not be created"
+        ))
+        record = self.store.get("job-1")
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["error"], "media snapshot could not be created")
+        events = [event for event in record["events"]
+                  if event["event_type"] == "pre_remote_failure"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["attempt_id"], attempt)
+        self.assertEqual(events[0]["operator_id"], "operator-1")
+        self.assertEqual(events[0]["outcome"], "failed")
+
+    def test_stale_pre_remote_failure_does_not_mutate_or_audit_current_attempt(self):
+        old_attempt = "old-pre-remote-attempt"
+        self.store.begin("job-1", "Old caption", True, "old-operator",
+                         old_attempt, False, False)
+        self.assertTrue(self.store.mark_failed_before_remote(
+            "job-1", old_attempt, "first preflight failed"
+        ))
+        current_attempt = "current-pre-remote-attempt"
+        self.store.begin("job-1", "Current caption", True, "current-operator",
+                         current_attempt, False, False)
+        before = self.store.get("job-1")
+        self.assertFalse(self.store.mark_failed_before_remote(
+            "job-1", old_attempt, "late stale preflight failure"
+        ))
+        after = self.store.get("job-1")
+        self.assertEqual(after["attempt_id"], current_attempt)
+        self.assertEqual(after["status"], "initializing")
+        self.assertEqual(after["events"], before["events"])
 
 if __name__ == "__main__":
     unittest.main()
