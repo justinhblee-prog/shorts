@@ -336,6 +336,29 @@ class ProductionStore:
             c.execute("""UPDATE production_runs SET status='review_pending',
                 current_stage='recovered_render_adopted',error=NULL,updated_at=?
                 WHERE job_id=?""",(timestamp,job_id))
+            queue_row=c.execute("""SELECT job_type,status FROM pipeline_jobs
+                WHERE id=?""",(job_id,)).fetchone()
+            if queue_row is None or queue_row["job_type"] != "short_video_production":
+                raise ValueError("matching production queue job is required for adoption")
+            if queue_row["status"] not in ("queued","failed_retriable","failed_terminal"):
+                raise ValueError("queue job is active or already finalized; adoption blocked")
+            previous_queue_status=queue_row["status"]
+            updated_queue=c.execute("""UPDATE pipeline_jobs SET status='review_pending',
+                worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
+                completed_at=?,updated_at=?,error_code=NULL,error_message=NULL
+                WHERE id=? AND job_type='short_video_production'
+                  AND status IN ('queued','failed_retriable','failed_terminal')""",
+                (timestamp,timestamp,job_id))
+            if updated_queue.rowcount != 1:
+                raise ValueError("queue state changed during provider result adoption")
+            c.execute("""INSERT INTO job_events
+                (job_id,event_type,from_status,to_status,worker_id,details_json,created_at)
+                VALUES(?,'provider_result_recovered',?,'review_pending',NULL,?,?)""",
+                (job_id,previous_queue_status,json.dumps({
+                    "provider_attempt_id":attempt_id,
+                    "artifact_sha256":digest,
+                    "media_path":media_path,
+                }),timestamp))
             return {"job_id":job_id,"artifact_id":artifact_id,
                     "provider_attempt_id":attempt_id,"status":"review_pending",
                     "sha256":digest,"size_bytes":size,"media_path":media_path}
