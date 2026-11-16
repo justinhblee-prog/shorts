@@ -936,3 +936,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Require explicit consent, SELF_ONLY privacy, and separate brand-content/own-brand declarations; prevent selecting both commercial categories simultaneously.
 - Add publication status refresh, operator reconciliation, and owned-video metrics display.
 - The UI stages media before posting and stops for re-review if staging changes the approved fingerprint. GitHub Actions run [43782071923](https://github.com/justinhblee-prog/shorts/actions/runs/43782071923) passed **317 backend tests** and `scripts/validate.sh`. PR #89 was squash-merged into `main` as `2ea68c4314f11c23fdcaafd31f648adc5d4c1fef`. Real OAuth/developer-app/account testing remains external.
+
+
+### BUILD-00029 — platform-specific performance and recommendation evaluation (2026-11-16)
+
+- Add TikTok performance analysis from owned-video Display API snapshots: view velocity and like/comment/share deltas, elapsed-time normalization, and brand/region/topic/duration/format/age cohorts.
+- Add platform column and additive migration to recommendation exposure records; deduplicate, link selected production jobs and evaluate outcomes only within the same platform.
+- Add platform selector to trend recommendation workspace and platform-specific holdout evaluation panel.
+- Add platform field to trend production drafts and policy platform selection so TikTok recommendations create TikTok-scoped production jobs.
+- Keep recommendation score adjustment disabled; TikTok API does not expose audience retention/watch-time/estimated revenue in this collector. CI validation pending.
