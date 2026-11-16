@@ -1868,3 +1868,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added regression coverage. Backend deterministic CI only; no live TikTok API verification.
 
 - Follow-up boundary check: a newer attempt in the retryable `failed` state is not treated as terminal when an older attempt later reports processing/published. It is moved to reconciliation_required, consistent with the superseded-uncertainty policy.
+
+## BUILD-00228 — Preserve old YouTube video IDs when superseded worker errors arrive during a retry
+- When an old worker reports an uncertain result while a newer attempt is actively uploading, the audit event now retains the latest non-null video ID belonging to the old attempt.
+- The newer attempt's canonical video_id remains untouched; missing old IDs remain null rather than borrowing the new attempt's value.
+- Added regression coverage and updated BUILD_STATUS. Backend deterministic CI only; no live YouTube API verification.
