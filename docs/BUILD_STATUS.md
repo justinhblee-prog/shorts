@@ -2173,3 +2173,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - PRs #288–#293 remain open Draft PRs in a stacked chain and are unmerged. Preserve the no-merge/no-main-push constraint.
 - Next engineering item: BUILD-00289 — move enqueue timestamp capture after SQLite `BEGIN IMMEDIATE` and persist that same timestamp to the enqueue audit event.
 - CI and deterministic SQLite coverage must remain separate from live external-service and production validation.
+
+
+## BUILD-00290 — append-only queue and worker-control audit events
+
+- Added SQLite update/delete rejection triggers for `job_events` and `worker_control_events`.
+- Added a regression attempting both update and delete operations on both audit tables.
+- Scope is protection against accidental/application-level mutation, not tamper-proof storage against an actor able to modify the SQLite schema or file.
+- CI validation: pending for the exact PR head.
