@@ -428,3 +428,12 @@ The YouTube upload record and immutable `upload_attempt_started` audit event now
 ### Upload policy check-date freshness
 
 The upload gate requires both the current script policy evidence and the human-approved script snapshot to match the active local `POLICY_VERSION` and `POLICY_CHECKED_ON`. Missing or stale dates are rejected before the YouTube API is called; audit stamps therefore cannot record a stale or absent check date as current evidence. This remains a local evidence-freshness check, not a live fetch of official platform policies.
+
+
+## TikTok private publishing (backend)
+
+The TikTok integration uses TikTok Login Kit OAuth with encrypted token storage and refresh-token rotation. Direct Post is restricted to `SELF_ONLY` visibility in this product build. Before a post, the backend fetches the creator's current privacy options and maximum video duration, checks the latest human approval and policy version/date, requires explicit operator consent and branded-content declarations, and sets the Direct Post `is_aigc` field from the approved media classification. It uploads a SHA-256-verified immutable media snapshot and blocks uncertain retries until the operator reconciles the result in TikTok.
+
+TikTok metrics collection uses the official Display API for IDs recorded by the creator's own publication history. It does not scrape third-party videos or infer retention/engagement metrics unavailable through that API. Set `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`, and a persistent `TIKTOK_TOKEN_ENCRYPTION_KEY`; enable the Content Posting API and required scopes in the TikTok developer console. Unaudited clients are limited to private visibility by TikTok. The current backend does not automatically enable public posting.
+
+Backend endpoints include OAuth start/callback/status/disconnect, creator-info, private publish, publication status/reconciliation, and TikTok metrics. Frontend operator controls and real developer-app/account validation are tracked separately.
