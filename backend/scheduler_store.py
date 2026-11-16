@@ -46,16 +46,25 @@ class ScheduleStore:
               scheduled_for TEXT NOT NULL, payload_json TEXT NOT NULL,
               status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
               last_error TEXT, created_at TEXT NOT NULL, dispatched_at TEXT,
+              next_attempt_at TEXT,
               UNIQUE(schedule_id,scheduled_for)
             );
             CREATE INDEX IF NOT EXISTS idx_schedule_outbox_pending
               ON schedule_dispatch_outbox(status,created_at);
+            CREATE INDEX IF NOT EXISTS idx_schedule_outbox_retry
+              ON schedule_dispatch_outbox(status,next_attempt_at,created_at);
             CREATE TABLE IF NOT EXISTS scheduler_leader_lease(
               id INTEGER PRIMARY KEY CHECK(id=1), owner_id TEXT NOT NULL,
               lease_token TEXT NOT NULL, expires_at TEXT NOT NULL,
               updated_at TEXT NOT NULL
             );
             """)
+            columns = {row["name"] for row in c.execute(
+                "PRAGMA table_info(schedule_dispatch_outbox)").fetchall()}
+            if "next_attempt_at" not in columns:
+                c.execute("ALTER TABLE schedule_dispatch_outbox ADD COLUMN next_attempt_at TEXT")
+            c.execute("""CREATE INDEX IF NOT EXISTS idx_schedule_outbox_retry
+                ON schedule_dispatch_outbox(status,next_attempt_at,created_at)""")
 
     @contextmanager
     def db(self):
@@ -135,12 +144,21 @@ class ScheduleStore:
                     WHERE schedule_id=? AND status='pending'""", (sid,))
             return self.get(sid, c)
 
-    def pending_dispatches(self, limit=100):
+    def pending_dispatches(self, limit=100, now=None):
         limit = _bounded_limit(limit, "limit", 500)
         with self.db() as c:
-            rows = c.execute("""SELECT * FROM schedule_dispatch_outbox
-                WHERE status='pending' ORDER BY created_at LIMIT ?""",
-                (limit,)).fetchall()
+            if now is None:
+                rows = c.execute("""SELECT * FROM schedule_dispatch_outbox
+                    WHERE status='pending' ORDER BY created_at LIMIT ?""",
+                    (limit,)).fetchall()
+            else:
+                if now.tzinfo is None:
+                    raise ValueError("now must be timezone-aware")
+                rows = c.execute("""SELECT * FROM schedule_dispatch_outbox
+                    WHERE status='pending' AND
+                    (next_attempt_at IS NULL OR next_attempt_at<=?)
+                    ORDER BY created_at LIMIT ?""",
+                    (_stamp(now), limit)).fetchall()
             return [dict(row) for row in rows]
 
 
@@ -150,7 +168,7 @@ class ScheduleStore:
             counts = {row["status"]: row["n"] for row in c.execute(
                 "SELECT status,COUNT(*) n FROM schedule_dispatch_outbox GROUP BY status")}
             rows = c.execute("""SELECT id,schedule_id,scheduled_for,status,attempts,
-                last_error,created_at FROM schedule_dispatch_outbox
+                last_error,created_at,next_attempt_at FROM schedule_dispatch_outbox
                 ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END,
                 created_at DESC LIMIT ?""", (limit,)).fetchall()
             return {"counts": counts, "items": [dict(row) for row in rows],
@@ -262,7 +280,7 @@ class ScheduleStore:
         # Queue enqueue is idempotent. If the process dies before marking outbox
         # dispatched, the next scheduler loop safely replays the same idempotency key.
         dispatched = []
-        for item in self.pending_dispatches(limit=min(limit * 5, 500)):
+        for item in self.pending_dispatches(limit=min(limit * 5, 500), now=current):
             try:
                 if lease_owner is not None and not self.renew_scheduler_lease(
                         lease_owner, lease_token, lease_seconds):
@@ -285,16 +303,21 @@ class ScheduleStore:
                             return {"dispatched": dispatched, "count": len(dispatched),
                                     "pending": len(self.pending_dispatches()), "lease_lost": True}
                     c.execute("""UPDATE schedule_dispatch_outbox SET status='dispatched',
-                        attempts=attempts+1,last_error=NULL,dispatched_at=?
+                        attempts=attempts+1,last_error=NULL,dispatched_at=?,next_attempt_at=NULL
                         WHERE id=? AND status='pending'""", (stamp, item["id"]))
                     c.execute("""UPDATE production_schedules SET last_enqueued_at=?,updated_at=?
                         WHERE id=?""", (stamp, stamp, item["schedule_id"]))
                 dispatched.append({"schedule_id": item["schedule_id"], "job": job,
                                     "scheduled_for": item["scheduled_for"]})
             except Exception as exc:
+                # Back off transient queue failures to avoid a tight retry loop.
+                # attempts=0 receives 30s; exponential growth is capped at 1h.
+                delay = min(30 * (2 ** min(int(item["attempts"]), 7)), 3600)
+                retry_at = _stamp(current + timedelta(seconds=delay))
                 with self.db() as c:
                     c.execute("""UPDATE schedule_dispatch_outbox
-                        SET attempts=attempts+1,last_error=? WHERE id=? AND status='pending'""",
-                        (type(exc).__name__ + ": " + str(exc)[:500], item["id"]))
+                        SET attempts=attempts+1,last_error=?,next_attempt_at=?
+                        WHERE id=? AND status='pending'""",
+                        (type(exc).__name__ + ": " + str(exc)[:500], retry_at, item["id"]))
         return {"dispatched": dispatched, "count": len(dispatched),
                 "pending": len(self.pending_dispatches())}
