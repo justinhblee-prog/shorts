@@ -170,6 +170,7 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(event["attempt_id"],first["attempt_id"])
         self.assertEqual(event["previous_status"],"late_success_review_required")
         self.assertEqual(event["resulting_status"],"late_success_review_required")
+        self.assertEqual(event["video_id"],"late-video-id")
         self.assertEqual(result["video_id"],"late-video-id")
 
     def test_operator_can_keep_current_video_when_stale_duplicate_arrives(self):
