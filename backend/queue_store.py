@@ -229,11 +229,12 @@ class JobQueue:
             if production_paused and job_type == "short_video_production":
                 c.commit()
                 return None
+            registry_generation = generation_token or str(uuid.uuid4())
             c.execute("""INSERT INTO worker_registry(
               worker_id,hostname,last_seen_at,status,generation_token)
               VALUES(?,?,?,'online',?) ON CONFLICT(worker_id)
               DO UPDATE SET hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,
-              status='online'""",(worker_id,hostname,n,str(uuid.uuid4())))
+              status='online'""",(worker_id,hostname,n,registry_generation))
             expiry_result = self._recover_expired_leases_in_transaction(c, n)
             production_expired = expiry_result["production_expired"]
             if production_expired:
