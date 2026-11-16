@@ -17,10 +17,13 @@ def _load_credentials(raw: str) -> dict[str, str]:
     credentials: dict[str, str] = {}
     token_owners: set[str] = set()
     for reviewer_id, token in value.items():
-        if (not isinstance(reviewer_id, str) or not reviewer_id.strip() or len(reviewer_id) > 128
+        if (not isinstance(reviewer_id, str) or not reviewer_id.strip()
+                or reviewer_id != reviewer_id.strip() or len(reviewer_id) > 128
                 or any(ord(ch) < 32 or ord(ch) == 127 for ch in reviewer_id)):
             raise ReviewCredentialConfigurationError("Reviewer IDs must be 1-128 printable characters")
-        if not isinstance(token, str) or len(token) < 32 or len(token) > 512 or not token.isascii():
+        if (not isinstance(token, str) or len(token) < 32 or len(token) > 512
+                or not token.isascii() or not token.strip()
+                or any(ord(ch) < 32 or ord(ch) == 127 for ch in token)):
             raise ReviewCredentialConfigurationError("Each reviewer token must contain 32-512 characters")
         if token in token_owners:
             raise ReviewCredentialConfigurationError("Each reviewer must have a unique token")
@@ -49,6 +52,14 @@ def resolve_review_principal(provided: str | None, *, credentials_json: str | No
         return matched[0] if len(matched) == 1 else None
     if legacy_token is None:
         legacy_token = os.getenv("NEXUS_REVIEW_TOKEN")
-    if legacy_token and secrets.compare_digest(str(provided), str(legacy_token)):
-        return "legacy-operator"
+    if legacy_token:
+        if (not isinstance(legacy_token, str) or len(legacy_token) < 32
+                or len(legacy_token) > 512 or not legacy_token.isascii()
+                or legacy_token != legacy_token.strip()
+                or any(ord(ch) < 32 or ord(ch) == 127 for ch in legacy_token)):
+            raise ReviewCredentialConfigurationError(
+                "NEXUS_REVIEW_TOKEN must be a 32-512 character printable ASCII secret"
+            )
+        if secrets.compare_digest(str(provided), legacy_token):
+            return "legacy-operator"
     return None
