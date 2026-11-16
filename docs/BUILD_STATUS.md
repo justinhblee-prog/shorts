@@ -1335,3 +1335,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Validate dispatch lease TTL before any database work, including empty/no-due batches, so invalid configuration cannot pass unnoticed on an idle scheduler.
 - Add direct-store regression tests for all control boundaries.
 - CI validation pending.
+
+
+## BUILD-00164 — durable scheduler outbox retry backoff
+
+- Add a nullable `next_attempt_at` field with an in-place SQLite migration for existing outbox tables.
+- Apply exponential retry delays after queue-dispatch failures: 30 seconds initially, doubling per failure, capped at one hour.
+- Keep deferred records visible in outbox status while excluding them from dispatch until their retry timestamp is due.
+- Clear retry timestamps after successful idempotent queue acceptance.
+- Add regression tests for retry timing, exponential growth/cap, and compatibility with existing pending outbox rows.
+- CI validation pending.
