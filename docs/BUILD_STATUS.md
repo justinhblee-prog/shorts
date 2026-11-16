@@ -2140,3 +2140,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Pass the transaction timestamp into the immutable lease-expiry event so the event and job state describe the same serialized decision.
 - Add a deterministic regression that advances the mocked clock between the recovery decision and event creation.
 - GitHub Actions validation pending; no live multi-host validation is claimed.
+
+
+## BUILD-00287 — Align operator-reconciliation job events with the locked decision timestamp
+- Operator retry reconciliation already captures its decision timestamp after acquiring SQLite's immediate write lock and persists it to the job and reconciliation ledger.
+- Pass that same timestamp to the job-event audit writer instead of sampling the clock a second time.
+- Add a deterministic regression checking all three records (job, reconciliation ledger, job event) share the same timestamp.
+- GitHub Actions validation pending; deterministic SQLite coverage only.
