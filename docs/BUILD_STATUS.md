@@ -1114,4 +1114,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Bound Analytics response columns and rows; validate retention point ranges and ignore malformed retention reports without discarding otherwise valid watch-time metrics.
 - Validate the complete TikTok response batch, reject unrequested/duplicate IDs and SQLite integer overflow, then persist all accepted rows in one transaction.
 - Add regression tests proving a malformed later TikTok row cannot leave an earlier partial snapshot, and malformed YouTube report values are rejected.
-- Validation pending.
+- GitHub Actions PR run [43795614217](https://github.com/justinhblee-prog/shorts/actions/runs/43795614217) passed **446 backend tests** and the complete `scripts/validate.sh` command.
