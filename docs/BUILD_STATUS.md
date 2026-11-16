@@ -1372,3 +1372,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Keep inactive schedule dead-letter records visible for audit; reactivation allows an operator to retry them explicitly.
 - Add regression coverage for inactive rejection and successful retry after reactivation.
 - GitHub Actions run [43812864095](https://github.com/justinhblee-prog/shorts/actions/runs/43812864095) passed the complete `scripts/validate.sh` workflow, including 506 backend tests.
+
+
+## BUILD-00168 — scheduler outbox operator dashboard recovery
+
+- Show separate ready-to-dispatch, deferred-retry, dead-letter and dispatched counts in the operator dashboard.
+- Display the next retry timestamp and failure count for each visible outbox record.
+- Add an authenticated, confirmation-gated manual retry action for dead-letter records; the backend remains authoritative and rejects retries for inactive schedules.
+- Add frontend contract tests and update the operator runbook.
+- CI validation pending.
