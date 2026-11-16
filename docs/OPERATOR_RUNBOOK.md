@@ -315,3 +315,8 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 6. Perform a private test upload and Analytics refresh. Do not publish publicly until review, rights, policy and disclosure gates have been completed.
 
 The OAuth callback is protected by a one-time state stored as a hash and a Secure/HttpOnly/SameSite=Lax cookie. Refresh tokens are encrypted at rest. The status endpoint never returns token values. A static YOUTUBE_REFRESH_TOKEN fallback is supported for legacy deployments but must be removed before using the disconnect action.
+
+
+### BUILD-00036 validation checkpoint
+
+The encrypted YouTube OAuth flow passed **352 backend tests** in [GitHub Actions run 43788265493](https://github.com/justinhblee-prog/shorts/actions/runs/43788265493). Before using it in production, configure the exact Google Cloud redirect URI and Fernet encryption key, complete a real consent flow, verify stored scopes, and perform a private test upload. CI does not prove live account access.
