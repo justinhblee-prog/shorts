@@ -169,6 +169,32 @@ class QueueTests(unittest.TestCase):
   with self.assertRaises(LeaseConflict):
    self.q.finish(job["id"],"worker-lost",claimed["lease_token"])
 
+ def test_heartbeat_and_recovery_fence_stale_worker_after_reclaim(self):
+  job=self.q.enqueue("render",{"topic":"heartbeat-recovery"})
+  first=self.q.claim("worker-first")
+  renewed=self.q.heartbeat(job["id"],"worker-first",first["lease_token"])
+  self.assertGreater(renewed["lease_expires_at"],first["lease_expires_at"])
+  self.assertEqual(self.q.recover()["requeued"],0)
+  with self.q.db() as c:
+   c.execute(
+    "UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+    (job["id"],),
+   )
+  self.assertEqual(self.q.recover()["requeued"],1)
+  with self.assertRaises(LeaseConflict):
+   self.q.heartbeat(job["id"],"worker-first",first["lease_token"])
+  second=self.q.claim("worker-second")
+  self.assertEqual(second["id"],job["id"])
+  with self.assertRaises(LeaseConflict):
+   self.q.heartbeat(job["id"],"worker-first",first["lease_token"])
+  current=self.q.get(job["id"])
+  self.assertEqual(current["status"],"running")
+  self.assertEqual(current["worker_id"],"worker-second")
+  self.assertEqual(current["lease_token"],second["lease_token"])
+  self.assertEqual(
+   len([event for event in self.q.events(job["id"]) if event["event_type"]=="heartbeat"]),1
+  )
+
  def test_retry_state_and_event_log(self):
   j=self.q.enqueue("research",{}); a=self.q.claim("worker-a")
   failed=self.q.fail(j["id"],"worker-a",a["lease_token"],"network","temporary",True)
