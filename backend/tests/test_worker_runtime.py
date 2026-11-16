@@ -91,5 +91,39 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertTrue(lost_lease.is_set())
 
 
+    def test_stale_sigterm_cannot_pause_replacement_workers_active_job(self):
+        import tempfile
+        import threading
+        from queue_store import JobQueue
+
+        with tempfile.TemporaryDirectory() as directory:
+            queue = JobQueue(str(Path(directory) / "queue.sqlite3"))
+            previous = queue.register_worker("shared-worker", "host-a")
+            current = queue.register_worker("shared-worker", "host-a")
+            job = queue.enqueue("short_video_production", {"topic": "generation-fence"})
+            claimed = queue.claim(
+                "shared-worker", "host-a",
+                job_type="short_video_production",
+                generation_token=current["generation_token"],
+            )
+            self.assertEqual(claimed["id"], job["id"])
+
+            stopping = threading.Event()
+            lost_lease = threading.Event()
+            request_worker_shutdown(
+                queue, stopping, job["id"], lost_lease, 15,
+                worker_id="shared-worker",
+                generation_token=previous["generation_token"],
+            )
+
+            self.assertTrue(stopping.is_set())
+            self.assertTrue(lost_lease.is_set())
+            self.assertFalse(queue.is_paused())
+            self.assertEqual(queue.get(job["id"])["status"], "running")
+            self.assertEqual(
+                queue.events(job["id"])[-1]["event_type"], "claimed"
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
