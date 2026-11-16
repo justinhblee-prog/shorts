@@ -409,13 +409,21 @@ class JobQueue:
 
     def workers(self, stale_after_seconds=None):
         threshold = max(30, int(stale_after_seconds or self.lease_seconds))
-        cutoff = stamp(now() - timedelta(seconds=threshold))
+        observed_at = now()
         with self.db() as c:
             rows = [dict(r) for r in c.execute(
                 "SELECT * FROM worker_registry ORDER BY last_seen_at DESC")]
         for row in rows:
-            if row["last_seen_at"] < cutoff:
-                row["status"] = "offline"
+            try:
+                last_seen = datetime.fromisoformat(row["last_seen_at"])
+                age = max(0, int((observed_at - last_seen).total_seconds()))
+            except (TypeError, ValueError):
+                # A malformed registry timestamp is never treated as healthy.
+                age = threshold + 1
+            row["heartbeat_age_seconds"] = age
+            row["stale_after_seconds"] = threshold
+            if row["status"] == "online" and age > threshold:
+                row["status"] = "stale"
         return rows
 
     def stats(self):
