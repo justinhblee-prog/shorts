@@ -412,3 +412,8 @@ ClamAV adds image size and signature-volume storage. CI validates the fail-close
 - Compare `analytics_cohorts.metrics` only when `evidence_status=observed`. The cohort requires at least three videos matched on brand, region, publication age, render duration, format and exact topic-token signature.
 - Video-level above/below-median observations are hypotheses for controlled creative tests, not ranking boosts. The API keeps `ranking_score_adjustment=0` until held-out validation supports a change.
 - No synthetic or inferred retention metrics are generated when YouTube Analytics reports are missing or ineligible.
+
+
+### BUILD-00132 validation checkpoint
+
+GitHub Actions run [43794456586](https://github.com/justinhblee-prog/shorts/actions/runs/43794456586) passed **431 backend tests** and the complete validation script. This verifies code paths with synthetic fixtures; it does not prove that a live YouTube channel has enough authorized Analytics reports to populate matched cohorts.
