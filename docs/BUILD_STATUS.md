@@ -2001,4 +2001,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Validate the collector lease before constructing the Analytics service. OAuth credential refresh can itself make an outbound token request, so a worker whose lease is already expired/replaced must not reach that initialization path.
 - Retain the post-initialization lease check immediately before the Analytics report request, because OAuth/client setup can outlive the lease.
 - Add a regression that expires the lease before collection and proves service/OAuth initialization is never invoked.
-- Deterministic local SQLite/fake-service CI only; no live YouTube OAuth or Analytics API validation is claimed.
+- GitHub Actions [run #3479](https://github.com/justinhblee-prog/shorts/actions/runs/43912866442) succeeded on commit `7ee9ffe69d833c57680a934abb2c61da09316655`; `scripts/validate.sh` passed. Deterministic local SQLite/service-stub CI only; no live YouTube OAuth or Analytics API validation is claimed.
