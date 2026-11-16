@@ -283,7 +283,7 @@ class TikTokPublishStore:
                 """, (job_id, attempt_id, row["publish_id"], row["operator_id"],
                       message[:1000], now, row["policy_version"]))
 
-    def reconcile(self, job_id, outcome, operator_id, note, video_id=None, confirmed=False):
+    def reconcile(self, job_id, outcome, operator_id, note, video_id=None, confirmed=False, expected_attempt_id=None):
         """Resolve an uncertain TikTok attempt only after explicit operator verification."""
         operator_id = str(operator_id or "").strip()
         note = str(note or "").strip()
@@ -306,6 +306,8 @@ class TikTokPublishStore:
             ).fetchone()
             if row is None:
                 raise TikTokPublishError("TikTok publication record not found")
+            if expected_attempt_id is not None and row["attempt_id"] != expected_attempt_id:
+                raise TikTokPublishError("Reconciliation attempt ID does not match the current TikTok attempt")
             if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
                 if outcome == "published" and row["status"] == "publish_complete" and row["video_id"] == video_id:
                     return dict(row)

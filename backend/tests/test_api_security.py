@@ -372,7 +372,7 @@ class ApiSecurityTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             YouTubeLateSuccessResolution(operator_id="operator",note="checked without video ID")
         valid=YouTubeLateSuccessResolution(
-            operator_id="operator",video_id="yt-video-123",note="verified in Studio"
+            attempt_id="attempt-1", operator_id="operator",video_id="yt-video-123",note="verified in Studio"
         )
         self.assertEqual(valid.video_id,"yt-video-123")
 
@@ -822,7 +822,7 @@ class ApiSecurityTests(unittest.TestCase):
             (
                 reconcile_youtube_upload,
                 YouTubeUploadReconciliation(
-                    outcome="not_uploaded", confirmed=True,
+                    attempt_id="attempt-1", outcome="not_uploaded", confirmed=True,
                     note="Checked channel", operator_id="forged-operator",
                 ),
                 "youtube_upload_store", "reconcile",
@@ -830,7 +830,7 @@ class ApiSecurityTests(unittest.TestCase):
             (
                 resolve_late_youtube_upload,
                 YouTubeLateSuccessResolution(
-                    operator_id="forged-operator", video_id="late-video",
+                    attempt_id="attempt-1", operator_id="forged-operator", video_id="late-video",
                     note="Verified late completion",
                 ),
                 "youtube_upload_store", "resolve_late_success",
@@ -838,7 +838,7 @@ class ApiSecurityTests(unittest.TestCase):
             (
                 reconcile_tiktok_publication,
                 TikTokPublicationReconciliation(
-                    outcome="not_published", confirmed=True,
+                    attempt_id="attempt-1", outcome="not_published", confirmed=True,
                     note="Checked creator account", operator_id="forged-operator",
                 ),
                 "tiktok_publish_store", "reconcile",
@@ -869,11 +869,11 @@ class ApiSecurityTests(unittest.TestCase):
             reconcile_youtube_upload, reconcile_tiktok_publication,
         )
         youtube_body = YouTubeUploadReconciliation(
-            outcome="not_uploaded", confirmed=True,
+            attempt_id="attempt-1", outcome="not_uploaded", confirmed=True,
             note="Verified no matching private upload", operator_id="operator-7",
         )
         tiktok_body = TikTokPublicationReconciliation(
-            outcome="not_published", confirmed=True,
+            attempt_id="attempt-1", outcome="not_published", confirmed=True,
             note="Verified no matching creator post", operator_id="operator-7",
         )
         with (
@@ -905,17 +905,19 @@ class ApiSecurityTests(unittest.TestCase):
         youtube_reconcile.assert_called_once_with(
             "job-youtube", "not_uploaded", None,
             "Verified no matching private upload", "operator-7",
+            expected_attempt_id="attempt-1",
         )
         tiktok_reconcile.assert_called_once_with(
             "job-tiktok", "not_published", "operator-7",
             "Verified no matching creator post", video_id=None, confirmed=True,
+            expected_attempt_id="attempt-1",
         )
 
 
     def test_youtube_reconciliation_requires_explicit_confirmation_before_store_mutation(self):
         from app import YouTubeUploadReconciliation, reconcile_youtube_upload
         body = YouTubeUploadReconciliation(
-            outcome="not_uploaded", confirmed=False,
+            attempt_id="attempt-1", outcome="not_uploaded", confirmed=False,
             note="Unable to verify", operator_id="operator-1",
         )
         with (
@@ -933,7 +935,7 @@ class ApiSecurityTests(unittest.TestCase):
     def test_tiktok_reconciliation_requires_explicit_confirmation_before_store_mutation(self):
         from app import TikTokPublicationReconciliation, reconcile_tiktok_publication
         body = TikTokPublicationReconciliation(
-            outcome="not_published", confirmed=False,
+            attempt_id="attempt-1", outcome="not_published", confirmed=False,
             note="Unable to verify", operator_id="operator-1",
         )
         with (
@@ -953,13 +955,13 @@ class ApiSecurityTests(unittest.TestCase):
         authorize.assert_called_once_with("review-token", "publish.reconcile")
         mutation.assert_called_once_with(
             "job-1", "not_published", "operator-1", "Unable to verify",
-            video_id=None, confirmed=False,
+            video_id=None, confirmed=False, expected_attempt_id="attempt-1",
         )
 
     def test_youtube_reconciliation_requires_video_id_for_uploaded_outcome(self):
         from app import YouTubeUploadReconciliation, reconcile_youtube_upload
         body = YouTubeUploadReconciliation(
-            outcome="uploaded", confirmed=True, video_id=None,
+            attempt_id="attempt-1", outcome="uploaded", confirmed=True, video_id=None,
             note="Operator confirms upload", operator_id="operator-1",
         )
         with (

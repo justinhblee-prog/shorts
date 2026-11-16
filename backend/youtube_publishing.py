@@ -339,7 +339,7 @@ class YouTubeUploadStore:
                 ?,'reconciliation_required',?)""",
               (job_id,attempt_id,str(error)[:2000],previous_status,now))
 
-    def reconcile(self,job_id,outcome,video_id=None,note="",operator_id="unspecified"):
+    def reconcile(self,job_id,outcome,video_id=None,note="",operator_id="unspecified",expected_attempt_id=None):
         """Resolve an ambiguous remote upload only after explicit operator verification."""
         note=str(note or "").strip()
         if not note or len(note)>2000:
@@ -356,6 +356,8 @@ class YouTubeUploadStore:
             row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
             if row is None:
                 raise YouTubeUploadError("Upload record not found")
+            if expected_attempt_id is not None and row["attempt_id"] != expected_attempt_id:
+                raise YouTubeUploadError("Reconciliation attempt ID does not match the current upload attempt")
             if row["status"]=="uploaded":
                 if outcome=="uploaded" and row["video_id"]==video_id:
                     return dict(row)
@@ -387,7 +389,7 @@ class YouTubeUploadStore:
                operator_id,note,row["status"],resulting,_now()))
         return self.get(job_id)
 
-    def resolve_late_success(self,job_id,operator_id,note,video_id=None):
+    def resolve_late_success(self,job_id,operator_id,note,video_id=None,expected_attempt_id=None):
         operator_id=str(operator_id or "").strip()
         note=str(note or "").strip()
         if not operator_id or len(operator_id)>128 or not note or len(note)>2000:
@@ -406,6 +408,8 @@ class YouTubeUploadStore:
                     "Choose the currently recorded video ID or one preserved in late-success audit events"
                 )
             resolved_attempt_id=(known["attempt_id"] if known else row["attempt_id"])
+            if expected_attempt_id is not None and resolved_attempt_id != expected_attempt_id:
+                raise YouTubeUploadError("Resolution attempt ID does not match the selected late-success record")
             now=_now()
             updated=c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',privacy_status='private',
               uploaded_at=COALESCE(uploaded_at,?),error=NULL,updated_at=?

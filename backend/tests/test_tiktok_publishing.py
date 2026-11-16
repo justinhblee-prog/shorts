@@ -169,6 +169,21 @@ class TikTokPublishingTests(unittest.TestCase):
             )
         self.assertEqual(self.store.get("job-1")["status"], "reconciliation_required")
 
+    def test_tiktok_reconciliation_rejects_stale_attempt_identity_without_mutation(self):
+        attempt_id = self._uncertain_tiktok_attempt()
+        with self.assertRaisesRegex(TikTokPublishError, "attempt ID does not match"):
+            self.store.reconcile(
+                "job-1", "not_published", "operator-ops", "Checked account",
+                confirmed=True, expected_attempt_id="stale-attempt",
+            )
+        current = self.store.get("job-1")
+        self.assertEqual(current["status"], "reconciliation_required")
+        self.assertEqual(current["attempt_id"], attempt_id)
+        self.assertFalse(any(
+            event["event_type"] == "operator_reconciliation"
+            for event in current["events"]
+        ))
+
     def test_tiktok_reconciliation_published_records_verified_video_id(self):
         attempt_id = self._uncertain_tiktok_attempt()
         result = self.store.reconcile(

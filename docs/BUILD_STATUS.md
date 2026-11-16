@@ -1767,3 +1767,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add API-level regression proving TikTok's explicit-confirmation requirement is enforced by its reconciliation store and surfaced as a conflict; the mocked store confirms the route does not bypass or reinterpret that contract.
 - Add API-level regression proving a YouTube `uploaded` reconciliation cannot proceed without a verified video ID.
 - No production runtime behavior changed; the change adds regression coverage for existing fail-closed validation.
+
+## BUILD-00212 — Bind platform reconciliation to an explicit attempt identity
+- YouTube upload reconciliation and late-success resolution API requests now require an `attempt_id`; TikTok publication reconciliation does the same.
+- API handlers forward the supplied attempt identity to the transactional store. The store compares it with the selected current/late-success attempt before changing publication state or writing reconciliation audit events.
+- Added regression tests proving stale YouTube and TikTok attempt IDs leave the uncertain state and audit history unchanged.
+- This is a contract-level and deterministic SQLite test improvement; it does not constitute live YouTube/TikTok account verification.
