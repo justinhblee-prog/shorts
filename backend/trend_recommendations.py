@@ -332,9 +332,9 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
     trends = [item for item in trends if isinstance(item, dict)] if isinstance(trends, list) else []
     brands = [item for item in brands if isinstance(item, dict)] if isinstance(brands, list) else []
     now = now or datetime.now(timezone.utc)
-    performance_by_brand = performance_by_brand or {}
-    performance_videos = performance_videos or []
-    performance_cohorts = performance_cohorts or []
+    performance_by_brand = performance_by_brand if isinstance(performance_by_brand, dict) else {}
+    performance_videos = performance_videos if isinstance(performance_videos, list) else []
+    performance_cohorts = performance_cohorts if isinstance(performance_cohorts, list) else []
     brand_rows = []
     for brand in brands:
         if not brand.get("active", True):
