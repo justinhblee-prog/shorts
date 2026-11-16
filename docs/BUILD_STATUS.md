@@ -1173,3 +1173,20 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Refresh the top-level validation checkpoint to the latest verified BUILD-00140 CI run.
 - Replace the stale 408-test summary with the current 466-test result and link to the exact GitHub Actions run.
 - Keep all live-provider, account, deployment and revenue limitations explicit.
+
+
+## BUILD-00142 — strict recommendation analytics outcome validation
+
+- Reject boolean, non-finite, negative and non-numeric recommendation metrics before counting selected production jobs as measured outcomes.
+- Validate audience-retention coordinates as finite normalized ratios; preserve valid average view percentage values above 100%.
+- Add regression tests for malformed metric-only outcomes and retention data.
+- GitHub Actions run [43799823287](https://github.com/justinhblee-prog/shorts/actions/runs/43799823287) passed the complete `scripts/validate.sh` workflow.
+- Draft PR [#136](https://github.com/justinhblee-prog/shorts/pull/136) is open and unmerged.
+
+## BUILD-00143 — harden YouTube Analytics persistence validation
+
+- Reject booleans in the shared numeric normalizer so `True`/`False` cannot silently persist as 1/0.
+- Enforce 0–1 bounds for elapsed-video and audience-watch ratios again at the SQLite persistence boundary, including direct store callers that bypass provider parsing.
+- Preserve valid average view percentages above 100% and retain the existing relative-retention handling.
+- Add regression tests for invalid direct-save metrics and malformed retention coordinates.
+- Draft PR [#137](https://github.com/justinhblee-prog/shorts/pull/137) is open; CI validation is pending.
