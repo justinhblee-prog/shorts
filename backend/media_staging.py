@@ -74,6 +74,27 @@ class MediaStager:
         filename = hashlib.sha256(str(job_id).encode("utf-8")).hexdigest() + ".mp4"
         return self.media_dir / filename
 
+    @staticmethod
+    def fingerprint(path):
+        """Return a streaming SHA-256/size fingerprint for a regular, non-symlink file."""
+        candidate = Path(path)
+        if candidate.is_symlink() or not candidate.is_file():
+            raise MediaStagingError("Staged media must be a regular file, not a symlink")
+        digest = hashlib.sha256()
+        total = 0
+        try:
+            with candidate.open("rb") as stream:
+                while True:
+                    block = stream.read(1024 * 1024)
+                    if not block:
+                        break
+                    total += len(block)
+                    digest.update(block)
+        except OSError as exc:
+            raise MediaStagingError("Staged media could not be fingerprinted") from exc
+        return {"media_path": candidate.name, "size_bytes": total,
+                "sha256": digest.hexdigest(), "content_type": "video/mp4"}
+
     def cleanup_uploaded(self, job_id, upload_store):
         """Delete only this job's staged file, and only after durable upload confirmation."""
         upload = upload_store.get(job_id)
@@ -155,6 +176,7 @@ class MediaStager:
         temporary = None
         total = 0
         prefix = b""
+        digest = hashlib.sha256()
         try:
             with tempfile.NamedTemporaryFile(mode="wb", dir=self.media_dir,
                                              prefix=".nexus-", suffix=".part", delete=False) as out:
@@ -169,13 +191,14 @@ class MediaStager:
                         raise MediaStagingError("Artifact exceeds NEXUS_MAX_MEDIA_BYTES")
                     if len(prefix) < 12:
                         prefix += bytes(chunk[:12-len(prefix)])
+                    digest.update(chunk)
                     out.write(chunk)
                 out.flush()
                 os.fsync(out.fileno())
             if total < 12 or prefix[4:8] != b"ftyp":
                 raise MediaStagingError("Downloaded artifact does not contain an MP4 file signature")
             os.replace(str(temporary), str(destination))
-            return {"media_path": filename, "size_bytes": total, "content_type": "video/mp4"}
+            return {"media_path": filename, "size_bytes": total, "sha256": digest.hexdigest(), "content_type": "video/mp4"}
         except Exception:
             if temporary is not None:
                 try: temporary.unlink(missing_ok=True)
