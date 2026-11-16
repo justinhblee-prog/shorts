@@ -445,3 +445,13 @@ GitHub Actions run [43794744350](https://github.com/justinhblee-prog/shorts/acti
 ### BUILD-00134 validation checkpoint
 
 GitHub Actions run [43795106625](https://github.com/justinhblee-prog/shorts/actions/runs/43795106625) passed **438 backend tests** and the full validation script. This does not prove a deployed metrics-collector service is running or that live YouTube Analytics reports are available.
+
+
+### BUILD-00135 — interpreting metrics collection errors
+
+YouTube Analytics malformed report payloads are rejected before metrics are saved. If only the audience-retention report is invalid or unavailable, valid watch-time metrics can still be stored with the retention status marked unavailable. TikTok metrics batches are all-or-nothing: if one row is malformed, duplicated or unrequested, no row from that batch is committed; inspect the collector log and retry after the provider response issue is resolved.
+
+
+### BUILD-00135 validation checkpoint
+
+GitHub Actions run [43795614217](https://github.com/justinhblee-prog/shorts/actions/runs/43795614217) passed **446 backend tests** and the complete validation script. This verifies parser and transaction behavior using test fixtures, not live YouTube/TikTok API responses.

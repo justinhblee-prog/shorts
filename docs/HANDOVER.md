@@ -1133,7 +1133,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The background `metrics_collector.py` uses `YouTubeOAuthManager(YouTubeOAuthStore(DB)).get_refresh_token`, matching the API path's encrypted token storage. The legacy plaintext environment token is only a compatibility fallback inside the collector.
 - Long Analytics batches renew their SQLite lease every third of the configured lease period. Renewal requires the same owner and a lease that has not already expired.
 - `YOUTUBE_ANALYTICS_LEASE_SECONDS` defaults to 900 seconds.
-- CI validation pending.
+- GitHub Actions PR run [43794744350](https://github.com/justinhblee-prog/shorts/actions/runs/43794744350) passed 436 tests.
 
 
 ### BUILD-00133 validation record
@@ -1150,7 +1150,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - `metrics_collector.run_youtube_analytics_once` writes running/succeeded/partial/failed transitions and releases its lease even when status persistence or provider work fails.
 - The API endpoint `GET /api/youtube/analytics/collection-status` is protected by `analytics.read`.
 - The dashboard performance panel shows collection state, last batch counts, uploaded-video coverage and latest report timestamp.
-- CI validation pending.
+- GitHub Actions PR run [43795106625](https://github.com/justinhblee-prog/shorts/actions/runs/43795106625) passed 438 tests.
 
 
 ### BUILD-00134 validation record
@@ -1159,3 +1159,18 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The full validation script passed with **438 backend tests**, including collection-state transitions and uploaded-video coverage counts.
 - Frontend JavaScript syntax/DOM validation and Compose YAML parsing passed within the same script.
 - This verifies code paths with fixtures; a live YouTube channel and scheduled production reports remain deployment checks.
+
+
+## BUILD-00135 — validate metrics response batches
+
+- YouTube Analytics reports are schema-checked before mapping; the single-video query is limited to one row and known metric columns. Audience-retention reports are independently validated and bounded to 200 points.
+- TikTok response rows are fully validated in memory, then inserted together in one SQLite transaction. Duplicate, unrequested, malformed or overflowing values prevent all writes for that batch.
+- CI validation pending.
+
+
+### BUILD-00135 validation record
+
+- GitHub Actions PR run [43795614217](https://github.com/justinhblee-prog/shorts/actions/runs/43795614217) completed successfully.
+- The complete validation script passed with **446 backend tests**.
+- Tests cover YouTube report schema/metric validation, retention range/size limits, TikTok duplicate and malformed rows, and all-or-nothing SQLite persistence.
+- Live provider API and production account behavior remain unverified.
