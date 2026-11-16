@@ -66,7 +66,9 @@ class ClamAVScanner:
                     "--alert-exceeds-max=yes",
                     "--max-filesize=" + str(self.max_bytes),
                     "--max-scansize=" + str(self.max_bytes),
-                    "--max-scantime=" + str(self.timeout * 1000),
+                    # Let subprocess.run enforce the deadline: ClamAV's own
+                    # max-scantime may skip work and report the file as clean.
+                    "--max-scantime=0",
                     str(target),
                 ],
                 capture_output=True,
