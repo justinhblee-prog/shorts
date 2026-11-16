@@ -1705,3 +1705,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Script, voice, and render stages can reuse the exact persisted response after a process interruption; normal artifact persistence then marks that attempt `adopted`.
 - This avoids a second paid external request when the provider response was saved but local artifact adoption had not completed.
 - `request_started` and `outcome_unknown` remain fail-closed; they still require explicit reconciliation because the provider outcome cannot be inferred safely.
+
+
+## BUILD-00205 — audited provider outcome reconciliation
+
+- Add an admin-only API permission `production.provider_reconcile` for ambiguous provider attempts.
+- An operator must explicitly confirm that the provider did not execute, and supply operator identity, evidence reference, and a reason.
+- Persist the state transition and audit event in one SQLite transaction.
+- Reconciliation does not itself retry the job; queue retry remains a separate, explicit operator action.
+- `response_received` cannot be dismissed through this route; it must be recovered and adopted.
