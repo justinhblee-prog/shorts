@@ -282,26 +282,26 @@ class ApiSecurityTests(unittest.TestCase):
     def test_queue_control_endpoints_are_authenticated_and_audited(self):
         body = QueueControlAction(operator_id="operator-1", note="Reviewed worker state")
         control = {"paused": True, "pause_reason": body.note, "paused_job_id": "job-1"}
-        events = [{"event_type": "paused", "actor": body.operator_id}]
+        events = [{"event_type": "paused", "actor": "authenticated-operator"}]
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_access",return_value="authenticated-operator"),
             mock.patch.object(app_module.queue, "pause", return_value=control) as pause,
             mock.patch.object(app_module.queue, "worker_control", return_value=control),
             mock.patch.object(app_module.queue, "worker_control_events", return_value=events),
         ):
             paused = pause_queue(body, x_review_token="test-token")
-        pause.assert_called_once_with(body.note, actor=body.operator_id)
+        pause.assert_called_once_with(body.note, actor="authenticated-operator")
         self.assertTrue(paused["control"]["paused"])
         self.assertEqual(paused["events"], events)
 
         resumed_control = {"paused": False, "pause_reason": None, "paused_job_id": None}
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_access",return_value="authenticated-operator"),
             mock.patch.object(app_module.queue, "resume", return_value=resumed_control) as resume,
             mock.patch.object(app_module.queue, "worker_control_events", return_value=[]),
         ):
             resumed = resume_queue(body, x_review_token="test-token")
-        resume.assert_called_once_with(actor=body.operator_id, note=body.note)
+        resume.assert_called_once_with(actor="authenticated-operator", note=body.note)
         self.assertFalse(resumed["control"]["paused"])
 
     def test_queue_resume_rejects_unpaused_queue(self):
@@ -316,7 +316,7 @@ class ApiSecurityTests(unittest.TestCase):
     def test_queue_control_rejects_whitespace_only_fields(self):
         with mock.patch("app.require_review_access"):
             for action in (pause_queue, resume_queue):
-                body = QueueControlAction(operator_id="   ", note="   ")
+                body = QueueControlAction(operator_id="spoofed", note="   ")
                 with self.assertRaises(HTTPException) as caught:
                     action(body, x_review_token="test-token")
                 self.assertEqual(caught.exception.status_code, 422)
@@ -330,7 +330,7 @@ class ApiSecurityTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as invalid:
                 require_review_access("wrong-secret")
             self.assertEqual(invalid.exception.status_code, 401)
-            self.assertIsNone(require_review_access("unit-test-secret"))
+            self.assertEqual(require_review_access("unit-test-secret"),"legacy-operator")
         finally:
             if previous is None:
                 os.environ.pop("NEXUS_REVIEW_TOKEN", None)
