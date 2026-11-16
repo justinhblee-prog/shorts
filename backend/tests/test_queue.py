@@ -342,6 +342,17 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(self.q.workers()[0]["generation_token"],current["generation_token"])
   self.assertEqual(self.q.workers()[0]["status"],"online")
 
+ def test_stale_worker_generation_cannot_pause_replacement_process(self):
+  first=self.q.register_worker("pause-worker","host-a")
+  second=self.q.register_worker("pause-worker","host-a")
+  self.assertNotEqual(first["generation_token"],second["generation_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.pause("late error from old process",worker_id="pause-worker",generation_token=first["generation_token"])
+  self.assertFalse(self.q.is_paused())
+  self.q.pause("current process detected uncertainty",worker_id="pause-worker",generation_token=second["generation_token"])
+  self.assertTrue(self.q.is_paused())
+  self.assertEqual(self.q.worker_control()["pause_reason"],"current process detected uncertainty")
+
  def test_worker_pause_persists_until_explicit_resume(self):
   self.q.pause("provider outcome uncertain", "job-123")
   self.assertTrue(self.q.is_paused())
