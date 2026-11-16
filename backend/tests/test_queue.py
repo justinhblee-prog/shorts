@@ -395,18 +395,31 @@ class QueueTests(unittest.TestCase):
   self.q.pause("production only")
   claimed=self.q.claim("worker-other",job_type="render")
   self.assertEqual(claimed["job_type"],"render")
- def test_pause_revokes_every_in_flight_lease(self):
+ def test_pause_revokes_active_production_and_queues_ambiguous_reconciliation(self):
   job=self.q.enqueue("short_video_production", {"topic":"active"})
   claimed=self.q.claim("worker-active")
   self.assertEqual(claimed["id"],job["id"])
   self.q.pause("another worker failed", "job-other")
   stopped=self.q.get(job["id"])
   self.assertEqual(stopped["status"],"failed_terminal")
-  self.assertEqual(stopped["error_code"],"worker_paused")
+  self.assertEqual(stopped["error_code"],"production_pause_external_outcome_ambiguous")
   self.assertIsNone(stopped["lease_token"])
   with self.assertRaises(LeaseConflict):
    self.q.finish(job["id"],"worker-active",claimed["lease_token"])
   self.assertEqual(self.q.events(job["id"])[-1]["event_type"],"worker_pause")
+  ambiguous=self.q.ambiguous_production_jobs()
+  self.assertEqual([item["id"] for item in ambiguous],[job["id"]])
+  with self.assertRaisesRegex(ValueError,"evidence_reference"):
+   self.q.reconcile_production_retry(job["id"],"operator-2","","provider checked")
+  reconciled=self.q.reconcile_production_retry(
+   job["id"],"operator-2","provider-console:pause-request-9",
+   "Provider console confirms the in-flight operation had no side effect")
+  self.assertEqual(reconciled["status"],"failed_retriable")
+  self.assertEqual(reconciled["error_code"],"operator_reconciled_no_side_effect")
+  self.assertTrue(self.q.is_paused())
+  audit=self.q.production_reconciliation_events(job["id"])
+  self.assertEqual(len(audit),1)
+  self.assertEqual(audit[0]["previous_status"],"failed_terminal")
  def test_expired_production_lease_is_terminal_and_pauses_queue(self):
   job=self.q.enqueue("short_video_production", {"topic":"ambiguous"})
   claimed=self.q.claim("worker-lost")

@@ -146,16 +146,16 @@ class JobQueue:
         for row in running:
             c.execute("""UPDATE pipeline_jobs SET status='failed_terminal',
                 worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
-                updated_at=?,error_code='worker_paused',error_message=?
+                updated_at=?,error_code='production_pause_external_outcome_ambiguous',error_message=?
                 WHERE id=? AND status='running'""",
-                (timestamp, ("Queue paused: " + reason)[:2000], row["id"]))
+                (timestamp, ("Production paused while provider outcome may be in flight: " + reason)[:2000], row["id"]))
             self.event(c, row["id"], "worker_pause", "running", "failed_terminal",
                        row["worker_id"], {"reason": reason, "paused_job_id": job_id})
             if has_runs:
                 c.execute("""UPDATE production_runs SET status='failed_terminal',
-                    current_stage='worker_paused',error=?,updated_at=?
+                    current_stage='pause_outcome_ambiguous',error=?,updated_at=?
                     WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
-                    (("Queue paused: " + reason)[:2000], timestamp, row["id"]))
+                    (("Production paused; external outcome requires reconciliation: " + reason)[:2000], timestamp, row["id"]))
     def _recover_expired_leases_in_transaction(self, c, timestamp):
         """Resolve expired leases consistently in claim and periodic recovery.
 
@@ -393,7 +393,10 @@ class JobQueue:
                 WHERE job_type='short_video_production'
                   AND (
                     (status='failed_terminal'
-                     AND error_code='production_lease_expired_ambiguous')
+                     AND error_code IN (
+                       'production_lease_expired_ambiguous',
+                       'production_pause_external_outcome_ambiguous'
+                     ))
                     OR
                     (status='cancelled'
                      AND error_code='cancelled_external_outcome_ambiguous')
@@ -431,6 +434,7 @@ class JobQueue:
             if (row["status"] != expected_status or row["error_code"] not in (
                 "production_lease_expired_ambiguous",
                 "cancelled_external_outcome_ambiguous",
+                "production_pause_external_outcome_ambiguous",
             )):
                 raise ValueError("Job is not awaiting ambiguous production reconciliation")
             previous_status = row["status"]

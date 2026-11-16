@@ -606,9 +606,9 @@ class ProductionTests(unittest.TestCase):
         job = queue.get(job_id)
         production = self.store.get(job_id)
         self.assertEqual(job["status"], "failed_terminal")
-        self.assertEqual(job["error_code"], "worker_paused")
+        self.assertEqual(job["error_code"], "production_pause_external_outcome_ambiguous")
         self.assertEqual(production["status"], "failed_terminal")
-        self.assertEqual(production["current_stage"], "worker_paused")
+        self.assertEqual(production["current_stage"], "pause_outcome_ambiguous")
 
     def test_lost_worker_signal_stops_before_any_provider_call(self):
         import threading
