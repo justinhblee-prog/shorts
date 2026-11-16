@@ -146,6 +146,32 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(resolved["events"][-1]["operator_id"], "reviewer-ops")
         self.assertEqual(resolved["events"][-1]["attempt_id"],first_attempt["attempt_id"])
 
+    def test_superseded_worker_error_is_audited_without_clearing_late_success_review(self):
+        first=self.uploads.begin("job-1","First attempt","")
+        self.uploads.mark_reconciliation_required(
+            "job-1","first request timed out",first["attempt_id"]
+        )
+        self.uploads.reconcile("job-1","not_uploaded",note="Verified no upload at that time")
+        second=self.uploads.begin("job-1","Second attempt","")
+        with self.assertRaises(YouTubeUploadError):
+            self.uploads.finish("job-1","late-video-id",first["attempt_id"])
+        before=self.uploads.get("job-1")
+        self.assertEqual(before["status"],"late_success_review_required")
+        self.assertEqual(before["attempt_id"],second["attempt_id"])
+        self.uploads.mark_reconciliation_required(
+            "job-1","late failure from superseded upload worker",first["attempt_id"]
+        )
+        result=self.uploads.get("job-1")
+        self.assertEqual(result["status"],"late_success_review_required")
+        self.assertEqual(result["attempt_id"],second["attempt_id"])
+        event=result["events"][-1]
+        self.assertEqual(event["event_type"],"superseded_attempt_uncertain")
+        self.assertEqual(event["outcome"],"informational")
+        self.assertEqual(event["attempt_id"],first["attempt_id"])
+        self.assertEqual(event["previous_status"],"late_success_review_required")
+        self.assertEqual(event["resulting_status"],"late_success_review_required")
+        self.assertEqual(result["video_id"],"late-video-id")
+
     def test_operator_can_keep_current_video_when_stale_duplicate_arrives(self):
         first=self.uploads.begin("job-1","First attempt","")
         self.uploads.mark_reconciliation_required(
