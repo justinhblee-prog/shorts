@@ -618,3 +618,34 @@ class RecommendationEvaluationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_pooled_holdout_orders_outcomes_by_selection_timestamp(self):
+        videos = []
+        base = datetime(2026, 11, 1, tzinfo=timezone.utc)
+        for index in range(10):
+            exposure_at = (base + timedelta(days=index)).isoformat()
+            selected_at = (base + timedelta(days=9 - index)).isoformat()
+            exposure = self.store.record_run(
+                "US", [self.item(index, 50 + index * 2)], exposure_at
+            )
+            self.store.link_production(
+                f"trend-{index}", "future-leak", f"chronological-job-{index}",
+                selected_at, run_id=exposure["run_id"],
+            )
+            videos.append({
+                "job_id": f"chronological-job-{index}",
+                "measurement_status": "measured",
+                "views_per_hour": 100 + (9 - index) * 10,
+            })
+
+        result = self.store.evaluate({"videos": videos})
+        self.assertEqual(result["status"], "holdout_available")
+        self.assertEqual(result["holdout_count"], 5)
+        self.assertEqual(
+            result["holdout_start"], (base + timedelta(days=5)).isoformat()
+        )
+        self.assertEqual(
+            result["holdout_end"], (base + timedelta(days=9)).isoformat()
+        )
+        self.assertEqual(result["holdout_score_views_spearman"], -1.0)
