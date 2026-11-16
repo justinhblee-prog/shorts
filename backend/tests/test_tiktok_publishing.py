@@ -261,6 +261,32 @@ class TikTokPublishingTests(unittest.TestCase):
                 "retry-attempt-003", False, False,
             )
 
+    def test_superseded_uncertainty_does_not_borrow_current_operator_identity(self):
+        first_attempt = "uncertain-attempt-operator-check"
+        self.store.begin("job-1","Old attempt",True,"old-operator",first_attempt,False,False)
+        self.store.set_initialized(
+            "job-1",first_attempt,"old-publish-id",
+            {"creator_username":"creator","creator_nickname":"Creator"},
+        )
+        self.store.mark_uncertain("job-1",first_attempt,"old attempt timed out")
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_publication_events SET operator_id=NULL WHERE job_id=? AND attempt_id=?",
+                ("job-1",first_attempt),
+            )
+        self.store.reconcile(
+            "job-1","not_published","reviewer","Verified no post existed",
+            confirmed=True,
+        )
+        self.store.begin("job-1","New attempt",True,"current-operator","retry-attempt-002",False,False)
+        self.store.mark_uncertain("job-1",first_attempt,"late old worker timeout")
+        result=self.store.get("job-1")
+        self.assertEqual(result["status"],"reconciliation_required")
+        event=result["events"][-1]
+        self.assertEqual(event["attempt_id"],first_attempt)
+        self.assertIsNone(event["operator_id"])
+        self.assertNotEqual(event["operator_id"],"current-operator")
+
     def test_tiktok_reconciliation_published_records_verified_video_id(self):
         attempt_id = self._uncertain_tiktok_attempt()
         result = self.store.reconcile(

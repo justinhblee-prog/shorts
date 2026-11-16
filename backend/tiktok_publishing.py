@@ -293,7 +293,7 @@ class TikTokPublishStore:
                 prior_video_id = prior_event["video_id"] if prior_event else None
                 prior_operator_id = (
                     prior_event["operator_id"] if prior_event and prior_event["operator_id"]
-                    else row["operator_id"]
+                    else row["operator_id"] if row["attempt_id"] == attempt_id else None
                 )
                 if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
                     c.execute("""
