@@ -543,3 +543,6 @@ Tokens must be unique and 32–512 ASCII characters. If `NEXUS_REVIEW_CREDENTIAL
 Available roles: admin, producer, reviewer, publisher, analyst, operator, finance and worker. Every protected route has an explicit permission guard. Review actions use the authenticated operator identity rather than caller-supplied reviewer IDs.
 
 Persistent per-client rate limits default to 120 requests/minute overall, 20 auth, 10 publish, 30 queue control, 60 review and 30 production requests. Tune with the `NEXUS_API_*_RATE_LIMIT_PER_MINUTE` variables. `NEXUS_TRUSTED_PROXY_CIDRS` is empty by default; only list the exact reverse-proxy networks you control. Untrusted X-Forwarded-For headers never affect rate-limit identity.
+
+
+BUILD-00039 automated validation: GitHub Actions run [43790865052](https://github.com/justinhblee-prog/shorts/actions/runs/43790865052) passed **400 backend tests** and the full `scripts/validate.sh` command. No live reverse-proxy deployment or multi-operator production identity-provider integration is claimed.
