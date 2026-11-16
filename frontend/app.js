@@ -189,10 +189,12 @@
         : "연결 필요 · YouTube 업로드와 Analytics 권한 승인 필요";
       $("youtubeConnect").textContent=connected?"YouTube 연결됨":"YouTube 계정 연결";
       $("youtubeConnect").disabled=connected;
+      $("youtubeDisconnect").disabled=!connected||data.mode==="environment_refresh_token";
     }catch(err){
       $("youtubeConnectionStatus").textContent="연결 설정 확인 필요 · "+err.message;
       $("youtubeConnect").textContent="YouTube 연결";
       $("youtubeConnect").disabled=false;
+      $("youtubeDisconnect").disabled=true;
     }
   }
 
@@ -410,6 +412,15 @@
     }catch(err){toast(err.message);}
   });
   $("loadYouTubeConnection").addEventListener("click",()=>loadYouTubeConnection().catch(e=>toast(e.message)));
+  $("youtubeDisconnect").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    if(!confirm("저장된 YouTube OAuth 연결을 해제하시겠습니까? 업로드와 Analytics 갱신이 중지됩니다."))return;
+    try{
+      await api("/api/youtube/oauth/disconnect",{method:"POST"});
+      toast("YouTube OAuth 연결을 해제했습니다.");
+      await loadYouTubeConnection();
+    }catch(err){toast(err.message);}
+  });
   $("tiktokConnect").addEventListener("click",async()=>{
     if(!requireToken())return;
     try{
