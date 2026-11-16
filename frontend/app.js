@@ -402,12 +402,13 @@
       (w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status==="stale"?"응답 지연":x.status==="offline"?"오프라인":"온라인")+'</b><small>'+esc(x.hostname||"")+' · 마지막 응답 '+esc(x.last_seen_at||"")+' · 경과 '+esc(Number(x.heartbeat_age_seconds||0))+'초 / 기준 '+esc(Number(x.stale_after_seconds||0))+'초</small></div>').join("")+
       '<h4>운영 중지·재개 감사 기록</h4>'+(events||'<div class="empty-state">아직 제어 이력이 없습니다.</div>');
   }
-  let integrityNextOffset = null;
-  async function loadIntegrityReport(offset=0,append=false){
-    const report=await api("/api/production/integrity-report?limit=50&offset="+encodeURIComponent(offset));
+  let integrityNextCursor = null;
+  async function loadIntegrityReport(cursor=null,append=false){
+    const pageQuery=cursor?"&cursor="+encodeURIComponent(cursor):"";
+    const report=await api("/api/production/integrity-report?limit=50"+pageQuery);
     const paused=!!report.worker_control?.paused,count=Number(report.unresolved||0);
     const scanned=Number(report.scanned||0);
-    const shown=offset+scanned;
+    const shown=append?Number($('integrityList').dataset.shown||0)+scanned:scanned;
     const more=report.has_more?" · 다음 페이지 있음":"";
     $("integritySummary").innerHTML='<div class="integrity-status '+(count?"integrity-warning":"integrity-clear")+'"><b>'+count.toLocaleString()+'건 미해결</b><span>표시 '+shown.toLocaleString()+'건 / 전체 '+count.toLocaleString()+'건'+more+' · '+(paused?"작업 큐 중지":"작업 큐 정상")+'</span></div>';
     const labels={approval_or_upload_boundary:"승인·업로드 경계",ambiguous_external_outcome:"외부 실행 결과 불명확",terminal_state_mismatch:"종료 상태 불일치",review_handoff_mismatch:"검수 인계 불일치",unclassified_lifecycle_mismatch:"분류되지 않은 상태 불일치",queue_without_production_record:"제작 원장 누락",production_without_queue_record:"작업 큐 누락"};
@@ -418,7 +419,8 @@
       return '<article class="integrity-item"><div class="integrity-item-head"><b>'+esc(labels[item.classification]||item.classification||"상태 불일치")+'</b><code>'+esc(item.job_id)+'</code></div><div class="integrity-ledgers"><div><small>제작 원장</small><strong>'+esc(item.production_status)+'</strong><time>'+esc(item.production_updated_at||"")+'</time></div><div><small>작업 큐</small><strong>'+esc(item.queue_status)+'</strong><time>'+esc(item.queue_updated_at||"")+'</time></div></div><p>'+esc(item.reason||"원인 정보 없음")+'</p><p class="integrity-next"><b>권장 조치</b> '+esc(item.recommended_action||"운영자 확인 필요")+'</p>'+(item.error_code||item.error_message?'<small class="integrity-error">큐 오류: '+esc(item.error_code||"")+' '+esc(item.error_message||"")+'</small>':"")+(audit?'<details><summary>최근 감사 이력 '+history.length+'건</summary>'+audit+'</details>':'')+'<small class="integrity-boundary">진단 전용 · 자동 복구·재시도·승인·게시 없음</small></article>';
     }).join(""):'<div class="empty-state">'+(count?"현재 표시할 불일치 항목이 없습니다. 조회 한도를 확인하세요.":"제작 원장과 작업 큐의 상태 불일치가 발견되지 않았습니다.")+'</div>';
     $("integrityList").innerHTML=append?$("integrityList").innerHTML+rendered:rendered;
-    integrityNextOffset=report.next_offset;
+    $("integrityList").dataset.shown=String(shown);
+    integrityNextCursor=report.next_cursor;
     $("integrityMore").style.display=report.has_more?"inline-flex":"none";
   }
   async function refreshAll(){
@@ -523,7 +525,7 @@
   });
   $("loadSchedules").addEventListener("click",()=>loadSchedules().catch(e=>toast(e.message)));
   $("loadIntegrity").addEventListener("click",()=>loadIntegrityReport().catch(e=>toast(e.message)));
-  $("integrityMore").addEventListener("click",()=>{if(integrityNextOffset!==null)loadIntegrityReport(integrityNextOffset,true).catch(e=>toast(e.message));});
+  $("integrityMore").addEventListener("click",()=>{if(integrityNextCursor)loadIntegrityReport(integrityNextCursor,true).catch(e=>toast(e.message));});
   $("loadInsights").addEventListener("click",()=>loadInsights().catch(e=>toast(e.message)));
   $("insightList").addEventListener("click",async e=>{
     const button=e.target.closest("button[data-youtube-analytics-refresh]");

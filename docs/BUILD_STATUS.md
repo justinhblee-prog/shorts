@@ -1536,3 +1536,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Return page offset and next offset so operators can inspect all matching details without increasing per-request row limits.
 - Add a dashboard **다음 50건 더 보기** control that appends the next page without discarding the current page.
 - Add regression coverage for complete, non-overlapping pagination.
+
+
+## BUILD-00185 — stable cursor pagination
+
+- Add opaque keyset cursors ordered by immutable record group and job ID, avoiding offset-page duplicates/skips when an existing record's updated timestamp changes.
+- Retain bounded offset pagination for backward compatibility; the Operations dashboard now uses cursor pagination.
+- Reject malformed cursor tokens and test cursor continuity under mutable record timestamps.

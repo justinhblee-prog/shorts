@@ -741,6 +741,41 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(len(set(first_ids + second_ids)), 3)
         self.assertEqual(set(first_ids + second_ids), set(created))
 
+
+    def test_integrity_report_cursor_is_stable_when_existing_rows_change(self):
+        queue = JobQueue(self.store.db_path)
+        created = []
+        for index in range(4):
+            job = queue.enqueue(
+                "short_video_production", {"brand": "", "region": "US",
+                                           "language": "en", "topic": ""},
+                channel_name=f"cursor-{index}"
+            )
+            created.append(job["id"])
+        first = self.store.integrity_report(queue, limit=2)
+        self.assertTrue(first["has_more"])
+        self.assertIsNotNone(first["next_cursor"])
+        first_ids = [item["job_id"] for item in first["items"]]
+        with queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET updated_at='2999-01-01T00:00:00+00:00' WHERE id=?",
+                (first_ids[0],)
+            )
+        second = self.store.integrity_report(
+            queue, limit=2, cursor=first["next_cursor"]
+        )
+        second_ids = [item["job_id"] for item in second["items"]]
+        self.assertEqual(len(second_ids), 2)
+        self.assertFalse(set(first_ids) & set(second_ids))
+        self.assertEqual(set(first_ids + second_ids), set(created))
+        self.assertFalse(second["has_more"])
+        self.assertIsNone(second["next_cursor"])
+
+    def test_integrity_report_rejects_malformed_cursor(self):
+        queue = JobQueue(self.store.db_path)
+        with self.assertRaisesRegex(ValueError, "Invalid integrity report cursor"):
+            self.store.integrity_report(queue, cursor="not-a-valid-cursor")
+
     def test_integrity_report_detects_both_orphan_record_directions_without_mutation(self):
         queue = JobQueue(self.store.db_path)
         queue_only = queue.enqueue(
