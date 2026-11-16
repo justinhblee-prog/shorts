@@ -598,7 +598,7 @@ class ProductionStore:
                         "Inspect submission and retention history, provider attempts, artifacts, "
                         "and publication evidence. Do not recreate a queue job automatically."
                     )
-                if "approved" in (production_status, queue_status) or "uploaded" in (
+                elif "approved" in (production_status, queue_status) or "uploaded" in (
                     production_status, queue_status
                 ):
                     item["classification"] = "approval_or_upload_boundary"
