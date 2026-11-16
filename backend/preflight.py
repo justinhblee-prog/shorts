@@ -2,6 +2,7 @@
 import base64
 import binascii
 import os
+import shutil
 from pathlib import Path
 
 
@@ -143,6 +144,40 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
         "optional": not backup_required,
     }
 
+    media_scan_enabled = str(
+        source.get("NEXUS_MEDIA_SCAN_ENABLED", "false")
+    ).strip().lower() in {"1", "true", "yes", "on"}
+    scanner_path = str(source.get("NEXUS_CLAMSCAN_PATH", "clamscan")).strip()
+    database_dir = Path(
+        source.get("NEXUS_CLAMAV_DATABASE_DIR", "/var/lib/clamav")
+    )
+    try:
+        scan_timeout_valid = int(
+            source.get("NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS", "120")
+        ) >= 1
+    except (TypeError, ValueError):
+        scan_timeout_valid = False
+    scan_missing = []
+    if media_scan_enabled:
+        if not scanner_path or not shutil.which(scanner_path):
+            scan_missing.append("ClamAV clamscan executable (NEXUS_CLAMSCAN_PATH)")
+        if not database_dir.is_dir() or not any(
+            list(database_dir.glob("*.cvd")) + list(database_dir.glob("*.cld"))
+        ):
+            scan_missing.append(
+                "ClamAV signature database (NEXUS_CLAMAV_DATABASE_DIR; start the media-scan profile)"
+            )
+        if not scan_timeout_valid:
+            scan_missing.append("NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS (must be a positive integer)")
+    checks["media_malware_scan"] = {
+        "configured": media_scan_enabled and not scan_missing,
+        "missing": scan_missing,
+        "optional_missing": (
+            [] if media_scan_enabled else ["NEXUS_MEDIA_SCAN_ENABLED=false"]
+        ),
+        "optional": not media_scan_enabled,
+    }
+
     tiktok_oauth_keys = [
         "TIKTOK_CLIENT_KEY",
         "TIKTOK_CLIENT_SECRET",
@@ -188,6 +223,7 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
             "protected_operations": operation,
             "operator_rbac_configured": checks["operator_rbac"]["configured"],
             "backup_encryption_configured": backup_key_valid,
+            "media_malware_scan_configured": checks["media_malware_scan"]["configured"],
             "ai_generation_configured": generation,
             "artifact_staging_configured": staging,
             "youtube_upload_configured": youtube_upload,
