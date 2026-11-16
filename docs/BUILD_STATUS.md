@@ -2038,4 +2038,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Preserve per-provider exception isolation and wait for all providers to finish before the cycle returns.
 - Process-control exceptions remain uncaught by the provider isolation handler.
 - Add synchronization-based tests proving provider overlap and cycle completion semantics.
-- GitHub Actions validation pending. Tests use local fakes; no live provider API validation is claimed.
+- GitHub Actions [run #3497](https://github.com/justinhblee-prog/shorts/actions/runs/43915500121) succeeded on commit `abd89828e6a451790baa037f1461ff8a4d1768d9`; `scripts/validate.sh` passed. Tests use local fakes; no live provider API validation is claimed.
