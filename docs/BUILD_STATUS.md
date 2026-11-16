@@ -1353,4 +1353,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Keep dead-letter items visible in the existing outbox status endpoint with attempt count and last error.
 - Add an authenticated operator endpoint to explicitly retry a dead-letter item; reset retry state but preserve its original idempotency key.
 - Add regression coverage for the retry ceiling, manual recovery, missing IDs and idempotent dispatch.
-- CI validation pending.
+- GitHub Actions run [43812423780](https://github.com/justinhblee-prog/shorts/actions/runs/43812423780) passed the complete `scripts/validate.sh` workflow, including 503 backend tests.
