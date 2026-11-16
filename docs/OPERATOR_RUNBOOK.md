@@ -518,3 +518,8 @@ Internal schedule-store callers must pass a real boolean to activate/deactivate 
 ### BUILD-00164 — scheduled dispatch retry behavior
 
 When the durable job queue rejects a scheduled outbox item, the scheduler keeps the item pending and records the error. Automatic retries use exponential backoff: 30 seconds after the first failure, then 60, 120, 240 seconds and so on, capped at one hour. Deferred items remain visible in the outbox status screen but are not sent again until `next_attempt_at`. A successful idempotent enqueue clears the retry timestamp. Existing outbox rows are migrated with a null retry timestamp and remain immediately eligible.
+
+
+### BUILD-00165 — dead-letter scheduler outbox recovery
+
+Outbox entries are retried with exponential backoff for up to 10 failed attempts. After the tenth failure, the entry moves to `dead_letter`, stops automatic retries, and remains visible through `GET /api/schedules/outbox`. An authorized operator with `schedules.manage` permission can explicitly retry an entry using `POST /api/schedules/outbox/{outbox_id}/retry`. Manual retry resets the attempt counter and retry timestamp but preserves the original schedule occurrence and idempotency key, preventing duplicate queue jobs if an earlier enqueue succeeded before a process failure.
