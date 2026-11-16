@@ -2,6 +2,7 @@
 
 This test validates integration and state transitions, not live AI/CDN/YouTube services.
 """
+import json
 import os
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ from queue_store import JobQueue
 from review_workflow import ReviewStore
 from youtube_publishing import YouTubePublisher, YouTubeUploadStore
 from scheduler_store import ScheduleStore
+from tiktok_publishing import TikTokPublishStore, TikTokPublisher
 
 
 class FakeProvider:
@@ -51,6 +53,37 @@ class FakeVideos:
                                       "commentCount": "0"},
                        "status": {"privacyStatus": "private"}}]
         }})()
+
+
+class FakeTikTokMediaInspector:
+    def inspect(self, media_path):
+        return {
+            "status": "inspected", "duration_seconds": 27,
+            "width": 1080, "height": 1920, "frame_rate": 30,
+            "video_codec": "h264", "format_names": ["mov", "mp4"],
+        }
+
+
+class FakeTikTokTransport:
+    def __init__(self):
+        self.calls = []
+        self.responses = [
+            (200, {"data": {
+                "privacy_level_options": ["SELF_ONLY"],
+                "max_video_post_duration_sec": 600,
+            }, "error": {"code": "ok"}}),
+            (200, {"data": {
+                "publish_id": "private-tiktok-publish-001",
+                "upload_url": "https://upload.us.tiktokapis.com/video/?token=test",
+            }, "error": {"code": "ok"}}),
+        ]
+
+    def __call__(self, url, headers, body, timeout, method="POST"):
+        self.calls.append((url, headers, body, method))
+        if url.startswith("https://upload.us.tiktokapis.com/"):
+            return 201, b""
+        status, payload = self.responses.pop(0)
+        return status, json.dumps(payload).encode("utf-8")
 
 
 class FakeYouTubeService:
@@ -100,7 +133,12 @@ class EndToEndLifecycleTests(unittest.TestCase):
                  "idempotency_key": "e2e-sleep-001",
                  "rights": {"visuals_cleared": True, "audio_cleared": True,
                             "likeness_authorized": True},
-                 "synthetic_media_status": "none"}
+                 "synthetic_media_status": "ai_generated",
+                 "platforms": ["youtube", "tiktok"],
+                 "platform_disclosures": {
+                    "tiktok_ai_generated_content": True,
+                    "youtube_altered_content": True,
+                 }}
         # Exercise the real persisted scheduler outbox and leader fencing,
         # then let the worker's startup reconciliation restore the production
         # row created by scheduled queue dispatch.
@@ -193,6 +231,30 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.assertEqual(self.youtube._videos.upload_body["status"]["privacyStatus"],
                          "private")
         self.assertEqual(uploaded["snapshots"][0]["view_count"], 10)
+
+        # The same freshly approved, byte-fingerprinted output is also sent
+        # through TikTok's private-only path with a separate operator consent.
+        tiktok_transport = FakeTikTokTransport()
+        tiktok_store = TikTokPublishStore(self.db)
+        tiktok = TikTokPublisher(
+            tiktok_store, "test-token", tiktok_transport,
+            media_inspector=FakeTikTokMediaInspector(),
+        )
+        tiktok_result = tiktok.publish_private_approved(
+            job_id, staged["media_path"], self.review,
+            "Sleep and Memory: One Useful Fact", "integration-operator",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        self.assertEqual(tiktok_result["status"], "uploading")
+        self.assertEqual(tiktok_result["privacy_level"], "SELF_ONLY")
+        self.assertEqual(tiktok_result["events"][0]["event_type"],
+                         "operator_consent_recorded")
+        tiktok_init = next(call for call in tiktok_transport.calls
+                           if call[0].endswith("/v2/post/publish/video/init/"))
+        tiktok_body = json.loads(tiktok_init[2].decode("utf-8"))
+        self.assertEqual(tiktok_body["post_info"]["privacy_level"], "SELF_ONLY")
+        self.assertTrue(tiktok_body["post_info"]["is_aigc"])
+        self.assertEqual(tiktok_transport.calls[-1][3], "PUT")
 
         revenue = self.ledger.record({
             "job_id": job_id, "brand": brief["brand"], "region": brief["region"],
