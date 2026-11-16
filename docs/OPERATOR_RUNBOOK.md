@@ -376,7 +376,7 @@ Backup and restore enforce a maximum of 100,000 archive entries, a 16 MiB manife
 - Prefer `NEXUS_REVIEW_CREDENTIALS_JSON` with a unique 32–512 character token for each operator. Store tokens in the server secret manager or protected `.env`; do not send them in chat or commit them.
 - Configure `NEXUS_REVIEW_ROLE_MAP_JSON` before granting access. Example:
   `NEXUS_REVIEW_ROLE_MAP_JSON='{"alice":["admin"],"bob":["reviewer"],"carol":["publisher"],"dana":["analyst"]}'`.
-- Roles are admin, producer, reviewer, publisher, analyst, operator, finance and worker. A user not present in an explicit role map is denied. If the role map is omitted, wildcard access is retained only for compatibility; do not use that mode for a multi-user production deployment.
+- Roles are admin, producer, reviewer, publisher, analyst, operator, finance and worker. A user not present in an explicit role map is denied. If per-operator credentials are enabled without a role map, protected requests fail closed. Wildcard access is retained only for legacy single-token migration mode.
 - When individual credentials are configured, the legacy `NEXUS_REVIEW_TOKEN` is no longer accepted. Remove it after all operators have moved to individual tokens.
 - Default per-minute limits: 120 overall, 20 auth, 10 publishing, 30 queue control, 60 review and 30 production. Tune the corresponding `NEXUS_API_*_RATE_LIMIT_PER_MINUTE` settings based on measured traffic.
 - Leave `NEXUS_TRUSTED_PROXY_CIDRS` blank unless the service is behind a known reverse proxy. If needed, list only exact proxy CIDRs; never trust arbitrary X-Forwarded-For values or use `0.0.0.0/0`.
