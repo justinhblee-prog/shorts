@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -519,7 +519,7 @@ class TikTokPublishStore:
                 return None
             now = datetime.now(timezone.utc)
             now_text = now.isoformat()
-            expires = (now + __import__("datetime").timedelta(seconds=seconds)).isoformat()
+            expires = (now + timedelta(seconds=seconds)).isoformat()
             current = c.execute(
                 "SELECT attempt_id,lease_expires_at FROM tiktok_status_poll_leases "
                 "WHERE job_id=?",
@@ -1093,20 +1093,32 @@ class TikTokPublisher:
         job_ids = self.store.due_status_job_ids(limit, min_age_seconds)
         updated = []
         errors = []
+        checked = 0
         for job_id in job_ids:
             record = self.store.get(job_id)
             if record is None:
                 continue
+            attempt_id = record["attempt_id"]
+            poll_lease = self.store.acquire_status_poll_lease(
+                job_id, attempt_id, lease_seconds=45,
+            )
+            if poll_lease is None:
+                continue
+            checked += 1
             try:
                 result = self.refresh_status(job_id)
                 updated.append({"job_id": job_id, "status": result["status"]})
             except TikTokPublishError as exc:
                 self.store.record_status_poll_error(
-                    job_id, record["attempt_id"], str(exc),
+                    job_id, attempt_id, str(exc),
                     expected_status=record["status"],
                 )
                 errors.append({"job_id": job_id, "error": str(exc)})
+            finally:
+                self.store.release_status_poll_lease(
+                    job_id, attempt_id, poll_lease,
+                )
         return {
-            "skipped": False, "checked": len(job_ids),
+            "skipped": False, "checked": checked,
             "updated": len(updated), "results": updated, "errors": errors,
         }
