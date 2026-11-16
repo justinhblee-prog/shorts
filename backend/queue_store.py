@@ -217,6 +217,11 @@ class JobQueue:
             if generation_token is not None:
                 raise LeaseConflict("Worker process generation is no longer current")
             return
+        # Older queue clients that never registered a process generation keep
+        # their legacy lease path. A registered process (non-null token) must
+        # always present the exact current token; omission cannot bypass fencing.
+        if row["generation_token"] is None and generation_token is None:
+            return
         if (generation_token is None or row["generation_token"] != generation_token
                 or row["status"] != "online"):
             raise LeaseConflict("Worker process generation is no longer current")
@@ -233,7 +238,7 @@ class JobQueue:
             if production_paused and job_type == "short_video_production":
                 c.commit()
                 return None
-            registry_generation = generation_token or str(uuid.uuid4())
+            registry_generation = generation_token
             c.execute("""INSERT INTO worker_registry(
               worker_id,hostname,last_seen_at,status,generation_token)
               VALUES(?,?,?,'online',?) ON CONFLICT(worker_id)
