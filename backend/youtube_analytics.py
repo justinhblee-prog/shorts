@@ -16,10 +16,10 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _as_number(value):
+def _as_number(value, allow_negative=False):
     try:
         number = float(value)
-        return number if number >= 0 else None
+        return number if allow_negative or number >= 0 else None
     except (TypeError, ValueError):
         return None
 
@@ -107,7 +107,9 @@ class YouTubeAnalyticsStore:
                 continue
             ratio = _as_number(point.get("elapsedVideoTimeRatio"))
             audience = _as_number(point.get("audienceWatchRatio"))
-            relative = _as_number(point.get("relativeRetentionPerformance"))
+            relative = _as_number(
+                point.get("relativeRetentionPerformance"), allow_negative=True
+            )
             if ratio is None or audience is None:
                 continue
             safe_curve.append({
@@ -240,7 +242,28 @@ class YouTubeAnalyticsCollector:
         if isinstance(end, str):
             end = date.fromisoformat(end)
         if start > end:
-            raise ValueError("Analytics start date must not be after end date")
+            # YouTube Analytics reporting lags recent uploads. Do not query an
+            # invalid date range or label the absence of a report as zero views.
+            self.store.save(
+                video_id, end.isoformat(), end.isoformat(), {}, [],
+                analytics_status="pending_availability",
+                retention_status="pending_availability",
+            )
+            return {
+                "video_id": video_id,
+                "start_date": start.isoformat(),
+                "end_date": end.isoformat(),
+                "analytics_status": "pending_availability",
+                "retention_status": "pending_availability",
+                "metrics": {
+                    "views": None, "estimated_minutes_watched": None,
+                    "average_view_duration_seconds": None,
+                    "average_view_percentage": None,
+                },
+                "retention_points": 0,
+                "source": "YouTube Analytics API v2",
+                "live_connectivity_verified": False,
+            }
         service = self._service()
         report = service.reports().query(
             ids="channel==MINE",
