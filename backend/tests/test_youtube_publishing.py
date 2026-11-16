@@ -606,6 +606,22 @@ class YouTubePublishingTests(unittest.TestCase):
                     "DELETE FROM youtube_upload_events WHERE id=?",(event_id,)
                 )
 
+    def test_reconciliation_rejects_stale_attempt_identity_without_mutation(self):
+        attempt = self.uploads.begin("job-1", "Sleep short", "")
+        self.uploads.mark_reconciliation_required("job-1", "timeout", attempt["attempt_id"])
+        with self.assertRaisesRegex(YouTubeUploadError, "attempt ID does not match"):
+            self.uploads.reconcile(
+                "job-1", "not_uploaded", note="Checked channel",
+                expected_attempt_id="stale-attempt",
+            )
+        current = self.uploads.get("job-1")
+        self.assertEqual(current["status"], "reconciliation_required")
+        self.assertEqual(current["attempt_id"], attempt["attempt_id"])
+        self.assertFalse(any(
+            event["event_type"] == "operator_reconciliation"
+            for event in current["events"]
+        ))
+
     def test_active_upload_cannot_be_reconciled_early(self):
         self.uploads.begin("job-1","Sleep short","")
         with self.assertRaisesRegex(YouTubeUploadError,"active window"):
