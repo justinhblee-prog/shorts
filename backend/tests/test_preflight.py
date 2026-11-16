@@ -72,6 +72,14 @@ class PreflightTests(unittest.TestCase):
                 invalid_timeout["missing"],
             )
 
+    def test_invalid_media_scan_toggle_fails_closed_in_preflight(self):
+        result = build_preflight({"NEXUS_MEDIA_SCAN_ENABLED": "treu"})
+        self.assertFalse(result["checks"]["media_malware_scan"]["configured"])
+        self.assertIn(
+            "NEXUS_MEDIA_SCAN_ENABLED (must be true or false)",
+            result["missing"],
+        )
+
     def test_enabled_media_scan_fails_preflight_without_signatures(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             with patch("preflight.shutil.which", return_value="/usr/bin/clamscan"):
