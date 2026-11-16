@@ -1390,3 +1390,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Switch the API container healthcheck and dependent service startup gates to the readiness endpoint.
 - Add regression tests for ready, unavailable-storage and liveness independence behavior.
 - GitHub Actions run [43813703452](https://github.com/justinhblee-prog/shorts/actions/runs/43813703452) passed the complete `scripts/validate.sh` workflow, including 510 backend tests.
+
+
+## BUILD-00170 — strict production worker runtime configuration
+
+- Validate worker lease, idle polling and heartbeat environment settings before opening the queue.
+- Enforce lease 30–3600 seconds, idle polling 1–300 seconds and configured heartbeat 5–3600 seconds.
+- Require unsigned decimal integer strings; reject coercions, signs, whitespace, decimal/exponent notation and out-of-range values.
+- Cap effective heartbeat to one-third of the lease.
+- Add pure configuration regression tests and operator documentation.
+- CI validation pending.
