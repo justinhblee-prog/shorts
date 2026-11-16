@@ -288,6 +288,14 @@ class ProductionStore:
                 or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest)
                 or size <= 0):
             raise ValueError("staged media fingerprint is invalid")
+        try:
+            inspected_size=int(inspection.get("size_bytes") or 0)
+        except (TypeError,ValueError,OverflowError) as exc:
+            raise ValueError("media inspection size is invalid") from exc
+        if (inspection.get("inspection_method") != "ffprobe_file_bytes"
+                or inspection.get("media_path") != media_path
+                or inspected_size != size):
+            raise ValueError("media inspection does not match the staged media fingerprint")
         timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
