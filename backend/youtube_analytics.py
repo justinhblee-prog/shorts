@@ -31,6 +31,8 @@ RETENTION_QUERY_FIELDS = {
 
 
 def _as_number(value, allow_negative=False):
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
         if not math.isfinite(number):
@@ -169,7 +171,8 @@ class YouTubeAnalyticsStore:
             relative = _as_number(
                 point.get("relativeRetentionPerformance"), allow_negative=True
             )
-            if ratio is None or audience is None:
+            if (ratio is None or audience is None
+                    or ratio > 1 or audience > 1):
                 continue
             safe_curve.append({
                 "elapsed_video_time_ratio": ratio,

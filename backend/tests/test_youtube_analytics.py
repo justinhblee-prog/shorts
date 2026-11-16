@@ -394,5 +394,54 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertTrue(self.store.acquire_lease("worker-b", 300))
 
 
+    def test_save_rejects_boolean_metrics_and_out_of_range_retention_ratios(self):
+        self.store.save(
+            "numeric-boundary-video", "2026-11-01", "2026-11-14",
+            {
+                "views": True,
+                "engagedViews": False,
+                "estimatedMinutesWatched": True,
+                "averageViewDuration": 12.5,
+                "averageViewPercentage": 125.0,
+            },
+            [
+                {"elapsedVideoTimeRatio": True, "audienceWatchRatio": 0.5},
+                {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": False},
+                {"elapsedVideoTimeRatio": 1.01, "audienceWatchRatio": 0.5},
+                {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": 1.01},
+                {"elapsedVideoTimeRatio": -0.01, "audienceWatchRatio": 0.5},
+                {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": -0.01},
+                {"elapsedVideoTimeRatio": 0.0, "audienceWatchRatio": 1.0,
+                 "relativeRetentionPerformance": True},
+                {"elapsedVideoTimeRatio": 1.0, "audienceWatchRatio": 0.0,
+                 "relativeRetentionPerformance": -0.25},
+            ],
+        )
+        saved = self.store.get("numeric-boundary-video")
+        self.assertIsNone(saved["views"])
+        self.assertIsNone(saved["engaged_views"])
+        self.assertIsNone(saved["engaged_view_share"])
+        self.assertIsNone(saved["estimated_minutes_watched"])
+        self.assertEqual(saved["average_view_duration"], 12.5)
+        self.assertEqual(saved["average_view_percentage"], 125.0)
+        self.assertEqual(len(saved["retention_curve"]), 2)
+        self.assertEqual(
+            saved["retention_curve"][0],
+            {
+                "elapsed_video_time_ratio": 0.0,
+                "audience_watch_ratio": 1.0,
+                "relative_retention_performance": None,
+            },
+        )
+        self.assertEqual(
+            saved["retention_curve"][1],
+            {
+                "elapsed_video_time_ratio": 1.0,
+                "audience_watch_ratio": 0.0,
+                "relative_retention_performance": -0.25,
+            },
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
