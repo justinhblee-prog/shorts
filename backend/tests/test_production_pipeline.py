@@ -730,6 +730,41 @@ class ProductionTests(unittest.TestCase):
                 self.assertEqual(len(attempts),1)
                 self.assertEqual(attempts[0]["state"],state)
 
+    def test_ambiguous_provider_attempt_requires_evidenced_operator_reconciliation(self):
+        self.store.create("job-provider-reconcile",self.brief)
+        key=self.store.begin_provider_attempt("job-provider-reconcile","script",1)
+        self.store.mark_provider_attempt_unknown(
+            "job-provider-reconcile","script",1,key,"connection timed out")
+        attempt=self.store.provider_attempts("job-provider-reconcile")[0]
+        with self.assertRaisesRegex(ValueError,"only an ambiguous"):
+            self.store.confirm_provider_attempt_not_executed(
+                "job-provider-reconcile",attempt["id"],"admin-1","case-123","confirmed")
+        result=self.store.confirm_provider_attempt_not_executed(
+            "job-provider-reconcile",attempt["id"],"admin-1",
+            "provider-console-case-123","Provider console confirms no remote job.")
+        self.assertEqual(result["state"],"not_executed_confirmed")
+        saved=self.store.provider_attempts("job-provider-reconcile")[0]
+        self.assertEqual(saved["state"],"not_executed_confirmed")
+        with self.store.db() as connection:
+            event=connection.execute(
+                "SELECT event_type,details_json FROM job_events WHERE job_id=?",
+                ("job-provider-reconcile",)).fetchone()
+        self.assertEqual(event["event_type"],"provider_attempt_reconciled")
+        self.assertIn("provider-console-case-123",event["details_json"])
+        with self.assertRaisesRegex(ValueError,"only an ambiguous"):
+            self.store.confirm_provider_attempt_not_executed(
+                "job-provider-reconcile",attempt["id"],"admin-1","case-123","duplicate")
+
+    def test_provider_response_received_cannot_be_dismissed_as_not_executed(self):
+        self.store.create("job-provider-response",self.brief)
+        key=self.store.begin_provider_attempt("job-provider-response","script",1)
+        self.store.finish_provider_attempt(
+            "job-provider-response","script",1,key,{"script":"Durable response"})
+        attempt=self.store.provider_attempts("job-provider-response")[0]
+        with self.assertRaisesRegex(ValueError,"only an ambiguous"):
+            self.store.confirm_provider_attempt_not_executed(
+                "job-provider-response",attempt["id"],"admin-1","case-123","not executed")
+
     def test_provider_response_rejects_oversized_or_non_object_payload(self):
         self.store.create("job-provider-bounds",self.brief)
         key=self.store.begin_provider_attempt("job-provider-bounds","script",1)
