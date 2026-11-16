@@ -242,6 +242,8 @@ class YouTubeAnalyticsCollector:
         if isinstance(end, str):
             end = date.fromisoformat(end)
         if start > end:
+            if start_date is not None or end_date is not None:
+                raise ValueError("Analytics start date must not be after end date")
             # YouTube Analytics reporting lags recent uploads. Do not query an
             # invalid date range or label the absence of a report as zero views.
             self.store.save(
