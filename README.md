@@ -77,3 +77,10 @@ The trend workspace supports separate YouTube Shorts and TikTok recommendation e
 ### Platform-aware scheduled production
 
 Manual production requests and recurring schedules let the operator select YouTube Shorts or TikTok. The platform selection is persisted in the schedule payload and survives the durable scheduler outbox and queue dispatch, so downstream production policy checks and approval/publishing gates receive the intended target platform. YouTube remains the default for existing schedules and older payloads.
+
+
+## Multi-operator authentication and RBAC
+
+Preferred production setup uses `NEXUS_REVIEW_CREDENTIALS_JSON`, a JSON object mapping each operator ID to a unique 32–512 character token. A configured credential map fully disables the legacy shared-token fallback. The API resolves the authenticated operator from the presented token; request-body `reviewer_id` / `operator_id` values are not identity proof.
+
+Optional `NEXUS_REVIEW_ROLE_MAP_JSON` maps the same operator IDs to roles: `admin`, `producer`, `reviewer`, `publisher`, `analyst`, `operator`, `finance`, and `worker`. When configured, missing or unmapped identities fail closed (403); malformed configuration returns 503. Permissions are checked centrally for each API path and method. For migration compatibility, a blank role map preserves legacy full access; populate it before delegating production privileges. The OAuth callback remains exempt from review-token auth but requires a one-time state value matching its secure HTTP-only cookie.
