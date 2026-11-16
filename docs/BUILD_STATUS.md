@@ -822,7 +822,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Similarity is a reviewer warning, not an automatic rejection. Topic overlap/common phrasing can cause false positives; substantial paraphrasing can evade detection.
 - This is not a copyright check, plagiarism verdict, reused-content policy determination, or guarantee of monetization eligibility.
 - No generated script is automatically published; human review and approval remain required.
-- Validation pending on this branch.
+- GitHub Actions PR run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930) passed **326 backend tests**; `scripts/validate.sh` completed successfully.
 
 
 ### BUILD-00017 — independent narration transcription and script alignment (2026-11-15)
