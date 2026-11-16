@@ -288,5 +288,25 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertEqual(fake.states[-1][1]["error"], "TikTokMetricsError")
         self.assertTrue(fake.released)
 
+
+    def test_metrics_coverage_and_collection_include_publications_beyond_recent_200(self):
+        for index in range(2, 206):
+            self._publish("job-" + str(index), "video-" + str(index))
+        eligible = self.publications.list_metrics_eligible()
+        self.assertEqual(len(eligible), 205)
+        status = self.store.status(self.publications)
+        self.assertEqual(status["coverage"]["published_videos"], 205)
+        self.assertEqual(status["coverage"]["without_snapshot"], 205)
+
+        collector = self._collector({
+            "data": {"videos": []}, "error": {"code": "ok", "message": ""},
+        })
+        result = collector.refresh_due_metrics(limit=20, min_age_seconds=0)
+        self.assertEqual(result["requested"], 20)
+        self.assertEqual(len(self.calls), 1)
+        requested_ids = self.calls[0][2]["filters"]["video_ids"]
+        self.assertEqual(len(requested_ids), 20)
+        self.assertIn("video-205", requested_ids)
+
 if __name__ == "__main__":
     unittest.main()
