@@ -528,3 +528,8 @@ Outbox entries are retried with exponential backoff for up to 10 failed attempts
 ### BUILD-00166 — interpreting scheduler outbox status
 
 `GET /api/schedules/outbox` reports total counts by state plus two distinct pending counters: `pending_ready` means eligible for dispatch now, while `pending_retries` means deferred until a future retry timestamp. Dead-letter entries are ordered first in the limited item list so operators can see records requiring manual action. All status timestamps are evaluated in UTC; test callers may supply an aware clock.
+
+
+### BUILD-00167 — inactive schedule dead-letter protection
+
+Manual dead-letter recovery is permitted only while the parent schedule is active. If a schedule is deactivated, its dead-letter records remain visible for audit but cannot be requeued. Reactivate the schedule first, then retry the specific outbox item. The active-state check and retry-state reset occur in one SQLite statement to avoid a check-then-update race.

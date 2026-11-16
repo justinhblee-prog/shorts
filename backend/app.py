@@ -848,7 +848,7 @@ def retry_schedule_outbox(outbox_id:str,x_review_token:str|None=Header(default=N
     except ValueError as e:
         raise HTTPException(422,str(e))
     if result is None:
-        raise HTTPException(404,"Dead-letter outbox item not found")
+        raise HTTPException(409,"Dead-letter item not found or parent schedule is inactive")
     return result
 
 

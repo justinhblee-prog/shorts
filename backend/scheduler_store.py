@@ -194,7 +194,11 @@ class ScheduleStore:
             cur = c.execute("""UPDATE schedule_dispatch_outbox
                 SET status='pending',attempts=0,last_error=NULL,next_attempt_at=NULL,
                     dispatched_at=NULL
-                WHERE id=? AND status='dead_letter'""", (outbox_id,))
+                WHERE id=? AND status='dead_letter'
+                AND EXISTS (
+                    SELECT 1 FROM production_schedules s
+                    WHERE s.id=schedule_dispatch_outbox.schedule_id AND s.active=1
+                )""", (outbox_id,))
             if not cur.rowcount:
                 return None
             row = c.execute("SELECT * FROM schedule_dispatch_outbox WHERE id=?",

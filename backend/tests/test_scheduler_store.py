@@ -285,6 +285,29 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(result["count"], 1)
         self.assertEqual(self.schedules.outbox_status()["counts"].get("dispatched"), 1)
 
+
+    def test_dead_letter_retry_is_blocked_while_parent_schedule_is_inactive(self):
+        now = datetime.now(timezone.utc)
+        item = self.schedules.create("annual", 31536000,
+            {"brand": "Brain Glitch", "region": "US", "language": "English", "topic": "Test"},
+            start_at=(now - timedelta(minutes=5)).isoformat())
+        class FailingQueue:
+            def is_paused(self):
+                return False
+            def enqueue(self, *args, **kwargs):
+                raise RuntimeError("queue unavailable")
+        for attempt in range(10):
+            self.schedules.dispatch_due(FailingQueue(),
+                now=now + timedelta(seconds=3600 * attempt))
+        dead = self.schedules.outbox_status()["items"][0]
+        self.assertEqual(dead["status"], "dead_letter")
+        self.schedules.set_active(item["id"], False)
+        self.assertIsNone(self.schedules.retry_dead_letter(dead["id"]))
+        self.assertEqual(self.schedules.outbox_status()["counts"].get("dead_letter"), 1)
+        self.schedules.set_active(item["id"], True)
+        retried = self.schedules.retry_dead_letter(dead["id"])
+        self.assertEqual(retried["status"], "pending")
+
     def test_retry_dead_letter_requires_existing_dead_letter_id(self):
         for invalid in ("", None, 42):
             with self.subTest(invalid=invalid):

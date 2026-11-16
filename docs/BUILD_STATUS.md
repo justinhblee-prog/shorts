@@ -1363,3 +1363,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Prioritize dead-letter records in the bounded operator status list so actionable failures are not hidden behind routine pending rows.
 - Add deterministic clock-based tests for before/after retry eligibility and timezone validation.
 - GitHub Actions run [43812695326](https://github.com/justinhblee-prog/shorts/actions/runs/43812695326) passed the complete `scripts/validate.sh` workflow, including 505 backend tests.
+
+
+## BUILD-00167 — prevent dead-letter recovery for inactive schedules
+
+- Restrict manual dead-letter retry to entries whose parent schedule is still active.
+- Enforce the active-state condition atomically in the SQLite update, avoiding a check-then-update race.
+- Keep inactive schedule dead-letter records visible for audit; reactivation allows an operator to retry them explicitly.
+- Add regression coverage for inactive rejection and successful retry after reactivation.
+- GitHub Actions run [43812864095](https://github.com/justinhblee-prog/shorts/actions/runs/43812864095) passed the complete `scripts/validate.sh` workflow, including 506 backend tests.
