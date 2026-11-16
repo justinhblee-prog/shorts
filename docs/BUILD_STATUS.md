@@ -1785,3 +1785,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The store checks the affected-row count before appending a status-refresh audit event. If the compare-and-set does not apply, it returns an already-terminal result for the same attempt or raises a state-change error without writing a misleading audit event.
 - Added a SQLite trigger regression that suppresses the attempted state update and verifies state and audit history remain unchanged.
 - Deterministic local database validation only; no live TikTok API verification is implied.
+
+## BUILD-00215 — Fence TikTok poll responses by source state
+- A TikTok status poll now carries both the publication `attempt_id` and the state observed before the remote request.
+- The returned status is applied only if the same attempt is still in that source state. A response that arrives after another poll or recovery action changed the state is rejected without changing the publication row or appending a status-refresh event.
+- Added a regression for a late completion response arriving after the publication has already advanced to processing.
+- Deterministic local database validation only; no live TikTok API verification is implied.
