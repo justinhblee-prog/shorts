@@ -211,7 +211,8 @@ def _metric_holdout_by_cohort(diagnostics_by_cohort):
             "holdout_end": result["holdout_end"],
         })
     eligible_run_count = max(
-        (item["eligible_run_count"] for item in cohort_results), default=0
+        (len(diagnostics) for diagnostics in diagnostics_by_cohort.values()),
+        default=0,
     )
     if not cohort_results:
         return {
