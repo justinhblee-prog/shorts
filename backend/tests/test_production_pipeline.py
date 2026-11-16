@@ -112,7 +112,7 @@ class ProductionTests(unittest.TestCase):
         attempts=self.store.provider_attempts("job-1")
         self.assertEqual([item["stage"] for item in attempts],
                          ["script","voice_generation","rendering"])
-        self.assertTrue(all(item["state"]=="response_received" for item in attempts))
+        self.assertTrue(all(item["state"]=="adopted" for item in attempts))
         self.assertTrue(all(item["response_json"] for item in attempts))
 
     def test_pipeline_transcribes_generated_audio_and_records_script_alignment(self):
@@ -609,6 +609,81 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(voice.calls, [])
         self.assertEqual(render.calls, [])
 
+    def test_recovered_script_response_is_adopted_and_job_requeued(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        key=self.store.begin_provider_attempt(job_id,"script",1)
+        self.store.finish_provider_attempt(job_id,"script",1,key,{
+            "script":"A recovered script with a clear hook, useful explanation and takeaway.",
+            "provider":"test-script","factual_claims_verified":True})
+        attempt=self.store.provider_attempts(job_id)[0]
+        result=self.store.adopt_recovered_provider_artifact(job_id,attempt["id"])
+        saved=self.store.get(job_id)
+        self.assertEqual(result["status"],"queued")
+        self.assertEqual(saved["status"],"queued")
+        script_artifact=next(item for item in saved["artifacts"] if item["stage"]=="script")
+        self.assertEqual(script_artifact["metadata"]["script"],
+            "A recovered script with a clear hook, useful explanation and takeaway.")
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"adopted")
+        self.assertEqual(queue.get(job_id)["status"],"queued")
+
+    def test_recovered_voice_response_requires_script_and_requeues_job(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        self.store.artifact(job_id,"script","text",None,{"script":
+            "A sufficiently detailed recovered script with context and a useful takeaway.",
+            "provider_quality_metadata":{},"policy_preflight":{"status":"review_required"}})
+        key=self.store.begin_provider_attempt(job_id,"voice_generation",1)
+        self.store.finish_provider_attempt(job_id,"voice_generation",1,key,{
+            "audio_url":"https://media.example/recovered.mp3","voice":"en-US"})
+        attempt=self.store.provider_attempts(job_id)[0]
+        result=self.store.adopt_recovered_provider_artifact(job_id,attempt["id"])
+        saved=self.store.get(job_id)
+        self.assertEqual(result["stage"],"voice_generation")
+        self.assertEqual(saved["status"],"queued")
+        voice=next(item for item in saved["artifacts"] if item["stage"]=="voice_generation")
+        self.assertEqual(voice["artifact_url"],"https://media.example/recovered.mp3")
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"adopted")
+
+    def test_recovered_voice_response_without_script_is_rejected(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        key=self.store.begin_provider_attempt(job_id,"voice_generation",1)
+        self.store.finish_provider_attempt(job_id,"voice_generation",1,key,
+            {"audio_url":"https://media.example/recovered.mp3"})
+        attempt=self.store.provider_attempts(job_id)[0]
+        with self.assertRaisesRegex(ValueError,"requires an adopted script"):
+            self.store.adopt_recovered_provider_artifact(job_id,attempt["id"])
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"response_received")
+
+    def test_pipeline_resumes_adopted_script_and_voice_without_provider_calls(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        script_key=self.store.begin_provider_attempt(job_id,"script",1)
+        self.store.finish_provider_attempt(job_id,"script",1,script_key,{
+            "script":"A sufficiently detailed recovered script with context and a useful takeaway.",
+            "provider":"test-script"})
+        script_attempt=self.store.provider_attempts(job_id)[0]
+        self.store.adopt_recovered_provider_artifact(job_id,script_attempt["id"])
+        voice_key=self.store.begin_provider_attempt(job_id,"voice_generation",1)
+        self.store.finish_provider_attempt(job_id,"voice_generation",1,voice_key,{
+            "audio_url":"https://media.example/recovered.mp3","voice":"en-US"})
+        voice_attempt=next(item for item in self.store.provider_attempts(job_id)
+            if item["stage"]=="voice_generation")
+        self.store.adopt_recovered_provider_artifact(job_id,voice_attempt["id"])
+        script=FakeProvider({"script":"must not be called"})
+        voice=FakeProvider({"audio_url":"https://media.example/new.mp3"})
+        render=FakeProvider({"video_url":"https://media.example/video.mp4","duration_seconds":30})
+        result=ProductionPipeline(self.store,script,voice,render).execute(job_id,self.brief)
+        self.assertEqual(result["status"],"rendered")
+        self.assertEqual(script.calls,[])
+        self.assertEqual(voice.calls,[])
+        self.assertEqual(len(render.calls),1)
+
     def test_provider_response_is_durable_before_artifact_adoption(self):
         self.store.create("job-provider-journal",self.brief)
         number=self.store.next_provider_attempt_number("job-provider-journal","rendering")
@@ -636,6 +711,51 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(attempt["error"],"connection timed out")
         self.assertEqual(self.store.next_provider_attempt_number(
             "job-provider-unknown","voice_generation"),2)
+        with self.assertRaisesRegex(ProviderError,"remains outcome_unknown"):
+            self.store.begin_provider_attempt("job-provider-unknown","voice_generation",2)
+
+    def test_provider_response_must_be_adopted_before_a_new_attempt(self):
+        self.store.create("job-provider-unadopted",self.brief)
+        key=self.store.begin_provider_attempt("job-provider-unadopted","script",1)
+        self.store.finish_provider_attempt(
+            "job-provider-unadopted","script",1,key,{"script":"durable result"})
+        with self.assertRaisesRegex(ProviderError,"remains response_received"):
+            self.store.begin_provider_attempt("job-provider-unadopted","script",2)
+        self.store.mark_provider_attempt_adopted(
+            "job-provider-unadopted","script",1,key)
+        next_key=self.store.begin_provider_attempt("job-provider-unadopted","script",2)
+        self.assertTrue(next_key)
+
+    def test_script_retry_does_not_delete_artifacts_while_any_provider_attempt_is_unresolved(self):
+        self.store.create("job-provider-reset-fence",self.brief)
+        self.store.artifact("job-provider-reset-fence","script","text",None,
+                            {"script":"previous durable script"})
+        key=self.store.begin_provider_attempt(
+            "job-provider-reset-fence","voice_generation",1)
+        self.store.finish_provider_attempt(
+            "job-provider-reset-fence","voice_generation",1,key,
+            {"audio_url":"https://media.example/voice.mp3"})
+        with self.assertRaisesRegex(ProviderError,"Cannot reset production artifacts"):
+            self.store.stage("job-provider-reset-fence","script")
+        saved=self.store.get("job-provider-reset-fence")["artifacts"]
+        self.assertEqual(len(saved),1)
+        self.assertEqual(saved[0]["stage"],"script")
+        self.assertEqual(saved[0]["metadata"]["script"],"previous durable script")
+        self.assertEqual(
+            self.store.provider_attempts("job-provider-reset-fence")[0]["state"],
+            "response_received")
+
+    def test_script_retry_can_reset_artifacts_after_provider_attempt_is_adopted(self):
+        self.store.create("job-provider-reset-safe",self.brief)
+        self.store.artifact("job-provider-reset-safe","script","text",None,
+                            {"script":"old script"})
+        key=self.store.begin_provider_attempt("job-provider-reset-safe","script",1)
+        self.store.finish_provider_attempt(
+            "job-provider-reset-safe","script",1,key,{"script":"new script"})
+        self.store.mark_provider_attempt_adopted(
+            "job-provider-reset-safe","script",1,key)
+        self.store.stage("job-provider-reset-safe","script")
+        self.assertEqual(self.store.get("job-provider-reset-safe")["artifacts"],[])
 
     def test_provider_response_rejects_oversized_or_non_object_payload(self):
         self.store.create("job-provider-bounds",self.brief)
@@ -646,6 +766,132 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"2 MB"):
             self.store.finish_provider_attempt(
                 "job-provider-bounds","script",1,key,{"data":"x"*(2*1024*1024)})
+
+    def test_verified_provider_render_is_adopted_once_and_requires_human_review(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        self.store.artifact(job_id,"script","text",None,{
+            "script":"A sufficiently detailed recovered video script with useful context.",
+            "provider_quality_metadata":{"factual_claims_verified":True},
+            "policy_preflight":{"status":"review_required","approval_blockers":[]}})
+        self.store.artifact(job_id,"voice_generation","audio",
+            "https://cdn.example.test/audio.mp3",{"duration_seconds":32.5})
+        key=self.store.begin_provider_attempt(job_id,"rendering",1)
+        self.store.finish_provider_attempt(
+            job_id,"rendering",1,key,
+            {"request_id":"render-verified-77",
+             "video_url":"https://cdn.example.test/output.mp4"})
+        staged={"media_path":"abc123.mp4","size_bytes":4096,
+                "sha256":"a"*64,"content_type":"video/mp4"}
+        inspection={"status":"inspected","duration_seconds":32.5,
+                    "width":1080,"height":1920,"audio_track_present":True,
+                    "size_bytes":4096,"media_path":"abc123.mp4",
+                    "inspection_method":"ffprobe_file_bytes"}
+        attempt=self.store.provider_attempts(job_id)[0]
+        result=self.store.adopt_recovered_render(
+            job_id,attempt["id"],staged,inspection)
+        self.assertEqual(result["status"],"review_pending")
+        production=self.store.get(job_id)
+        self.assertEqual(production["status"],"review_pending")
+        self.assertEqual(production["current_stage"],"recovered_render_adopted")
+        self.assertEqual(len(production["artifacts"]),4)
+        artifact=next(item for item in production["artifacts"]
+                      if item["stage"]=="rendering")
+        quality=next(item for item in production["artifacts"]
+                     if item["stage"]=="quality_check")
+        self.assertIn(quality["metadata"]["status"],("ready_for_human_review","review_required"))
+        self.assertIsNotNone(quality["metadata"]["checks"])
+        self.assertEqual(artifact["artifact_url"],"https://cdn.example.test/output.mp4")
+        self.assertEqual(artifact["metadata"]["media_staging"]["sha256"],"a"*64)
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"adopted")
+        self.assertEqual(queue.get(job_id)["status"],"review_pending")
+        self.assertEqual(queue.events(job_id)[-1]["event_type"],"provider_result_recovered")
+        with self.assertRaisesRegex(ValueError,"not available"):
+            self.store.adopt_recovered_render(
+                job_id,attempt["id"],staged,inspection)
+
+    def test_recovered_render_adoption_rejects_inspection_for_different_staged_bytes(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        self.store.artifact(job_id,"script","text",None,{
+            "script":"A sufficiently detailed recovered video script with useful context."})
+        self.store.artifact(job_id,"voice_generation","audio",
+            "https://cdn.example.test/audio.mp3",{"duration_seconds":32.5})
+        key=self.store.begin_provider_attempt(job_id,"rendering",1)
+        self.store.finish_provider_attempt(
+            job_id,"rendering",1,key,
+            {"video_url":"https://cdn.example.test/output.mp4"})
+        attempt=self.store.provider_attempts(job_id)[0]
+        staged={"media_path":"verified.mp4","size_bytes":4096,
+                "sha256":"c"*64,"content_type":"video/mp4"}
+        inspection={"status":"inspected","duration_seconds":32.5,
+                    "width":1080,"height":1920,"audio_track_present":True,
+                    "size_bytes":4095,"media_path":"verified.mp4",
+                    "inspection_method":"ffprobe_file_bytes"}
+        with self.assertRaisesRegex(ValueError,"does not match the staged media fingerprint"):
+            self.store.adopt_recovered_render(job_id,attempt["id"],staged,inspection)
+        inspection["size_bytes"]=4096
+        inspection["media_path"]="different.mp4"
+        with self.assertRaisesRegex(ValueError,"does not match the staged media fingerprint"):
+            self.store.adopt_recovered_render(job_id,attempt["id"],staged,inspection)
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"response_received")
+        self.assertEqual(
+            {item["stage"] for item in self.store.get(job_id)["artifacts"]},
+            {"script","voice_generation"})
+        self.assertEqual(queue.get(job_id)["status"],"queued")
+
+    def test_provider_render_adoption_rejects_unverified_or_nonvertical_media(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        key=self.store.begin_provider_attempt(job_id,"rendering",1)
+        self.store.finish_provider_attempt(
+            job_id,"rendering",1,key,
+            {"video_url":"https://cdn.example.test/output.mp4"})
+        attempt=self.store.provider_attempts(job_id)[0]
+        staged={"media_path":"abc123.mp4","size_bytes":4096,
+                "sha256":"b"*64,"content_type":"video/mp4"}
+        bad={"status":"inspected","duration_seconds":32.5,
+             "width":1920,"height":1080,"audio_track_present":True}
+        with self.assertRaisesRegex(ValueError,"failed required"):
+            self.store.adopt_recovered_render(job_id,attempt["id"],staged,bad)
+        bad["width"],bad["height"]=1080,1920
+        bad["audio_track_present"]=False
+        with self.assertRaisesRegex(ValueError,"failed required"):
+            self.store.adopt_recovered_render(job_id,attempt["id"],staged,bad)
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],
+                         "response_received")
+        self.assertEqual(self.store.get(job_id)["artifacts"],[])
+        self.assertEqual(queue.get(job_id)["status"],"queued")
+
+    def test_recovered_render_rejects_boolean_and_nonfinite_measurements(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        key=self.store.begin_provider_attempt(job_id,"rendering",1)
+        self.store.finish_provider_attempt(
+            job_id,"rendering",1,key,{"video_url":"https://cdn.example.test/output.mp4"})
+        attempt=self.store.provider_attempts(job_id)[0]
+        staged={"media_path":"finite.mp4","size_bytes":4096,
+                "sha256":"d"*64,"content_type":"video/mp4"}
+        base={"status":"inspected","duration_seconds":32.5,
+              "width":1080,"height":1920,"audio_track_present":True,
+              "size_bytes":4096,"media_path":"finite.mp4",
+              "inspection_method":"ffprobe_file_bytes"}
+        for field,value in (("duration_seconds",float("nan")),
+                            ("duration_seconds",float("inf")),
+                            ("width",True),("height",True)):
+            invalid={**base,field:value}
+            with self.assertRaisesRegex(ValueError,"metadata is invalid|failed required"):
+                self.store.adopt_recovered_render(job_id,attempt["id"],staged,invalid)
+        invalid_staged={**staged,"size_bytes":True}
+        with self.assertRaisesRegex(ValueError,"size must be an integer"):
+            self.store.adopt_recovered_render(job_id,attempt["id"],invalid_staged,base)
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"response_received")
+        self.assertEqual(self.store.get(job_id)["artifacts"],[])
+        self.assertEqual(queue.get(job_id)["status"],"queued")
 
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):

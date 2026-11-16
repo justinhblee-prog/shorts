@@ -588,3 +588,19 @@ Provider calls are now journaled before the outbound request. Each stage attempt
 - The request key is an advisory payload field only. Until the configured vendor confirms support for idempotency keys and request lookup, operators must use the provider's console/request ID to establish whether a generation completed.
 
 This release journals and exposes the response; it does not automatically adopt a recovered artifact or declare it review-ready. Verify the provider request ID, output URL, ownership/retention and actual media bytes, then use the existing allowlisted staging and quality/review workflow. If the provider offers no lookup mechanism, leave the attempt unresolved and do not regenerate automatically.
+
+
+### Verified adoption of a recovered provider render — BUILD-00175
+
+Use this only when the provider execution ledger contains a `rendering` attempt in `response_received` state. Do not use it for `request_started` or `outcome_unknown` attempts.
+
+1. Inspect the stored provider request ID and response using the authenticated provider-attempt endpoint. Confirm the provider output is the intended render and that its HTTPS URL belongs to a configured `RENDER_ARTIFACT_HOSTS` host.
+2. Call `POST /api/production/jobs/{job_id}/adopt-recovered-render` with the exact `provider_attempt_id`. This action requires `media.manage`.
+3. NEXUS downloads the file through the existing HTTPS allowlist, public-IP pinning, redirect rejection, size/signature checks and optional malware scan. It then inspects the staged file bytes with ffprobe.
+4. Adoption is rejected unless inspection completed, the file is vertical 9:16 within tolerance, has an audio stream, and is no longer than 180 seconds. The attempt, artifact row, production status and queue transition are committed in one SQLite transaction.
+5. A successful adoption changes the production and queue state to `review_pending`, records the SHA-256 fingerprint and provider attempt ID, and emits a `provider_result_recovered` queue event. Repeating the action is rejected; a pre-existing render artifact or an active worker lease also blocks adoption.
+6. Before queueing review, NEXUS rebuilds a fresh quality report from the stored script/voice artifacts, provider render metadata and ffprobe inspection. Missing script or voice source artifacts block adoption. The report is stored as the normal `quality_check` artifact, so the existing review approval gate still enforces blockers and requires a reviewer note for warnings.
+
+The result is **not approved or published**. A human must inspect the actual video, rights, claims, captions, audio, platform disclosures and brand fit before normal review approval and publication.
+
+If allowlisting, malware scanning, media inspection or required metadata is unavailable, do not bypass the gate. Fix the configuration or leave the provider response preserved for later investigation. The recovery endpoint does not support arbitrary URLs supplied by the operator; it only uses the URL in the stored provider response.
