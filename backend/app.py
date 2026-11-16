@@ -18,7 +18,7 @@ from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_r
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
-from youtube_oauth import YouTubeOAuthStore, YouTubeOAuthManager, YouTubeOAuthError
+from youtube_oauth import YouTubeOAuthStore, YouTubeOAuthManager, YouTubeOAuthError, YouTubeConnectionVerifier
 from tiktok_metrics import TikTokMetricsStore
 from youtube_analytics import YouTubeAnalyticsStore, YouTubeAnalyticsCollector
 from ledger import LedgerStore
@@ -65,6 +65,7 @@ review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_oauth_store=YouTubeOAuthStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_oauth_manager=YouTubeOAuthManager(youtube_oauth_store)
+youtube_connection_verifier=YouTubeConnectionVerifier(youtube_oauth_manager)
 youtube_publisher=YouTubePublisher(
     youtube_upload_store,token_provider=youtube_oauth_manager.get_refresh_token
 )
@@ -596,6 +597,15 @@ def youtube_oauth_callback(request:Request,code:str|None=None,state:str|None=Non
         redirect=RedirectResponse(url="/?youtube_oauth=error",status_code=303)
     redirect.delete_cookie("youtube_oauth_state",path="/api/youtube/oauth/callback")
     return redirect
+
+
+@app.post("/api/youtube/oauth/verify")
+def verify_youtube_oauth(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return youtube_connection_verifier.verify()
+    except YouTubeOAuthError as e:
+        raise HTTPException(409,str(e))
 
 
 @app.get("/api/youtube/oauth/status")

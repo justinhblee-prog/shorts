@@ -35,6 +35,7 @@ class ApiSecurityTests(unittest.TestCase):
         for path, method in (
             ("/api/youtube/oauth/start", "GET"),
             ("/api/youtube/oauth/status", "GET"),
+            ("/api/youtube/oauth/verify", "POST"),
             ("/api/youtube/oauth/disconnect", "POST"),
         ):
             route = routes.get((path, (method,)))

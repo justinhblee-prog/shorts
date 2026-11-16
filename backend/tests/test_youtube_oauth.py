@@ -1,13 +1,15 @@
 import json
 import os
+import sqlite3
 import tempfile
 import unittest
+from datetime import date
 from urllib.parse import parse_qs, urlparse
 
 from cryptography.fernet import Fernet
 from youtube_oauth import (
     YouTubeOAuthStore, YouTubeOAuthManager, YouTubeOAuthError,
-    REQUIRED_SCOPES, ANALYTICS_READ_SCOPE,
+    REQUIRED_SCOPES, ANALYTICS_READ_SCOPE, YouTubeConnectionVerifier,
 )
 
 
@@ -20,6 +22,51 @@ class GoogleOAuthTransport:
         self.calls.append((url, headers, body, timeout))
         status, payload = self.responses.pop(0)
         return status, json.dumps(payload).encode("utf-8")
+
+
+
+class FakeCredentials:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.refreshed = False
+
+    def refresh(self, request):
+        self.refreshed = True
+
+
+class FakeRequest:
+    def execute(self):
+        return True
+
+
+class FakeYouTubeService:
+    def channels(self):
+        return self
+
+    def list(self, **kwargs):
+        self.kwargs = kwargs
+        return self
+
+    def execute(self):
+        return {"items": [{"id": "UC123", "snippet": {"title": "Test Channel"}}]}
+
+
+class FakeAnalyticsService:
+    def __init__(self, error=None):
+        self.error = error
+        self.query_args = None
+
+    def reports(self):
+        return self
+
+    def query(self, **kwargs):
+        self.query_args = kwargs
+        return self
+
+    def execute(self):
+        if self.error:
+            raise self.error
+        return {"columnHeaders": [{"name": "views"}], "rows": [[12]]}
 
 
 class YouTubeOAuthTests(unittest.TestCase):
@@ -71,6 +118,7 @@ class YouTubeOAuthTests(unittest.TestCase):
         self.assertEqual(self.manager.get_refresh_token(), "refresh-secret")
         status = self.manager.status()
         self.assertTrue(status["connected"])
+        self.assertFalse(status["live_connectivity_verified"])
         self.assertEqual(status["mode"], "encrypted_oauth")
         self.assertNotIn("refresh_token", status)
         self.assertNotIn("access-secret", str(status))
@@ -140,6 +188,100 @@ class YouTubeOAuthTests(unittest.TestCase):
         with self.assertRaisesRegex(YouTubeOAuthError, "missing required scopes"):
             self.manager.get_refresh_token()
         self.assertFalse(self.manager.status()["connected"])
+
+
+    def _store_connected_token(self):
+        encrypted = self.manager.cipher.encrypt(b"refresh-secret").decode("ascii")
+        self.store.save_token(
+            encrypted, " ".join((*REQUIRED_SCOPES, ANALYTICS_READ_SCOPE)), "Bearer"
+        )
+
+
+
+    def test_existing_oauth_token_table_migrates_verification_fields(self):
+        legacy_db = os.path.join(self.tmp.name, "legacy-oauth.sqlite3")
+        with sqlite3.connect(legacy_db) as connection:
+            connection.execute("""
+                CREATE TABLE youtube_oauth_tokens(
+                  id INTEGER PRIMARY KEY CHECK(id=1),
+                  refresh_token_encrypted TEXT NOT NULL,
+                  scope TEXT NOT NULL,token_type TEXT NOT NULL,
+                  updated_at TEXT NOT NULL
+                )
+            """)
+        migrated = YouTubeOAuthStore(legacy_db)
+        encrypted = self.manager.cipher.encrypt(b"legacy-refresh").decode("ascii")
+        migrated.save_token(encrypted, " ".join(REQUIRED_SCOPES), "Bearer")
+        migrated.record_verification(
+            "UC-MIGRATED", "Migrated Channel", True, False, "PermissionError"
+        )
+        record = migrated.token_record()
+        self.assertEqual(record["channel_id"], "UC-MIGRATED")
+        self.assertEqual(record["channel_title"], "Migrated Channel")
+        self.assertTrue(record["data_api_verified"])
+        self.assertFalse(record["analytics_api_verified"])
+        self.assertEqual(record["last_error"], "PermissionError")
+
+    def test_live_verifier_requires_encrypted_oauth_connection(self):
+        verifier = YouTubeConnectionVerifier(
+            self.manager,
+            credentials_factory=FakeCredentials,
+            service_factory=lambda *args, **kwargs: FakeYouTubeService(),
+            request_factory=FakeRequest,
+        )
+        with self.assertRaisesRegex(YouTubeOAuthError, "encrypted OAuth"):
+            verifier.verify()
+
+    def test_live_verifier_checks_data_api_and_analytics_and_persists_channel(self):
+        self._store_connected_token()
+        youtube = FakeYouTubeService()
+        analytics = FakeAnalyticsService()
+        services = []
+        def service_factory(name, version, **kwargs):
+            services.append((name, version, kwargs))
+            return youtube if name == "youtube" else analytics
+        verifier = YouTubeConnectionVerifier(
+            self.manager,
+            credentials_factory=FakeCredentials,
+            service_factory=service_factory,
+            request_factory=FakeRequest,
+            today=lambda: date(2026, 11, 16),
+        )
+        result = verifier.verify()
+        self.assertTrue(result["data_api_verified"])
+        self.assertTrue(result["analytics_api_verified"])
+        self.assertTrue(result["live_connectivity_verified"])
+        self.assertEqual(result["channel_id"], "UC123")
+        self.assertEqual(result["channel_title"], "Test Channel")
+        self.assertEqual(analytics.query_args["ids"], "channel==MINE")
+        self.assertEqual(analytics.query_args["metrics"], "views")
+        status = self.manager.status()
+        self.assertTrue(status["data_api_verified"])
+        self.assertTrue(status["analytics_api_verified"])
+        self.assertEqual(status["channel_title"], "Test Channel")
+        self.assertEqual(len(services), 2)
+
+    def test_analytics_permission_failure_does_not_hide_data_api_success(self):
+        self._store_connected_token()
+        analytics = FakeAnalyticsService(PermissionError("scope denied"))
+        verifier = YouTubeConnectionVerifier(
+            self.manager,
+            credentials_factory=FakeCredentials,
+            service_factory=lambda name, version, **kwargs: (
+                FakeYouTubeService() if name == "youtube" else analytics
+            ),
+            request_factory=FakeRequest,
+            today=lambda: date(2026, 11, 16),
+        )
+        result = verifier.verify()
+        self.assertTrue(result["data_api_verified"])
+        self.assertFalse(result["analytics_api_verified"])
+        self.assertFalse(result["live_connectivity_verified"])
+        self.assertEqual(result["analytics_error"], "PermissionError")
+        status = self.manager.status()
+        self.assertTrue(status["data_api_verified"])
+        self.assertFalse(status["analytics_api_verified"])
+        self.assertEqual(status["last_error"], "PermissionError")
 
     def test_static_environment_refresh_token_is_fallback_only(self):
         old = os.environ.get("YOUTUBE_REFRESH_TOKEN")

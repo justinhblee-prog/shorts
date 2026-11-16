@@ -101,3 +101,6 @@ YouTube account connection now supports a server-side OAuth flow with one-time s
 
 
 BUILD-00036 added encrypted YouTube OAuth connection and dashboard controls. CI passed **352 backend tests** in [run 43788265493](https://github.com/justinhblee-prog/shorts/actions/runs/43788265493); live Google consent and channel verification remain deployment steps.
+
+
+YouTube OAuth now has an explicit live verification action that checks the selected channel through Data API v3 and Analytics API v2 separately. OAuth token storage is not represented as live connectivity until these checks succeed.
