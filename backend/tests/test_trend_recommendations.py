@@ -294,6 +294,49 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(context["cohorts"][0]["median_views_per_hour"], 150.0)
         self.assertEqual(context["ranking_score_adjustment"], 0)
 
+    def test_comparable_cohort_evidence_rejects_malformed_counts_and_metrics(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        trend = {"id": "ai", "title": "AI robotics explained", "region": "US",
+                 "published_at": now.isoformat()}
+        brand = {"slug": "future-leak", "name": "Future Leak", "active": True,
+                 "config": {"positioning": "AI robotics technology", "regions": ["US"]}}
+        cohorts = [
+            {"brand": "Future Leak", "region": "US", "format": "vertical_short",
+             "topic_signature": "AI robotics explained", "sample_count": True,
+             "median_views_per_hour": float("nan"),
+             "interaction_rate_sample_count": "3",
+             "median_interactions_per_1000_view_delta": float("inf"),
+             "evidence_status": "observed"},
+            {"brand": "Future Leak", "region": "US", "format": "vertical_short",
+             "topic_signature": "AI robotics explained", "sample_count": 4,
+             "median_views_per_hour": 125.5,
+             "interaction_rate_sample_count": 3,
+             "median_interactions_per_1000_view_delta": 18.25,
+             "evidence_status": "no_data"},
+            None,
+            {"brand": "Future Leak", "region": "US", "format": "vertical_short",
+             "topic_signature": "AI robotics explained", "sample_count": -2,
+             "median_views_per_hour": -1,
+             "interaction_rate_sample_count": False,
+             "median_interactions_per_1000_view_delta": "invalid"},
+        ]
+        baseline = rank_trend_candidates([trend], [brand], now=now)[0]
+        result = rank_trend_candidates(
+            [trend], [brand], now=now, performance_cohorts=cohorts
+        )[0]
+        context = result["best_brand"]["comparable_cohort_performance"]
+        self.assertEqual(result["recommendation_score"], baseline["recommendation_score"])
+        self.assertEqual(context["matched_cohort_count"], 3)
+        by_count = {item["sample_count"]: item for item in context["cohorts"]}
+        self.assertEqual(by_count[0]["evidence_status"], "no_data")
+        self.assertIsNone(by_count[0]["median_views_per_hour"])
+        self.assertEqual(by_count[0]["interaction_rate_sample_count"], 0)
+        self.assertIsNone(by_count[0]["median_interactions_per_1000_view_delta"])
+        self.assertEqual(by_count[4]["evidence_status"], "observed")
+        self.assertEqual(by_count[4]["median_views_per_hour"], 125.5)
+        self.assertEqual(by_count[4]["median_interactions_per_1000_view_delta"], 18.25)
+        self.assertEqual(context["ranking_score_adjustment"], 0)
+
     def test_competitor_evidence_is_region_scoped_and_does_not_change_editorial_score(self):
         store = Mock()
         store.list_channels.return_value = [
