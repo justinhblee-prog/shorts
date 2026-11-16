@@ -2,7 +2,7 @@ import json
 import hashlib
 import os
 import sqlite3
-import tempfile, threading
+import tempfile, threading, time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -557,6 +557,64 @@ class YouTubePublishingTests(unittest.TestCase):
         second = second_store.acquire_metrics_collector_lease("collector-b")
         self.assertTrue(second)
         self.assertNotEqual(first, second)
+
+    def test_expired_metrics_collector_cannot_renew_release_or_write_after_takeover(self):
+        second_store = YouTubeUploadStore(self.db)
+        now = time.time()
+        old_token = self.uploads.acquire_metrics_collector_lease(
+            "collector-old", lease_seconds=30, now=now,
+        )
+        self.assertIsNotNone(old_token)
+
+        # Simulate a worker that stalled beyond its lease, then let another
+        # process take ownership using the same durable singleton row.
+        with self.uploads.db() as connection:
+            connection.execute(
+                "UPDATE youtube_metrics_collector_lease SET lease_until=? WHERE id=1",
+                (now - 1,),
+            )
+        new_token = second_store.acquire_metrics_collector_lease(
+            "collector-new", lease_seconds=300,
+        )
+        self.assertIsNotNone(new_token)
+        self.assertNotEqual(old_token, new_token)
+
+        self.assertFalse(self.uploads.renew_metrics_collector_lease(
+            "collector-old", old_token,
+        ))
+        self.assertFalse(self.uploads.release_metrics_collector_lease(
+            "collector-old", old_token,
+        ))
+        with self.assertRaisesRegex(RuntimeError, "stale write rejected"):
+            self.uploads.snapshot(
+                "yt-expired-owner", {"viewCount": "77"},
+                lease_owner="collector-old", lease_token=old_token,
+            )
+        with self.assertRaisesRegex(RuntimeError, "stale write rejected"):
+            self.uploads.record_metrics_collection(
+                "failed", error="late response from expired collector",
+                lease_owner="collector-old", lease_token=old_token,
+            )
+
+        with self.uploads.db() as connection:
+            lease = connection.execute(
+                "SELECT owner_id,token,lease_until FROM youtube_metrics_collector_lease WHERE id=1"
+            ).fetchone()
+            snapshot_count = connection.execute(
+                "SELECT COUNT(*) FROM youtube_video_snapshots WHERE video_id='yt-expired-owner'"
+            ).fetchone()[0]
+        self.assertEqual(lease["owner_id"], "collector-new")
+        self.assertEqual(lease["token"], new_token)
+        self.assertGreater(lease["lease_until"], time.time())
+        self.assertEqual(snapshot_count, 0)
+
+        self.assertTrue(second_store.snapshot(
+            "yt-new-owner", {"viewCount": "88"},
+            lease_owner="collector-new", lease_token=new_token,
+        ))
+        self.assertTrue(second_store.release_metrics_collector_lease(
+            "collector-new", new_token,
+        ))
 
     def test_stale_metrics_lease_cannot_write_snapshot_or_collection_state(self):
         token = self.uploads.acquire_metrics_collector_lease("collector-a")
