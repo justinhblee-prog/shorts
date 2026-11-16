@@ -2185,3 +2185,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Persist one identical timestamp to production_runs.created_at and updated_at instead of sampling the clock twice before the implicit write transaction.
 - Add a lock-contention regression that verifies no clock read occurs while waiting for the lock and both persisted fields use the same decision time.
 - Validation pending GitHub Actions; local SQLite regression is not live deployment validation.
+
+
+## BUILD-00291 — append-only queue and worker-control audit events
+
+- Added SQLite update/delete rejection triggers for `job_events` and `worker_control_events`.
+- Added regression coverage that checks `sqlite3.IntegrityError` for mutation and deletion attempts on both audit tables.
+- This protects against accidental/application-level mutation, not privileged schema or database-file modification.
+- Validation: pending for the exact PR head.
