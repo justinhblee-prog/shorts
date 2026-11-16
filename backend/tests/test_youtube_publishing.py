@@ -598,6 +598,55 @@ class YouTubePublishingTests(unittest.TestCase):
             "manual-new", new_token,
         ))
 
+    def test_batch_metrics_rechecks_lease_after_oauth_service_initialization(self):
+        old_token = self.uploads.acquire_metrics_collector_lease("collector-old")
+        self.assertIsNotNone(old_token)
+        self.uploads.due_metric_video_ids = lambda limit, min_age_seconds: ["yt-stale"]
+
+        class LeaseReplacingPublisher(YouTubePublisher):
+            def _service(inner_self):
+                with inner_self.store.db() as connection:
+                    connection.execute(
+                        "UPDATE youtube_metrics_collector_lease SET token='replacement' WHERE id=1"
+                    )
+                return inner_self.service
+
+        publisher = LeaseReplacingPublisher(self.uploads, self.service)
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            publisher._refresh_due_metrics_with_lease(
+                lease_owner="collector-old", lease_token=old_token,
+            )
+        self.assertEqual(self.service._videos.list_calls, [])
+        with self.uploads.db() as connection:
+            lease = connection.execute(
+                "SELECT token FROM youtube_metrics_collector_lease WHERE id=1"
+            ).fetchone()
+        self.assertEqual(lease["token"], "replacement")
+
+    def test_manual_metrics_rechecks_lease_after_oauth_service_initialization(self):
+        old_token = self.uploads.acquire_metrics_collector_lease("manual-old")
+        self.assertIsNotNone(old_token)
+
+        class LeaseReplacingPublisher(YouTubePublisher):
+            def _service(inner_self):
+                with inner_self.store.db() as connection:
+                    connection.execute(
+                        "UPDATE youtube_metrics_collector_lease SET token='replacement' WHERE id=1"
+                    )
+                return inner_self.service
+
+        publisher = LeaseReplacingPublisher(self.uploads, self.service)
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            publisher.refresh_metrics(
+                "yt-stale", lease_owner="manual-old", lease_token=old_token,
+            )
+        self.assertEqual(self.service._videos.list_calls, [])
+        with self.uploads.db() as connection:
+            lease = connection.execute(
+                "SELECT token FROM youtube_metrics_collector_lease WHERE id=1"
+            ).fetchone()
+        self.assertEqual(lease["token"], "replacement")
+
     def test_manual_youtube_metrics_refresh_acquires_and_releases_collector_lease(self):
         result = self.publisher.refresh_metrics("yt-manual")
         self.assertEqual(result["video_id"], "yt-manual")
