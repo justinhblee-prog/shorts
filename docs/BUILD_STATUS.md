@@ -2154,3 +2154,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Keep the job state transition and its audit event on the same serialized decision time.
 - Add a deterministic regression with a controlled clock that advances after the transition timestamp is captured.
 - GitHub Actions validation pending; no live production provider validation is claimed.
+
+
+## BUILD-00288 — Reuse transition timestamps across worker lifecycle events
+- Pass the timestamp already captured under the SQLite write lock into claim, heartbeat, finish, and fail job-event records.
+- Prevent event helper clock reads from drifting away from the state transition that the event describes.
+- Add deterministic controlled-clock coverage for finish and fail transitions.
+- GitHub Actions validation pending; deterministic SQLite tests only, no live distributed-worker validation is claimed.
