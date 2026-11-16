@@ -19,6 +19,8 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
     source = os.environ if env is None else env
     legacy_review_token = bool(str(source.get("NEXUS_REVIEW_TOKEN", "")).strip())
     reviewer_credentials = bool(str(source.get("NEXUS_REVIEW_CREDENTIALS_JSON", "")).strip())
+    role_map_configured = bool(str(source.get("NEXUS_REVIEW_ROLE_MAP_JSON", "")).strip())
+    role_map_required = reviewer_credentials
     checks = {
         "operator_auth": {
             "configured": legacy_review_token or reviewer_credentials,
@@ -28,13 +30,16 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
             "optional_missing": [],
         },
         "operator_rbac": {
-            "configured": bool(str(source.get("NEXUS_REVIEW_ROLE_MAP_JSON", "")).strip()),
-            "missing": [],
-            "optional_missing": (
-                [] if str(source.get("NEXUS_REVIEW_ROLE_MAP_JSON", "")).strip()
+            "configured": role_map_configured or not role_map_required,
+            "missing": (
+                [] if role_map_configured or not role_map_required
                 else ["NEXUS_REVIEW_ROLE_MAP_JSON"]
             ),
-            "optional": True,
+            "optional_missing": (
+                [] if role_map_configured or role_map_required
+                else ["NEXUS_REVIEW_ROLE_MAP_JSON"]
+            ),
+            "optional": not role_map_required,
         },
         # Provider bearer tokens are optional: endpoint adapters support
         # unauthenticated providers as well as bearer-authenticated providers.
