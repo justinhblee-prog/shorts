@@ -218,7 +218,9 @@ class SchedulerTests(unittest.TestCase):
 
     def test_outbox_moves_to_dead_letter_after_ten_failed_attempts(self):
         now = datetime.now(timezone.utc)
-        self.schedule(now - timedelta(minutes=5))
+        self.schedules.create("annual", 31536000,
+            {"brand": "Brain Glitch", "region": "US", "language": "English", "topic": "Test"},
+            start_at=(now - timedelta(minutes=5)).isoformat())
         class FailingQueue:
             def is_paused(self):
                 return False
@@ -240,7 +242,9 @@ class SchedulerTests(unittest.TestCase):
 
     def test_dead_letter_can_be_manually_retried_and_dispatched_idempotently(self):
         now = datetime.now(timezone.utc)
-        self.schedule(now - timedelta(minutes=5))
+        self.schedules.create("annual", 31536000,
+            {"brand": "Brain Glitch", "region": "US", "language": "English", "topic": "Test"},
+            start_at=(now - timedelta(minutes=5)).isoformat())
         class FailingQueue:
             def is_paused(self):
                 return False
@@ -262,11 +266,8 @@ class SchedulerTests(unittest.TestCase):
     def test_retry_dead_letter_requires_existing_dead_letter_id(self):
         for invalid in ("", None, 42):
             with self.subTest(invalid=invalid):
-                if invalid == 42:
-                    with self.assertRaisesRegex(ValueError, "outbox_id"):
-                        self.schedules.retry_dead_letter(invalid)
-                else:
-                    self.assertIsNone(self.schedules.retry_dead_letter(invalid))
+                with self.assertRaisesRegex(ValueError, "outbox_id"):
+                    self.schedules.retry_dead_letter(invalid)
         self.assertIsNone(self.schedules.retry_dead_letter("missing"))
 
     def test_naive_now_is_rejected(self):
