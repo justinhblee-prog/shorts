@@ -3,6 +3,7 @@ import tempfile
 import unittest
 import urllib.error
 from pathlib import Path
+import json
 
 from production_pipeline import (
     JsonProvider, ProductionPipeline, ProductionStore, ProductionLeaseConflict, ProviderAttemptConflict, ProviderError,
