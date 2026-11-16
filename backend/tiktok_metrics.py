@@ -26,6 +26,12 @@ def _stamp(value=None):
     return (value or _now()).astimezone(timezone.utc).isoformat()
 
 
+def _lease_duration_seconds(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1 or value > 3600:
+        raise ValueError("TikTok metrics lease duration must be an integer from 1 to 3600 seconds")
+    return max(30, value)
+
+
 class TikTokMetricsError(RuntimeError):
     pass
 
@@ -92,7 +98,7 @@ class TikTokMetricsStore:
               VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET
               owner_id=excluded.owner_id,lease_token=excluded.lease_token,
               expires_at=excluded.expires_at
-            """, (owner_id, token, _stamp(now + timedelta(seconds=max(30, int(lease_seconds))))))
+            """, (owner_id, token, _stamp(now + timedelta(seconds=_lease_duration_seconds(lease_seconds)))))
         return token
 
     def renew_lease(self, owner_id, lease_token, lease_seconds=300, now=None):
@@ -100,7 +106,7 @@ class TikTokMetricsStore:
         if isinstance(now, (int, float)):
             now = datetime.fromtimestamp(float(now), timezone.utc)
         stamp = _stamp(now)
-        expires = _stamp(now + timedelta(seconds=max(30, int(lease_seconds))))
+        expires = _stamp(now + timedelta(seconds=_lease_duration_seconds(lease_seconds)))
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             cur = c.execute(
