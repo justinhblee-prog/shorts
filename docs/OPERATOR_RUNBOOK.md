@@ -331,3 +331,8 @@ The encrypted YouTube OAuth flow passed **352 backend tests** in [GitHub Actions
 5. Perform a private test upload and confirm its platform ID and Analytics report are collected before enabling public publishing.
 
 The verification endpoint is protected by the dashboard review token. It never returns access or refresh tokens. Stored OAuth approval and live API verification are distinct states.
+
+
+### BUILD-00037 verification test
+
+The live verification endpoint is implemented and covered by automated tests, but no real account was tested during CI. After OAuth consent, authenticate to the dashboard and run **실계정 연결 테스트**. Confirm the intended channel title/ID and both Data API and Analytics API states. Only then proceed to a private test upload.
