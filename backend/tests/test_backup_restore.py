@@ -86,7 +86,7 @@ class BackupRestoreTests(unittest.TestCase):
             for member in source.getmembers():
                 data = source.extractfile(member).read() if member.isfile() else None
                 if member.name == "media/clip.mp4":
-                    data = b"tampered"
+                    data = b"tamper"
                     member.size = len(data)
                 target.addfile(member, __import__("io").BytesIO(data) if data is not None else None)
         with self.assertRaisesRegex(BackupRestoreError, "checksum mismatch"):
