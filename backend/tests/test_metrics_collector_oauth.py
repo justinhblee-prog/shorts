@@ -52,6 +52,48 @@ class ScheduledYouTubeAnalyticsOAuthTests(unittest.TestCase):
         self.assertEqual(result["requested"], 0)
         store.release_lease.assert_called_once_with(metrics_collector.OWNER_ID, "lease-token")
 
+    def test_analytics_collector_discards_completed_results_after_lease_loss(self):
+        store = Mock()
+        store.acquire_lease.return_value = "lease-token"
+        store.renew_lease.side_effect = [True, False]
+        collector = Mock()
+        collector.refresh_due_metrics.return_value = {
+            "requested": 1, "collected": 1, "failed": [], "results": []
+        }
+
+        with self.assertRaises(metrics_collector.CollectorLeaseLost):
+            metrics_collector.run_youtube_analytics_once(
+                store=store, collector=collector
+            )
+
+        self.assertEqual(
+            [call.args[0] for call in store.record_collection.call_args_list],
+            ["running"],
+        )
+        store.release_lease.assert_called_once_with(
+            metrics_collector.OWNER_ID, "lease-token"
+        )
+
+    def test_analytics_collector_does_not_record_failure_after_lease_loss(self):
+        store = Mock()
+        store.acquire_lease.return_value = "lease-token"
+        store.renew_lease.side_effect = [True, False]
+        collector = Mock()
+        collector.refresh_due_metrics.side_effect = RuntimeError("provider unavailable")
+
+        with self.assertRaises(metrics_collector.CollectorLeaseLost):
+            metrics_collector.run_youtube_analytics_once(
+                store=store, collector=collector
+            )
+
+        self.assertEqual(
+            [call.args[0] for call in store.record_collection.call_args_list],
+            ["running"],
+        )
+        store.release_lease.assert_called_once_with(
+            metrics_collector.OWNER_ID, "lease-token"
+        )
+
     def test_collector_failure_still_releases_lease(self):
         store = Mock()
         store.acquire_lease.return_value = "lease-token"
