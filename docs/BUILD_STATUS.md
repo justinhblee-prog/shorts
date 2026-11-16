@@ -1134,4 +1134,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Treat cancellation during a running provider request as externally ambiguous, revoke the worker lease, and pause production until manual reconciliation.
 - Persist graceful worker shutdown as `offline`; stale-heartbeat detection remains the fallback for hard crashes.
 - Add tests for queued/running/review-pending cancellation, production-state consistency and offline worker registration.
-- Validation pending.
+- GitHub Actions PR run [43796187131](https://github.com/justinhblee-prog/shorts/actions/runs/43796187131) passed **451 backend tests** and the complete `scripts/validate.sh` command.
