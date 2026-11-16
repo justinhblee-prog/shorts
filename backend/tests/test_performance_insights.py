@@ -240,6 +240,26 @@ class PerformanceTests(unittest.TestCase):
    "drop_percentage_points":60.0,
   })
 
+ def test_retention_diagnostics_ignores_boolean_and_overflow_coordinates(self):
+  from performance_insights import _retention_diagnostics
+  result=_retention_diagnostics([
+   {"elapsed_video_time_ratio":True,"audience_watch_ratio":0.8},
+   {"elapsed_video_time_ratio":0.25,"audience_watch_ratio":False},
+   {"elapsed_video_time_ratio":"1e9999","audience_watch_ratio":0.5},
+   {"elapsed_video_time_ratio":0.5,"audience_watch_ratio":0.7},
+  ])
+  self.assertEqual(result["status"],"available")
+  self.assertEqual(result["point_count"],1)
+  self.assertEqual(result["end_retention"],0.7)
+
+ def test_duration_bucket_rejects_boolean_nan_and_infinite_values(self):
+  from performance_insights import _duration_bucket
+  for value in (True, False, float("nan"), float("inf"), float("-inf"), "1e9999"):
+   with self.subTest(value=value):
+    self.assertEqual(_duration_bucket(value),"unknown")
+  self.assertEqual(_duration_bucket(15),"under_20s")
+  self.assertEqual(_duration_bucket(30),"20_40s")
+
  def test_matched_analytics_cohort_adds_observations_only_with_three_videos(self):
   analytics=YouTubeAnalyticsStore(self.db)
   values=[
