@@ -261,6 +261,14 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertIsNotNone(status["latest_snapshot_at"])
         self.assertEqual(status["last_error"], "1 video collection(s) failed")
 
+        self.store.record_collection("running")
+        running = self.store.status()
+        self.assertEqual(running["status"], "running")
+        self.assertEqual(running["last_batch"], {
+            "requested": 3, "collected": 2, "failed": 1,
+        })
+        self.assertEqual(running["last_error"], "1 video collection(s) failed")
+
         self.store.record_collection("succeeded", requested=0, collected=0)
         recovered = self.store.status()
         self.assertEqual(recovered["status"], "succeeded")
