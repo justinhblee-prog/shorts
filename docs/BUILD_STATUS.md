@@ -1797,3 +1797,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - A delayed poll error is ignored if the same attempt has since moved to another state; it cannot refresh retry backoff timestamps or append a misleading retry-scheduled event.
 - Added a regression verifying stale poll errors leave status, update timestamp, and event history unchanged.
 - Deterministic local database validation only; no live TikTok API verification is implied.
+
+## BUILD-00217 — Fence TikTok timeout uncertainty transitions
+- A delayed publish/init transport timeout may move a TikTok attempt to `reconciliation_required` only while that attempt is still `initializing` or `uploading`.
+- If a concurrent status poll has already advanced the same attempt to `processing` or another state, the timeout is ignored and no stale uncertainty audit event is appended.
+- Added a regression where a late transport timeout arrives after TikTok has confirmed processing.
+- Deterministic local database validation only; no live TikTok API verification is implied.
