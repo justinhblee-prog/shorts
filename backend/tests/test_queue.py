@@ -172,6 +172,39 @@ class QueueTests(unittest.TestCase):
   with self.assertRaises(LeaseConflict):
    self.q.finish(job["id"],"worker-lost",claimed["lease_token"])
 
+ def test_worker_restart_racing_expired_lease_recovery_preserves_new_generation(self):
+  old=self.q.register_worker("race-worker","host-a")
+  job=self.q.enqueue("render",{"topic":"restart-recovery-race"})
+  claimed=self.q.claim("race-worker","host-a",generation_token=old["generation_token"])
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(job["id"],))
+  gate=Event()
+  def restart():
+   gate.wait()
+   return self.q.register_worker("race-worker","host-a")
+  def recover():
+   gate.wait()
+   return self.q.recover()
+  with ThreadPoolExecutor(max_workers=2) as pool:
+   restarted=pool.submit(restart)
+   recovery=pool.submit(recover)
+   gate.set()
+   current=restarted.result()
+   result=recovery.result()
+  self.assertNotEqual(old["generation_token"],current["generation_token"])
+  self.assertEqual(result["requeued"],1)
+  self.assertEqual(self.q.get(job["id"])["status"],"queued")
+  self.assertFalse(self.q.mark_worker_offline("race-worker",old["generation_token"]))
+  registry=self.q.workers()[0]
+  self.assertEqual(registry["generation_token"],current["generation_token"])
+  self.assertEqual(registry["status"],"online")
+  events=[event for event in self.q.events(job["id"]) if event["event_type"]=="lease_expired"]
+  self.assertEqual(len(events),1)
+  replacement_claim=self.q.claim("race-worker","host-a",generation_token=current["generation_token"])
+  self.assertEqual(replacement_claim["id"],job["id"])
+  with self.assertRaises(LeaseConflict):
+   self.q.heartbeat(job["id"],"race-worker",claimed["lease_token"],old["generation_token"])
+
  def test_heartbeat_and_recovery_fence_stale_worker_after_reclaim(self):
   job=self.q.enqueue("render",{"topic":"heartbeat-recovery"})
   first=self.q.claim("worker-first")
