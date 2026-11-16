@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from production_pipeline import ProductionStore
+from queue_store import JobQueue
 from review_workflow import ReviewStore
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from policy_engine import evaluate_content_policy, POLICY_VERSION, POLICY_CHECKED_ON
@@ -74,12 +75,24 @@ class YouTubePublishingTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
         self.db=os.path.join(self.tmp.name,"db.sqlite3")
+        self.queue=JobQueue(self.db)
         self.prod=ProductionStore(self.db)
         self.review=ReviewStore(self.db)
         self.uploads=YouTubeUploadStore(self.db)
         self.prod.create("job-1",{"brand":"Brain Glitch","region":"US",
                                   "language":"English","topic":"Sleep"})
         self.prod.stage("job-1","rendered","review_pending")
+        with self.queue.db() as connection:
+            timestamp="2026-11-16T00:00:00+00:00"
+            connection.execute("""
+                INSERT INTO pipeline_jobs
+                  (id,job_type,payload_json,status,priority,attempt,max_attempts,
+                   available_at,created_at,updated_at)
+                VALUES(?,?,?,'review_pending',100,0,3,?,?,?)
+            """, ("job-1","short_video_production",
+                  json.dumps({"brand":"Brain Glitch","region":"US",
+                              "language":"English","topic":"Sleep"}),
+                  timestamp,timestamp,timestamp))
         os.environ["NEXUS_MEDIA_DIR"]=self.tmp.name
         self.media=os.path.join(self.tmp.name,"video.mp4")
         media_bytes=b"fake-media-for-unit-test"
@@ -357,6 +370,11 @@ class YouTubePublishingTests(unittest.TestCase):
         # setUp already records the initial approval; simulate a revised
         # artifact returning to review before the later revision decision.
         self.prod.stage("job-1","review","review_pending")
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                ("job-1",),
+            )
         self.review.decide("job-1","revision_requested","reviewer-2","Correct captions")
         with self.assertRaisesRegex(YouTubeUploadError,"latest human review decision"):
             self.publisher.upload_approved(
@@ -409,6 +427,17 @@ class YouTubePublishingTests(unittest.TestCase):
         self.prod.create("job-2",{"brand":"Future Leak","region":"US",
                                   "language":"English","topic":"Robotics"})
         self.prod.stage("job-2","rendered","review_pending")
+        with self.queue.db() as connection:
+            timestamp="2026-11-16T00:00:00+00:00"
+            connection.execute("""
+                INSERT INTO pipeline_jobs
+                  (id,job_type,payload_json,status,priority,attempt,max_attempts,
+                   available_at,created_at,updated_at)
+                VALUES(?,?,?,'review_pending',100,0,3,?,?,?)
+            """, ("job-2","short_video_production",
+                  json.dumps({"brand":"Future Leak","region":"US",
+                              "language":"English","topic":"Robotics"}),
+                  timestamp,timestamp,timestamp))
         policy = evaluate_content_policy({
             "rights": {"visuals_cleared": True, "audio_cleared": True,
                        "likeness_authorized": True},

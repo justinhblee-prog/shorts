@@ -421,40 +421,46 @@ class ReviewStore:
             queue_table = c.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
             ).fetchone()
-            if queue_table:
-                queued = c.execute(
-                    "SELECT job_type,status FROM pipeline_jobs WHERE id=?", (job_id,)
-                ).fetchone()
-                if queued is not None:
-                    if (queued["job_type"] != "short_video_production"
-                            or queued["status"] != "review_pending"):
-                        raise ReviewConflict(
-                            "Queue job is not in the matching review_pending state"
-                        )
-                    queue_updated = c.execute("""
-                      UPDATE pipeline_jobs SET status=?,worker_id=NULL,
-                        lease_token=NULL,lease_expires_at=NULL,updated_at=?
-                      WHERE id=? AND job_type='short_video_production'
-                        AND status='review_pending'
-                    """, (decision, timestamp, job_id))
-                    if queue_updated.rowcount != 1:
-                        raise ReviewConflict("Queue review state changed concurrently")
-                    events_table = c.execute(
-                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_events'"
-                    ).fetchone()
-                    if events_table:
-                        c.execute("""
-                          INSERT INTO job_events
-                            (job_id,event_type,from_status,to_status,worker_id,
-                             details_json,created_at)
-                          VALUES(?,?,?,?,?,?,?)
-                        """, (
-                            job_id, "review_" + decision, "review_pending",
-                            decision, reviewer_id,
-                            json.dumps({"reviewer_id": reviewer_id,
-                                        "comment": comment}, ensure_ascii=False),
-                            timestamp,
-                        ))
+            if queue_table is None:
+                raise ReviewConflict(
+                    "Durable queue is unavailable; review decision cannot be committed"
+                )
+            queued = c.execute(
+                "SELECT job_type,status FROM pipeline_jobs WHERE id=?", (job_id,)
+            ).fetchone()
+            if queued is None:
+                raise ReviewConflict(
+                    "Durable queue job is missing; review decision cannot be committed"
+                )
+            if (queued["job_type"] != "short_video_production"
+                    or queued["status"] != "review_pending"):
+                raise ReviewConflict(
+                    "Queue job is not in the matching review_pending state"
+                )
+            queue_updated = c.execute("""
+              UPDATE pipeline_jobs SET status=?,worker_id=NULL,
+                lease_token=NULL,lease_expires_at=NULL,updated_at=?
+              WHERE id=? AND job_type='short_video_production'
+                AND status='review_pending'
+            """, (decision, timestamp, job_id))
+            if queue_updated.rowcount != 1:
+                raise ReviewConflict("Queue review state changed concurrently")
+            events_table = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_events'"
+            ).fetchone()
+            if events_table:
+                c.execute("""
+                  INSERT INTO job_events
+                    (job_id,event_type,from_status,to_status,worker_id,
+                     details_json,created_at)
+                  VALUES(?,?,?,?,?,?,?)
+                """, (
+                    job_id, "review_" + decision, "review_pending",
+                    decision, reviewer_id,
+                    json.dumps({"reviewer_id": reviewer_id,
+                                "comment": comment}, ensure_ascii=False),
+                    timestamp,
+                ))
             row = c.execute(
                 "SELECT * FROM production_runs WHERE job_id=?", (job_id,)
             ).fetchone()
