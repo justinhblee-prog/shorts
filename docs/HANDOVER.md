@@ -1151,3 +1151,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The API endpoint `GET /api/youtube/analytics/collection-status` is protected by `analytics.read`.
 - The dashboard performance panel shows collection state, last batch counts, uploaded-video coverage and latest report timestamp.
 - CI validation pending.
+
+
+### BUILD-00134 validation record
+
+- GitHub Actions PR run [43795106625](https://github.com/justinhblee-prog/shorts/actions/runs/43795106625) completed successfully.
+- The full validation script passed with **438 backend tests**, including collection-state transitions and uploaded-video coverage counts.
+- Frontend JavaScript syntax/DOM validation and Compose YAML parsing passed within the same script.
+- This verifies code paths with fixtures; a live YouTube channel and scheduled production reports remain deployment checks.
