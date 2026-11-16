@@ -29,6 +29,7 @@ from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
+from media_inspection import MediaInspector, MediaInspectionError
 from preflight import build_preflight
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
@@ -117,6 +118,9 @@ class ProductionReconciliationAction(BaseModel):
     operator_id:str=Field(min_length=1,max_length=128)
     evidence_reference:str=Field(min_length=1,max_length=1000)
     note:str=Field(min_length=1,max_length=2000)
+
+class ProviderResultAdoptionAction(BaseModel):
+    provider_attempt_id:str=Field(min_length=1,max_length=128)
 
 class Claim(BaseModel):
     worker_id:str=Field(min_length=1,max_length=128)
@@ -308,6 +312,39 @@ def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(d
     # The response payload may contain provider output and signed URLs; return
     # it only to authorized production readers and never expose auth tokens.
     return {"job_id":job_id,"attempts":attempts}
+
+@app.post("/api/production/jobs/{job_id}/adopt-recovered-render")
+def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionAction,
+                                      x_review_token:str|None=Header(default=None)):
+    require_review_permission(x_review_token,"media.manage")
+    production=production_store.get(job_id)
+    if production is None:
+        raise HTTPException(404,"Production job not found")
+    attempts=production_store.provider_attempts(job_id)
+    attempt=next((item for item in attempts
+                  if item["id"]==body.provider_attempt_id),None)
+    if attempt is None or attempt["stage"]!="rendering":
+        raise HTTPException(404,"Provider render attempt not found")
+    if attempt["state"]!="response_received" or not attempt.get("response_json"):
+        raise HTTPException(409,"Provider render response is not available for adoption")
+    try:
+        import json
+        response=json.loads(attempt["response_json"])
+        video_url=response.get("video_url") if isinstance(response,dict) else None
+        if not isinstance(video_url,str) or not video_url.startswith("https://"):
+            raise HTTPException(409,"Stored provider response has no HTTPS video URL")
+        staged=media_stager.stage(job_id,video_url)
+        inspected=MediaInspector().inspect(media_stager.media_dir / staged["media_path"])
+        result=production_store.adopt_recovered_render(
+            job_id,body.provider_attempt_id,staged,inspected)
+        return {"adoption":result,"media_inspection":inspected,
+                "human_review_required":True,"publishing_enabled":False}
+    except HTTPException:
+        raise
+    except (MediaStagingError,MediaInspectionError) as e:
+        raise HTTPException(422,"Recovered media could not be verified: "+str(e))
+    except (ValueError,KeyError) as e:
+        raise HTTPException(409,str(e))
 
 @app.post("/api/production/jobs/{job_id}/execute")
 def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
