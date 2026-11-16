@@ -165,8 +165,22 @@ class ProductionStore:
                 c.execute("BEGIN IMMEDIATE")
                 self._assert_worker_lease(c, job_id, worker_id, lease_token)
             if stage == "script" and status == "running":
-                # A fresh attempt invalidates every artifact from the previous attempt.
-                # Keep this in the same transaction as the fenced stage transition.
+                # A new run resets prior artifacts, but never erase evidence needed
+                # to reconcile an ambiguous or unconsumed provider response.
+                unresolved=c.execute("""SELECT stage,state,attempt_number
+                    FROM provider_execution_attempts
+                    WHERE job_id=?
+                      AND state IN ('request_started','outcome_unknown','response_received')
+                    ORDER BY started_at,id LIMIT 1""",(job_id,)).fetchone()
+                if unresolved is not None:
+                    raise ProviderError(
+                        unresolved["stage"],
+                        "Cannot reset production artifacts while provider attempt "
+                        + str(unresolved["attempt_number"]) + " remains "
+                        + unresolved["state"] + "; reconcile it before retrying",
+                        retryable=False,
+                    )
+                # Keep the check, deletion and stage transition in one DB transaction. 
                 c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
             updated=c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
                          WHERE job_id=?""", (stage, status, error, utc_now(), job_id))
