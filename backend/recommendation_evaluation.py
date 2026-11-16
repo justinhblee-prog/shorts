@@ -47,6 +47,59 @@ def _spearman(left, right):
     return round(sum(a * b for a, b in zip(dx, dy)) / denom, 4)
 
 
+def _retention_at(curve, target):
+    """Return the nearest source-reported audienceWatchRatio to a video-time ratio."""
+    candidates = []
+    for point in curve if isinstance(curve, list) else []:
+        if not isinstance(point, dict):
+            continue
+        ratio = point.get("elapsed_video_time_ratio")
+        value = point.get("audience_watch_ratio")
+        if not isinstance(ratio, (int, float)) or not isinstance(value, (int, float)):
+            continue
+        if not math.isfinite(float(ratio)) or not math.isfinite(float(value)) or value < 0:
+            continue
+        candidates.append((abs(float(ratio) - target), float(value)))
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: item[0])[1]
+
+
+def _metric_holdout(diagnostics):
+    diagnostics = sorted(diagnostics, key=lambda item: item["generated_at"])
+    result = {
+        "status": "insufficient_run_coverage",
+        "eligible_run_count": len(diagnostics),
+        "minimum_runs": 5,
+        "minimum_selected_measured_per_cohort": 3,
+        "pre_holdout_run_count": 0,
+        "holdout_run_count": 0,
+        "holdout_median_score_spearman": None,
+        "holdout_median_rank_spearman": None,
+        "holdout_positive_score_association_share": None,
+        "score_adjustment_enabled": False,
+    }
+    if len(diagnostics) >= 5:
+        split = max(2, int(math.ceil(len(diagnostics) * 0.30)))
+        split = min(split, len(diagnostics) - 2)
+        holdout = diagnostics[-split:]
+        score_values = [item["median_score_spearman"] for item in holdout]
+        rank_values = [item["median_rank_spearman"] for item in holdout]
+        result.update({
+            "status": "holdout_available",
+            "pre_holdout_run_count": len(diagnostics) - split,
+            "holdout_run_count": split,
+            "holdout_start": holdout[0]["generated_at"],
+            "holdout_end": holdout[-1]["generated_at"],
+            "holdout_median_score_spearman": round(statistics.median(score_values), 4),
+            "holdout_median_rank_spearman": round(statistics.median(rank_values), 4),
+            "holdout_positive_score_association_share": round(
+                sum(value > 0 for value in score_values) / len(score_values), 4
+            ),
+        })
+    return result
+
+
 class RecommendationEvaluationStore:
     def __init__(self, db_path="data/nexus.sqlite3"):
         self.db_path = str(db_path)
@@ -189,13 +242,23 @@ class RecommendationEvaluationStore:
     def evaluate(self, performance, platform="youtube"):
         if platform not in ("youtube", "tiktok"):
             raise ValueError("platform must be youtube or tiktok")
-        measured = {
-            str(item.get("job_id")): item for item in performance.get("videos", [])
-            if item.get("measurement_status") == "measured"
-            and item.get("platform", "youtube") == platform
-            and isinstance(item.get("views_per_hour"), (int, float))
-            and item.get("views_per_hour") >= 0
-        }
+        measured = {}
+        for item in performance.get("videos", []):
+            if item.get("platform", "youtube") != platform or not item.get("job_id"):
+                continue
+            views = item.get("views_per_hour")
+            has_views = (
+                item.get("measurement_status") == "measured"
+                and isinstance(views, (int, float)) and math.isfinite(float(views))
+                and views >= 0
+            )
+            has_analytics = any(
+                isinstance(item.get(key), (int, float))
+                and math.isfinite(float(item[key])) and item[key] >= 0
+                for key in ("average_view_percentage", "average_view_duration_seconds")
+            ) or bool(item.get("audience_retention_curve"))
+            if has_views or has_analytics:
+                measured[str(item["job_id"])] = item
         with self.db() as c:
             rows = c.execute("""SELECT c.run_id,r.generated_at AS run_generated_at,r.platform,
                 c.selected_job_id,c.selected_at,c.created_at,
@@ -221,7 +284,23 @@ class RecommendationEvaluationStore:
                 "observed_at": row["selected_at"] or row["created_at"],
                 "recommendation_rank": int(row["recommendation_rank"]),
                 "recommendation_score": float(row["recommendation_score"]),
-                "views_per_hour": float(measured[job_id]["views_per_hour"]),
+                "views_per_hour": (
+                    float(measured[job_id]["views_per_hour"])
+                    if isinstance(measured[job_id].get("views_per_hour"), (int, float))
+                    and math.isfinite(float(measured[job_id]["views_per_hour"]))
+                    and measured[job_id]["views_per_hour"] >= 0 else None
+                ),
+                "average_view_percentage": measured[job_id].get("average_view_percentage"),
+                "average_view_duration_seconds": measured[job_id].get("average_view_duration_seconds"),
+                "audience_watch_ratio_25": _retention_at(
+                    measured[job_id].get("audience_retention_curve"), 0.25
+                ),
+                "audience_watch_ratio_50": _retention_at(
+                    measured[job_id].get("audience_retention_curve"), 0.50
+                ),
+                "audience_watch_ratio_75": _retention_at(
+                    measured[job_id].get("audience_retention_curve"), 0.75
+                ),
                 "outcome_brand": measured[job_id].get("brand"),
                 "outcome_region": measured[job_id].get("region"),
                 "publication_age_bucket": measured[job_id].get("publication_age_bucket"),
@@ -231,7 +310,20 @@ class RecommendationEvaluationStore:
                 "trend_id": row["trend_id"],
             })
         total_selected = len(rows)
-        total_measured = len(observations)
+        view_observations = [
+            item for item in observations
+            if isinstance(item.get("views_per_hour"), (int, float))
+        ]
+        total_measured = len(view_observations)
+        analytics_metric_names = (
+            "average_view_percentage", "average_view_duration_seconds",
+            "audience_watch_ratio_25", "audience_watch_ratio_50",
+            "audience_watch_ratio_75",
+        )
+        analytics_measured = [
+            item for item in observations
+            if any(isinstance(item.get(name), (int, float)) for name in analytics_metric_names)
+        ]
         # Compare candidates within the same exposure and comparable outcome cohort.
         # Raw scores from different API runs, brands, regions, ages or formats are
         # not directly comparable.
@@ -248,31 +340,60 @@ class RecommendationEvaluationStore:
             grouped.setdefault(run_id, {}).setdefault(cohort_key, []).append(item)
         run_diagnostics = []
         eligible_cohort_count = 0
+        analytics_run_diagnostics = {name: [] for name in analytics_metric_names}
         for run_id, cohorts in grouped.items():
             cohort_score_rhos = []
             cohort_rank_rhos = []
             cohort_sample_count = 0
+            metric_run = {
+                name: {"score": [], "rank": [], "samples": 0}
+                for name in analytics_metric_names
+            }
             for cohort_items in cohorts.values():
-                if len(cohort_items) < 3:
-                    continue
-                score_rho = _spearman(
-                    [item["recommendation_score"] for item in cohort_items],
-                    [item["views_per_hour"] for item in cohort_items],
-                )
-                rank_rho = _spearman(
-                    [-item["recommendation_rank"] for item in cohort_items],
-                    [item["views_per_hour"] for item in cohort_items],
-                )
-                if score_rho is None or rank_rho is None:
-                    continue
-                cohort_score_rhos.append(score_rho)
-                cohort_rank_rhos.append(rank_rho)
-                cohort_sample_count += len(cohort_items)
-                eligible_cohort_count += 1
+                view_items = [
+                    item for item in cohort_items
+                    if isinstance(item.get("views_per_hour"), (int, float))
+                ]
+                if len(view_items) >= 3:
+                    score_rho = _spearman(
+                        [item["recommendation_score"] for item in view_items],
+                        [item["views_per_hour"] for item in view_items],
+                    )
+                    rank_rho = _spearman(
+                        [-item["recommendation_rank"] for item in view_items],
+                        [item["views_per_hour"] for item in view_items],
+                    )
+                    if score_rho is not None and rank_rho is not None:
+                        cohort_score_rhos.append(score_rho)
+                        cohort_rank_rhos.append(rank_rho)
+                        cohort_sample_count += len(view_items)
+                        eligible_cohort_count += 1
+                for metric_name in analytics_metric_names:
+                    metric_items = [
+                        item for item in cohort_items
+                        if isinstance(item.get(metric_name), (int, float))
+                        and math.isfinite(float(item[metric_name]))
+                        and item[metric_name] >= 0
+                    ]
+                    if len(metric_items) < 3:
+                        continue
+                    score_rho = _spearman(
+                        [item["recommendation_score"] for item in metric_items],
+                        [item[metric_name] for item in metric_items],
+                    )
+                    rank_rho = _spearman(
+                        [-item["recommendation_rank"] for item in metric_items],
+                        [item[metric_name] for item in metric_items],
+                    )
+                    if score_rho is not None and rank_rho is not None:
+                        metric_run[metric_name]["score"].append(score_rho)
+                        metric_run[metric_name]["rank"].append(rank_rho)
+                        metric_run[metric_name]["samples"] += len(metric_items)
+            generated_at = next(iter(cohorts.values()))[0]["run_generated_at"]
             if cohort_score_rhos:
                 run_diagnostics.append({
                     "run_id": run_id,
-                    "generated_at": next(iter(cohorts.values()))[0]["run_generated_at"],
+                    "generated_at": generated_at,
                     "eligible_cohort_count": len(cohort_score_rhos),
                     "selected_measured_count": cohort_sample_count,
                     "median_score_views_spearman": round(
@@ -282,6 +403,22 @@ class RecommendationEvaluationStore:
                         statistics.median(cohort_rank_rhos), 4
                     ),
                 })
+            for metric_name, values in metric_run.items():
+                if values["score"]:
+                    analytics_run_diagnostics[metric_name].append({
+                        "generated_at": generated_at,
+                        "median_score_spearman": round(
+                            statistics.median(values["score"]), 4
+                        ),
+                        "median_rank_spearman": round(
+                            statistics.median(values["rank"]), 4
+                        ),
+                        "selected_measured_count": values["samples"],
+                    })
+        analytics_validation = {
+            metric_name: _metric_holdout(diagnostics)
+            for metric_name, diagnostics in analytics_run_diagnostics.items()
+        }
         run_diagnostics.sort(key=lambda item: item["generated_at"])
         within_run = {
             "status": "insufficient_run_coverage",
@@ -338,13 +475,15 @@ class RecommendationEvaluationStore:
             "method": "chronological_70_30_holdout_spearman",
             "selected_production_count": total_selected,
             "measured_outcome_count": total_measured,
-            "unmeasured_selected_count": max(0, total_selected - total_measured),
+            "analytics_measured_outcome_count": len(analytics_measured),
+            "unmeasured_selected_count": max(0, total_selected - len(observations)),
             "pre_holdout_count": 0,
             "holdout_count": 0,
             "holdout_score_views_spearman": None,
             "holdout_rank_views_spearman": None,
             "ranking_score_adjustment_enabled": False,
             "within_run_validation": within_run,
+            "analytics_outcome_validation": analytics_validation,
             "minimum_total_observations": 10,
             "pooled_metric_boundary": (
                 "The pooled chronological Spearman metric mixes different exposure runs "
