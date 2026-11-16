@@ -583,3 +583,8 @@ The periodic `metrics-collector` service uses the encrypted YouTube OAuth token 
 ### YouTube Analytics collection status
 
 The authenticated `GET /api/youtube/analytics/collection-status` endpoint and the performance dashboard show the last collection attempt/success, last batch requested/collected/failed counts, latest stored report timestamp, and coverage across uploaded videos. Collection state distinguishes `running`, `succeeded`, `partial` and `failed`; a partial batch never hides its failed count. Coverage counts are based on uploaded video IDs and stored Analytics snapshots, not guessed metrics.
+
+
+### BUILD-00135 — provider metrics response validation
+
+YouTube Analytics responses are checked for known unique headers, correct row shape, finite numeric metrics and bounded response sizes before use. Retention curves are independently validated; a malformed retention response does not discard valid watch-time metrics. TikTok metrics responses are fully validated before any persistence and accepted rows are committed in one SQLite transaction. A malformed later row cannot leave a partial batch.
