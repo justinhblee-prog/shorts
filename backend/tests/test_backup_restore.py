@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import sqlite3
@@ -94,6 +95,52 @@ class BackupRestoreTests(unittest.TestCase):
                 corrupt, self.db, self.media, self.backups, confirm_restore=True
             )
         self.assertEqual(self._db_value(), "before")
+
+    def test_restore_rejects_unsafe_archive_member_before_changing_live_data(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        corrupt = self.backups / "unsafe-path.tar.gz"
+        with tarfile.open(backup, "r:gz") as source, tarfile.open(corrupt, "w:gz") as target:
+            for member in source.getmembers():
+                stream = source.extractfile(member) if member.isfile() else None
+                target.addfile(member, stream)
+            extra = tarfile.TarInfo("media/../escape.txt")
+            extra.size = 1
+            target.addfile(extra, io.BytesIO(b"x"))
+        with self.assertRaisesRegex(BackupRestoreError, "unsafe path"):
+            restore_backup(corrupt, self.db, self.media, self.backups, confirm_restore=True)
+        self.assertEqual(self._db_value(), "before")
+
+    def test_restore_rejects_malformed_manifest_before_changing_live_data(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        corrupt = self.backups / "malformed-manifest.tar.gz"
+        with tarfile.open(backup, "r:gz") as source, tarfile.open(corrupt, "w:gz") as target:
+            for member in source.getmembers():
+                if member.name == "manifest.json":
+                    payload = json.dumps({
+                        "format_version": 1,
+                        "database_sha256": "0" * 64,
+                        "media_files": "not-a-list",
+                    }).encode("utf-8")
+                    replacement = tarfile.TarInfo(member.name)
+                    replacement.size = len(payload)
+                    target.addfile(replacement, io.BytesIO(payload))
+                else:
+                    stream = source.extractfile(member) if member.isfile() else None
+                    target.addfile(member, stream)
+        with self.assertRaisesRegex(BackupRestoreError, "media_files must be a list"):
+            restore_backup(corrupt, self.db, self.media, self.backups, confirm_restore=True)
+        self.assertEqual(self._db_value(), "before")
+
+    def test_backup_and_restore_preserve_empty_media_directories(self):
+        (self.media / "empty" / "nested").mkdir(parents=True)
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        (self.media / "empty").rmdir()
+        (self.media / "empty" / "nested").rmdir()
+        result = restore_backup(
+            backup, self.db, self.media, self.backups, confirm_restore=True
+        )
+        self.assertTrue(result["restored"])
+        self.assertTrue((self.media / "empty" / "nested").is_dir())
 
     def test_backup_refuses_media_symlinks(self):
         target = self.root / "outside.txt"
