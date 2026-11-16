@@ -46,28 +46,12 @@ class TikTokOAuthStore:
               used_at TEXT, created_at TEXT NOT NULL,
               connection_epoch INTEGER NOT NULL DEFAULT 0
             );
+            CREATE INDEX IF NOT EXISTS idx_tiktok_oauth_states_expiry
+              ON tiktok_oauth_states(expires_at);
             CREATE TABLE IF NOT EXISTS tiktok_oauth_connection_epoch(
               id INTEGER PRIMARY KEY CHECK(id=1), epoch INTEGER NOT NULL
             );
             INSERT OR IGNORE INTO tiktok_oauth_connection_epoch(id,epoch) VALUES(1,0);
-            CREATE INDEX IF NOT EXISTS idx_tiktok_oauth_states_expiry
-              ON tiktok_oauth_states(expires_at);
-            """)
-        with self.db() as c:
-            columns = {row["name"] for row in c.execute(
-                "PRAGMA table_info(tiktok_oauth_states)"
-            ).fetchall()}
-            if "connection_epoch" not in columns:
-                c.execute(
-                    "ALTER TABLE tiktok_oauth_states ADD COLUMN connection_epoch INTEGER NOT NULL DEFAULT 0"
-                )
-            c.execute(
-                "CREATE TABLE IF NOT EXISTS tiktok_oauth_connection_epoch("
-                "id INTEGER PRIMARY KEY CHECK(id=1), epoch INTEGER NOT NULL)"
-            )
-            c.execute(
-                "INSERT OR IGNORE INTO tiktok_oauth_connection_epoch(id,epoch) VALUES(1,0)"
-            )
             CREATE TABLE IF NOT EXISTS tiktok_oauth_tokens(
               id INTEGER PRIMARY KEY CHECK(id=1), open_id TEXT NOT NULL,
               access_token_encrypted TEXT NOT NULL,
@@ -86,6 +70,18 @@ class TikTokOAuthStore:
               created_at TEXT NOT NULL
             );
             """)
+        with self.db() as c:
+            columns = {row["name"] for row in c.execute(
+                "PRAGMA table_info(tiktok_oauth_states)"
+            ).fetchall()}
+            if "connection_epoch" not in columns:
+                c.execute(
+                    "ALTER TABLE tiktok_oauth_states ADD COLUMN "
+                    "connection_epoch INTEGER NOT NULL DEFAULT 0"
+                )
+            c.execute(
+                "INSERT OR IGNORE INTO tiktok_oauth_connection_epoch(id,epoch) VALUES(1,0)"
+            )
 
     @contextmanager
     def db(self):
