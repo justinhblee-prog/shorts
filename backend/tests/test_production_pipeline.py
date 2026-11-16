@@ -601,6 +601,44 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(voice.calls, [])
         self.assertEqual(render.calls, [])
 
+    def test_provider_response_is_durable_before_artifact_adoption(self):
+        self.store.create("job-provider-journal",self.brief)
+        number=self.store.next_provider_attempt_number("job-provider-journal","rendering")
+        self.assertEqual(number,1)
+        key=self.store.begin_provider_attempt("job-provider-journal","rendering",number)
+        attempts=self.store.provider_attempts("job-provider-journal")
+        self.assertEqual(attempts[0]["state"],"request_started")
+        self.store.finish_provider_attempt(
+            "job-provider-journal","rendering",number,key,
+            {"request_id":"render-remote-123","video_url":"https://media.example/ready.mp4"})
+        saved=self.store.provider_attempts("job-provider-journal")
+        self.assertEqual(saved[0]["state"],"response_received")
+        self.assertEqual(saved[0]["provider_request_id"],"render-remote-123")
+        self.assertIn("ready.mp4",saved[0]["response_json"])
+        self.assertEqual(self.store.next_provider_attempt_number("job-provider-journal","rendering"),2)
+        self.assertEqual(self.store.get("job-provider-journal")["artifacts"],[])
+
+    def test_provider_transport_error_is_recorded_as_unknown_not_retried(self):
+        self.store.create("job-provider-unknown",self.brief)
+        key=self.store.begin_provider_attempt("job-provider-unknown","voice_generation",1)
+        self.store.mark_provider_attempt_unknown(
+            "job-provider-unknown","voice_generation",1,key,"connection timed out")
+        attempt=self.store.provider_attempts("job-provider-unknown")[0]
+        self.assertEqual(attempt["state"],"outcome_unknown")
+        self.assertEqual(attempt["error"],"connection timed out")
+        self.assertEqual(self.store.next_provider_attempt_number(
+            "job-provider-unknown","voice_generation"),2)
+
+    def test_provider_response_rejects_oversized_or_non_object_payload(self):
+        self.store.create("job-provider-bounds",self.brief)
+        key=self.store.begin_provider_attempt("job-provider-bounds","script",1)
+        with self.assertRaisesRegex(ValueError,"object"):
+            self.store.finish_provider_attempt(
+                "job-provider-bounds","script",1,key,["not","an","object"])
+        with self.assertRaisesRegex(ValueError,"2 MB"):
+            self.store.finish_provider_attempt(
+                "job-provider-bounds","script",1,key,{"data":"x"*(2*1024*1024)})
+
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
             ProductionPipeline.validate_brief({"brand": "x", "region": "US",
