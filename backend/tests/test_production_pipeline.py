@@ -1310,7 +1310,12 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(
             queue.get(job["id"])["lease_token"], claimed["lease_token"]
         )
-        self.assertEqual(self.store.artifacts(job["id"]), [])
+        with self.store.db() as conn:
+            artifact_count = conn.execute(
+                "SELECT COUNT(*) AS count FROM production_artifacts WHERE job_id=?",
+                (job["id"],),
+            ).fetchone()["count"]
+        self.assertEqual(artifact_count, 0)
 
         current = queue.claim(
             "worker-late", job_type="short_video_production",
