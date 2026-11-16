@@ -310,6 +310,7 @@ class TikTokPublishingTests(unittest.TestCase):
         )
         self.assertEqual(result["attempt_id"],"new-poll-attempt")
         self.assertEqual(result["status"],"reconciliation_required")
+        result=self.store.get("job-1")
         event=result["events"][-1]
         self.assertEqual(event["event_type"],"superseded_attempt_status_observed")
         self.assertEqual(event["attempt_id"],first_attempt)
