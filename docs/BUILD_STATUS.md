@@ -2016,4 +2016,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Reject an already-expired/replaced collector before invoking the OAuth token provider, because token refresh may itself make an outbound request.
 - Revalidate after token acquisition and immediately before the TikTok Display API request to cover lease loss during OAuth refresh.
 - Add regressions for a stale lease before OAuth initialization and lease replacement during token refresh; both must prevent the Display API transport call.
-- GitHub Actions validation pending. Tests use local SQLite and fake token/transport providers; no live TikTok OAuth/account/API validation is claimed.
+- GitHub Actions [run #3490](https://github.com/justinhblee-prog/shorts/actions/runs/43913802483) succeeded on commit `5edfebbfdb2c07450038c56f53be31816b680f9a`; `scripts/validate.sh` passed. Tests use local SQLite and fake token/transport providers; no live TikTok OAuth/account/API validation is claimed.
