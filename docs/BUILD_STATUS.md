@@ -2023,4 +2023,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add scheduled TikTok metrics collector regressions for lease loss after a successful provider batch and during provider-error handling.
 - Ensure stale workers cannot persist either a success or failed collection state after lease renewal fails.
 - Verify the worker still attempts to release its own lease during cleanup.
-- GitHub Actions validation pending. Tests use fake stores and collectors; no live TikTok OAuth/account/API validation is claimed.
+- GitHub Actions [run #3493](https://github.com/justinhblee-prog/shorts/actions/runs/43914162222) succeeded on commit `f939df3e5ff72723f96d5ac5942b8f78c202fc8e`; `scripts/validate.sh` passed. Tests use fake stores and collectors; no live TikTok OAuth/account/API validation is claimed.
