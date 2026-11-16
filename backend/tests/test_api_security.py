@@ -39,7 +39,7 @@ class ApiSecurityTests(unittest.TestCase):
             self.assertEqual(app_module.health()["status"], "ok")
 
     def test_all_operational_routes_require_review_token(self):
-        public = {"/api/health", "/api/brands", "/api/brands/{slug}", "/api/tiktok/oauth/callback", "/api/youtube/oauth/callback"}
+        public = {"/api/health", "/api/ready", "/api/brands", "/api/brands/{slug}", "/api/tiktok/oauth/callback", "/api/youtube/oauth/callback"}
         unprotected = []
         for route in app.routes:
             path = getattr(route, "path", "")
