@@ -36,16 +36,6 @@ def build_preflight(env=None):
             ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"],
         ),
         "youtube_data_api": _group(source, ["YOUTUBE_DATA_API_KEY"]),
-        "tiktok_oauth": _group(
-            source,
-            [
-                "TIKTOK_CLIENT_KEY",
-                "TIKTOK_CLIENT_SECRET",
-                "TIKTOK_REDIRECT_URI",
-                "TIKTOK_TOKEN_ENCRYPTION_KEY",
-            ],
-        ),
-        "tiktok_static_token": _group(source, [], ["TIKTOK_ACCESS_TOKEN"]),
     }
 
     media_dir = Path(source.get("NEXUS_MEDIA_DIR", "data/media"))
@@ -65,6 +55,27 @@ def build_preflight(env=None):
         "optional_missing": [],
     }
 
+    tiktok_oauth_keys = [
+        "TIKTOK_CLIENT_KEY",
+        "TIKTOK_CLIENT_SECRET",
+        "TIKTOK_REDIRECT_URI",
+        "TIKTOK_TOKEN_ENCRYPTION_KEY",
+    ]
+    tiktok_oauth_missing = [
+        key for key in tiktok_oauth_keys if not str(source.get(key, "")).strip()
+    ]
+    tiktok_oauth = not tiktok_oauth_missing
+    # OAuth is an optional connection method when the supported static-token
+    # fallback is configured. Keep its omissions visible but non-blocking.
+    checks["tiktok_oauth"] = {
+        "configured": tiktok_oauth,
+        "missing": [],
+        "optional_missing": tiktok_oauth_missing,
+        "optional": True,
+    }
+    tiktok_static = bool(str(source.get("TIKTOK_ACCESS_TOKEN", "")).strip())
+    tiktok_publish = tiktok_oauth or tiktok_static
+
     operation = checks["operator_auth"]["configured"]
     generation = all(
         checks[key]["configured"]
@@ -76,9 +87,6 @@ def build_preflight(env=None):
     )
     youtube_upload = checks["youtube_upload"]["configured"]
     youtube_metrics = checks["youtube_data_api"]["configured"]
-    tiktok_oauth = checks["tiktok_oauth"]["configured"]
-    tiktok_static = bool(str(source.get("TIKTOK_ACCESS_TOKEN", "")).strip())
-    tiktok_publish = tiktok_oauth or tiktok_static
 
     youtube_ready = operation and generation and staging and youtube_upload
     tiktok_ready = operation and generation and staging and tiktok_publish
@@ -109,7 +117,7 @@ def build_preflight(env=None):
                 "oauth_configured": tiktok_oauth,
                 "static_token_fallback": tiktok_static,
                 # OAuth scopes and account capabilities are only known after
-                # completing authorization and creator-info verification.
+                # authorization and creator-info verification.
                 "metrics_configured": False,
                 "live_connectivity_verified": False,
             },
@@ -117,8 +125,9 @@ def build_preflight(env=None):
         "missing": sorted(set(missing)),
         "live_connectivity_verified": False,
         "note": (
-            "Configuration presence only. Optional provider bearer tokens may be omitted. "
-            "This endpoint does not call external providers or prove OAuth, account scopes, "
-            "quota, rendering, upload or billing works."
+            "Configuration presence only. Optional provider bearer tokens and TikTok "
+            "OAuth setup when using the static-token fallback may be omitted. This endpoint "
+            "does not call external providers or prove OAuth, account scopes, quota, rendering, "
+            "upload or billing works."
         ),
     }
