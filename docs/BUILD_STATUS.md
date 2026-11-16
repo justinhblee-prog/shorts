@@ -1124,4 +1124,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Hide unsafe media controls instead of placing untrusted URLs in href/src attributes.
 - Opened media links use both `noopener` and `noreferrer`.
 - Add frontend regression tests for review video, approved video and audio preview paths.
-- Validation pending.
+- GitHub Actions PR run [43795822579](https://github.com/justinhblee-prog/shorts/actions/runs/43795822579) passed **447 backend tests** and the complete `scripts/validate.sh` command.
