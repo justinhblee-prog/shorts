@@ -2119,3 +2119,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - If an in-flight production lease exists, persist the global production pause and terminalize all running production leases as ambiguous before the replacement process becomes active; the old process cannot continue through a valid queue lease and the new process cannot start another production job until operator review.
 - Add a SQLite regression for re-registration during an active production lease, covering lease revocation, ambiguous-job discovery, stale-heartbeat rejection, replacement-worker claim blocking, and preservation of the new online generation.
 - GitHub Actions [run #43930282954](https://github.com/justinhblee-prog/shorts/actions/runs/43930282954) passed: `scripts/validate.sh` completed and all 642 backend tests passed. This is deterministic CI/SQLite coverage only; no live multi-process/provider verification is claimed.
+
+
+## BUILD-00284 — Keep production-pause audit timestamps on the serialized transition
+- Reuse the timestamp captured after the caller acquired SQLite's immediate write lock for each worker-pause job audit event.
+- Avoid independently sampling the wall clock inside the audit helper, which could make the immutable event timestamp disagree with the queue-control event and job transition timestamp.
+- Add a deterministic regression that supplies a controlled transition timestamp and checks the job, job-event, and worker-control-event records all persist the same value.
+- Validation pending GitHub Actions; this change adds deterministic SQLite coverage only and does not claim production multi-host validation.

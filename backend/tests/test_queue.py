@@ -763,4 +763,20 @@ class QueueTests(unittest.TestCase):
 
 
 
+ def test_production_pause_audit_uses_serialized_transition_timestamp(self):
+  job=self.q.enqueue("short_video_production",{"topic":"pause-audit-timestamp"})
+  claimed=self.q.claim("pause-audit-worker",job_type="short_video_production")
+  transition_time="2030-04-05T06:07:08+00:00"
+  with self.q.db() as c:
+   c.execute("BEGIN IMMEDIATE")
+   self.q._pause_production_in_transaction(
+    c,"controlled pause",job["id"],transition_time,actor="system")
+   c.commit()
+  event=[item for item in self.q.events(job["id"])
+         if item["event_type"]=="worker_pause"][-1]
+  control_event=self.q.worker_control_events(1)[0]
+  self.assertEqual(event["created_at"],transition_time)
+  self.assertEqual(control_event["created_at"],transition_time)
+  self.assertEqual(self.q.get(job["id"])["updated_at"],transition_time)
+
 if __name__=="__main__": unittest.main()
