@@ -1922,3 +1922,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - These operations now obtain the SQLite write lock before capturing their audit/heartbeat timestamp, preventing lock waits from writing out-of-order timestamps or stale worker liveness values.
 - Combined with BUILD-00235, all lease/control/registry state transitions that acquire the SQLite write lock use a timestamp observed after lock acquisition.
 - Backend deterministic CI only; no multi-host production database test is claimed.
+
+
+## BUILD-00237 — Fence worker registry by process generation
+- Each worker registration now receives a fresh random generation token, including when a worker_id is reused after restart.
+- Graceful offline transitions require the generation token and use a conditional update; a late shutdown from an older process cannot mark the replacement process offline.
+- Existing worker_registry databases receive an additive nullable column migration. Legacy offline calls without a generation token fail closed.
+- Added regressions for stale-generation shutdown and missing generation tokens.
+- Backend deterministic CI only; no multi-host production database test is claimed.

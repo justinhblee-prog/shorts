@@ -48,7 +48,10 @@ class JobQueue:
               details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS idx_events_job ON job_events(job_id,id);
             CREATE TABLE IF NOT EXISTS worker_registry(
-              worker_id TEXT PRIMARY KEY, hostname TEXT, last_seen_at TEXT NOT NULL, status TEXT NOT NULL);
+              worker_id TEXT PRIMARY KEY, hostname TEXT, last_seen_at TEXT NOT NULL,
+              status TEXT NOT NULL, generation_token TEXT);
+            CREATE INDEX IF NOT EXISTS idx_worker_registry_generation
+              ON worker_registry(worker_id,generation_token);
             CREATE TABLE IF NOT EXISTS worker_control(
               id INTEGER PRIMARY KEY CHECK(id=1), paused INTEGER NOT NULL DEFAULT 0,
               pause_reason TEXT, paused_job_id TEXT, updated_at TEXT NOT NULL);
@@ -73,6 +76,9 @@ class JobQueue:
             INSERT OR IGNORE INTO worker_control(id,paused,updated_at)
               VALUES(1,0,'1970-01-01T00:00:00+00:00');
             """)
+            worker_columns = {row["name"] for row in c.execute("PRAGMA table_info(worker_registry)")}
+            if "generation_token" not in worker_columns:
+                c.execute("ALTER TABLE worker_registry ADD COLUMN generation_token TEXT")
 
     @contextmanager
     def db(self):
@@ -210,8 +216,11 @@ class JobQueue:
             if production_paused and job_type == "short_video_production":
                 c.commit()
                 return None
-            c.execute("""INSERT INTO worker_registry VALUES(?,?,?,'online') ON CONFLICT(worker_id)
-              DO UPDATE SET hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",(worker_id,hostname,n))
+            c.execute("""INSERT INTO worker_registry(
+              worker_id,hostname,last_seen_at,status,generation_token)
+              VALUES(?,?,?,'online',?) ON CONFLICT(worker_id)
+              DO UPDATE SET hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,
+              status='online'""",(worker_id,hostname,n,str(uuid.uuid4())))
             expiry_result = self._recover_expired_leases_in_transaction(c, n)
             production_expired = expiry_result["production_expired"]
             if production_expired:
@@ -497,30 +506,38 @@ class JobQueue:
         return bool(self.worker_control()["paused"])
 
     def register_worker(self, worker_id, hostname=None):
+        """Register a process incarnation and return its fencing generation."""
         if not str(worker_id).strip():
             raise ValueError("worker_id required")
+        generation_token = str(uuid.uuid4())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             n = stamp(now())
-            c.execute("""INSERT INTO worker_registry(worker_id,hostname,last_seen_at,status)
-                VALUES(?,?,?,'online') ON CONFLICT(worker_id) DO UPDATE SET
-                hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",
-                (worker_id, hostname, n))
+            c.execute("""INSERT INTO worker_registry(
+                worker_id,hostname,last_seen_at,status,generation_token)
+                VALUES(?,?,?,'online',?) ON CONFLICT(worker_id) DO UPDATE SET
+                hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,
+                status='online',generation_token=excluded.generation_token""",
+                (worker_id, hostname, n, generation_token))
             c.commit()
         return {"worker_id": worker_id, "hostname": hostname,
-                "last_seen_at": n, "status": "online"}
+                "last_seen_at": n, "status": "online",
+                "generation_token": generation_token}
 
-    def mark_worker_offline(self, worker_id):
-        """Persist graceful shutdown; stale heartbeats still detect hard crashes."""
+    def mark_worker_offline(self, worker_id, generation_token=None):
+        """Only the current process generation may mark its registry row offline."""
         worker_id = str(worker_id or "").strip()
         if not worker_id:
             raise ValueError("worker_id required")
+        if not generation_token:
+            return False
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             n = stamp(now())
             updated = c.execute(
-                "UPDATE worker_registry SET last_seen_at=?,status='offline' WHERE worker_id=?",
-                (n, worker_id),
+                """UPDATE worker_registry SET last_seen_at=?,status='offline'
+                   WHERE worker_id=? AND generation_token=?""",
+                (n, worker_id, generation_token),
             )
             c.commit()
             return updated.rowcount == 1
