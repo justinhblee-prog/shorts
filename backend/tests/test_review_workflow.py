@@ -39,6 +39,7 @@ class ReviewWorkflowTests(unittest.TestCase):
             "script": "Safe script text",
             "provider": "test-provider",
             "access_token": "provider-access-secret",
+            "provider_token": "provider-generic-token-secret",
             "nested": {
                 "authorization": "Bearer nested-secret",
                 "signed_url": "https://cdn.example/video?sig=signed-secret",
@@ -51,7 +52,7 @@ class ReviewWorkflowTests(unittest.TestCase):
         pending = self.review.list_pending()[0]
         serialized_pending = str(pending)
         for secret in (
-            "provider-secret-value", "provider-access-secret", "nested-secret",
+            "provider-secret-value", "provider-access-secret", "provider-generic-token-secret", "nested-secret",
             "signed-secret", "private-request-id", "raw-provider-error",
         ):
             self.assertNotIn(secret, serialized_pending)
