@@ -714,6 +714,49 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(self.store.get(job_id)["artifacts"],[])
         self.assertEqual(queue.get(job_id)["status"],"queued")
 
+
+    def test_integrity_report_detects_both_orphan_record_directions_without_mutation(self):
+        queue = JobQueue(self.store.db_path)
+        queue_only = queue.enqueue(
+            "short_video_production", {"brand": "", "region": "US",
+                                       "language": "en", "topic": ""},
+            channel_name="orphan-queue"
+        )
+        production_only_id = "production-without-queue"
+        self.store.create(production_only_id, self.brief)
+
+        report = self.store.integrity_report(queue, limit=20)
+        self.assertEqual(report["orphaned"], 2)
+        by_id = {item["job_id"]: item for item in report["items"]}
+        queue_item = by_id[queue_only["id"]]
+        self.assertEqual(queue_item["record_kind"], "queue_without_production")
+        self.assertEqual(queue_item["classification"], "queue_without_production_record")
+        self.assertIsNone(queue_item["production_status"])
+        self.assertEqual(queue_item["queue_status"], "queued")
+        production_item = by_id[production_only_id]
+        self.assertEqual(production_item["record_kind"], "production_without_queue")
+        self.assertEqual(production_item["classification"], "production_without_queue_record")
+        self.assertEqual(production_item["production_status"], "queued")
+        self.assertIsNone(production_item["queue_status"])
+        self.assertEqual(queue.get(queue_only["id"])["status"], "queued")
+        self.assertIsNone(self.store.get(queue_only["id"]))
+        self.assertIsNone(queue.get(production_only_id))
+        self.assertEqual(self.store.get(production_only_id)["status"], "queued")
+
+    def test_integrity_report_orphan_scan_respects_bound(self):
+        queue = JobQueue(self.store.db_path)
+        for index in range(3):
+            queue.enqueue(
+                "short_video_production", {"brand": "", "region": "US",
+                                           "language": "en", "topic": ""},
+                channel_name=f"orphan-{index}"
+            )
+        report = self.store.integrity_report(queue, limit=2)
+        self.assertEqual(report["limit"], 2)
+        self.assertEqual(report["scanned"], 2)
+        self.assertEqual(report["orphaned"], 2)
+        self.assertEqual(len(report["items"]), 2)
+
     def test_integrity_report_explains_mismatch_without_mutating_either_ledger(self):
         queue = JobQueue(self.store.db_path)
         job_id = submit_production(queue, self.store, self.brief)["job"]["id"]

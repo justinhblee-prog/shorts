@@ -1511,3 +1511,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Verify a reviewer with `production.read` can retrieve the report, an analyst without that permission receives HTTP 403, and a missing token receives HTTP 401.
 - Assert the underlying report store is never called for denied or unauthenticated requests.
 - Preserve the read-only behavior: the endpoint has no state mutation path.
+
+
+## BUILD-00182 — detect orphaned lifecycle records
+
+- Extend the bounded integrity report to detect queue-only and production-only records in addition to status mismatches.
+- Keep orphan diagnostics read-only; do not fabricate or delete either ledger row.
+- Pause the production worker when an orphan remains after the existing validated queue-to-production recovery attempt.
+- Add tests for both orphan directions, bounded scanning, and non-mutation.

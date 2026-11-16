@@ -532,26 +532,72 @@ class ProductionStore:
         items = []
         with self.db() as c:
             rows = c.execute("""
-                SELECT r.job_id,r.status AS production_status,r.current_stage,
-                       r.created_at AS production_created_at,
-                       r.updated_at AS production_updated_at,
-                       j.status AS queue_status,j.job_type,j.error_code,j.error_message,
-                       j.attempt,j.max_attempts,j.created_at AS queue_created_at,
-                       j.updated_at AS queue_updated_at
-                FROM production_runs r
-                JOIN pipeline_jobs j ON j.id=r.job_id
-                WHERE j.job_type='short_video_production'
-                  AND r.status<>j.status
-                  AND (r.status IN ('rendered','review_pending','approved','uploaded',
-                                    'cancelled','failed_terminal')
-                       OR j.status IN ('review_pending','approved','uploaded',
-                                       'cancelled','failed_terminal'))
-                ORDER BY j.updated_at DESC,j.id LIMIT ?
+                SELECT * FROM (
+                  SELECT 'state_mismatch' AS record_kind,
+                         r.job_id,r.status AS production_status,r.current_stage,
+                         r.created_at AS production_created_at,
+                         r.updated_at AS production_updated_at,
+                         j.status AS queue_status,j.job_type,j.error_code,j.error_message,
+                         j.attempt,j.max_attempts,j.created_at AS queue_created_at,
+                         j.updated_at AS queue_updated_at,j.updated_at AS sort_updated_at
+                  FROM production_runs r
+                  JOIN pipeline_jobs j ON j.id=r.job_id
+                  WHERE j.job_type='short_video_production'
+                    AND r.status<>j.status
+                    AND (r.status IN ('rendered','review_pending','approved','uploaded',
+                                      'cancelled','failed_terminal')
+                         OR j.status IN ('review_pending','approved','uploaded',
+                                         'cancelled','failed_terminal'))
+                  UNION ALL
+                  SELECT 'queue_without_production' AS record_kind,
+                         j.id AS job_id,NULL AS production_status,NULL AS current_stage,
+                         NULL AS production_created_at,NULL AS production_updated_at,
+                         j.status AS queue_status,j.job_type,j.error_code,j.error_message,
+                         j.attempt,j.max_attempts,j.created_at AS queue_created_at,
+                         j.updated_at AS queue_updated_at,j.updated_at AS sort_updated_at
+                  FROM pipeline_jobs j
+                  LEFT JOIN production_runs r ON r.job_id=j.id
+                  WHERE j.job_type='short_video_production' AND r.job_id IS NULL
+                  UNION ALL
+                  SELECT 'production_without_queue' AS record_kind,
+                         r.job_id,r.status AS production_status,r.current_stage,
+                         r.created_at AS production_created_at,
+                         r.updated_at AS production_updated_at,
+                         NULL AS queue_status,NULL AS job_type,NULL AS error_code,
+                         NULL AS error_message,NULL AS attempt,NULL AS max_attempts,
+                         NULL AS queue_created_at,NULL AS queue_updated_at,
+                         r.updated_at AS sort_updated_at
+                  FROM production_runs r
+                  LEFT JOIN pipeline_jobs j
+                    ON j.id=r.job_id AND j.job_type='short_video_production'
+                  WHERE j.id IS NULL
+                )
+                ORDER BY sort_updated_at DESC,job_id LIMIT ?
             """, (bounded,)).fetchall()
             for row in rows:
                 item = dict(row)
                 production_status = item["production_status"]
                 queue_status = item["queue_status"]
+                if item["record_kind"] == "queue_without_production":
+                    item["classification"] = "queue_without_production_record"
+                    item["reason"] = (
+                        "A short-video queue job has no matching production ledger row. "
+                        "The normal validated recovery path did not restore this record."
+                    )
+                    item["recommended_action"] = (
+                        "Keep the worker paused. Validate the stored job payload and recovery "
+                        "logs; do not fabricate a production row or discard the queue job."
+                    )
+                elif item["record_kind"] == "production_without_queue":
+                    item["classification"] = "production_without_queue_record"
+                    item["reason"] = (
+                        "A production ledger row has no matching short-video queue job. "
+                        "Its execution, retry, and publication lifecycle cannot be verified."
+                    )
+                    item["recommended_action"] = (
+                        "Inspect submission and retention history, provider attempts, artifacts, "
+                        "and publication evidence. Do not recreate a queue job automatically."
+                    )
                 if "approved" in (production_status, queue_status) or "uploaded" in (
                     production_status, queue_status
                 ):
@@ -630,10 +676,16 @@ class ProductionStore:
                     })
                 item["audit_history"] = safe_details
                 items.append(item)
+        orphaned = sum(
+            item["record_kind"] in (
+                "queue_without_production", "production_without_queue"
+            ) for item in items
+        )
         return {
             "scanned": len(items),
             "limit": bounded,
             "unresolved": len(items),
+            "orphaned": orphaned,
             "items": items,
             "worker_control": queue.worker_control(),
         }
