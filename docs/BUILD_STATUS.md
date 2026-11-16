@@ -48,6 +48,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler/metrics-collector packaging and CI validation script committed; production deployment and runtime verification pending |
 
+## BUILD-00198 — require stable cohorts for analytics holdouts
+
+- Preserve analytics holdout diagnostics separately for each platform/brand/region/publication-age/duration/format cohort.
+- Require the same comparable cohort to recur in at least five chronological exposure runs, with at least three selected and measured outcomes per run, before reporting a metric holdout.
+- Do not aggregate unrelated cohorts across runs to manufacture apparent sample coverage.
+- Add a regression where every run has three measured outcomes but the cohort rotates each time; the evaluator must report insufficient stable-cohort coverage.
+- Automatic recommendation score adjustment remains disabled.
+
 ## BUILD-00188 — integrity API input boundaries
 
 - The read-only integrity endpoint enforces a page size of 1–200, offset of 0–1,000,000, and cursor length of at most 512 characters at the HTTP boundary.
