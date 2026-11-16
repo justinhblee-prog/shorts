@@ -1001,3 +1001,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Checkpoints are displayed as ratios (x), not percentages: YouTube documents that audienceWatchRatio may exceed 1 when a segment is replayed.
 - Missing or ineligible curves remain absent; no synthetic line is drawn.
 - Validation pending.
+
+
+### BUILD-00035 validation record
+
+- GitHub Actions run [43787457716](https://github.com/justinhblee-prog/shorts/actions/runs/43787457716) passed **339 backend tests** and `scripts/validate.sh`.
+- Regression coverage confirms that out-of-order retention rows are sorted before display.
+- Frontend JavaScript syntax and DOM-ID validation passed. Live retention data remains dependent on channel OAuth and video eligibility.
