@@ -9,7 +9,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
-                 OpportunityInput, create_opportunity_score)
+                 OpportunityInput, create_opportunity_score, PolicyEvidenceInput)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -26,6 +26,13 @@ class ApiSecurityTests(unittest.TestCase):
             if "x_review_token" not in endpoint.__annotations__:
                 unprotected.append(path)
         self.assertEqual(unprotected, [])
+
+    def test_policy_evidence_input_accepts_platform_specific_blocking_flags(self):
+        body = PolicyEvidenceInput(
+            reviewer_id="reviewer-1",
+            policy_flags={"tiktok_prohibited_aigc_minor_likeness": True},
+        )
+        self.assertTrue(body.policy_flags["tiktok_prohibited_aigc_minor_likeness"])
 
     def test_late_upload_resolution_route_is_registered_and_token_protected(self):
         route = next((r for r in app.routes
