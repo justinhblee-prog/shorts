@@ -555,7 +555,14 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
                 or previous.get("media_path")!=staged.get("media_path")):
             metadata["media_staging"]=staged
             production_store.artifact(job_id,"rendering","video",video["artifact_url"],metadata)
-            production_store.stage(job_id,"review","review_pending")
+            try:
+                review_store.reopen_for_review(
+                    job_id,"Media staging fingerprint changed; fresh human review required"
+                )
+            except ReviewNotFound:
+                raise HTTPException(404,"Production job not found")
+            except ReviewConflict as e:
+                raise HTTPException(409,str(e))
             staged["review_required"]=True
         return staged
     except MediaStagingError as e:
