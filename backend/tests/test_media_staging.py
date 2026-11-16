@@ -20,6 +20,12 @@ class MediaStagerTests(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.tmp.name,result["media_path"])))
         self.assertEqual(result["size_bytes"],len(self.payload))
         self.assertEqual(self.calls[0][2],"/path/video.mp4?sig=abc")
+    def test_stage_returns_sha256_fingerprint(self):
+        result=self.stager.stage("job-hash","https://cdn.example.test/video.mp4")
+        import hashlib
+        self.assertEqual(result["sha256"],hashlib.sha256(self.payload).hexdigest())
+        self.assertEqual(result["size_bytes"],len(self.payload))
+
     def test_rejects_non_allowlisted_host_before_network(self):
         with self.assertRaises(MediaStagingError):
             self.stager.stage("job-1","https://evil.example/video.mp4")
