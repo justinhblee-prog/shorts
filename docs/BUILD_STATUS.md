@@ -1731,3 +1731,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Repeat the operator publish action after confirmation and assert the durable result is returned without another TikTok initialization or media transfer request.
 - This closes the mocked end-to-end path from schedule dispatch through human approval, explicit SELF_ONLY upload, remote status confirmation and duplicate-action suppression.
 - TikTok API transport and media inspection remain deterministic test doubles; no live OAuth/account validation is claimed.
+- GitHub Actions run [43844733746](https://github.com/justinhblee-prog/shorts/actions/runs/43844733746) passed the complete `scripts/validate.sh` workflow, including 575 backend tests.
