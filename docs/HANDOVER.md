@@ -903,4 +903,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - Added platform selection to the production form and recurring schedule form. The chosen platform is persisted as `platforms:[youtube|tiktok]` in the schedule payload and survives outbox/queue dispatch.
 - Scheduled jobs therefore retain the intended platform through generation and policy preflight rather than silently defaulting to YouTube.
-- CI pending.
+- GitHub Actions run [43783409343](https://github.com/justinhblee-prog/shorts/actions/runs/43783409343) passed **322 backend tests** and `scripts/validate.sh`; PR #93 was squash-merged into `main` as `cd5f8c4f1c1e780732457450ae2f215d4ef13950`.
