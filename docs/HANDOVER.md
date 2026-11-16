@@ -1233,3 +1233,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - `RecommendationEvaluationStore.link_production` now requires an exact run ID and matches run + trend + brand + platform. Missing or stale IDs fail closed and never fall back to the latest exposure.
 - Production draft responses include `recommendation_attribution` so operators can see whether the selected exposure was linked.
 - This is an attribution-integrity fix; it does not alter recommendation scores or enable automatic score adjustment.
+
+
+### BUILD-00139 validation
+
+- GitHub Actions PR run [43798469723](https://github.com/justinhblee-prog/shorts/actions/runs/43798469723) completed successfully.
+- Backend suite: **464 tests, OK**.
+- The full `scripts/validate.sh` command completed successfully, including the frontend validation steps.
+- No live YouTube/TikTok publishing or real recommendation performance validation is claimed.
