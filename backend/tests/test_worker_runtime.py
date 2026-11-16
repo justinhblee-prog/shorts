@@ -1,10 +1,13 @@
 import sys
+import tempfile
+import threading
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from worker_runtime import (heartbeat_interval, parse_worker_runtime_config,
                             request_worker_shutdown)
+from queue_store import JobQueue, LeaseConflict
 
 
 class WorkerRuntimeTests(unittest.TestCase):
@@ -60,31 +63,84 @@ class WorkerRuntimeTests(unittest.TestCase):
         class Queue:
             def __init__(self):
                 self.pauses = []
-            def pause(self, reason, job_id):
-                self.pauses.append((reason, job_id))
+            def pause(self, reason, job_id, worker_id=None, generation_token=None):
+                self.pauses.append((reason, job_id, worker_id, generation_token))
 
         queue = Queue()
         stopping = threading.Event()
         lost_lease = threading.Event()
-        request_worker_shutdown(queue, stopping, "job-1", lost_lease, 15)
+        request_worker_shutdown(
+            queue, stopping, "job-1", lost_lease, 15,
+            worker_id="worker-a", generation_token="generation-a",
+        )
         self.assertTrue(stopping.is_set())
         self.assertTrue(lost_lease.is_set())
         self.assertEqual(len(queue.pauses), 1)
         self.assertEqual(queue.pauses[0][1], "job-1")
+        self.assertEqual(queue.pauses[0][2:], ("worker-a", "generation-a"))
         self.assertIn("signal 15", queue.pauses[0][0])
+
+    def test_stale_worker_sigterm_cannot_pause_replacement_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            queue = JobQueue(Path(directory) / "worker.db", 30)
+            old = queue.register_worker("same-worker", "host-a")
+            current = queue.register_worker("same-worker", "host-a")
+            self.assertNotEqual(old["generation_token"], current["generation_token"])
+            stopping = threading.Event()
+            lost_lease = threading.Event()
+
+            request_worker_shutdown(
+                queue, stopping, "job-from-old-process", lost_lease, 15,
+                worker_id="same-worker",
+                generation_token=old["generation_token"],
+            )
+
+            self.assertTrue(stopping.is_set())
+            self.assertTrue(lost_lease.is_set())
+            self.assertFalse(queue.is_paused())
+            self.assertEqual(
+                queue.workers()[0]["generation_token"],
+                current["generation_token"],
+            )
+            with self.assertRaises(LeaseConflict):
+                queue.pause(
+                    "old process cannot pause",
+                    worker_id="same-worker",
+                    generation_token=old["generation_token"],
+                )
 
     def test_sigterm_still_stops_locally_if_pause_persistence_fails(self):
         import threading
 
         class BrokenQueue:
-            def pause(self, reason, job_id):
+            def pause(self, reason, job_id, worker_id=None, generation_token=None):
                 raise OSError("database unavailable")
 
         stopping = threading.Event()
         lost_lease = threading.Event()
-        request_worker_shutdown(BrokenQueue(), stopping, "job-2", lost_lease, 15)
+        request_worker_shutdown(
+            BrokenQueue(), stopping, "job-2", lost_lease, 15,
+            worker_id="worker-b", generation_token="generation-b",
+        )
         self.assertTrue(stopping.is_set())
         self.assertTrue(lost_lease.is_set())
+
+
+    def test_sigterm_without_generation_still_requests_local_stop(self):
+        class Queue:
+            def __init__(self):
+                self.pauses = []
+            def pause(self, reason, job_id, worker_id=None, generation_token=None):
+                self.pauses.append((reason, job_id, worker_id, generation_token))
+
+        queue = Queue()
+        stopping = threading.Event()
+        lost_lease = threading.Event()
+        request_worker_shutdown(queue, stopping, "job-3", lost_lease, 15)
+        self.assertTrue(stopping.is_set())
+        self.assertTrue(lost_lease.is_set())
+        self.assertEqual(len(queue.pauses), 1)
+        self.assertEqual(queue.pauses[0][1:], ("job-3", None, None))
 
 
 if __name__ == "__main__":

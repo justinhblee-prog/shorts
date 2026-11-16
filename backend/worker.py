@@ -35,7 +35,8 @@ WORKER_GENERATION_TOKEN = None
 
 def handle_shutdown_signal(signum, frame):
     request_worker_shutdown(
-        queue, stopping, active_job_id, active_lost_lease_event, signum
+        queue, stopping, active_job_id, active_lost_lease_event, signum,
+        worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN,
     )
 
 
