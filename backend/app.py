@@ -122,6 +122,13 @@ class ProductionReconciliationAction(BaseModel):
 class ProviderResultAdoptionAction(BaseModel):
     provider_attempt_id:str=Field(min_length=1,max_length=128)
 
+class ProviderAttemptReconciliationAction(BaseModel):
+    operator_id:str=Field(min_length=1,max_length=128)
+    evidence_reference:str=Field(min_length=1,max_length=1000)
+    note:str=Field(min_length=1,max_length=2000)
+    confirmed_not_executed:bool
+
+
 class Claim(BaseModel):
     worker_id:str=Field(min_length=1,max_length=128)
     hostname:str|None=None
