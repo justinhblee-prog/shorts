@@ -785,4 +785,20 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(control_event["created_at"],transition_time)
   self.assertEqual(self.q.get(job["id"])["updated_at"],transition_time)
 
+ def test_recover_counts_all_production_jobs_terminalized_by_global_pause(self):
+  expired=self.q.enqueue("short_video_production",{"topic":"expired-production"})
+  active=self.q.enqueue("short_video_production",{"topic":"active-production"})
+  self.q.claim("worker-expired",job_type="short_video_production")
+  self.q.claim("worker-active",job_type="short_video_production")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+             (expired["id"],))
+  result=self.q.recover()
+  self.assertEqual(result,{"requeued":0,"terminal":2})
+  for job in (expired,active):
+   persisted=self.q.get(job["id"])
+   self.assertEqual(persisted["status"],"failed_terminal")
+   self.assertEqual(persisted["error_code"],"production_pause_external_outcome_ambiguous"
+                    if job["id"]==active["id"] else "production_lease_expired_ambiguous")
+
 if __name__=="__main__": unittest.main()
