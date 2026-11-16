@@ -75,6 +75,29 @@ class PreflightTests(unittest.TestCase):
         self.assertTrue(result["platforms"]["tiktok"]["static_token_fallback"])
         self.assertFalse(result["platforms"]["tiktok"]["configuration_ready"])
 
+    def test_static_tiktok_token_is_a_nonblocking_oauth_fallback(self):
+        with tempfile.TemporaryDirectory() as media_dir:
+            env = {
+                "NEXUS_REVIEW_TOKEN": "operator-secret",
+                "NEXUS_MEDIA_DIR": media_dir,
+                "SCRIPT_PROVIDER_URL": "https://script.example.test",
+                "VOICE_PROVIDER_URL": "https://voice.example.test",
+                "RENDER_PROVIDER_URL": "https://render.example.test",
+                "RENDER_ARTIFACT_HOSTS": "cdn.example.test",
+                "TIKTOK_ACCESS_TOKEN": "static-secret",
+            }
+            result = build_preflight(env)
+
+        self.assertTrue(result["platforms"]["tiktok"]["configuration_ready"])
+        self.assertTrue(result["platforms"]["tiktok"]["static_token_fallback"])
+        self.assertFalse(result["platforms"]["tiktok"]["oauth_configured"])
+        self.assertIn(
+            "TIKTOK_CLIENT_KEY",
+            result["checks"]["tiktok_oauth"]["optional_missing"],
+        )
+        self.assertNotIn("TIKTOK_CLIENT_KEY", result["missing"])
+        self.assertNotIn("static-secret", str(result))
+
     def test_complete_environment_reports_configuration_not_live_success(self):
         with tempfile.TemporaryDirectory() as media_dir:
             env = {
