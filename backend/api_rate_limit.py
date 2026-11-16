@@ -172,10 +172,17 @@ class ApiRateLimitMiddleware:
         return str(current)
 
     def _policy(self, method, path):
-        callback = path == "/api/tiktok/oauth/callback"
-        if method not in {"POST", "PUT", "PATCH", "DELETE"} and not callback:
+        callback = path in {
+            "/api/tiktok/oauth/callback",
+            "/api/youtube/oauth/callback",
+        }
+        oauth_start = path in {
+            "/api/tiktok/oauth/start",
+            "/api/youtube/oauth/start",
+        }
+        if method not in {"POST", "PUT", "PATCH", "DELETE"} and not callback and not oauth_start:
             return None
-        if path.startswith("/api/tiktok/oauth/"):
+        if path.startswith("/api/tiktok/oauth/") or path.startswith("/api/youtube/oauth/"):
             return "auth"
         if path.startswith("/api/tiktok/") or path.startswith("/api/youtube/"):
             return "publish"
