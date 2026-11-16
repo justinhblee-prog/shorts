@@ -1845,3 +1845,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The canonical current upload row remains unchanged; the audit event records the old attempt's own remote video identifier.
 - Added regression coverage for a late superseded worker error after a newer upload has completed.
 - Backend deterministic CI only; no live YouTube API verification.
+
+## BUILD-00225 — Prevent cross-attempt YouTube video ID fallback
+- When a superseded attempt has no recorded provider video ID, its informational worker-error audit event now keeps video_id null instead of borrowing the current attempt's video ID.
+- Added a regression proving the canonical current upload remains intact while the superseded attempt's audit event does not misattribute the newer video's identifier.
+- Backend deterministic CI only; no live YouTube API verification.

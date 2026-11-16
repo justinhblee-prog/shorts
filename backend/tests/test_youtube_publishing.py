@@ -198,6 +198,21 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(event["attempt_id"],first["attempt_id"])
         self.assertEqual(event["video_id"],"old-attempt-video")
 
+    def test_superseded_worker_error_never_borrows_current_attempt_video_id(self):
+        first=self.uploads.begin("job-1","First attempt","")
+        self.uploads.mark_reconciliation_required("job-1","first timeout",first["attempt_id"])
+        self.uploads.reconcile("job-1","not_uploaded",note="Verified no upload")
+        second=self.uploads.begin("job-1","Second attempt","")
+        self.uploads.finish("job-1","current-video",second["attempt_id"])
+        self.uploads.mark_reconciliation_required(
+            "job-1","old worker reported an uncertain result",first["attempt_id"]
+        )
+        result=self.uploads.get("job-1")
+        self.assertEqual(result["video_id"],"current-video")
+        event=result["events"][-1]
+        self.assertEqual(event["attempt_id"],first["attempt_id"])
+        self.assertIsNone(event["video_id"])
+
     def test_operator_can_keep_current_video_when_stale_duplicate_arrives(self):
         first=self.uploads.begin("job-1","First attempt","")
         self.uploads.mark_reconciliation_required(
