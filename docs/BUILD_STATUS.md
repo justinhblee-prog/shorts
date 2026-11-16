@@ -977,3 +977,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Surface engaged-view share in per-video and brand performance, topic-matched historical context and recommendation holdout diagnostics.
 - Keep the signal separate from public Data API counters and existing views/hour; do not change recommendation scores.
 - Validation pending.
+
+
+### BUILD-00034 validation record
+
+- GitHub Actions PR run [43787047727](https://github.com/justinhblee-prog/shorts/actions/runs/43787047727) passed **339 backend tests** and `scripts/validate.sh`.
+- Regression tests cover legacy SQLite migration, engagedViews parsing, derived share, performance aggregation, topic history and recommendation holdout evidence.
+- No recommendation score adjustment or live YouTube account verification is claimed.

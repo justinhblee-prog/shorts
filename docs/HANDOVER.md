@@ -976,3 +976,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Performance insights, brand summaries, topic-matched history and per-metric recommendation holdouts expose the signal. Recommendation scores remain unchanged.
 - Official metric reference: https://developers.google.com/youtube/analytics/metrics
 - Validation pending.
+
+
+### BUILD-00034 validation record
+
+- GitHub Actions run [43787047727](https://github.com/justinhblee-prog/shorts/actions/runs/43787047727) passed **339 backend tests** and `scripts/validate.sh`.
+- Existing Analytics SQLite schema migration and all metric/report unit tests passed.
+- The derived engaged-view share is not a YouTube-published rate; it is used only as a separate diagnostic.
+- No live channel OAuth/API response, actual engaged-view coverage or recommendation lift has been validated.

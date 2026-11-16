@@ -92,3 +92,6 @@ BUILD-00033 added retention-aware topic context and independent holdout diagnost
 
 
 Shorts performance reporting also tracks YouTube Analytics `engagedViews` separately from `views`, with a clearly labeled derived engaged-view share. This quality signal is displayed and evaluated in holdouts, but is not yet used to change recommendation rankings.
+
+
+BUILD-00034 adds YouTube Shorts engagedViews as a separate quality signal and displays a derived engaged-view share without changing recommendation ranking. The implementation passed **339 backend tests** in [GitHub Actions run 43787047727](https://github.com/justinhblee-prog/shorts/actions/runs/43787047727).

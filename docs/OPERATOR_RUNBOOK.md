@@ -295,3 +295,11 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - This verifies repository code under controlled tests. It does not replace live credentials, provider calls, platform OAuth consent, actual rendering/upload, production deployment or revenue reconciliation.
 - Before enabling production posting, verify YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, a refresh token with youtube.readonly and youtube.upload, YOUTUBE_DATA_API_KEY, provider endpoints and any required bearer tokens. For TikTok, complete developer-app review, OAuth redirect and requested scopes, creator-info verification and private-only publishing checks.
 - Run a private/test upload and confirm that the resulting platform video ID is collected by both the Data API and Analytics API; do not change privacy to public until policy and human approval checks pass.
+
+
+### BUILD-00034 — Shorts engaged-view signal
+
+- YouTube Analytics requests both `views` and `engagedViews`; the latter is the API's core metric for views past the initial seconds.
+- The dashboard's engaged-view share is a derived diagnostic (engagedViews divided by views), not a YouTube-published percentage.
+- The signal is used for performance context and evaluation only. Recommendation score weighting remains disabled until actual channel data and a controlled evaluation justify a separate change.
+- GitHub Actions run [43787047727](https://github.com/justinhblee-prog/shorts/actions/runs/43787047727) passed **339 backend tests**.
