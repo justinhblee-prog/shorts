@@ -129,6 +129,10 @@ def run_once():
             f"repaired={integrity['repaired']}; worker_paused"
         )
         return False
+    # A shutdown may arrive while reconciliation is running. Do not claim a
+    # fresh job after the process has been asked to stop.
+    if stopping.is_set():
+        return False
     job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production", generation_token=WORKER_GENERATION_TOKEN)
     if job is None:
         return False
