@@ -99,7 +99,7 @@ def run_once():
             "Production lifecycle state mismatch requires operator reconciliation: "
             + json.dumps(integrity["unresolved_jobs"][:10], ensure_ascii=False)
         )
-        queue.pause(reason)
+        queue.pause(reason, worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN)
         print(
             f"production_state_integrity_blocked unresolved={integrity['unresolved']} "
             f"repaired={integrity['repaired']}; worker_paused"
