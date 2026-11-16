@@ -165,7 +165,8 @@ class TikTokMetricsStore:
             [(job_id, video)], lease_owner=lease_owner, lease_token=lease_token
         )
 
-    def save_snapshots(self, items, lease_owner=None, lease_token=None):
+    def save_snapshots(self, items, lease_owner=None, lease_token=None,
+                       missing_video_ids=None, retry_seconds=21600, now=None):
         if not isinstance(items, (list, tuple)):
             raise TikTokMetricsError("TikTok metrics batch must be a list")
         normalized, seen = [], set()
@@ -199,25 +200,63 @@ class TikTokMetricsStore:
                 else:
                     values[key] = value
             normalized.append((job_id, video_id, values))
-        if not normalized:
+        if isinstance(retry_seconds, bool) or not isinstance(retry_seconds, int) or retry_seconds < 1:
+            raise TikTokMetricsError("TikTok missing-video retry interval is invalid")
+        if missing_video_ids is None:
+            missing_video_ids = []
+        if not isinstance(missing_video_ids, (list, tuple, set)):
+            raise TikTokMetricsError("TikTok missing-video IDs must be a collection")
+        missing, missing_seen = [], set()
+        for video_id in missing_video_ids:
+            if (not isinstance(video_id, str) or not video_id.strip()
+                    or len(video_id) > 256 or any(ord(char) < 32 for char in video_id)):
+                raise TikTokMetricsError("TikTok missing-video ID is invalid")
+            if video_id in seen:
+                raise TikTokMetricsError("TikTok video cannot be both collected and missing")
+            if video_id not in missing_seen:
+                missing.append(video_id)
+                missing_seen.add(video_id)
+        if not normalized and not missing:
             return
+        current = now or _now()
+        if isinstance(current, (int, float)):
+            current = datetime.fromtimestamp(float(current), timezone.utc)
+        stamp = _stamp(current)
         collected_at = _stamp()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             self._assert_lease(c, lease_owner, lease_token)
-            c.executemany("""
-              INSERT INTO tiktok_video_metric_snapshots
-                (job_id,video_id,view_count,like_count,comment_count,share_count,collected_at)
-              VALUES(?,?,?,?,?,?,?)
-            """, [
-                (job_id, video_id, values["view_count"], values["like_count"],
-                 values["comment_count"], values["share_count"], collected_at)
-                for job_id, video_id, values in normalized
-            ])
-            c.executemany(
-                "DELETE FROM tiktok_metrics_missing_retry WHERE video_id=?",
-                [(video_id,) for _, video_id, _ in normalized],
-            )
+            if normalized:
+                c.executemany("""
+                  INSERT INTO tiktok_video_metric_snapshots
+                    (job_id,video_id,view_count,like_count,comment_count,share_count,collected_at)
+                  VALUES(?,?,?,?,?,?,?)
+                """, [
+                    (job_id, video_id, values["view_count"], values["like_count"],
+                     values["comment_count"], values["share_count"], collected_at)
+                    for job_id, video_id, values in normalized
+                ])
+                c.executemany(
+                    "DELETE FROM tiktok_metrics_missing_retry WHERE video_id=?",
+                    [(video_id,) for _, video_id, _ in normalized],
+                )
+            for video_id in missing:
+                row = c.execute(
+                    "SELECT attempts FROM tiktok_metrics_missing_retry WHERE video_id=?",
+                    (video_id,),
+                ).fetchone()
+                attempts = int(row["attempts"]) + 1 if row else 1
+                delay = min(7 * 86400, retry_seconds * (2 ** min(attempts - 1, 5)))
+                retry_at = _stamp(current + timedelta(seconds=delay))
+                c.execute("""
+                    INSERT INTO tiktok_metrics_missing_retry
+                      (video_id,attempts,next_retry_at,last_missing_at)
+                    VALUES(?,?,?,?)
+                    ON CONFLICT(video_id) DO UPDATE SET
+                      attempts=excluded.attempts,
+                      next_retry_at=excluded.next_retry_at,
+                      last_missing_at=excluded.last_missing_at
+                """, (video_id, attempts, retry_at, stamp))
 
     def deferred_video_ids(self, now=None):
         """Return provider-missing videos still inside their retry backoff."""
@@ -415,12 +454,10 @@ class TikTokMetricsCollector:
             collected_ids.add(video_id)
             snapshot_items.append((jobs[video_id], video))
         # Validate the entire provider batch before committing any snapshots.
-        self.store.save_snapshots(
-            snapshot_items, lease_owner=lease_owner, lease_token=lease_token
-        )
         missing = [video_id for video_id in ids if video_id not in collected_ids]
-        self.store.record_missing_video_ids(
-            missing, lease_owner=lease_owner, lease_token=lease_token
+        self.store.save_snapshots(
+            snapshot_items, lease_owner=lease_owner, lease_token=lease_token,
+            missing_video_ids=missing,
         )
         return {"requested": len(ids), "collected": len(collected_ids),
                 "missing": missing, "source": "TikTok Display API v2"}
