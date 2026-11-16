@@ -392,3 +392,15 @@ Backup and restore enforce a maximum of 100,000 archive entries, a 16 MiB manife
 5. Test a restore in a separate staging environment. Losing or rotating the key without re-encrypting retained archives makes those archives unrecoverable.
 
 Legacy `.tar.gz` archives remain restorable while encryption-required mode is false. The restore process authenticates encrypted data before extracting it or changing live data.
+
+
+## BUILD-00131 — enable ClamAV media scanning
+
+1. Copy the scanner settings from `.env.example`; keep `NEXUS_MEDIA_SCAN_ENABLED=false` until the updater is healthy.
+2. Start the updater profile and the regular stack: `docker compose --profile media-scan up -d`.
+3. Confirm the updater is running and has populated the persistent database volume: `docker compose logs -f clamav-updater`, then `docker compose exec api ls -lh /var/lib/clamav`.
+4. Confirm the binary is available: `docker compose exec api clamscan --version`.
+5. Set `NEXUS_MEDIA_SCAN_ENABLED=true` and recreate the API container. Verify the readiness panel reports the malware scanner configured before allowing production staging.
+6. If the signature volume is empty or stale, scanner exit code 2/timeouts fail closed and renderer artifacts are not published. Keep the updater running to refresh signatures.
+
+ClamAV adds image size and signature-volume storage. CI validates the fail-closed integration with stubs only; it does not verify live signatures or actual malware detection. Scanner limits are aligned with `NEXUS_MAX_MEDIA_BYTES`; oversized/incomplete scans are rejected rather than treated as clean. Keep HTTPS host allowlists, byte limits, MP4 validation and human approval in place.

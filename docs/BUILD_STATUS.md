@@ -1067,3 +1067,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Pre-restore backups inherit the active encryption key; retention handles encrypted and plaintext archives together. Archive files are restricted to owner-only permissions on POSIX systems.
 - Preflight reports invalid/missing keys and whether encryption is mandatory. GitHub Actions run [43791757173](https://github.com/justinhblee-prog/shorts/actions/runs/43791757173) passed **408 backend tests** and `scripts/validate.sh`.
 - Losing the key makes encrypted backups unrecoverable. Keep it in a secret manager/off-host secure location separate from backup storage; no key is committed.
+
+
+## BUILD-00131 — optional ClamAV malware gate for staged media
+
+- Added a local ClamAV scanner that runs without a shell and requires exit code 0 for a clean result; infected files, missing binaries, unavailable signatures, scanner errors and timeouts fail closed.
+- The scanner runs after bounded HTTPS download, allowlist/DNS checks, Content-Length validation and MP4 signature checks, but before the temporary file is atomically published as staged media. It explicitly sets ClamAV file/scan size limits and `--alert-exceeds-max=yes`; ClamAV defaults can otherwise skip over-limit files and assume them clean.
+- Scanning is opt-in via `NEXUS_MEDIA_SCAN_ENABLED=true`; disabled mode does not construct the scanner and reports `malware_scan=disabled`.
+- Added a persistent `clamav_db` volume and a `media-scan` Compose profile running `freshclam`; the API mounts signatures read-only. Preflight checks executable, signature files and timeout before reporting the feature ready.
+- Docker image now includes `clamav` and `clamav-freshclam`; image size and signature storage increase. CI uses injected scanner stubs and does not download or validate live signatures.
+- GitHub Actions run [43792634688](https://github.com/justinhblee-prog/shorts/actions/runs/43792634688) passed **427 backend tests** and `scripts/validate.sh`. No production ClamAV scan or signature refresh is claimed.
