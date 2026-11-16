@@ -1974,3 +1974,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Eight simultaneous reservation attempts must produce exactly one durable attempt and one start/consent audit record; all competing requests are rejected without replacing the winning attempt.
 - Confirms TikTok reservation remains SELF_ONLY.
 - Deterministic SQLite transaction tests only; no live platform API or account validation is claimed.
+
+## BUILD-00251 — Fence TikTok OAuth token writes by refresh lease
+- Refresh-token persistence now validates the exact owner and lease token inside the same SQLite immediate transaction as the token upsert.
+- A process whose lease expired or was replaced cannot overwrite the newer encrypted token pair with a stale refresh response.
+- Regression test forces lease expiry and takeover, then verifies stale token material is rejected and stored tokens remain unchanged.
+- Deterministic local SQLite/mock validation only; no live TikTok OAuth refresh is claimed.
