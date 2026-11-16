@@ -527,3 +527,19 @@ Restore validates the archive and creates a pre-restore backup before replacing 
 
 
 BUILD-00038 automated validation: GitHub Actions run [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031) passed **362 backend tests** and `scripts/validate.sh`. The scheduled backup service and restore procedure still require deployment verification.
+
+
+## BUILD-00039 — operator access and API protection
+
+Use individual operator tokens where possible:
+
+```dotenv
+NEXUS_REVIEW_CREDENTIALS_JSON='{"alice":"REPLACE_WITH_48_PLUS_RANDOM_CHARACTERS","bob":"REPLACE_WITH_ANOTHER_48_PLUS_RANDOM_CHARACTERS"}'
+NEXUS_REVIEW_ROLE_MAP_JSON='{"alice":["admin"],"bob":["reviewer"]}'
+```
+
+Tokens must be unique and 32–512 ASCII characters. If `NEXUS_REVIEW_CREDENTIALS_JSON` is configured, it replaces the legacy shared `NEXUS_REVIEW_TOKEN`; legacy mode maps to the fixed identity `legacy-operator`. If no role map is configured, all authenticated operators retain wildcard permissions for migration compatibility. Set an explicit role map before inviting multiple operators.
+
+Available roles: admin, producer, reviewer, publisher, analyst, operator, finance and worker. Every protected route has an explicit permission guard. Review actions use the authenticated operator identity rather than caller-supplied reviewer IDs.
+
+Persistent per-client rate limits default to 120 requests/minute overall, 20 auth, 10 publish, 30 queue control, 60 review and 30 production requests. Tune with the `NEXUS_API_*_RATE_LIMIT_PER_MINUTE` variables. `NEXUS_TRUSTED_PROXY_CIDRS` is empty by default; only list the exact reverse-proxy networks you control. Untrusted X-Forwarded-For headers never affect rate-limit identity.
