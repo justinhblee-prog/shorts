@@ -1,0 +1,605 @@
+# BUILD-00001 — Durable queue and Worker Lease
+
+Python 3.11+ recommended.
+
+```bash
+python -m venv .venv
+# Windows: .venv\\Scripts\\activate
+# Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+python -m unittest discover -s tests -v
+uvicorn app:app --host 0.0.0.0 --port 8502
+```
+
+Set `NEXUS_DB_PATH` and `NEXUS_LEASE_SECONDS` as needed. `NEXUS_HEARTBEAT_SECONDS` defaults to 10 seconds and is capped at one-third of the active lease; Docker Compose gives the worker a 45-second SIGTERM grace period so it can persist an operator-visible production pause before forced termination. SQLite uses WAL, foreign keys, busy timeout, serialized claims, unique idempotency keys and lease fencing tokens.
+
+API: POST /api/jobs, POST /api/jobs/claim, POST /api/jobs/{id}/heartbeat, POST /api/jobs/{id}/complete, POST /api/jobs/{id}/fail, GET /api/jobs/{id}, GET /api/jobs/{id}/events, GET /api/queue/stats.
+
+Successful generation transitions to `review_pending`, never directly to public publishing. The repository includes a supervised SQLite-backed production worker, provider-backed script/voice/render orchestration, YouTube OAuth upload adapter, and private-upload workflow. PostgreSQL migration and live end-to-end validation with real provider credentials are not included in the current verified scope.
+
+
+## Global trend and competitor intelligence
+
+Trend ingestion:
+- `POST /api/trends/collect` with JSON such as `{"region":"US","query":"AI tools","limit":20,"include_hacker_news":true}`
+- `GET /api/trends?region=US&limit=50`
+- Regions: KR, US, JP, GB. Google News RSS does not provide search volume or YouTube view counts; unavailable metrics are null.
+
+Competitor intelligence:
+- Set `YOUTUBE_DATA_API_KEY` in the backend environment.
+- `GET /api/competitors/search?q=fitness&limit=5`
+- `GET /api/competitors/{channel_id}?video_limit=10`
+- `GET /api/competitors`
+- YouTube Data API search requests consume quota (search.list is typically 100 units); prefer direct channel IDs when known and avoid aggressive polling.
+- Subscriber/view/video counts are provider snapshots, not growth rates, RPM or revenue.
+
+
+## Profitability scoring (scenario estimates)
+
+- `POST /api/opportunities/score` accepts low/high view forecasts, RPM assumptions, cost ranges, optional affiliate/sponsor assumptions, monetization eligibility and evidence/fit/feasibility scores.
+- `GET /api/opportunities` lists saved scenarios by priority score.
+- A non-empty `forecast_source` is required. Results are explicitly labeled `estimate`; they are not actual earnings or guaranteed results. If monetization is not eligible, ad revenue is forced to zero.
+- The prioritization score is explainable: margin 35%, ROI 25%, evidence quality 20%, strategic fit 10%, production feasibility 10%.
+
+
+## BUILD-00005 — short-video production pipeline
+
+The provider-agnostic orchestration layer is in `production_pipeline.py`.
+It submits durable `short_video_production` queue jobs and executes three
+configured provider stages in order: script, voice generation, and 9:16 video
+rendering. Provider URLs and optional bearer tokens are read from the runtime
+environment:
+
+- `SCRIPT_PROVIDER_URL`, `SCRIPT_PROVIDER_TOKEN`
+- `VOICE_PROVIDER_URL`, `VOICE_PROVIDER_TOKEN`
+- `RENDER_PROVIDER_URL`, `RENDER_PROVIDER_TOKEN`
+
+Each provider accepts a JSON POST contract. Script providers must return a
+non-empty `script`; voice providers must return an HTTP(S) `audio_url`;
+renderers must return an HTTP(S) `video_url`. Provider-specific adapters can
+map vendor APIs to this contract without coupling the core pipeline to one
+vendor. Missing configuration or malformed output fails closed; no placeholder
+audio/video or fabricated artifact URL is created.
+
+API:
+- `POST /api/production/jobs` — create a durable job; body: `brand`, `region`,
+  `language`, `topic`, optional `idempotency_key`.
+- Claim the job with `POST /api/jobs/claim`.
+- `POST /api/production/jobs/{id}/execute` — execute only with the current
+  `worker_id` and `lease_token`.
+- `GET /api/production/jobs/{id}` — inspect stages and artifacts.
+- `python worker.py` — run the long-lived worker. It claims only `short_video_production` jobs, renews its lease while provider calls run, and finalizes the queue into `review_pending` after successful rendering.
+
+A completed render transitions the queue job to `review_pending`. This is not
+a publish operation. Public publishing remains outside this pipeline and must
+require explicit human approval. Provider contracts have mocked unit tests;
+live provider compatibility, actual generation, artifact download/playback,
+and render quality have not been validated.
+
+
+## BUILD-00006 — ten-brand operations
+
+`brand_operations.py` seeds and persists the ten operating brands. Each profile
+defines its vertical, positioning, audience, tone, supported markets/languages,
+risk level and editorial review rules. Defaults are inserted only when missing,
+so operator activation settings survive restarts.
+
+API:
+- `GET /api/brands` — list all brands.
+- `GET /api/brands?active_only=true` — list active brands only.
+- `GET /api/brands/{slug}` — inspect a brand profile.
+- `PUT /api/brands/{slug}/activation` with `{"active":false}` — pause or
+  reactivate a brand.
+
+Production job creation accepts a registered active brand name or slug and
+rejects unsupported region/language combinations. Initial supported regions
+are KR, US, JP and GB; supported languages are Korean, English and Japanese.
+
+## BUILD-00007 — human review
+
+Configure a strong `NEXUS_REVIEW_TOKEN` secret in the API environment. Review endpoints require it in the `X-Review-Token` header and fail closed if unset.
+
+- `GET /api/review/pending`
+- `POST /api/review/{job_id}/approve`
+- `POST /api/review/{job_id}/reject`
+- `POST /api/review/{job_id}/request-revision`
+- `GET /api/review/{job_id}/history`
+
+Request body: `{"reviewer_id":"operator-1","comment":"Optional approval note"}`. Rejection and revision requests require a comment. Decisions record the reviewed artifact snapshot and are append-only; a decision cannot be overwritten. Approval does not trigger upload or public publishing. The current reviewer ID is asserted by the caller; integrate a real identity provider and role-based authorization before multi-user production deployment.
+
+## BUILD-00008 — YouTube private publishing and counters
+
+Configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REFRESH_TOKEN` as runtime secrets. The refresh token must be granted `youtube.upload` and `youtube.readonly` scopes. Never commit credentials or token files.
+
+The upload endpoint requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-Token` and a job with a recorded `approved` human decision:
+- `POST /api/youtube/upload/{job_id}`
+- `GET /api/youtube/uploads/{job_id}`
+- `POST /api/youtube/videos/{video_id}/refresh-metrics` (YouTube Data API v3 counters)
+- `POST /api/youtube/videos/{video_id}/refresh-analytics` and `GET /api/youtube/videos/{video_id}/analytics` (protected YouTube Analytics reports)
+
+Upload body includes a server-local `media_path`, title, description, tags and category ID. The API forces `privacyStatus=private`; there is no public/unlisted override. The server must already have the rendered file at that local path. Current render providers return artifact URLs, so downloading/staging remote artifacts into trusted local storage is a separate deployment integration and is not silently performed by this endpoint.
+
+Uploads use the Google API client resumable media upload interface. The upload record and source-provided view/like/comment counters are persisted. A missing first metrics response does not invalidate a confirmed upload. Data API counters are not revenue; estimated or actual monetization revenue is handled separately in BUILD-00009. The independent YouTube Analytics collector queries watch time, average view duration, average view percentage and the per-video audience-retention curve, stores source-reported results, and refreshes uploaded videos daily (configurable with `YOUTUBE_ANALYTICS_MIN_AGE_SECONDS`). It runs under its own SQLite lease and isolates errors per video. The review workspace can manually refresh a video's Analytics report.
+
+OAuth credentials are supplied through environment secrets; an interactive OAuth consent UI/token provisioning flow is not included. The initial adapter supports one authenticated YouTube channel per runtime. Mocked tests are committed; real OAuth, upload quota, media processing and live metrics have not been validated.
+
+## BUILD-00009 — financial ledger
+
+Financial records are source-referenced inputs, not inferred earnings. APIs require `X-Review-Token`:
+- POST `/api/finance/ledger` — record one revenue/cost item.
+- GET `/api/finance/report?brand=...&from_date=...&to_date=...&currency=USD` — separate revenue/cost totals, net and ROI.
+
+Use entry types `youtube_ads`, `affiliate`, `sponsor`, `production_cost`, `platform_fee`, `other_cost`. Every entry needs a source type and stable source reference. The same source/type reference cannot be double-counted. Reports are one currency at a time; no FX conversion or automatic revenue import is implemented.
+
+## BUILD-00010 — performance insights
+
+GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports brand-level video snapshot differences and recorded ledger totals. It does not estimate earnings from views or infer trends from a single snapshot. Recommendations are rule-based and include their evidence basis. YouTube Analytics watch-time and audience-retention collection is now implemented under BUILD-00032; reports remain unavailable when the channel/video is ineligible or OAuth/API access is denied. TikTok does not provide these same retention metrics through the current Display API. Controlled experiments and autonomous strategy updates remain unimplemented.
+
+## BUILD-00011 — persistent scheduler
+
+Run `python scheduler.py` as a separate supervised process from the API and production worker. It dispatches due interval schedules to the durable queue with deterministic idempotency keys. API endpoints POST/GET `/api/schedules` and PUT `/api/schedules/{id}/activation?active=true|false` require `X-Review-Token`. Schedules are hourly or less frequent and validate active brand/market settings. Multiple scheduler processes are safe: a SQLite singleton leader lease with a fencing token allows only one dispatcher at a time, renews during dispatch, and permits takeover after expiry/crash. Configure `NEXUS_SCHEDULER_LEASE_SECONDS` (default 90) and `NEXUS_SCHEDULER_POLL_SECONDS` (default 30). Calendar/DST rules are not implemented.
+
+## Integrated Docker Compose deployment
+
+At repository root, copy `.env.example` to `.env`, set a long random `NEXUS_REVIEW_TOKEN`, configure provider URLs/tokens and YouTube OAuth secrets. Then run:
+
+```bash
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+API health: `http://localhost:8502/api/health`. Compose starts the API, one production worker and one scheduler, all using a persistent shared SQLite volume. The scheduler's fenced singleton lease permits safe multiple-instance operation on the shared SQLite database. This remains a single-host baseline; do not treat it as multi-host HA production infrastructure.
+
+Run the validation script with Python dependencies installed:
+
+```bash
+sh scripts/validate.sh
+```
+
+It performs bytecode compilation and discovers all unittest cases. A successful mocked test suite still does not validate real AI providers, OAuth, upload, monetization, or live revenue.
+
+### YouTube upload media safety
+
+YouTube upload accepts only staged files resolved inside `NEXUS_MEDIA_DIR` (default `data/media`). Supported extensions: MP4, M4V, MOV and WebM. The upload validates file existence, non-zero size and `NEXUS_MAX_MEDIA_BYTES` (default 256 MiB), and derives the MIME type from the extension. Paths outside the staging root and symlink escapes are rejected. The renderer currently returns a remote URL; an authenticated, allowlisted downloader must stage that artifact before upload. Do not pass arbitrary host paths to the API.
+
+### API authentication
+
+Operational endpoints require `X-Review-Token: <NEXUS_REVIEW_TOKEN>`. This includes production, trends, competitor intelligence, opportunities, schedules, review, YouTube, finance, performance, queue and worker operations, plus brand activation. Public endpoints are limited to health and read-only brand catalog/detail. Configure a long random secret and protect it; the shared token is not multi-user authentication.
+
+### Secure renderer artifact staging
+
+Set `RENDER_ARTIFACT_HOSTS` to exact comma-separated hostnames used by the configured render provider. After rendering completes, call:
+
+```http
+POST /api/production/jobs/{job_id}/stage-media
+X-Review-Token: <NEXUS_REVIEW_TOKEN>
+```
+
+The service retrieves the artifact URL from the production record (the caller cannot supply an arbitrary URL), requires HTTPS and an allowlisted public hostname, rejects redirects, validates MP4 MIME/signature, enforces `NEXUS_MAX_MEDIA_BYTES`, and atomically stores it under `NEXUS_MEDIA_DIR`. Use the returned relative `media_path` in the subsequent YouTube upload request. CDN compatibility must be verified with the actual renderer provider.
+
+### Approved uploads
+
+The protected `GET /api/review/approved` endpoint lists approved productions. The dashboard's approved queue lets the operator explicitly stage the saved render artifact and initiate a YouTube upload. Upload remains private; approval alone does not publish publicly.
+
+## Web operations portal
+
+The integrated single-page control center is served from the backend:
+
+```text
+http://localhost:8502/
+```
+
+The UI includes production job intake, trends, competitors, profitability scoring, human review, approved/private upload, schedules, financial ledger and performance insights. Enter the configured `NEXUS_REVIEW_TOKEN` using the settings button. The token is kept in browser memory only and is cleared on reload. Public publishing is not offered by the UI; YouTube uploads remain private.
+
+### Integration preflight
+
+Use protected `GET /api/preflight` (header `X-Review-Token`) or the dashboard readiness panel to identify missing environment settings. Provider bearer tokens are optional; the endpoint reports them separately from required provider URLs. YouTube and TikTok readiness are reported independently, including TikTok OAuth configuration versus the optional static-token fallback. A ready status means configuration is present only: it does not make provider, OAuth or platform API calls, validate granted scopes, or prove live account access.
+
+Dashboard supports USD, KRW, JPY and GBP for ledger entries and profitability scenarios. Financial reports filter by one currency at a time; currency conversion is not inferred or applied.
+
+
+### Staged media retention and cleanup
+
+- A staged MP4 is retained when upload fails, is active, or requires reconciliation. Do not delete it while the remote upload outcome is uncertain.
+- After the upload ledger reports `status=uploaded` with a confirmed YouTube video ID, an operator may call `POST /api/production/jobs/{job_id}/cleanup-media` with `X-Review-Token`. The endpoint deletes only the deterministic staged file belonging to that job; repeated calls are safe.
+- Abandoned atomic-write `.part` files can be pruned with `MediaStager.prune_temporary_files()` after a minimum one-hour age threshold. It never scans or deletes completed media files. No automatic retention job is enabled by default.
+- Keep the renderer's remote artifact until upload is confirmed and your provider's retention policy permits deletion. Remote artifact deletion is not implemented.
+
+
+## Retry, cancellation and orphan-artifact consistency — 2026-11-15
+
+- A new production attempt now deletes the previous attempt's script/audio/video artifact rows in the same SQLite transaction as the fenced transition into the script stage. This prevents an old rendered MP4 from remaining visible as the current attempt's output after a retry starts.
+- Worker startup now reconciles durable queue states `cancelled` and `failed_terminal` into the matching production record. The reconciliation is transactional and does not overwrite approved/uploaded records.
+- Added regression tests for retry invalidation and cancellation-state synchronization.
+- This does **not** delete remote renderer artifacts; provider-side cleanup is not implemented because ownership and retention guarantees depend on the configured renderer.
+- Tests are committed but have not been executed in a Python runtime. GitHub Actions currently fails before allocating a runner; no assertion result is available.
+
+
+## YouTube upload/reconciliation race protection — 2026-11-15
+
+- YouTube upload finalization now uses `BEGIN IMMEDIATE` and updates only a row still in `uploading`. A late remote completion cannot overwrite an operator's `not_uploaded` reconciliation or another terminal state.
+- Reconciliation itself now acquires the SQLite write transaction before reading and deciding the upload state, serializing it against finalization and other reconciliation attempts.
+- Added regression coverage for a late upload response after operator reconciliation and for attempts to finalize a missing upload record.
+- If the remote response arrives after reconciliation has already declared no upload, the local record remains failed and the late result is surfaced as an error for manual investigation; operators must check YouTube Studio before any new upload attempt.
+- These reconciliation tests are included in the current automated suite; the latest verified run is recorded in the validation checkpoint below.
+
+
+### Review decision concurrency check
+
+Review decisions are committed in a BEGIN IMMEDIATE transaction. The production status transition is checked using the UPDATE statement's affected-row count; if the row is no longer review_pending, the decision transaction is rolled back rather than accepted as successful.
+
+
+## 2026-11-15 — YouTube late-success preservation and reconciliation audit
+
+- Added append-only `youtube_upload_events` records for operator reconciliation, late remote success, and operator resolution. Each record includes job ID, outcome, returned video ID where available, operator ID, note, previous/resulting state and UTC timestamp.
+- A late YouTube response arriving after an operator marked `not_uploaded` is now persisted as `late_success_review_required`; the video ID is retained and new upload attempts are blocked. The late response cannot be overwritten by the stale request's error handler.
+- Added authenticated `POST /api/youtube/uploads/{job_id}/resolve-late-result`. An operator must acknowledge the preserved video ID and provide an audit note before the upload is finalized as private.
+- The dashboard distinguishes this state from ordinary ambiguous uploads and provides an explicit resolution action. Reconciliation requests include the dashboard reviewer ID; this is caller-supplied identity, not cryptographic user authentication. The shared review token remains a transitional access control.
+- Added regression assertions for preserved late IDs, retry blocking, operator attribution and event timestamps. These are included in the verified automated suite.
+
+
+### Upload-attempt fencing and late-response quarantine — 2026-11-15
+
+- Each YouTube upload attempt now receives a fresh persisted generation token. Finalization, heartbeat, ordinary failure and ambiguous-outcome transitions are fenced against that token, so a stale request cannot update a newer retry's state.
+- If an older attempt returns a video ID after a newer attempt has started, the ID is appended to the immutable upload-event ledger and the job enters `late_success_review_required`; further retries are blocked. If an older attempt terminates ambiguously after a retry starts, it creates a `superseded_attempt_uncertain` event and quarantines the current job in `reconciliation_required`.
+- SQLite triggers reject UPDATE and DELETE operations on `youtube_upload_events`. The operator resolution endpoint now requires selection of a video ID present in the late-success event history. The dashboard displays preserved late IDs before resolution.
+- This protects local state and prevents further automatic retries; it cannot delete a duplicate video already created remotely. If multiple remote video IDs are present, the operator must inspect YouTube Studio, choose the canonical video, and manually remove any unwanted duplicate according to channel policy.
+- Regression tests cover stale completion after retry and ambiguous old-attempt failure. Runtime execution remains unverified until a Python test runner is available.
+
+
+### CI verification status — 2026-11-15
+
+The latest workflow run observed during this update was [run 43662557760](https://github.com/justinhblee-prog/shorts/actions/runs/43662557760), for HEAD `fa5fe6bc45d88c18821836727df1f1ac8f0e0f4c`. GitHub reports the job completed with failure but `runner_id=0`, empty runner name and `steps=[]`; therefore no Python test command ran. Several immediately preceding runs show the same pre-runner failure. This is an infrastructure/runner-allocation failure, not a failing test assertion and not a passing test result. All YouTube attempt-fencing and audit tests remain unexecuted pending a working runner or local Python environment.
+
+
+### SQLite upload transition runtime check — 2026-11-15
+
+- Fixed a runtime defect in `YouTubeUploadStore`: SQLite `rowcount` belongs to the cursor returned by `execute()`, not the connection object. Upload completion, heartbeat, reconciliation and late-success resolution now inspect the returned cursor's `rowcount`.
+- Added a regression test ensuring a stale worker error cannot downgrade a confirmed `uploaded` record. Normal upload completion is also written to the immutable event ledger as `upload_confirmed`.
+- Executed a focused Python/SQLite integration harness in the available local Python runtime against the upload-store logic. **Passed 3 scenarios:** late-success quarantine + retry blocking + operator resolution + immutable events; successful completion + audit event + no heartbeat mutation after completion; ambiguous reconciliation + operator attribution. This is targeted store-level execution, not the complete repository test suite or a live YouTube upload.
+- GitHub Actions remains unavailable: recent runs terminate before runner allocation (`runner_id=0`, no steps). The full suite and browser/live-provider tests remain unverified.
+
+
+### Cross-module SQLite cursor correction — 2026-11-15
+
+- A broader source scan found the same SQLite API misuse in production recovery and review decisions. Replaced connection-level `c.rowcount` / cumulative `total_changes` checks with the `rowcount` of each individual cursor returned by `execute()` in `production_pipeline.py`, `review_workflow.py`, and `youtube_publishing.py`.
+- Affected paths: production run stage existence checks; missing-run insertion accounting; terminal-job reconciliation; review-pending repair; human review state transition; upload finish; upload heartbeat; upload reconciliation; late-success resolution.
+- This corrects real runtime exceptions and avoids false-positive row-change detection caused by cumulative connection change counts. The earlier targeted Python/SQLite upload-store scenarios passed after applying the cursor-based fix in the harness. The complete repository suite still has not run.
+
+
+### Canonical-video resolution after late duplicate response — 2026-11-15
+
+- Late-success resolution now accepts either the currently recorded confirmed video ID or a video ID in the immutable late-success event ledger. This lets an operator retain the already confirmed canonical upload when a stale attempt later reports a second video.
+- The dashboard explicitly distinguishes the current recorded ID from late-response IDs and tells the operator either can be selected. Arbitrary, unrecorded IDs remain rejected.
+- Added a regression test for the sequence: first attempt times out → operator confirms no upload → retry succeeds → stale first attempt returns a different video ID → job is quarantined → operator retains the canonical current ID. The targeted Python/SQLite harness passed this scenario against the store logic.
+
+
+### Attempt-correlated immutable audit — 2026-11-15
+
+- Added `attempt_id` to `youtube_upload_events`, with an additive migration for existing databases. Each attempt-start, confirmed upload, preflight failure, ambiguous outcome, superseded-attempt event, operator reconciliation and late-result resolution is now correlated to the specific generation token.
+- The event history now captures normal upload start/completion and preflight/uncertain failure transitions as well as manual operator actions. UPDATE/DELETE protection remains enabled.
+- Added regression coverage for legacy-schema migration, attempt correlation, and preflight/ambiguous failure event types. Executed SQLite checks for all nine event INSERT statement shapes and immutable-trigger behavior; all passed. This supplements the earlier focused state-transition harness, but does not replace the full pytest suite.
+
+
+### Post-confirmation worker exception guard — 2026-11-15
+
+- `mark_reconciliation_required()` now treats `uploaded` as terminal regardless of whether the incoming worker token matches the current attempt. It appends an informational immutable event (`post_confirmation_worker_error` or `superseded_attempt_uncertain`) and never downgrades the confirmed upload.
+- Added regression assertions for both a stale worker token and a same-attempt exception occurring after confirmation. Both must preserve `status='uploaded'` and the confirmed video ID.
+
+
+### Resolution audit generation attribution — 2026-11-15
+
+- The late-result resolver now records the attempt generation associated with the selected video ID, rather than always attributing resolution to the currently active/latest attempt. Selecting a late video ID records that late response's attempt token; retaining the current video ID records the current attempt token.
+- Regression tests assert both attribution paths.
+
+
+### Late-upload API and dashboard regression coverage — 2026-11-15
+
+- Added test coverage that the late-result resolution endpoint is registered and requires the review token, that the request model requires a video ID, and that the dashboard includes the current/late ID selection controls and API call.
+- These are committed regression tests; they have not run in GitHub Actions because the hosted runner fails before job allocation.
+
+
+### Latest verification checkpoint — 2026-11-15 01:38 UTC
+
+- The targeted local Python/SQLite harness was rerun against the current attempt-aware transition logic. Passed: attempt-start and uncertain-outcome events; operator-confirmed not-uploaded then retry; late old-attempt response quarantine; resolution event attributed to the originating attempt; same-attempt post-confirmation exception remains terminal; preflight failure audit; canonical current-video retention after a late duplicate.
+- All nine current audit INSERT SQL shapes were executed against SQLite, including attempt-generation fields. Passed. Legacy schema additive migration and immutable event UPDATE/DELETE triggers also passed. Separate targeted checks passed for review-decision cursor rowcount handling, production-stage cursor rowcount/artifact invalidation behavior, and required late-resolution API video ID validation.
+- Latest GitHub Actions run observed: [43664002080](https://github.com/justinhblee-prog/shorts/actions/runs/43664002080), commit `035fcdfab2a9d8a5a1790a8352718d8cf0ecb9f4`. The job completed in ~2 seconds with `runner_id=0`, empty runner name, and no steps. No repository test command ran. The complete pytest suite and live YouTube/OAuth integration remain unverified.
+
+
+### CI recovery and full-suite verification — 2026-11-15 02:00 UTC
+
+- Repository visibility was changed to public and verified through the GitHub repository API. The earlier repeated failures occurred before runner allocation (runner ID 0, no steps); after the visibility change, a rerun obtained a standard GitHub-hosted Ubuntu runner and reached checkout, Python setup, dependency installation and the test command.
+- The first real full-suite run exposed test and implementation defects. Corrections included committing SQLite transactions in the scheduler store context manager, fixing API test patch targets to module globals, correcting a ledger ROI expectation, repairing the review-history fixture, and making performance analytics fixtures use the real review-approval flow.
+- The final API test patch correction is in commit `022b823334017f33a2924bd671fd976626416172`. GitHub Actions runs #290 and #291 on this exact commit completed successfully. The latest run #292 also completed successfully: [43665563890](https://github.com/justinhblee-prog/shorts/actions/runs/43665563890). The workflow installed dependencies and `sh scripts/validate.sh` passed; log confirms **113 tests** executed.
+- This verifies the repository's automated Python validation suite only. It does not validate live AI provider credentials, rendered video quality, OAuth, actual YouTube upload, public publishing, revenue collection, or production deployment.
+- The fail-closed worker recovery work was merged into `main`; subsequent queue, scheduler, worker, trend and frontend validation changes are committed directly to the current main branch.
+
+
+### CI green checkpoint — 2026-11-15 02:01 UTC
+
+- GitHub Actions hosted-runner provisioning is now working for this public repository. The latest verified main-branch run is [43670349660](https://github.com/justinhblee-prog/shorts/actions/runs/43670180646), commit `00012d82c6cbd6cedf2aef2c1f0de444bfc8cce1`; checkout, Python 3.11, dependency installation, and `sh scripts/validate.sh` all completed successfully.
+- The workflow log confirms **152 tests ran** and the job conclusion is `success`. The validation script also runs `node --check ../frontend/app.js` when Node.js is available.
+- Fixes included: scheduler SQLite context manager now commits successful transactions and rolls back exceptions; API security tests patch module-level symbols rather than attributes on the FastAPI app; ledger ROI expectation corrected to the implementation's percentage formula; YouTube review-history fixture models a subsequent revision correctly; performance analytics fixtures now create actual review approval and attempt-aware upload records.
+- This green CI result establishes that the committed automated backend validation suite passes. It does not establish live AI provider connectivity, actual voice/video generation, YouTube OAuth or private upload, revenue ingestion, frontend browser QA, or deployment readiness. Those remain explicit integration gates.
+
+
+### Brand-specific AI production profile propagation — 2026-11-15
+
+- Production submission now snapshots the selected active brand's editorial profile into the durable queue payload: positioning, target audience, tone, risk level and review rules. Later profile edits do not silently rewrite already queued work.
+- The worker validates this optional profile before provider calls and forwards it to all three production stages: script receives positioning/audience/tone/risk and explicit editorial constraints; voice receives tone and target audience; rendering receives the full brand profile.
+- Added regression tests for provider-stage propagation, malformed-profile fail-closed validation, and API-level profile snapshotting at submission.
+- GitHub Actions run [43666178495](https://github.com/justinhblee-prog/shorts/actions/runs/43666178495) on commit `f7d7c20c396d8ea05fb60ed8414b84d5301e63d8` completed successfully. The full validation script passed and the log confirms **116 tests ran**.
+- This verifies profile propagation through the mocked provider contract and API test boundary. Actual provider prompt adherence, voice characteristics and rendered visual branding still require live provider credentials and real media review.
+
+
+## Historical validation checkpoint — superseded 2026-11-15 (UTC)
+
+- GitHub Actions hosted-runner allocation is operational. This checkpoint supersedes the older historical notes in this document that say Actions has never executed the test suite or that runner allocation is still blocked.
+- Latest run: https://github.com/justinhblee-prog/shorts/actions/runs/43666742044
+- HEAD: `b1db42bc366d1b9c6ddc41e3355c80ed84cc158a`
+- Workflow completed successfully. `sh scripts/validate.sh` passed: **118 tests ran, OK**.
+- The review queue now returns the frozen `brand_profile` captured in the durable job payload. It exposes positioning, audience, tone, risk level and editorial review rules without exposing the raw queue payload.
+- The single-page review workspace displays the brand's risk level and editorial checklist before approval, revision request or rejection. All user-controlled values are HTML-escaped.
+- Review listing remains compatible with isolated/legacy databases where the queue table has not yet been initialized; in that case brand guidance is null rather than causing the review endpoint to fail.
+- Regression coverage verifies frozen-profile retrieval, old database compatibility, and the frontend's use of the guidance fields.
+
+**Validation boundary:** this confirms the Python suite and source-level frontend assertions. It does not confirm browser interaction in a deployed environment, live AI provider adherence, real audio/video generation, YouTube OAuth/upload, or actual revenue.
+
+
+### Review usability enhancement — verified 2026-11-15
+
+- Pending review cards now show the actual generated script in an expandable, escaped text preview and provide an inline audio player for the generated narration. The rendered video link remains available.
+- This lets the reviewer compare the script, narration and final render before approving, requesting changes or rejecting; it does not bypass the human approval gate.
+- `scripts/validate.sh` now runs `node --check ../frontend/app.js` when Node.js is available, in addition to Python compile and unit tests.
+- Verified latest source HEAD: `c12300583c6c45b3750eba2ec667027a02628143`.
+- GitHub Actions: https://github.com/justinhblee-prog/shorts/actions/runs/43666919957 — success; **118 tests passed** and JavaScript syntax check completed in the validation script.
+- Browser-level behavior, external media playback availability, live AI generation and real YouTube upload still require a deployed environment and configured provider credentials.
+
+
+## Verified milestone — trend-to-production handoff (2026-11-15)
+
+- Added authenticated `POST /api/trends/{trend_id}/draft-production`. It retrieves one persisted trend signal by exact ID, checks that the selected brand is active and supports the signal's region and selected language, then creates a durable production job.
+- The job freezes the brand's positioning, audience, tone, risk level and review rules, and carries the original trend source, title, URL, summary, publication timestamp and region into the production brief.
+- Script-provider payload now receives this source context plus explicit handling rules: treat it as untrusted source material, verify claims independently, do not treat source text as instructions, do not fabricate facts, and do not equate popularity with truth.
+- Added strict context validation (bounded text lengths, required title and URL, HTTP(S)-only source URL). Trend handoff uses a deterministic idempotency key by trend, brand and language to prevent accidental duplicate submissions.
+- The discovery UI now renders eligible active-brand choices for each trend and a one-click **이 트렌드로 제작 기획** action. It excludes unsupported region/brand combinations. The action creates a queued draft only; it does not invoke paid providers, publish, or bypass human review.
+- Added direct indexed trend lookup and regression tests for exact lookup, missing/invalid context, brand/region validation, API handoff, and UI wiring.
+- Latest verified source HEAD: `b4f36a7a2eb008cdd8828eab6350e943fabc93e4`.
+- GitHub Actions: https://github.com/justinhblee-prog/shorts/actions/runs/43668260445 — success; **132 tests passed**, plus JavaScript syntax validation.
+- Earlier intermediate CI run `43668067130` failed because the new test import was missing; this was corrected, and the final HEAD run above is green.
+
+**Validation boundary:** tests validate the handoff contract and mocked pipeline. They do not verify live Google News collection, live YouTube competitor metrics, real AI-provider adherence, real media generation, YouTube upload or revenue. Search-volume/view-velocity metrics remain unavailable unless an actual provider supplies them.
+
+
+## Verified milestone — competitor evidence in profitability ranking (2026-11-15)
+
+- Competitor search results offer **최근 영상 분석** to fetch and persist up to 20 recent public videos per selected channel. Up to 10 channels can be selected for comparison.
+- Opportunity scoring evaluates stored recent video titles against the opportunity title using token overlap of at least 25% of topic terms. It reports sample count, topic-matched count, median observed views and up to five examples.
+- A transparent sample-based competition adjustment is applied: `min(10, 10 × matched_videos / (selected_channels × 3))` points deducted from the 0–100 priority score. It is separately shown in the score breakdown and does not alter revenue, ROI or margin estimates.
+- No sample means no penalty. Results explicitly warn that selected channels/recent videos are not market-wide and cannot establish growth, causal demand or revenue.
+- CI exposed a legacy scheduler test adapter without `is_paused()`; missing optional pause inspection now safely defaults to unpaused.
+- Verified source HEAD: `eb1a3248ac7429003e3e0f9a024fa02929653a22`. GitHub Actions: https://github.com/justinhblee-prog/shorts/actions/runs/43668719310 — **137 tests passed** and JavaScript syntax validation passed.
+
+**Not verified:** live YouTube data collection requires `YOUTUBE_DATA_API_KEY`. No live competitor coverage, view velocity, market-wide saturation, real AI generation, YouTube upload or actual revenue is claimed.
+
+
+### Saved opportunity ranking UI — verified 2026-11-15
+
+- The intelligence workspace now fetches and displays the 20 highest-ranked saved opportunity evaluations from `GET /api/opportunities`.
+- Each row shows rank, title, priority score, estimated net-profit range, competitor adjustment, sample counts and timestamp. The list refreshes after scoring and via a manual refresh control.
+- This is an estimate/ranking view only. It does not represent actual earnings, guaranteed performance or a market-wide competitive assessment.
+- Latest source HEAD: `0b32d5ca12aea5c2580264665c4fd3d7cbfe7cf0`. GitHub Actions: https://github.com/justinhblee-prog/shorts/actions/runs/43668889808 — success; **139 tests passed**, including JavaScript syntax validation.
+
+
+### Optional speech transcription provider
+
+Set `TRANSCRIPTION_PROVIDER_URL` and `TRANSCRIPTION_PROVIDER_TOKEN` to enable independent narration transcription. The pipeline POSTs JSON containing `task=transcribe_audio`, the generated `audio_url`, target `language`, and an instruction to transcribe verbatim. The endpoint must return a JSON object with a non-empty `transcript` string; `provider` is an optional display name. The generated audio URL is sent to this explicitly configured service, so configure only a provider approved for your audio/data handling requirements.
+
+The pipeline compares the ASR transcript with the generated script using normalized token Levenshtein distance. Word error rate above 0.25 is surfaced as a human-review warning; it never auto-rejects a video. Without an ASR endpoint, the report explicitly says `speech_transcription_not_configured`. ASR errors can arise from names, numbers, accents, music, noise and language segmentation. This check does not prove factual correctness, pronunciation quality, or subtitle/caption accuracy.
+
+
+### Text subtitle extraction and alignment
+
+When renderer artifacts are staged and ffprobe inspection is enabled, the media inspector also checks for a text subtitle stream. If one exists, FFmpeg extracts the first text subtitle stream to SRT with a 2 MiB output cap and bounded execution time. The pipeline compares extracted subtitle text with the independent ASR transcript when configured, otherwise with the generated script. WER above 0.25 becomes a reviewer warning, not an automatic rejection.
+
+No text subtitle stream is not proof that captions are absent: captions may be burned into the video. Burned-in caption OCR, timing, placement, font size, contrast, readability and language correctness are not verified. A missing/unextractable stream is explicitly marked unverified for human review.
+
+
+### Subtitle timing and reading-speed heuristics
+
+Extracted SRT timecodes are analyzed for nonpositive durations, cue overlaps, gaps over five seconds, cue durations below 0.5 seconds or above seven seconds, and character rates above 20 characters/second. The report stores counts and warning codes, not subtitle content. These are broad heuristics, not universal accessibility or platform standards; language, font, contrast, placement and context affect actual readability. Every warning remains a human-review item.
+
+
+### Recommendation evaluation: within-exposure comparable cohorts
+
+The evaluation endpoint retains the existing chronological pooled Spearman value only as a coarse diagnostic because raw scores from different recommendation runs are not directly comparable. Its preferred diagnostic now groups selected, measured outcomes by the same recommendation exposure and outcome cohort: brand, region, publication-age bucket, duration bucket and format. Each cohort needs at least three selected measured videos; at least five eligible exposure runs are required before a 70/30 chronological holdout is reported. Per-run cohort correlations are summarized by medians. Selection bias remains because only operator-selected recommendations have outcomes; score adjustment stays disabled.
+
+
+### Upload-time policy version freshness gate
+
+Immediately before creating a YouTube upload attempt, the upload store checks that the latest human approval snapshot and the current script artifact both contain the current `POLICY_VERSION`, and that current policy evidence has no blocking reasons or approval blockers. A stale/missing policy report or stale approval snapshot blocks the upload before a remote request begins; the operator must refresh evidence and obtain a new approval. This is a local rule-version check, not a live fetch of YouTube/TikTok policy documents; official policies and regional rules still need current manual verification.
+
+
+### Immutable upload policy-version audit stamps
+
+The YouTube upload record and immutable `upload_attempt_started` audit event now retain the exact local policy version and checked-on date that passed the upload-time freshness gate. Existing databases are migrated additively; old records retain null values and are not retroactively represented as having been checked under the current version.
+
+
+### Upload policy check-date freshness
+
+The upload gate requires both the current script policy evidence and the human-approved script snapshot to match the active local `POLICY_VERSION` and `POLICY_CHECKED_ON`. Missing or stale dates are rejected before the YouTube API is called; audit stamps therefore cannot record a stale or absent check date as current evidence. This remains a local evidence-freshness check, not a live fetch of official platform policies.
+
+
+## TikTok private publishing (backend)
+
+The TikTok integration uses TikTok Login Kit OAuth with encrypted token storage and refresh-token rotation. Direct Post is restricted to `SELF_ONLY` visibility in this product build. Before a post, the backend fetches the creator's current privacy options and maximum video duration, checks the latest human approval and policy version/date, requires explicit operator consent and branded-content declarations, and sets the Direct Post `is_aigc` field from the approved media classification. It uploads a SHA-256-verified immutable media snapshot and blocks uncertain retries until the operator reconciles the result in TikTok.
+
+TikTok metrics collection uses the official Display API for IDs recorded by the creator's own publication history. It does not scrape third-party videos or infer retention/engagement metrics unavailable through that API. Set `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`, and a persistent `TIKTOK_TOKEN_ENCRYPTION_KEY`; enable the Content Posting API and required scopes in the TikTok developer console. Unaudited clients are limited to private visibility by TikTok. The current backend does not automatically enable public posting.
+
+Backend endpoints include OAuth start/callback/status/disconnect, creator-info, private publish, publication status/reconciliation, and TikTok metrics. Frontend operator controls and real developer-app/account validation are tracked separately.
+
+
+### BUILD-00027 validation
+
+GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43781739033 passed **317 backend tests** and `scripts/validate.sh`. PR #87 was squash-merged into `main` as `43b8c0048e117af3864908e23f50dcf2b3443c9f`. The backend integration is CI-verified; no live TikTok creator account post or metrics fetch was performed.
+
+
+## BUILD-00032 — YouTube Analytics watch-time and audience retention
+
+- Uses the authenticated channel's YouTube Analytics API v2 `reports.query` endpoint with the video filter to collect views, estimated minutes watched, average view duration and average view percentage.
+- Separately requests the 100-point audience-retention curve (`elapsedVideoTimeRatio`, `audienceWatchRatio`, `relativeRetentionPerformance`) for each uploaded video. Retention failures or ineligible videos do not discard successfully collected watch-time metrics.
+- Persists source metrics in an additive SQLite table and refreshes due videos through the independent `metrics-collector` service with a separate singleton lease. Default refresh age is 24 hours; configure `YOUTUBE_ANALYTICS_MIN_AGE_SECONDS`.
+- Adds protected manual refresh/read endpoints and exposes per-video curves plus brand-level median watch-time metrics in the performance dashboard.
+- No recommendation score changes are enabled. Sparse samples, missing data and ineligible reports remain explicit; actual channel OAuth/API access and live account data must be validated in deployment.
+- OAuth must have the currently documented `youtube.readonly` permission for `reports.query`. A refresh token that was not granted the required scope needs a fresh operator consent flow; changing the requested scope in code does not upgrade an existing token.
+- Automated validation pending on this branch.
+
+
+BUILD-00032 automated validation: GitHub Actions run [43785987107](https://github.com/justinhblee-prog/shorts/actions/runs/43785987107) passed **336 backend tests** and `scripts/validate.sh`. This is mocked API-contract and local integration validation, not a live YouTube channel authorization or Analytics-data verification.
+
+
+## BUILD-00033 — retention-aware recommendation evaluation
+
+Recommendation evaluation now reports separate within-exposure chronological holdouts for YouTube average view percentage, average view duration and audience-watch ratios at the 25%, 50% and 75% video-time points. Analytics-only observations can contribute even when public counter snapshots are insufficient; the legacy views/hour diagnostic remains separate. Topic-matched historical context displays these metrics without changing recommendation scores. At least five eligible exposure runs and three selected/measured candidates per comparable cohort are required; outcomes remain observational and selection-biased.
+
+
+BUILD-00033 automated validation: GitHub Actions run [43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302) passed **338 backend tests** and `scripts/validate.sh`. This verifies stored/mock metric evaluation only; it does not establish causal lift or live account coverage.
+
+
+## BUILD-00034 — Shorts engaged-view signal
+
+The YouTube Analytics collector now also requests the core `engagedViews` metric. It is defined as views past the initial seconds and is kept distinct from the `views` metric. The dashboard derives a diagnostic engaged-view share by dividing engaged views by views; this derived ratio is not represented as a YouTube-published rate. The signal is exposed in topic history and independent holdout evaluation only; recommendation score weighting remains unchanged. Existing Analytics databases are upgraded additively.
+
+
+BUILD-00034 automated validation: GitHub Actions run [43787047727](https://github.com/justinhblee-prog/shorts/actions/runs/43787047727) passed **339 backend tests** and `scripts/validate.sh`. The additive Analytics schema migration is covered by tests. Live YouTube Analytics access remains a deployment check.
+
+
+## BUILD-00035 — audience-retention visualization
+
+The performance dashboard now renders a sorted per-video retention sparkline and 25%, 50% and 75% video-time checkpoints. Checkpoint values are labeled as audience-watch ratios rather than percentages because the metric may exceed 1 due to rewatches. Empty or unavailable reports remain explicit no-data states.
+
+
+BUILD-00035 validation: GitHub Actions run [43787457716](https://github.com/justinhblee-prog/shorts/actions/runs/43787457716) passed **339 backend tests** and `scripts/validate.sh`.
+
+
+## BUILD-00036 — secure YouTube OAuth connection
+
+Configure YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REDIRECT_URI (registered exactly in Google Cloud Console) and YOUTUBE_TOKEN_ENCRYPTION_KEY. Generate the encryption key with:
+
+```bash
+python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+```
+
+The dashboard's YouTube Connect action starts an authorization-code flow with offline access and explicit consent. The callback validates a one-time hashed state bound to a Secure/HttpOnly/SameSite=Lax cookie, exchanges the code, checks required upload/read-only scopes, and stores only the Fernet-encrypted refresh token. Access tokens are refreshed by the Google client when required. Both publishing and Analytics use the encrypted token store; YOUTUBE_REFRESH_TOKEN remains a legacy fallback. Remove the environment fallback before using the dashboard disconnect action. No OAuth tokens are returned by the status endpoint.
+
+
+BUILD-00036 automated validation: GitHub Actions run [43788265493](https://github.com/justinhblee-prog/shorts/actions/runs/43788265493) passed **352 backend tests** and `scripts/validate.sh`. Live Google OAuth and channel connectivity remain operator deployment checks.
+
+
+## BUILD-00037 — verify live YouTube connectivity
+
+After completing encrypted OAuth, use the dashboard's **실계정 연결 테스트** action or protected `POST /api/youtube/oauth/verify`. It refreshes the token, calls `channels.list(mine=true)` and runs a channel-level YouTube Analytics views report. The result records the selected channel ID/title and independent Data API and Analytics API verification states. A successful OAuth callback alone means only that a refresh token was stored; it does not mean the account APIs are reachable. A Data API success with Analytics permission failure is shown as a partial result.
+
+
+BUILD-00037 automated validation: GitHub Actions run [43788723765](https://github.com/justinhblee-prog/shorts/actions/runs/43788723765) passed **356 backend tests** and `scripts/validate.sh`. The live verification action itself has not been executed against a real channel.
+
+
+## BUILD-00038 — backup and restore
+
+Compose now runs a backup service immediately and every 24 hours. It snapshots SQLite using the online backup API, archives the media directory, verifies SQLite integrity and records SHA-256 checksums in a manifest. The default retention is 14 days in the separate `nexus_backups` volume.
+
+Manual backup:
+
+```bash
+docker compose run --rm --no-deps backup python backup_restore.py backup --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --retain-days 14
+```
+
+Restore only after stopping API, worker, scheduler, metrics collector and backup services:
+
+```bash
+docker compose stop api worker scheduler metrics-collector backup
+docker compose run --rm --no-deps --entrypoint python backup backup_restore.py restore --archive /backups/ARCHIVE_NAME.tar.gz --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --confirm-restore
+docker compose up -d
+```
+
+Restore validates the archive and creates a pre-restore backup before replacing data. Do not delete the pre-restore archive until the service has been verified. The backup volume is on the same Docker host; copy archives to independent off-site storage. Secrets and encryption keys are deliberately excluded.
+
+
+BUILD-00038 automated validation: GitHub Actions run [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031) passed **362 backend tests** and `scripts/validate.sh`. The scheduled backup service and restore procedure still require deployment verification.
+
+
+## BUILD-00039 — operator access and API protection
+
+Use individual operator tokens where possible:
+
+```dotenv
+NEXUS_REVIEW_CREDENTIALS_JSON='{"alice":"REPLACE_WITH_48_PLUS_RANDOM_CHARACTERS","bob":"REPLACE_WITH_ANOTHER_48_PLUS_RANDOM_CHARACTERS"}'
+NEXUS_REVIEW_ROLE_MAP_JSON='{"alice":["admin"],"bob":["reviewer"]}'
+```
+
+Tokens must be unique and 32–512 ASCII characters. If `NEXUS_REVIEW_CREDENTIALS_JSON` is configured, it replaces the legacy shared `NEXUS_REVIEW_TOKEN`; legacy mode maps to the fixed identity `legacy-operator`. Per-operator credentials require an explicit role map; if it is missing, role-protected requests fail closed with HTTP 503. Only legacy single-token migration mode without a role map retains wildcard permissions. Configure the role map before switching to individual operator tokens.
+
+Available roles: admin, producer, reviewer, publisher, analyst, operator, finance and worker. Every protected route has an explicit permission guard. Review actions use the authenticated operator identity rather than caller-supplied reviewer IDs.
+
+Persistent per-client rate limits default to 120 requests/minute overall, 20 auth, 10 publish, 30 queue control, 60 review and 30 production requests. Tune with the `NEXUS_API_*_RATE_LIMIT_PER_MINUTE` variables. `NEXUS_TRUSTED_PROXY_CIDRS` is empty by default; only list the exact reverse-proxy networks you control. Untrusted X-Forwarded-For headers never affect rate-limit identity.
+
+
+BUILD-00039 automated validation: main-branch GitHub Actions run [43790981235](https://github.com/justinhblee-prog/shorts/actions/runs/43790981235) passed **400 backend tests** and the full `scripts/validate.sh` command. No live reverse-proxy deployment or multi-operator production identity-provider integration is claimed.
+
+
+## BUILD-00130 — encrypted backup archives
+
+- Set `NEXUS_BACKUP_ENCRYPTION_KEY` to a URL-safe base64 value decoding to exactly 32 bytes. Generate one with `python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"`.
+- When a key is present, `backup_restore.py backup` writes a streaming AES-256-GCM `.tar.gz.enc` archive. `restore` authenticates/decrypts to a private temporary directory before archive validation and live replacement.
+- Set `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` to reject plaintext backups and restore inputs. The default `false` preserves compatibility with existing `.tar.gz` archives.
+- Restore creates its pre-restore safety backup with the same encryption setting. Retention covers both encrypted and plaintext archives.
+- Store the key separately from the backup volume. Loss of the key means encrypted backups cannot be restored; rotate only with a documented re-encryption/retention plan.
+
+BUILD-00130 automated validation: GitHub Actions run [43791757173](https://github.com/justinhblee-prog/shorts/actions/runs/43791757173) passed **408 backend tests** and the full `scripts/validate.sh` command. This validates code-level encryption/restore behavior, not a production key ceremony or off-host restore drill.
+
+
+## BUILD-00131 — optional ClamAV media scan
+
+- Set `NEXUS_MEDIA_SCAN_ENABLED=true` to require a clean ClamAV result before a downloaded renderer artifact is atomically staged. The default is disabled for backward-compatible rollout.
+- Set `NEXUS_CLAMSCAN_PATH`, `NEXUS_CLAMAV_DATABASE_DIR` and `NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS` only when changing the defaults. The preflight checks executable presence, signature database files and positive timeout.
+- Start the updater and API with `docker compose --profile media-scan up -d`; `clamav-updater` refreshes the persistent named volume and the API mounts that volume read-only.
+- An infected result, missing executable, missing signatures, scanner error, invalid result or timeout blocks staging and deletes the temporary `.part` file. ClamAV's default file/scan size limits can skip files and assume them clean, so the scanner sets both limits to `NEXUS_MAX_MEDIA_BYTES`, enables `--alert-exceeds-max=yes`, and disables the internal max-scantime skip in favor of the outer subprocess timeout. The staging response distinguishes `clean` from `disabled`.
+- CI uses fake scanner results; it does not prove live ClamAV signatures, a deployed updater or malware detection on production media.
+
+BUILD-00131 validation: GitHub Actions run [43792634688](https://github.com/justinhblee-prog/shorts/actions/runs/43792634688) passed **427 backend tests** and `scripts/validate.sh`. This does not validate live signature downloads or real malware samples.
+
+
+### YouTube retention and matched analytics comparisons
+
+`GET /api/performance/insights?platform=youtube` exposes stored YouTube Analytics watch-time and retention data. Video rows include `retention_diagnostics` (early/end retention and largest adjacent observed drop-off). `analytics_cohorts` compare average view percentage, average view duration and engaged-view share only across matched brand, region, publication-age bucket, render-duration bucket, format and exact normalized topic signature. Comparative observations require at least three videos; smaller cohorts remain limited. These are descriptive signals only and do not alter ranking scores or establish causality.
+
+
+### Scheduled YouTube Analytics collection
+
+The periodic `metrics-collector` service uses the encrypted YouTube OAuth token store shared with the API. Complete YouTube OAuth in the dashboard; a plaintext `YOUTUBE_REFRESH_TOKEN` environment variable is not required for scheduled Analytics collection when encrypted OAuth credentials are present. The collector processes due uploaded videos at the configured `YOUTUBE_ANALYTICS_MIN_AGE_SECONDS` cadence and renews its SQLite lease during long batches (`YOUTUBE_ANALYTICS_LEASE_SECONDS`, default 900). A missing token or provider failure is recorded as a per-video collection failure; no metrics are fabricated.
+
+
+### YouTube Analytics collection status
+
+The authenticated `GET /api/youtube/analytics/collection-status` endpoint and the performance dashboard show the last collection attempt/success, last batch requested/collected/failed counts, latest stored report timestamp, and coverage across uploaded videos. Collection state distinguishes `running`, `succeeded`, `partial` and `failed`; a partial batch never hides its failed count. Coverage counts are based on uploaded video IDs and stored Analytics snapshots, not guessed metrics.
+
+
+### BUILD-00135 — provider metrics response validation
+
+YouTube Analytics responses are checked for known unique headers, correct row shape, finite numeric metrics and bounded response sizes before use. Retention curves are independently validated; a malformed retention response does not discard valid watch-time metrics. TikTok metrics responses are fully validated before any persistence and accepted rows are committed in one SQLite transaction. A malformed later row cannot leave a partial batch.
+
+
+### BUILD-00136 — external media URL policy
+
+The review and approved-content workspaces accept external renderer media URLs only when they are absolute HTTPS URLs without embedded credentials. Unsafe URLs are not placed in video-link or audio-preview attributes. External links opened in a new tab use `noopener noreferrer`. This is a frontend scheme/credential check; media host allowlisting and byte-level validation remain enforced separately by the backend staging pipeline.
+
+
+### BUILD-00137 — cancellation and worker lifecycle
+
+Production jobs can be cancelled only before review handoff. A running production cancellation is treated as externally ambiguous: the queue and production record are updated atomically, the worker lease is revoked and the production queue is paused pending manual provider reconciliation. Graceful worker shutdown persists `offline`; heartbeat staleness remains the recovery mechanism for abrupt process termination.
+
+
+### BUILD-00138 — metrics collector lease ownership
+
+The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewable, token-fenced leases. Snapshot and collection-state writes verify the active owner/token in the same SQLite transaction, so results arriving after lease replacement or expiry are rejected. The heartbeat is checked before and after provider work. Configure `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds) for YouTube Data API/TikTok and `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds) for Analytics. Restart the metrics-collector service after deploying the SQLite lease-token migration.
