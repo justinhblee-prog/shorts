@@ -36,9 +36,9 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00007 | Review and approval workflow | Decision store, authenticated APIs, audit snapshots and tests committed; runtime validation pending |
 | BUILD-00008 | YouTube publishing and tracking | OAuth refresh-token adapter, approval-gated private resumable upload, upload ledger and Data API counter snapshots committed; live validation pending |
 | BUILD-00009 | Revenue, cost and ROI analytics | Source-referenced financial ledger and separate revenue/cost reports committed; provider reconciliation pending |
-| BUILD-00010 | AI performance analysis and strategy updates | Source implementation expanded: brand/region/video evidence, measurement coverage, reset detection and currency-safe financial grouping; runtime validation pending |
+| BUILD-00010 | AI performance analysis and strategy updates | Brand/region/video evidence, YouTube Analytics watch-time and retention, topic context and per-metric chronological holdout diagnostics; live-data and controlled-outcome validation pending |
 | BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
-| BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler packaging and validation script committed; deployment/test execution pending |
+| BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler/metrics-collector packaging and CI validation script committed; production deployment and runtime verification pending |
 
 ## BUILD-00001 — durable queue and Worker Lease
 
@@ -80,34 +80,17 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - SQLite persistence and API: POST `/api/opportunities/score`; GET `/api/opportunities`.
 - Unit tests committed; runtime validation pending.
 
-- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.\n\n## Validation — current truth
+- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.
 
-- Code and tests are committed to the private repository main branch.
-- Latest observed GitHub Actions run before this documentation update: https://github.com/justinhblee-prog/shorts/actions/runs/43654662581
-- Latest inspected job metadata reported `runner_id=0`, empty runner name, and `steps=[]`; the job failed before checkout or dependency installation. This is an environment/runner initialization failure, not evidence of a Python test failure.
-- The suite has not passed or failed on code behavior; it has not executed in a real Python runtime.
-- No production worker, PostgreSQL, external AI generation, OAuth, rendering or YouTube publishing has been validated.
-- Do not claim real earnings, real monetization or a complete automated business cycle.
+## Validation — current truth
 
-## Remaining blockers before a real revenue-producing launch
-
-1. **CI runner:** GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43656517188 failed before any step (`runner_id=0`, empty runner name, `steps=[]`). No Python test has executed. Resolve runner allocation or run `./scripts/validate.sh` in an authorized Python 3.11+ environment.
-2. **Provider credentials/contracts:** configure and validate real script, TTS and renderer endpoints; confirm provider-specific request/response contracts, cost, latency and licensing.
-3. **Media handoff:** current renderer output is a remote artifact URL, while YouTube upload expects a server-local media file. Implement authenticated download, file-size/type validation, malware scanning, retention and local staging before live upload.
-4. **YouTube OAuth:** issue and configure a refresh token with `youtube.upload` and `youtube.readonly`; validate channel identity, quota, private upload and processing on a test channel.
-5. **Financial integrations:** connect YouTube Analytics, affiliate networks and sponsor billing to the source-backed ledger. Reconcile actual currency, refunds, taxes and platform adjustments.
-6. **Security/operations:** replace shared review token with real user identity and roles; add HTTPS, secret rotation, audit export, backups/restore, monitoring, rate limits and incident recovery.
-7. **Scale:** migrate SQLite to PostgreSQL and add distributed worker/scheduler coordination before multi-instance deployment.
-8. **Commercial validation:** test one controlled content cohort across the ten brands; compare verified net revenue and costs before increasing production volume. No actual revenue or monetization is established yet.
-
-All BUILD-00001 through BUILD-00012 source milestones have a committed baseline. This is **not** equivalent to a tested production system or a completed revenue-generating business. External credentials, real provider execution, YouTube channel authorization and actual financial data remain necessary.
-
-## Versioning
-
-- v0.1: initial repository and queue foundation.
-- v0.11: minor improvements.
-- v0.2: major integrated milestone.
-
+- Latest verified GitHub Actions run: [43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302), which passed **338 backend tests** and the complete `scripts/validate.sh` command on the BUILD-00033 implementation.
+- CI executed Python 3.11 tests on a GitHub-hosted runner. Provider/API tests use controlled test doubles where credentials or external services are required; this verifies application logic, not live provider success.
+- The validation script also checks Python compilation, frontend JavaScript syntax/DOM IDs and Docker Compose YAML parsing.
+- Recent verified milestones: BUILD-00031 — 326 tests; BUILD-00032 — 336 tests; BUILD-00033 — 338 tests.
+- Not yet verified in a deployed environment: live AI provider generation, actual media rendering/staging, YouTube/TikTok OAuth and account permissions, real uploads, analytics coverage, revenue reconciliation, production worker/scheduler recovery, PostgreSQL migration, backups and restore.
+- No real earnings, monetization eligibility, platform-policy approval or complete unattended business cycle is claimed.
+- Production public publishing remains gated by explicit human approval.
 
 ## BUILD-00005 — AI script, voice and video production pipeline
 
@@ -117,7 +100,7 @@ All BUILD-00001 through BUILD-00012 source milestones have a committed baseline.
 - Missing provider configuration, missing script text, missing audio URL or missing video URL fails closed. No fake generation outputs are returned.
 - A successful render ends at `review_pending`; no public publishing action is included.
 - Mock-provider contract tests are committed in `backend/tests/test_production_pipeline.py`.
-- **Not validated:** test execution, real provider API compatibility, real audio/video generation, media playback, render quality, or end-to-end production. GitHub Actions runner initialization remains unresolved.
+- **CI validated:** the current repository suite runs successfully in GitHub Actions. **Not validated:** real provider API compatibility, real audio/video generation, media playback, render quality, or end-to-end production.
 
 
 ## BUILD-00006 — ten-brand operations
