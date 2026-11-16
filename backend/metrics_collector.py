@@ -78,7 +78,7 @@ class LeaseHeartbeat:
 def run_once(store=None, publisher=None):
     store = store or YouTubeUploadStore(DB)
     publisher = publisher or YouTubePublisher(store)
-    lease_seconds = 300
+    lease_seconds = METRICS_LEASE_SECONDS
     lease_token = store.acquire_metrics_collector_lease(
         OWNER_ID, lease_seconds=lease_seconds
     )
@@ -212,7 +212,7 @@ def run_tiktok_once(store=None, collector=None, publication_store=None, token_ma
         store, publication_store,
         lambda required_scope: token_manager.get_access_token(required_scope=required_scope),
     )
-    lease_seconds = 300
+    lease_seconds = METRICS_LEASE_SECONDS
     lease_token = store.acquire_lease(OWNER_ID, lease_seconds=lease_seconds)
     if lease_token is None:
         logger.info("tiktok_metrics_collection_skipped reason=another_collector_holds_lease")
