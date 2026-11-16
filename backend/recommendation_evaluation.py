@@ -255,7 +255,7 @@ class RecommendationEvaluationStore:
             has_analytics = any(
                 isinstance(item.get(key), (int, float))
                 and math.isfinite(float(item[key])) and item[key] >= 0
-                for key in ("average_view_percentage", "average_view_duration_seconds")
+                for key in ("engaged_view_share", "average_view_percentage", "average_view_duration_seconds")
             ) or bool(item.get("audience_retention_curve"))
             if has_views or has_analytics:
                 measured[str(item["job_id"])] = item
@@ -290,6 +290,7 @@ class RecommendationEvaluationStore:
                     and math.isfinite(float(measured[job_id]["views_per_hour"]))
                     and measured[job_id]["views_per_hour"] >= 0 else None
                 ),
+                "engaged_view_share": measured[job_id].get("engaged_view_share"),
                 "average_view_percentage": measured[job_id].get("average_view_percentage"),
                 "average_view_duration_seconds": measured[job_id].get("average_view_duration_seconds"),
                 "audience_watch_ratio_25": _retention_at(
@@ -316,7 +317,7 @@ class RecommendationEvaluationStore:
         ]
         total_measured = len(view_observations)
         analytics_metric_names = (
-            "average_view_percentage", "average_view_duration_seconds",
+            "engaged_view_share", "average_view_percentage", "average_view_duration_seconds",
             "audience_watch_ratio_25", "audience_watch_ratio_50",
             "audience_watch_ratio_75",
         )
