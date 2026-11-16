@@ -51,11 +51,11 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         reports = FakeReports(
             metrics={
                 "columnHeaders": [
-                    {"name": "video"}, {"name": "views"},
+                    {"name": "video"}, {"name": "views"}, {"name": "engagedViews"},
                     {"name": "estimatedMinutesWatched"},
                     {"name": "averageViewDuration"}, {"name": "averageViewPercentage"},
                 ],
-                "rows": [["video-1", 1000, 250.5, 15.03, 72.4]],
+                "rows": [["video-1", 1000, 620, 250.5, 15.03, 72.4]],
             },
             retention={
                 "columnHeaders": [
@@ -79,12 +79,14 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(result["retention_points"], 3)
         saved = self.store.get("video-1")
         self.assertEqual(saved["views"], 1000)
+        self.assertEqual(saved["engaged_views"], 620)
+        self.assertEqual(saved["engaged_view_share"], 0.62)
         self.assertEqual(saved["retention_curve"][1]["audience_watch_ratio"], 0.42)
         self.assertEqual(reports.calls[0]["ids"], "channel==MINE")
         self.assertEqual(reports.calls[0]["filters"], "video==video-1")
         self.assertNotIn("dimensions", reports.calls[0])
         self.assertEqual(reports.calls[0]["metrics"],
-                         "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage")
+                         "views,engagedViews,estimatedMinutesWatched,averageViewDuration,averageViewPercentage")
 
     def test_retention_permission_error_does_not_discard_watch_time_metrics(self):
         reports = FakeReports(
