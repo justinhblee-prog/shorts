@@ -184,6 +184,31 @@ class TikTokPublishingTests(unittest.TestCase):
             for event in current["events"]
         ))
 
+    def test_superseded_tiktok_attempt_uncertainty_blocks_new_attempt(self):
+        first_attempt = self._uncertain_tiktok_attempt()
+        self.store.reconcile(
+            "job-1", "not_published", "operator-ops",
+            "Verified no post existed before retry", confirmed=True,
+        )
+        second = self.store.begin(
+            "job-1", "Retry after operator verification", True, "operator-1",
+            "retry-attempt-002", False, False,
+        )
+        self.assertEqual(second["status"], "initializing")
+        self.store.mark_uncertain(
+            "job-1", first_attempt, "late response from the superseded TikTok attempt",
+        )
+        current = self.store.get("job-1")
+        self.assertEqual(current["status"], "reconciliation_required")
+        self.assertEqual(current["attempt_id"], "retry-attempt-002")
+        self.assertEqual(current["events"][-1]["event_type"], "superseded_attempt_uncertain")
+        self.assertEqual(current["events"][-1]["attempt_id"], first_attempt)
+        with self.assertRaisesRegex(TikTokPublishError, "unresolved or already active"):
+            self.store.begin(
+                "job-1", "Third attempt", True, "operator-1",
+                "retry-attempt-003", False, False,
+            )
+
     def test_tiktok_reconciliation_published_records_verified_video_id(self):
         attempt_id = self._uncertain_tiktok_attempt()
         result = self.store.reconcile(
