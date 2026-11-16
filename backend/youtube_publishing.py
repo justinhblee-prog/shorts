@@ -526,6 +526,26 @@ class YouTubePublisher:
             raise YouTubeUploadError("Video description exceeds 5000 characters")
         if len(tags or [])>30 or any(not isinstance(tag,str) or len(tag)>500 for tag in (tags or [])):
             raise YouTubeUploadError("At most 30 valid tags are allowed")
+        # The policy preflight records an explicit YouTube A/S declaration.
+        # Never infer the platform disclosure from the generic "AI-generated" label.
+        with self.store.db() as connection:
+            policy_row=connection.execute(
+                """SELECT metadata_json FROM production_artifacts
+                   WHERE job_id=? AND stage='script' AND artifact_type='text'
+                   ORDER BY created_at DESC,id DESC LIMIT 1""",(job_id,)
+            ).fetchone()
+        if policy_row is None:
+            raise YouTubeUploadError("YouTube synthetic-media disclosure evidence is missing; return to review")
+        try:
+            policy_evidence=json.loads(policy_row["metadata_json"]).get("policy_preflight") or {}
+        except (TypeError, ValueError, AttributeError):
+            raise YouTubeUploadError("YouTube synthetic-media disclosure evidence is invalid; return to review")
+        contains_synthetic_media=policy_evidence.get("youtube_contains_synthetic_media")
+        if not isinstance(contains_synthetic_media,bool):
+            raise YouTubeUploadError(
+                "YouTube realistic altered/synthetic-media status is not explicitly classified; "
+                "return to policy review before upload"
+            )
         existing=self.store.get(job_id)
         if existing and existing["status"]=="uploaded":
             return existing
@@ -539,7 +559,8 @@ class YouTubePublisher:
             body={
                 "snippet":{"title":title,"description":description,
                            "tags":list(tags or []),"categoryId":str(category_id)},
-                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False}
+                "status":{"privacyStatus":"private",
+                          "containsSyntheticMedia":contains_synthetic_media}
             }
             request=service.videos().insert(
                 part="snippet,status",body=body,

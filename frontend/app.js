@@ -395,6 +395,7 @@
           originality_notes:prompt("이번 영상만의 독창적인 설명·분석·구성 차이를 기록하세요.","독창적 설명과 편집 구성을 검토함")||""
         };
         if(["ai_generated","realistic_alteration"].includes(declarations.synthetic_media_status)){
+          declarations.youtube_contains_synthetic_media=confirm("YouTube 기준으로 영상에 실제 인물·장소·사건처럼 보이는 현실적인 AI 생성 또는 변형 요소가 포함되어 있습니까? 실제처럼 보이면 예, 비현실적 애니메이션·명백한 판타지라면 아니요를 선택하세요.");
           declarations.platform_disclosures={
             youtube_altered_content:confirm("YouTube 업로드 시 실제와 같이 보이는 AI 생성·변형 콘텐츠 표시를 적용할 준비가 되었습니까?"),
             tiktok_ai_generated_content:confirm("TikTok 게시 시 AI 생성 콘텐츠 라벨을 적용할 준비가 되었습니까?")
