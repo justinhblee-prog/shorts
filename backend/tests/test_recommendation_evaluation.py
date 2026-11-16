@@ -73,6 +73,20 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(rows[1]["recommendation_score"], 80.0)
         self.assertIsNone(json.loads(rows[1]["cohort_context_json"])["bad"])
 
+
+    def test_evaluate_ignores_malformed_retention_curve_containers(self):
+        for curve in (None, 0, "invalid", {"point": 0}):
+            with self.subTest(curve=curve):
+                normalized = self.store.evaluate({"videos": [{
+                    "job_id": "job-no-crash",
+                    "platform": "youtube",
+                    "measurement_status": "measured",
+                    "views_per_hour": 12,
+                    "audience_retention_curve": curve,
+                }]})
+                self.assertEqual(normalized["selected_production_count"], 0)
+                self.assertEqual(normalized["measured_outcome_count"], 0)
+
     def test_record_run_rejects_invalid_timestamp_and_region_before_writing(self):
         for timestamp in ("not-a-date", "", [], "2026-99-99T00:00:00Z"):
             with self.subTest(timestamp=timestamp):
