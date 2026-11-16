@@ -1371,4 +1371,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Enforce the active-state condition atomically in the SQLite update, avoiding a check-then-update race.
 - Keep inactive schedule dead-letter records visible for audit; reactivation allows an operator to retry them explicitly.
 - Add regression coverage for inactive rejection and successful retry after reactivation.
-- CI validation pending.
+- GitHub Actions run [43812864095](https://github.com/justinhblee-prog/shorts/actions/runs/43812864095) passed the complete `scripts/validate.sh` workflow, including 506 backend tests.
