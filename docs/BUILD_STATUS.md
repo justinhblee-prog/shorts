@@ -1860,3 +1860,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The first regression draft attempted to mutate an immutable audit row and correctly failed the repository's append-only audit trigger.
 - Reworked the fixture to create an attempt with no consent operator identity, then reconcile it under a separate reviewer identity. The lookup now derives attempt ownership only from the immutable consent event, not from later reviewer/audit actors.
 - This prevents both cross-attempt attribution and misclassification of a reconciliation reviewer as the original publisher.
+
+## BUILD-00227 — Audit late provider statuses from superseded TikTok attempts
+- A TikTok status poll can finish after the original attempt was reconciled and a newer attempt began. Previously the stale attempt ID caused the provider result to be rejected without preserving a late PUBLISH_COMPLETE/video ID.
+- The store now appends the late result to the original attempt's audit history and retains its publish ID, video ID, and original consent operator. It never overwrites the newer attempt's identity or video fields.
+- Late published/processing outcomes move a nonterminal current row to reconciliation_required, blocking another retry until an operator verifies the remote account. Existing terminal current outcomes remain intact.
+- Added regression coverage. Backend deterministic CI only; no live TikTok API verification.
+
+- Follow-up boundary check: a newer attempt in the retryable `failed` state is not treated as terminal when an older attempt later reports processing/published. It is moved to reconciliation_required, consistent with the superseded-uncertainty policy.

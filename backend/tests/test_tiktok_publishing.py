@@ -288,6 +288,64 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertNotEqual(event["operator_id"],"reviewer")
         self.assertNotEqual(event["operator_id"],"current-operator")
 
+    def test_late_superseded_tiktok_publish_complete_is_audited_and_blocks_retry(self):
+        first_attempt = "old-poll-attempt"
+        self.store.begin("job-1","Old attempt",True,"old-operator",first_attempt,False,False)
+        self.store.set_initialized(
+            "job-1",first_attempt,"old-publish-id",
+            {"creator_username":"creator","creator_nickname":"Creator"},
+        )
+        self.store.mark_uncertain("job-1",first_attempt,"old request timed out")
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_publications SET updated_at=? WHERE job_id=?",
+                ("2026-01-01T00:00:00+00:00","job-1"),
+            )
+        self.store.reconcile(
+            "job-1","not_published","reviewer","Verified no post existed",confirmed=True,
+        )
+        self.store.begin("job-1","New attempt",True,"new-operator","new-poll-attempt",False,False)
+        result=self.store.mark_status(
+            "job-1",first_attempt,"PUBLISH_COMPLETE",["late-old-video"],None,
+        )
+        self.assertEqual(result["attempt_id"],"new-poll-attempt")
+        self.assertEqual(result["status"],"reconciliation_required")
+        result=self.store.get("job-1")
+        event=result["events"][-1]
+        self.assertEqual(event["event_type"],"superseded_attempt_status_observed")
+        self.assertEqual(event["attempt_id"],first_attempt)
+        self.assertEqual(event["publish_id"],"old-publish-id")
+        self.assertEqual(event["video_id"],"late-old-video")
+        self.assertEqual(event["operator_id"],"old-operator")
+        with self.assertRaises(TikTokPublishError):
+            self.store.begin("job-1","Duplicate retry",True,"new-operator","third-attempt",False,False)
+
+    def test_late_superseded_tiktok_success_blocks_retry_after_new_attempt_failed(self):
+        first_attempt = "old-poll-attempt-failed-current"
+        self.store.begin("job-1","Old attempt",True,"old-operator",first_attempt,False,False)
+        self.store.set_initialized(
+            "job-1",first_attempt,"old-publish-id",
+            {"creator_username":"creator","creator_nickname":"Creator"},
+        )
+        self.store.mark_uncertain("job-1",first_attempt,"old request timed out")
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_publications SET updated_at=? WHERE job_id=?",
+                ("2026-01-01T00:00:00+00:00","job-1"),
+            )
+        self.store.reconcile(
+            "job-1","not_published","reviewer","Verified no post existed",confirmed=True,
+        )
+        self.store.begin("job-1","New attempt",True,"new-operator","new-poll-attempt-failed",False,False)
+        self.store.mark_failed_before_remote("job-1","new-poll-attempt-failed","local preflight failure")
+        result=self.store.mark_status(
+            "job-1",first_attempt,"PUBLISH_COMPLETE",["late-old-video"],None,
+        )
+        self.assertEqual(result["attempt_id"],"new-poll-attempt-failed")
+        self.assertEqual(result["status"],"reconciliation_required")
+        result=self.store.get("job-1")
+        self.assertEqual(result["events"][-1]["attempt_id"],first_attempt)
+
     def test_tiktok_reconciliation_published_records_verified_video_id(self):
         attempt_id = self._uncertain_tiktok_attempt()
         result = self.store.reconcile(
