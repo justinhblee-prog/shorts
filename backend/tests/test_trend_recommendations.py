@@ -167,6 +167,48 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(context["evidence_status"], "observed")
         self.assertEqual(context["ranking_score_adjustment"], 0)
 
+
+    def test_topic_matched_analytics_only_videos_supply_watch_quality_context(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        trend = {"id": "ai", "title": "AI robotics explained", "region": "US",
+                 "published_at": now.isoformat()}
+        brand = {"slug": "future-leak", "name": "Future Leak", "active": True,
+                 "config": {"positioning": "AI robotics technology", "regions": ["US"]}}
+        videos = [
+            {
+                "brand": "Future Leak", "region": "US",
+                "topic": "AI robotics explained for beginners",
+                "measurement_status": "insufficient_snapshots",
+                "views_per_hour": None,
+                "average_view_percentage": percentage,
+                "average_view_duration_seconds": duration,
+                "audience_retention_curve": [
+                    {"elapsed_video_time_ratio": 0.25, "audience_watch_ratio": retention},
+                    {"elapsed_video_time_ratio": 0.50, "audience_watch_ratio": retention - 0.1},
+                    {"elapsed_video_time_ratio": 0.75, "audience_watch_ratio": retention - 0.2},
+                ],
+            }
+            for percentage, duration, retention in (
+                (80.0, 18.0, 0.8), (70.0, 16.0, 0.7), (60.0, 14.0, 0.6)
+            )
+        ]
+        baseline = rank_trend_candidates([trend], [brand], now=now)[0]
+        result = rank_trend_candidates(
+            [trend], [brand], now=now, performance_videos=videos
+        )[0]
+        context = result["best_brand"]["topic_performance"]
+        self.assertEqual(context["matched_video_count"], 3)
+        self.assertEqual(context["view_velocity_sample_count"], 0)
+        self.assertEqual(context["average_view_percentage_sample_count"], 3)
+        self.assertEqual(context["median_average_view_percentage"], 70.0)
+        self.assertEqual(context["median_average_view_duration_seconds"], 16.0)
+        self.assertEqual(
+            context["audience_retention_samples"]["audience_watch_ratio_50"]["median_audience_watch_ratio"],
+            0.6,
+        )
+        self.assertEqual(result["recommendation_score"], baseline["recommendation_score"])
+        self.assertEqual(context["ranking_score_adjustment"], 0)
+
     def test_comparable_cohorts_are_brand_region_topic_scoped_and_display_only(self):
         now = datetime(2026, 11, 15, tzinfo=timezone.utc)
         trend = {"id": "ai", "title": "AI robotics explained", "region": "US",

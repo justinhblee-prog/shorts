@@ -433,6 +433,13 @@ class PerformanceAnalyzer:
                 )
             except (TypeError, ValueError):
                 result["audience_retention_curve"] = []
+            if result["publication_age_bucket"] == "unknown" and result.get("analytics_collected_at"):
+                result["publication_age_bucket"] = _publication_age_bucket(
+                    video["uploaded_at"], result["analytics_collected_at"]
+                )
+                result["publication_age_hours_at_last_snapshot"] = _elapsed_hours(
+                    video["uploaded_at"], result["analytics_collected_at"]
+                )
             if isinstance(result["average_view_duration_seconds"], (int, float)):
                 brand_row["_average_view_duration_samples"].append(
                     float(result["average_view_duration_seconds"])

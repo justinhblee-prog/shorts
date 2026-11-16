@@ -974,3 +974,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add per-video and brand-level median Analytics evidence to performance insights and dashboard; missing/eligibility-limited metrics remain null and are not inferred.
 - Recommendation ranking remains unchanged; analytics are evidence for later controlled holdout evaluation, not an automatic score input.
 - GitHub Actions PR run [43785987107](https://github.com/justinhblee-prog/shorts/actions/runs/43785987107) passed **336 backend tests** and `scripts/validate.sh`. The run validated the implementation code; the later documentation-only commit corrected the API endpoint list formatting.
+
+
+### BUILD-00033 — retention-aware recommendation evidence and holdout evaluation (2026-11-16)
+
+- Extend topic-matched historical performance context to include Analytics-only videos, average view percentage, average view duration and source-reported audience-watch ratios at the 25%, 50% and 75% video-time points.
+- Extend recommendation evaluation to accept Analytics outcomes even when two public counter snapshots are not yet available; retain the existing snapshot-derived views/hour evaluation unchanged.
+- Calculate separate chronological, within-exposure comparable-cohort holdouts for average view percentage, average view duration and audience-watch ratios at 25/50/75%.
+- Require at least five eligible recommendation exposure runs and three selected/measured candidates per comparable cohort for each metric-specific holdout.
+- Display topic-matched watch-quality evidence and metric-specific holdout coverage in the dashboard.
+- No recommendation score adjustments are enabled; these are observational diagnostics over selected production only and do not establish causal lift.
+- Validation pending on this branch.

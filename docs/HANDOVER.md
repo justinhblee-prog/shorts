@@ -940,3 +940,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - `sh scripts/validate.sh` passed; the backend suite reported **336 tests, OK**.
 - The CI run included Python compilation, Compose YAML parsing, frontend JavaScript syntax/DOM-ID checks and the full backend unit suite.
 - No live channel OAuth, YouTube Analytics API request, eligible video retention response, actual upload or recommendation-score lift is claimed.
+
+
+## BUILD-00033 — retention-aware recommendation evidence and holdout evaluation
+
+- `backend/trend_recommendations.py` now includes eligible Analytics-only videos in topic-matched historical context and reports median average view percentage, average view duration and 25/50/75% audience-watch ratios.
+- `backend/recommendation_evaluation.py` keeps the legacy view-velocity holdout separate and adds independent chronological within-exposure holdouts for average view percentage, average view duration and audience-watch ratios at 25%, 50% and 75% video time.
+- Analytics-only outcomes can be evaluated even when public counter snapshots are insufficient; they are not fabricated as views/hour.
+- Comparable evaluation requires known platform, brand, region, publication-age, duration and format; minimum five eligible exposure runs and three measured selected candidates per cohort.
+- Dashboard surfaces topic-level watch-quality context and metric-specific holdout coverage. Recommendation scores remain unchanged until evidence quality and a future controlled evaluation justify a separate decision.
+- Validation pending.

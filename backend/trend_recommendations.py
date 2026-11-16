@@ -86,7 +86,7 @@ def _brand_fit_score(trend_tokens, brand, config):
 
 
 def _topic_performance_context(trend_tokens, brand_name, region, videos):
-    """Match measured historical production topics to this trend without causal claims."""
+    """Match historical topic evidence, including eligible YouTube Analytics metrics."""
     matched = []
     region = str(region or "").upper()
     for video in videos or []:
@@ -94,39 +94,101 @@ def _topic_performance_context(trend_tokens, brand_name, region, videos):
             continue
         if region and region != "GLOBAL" and str(video.get("region") or "").upper() != region:
             continue
-        if video.get("measurement_status") != "measured":
-            continue
         rate = video.get("views_per_hour")
         if not isinstance(rate, (int, float)) or rate < 0:
+            rate = None
+        average_percentage = video.get("average_view_percentage")
+        if not isinstance(average_percentage, (int, float)) or average_percentage < 0:
+            average_percentage = None
+        average_duration = video.get("average_view_duration_seconds")
+        if not isinstance(average_duration, (int, float)) or average_duration < 0:
+            average_duration = None
+        curve = video.get("audience_retention_curve") or []
+        retention = {}
+        for target in (0.25, 0.50, 0.75):
+            points = [
+                point for point in curve if isinstance(point, dict)
+                and isinstance(point.get("elapsed_video_time_ratio"), (int, float))
+                and isinstance(point.get("audience_watch_ratio"), (int, float))
+                and point.get("audience_watch_ratio") >= 0
+            ]
+            if points:
+                nearest = min(
+                    points,
+                    key=lambda point: abs(float(point["elapsed_video_time_ratio"]) - target),
+                )
+                retention[f"audience_watch_ratio_{int(target * 100)}"] = float(
+                    nearest["audience_watch_ratio"]
+                )
+            else:
+                retention[f"audience_watch_ratio_{int(target * 100)}"] = None
+        if rate is None and average_percentage is None and average_duration is None and not any(
+            value is not None for value in retention.values()
+        ):
             continue
         topic_tokens = _tokens(video.get("topic"))
         overlap = len(trend_tokens & topic_tokens) / len(trend_tokens) if trend_tokens else 0.0
         if overlap >= 0.25:
             matched.append({
-                "views_per_hour": float(rate),
+                "views_per_hour": float(rate) if rate is not None else None,
+                "average_view_percentage": float(average_percentage) if average_percentage is not None else None,
+                "average_view_duration_seconds": float(average_duration) if average_duration is not None else None,
+                **retention,
                 "interaction_rate": video.get("interactions_per_1000_view_delta"),
                 "topic": video.get("topic"),
                 "region": video.get("region"),
-                "overlap": round(overlap, 3)
+                "overlap": round(overlap, 3),
             })
-    rates = [item["views_per_hour"] for item in matched]
+    rates = [item["views_per_hour"] for item in matched if item["views_per_hour"] is not None]
     interaction_rates = [
         item["interaction_rate"] for item in matched
         if isinstance(item["interaction_rate"], (int, float))
         and item["interaction_rate"] >= 0
     ]
+    percentages = [
+        item["average_view_percentage"] for item in matched
+        if item["average_view_percentage"] is not None
+    ]
+    durations = [
+        item["average_view_duration_seconds"] for item in matched
+        if item["average_view_duration_seconds"] is not None
+    ]
+    retention_samples = {
+        key: [item[key] for item in matched if item[key] is not None]
+        for key in ("audience_watch_ratio_25", "audience_watch_ratio_50",
+                    "audience_watch_ratio_75")
+    }
     count = len(matched)
     return {
         "matched_video_count": count,
+        "view_velocity_sample_count": len(rates),
         "median_views_per_hour": round(statistics.median(rates), 2) if rates else None,
+        "analytics_sample_count": max(len(percentages), len(durations)),
+        "average_view_percentage_sample_count": len(percentages),
+        "median_average_view_percentage": (
+            round(statistics.median(percentages), 2) if percentages else None
+        ),
+        "average_view_duration_sample_count": len(durations),
+        "median_average_view_duration_seconds": (
+            round(statistics.median(durations), 2) if durations else None
+        ),
+        "audience_retention_samples": {
+            key: {
+                "sample_count": len(values),
+                "median_audience_watch_ratio": (
+                    round(statistics.median(values), 4) if values else None
+                ),
+            }
+            for key, values in retention_samples.items()
+        },
         "interaction_rate_sample_count": len(interaction_rates),
         "median_interactions_per_1000_view_delta": (
             round(statistics.median(interaction_rates), 2) if interaction_rates else None
         ),
         "evidence_status": "no_data" if count == 0 else "limited" if count < 3 else "observed",
-        "match_method": "measured_production_topic_token_overlap_at_least_25_percent",
+        "match_method": "same_brand_region_and_lexical_topic_token_overlap_at_least_25_percent",
         "ranking_score_adjustment": 0,
-        "reason": "Topic-matched historical measurements are shown for review only; they do not change ranking."
+        "reason": "Topic-matched historical metrics are evidence for review only; they do not change ranking.",
     }
 
 
