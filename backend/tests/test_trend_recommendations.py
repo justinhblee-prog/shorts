@@ -370,3 +370,26 @@ class TrendRecommendationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_trends_remain_rankable_when_no_brands_are_active(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        trends = [{
+            "id": "standalone-trend",
+            "title": "AI technology explained",
+            "region": "US",
+            "published_at": now.isoformat(),
+            "source": "google_news_rss",
+            "url": "https://news.example/standalone",
+        }]
+        for brands in ([], [{
+            "slug": "inactive-brand", "name": "Inactive Brand", "active": False,
+            "config": {"positioning": "AI technology", "regions": ["US"]},
+        }]):
+            with self.subTest(brands=brands):
+                ranked = rank_trend_candidates(trends, brands, now=now)
+                self.assertEqual(len(ranked), 1)
+                self.assertEqual(ranked[0]["trend"]["id"], "standalone-trend")
+                self.assertIsNone(ranked[0]["best_brand"])
+                self.assertEqual(ranked[0]["brand_candidates"], [])
+                self.assertEqual(ranked[0]["score_breakdown"]["brand_fit"], 0)
