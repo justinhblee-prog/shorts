@@ -191,6 +191,12 @@ def main():
             pass
         print(f"worker_fatal error={type(exc).__name__}; worker_paused")
         raise
+    finally:
+        try:
+            queue.mark_worker_offline(WORKER_ID)
+        except Exception as exc:
+            # Preserve the original worker failure if shutdown bookkeeping fails.
+            print(f"worker_offline_record_failed error={type(exc).__name__}")
 
 
 if __name__ == "__main__":
