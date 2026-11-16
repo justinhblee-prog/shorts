@@ -1,5 +1,6 @@
 import json
 import os
+import sqlite3
 import tempfile
 import unittest
 from datetime import date
@@ -195,6 +196,31 @@ class YouTubeOAuthTests(unittest.TestCase):
             encrypted, " ".join((*REQUIRED_SCOPES, ANALYTICS_READ_SCOPE)), "Bearer"
         )
 
+
+
+    def test_existing_oauth_token_table_migrates_verification_fields(self):
+        legacy_db = os.path.join(self.tmp.name, "legacy-oauth.sqlite3")
+        with sqlite3.connect(legacy_db) as connection:
+            connection.execute("""
+                CREATE TABLE youtube_oauth_tokens(
+                  id INTEGER PRIMARY KEY CHECK(id=1),
+                  refresh_token_encrypted TEXT NOT NULL,
+                  scope TEXT NOT NULL,token_type TEXT NOT NULL,
+                  updated_at TEXT NOT NULL
+                )
+            """)
+        migrated = YouTubeOAuthStore(legacy_db)
+        encrypted = self.manager.cipher.encrypt(b"legacy-refresh").decode("ascii")
+        migrated.save_token(encrypted, " ".join(REQUIRED_SCOPES), "Bearer")
+        migrated.record_verification(
+            "UC-MIGRATED", "Migrated Channel", True, False, "PermissionError"
+        )
+        record = migrated.token_record()
+        self.assertEqual(record["channel_id"], "UC-MIGRATED")
+        self.assertEqual(record["channel_title"], "Migrated Channel")
+        self.assertTrue(record["data_api_verified"])
+        self.assertFalse(record["analytics_api_verified"])
+        self.assertEqual(record["last_error"], "PermissionError")
 
     def test_live_verifier_requires_encrypted_oauth_connection(self):
         verifier = YouTubeConnectionVerifier(
