@@ -1722,3 +1722,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Exercise TikTok's explicit operator consent, current approval/queue revalidation, AIGC disclosure evidence, creator privacy capability check, upload initialization and media transfer.
 - Assert the TikTok request explicitly selects `SELF_ONLY`, records the operator-consent audit event, and does not invoke public posting.
 - TikTok creator and upload transport plus media inspection are deterministic test doubles. This is a local integration contract test, not live TikTok OAuth/API validation.
+- GitHub Actions run [43844384565](https://github.com/justinhblee-prog/shorts/actions/runs/43844384565) passed the complete `scripts/validate.sh` workflow, including 575 backend tests.
