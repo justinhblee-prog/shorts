@@ -61,7 +61,8 @@ class TikTokOAuthStore:
             );
             CREATE TABLE IF NOT EXISTS tiktok_oauth_disconnect_lease(
               id INTEGER PRIMARY KEY CHECK(id=1), operation_id TEXT NOT NULL,
-              access_token_fingerprint TEXT NOT NULL, created_at TEXT NOT NULL
+              access_token_fingerprint TEXT NOT NULL, expires_at TEXT NOT NULL,
+              created_at TEXT NOT NULL
             );
             """)
 
@@ -110,7 +111,11 @@ class TikTokOAuthStore:
     def save_tokens(self, values, refresh_lease=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if c.execute("SELECT 1 FROM tiktok_oauth_disconnect_lease WHERE id=1").fetchone():
+            active_disconnect = c.execute(
+                "SELECT 1 FROM tiktok_oauth_disconnect_lease WHERE id=1 AND expires_at>?",
+                (_stamp(_now()),),
+            ).fetchone()
+            if active_disconnect:
                 return False
             if refresh_lease is not None:
                 owner_id, lease_token = refresh_lease
@@ -156,11 +161,18 @@ class TikTokOAuthStore:
             ).fetchone()
             if row is None or row["access_token_encrypted"] != access_token_fingerprint:
                 return False
+            if c.execute(
+                "SELECT 1 FROM tiktok_oauth_refresh_lease WHERE id=1 AND expires_at>?",
+                (_stamp(_now()),),
+            ).fetchone():
+                return False
+            now = _now()
             c.execute("""
               INSERT INTO tiktok_oauth_disconnect_lease
-                (id,operation_id,access_token_fingerprint,created_at)
-              VALUES(1,?,?,?)
-            """, (operation_id, access_token_fingerprint, _stamp(_now())))
+                (id,operation_id,access_token_fingerprint,expires_at,created_at)
+              VALUES(1,?,?,?,?)
+            """, (operation_id, access_token_fingerprint,
+                  _stamp(now + timedelta(seconds=45)), _stamp(now)))
             return True
 
     def finish_disconnect(self, operation_id, success):
@@ -203,6 +215,11 @@ class TikTokOAuthStore:
         now = _now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if c.execute(
+                "SELECT 1 FROM tiktok_oauth_disconnect_lease WHERE id=1 AND expires_at>?",
+                (_stamp(now),),
+            ).fetchone():
+                return None
             row = c.execute("SELECT * FROM tiktok_oauth_refresh_lease WHERE id=1").fetchone()
             if row and row["expires_at"] > _stamp(now) and row["owner_id"] != owner_id:
                 return None
@@ -431,8 +448,16 @@ class TikTokOAuthManager:
         if not snapshot:
             return {"connected": False, "status": "disconnected"}
         operation_id = str(uuid.uuid4())
+        try:
+            snapshot_access_token = self.cipher.decrypt(
+                snapshot["access_token_encrypted"].encode()
+            ).decode()
+        except InvalidToken as exc:
+            raise TikTokOAuthError("Stored TikTok access token cannot be decrypted") from exc
+        if snapshot_access_token != access_token:
+            raise TikTokOAuthError("TikTok connection changed during disconnect preparation; retry")
         if not self.store.begin_disconnect(operation_id, snapshot["access_token_encrypted"]):
-            raise TikTokOAuthError("TikTok connection changed or another disconnect is in progress; retry")
+            raise TikTokOAuthError("TikTok connection changed or another token operation is in progress; retry")
         try:
             body = urllib.parse.urlencode({
                 "client_key": self.client_key,
