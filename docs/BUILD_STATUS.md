@@ -1086,4 +1086,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Require at least three videos in a cohort before emitting a comparative observation; sparse cohorts remain explicitly limited.
 - Emit video-level descriptive observations for above/below cohort median retention, with controlled-test suggestions. Never modify recommendation ranking scores.
 - Ignore malformed, non-finite and out-of-range retention points; do not infer causal reasons from curve shape.
-- Validation pending on this branch. CI tests must cover cohort isolation, sparse-sample suppression, retention ordering and non-finite input rejection.
+- GitHub Actions PR run [43794456586](https://github.com/justinhblee-prog/shorts/actions/runs/43794456586) passed **431 backend tests** and the complete `scripts/validate.sh` command.
