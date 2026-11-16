@@ -493,11 +493,11 @@ def update_review_policy_evidence(
     job_id:str, body:PolicyEvidenceInput,
     x_review_token:str|None=Header(default=None)
 ):
-    require_review_access(x_review_token)
+    operator_id=require_review_access(x_review_token)
     declarations=body.model_dump(exclude={"reviewer_id"},exclude_none=True)
     try:
         return review_store.update_policy_evidence(
-            job_id,body.reviewer_id,declarations
+            job_id,operator_id,declarations
         )
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
@@ -510,9 +510,9 @@ def update_review_policy_evidence(
 @app.post("/api/review/{job_id}/approve")
 def approve_review(job_id:str, body:ReviewDecision,
                    x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    operator_id=require_review_access(x_review_token)
     try:
-        return review_store.decide(job_id,"approved",body.reviewer_id,body.comment)
+        return review_store.decide(job_id,"approved",operator_id,body.comment)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -524,9 +524,9 @@ def approve_review(job_id:str, body:ReviewDecision,
 @app.post("/api/review/{job_id}/reject")
 def reject_review(job_id:str, body:ReviewDecision,
                   x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    operator_id=require_review_access(x_review_token)
     try:
-        return review_store.decide(job_id,"rejected",body.reviewer_id,body.comment)
+        return review_store.decide(job_id,"rejected",operator_id,body.comment)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -538,9 +538,9 @@ def reject_review(job_id:str, body:ReviewDecision,
 @app.post("/api/review/{job_id}/request-revision")
 def request_revision(job_id:str, body:ReviewDecision,
                      x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    operator_id=require_review_access(x_review_token)
     try:
-        return review_store.decide(job_id,"revision_requested",body.reviewer_id,body.comment)
+        return review_store.decide(job_id,"revision_requested",operator_id,body.comment)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -628,14 +628,14 @@ def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
 @app.post("/api/youtube/uploads/{job_id}/reconcile")
 def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
                               x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    operator_id=require_review_access(x_review_token)
     if not body.confirmed:
         raise HTTPException(422,"Explicit operator confirmation is required")
     if body.outcome=="uploaded" and not body.video_id:
         raise HTTPException(422,"A verified YouTube video ID is required")
     try:
         return youtube_upload_store.reconcile(
-            job_id,body.outcome,body.video_id,body.note,body.operator_id
+            job_id,body.outcome,body.video_id,body.note,operator_id
         )
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
@@ -644,10 +644,10 @@ def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
 @app.post("/api/youtube/uploads/{job_id}/resolve-late-result")
 def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
                                 x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    operator_id=require_review_access(x_review_token)
     try:
         return youtube_upload_store.resolve_late_success(
-            job_id,body.operator_id,body.note,body.video_id
+            job_id,operator_id,body.note,body.video_id
         )
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
@@ -725,11 +725,11 @@ def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
 @app.post("/api/tiktok/publish/{job_id}",status_code=201)
 def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
                          x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    operator_id=require_review_access(x_review_token)
     staged_path=require_canonical_staged_media(job_id,body.media_path)
     try:
         return tiktok_publisher.publish_private_approved(
-            job_id,staged_path,review_store,body.title,body.operator_id,
+            job_id,staged_path,review_store,body.title,operator_id,
             explicit_consent=body.explicit_consent,privacy_level=body.privacy_level,
             brand_content_toggle=body.brand_content_toggle,
             brand_organic_toggle=body.brand_organic_toggle)
@@ -751,9 +751,9 @@ def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=Non
 @app.post("/api/tiktok/publications/{job_id}/reconcile")
 def reconcile_tiktok_publication(job_id:str,body:TikTokPublicationReconciliation,
                                  x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
+    operator_id=require_review_access(x_review_token)
     try:
-        return tiktok_publish_store.reconcile(job_id,body.outcome,body.operator_id,
+        return tiktok_publish_store.reconcile(job_id,body.outcome,operator_id,
             body.note,video_id=body.video_id,confirmed=body.confirmed)
     except TikTokPublishError as e:
         raise HTTPException(409,str(e))
@@ -1063,21 +1063,20 @@ def queue_control(x_review_token:str|None=Header(default=None)):
 
 @app.post("/api/queue/pause")
 def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
-    operator_id=body.operator_id.strip()
+    operator_id=require_review_access(x_review_token)
     note=body.note.strip()
-    if not operator_id or not note:
-        raise HTTPException(422,"operator_id and note must not be blank")
+    if not note:
+        raise HTTPException(422,"note must not be blank")
     control=queue.pause(note,actor=operator_id)
     return {"control":control,"events":queue.worker_control_events(30)}
 
 @app.post("/api/queue/resume")
 def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
-    require_review_access(x_review_token)
-    if not body.operator_id.strip() or not body.note.strip():
-        raise HTTPException(422,"operator_id and note must not be blank")
+    operator_id=require_review_access(x_review_token)
+    if not body.note.strip():
+        raise HTTPException(422,"note must not be blank")
     try:
-        control=queue.resume(actor=body.operator_id.strip(),note=body.note.strip())
+        control=queue.resume(actor=operator_id,note=body.note.strip())
         return {"control":control,"events":queue.worker_control_events(30)}
     except ValueError as e:
         raise HTTPException(409,str(e))
