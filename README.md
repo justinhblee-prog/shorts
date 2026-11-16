@@ -72,3 +72,8 @@ The review workspace includes a TikTok connection action, creator capability dis
 ### Platform-specific recommendation evidence
 
 The trend workspace supports separate YouTube Shorts and TikTok recommendation exposures. TikTok performance analysis uses owned-video Display API snapshots only (views, likes, comments, shares), computes time-normalized view velocity and interaction-rate deltas, and forms comparable brand/region/topic/duration/format/publication-age cohorts. Recommendation exposures and production selections are tagged and evaluated within their platform; YouTube outcomes are never mixed with TikTok outcomes. Score adjustment remains disabled until the required within-exposure holdout sample is available. TikTok Display API data in this collector does not provide audience retention, watch time or estimated revenue, so those metrics are not inferred.
+
+
+### Platform-aware scheduled production
+
+Manual production requests and recurring schedules let the operator select YouTube Shorts or TikTok. The platform selection is persisted in the schedule payload and survives the durable scheduler outbox and queue dispatch, so downstream production policy checks and approval/publishing gates receive the intended target platform. YouTube remains the default for existing schedules and older payloads.
