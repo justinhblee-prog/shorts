@@ -258,6 +258,16 @@ class YouTubeOAuthManager:
                 raise YouTubeOAuthError(
                     "YOUTUBE_TOKEN_ENCRYPTION_KEY is required to decrypt the stored refresh token"
                 )
+            scopes = set(str(row.get("scope") or "").split())
+            missing = [
+                scope.rsplit("/", 1)[-1]
+                for scope in REQUIRED_SCOPES if scope not in scopes
+            ]
+            if missing:
+                raise YouTubeOAuthError(
+                    "Stored YouTube OAuth token is missing required scopes: "
+                    + ", ".join(missing)
+                )
             try:
                 return self.cipher.decrypt(
                     row["refresh_token_encrypted"].encode("ascii")
