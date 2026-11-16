@@ -1,0 +1,71 @@
+"""Fail-closed ClamAV scanning for staged renderer artifacts."""
+from __future__ import annotations
+
+import os
+import subprocess
+from pathlib import Path
+
+
+class MediaScanError(RuntimeError):
+    pass
+
+
+class ClamAVScanner:
+    """Run ClamAV without a shell and require an explicit clean exit."""
+
+    def __init__(self, executable=None, timeout=None, database_dir=None, runner=None):
+        self.executable = str(
+            executable if executable is not None
+            else os.getenv("NEXUS_CLAMSCAN_PATH", "clamscan")
+        ).strip()
+        raw_timeout = (
+            timeout if timeout is not None
+            else os.getenv("NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS", "120")
+        )
+        try:
+            self.timeout = int(raw_timeout)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("malware scanner timeout must be a positive integer") from exc
+        self.database_dir = str(
+            database_dir if database_dir is not None
+            else os.getenv("NEXUS_CLAMAV_DATABASE_DIR", "/var/lib/clamav")
+        ).strip()
+        self.runner = runner if runner is not None else subprocess.run
+        if (
+            not self.executable
+            or self.timeout < 1
+            or not self.database_dir
+            or any(ord(character) < 32 or ord(character) == 127 for character in self.executable)
+        ):
+            raise ValueError("scanner executable, database directory and positive timeout are required")
+
+    def scan(self, path):
+        target = Path(path)
+        if target.is_symlink() or not target.is_file():
+            raise MediaScanError("Media scan target must be a regular non-symlink file")
+        try:
+            result = self.runner(
+                [
+                    self.executable,
+                    "--database=" + self.database_dir,
+                    "--no-summary",
+                    "--infected",
+                    "--stdout",
+                    str(target),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise MediaScanError("Malware scanner timed out") from exc
+        except OSError as exc:
+            raise MediaScanError("Malware scanner could not be started") from exc
+
+        returncode = getattr(result, "returncode", None)
+        if returncode == 0:
+            return {"status": "clean", "engine": "clamav"}
+        if returncode == 1:
+            raise MediaScanError("Malware scanner detected an infected artifact")
+        raise MediaScanError("Malware scanner failed; artifact was not staged")
