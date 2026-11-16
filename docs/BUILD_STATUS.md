@@ -838,7 +838,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Store timing counts and warning codes in the caption quality report and display them in the human review panel.
 - Bound analysis to 10,000 subtitle cues and preserve raw subtitle text out of quality artifacts.
 - Timing and reading-speed thresholds are heuristic review signals, not universal platform/accessibility standards. They do not evaluate actual font size, contrast, placement, safe areas, language-specific reading speed, or burned-in captions.
-- Validation pending on this branch.
+- GitHub Actions PR run [43798469723](https://github.com/justinhblee-prog/shorts/actions/runs/43798469723) passed **464 backend tests** and the complete `scripts/validate.sh` command.
 
 
 ### BUILD-00020 — within-exposure recommendation validation (2026-11-15)
