@@ -2,6 +2,9 @@ import io
 import tempfile
 import unittest
 import urllib.error
+import time
+from threading import Event, Thread
+from unittest.mock import patch
 from pathlib import Path
 
 from production_pipeline import (
@@ -43,6 +46,43 @@ class ProductionTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_create_uses_one_timestamp_after_acquiring_write_lock(self):
+        decision = "2036-07-08T09:10:11+00:00"
+        clock_called = Event()
+        started = Event()
+        outcome = {}
+
+        def controlled_now():
+            clock_called.set()
+            return decision
+
+        def create():
+            started.set()
+            try:
+                self.store.create("job-create-lock-time", self.brief)
+            except Exception as exc:
+                outcome["error"] = exc
+
+        with self.store.db() as holder:
+            holder.execute("BEGIN IMMEDIATE")
+            with patch("production_pipeline.utc_now", side_effect=controlled_now):
+                thread = Thread(target=create)
+                thread.start()
+                self.assertTrue(started.wait(1))
+                time.sleep(0.1)
+                self.assertFalse(
+                    clock_called.is_set(),
+                    "production creation must not sample its timestamp while waiting for the write lock",
+                )
+                holder.commit()
+                thread.join(2)
+            self.assertFalse(thread.is_alive(), "production creation did not finish after lock release")
+
+        self.assertNotIn("error", outcome)
+        run = self.store.get("job-create-lock-time")
+        self.assertEqual(run["created_at"], decision)
+        self.assertEqual(run["updated_at"], decision)
 
     def test_submit_is_durable_and_does_not_call_providers(self):
         queue = FakeQueue()
