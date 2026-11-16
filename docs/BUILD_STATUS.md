@@ -1095,7 +1095,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Renew the collector's SQLite lease during long batches; renewal is conditional on the same owner and an unexpired lease, so an expired owner cannot resurrect its lease.
 - Make the lease duration configurable with `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds); heartbeat interval is one-third of the lease.
 - Preserve provider failure isolation and ensure the lease is released in all exit paths.
-- Validation pending.
+- GitHub Actions PR run [43794744350](https://github.com/justinhblee-prog/shorts/actions/runs/43794744350) passed **436 backend tests** and the complete validation script.
 
 
 ## BUILD-00134 — YouTube Analytics collection observability (2026-11-16)
@@ -1105,4 +1105,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Calculate coverage across uploaded videos: with snapshot, without snapshot and stale/missing according to the configured Analytics minimum age.
 - Add authenticated `GET /api/youtube/analytics/collection-status` and surface the collector state/coverage in the performance dashboard.
 - Preserve previous completed batch totals and last error while a new batch is running; a completed successful batch clears the prior error.
+- GitHub Actions PR run [43795106625](https://github.com/justinhblee-prog/shorts/actions/runs/43795106625) passed **438 backend tests** and the complete validation script.
+
+
+## BUILD-00135 — validate YouTube and TikTok metrics response batches (2026-11-16)
+
+- Validate YouTube Analytics column names, duplicate headers, row shape/count, requested metric set and finite nonnegative numeric values before using report data.
+- Bound Analytics response columns and rows; validate retention point ranges and ignore malformed retention reports without discarding otherwise valid watch-time metrics.
+- Validate the complete TikTok response batch, reject unrequested/duplicate IDs and SQLite integer overflow, then persist all accepted rows in one transaction.
+- Add regression tests proving a malformed later TikTok row cannot leave an earlier partial snapshot, and malformed YouTube report values are rejected.
 - Validation pending.
