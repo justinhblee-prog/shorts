@@ -1289,9 +1289,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 ## BUILD-00157 — historical performance aggregate validation
 
-- Treat non-dictionary historical brand aggregates as unavailable evidence rather than raising during candidate ranking.
+- Treat non-dictionary historical brand aggregates and invalid top-level optional enrichment containers as unavailable evidence rather than raising during candidate ranking.
 - Accept sample counts only as nonnegative integers (excluding booleans); malformed strings, negative values and booleans default to zero.
 - Preserve editorial ranking output and keep historical performance display-only.
-- Add regression coverage for null/scalar aggregates and malformed count fields.
+- Add regression coverage for null/scalar aggregates, malformed count fields and invalid top-level enrichment containers.
 - GitHub Actions validation: pending.
 - Recommendation ranking score adjustment remains disabled; no live analytics provider validation is claimed.
