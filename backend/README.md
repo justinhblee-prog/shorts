@@ -568,3 +568,11 @@ BUILD-00130 automated validation: GitHub Actions run [43791757173](https://githu
 - CI uses fake scanner results; it does not prove live ClamAV signatures, a deployed updater or malware detection on production media.
 
 BUILD-00131 validation: GitHub Actions run [43792634688](https://github.com/justinhblee-prog/shorts/actions/runs/43792634688) passed **427 backend tests** and `scripts/validate.sh`. This does not validate live signature downloads or real malware samples.
+
+
+## BUILD-00132 — secure provider endpoints
+
+- Configure `SCRIPT_PROVIDER_URL`, `VOICE_PROVIDER_URL`, `RENDER_PROVIDER_URL` and optional `TRANSCRIPTION_PROVIDER_URL` with HTTPS URLs only. Put bearer tokens in their dedicated environment variables, never in URL userinfo.
+- The built-in transport refuses redirects and reads at most 2 MiB + 1 byte before rejecting an oversized provider response. Custom transport responses are subject to the same limit.
+- Provider HTTP error bodies are discarded; errors contain only sanitized status/type details. Preflight validates URLs without echoing their contents.
+- This validates endpoint shape and transport behavior, not DNS trust, provider availability, credentials, quota or vendor response compatibility.
