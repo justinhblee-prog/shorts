@@ -261,7 +261,7 @@ class TikTokPublishingTests(unittest.TestCase):
                 "retry-attempt-003", False, False,
             )
 
-    def test_superseded_uncertainty_does_not_borrow_current_operator_identity(self):
+    def test_superseded_uncertainty_uses_original_consent_operator_not_reviewer(self):
         first_attempt = "uncertain-attempt-operator-check"
         self.store.begin("job-1","Old attempt",True,"old-operator",first_attempt,False,False)
         self.store.set_initialized(
@@ -279,7 +279,8 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(result["status"],"reconciliation_required")
         event=result["events"][-1]
         self.assertEqual(event["attempt_id"],first_attempt)
-        self.assertIsNone(event["operator_id"])
+        self.assertEqual(event["operator_id"],"old-operator")
+        self.assertNotEqual(event["operator_id"],"reviewer")
         self.assertNotEqual(event["operator_id"],"current-operator")
 
     def test_tiktok_reconciliation_published_records_verified_video_id(self):
