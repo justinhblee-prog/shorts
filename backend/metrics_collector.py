@@ -260,19 +260,29 @@ def run_tiktok_once(store=None, collector=None, publication_store=None, token_ma
         store.release_lease(OWNER_ID, lease_token)
 
 
+def run_collection_cycle(collector_runs=None):
+    """Run each provider once, isolating ordinary failures between providers."""
+    collector_runs = collector_runs or (
+        ("youtube", run_once),
+        ("youtube_analytics", run_youtube_analytics_once),
+        ("tiktok", run_tiktok_once),
+    )
+    for provider_name, collector_run in collector_runs:
+        try:
+            collector_run()
+        except Exception:
+            # Provider failures are isolated; one platform outage does not
+            # suppress the other platform's metrics collection.
+            logger.exception("%s_metrics_collection_failed", provider_name)
+
+
 def main():
     logger.info(
         "metrics_collector_started interval_seconds=%s min_age_seconds=%s batch_size=%s",
         INTERVAL, MIN_AGE, BATCH_SIZE
     )
     while True:
-        for provider_name,collector_run in (("youtube",run_once),("youtube_analytics",run_youtube_analytics_once),("tiktok",run_tiktok_once)):
-            try:
-                collector_run()
-            except Exception:
-                # Provider failures are isolated; one platform outage does not
-                # suppress the other platform's metrics collection.
-                logger.exception("%s_metrics_collection_failed",provider_name)
+        run_collection_cycle()
         time.sleep(INTERVAL)
 
 
