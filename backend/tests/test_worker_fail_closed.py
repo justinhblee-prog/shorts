@@ -87,7 +87,7 @@ class WorkerFailClosedTests(unittest.TestCase):
             self.assertTrue(worker.run_once())
 
         self.assertEqual(join_timeouts, [None])
-        self.assertFalse(heartbeat_started.is_set() and not release_heartbeat.is_set())
+        self.assertTrue(release_heartbeat.is_set())
         self.assertIsNone(worker.active_job_id)
         self.assertIsNone(worker.active_lost_lease_event)
 
