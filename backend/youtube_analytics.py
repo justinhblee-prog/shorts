@@ -380,7 +380,7 @@ class YouTubeAnalyticsCollector:
                                + type(exc).__name__) from exc
 
     @staticmethod
-    def _row_map(response):
+    def _row_map(response, expected_video_id=None):
         if not isinstance(response, dict):
             raise RuntimeError("YouTube Analytics response is malformed")
         headers = response.get("columnHeaders")
@@ -389,9 +389,10 @@ class YouTubeAnalyticsCollector:
             not isinstance(headers, list)
             or not 1 <= len(headers) <= MAX_ANALYTICS_COLUMN_HEADERS
             or not isinstance(rows, list)
-            or len(rows) > MAX_ANALYTICS_RESPONSE_ROWS
         ):
             raise RuntimeError("YouTube Analytics response omitted valid headers or rows")
+        if len(rows) > MAX_ANALYTICS_RESPONSE_ROWS:
+            raise RuntimeError("YouTube Analytics response exceeded the 200-row limit")
         names = []
         for header in headers:
             if not isinstance(header, dict):
@@ -401,7 +402,7 @@ class YouTubeAnalyticsCollector:
                 not isinstance(name, str) or not name or len(name) > 64
                 or not name.isascii() or not name[0].isalpha()
                 or not name.replace("_", "").isalnum()
-                or name not in METRICS_QUERY_FIELDS
+                or name not in (METRICS_QUERY_FIELDS | {"video"})
             ):
                 raise RuntimeError("YouTube Analytics response columns are invalid")
             names.append(name)
@@ -415,8 +416,20 @@ class YouTubeAnalyticsCollector:
         if not isinstance(row, list) or len(row) != len(names):
             raise RuntimeError("YouTube Analytics response row shape is invalid")
         parsed = dict(zip(names, row))
+        if "video" in parsed:
+            returned_video_id = parsed["video"]
+            if (
+                not isinstance(returned_video_id, str) or not returned_video_id
+                or len(returned_video_id) > MAX_ANALYTICS_VIDEO_ID_CHARS
+                or any(ord(character) < 32 for character in returned_video_id)
+                or (
+                    expected_video_id is not None
+                    and returned_video_id != expected_video_id
+                )
+            ):
+                raise RuntimeError("YouTube Analytics returned an unexpected video ID")
         for key, value in parsed.items():
-            if value is None:
+            if key == "video" or value is None:
                 continue
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise RuntimeError("YouTube Analytics metric is not numeric: " + key)
@@ -434,9 +447,10 @@ class YouTubeAnalyticsCollector:
             not isinstance(headers, list)
             or not 1 <= len(headers) <= MAX_ANALYTICS_COLUMN_HEADERS
             or not isinstance(rows, list)
-            or len(rows) > MAX_ANALYTICS_RESPONSE_ROWS
         ):
             raise RuntimeError("YouTube retention response omitted valid headers or rows")
+        if len(rows) > MAX_ANALYTICS_RESPONSE_ROWS:
+            raise RuntimeError("YouTube retention response exceeded the 200-row limit")
         names = []
         for header in headers:
             if not isinstance(header, dict):
@@ -457,7 +471,6 @@ class YouTubeAnalyticsCollector:
             point = dict(zip(names, row))
             elapsed = point.get("elapsedVideoTimeRatio")
             audience = point.get("audienceWatchRatio")
-            relative = point.get("relativeRetentionPerformance")
             for key, value in point.items():
                 if value is None:
                     continue
@@ -533,7 +546,7 @@ class YouTubeAnalyticsCollector:
             filters="video==" + video_id,
             maxResults=1,
         ).execute()
-        metrics = self._row_map(report)
+        metrics = self._row_map(report, expected_video_id=video_id)
         retention_status = "unavailable"
         retention_error = None
         retention = []
