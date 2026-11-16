@@ -465,3 +465,8 @@ Recommendation evaluation now reports separate within-exposure chronological hol
 
 
 BUILD-00033 automated validation: GitHub Actions run [43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302) passed **338 backend tests** and `scripts/validate.sh`. This verifies stored/mock metric evaluation only; it does not establish causal lift or live account coverage.
+
+
+## BUILD-00034 — Shorts engaged-view signal
+
+The YouTube Analytics collector now also requests the core `engagedViews` metric. It is defined as views past the initial seconds and is kept distinct from the `views` metric. The dashboard derives a diagnostic engaged-view share by dividing engaged views by views; this derived ratio is not represented as a YouTube-published rate. The signal is exposed in topic history and independent holdout evaluation only; recommendation score weighting remains unchanged. Existing Analytics databases are upgraded additively.

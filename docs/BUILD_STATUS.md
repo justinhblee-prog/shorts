@@ -968,3 +968,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Display topic-matched watch-quality evidence and metric-specific holdout coverage in the dashboard.
 - No recommendation score adjustments are enabled; these are observational diagnostics over selected production only and do not establish causal lift.
 - GitHub Actions PR run [43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302) passed **338 backend tests** and `scripts/validate.sh`.
+
+
+### BUILD-00034 — Shorts engaged-view quality signal (2026-11-16)
+
+- Extend YouTube Analytics collection with the core `engagedViews` metric alongside `views`, watch time and retention.
+- Add an additive SQLite migration for `engaged_views` and derived `engaged_view_share = engagedViews / views`; do not label the derived ratio as a platform-provided rate.
+- Surface engaged-view share in per-video and brand performance, topic-matched historical context and recommendation holdout diagnostics.
+- Keep the signal separate from public Data API counters and existing views/hour; do not change recommendation scores.
+- Validation pending.

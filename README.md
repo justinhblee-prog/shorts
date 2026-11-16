@@ -89,3 +89,6 @@ Recommendation analysis now exposes topic-matched YouTube watch-quality evidence
 
 
 BUILD-00033 added retention-aware topic context and independent holdout diagnostics for average view percentage, average view duration and 25/50/75% audience-watch checkpoints. CI passed **338 backend tests** in [run 43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302). Recommendation ranking remains unchanged pending real data and controlled evaluation.
+
+
+Shorts performance reporting also tracks YouTube Analytics `engagedViews` separately from `views`, with a clearly labeled derived engaged-view share. This quality signal is displayed and evaluated in holdouts, but is not yet used to change recommendation rankings.

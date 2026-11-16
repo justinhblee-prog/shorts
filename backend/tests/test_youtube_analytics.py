@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import tempfile
 import unittest
 from datetime import date
@@ -51,11 +52,11 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         reports = FakeReports(
             metrics={
                 "columnHeaders": [
-                    {"name": "video"}, {"name": "views"},
+                    {"name": "video"}, {"name": "views"}, {"name": "engagedViews"},
                     {"name": "estimatedMinutesWatched"},
                     {"name": "averageViewDuration"}, {"name": "averageViewPercentage"},
                 ],
-                "rows": [["video-1", 1000, 250.5, 15.03, 72.4]],
+                "rows": [["video-1", 1000, 620, 250.5, 15.03, 72.4]],
             },
             retention={
                 "columnHeaders": [
@@ -79,12 +80,14 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(result["retention_points"], 3)
         saved = self.store.get("video-1")
         self.assertEqual(saved["views"], 1000)
+        self.assertEqual(saved["engaged_views"], 620)
+        self.assertEqual(saved["engaged_view_share"], 0.62)
         self.assertEqual(saved["retention_curve"][1]["audience_watch_ratio"], 0.42)
         self.assertEqual(reports.calls[0]["ids"], "channel==MINE")
         self.assertEqual(reports.calls[0]["filters"], "video==video-1")
         self.assertNotIn("dimensions", reports.calls[0])
         self.assertEqual(reports.calls[0]["metrics"],
-                         "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage")
+                         "views,engagedViews,estimatedMinutesWatched,averageViewDuration,averageViewPercentage")
 
     def test_retention_permission_error_does_not_discard_watch_time_metrics(self):
         reports = FakeReports(
@@ -111,6 +114,33 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(result["retention_status"], "no_data")
         self.assertFalse(self.store.get("video-3")["views"])
 
+
+
+    def test_existing_analytics_table_is_migrated_for_engaged_view_columns(self):
+        legacy_db = os.path.join(self.tmp.name, "legacy.sqlite3")
+        with sqlite3.connect(legacy_db) as connection:
+            connection.execute("""
+                CREATE TABLE youtube_analytics_snapshots(
+                  video_id TEXT PRIMARY KEY,start_date TEXT NOT NULL,end_date TEXT NOT NULL,
+                  views REAL,estimated_minutes_watched REAL,average_view_duration REAL,
+                  average_view_percentage REAL,retention_json TEXT NOT NULL DEFAULT '[]',
+                  analytics_status TEXT NOT NULL,retention_status TEXT NOT NULL,
+                  retention_error TEXT,collected_at TEXT NOT NULL
+                )
+            """)
+        migrated = YouTubeAnalyticsStore(legacy_db)
+        with migrated.db() as connection:
+            columns = {
+                row["name"] for row in connection.execute(
+                    "PRAGMA table_info(youtube_analytics_snapshots)"
+                ).fetchall()
+            }
+        self.assertIn("engaged_views", columns)
+        self.assertIn("engaged_view_share", columns)
+        migrated.save("migrated-video", "2026-11-01", "2026-11-14", {
+            "views": 100, "engagedViews": 45,
+        }, [])
+        self.assertEqual(migrated.get("migrated-video")["engaged_view_share"], 0.45)
 
     def test_recent_upload_is_pending_not_a_zero_metrics_report(self):
         from youtube_publishing import YouTubeUploadStore

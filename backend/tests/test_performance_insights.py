@@ -67,7 +67,7 @@ class PerformanceTests(unittest.TestCase):
   self.video("j-analytics","Brain Glitch","US","Sleep","yt-analytics-1")
   analytics=YouTubeAnalyticsStore(self.db)
   analytics.save("yt-analytics-1","2026-11-01","2026-11-14",{
-   "views":1200,"estimatedMinutesWatched":310.5,
+   "views":1200,"engagedViews":720,"estimatedMinutesWatched":310.5,
    "averageViewDuration":15.5,"averageViewPercentage":68.2
   },[
    {"elapsedVideoTimeRatio":0.01,"audienceWatchRatio":1.0,
@@ -83,6 +83,8 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(video["average_view_duration_seconds"],15.5)
   self.assertEqual(video["average_view_percentage"],68.2)
   self.assertEqual(video["estimated_minutes_watched"],310.5)
+  self.assertEqual(video["engaged_views"],720)
+  self.assertEqual(video["engaged_view_share"],0.6)
   self.assertEqual(len(video["audience_retention_curve"]),2)
   self.assertEqual(brand["median_average_view_duration_seconds"],15.5)
   self.assertEqual(brand["median_average_view_percentage"],68.2)

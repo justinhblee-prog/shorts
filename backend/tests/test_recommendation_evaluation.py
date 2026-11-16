@@ -226,6 +226,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
                     "platform": "youtube",
                     "measurement_status": "insufficient_snapshots",
                     "views_per_hour": None,
+                    "engaged_view_share": retention,
                     "average_view_percentage": percentage,
                     "average_view_duration_seconds": duration,
                     "audience_retention_curve": [
@@ -253,7 +254,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(result["any_metric_measured_outcome_count"], 15)
         analytics = result["analytics_outcome_validation"]
         for metric in (
-            "average_view_percentage", "average_view_duration_seconds",
+            "engaged_view_share", "average_view_percentage", "average_view_duration_seconds",
             "audience_watch_ratio_25", "audience_watch_ratio_50",
             "audience_watch_ratio_75",
         ):

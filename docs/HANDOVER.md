@@ -966,3 +966,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - BUILD-00032 added YouTube Analytics API v2 watch-time/retention collection; BUILD-00033 added topic context and separate chronological holdouts for average view percentage, average view duration and audience-watch ratios.
 - Recommendation score adjustments remain disabled.
 - External blockers: real provider credentials, OAuth re-consent if required scopes are absent, live AI generation/rendering, real YouTube/TikTok account checks, revenue reconciliation and production deployment/backup verification.
+
+
+## BUILD-00034 — Shorts engaged-view quality signal
+
+- YouTube Analytics API query now requests `engagedViews` with `views`, estimated minutes watched, average view duration and average view percentage.
+- The API defines `engagedViews` as views past the initial seconds. The dashboard derives `engaged_view_share = engagedViews / views`; this is explicitly a derived diagnostic, not a platform-published rate.
+- SQLite upgrade adds `engaged_views` and `engaged_view_share` to existing Analytics snapshot tables without replacing stored reports.
+- Performance insights, brand summaries, topic-matched history and per-metric recommendation holdouts expose the signal. Recommendation scores remain unchanged.
+- Official metric reference: https://developers.google.com/youtube/analytics/metrics
+- Validation pending.

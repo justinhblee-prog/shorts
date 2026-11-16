@@ -333,6 +333,8 @@ class PerformanceAnalyzer:
                 SELECT r.job_id,r.brand,r.region,r.topic,u.video_id,u.uploaded_at,
                        a.metadata_json AS rendering_metadata_json,
                        s.view_count,s.like_count,s.comment_count,s.collected_at,
+                       an.engaged_views AS analytics_engaged_views,
+                       an.engaged_view_share AS analytics_engaged_view_share,
                        an.average_view_duration AS analytics_average_view_duration,
                        an.average_view_percentage AS analytics_average_view_percentage,
                        an.estimated_minutes_watched AS analytics_estimated_minutes_watched,
@@ -366,6 +368,8 @@ class PerformanceAnalyzer:
                 "topic": row["topic"], "video_id": row["video_id"],
                 "uploaded_at": row["uploaded_at"],
                 "rendering_metadata_json": row["rendering_metadata_json"],
+                "analytics_engaged_views": row["analytics_engaged_views"],
+                "analytics_engaged_view_share": row["analytics_engaged_view_share"],
                 "analytics_average_view_duration": row["analytics_average_view_duration"],
                 "analytics_average_view_percentage": row["analytics_average_view_percentage"],
                 "analytics_estimated_minutes_watched": row["analytics_estimated_minutes_watched"],
@@ -390,7 +394,8 @@ class PerformanceAnalyzer:
                 "unmeasured_videos": 0, "view_delta": 0, "like_delta": 0,
                 "comment_delta": 0, "recommendations": [],
                 "_views_per_hour_samples": [], "_interaction_rate_samples": [],
-                "_average_view_duration_samples": [], "_average_view_percentage_samples": []
+                "_average_view_duration_samples": [], "_average_view_percentage_samples": [],
+                "_engaged_view_share_samples": []
             })
             region_key = (video["brand"], video["region"])
             region_row = by_region.setdefault(region_key, {
@@ -420,6 +425,8 @@ class PerformanceAnalyzer:
                 "publication_age_bucket": "unknown",
                 "measurement_status": "insufficient_snapshots",
                 "analytics_status": video.get("analytics_status") or "not_collected",
+                "engaged_views": video.get("analytics_engaged_views"),
+                "engaged_view_share": video.get("analytics_engaged_view_share"),
                 "retention_status": video.get("retention_status") or "not_collected",
                 "average_view_duration_seconds": video.get("analytics_average_view_duration"),
                 "average_view_percentage": video.get("analytics_average_view_percentage"),
@@ -439,6 +446,10 @@ class PerformanceAnalyzer:
                 )
                 result["publication_age_hours_at_last_snapshot"] = _elapsed_hours(
                     video["uploaded_at"], result["analytics_collected_at"]
+                )
+            if isinstance(result["engaged_view_share"], (int, float)):
+                brand_row["_engaged_view_share_samples"].append(
+                    float(result["engaged_view_share"])
                 )
             if isinstance(result["average_view_duration_seconds"], (int, float)):
                 brand_row["_average_view_duration_samples"].append(
@@ -520,6 +531,7 @@ class PerformanceAnalyzer:
             interaction_samples = item.pop("_interaction_rate_samples")
             duration_samples = item.pop("_average_view_duration_samples")
             percentage_samples = item.pop("_average_view_percentage_samples")
+            engaged_share_samples = item.pop("_engaged_view_share_samples")
             item["rate_sample_count"] = len(rate_samples)
             item["median_views_per_hour"] = (
                 round(statistics.median(rate_samples), 2) if rate_samples else None
@@ -532,7 +544,13 @@ class PerformanceAnalyzer:
             item["performance_evidence_status"] = (
                 "limited" if len(rate_samples) < 3 else "sample_available"
             )
-            item["analytics_measured_videos"] = max(len(duration_samples), len(percentage_samples))
+            item["analytics_measured_videos"] = max(
+                len(duration_samples), len(percentage_samples), len(engaged_share_samples)
+            )
+            item["median_engaged_view_share"] = (
+                round(statistics.median(engaged_share_samples), 4)
+                if engaged_share_samples else None
+            )
             item["median_average_view_duration_seconds"] = (
                 round(statistics.median(duration_samples), 2) if duration_samples else None
             )

@@ -97,6 +97,9 @@ def _topic_performance_context(trend_tokens, brand_name, region, videos):
         rate = video.get("views_per_hour")
         if not isinstance(rate, (int, float)) or rate < 0:
             rate = None
+        engaged_share = video.get("engaged_view_share")
+        if not isinstance(engaged_share, (int, float)) or engaged_share < 0:
+            engaged_share = None
         average_percentage = video.get("average_view_percentage")
         if not isinstance(average_percentage, (int, float)) or average_percentage < 0:
             average_percentage = None
@@ -122,7 +125,7 @@ def _topic_performance_context(trend_tokens, brand_name, region, videos):
                 )
             else:
                 retention[f"audience_watch_ratio_{int(target * 100)}"] = None
-        if rate is None and average_percentage is None and average_duration is None and not any(
+        if rate is None and engaged_share is None and average_percentage is None and average_duration is None and not any(
             value is not None for value in retention.values()
         ):
             continue
@@ -131,6 +134,7 @@ def _topic_performance_context(trend_tokens, brand_name, region, videos):
         if overlap >= 0.25:
             matched.append({
                 "views_per_hour": float(rate) if rate is not None else None,
+                "engaged_view_share": float(engaged_share) if engaged_share is not None else None,
                 "average_view_percentage": float(average_percentage) if average_percentage is not None else None,
                 "average_view_duration_seconds": float(average_duration) if average_duration is not None else None,
                 **retention,
@@ -144,6 +148,10 @@ def _topic_performance_context(trend_tokens, brand_name, region, videos):
         item["interaction_rate"] for item in matched
         if isinstance(item["interaction_rate"], (int, float))
         and item["interaction_rate"] >= 0
+    ]
+    engaged_shares = [
+        item["engaged_view_share"] for item in matched
+        if item["engaged_view_share"] is not None
     ]
     percentages = [
         item["average_view_percentage"] for item in matched
@@ -163,7 +171,11 @@ def _topic_performance_context(trend_tokens, brand_name, region, videos):
         "matched_video_count": count,
         "view_velocity_sample_count": len(rates),
         "median_views_per_hour": round(statistics.median(rates), 2) if rates else None,
-        "analytics_sample_count": max(len(percentages), len(durations)),
+        "engaged_view_share_sample_count": len(engaged_shares),
+        "median_engaged_view_share": (
+            round(statistics.median(engaged_shares), 4) if engaged_shares else None
+        ),
+        "analytics_sample_count": max(len(engaged_shares), len(percentages), len(durations)),
         "average_view_percentage_sample_count": len(percentages),
         "median_average_view_percentage": (
             round(statistics.median(percentages), 2) if percentages else None
