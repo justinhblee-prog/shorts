@@ -5,6 +5,8 @@ import os
 import shutil
 from pathlib import Path
 
+from provider_endpoint import provider_endpoint_error
+
 
 def _group(source, required, optional=()):
     missing = [key for key in required if not str(source.get(key, "")).strip()]
@@ -87,6 +89,34 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
             source, ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET"]
         ),
         "youtube_data_api": _group(source, ["YOUTUBE_DATA_API_KEY"]),
+    }
+
+    for check_name, url_key in (
+        ("script_generation", "SCRIPT_PROVIDER_URL"),
+        ("voice_generation", "VOICE_PROVIDER_URL"),
+        ("video_rendering", "RENDER_PROVIDER_URL"),
+    ):
+        configured_url = str(source.get(url_key, "")).strip()
+        if configured_url:
+            endpoint_error = provider_endpoint_error(configured_url)
+            if endpoint_error:
+                checks[check_name]["configured"] = False
+                checks[check_name]["missing"].append(f"{url_key} ({endpoint_error})")
+
+    transcription_url = str(source.get("TRANSCRIPTION_PROVIDER_URL", "")).strip()
+    transcription_error = (
+        provider_endpoint_error(transcription_url) if transcription_url else None
+    )
+    checks["transcription_provider"] = {
+        "configured": bool(transcription_url) and transcription_error is None,
+        "missing": (
+            [f"TRANSCRIPTION_PROVIDER_URL ({transcription_error})"]
+            if transcription_error else []
+        ),
+        "optional_missing": (
+            [] if transcription_url else ["TRANSCRIPTION_PROVIDER_URL"]
+        ),
+        "optional": True,
     }
 
     youtube_oauth = _group(
@@ -236,6 +266,7 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
             "operator_rbac_configured": checks["operator_rbac"]["configured"],
             "backup_encryption_configured": backup_key_valid,
             "media_malware_scan_configured": checks["media_malware_scan"]["configured"],
+            "transcription_provider_configured": checks["transcription_provider"]["configured"],
             "ai_generation_configured": generation,
             "artifact_staging_configured": staging,
             "youtube_upload_configured": youtube_upload,
