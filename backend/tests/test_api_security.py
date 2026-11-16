@@ -940,7 +940,12 @@ class ApiSecurityTests(unittest.TestCase):
             mock.patch.object(
                 app_module, "require_review_permission", return_value="operator-1"
             ) as authorize,
-            mock.patch.object(app_module.tiktok_publish_store, "reconcile") as mutation,
+            mock.patch.object(
+                app_module.tiktok_publish_store, "reconcile",
+                side_effect=app_module.TikTokPublishError(
+                    "Explicit confirmation of the TikTok account's remote result is required"
+                ),
+            ) as mutation,
         ):
             with self.assertRaises(HTTPException) as caught:
                 reconcile_tiktok_publication("job-1", body, x_review_token="review-token")
