@@ -1298,3 +1298,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Validate collector lease durations as non-boolean integers between 1 and 3600 seconds before acquiring or renewing a lease.
 - Preserve the existing 30-second minimum while preventing floats, strings, booleans, non-positive values, and arbitrarily long leases from being silently coerced.
 - Add regression coverage for invalid inputs, minimum-duration behavior, and renew-time validation.
+- GitHub Actions run [43809118955](https://github.com/justinhblee-prog/shorts/actions/runs/43809118955) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
