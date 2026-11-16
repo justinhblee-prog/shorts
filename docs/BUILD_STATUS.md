@@ -1974,3 +1974,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Eight simultaneous reservation attempts must produce exactly one durable attempt and one start/consent audit record; all competing requests are rejected without replacing the winning attempt.
 - Confirms TikTok reservation remains SELF_ONLY.
 - Deterministic SQLite transaction tests only; no live platform API or account validation is claimed.
+
+## BUILD-00247 — Concurrent ambiguous production lease recovery
+- Added an eight-caller recovery race for an expired short-video production lease.
+- Verifies exactly one terminal transition and lease-expired event, production-run reconciliation state, queue pause, and stale lease fencing.
+- Deterministic SQLite test only; no multi-host production database test is claimed.
