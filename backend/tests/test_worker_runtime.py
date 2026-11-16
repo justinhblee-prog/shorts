@@ -1,10 +1,13 @@
 import sys
+import tempfile
+import threading
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from worker_runtime import (heartbeat_interval, parse_worker_runtime_config,
                             request_worker_shutdown)
+from queue_store import JobQueue, LeaseConflict
 
 
 class WorkerRuntimeTests(unittest.TestCase):
@@ -76,6 +79,35 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertEqual(queue.pauses[0][1], "job-1")
         self.assertEqual(queue.pauses[0][2:], ("worker-a", "generation-a"))
         self.assertIn("signal 15", queue.pauses[0][0])
+
+    def test_stale_worker_sigterm_cannot_pause_replacement_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            queue = JobQueue(Path(directory) / "worker.db", 30)
+            old = queue.register_worker("same-worker", "host-a")
+            current = queue.register_worker("same-worker", "host-a")
+            self.assertNotEqual(old["generation_token"], current["generation_token"])
+            stopping = threading.Event()
+            lost_lease = threading.Event()
+
+            request_worker_shutdown(
+                queue, stopping, "job-from-old-process", lost_lease, 15,
+                worker_id="same-worker",
+                generation_token=old["generation_token"],
+            )
+
+            self.assertTrue(stopping.is_set())
+            self.assertTrue(lost_lease.is_set())
+            self.assertFalse(queue.is_paused())
+            self.assertEqual(
+                queue.workers()[0]["generation_token"],
+                current["generation_token"],
+            )
+            with self.assertRaises(LeaseConflict):
+                queue.pause(
+                    "old process cannot pause",
+                    worker_id="same-worker",
+                    generation_token=old["generation_token"],
+                )
 
     def test_sigterm_still_stops_locally_if_pause_persistence_fails(self):
         import threading
