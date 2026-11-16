@@ -498,3 +498,13 @@ GitHub Actions run [43797131269](https://github.com/justinhblee-prog/shorts/acti
 - The API rejects booleans, fractional values and numeric strings instead of silently converting them to integers. The persistence layer independently enforces the same contract for internal callers.
 - To inspect schedules, use **운영 관제 · 수익 분석 → 예약·작업 현황** and review each schedule's next-run timestamp and active state. Deactivating a schedule cancels undispatched outbox entries; reactivating it does not replay those cancelled occurrences.
 - The scheduler is an interval scheduler, not a sub-minute polling service. It does not support one-minute recurring schedules.
+
+
+### BUILD-00162 — scheduler process configuration
+
+The scheduler reads two environment settings at process startup:
+
+- `NEXUS_SCHEDULER_POLL_SECONDS`: integer from 5 to 300; default 30.
+- `NEXUS_SCHEDULER_LEASE_SECONDS`: integer from 15 to 3600; default 90.
+
+Both values must be decimal integer strings. The poll interval must not exceed one-third of the leader lease TTL. Invalid values stop startup with a clear configuration error rather than being silently clamped or coerced. For example, a 90-second lease permits a polling interval of at most 30 seconds.
