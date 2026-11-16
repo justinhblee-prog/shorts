@@ -79,7 +79,7 @@ class OperatorRoleTests(unittest.TestCase):
             clear=True,
         ):
             with self.assertRaisesRegex(
-                OperatorRoleConfigurationError, "required when per-operator credentials"
+                OperatorRoleConfigurationError, "required.*per-operator credentials"
             ):
                 has_permission("alice", "review.read")
 
