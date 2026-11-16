@@ -1022,6 +1022,53 @@ class TikTokPublishingTests(unittest.TestCase):
             self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"]
         )
 
+    def test_expired_poll_result_cannot_overwrite_publication_state_after_takeover(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        old_token = self.store.acquire_status_poll_lease(
+            "job-1", attempt_id, lease_seconds=45
+        )
+        self.assertIsNotNone(old_token)
+
+        original_call = self.publisher._call
+        def expire_lease_then_return(*args, **kwargs):
+            with self.store.db() as connection:
+                connection.execute("""
+                    UPDATE tiktok_status_poll_leases
+                    SET lease_expires_at='2000-01-01T00:00:00+00:00'
+                    WHERE job_id='job-1' AND lease_token=?
+                """, (old_token,))
+            return {
+                "data": {"status": "PUBLISH_COMPLETE",
+                         "publicaly_available_post_id": ["late-video-id"]},
+                "error": {"code": "ok"},
+            }
+        self.publisher._call = expire_lease_then_return
+        try:
+            with self.assertRaisesRegex(TikTokPublishError, "lease expired or was replaced"):
+                self.publisher.refresh_status("job-1", poll_lease_token=old_token)
+        finally:
+            self.publisher._call = original_call
+
+        unchanged = self.store.get("job-1")
+        self.assertEqual(unchanged["status"], "uploading")
+        self.assertIsNone(unchanged["video_id"])
+
+        new_token = self.store.acquire_status_poll_lease(
+            "job-1", attempt_id, lease_seconds=45
+        )
+        self.assertIsNotNone(new_token)
+        accepted = self.store.mark_status(
+            "job-1", attempt_id, "PUBLISH_COMPLETE", ["verified-video-id"],
+            expected_status="uploading", poll_lease_token=new_token,
+        )
+        self.assertEqual(accepted["status"], "publish_complete")
+        self.assertEqual(accepted["video_id"], "verified-video-id")
+        self.store.release_status_poll_lease("job-1", attempt_id, new_token)
+
     def test_expired_poll_lease_can_be_taken_over_and_stale_owner_cannot_release(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
