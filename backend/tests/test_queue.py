@@ -318,6 +318,24 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(current["generation_token"],second["generation_token"])
   self.assertTrue(self.q.mark_worker_offline("reused-worker",second["generation_token"]))
   self.assertEqual(self.q.workers()[0]["status"],"offline")
+ def test_claim_and_lease_mutations_are_fenced_by_worker_generation(self):
+  first=self.q.register_worker("generation-worker","host-a")
+  job=self.q.enqueue("render",{"generation":"test"})
+  claimed=self.q.claim("generation-worker","host-a",generation_token=first["generation_token"])
+  self.assertIsNotNone(claimed)
+  self.assertEqual(self.q.workers()[0]["generation_token"],first["generation_token"])
+  second=self.q.register_worker("generation-worker","host-a")
+  self.assertNotEqual(first["generation_token"],second["generation_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.claim("generation-worker","host-a",generation_token=first["generation_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.heartbeat(job["id"],"generation-worker",claimed["lease_token"],first["generation_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"generation-worker",claimed["lease_token"],generation_token=first["generation_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.fail(job["id"],"generation-worker",claimed["lease_token"],"old_process","stale",False,generation_token=first["generation_token"])
+  self.assertEqual(self.q.get(job["id"])["status"],"running")
+
  def test_worker_offline_requires_generation_token(self):
   current=self.q.register_worker("generation-required","host-b")
   self.assertFalse(self.q.mark_worker_offline("generation-required"))
