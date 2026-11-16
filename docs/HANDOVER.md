@@ -1061,3 +1061,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions run [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031) passed **362 backend tests** and `scripts/validate.sh`.
 - Backup/restore tests cover database/media snapshots, checksums, confirmation, pre-restore archive, path validation and symlink rejection.
 - Compose YAML parsing passed. No live Compose service was deployed and no restore was run against production data.
+
+
+## BUILD-00039 — operator authentication, RBAC and API rate limits
+
+- New modules: `backend/reviewer_auth.py`, `backend/operator_rbac.py`, `backend/api_rate_limit.py`.
+- `NEXUS_REVIEW_CREDENTIALS_JSON` maps unique reviewer/operator IDs to 32–512 character tokens. When set, it fully replaces the legacy `NEXUS_REVIEW_TOKEN`; the legacy token maps to fixed identity `legacy-operator`.
+- `NEXUS_REVIEW_ROLE_MAP_JSON` assigns explicit roles: admin, producer, reviewer, publisher, analyst, operator, finance or worker. If omitted, wildcard permissions are retained for compatibility; production deployments should configure a least-privilege role map.
+- All protected API routes now call an explicit permission guard. Review evidence and approve/reject/revision records use the authenticated operator ID, not a body-supplied reviewer ID.
+- Persistent SQLite rate-limit buckets enforce per-minute auth/publish/control/review/production/default limits and emit standard rate-limit headers.
+- X-Forwarded-For is ignored unless the immediate peer is in `NEXUS_TRUSTED_PROXY_CIDRS`; proxy chains are parsed right-to-left and untrusted prefixes are ignored.
+- Validation pending.
