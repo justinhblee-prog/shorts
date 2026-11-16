@@ -559,6 +559,45 @@ class YouTubePublishingTests(unittest.TestCase):
             "batch-collector", token,
         ))
 
+    def test_expired_batch_metrics_lease_stops_before_provider_request(self):
+        old_token = self.uploads.acquire_metrics_collector_lease("collector-old")
+        self.assertIsNotNone(old_token)
+        with self.uploads.db() as connection:
+            connection.execute(
+                "UPDATE youtube_metrics_collector_lease SET lease_until=? WHERE id=1",
+                (time.time() - 1,),
+            )
+        new_token = self.uploads.acquire_metrics_collector_lease("collector-new")
+        self.assertIsNotNone(new_token)
+        self.uploads.due_metric_video_ids = lambda limit, min_age_seconds: ["yt-stale"]
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            self.publisher._refresh_due_metrics_with_lease(
+                lease_owner="collector-old", lease_token=old_token,
+            )
+        self.assertEqual(self.service._videos.list_calls, [])
+        self.assertTrue(self.uploads.release_metrics_collector_lease(
+            "collector-new", new_token,
+        ))
+
+    def test_expired_manual_metrics_lease_stops_before_provider_request(self):
+        old_token = self.uploads.acquire_metrics_collector_lease("manual-old")
+        self.assertIsNotNone(old_token)
+        with self.uploads.db() as connection:
+            connection.execute(
+                "UPDATE youtube_metrics_collector_lease SET lease_until=? WHERE id=1",
+                (time.time() - 1,),
+            )
+        new_token = self.uploads.acquire_metrics_collector_lease("manual-new")
+        self.assertIsNotNone(new_token)
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            self.publisher.refresh_metrics(
+                "yt-stale", lease_owner="manual-old", lease_token=old_token,
+            )
+        self.assertEqual(self.service._videos.list_calls, [])
+        self.assertTrue(self.uploads.release_metrics_collector_lease(
+            "manual-new", new_token,
+        ))
+
     def test_manual_youtube_metrics_refresh_acquires_and_releases_collector_lease(self):
         result = self.publisher.refresh_metrics("yt-manual")
         self.assertEqual(result["video_id"], "yt-manual")
