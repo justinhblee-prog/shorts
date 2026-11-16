@@ -115,4 +115,4 @@ Compose now includes an automated daily SQLite + media backup service with check
 BUILD-00038 adds daily SQLite + media backups and a checksum-verified, explicitly confirmed restore path. Restore hardening passed **365 backend tests** in [run 43789858034](https://github.com/justinhblee-prog/shorts/actions/runs/43789858034); the backup service has not yet been deployed to a live host.
 
 
-BUILD-00039 adds per-operator credentials, least-privilege role guards, authenticated reviewer identity and persistent API rate limiting. Forwarded client IPs are trusted only from explicitly configured proxy CIDRs.
+BUILD-00039 adds per-operator credentials, least-privilege role guards, authenticated reviewer identity and persistent API rate limiting. Per-operator credentials require an explicit role map; otherwise protected requests fail closed. Forwarded client IPs are trusted only from explicitly configured proxy CIDRs.
