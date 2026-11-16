@@ -46,7 +46,7 @@ With Python dependencies installed:
 sh scripts/validate.sh
 ```
 
-This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified mainline feature CI run is GitHub Actions [43796187131](https://github.com/justinhblee-prog/shorts/actions/runs/43796187131), which passed **451 backend tests** and `scripts/validate.sh` for BUILD-00137. CI validates automated logic only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, scheduled backup operations or a production restore drill. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
+This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified mainline feature CI run is GitHub Actions [43797131269](https://github.com/justinhblee-prog/shorts/actions/runs/43797131269), which passed **462 backend tests** and `scripts/validate.sh` for BUILD-00138. CI validates automated logic only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, scheduled backup operations or a production restore drill. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
 
 ## Documentation
 

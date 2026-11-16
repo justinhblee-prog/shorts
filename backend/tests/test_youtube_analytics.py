@@ -288,22 +288,45 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(self.store.due_video_ids(limit=10, min_age_seconds=86400), [])
 
 
-    def test_lease_renewal_extends_only_the_live_owner_lease(self):
-        self.assertEqual(self.store.acquire_lease("worker-a", 300), "worker-a")
-        self.assertTrue(self.store.renew_lease("worker-a", 600))
-        self.assertIsNone(self.store.acquire_lease("worker-b", 300))
-        self.store.release_lease("worker-a")
-        self.assertEqual(self.store.acquire_lease("worker-b", 300), "worker-b")
-        self.assertFalse(self.store.renew_lease("worker-a", 600))
+    def test_lease_renewal_extends_only_the_live_owner_token(self):
+        token = self.store.acquire_lease("worker-a", 300, now=1000)
+        self.assertTrue(token)
+        self.assertTrue(self.store.renew_lease("worker-a", token, 600, now=1001))
+        self.assertIsNone(self.store.acquire_lease("worker-b", 300, now=1002))
+        self.assertTrue(self.store.release_lease("worker-a", token))
+        replacement = self.store.acquire_lease("worker-b", 300, now=1002)
+        self.assertTrue(replacement)
+        self.assertFalse(self.store.renew_lease("worker-a", token, 600, now=1003))
 
     def test_expired_lease_cannot_be_resurrected_by_old_owner(self):
-        self.assertEqual(self.store.acquire_lease("worker-a", 300), "worker-a")
+        token = self.store.acquire_lease("worker-a", 300, now=1000)
+        self.assertTrue(token)
         with self.store.db() as connection:
             connection.execute(
                 "UPDATE youtube_analytics_collector_lease SET lease_until=0 WHERE id=1"
             )
-        self.assertFalse(self.store.renew_lease("worker-a", 300))
-        self.assertEqual(self.store.acquire_lease("worker-b", 300), "worker-b")
+        self.assertFalse(self.store.renew_lease("worker-a", token, 300, now=1001))
+        replacement = self.store.acquire_lease("worker-b", 300, now=1001)
+        self.assertTrue(replacement)
+        self.assertFalse(self.store.release_lease("worker-a", token))
+
+    def test_analytics_snapshot_and_collection_state_reject_replaced_lease_token(self):
+        token = self.store.acquire_lease("worker-a", 300)
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE youtube_analytics_collector_lease SET token='replacement' WHERE id=1"
+            )
+        with self.assertRaisesRegex(RuntimeError, "stale write rejected"):
+            self.store.save(
+                "video-stale", "2026-11-01", "2026-11-14", {"views": 1}, [],
+                lease_owner="worker-a", lease_token=token,
+            )
+        with self.assertRaisesRegex(RuntimeError, "stale write rejected"):
+            self.store.record_collection(
+                "succeeded", requested=1, collected=1,
+                lease_owner="worker-a", lease_token=token,
+            )
+        self.assertIsNone(self.store.get("video-stale"))
 
 
     def test_collection_state_reports_batch_health_and_video_coverage(self):
@@ -364,10 +387,11 @@ class YouTubeAnalyticsTests(unittest.TestCase):
             self.store.record_collection("unknown")
 
     def test_lease_prevents_overlapping_collectors(self):
-        self.assertEqual(self.store.acquire_lease("worker-a", 300), "worker-a")
+        token = self.store.acquire_lease("worker-a", 300)
+        self.assertTrue(token)
         self.assertIsNone(self.store.acquire_lease("worker-b", 300))
-        self.store.release_lease("worker-a")
-        self.assertEqual(self.store.acquire_lease("worker-b", 300), "worker-b")
+        self.store.release_lease("worker-a", token)
+        self.assertTrue(self.store.acquire_lease("worker-b", 300))
 
 
 if __name__ == "__main__":

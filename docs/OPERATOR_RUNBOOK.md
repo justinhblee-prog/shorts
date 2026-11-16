@@ -477,3 +477,16 @@ GitHub Actions run [43795822579](https://github.com/justinhblee-prog/shorts/acti
 ### BUILD-00137 validation checkpoint
 
 GitHub Actions run [43796187131](https://github.com/justinhblee-prog/shorts/actions/runs/43796187131) passed **451 backend tests** and the full validation script. Verify provider-side state manually before resuming after an ambiguous cancellation.
+
+
+### BUILD-00138 — collector lease health and deployment
+
+- All three metrics collectors now renew their database lease during long batches and verify ownership before committing results.
+- YouTube Data API/TikTok use `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds); YouTube Analytics uses `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds).
+- After deployment, restart the `metrics-collector` service so existing SQLite lease tables gain token columns and the new process uses token-fenced writes.
+- If the collector reports lease loss, do not retry or replay a late batch manually; inspect the current lease owner and the last stored snapshot timestamp first. Stale writes are rejected by the database.
+
+
+### BUILD-00138 validation checkpoint
+
+GitHub Actions run [43797131269](https://github.com/justinhblee-prog/shorts/actions/runs/43797131269) passed **462 backend tests** and the complete validation script. After deployment, restart the collector service and verify token-column migrations before enabling multiple collector instances.

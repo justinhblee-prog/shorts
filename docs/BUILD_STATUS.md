@@ -1135,3 +1135,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Persist graceful worker shutdown as `offline`; stale-heartbeat detection remains the fallback for hard crashes.
 - Add tests for queued/running/review-pending cancellation, production-state consistency and offline worker registration.
 - GitHub Actions PR run [43796187131](https://github.com/justinhblee-prog/shorts/actions/runs/43796187131) passed **451 backend tests** and the complete `scripts/validate.sh` command.
+
+
+## BUILD-00138 — renewable token-fenced metrics collector leases (2026-11-16)
+
+- Add a shared heartbeat helper for YouTube Data API counters, YouTube Analytics and TikTok Display API collection.
+- Renew leases during long batches and verify ownership before/after provider work.
+- Add unique lease tokens to YouTube Data API and YouTube Analytics leases; preserve TikTok's token lease. Reject stale snapshot and collection-state writes inside the same SQLite transaction.
+- Pass lease owner/token through collector batches so a replaced or expired worker cannot persist late results.
+- Make YouTube Data API/TikTok lease duration configurable with `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds); YouTube Analytics remains separately configurable (default 900 seconds).
+- Add tests for lease renewal, expiry, replacement-token fencing, runner failure cleanup and heartbeat loss.
+- GitHub Actions PR run [43797131269](https://github.com/justinhblee-prog/shorts/actions/runs/43797131269) passed **462 backend tests** and the complete `scripts/validate.sh` command.

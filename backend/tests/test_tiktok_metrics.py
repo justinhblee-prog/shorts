@@ -170,11 +170,35 @@ class TikTokMetricsTests(unittest.TestCase):
         with self.assertRaisesRegex(TikTokMetricsError, "omitted its data object"):
             malformed_data.refresh_due_metrics(min_age_seconds=0)
 
+    def test_stale_lease_cannot_write_metrics_or_collection_state(self):
+        token = self.store.acquire_lease("collector-a", 60)
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_metrics_collector_lease SET lease_token='replacement' WHERE id=1"
+            )
+        with self.assertRaisesRegex(RuntimeError, "stale write rejected"):
+            self.store.save_snapshots(
+                [("job-1", {"id": "video-1", "view_count": 5})],
+                lease_owner="collector-a", lease_token=token,
+            )
+        with self.assertRaisesRegex(RuntimeError, "stale write rejected"):
+            self.store.record_collection(
+                "succeeded", requested=1, collected=1,
+                lease_owner="collector-a", lease_token=token,
+            )
+        with self.store.db() as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM tiktok_video_metric_snapshots"
+            ).fetchone()[0]
+        self.assertEqual(count, 0)
+
     def test_metrics_lease_is_exclusive_and_owner_token_fenced(self):
         first = self.store.acquire_lease("collector-a", 60)
         self.assertIsNotNone(first)
         self.assertIsNone(self.store.acquire_lease("collector-b", 60))
         self.assertFalse(self.store.release_lease("collector-a", "wrong-token"))
+        self.assertTrue(self.store.renew_lease("collector-a", first, 120))
+        self.assertFalse(self.store.renew_lease("collector-b", first, 120))
         self.assertTrue(self.store.release_lease("collector-a", first))
         self.assertIsNotNone(self.store.acquire_lease("collector-b", 60))
 
@@ -219,6 +243,8 @@ class TikTokMetricsTests(unittest.TestCase):
                 self.released = False
             def acquire_lease(self, owner_id, lease_seconds=300):
                 return "lease-token"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return True
             def release_lease(self, owner_id, token):
                 self.released = True
             def record_collection(self, status, **kwargs):
@@ -243,6 +269,8 @@ class TikTokMetricsTests(unittest.TestCase):
                 self.released = False
             def acquire_lease(self, owner_id, lease_seconds=300):
                 return "lease-token"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return True
             def release_lease(self, owner_id, token):
                 self.released = True
             def record_collection(self, status, **kwargs):
