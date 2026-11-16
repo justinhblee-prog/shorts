@@ -136,6 +136,54 @@ class JobQueue:
                     current_stage='worker_paused',error=?,updated_at=?
                     WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
                     (("Queue paused: " + reason)[:2000], timestamp, row["id"]))
+    def _recover_expired_leases_in_transaction(self, c, timestamp):
+        """Resolve expired leases consistently in claim and periodic recovery.
+
+        Production work is never replayed automatically: a provider request may
+        have completed before its worker lost the lease. Caller owns the
+        BEGIN IMMEDIATE transaction and pauses production after this helper.
+        """
+        rows = c.execute("""SELECT id,job_type,attempt,max_attempts
+            FROM pipeline_jobs
+            WHERE status='running' AND lease_expires_at IS NOT NULL
+              AND lease_expires_at<=?
+            ORDER BY lease_expires_at,id""", (timestamp,)).fetchall()
+        requeued = terminal = 0
+        production_expired = []
+        has_production_runs = c.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+        ).fetchone() is not None
+        for row in rows:
+            ambiguous = row["job_type"] == "short_video_production"
+            target = ("failed_terminal" if ambiguous or row["attempt"] >= row["max_attempts"]
+                      else "queued")
+            code = ("production_lease_expired_ambiguous" if ambiguous else "lease_expired")
+            message = ("Production lease expired; external provider outcome is ambiguous"
+                       if ambiguous else "Worker lease expired")
+            c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,
+                lease_expires_at=NULL,available_at=?,updated_at=?,error_code=?,error_message=?
+                WHERE id=? AND status='running' AND lease_expires_at<=?""",
+                (target, timestamp, timestamp, code, message, row["id"], timestamp))
+            if c.rowcount != 1:
+                continue
+            self.event(c, row["id"], "lease_expired", "running", target, None,
+                       {"attempt": row["attempt"], "ambiguous_external_work": ambiguous,
+                        "resolution": "manual_reconciliation_required" if ambiguous else
+                                     ("retry_available" if target == "queued" else "attempts_exhausted")})
+            if ambiguous:
+                production_expired.append(row["id"])
+                if has_production_runs:
+                    c.execute("""UPDATE production_runs SET status='failed_terminal',
+                        current_stage='lease_expired_ambiguous',error=?,updated_at=?
+                        WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
+                        (message, timestamp, row["id"]))
+            if target == "queued":
+                requeued += 1
+            else:
+                terminal += 1
+        return {"requeued": requeued, "terminal": terminal,
+                "production_expired": production_expired}
+
     def claim(self,worker_id,hostname=None,job_type=None):
         if not worker_id.strip(): raise ValueError("worker_id required")
         dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds)); token=str(uuid.uuid4())
@@ -148,26 +196,8 @@ class JobQueue:
                 return None
             c.execute("""INSERT INTO worker_registry VALUES(?,?,?,'online') ON CONFLICT(worker_id)
               DO UPDATE SET hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",(worker_id,hostname,n))
-            expired=c.execute("""SELECT id,job_type,attempt,max_attempts FROM pipeline_jobs WHERE status='running'
-              AND lease_expires_at IS NOT NULL AND lease_expires_at<=?""",(n,)).fetchall()
-            production_expired = []
-            for e in expired:
-                ambiguous = e["job_type"] == "short_video_production"
-                target = "failed_terminal" if ambiguous or e["attempt"]>=e["max_attempts"] else "queued"
-                code = "production_lease_expired_ambiguous" if ambiguous else "lease_expired"
-                message = "Production lease expired; external provider outcome is ambiguous" if ambiguous else "Worker lease expired"
-                c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
-                  available_at=?,updated_at=?,error_code=?,error_message=? WHERE id=?""",
-                  (target,n,n,code,message,e["id"]))
-                self.event(c,e["id"],"lease_expired","running",target,None,
-                           {"attempt":e["attempt"],"ambiguous_external_work":ambiguous})
-                if ambiguous:
-                    production_expired.append(e["id"])
-                    if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'").fetchone():
-                        c.execute("""UPDATE production_runs SET status='failed_terminal',
-                            current_stage='lease_expired_ambiguous',error=?,updated_at=?
-                            WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
-                            (message,n,e["id"]))
+            expiry_result = self._recover_expired_leases_in_transaction(c, n)
+            production_expired = expiry_result["production_expired"]
             if production_expired:
                 self._pause_production_in_transaction(c,
                     "Production worker lease expired; provider result may be ambiguous",
@@ -306,28 +336,10 @@ class JobQueue:
         n=stamp(now()); recovered=0; terminal=0
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            rows=c.execute("""SELECT id,job_type,attempt,max_attempts FROM pipeline_jobs WHERE status='running'
-              AND lease_expires_at IS NOT NULL AND lease_expires_at<=?""",(n,)).fetchall()
-            production_expired = []
-            for row in rows:
-                ambiguous = row["job_type"] == "short_video_production"
-                target = "failed_terminal" if ambiguous or row["attempt"]>=row["max_attempts"] else "queued"
-                code = "production_lease_expired_ambiguous" if ambiguous else "lease_expired"
-                message = "Production lease expired; external provider outcome is ambiguous" if ambiguous else "Worker lease expired"
-                c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,
-                  lease_expires_at=NULL,available_at=?,updated_at=?,error_code=?,error_message=? WHERE id=?""",
-                  (target,n,n,code,message,row["id"]))
-                self.event(c,row["id"],"lease_recovered","running",target,None,
-                           {"attempt":row["attempt"],"ambiguous_external_work":ambiguous})
-                if ambiguous:
-                    production_expired.append(row["id"])
-                    if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'").fetchone():
-                        c.execute("""UPDATE production_runs SET status='failed_terminal',
-                            current_stage='lease_expired_ambiguous',error=?,updated_at=?
-                            WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
-                            (message,n,row["id"]))
-                if target=="queued": recovered+=1
-                else: terminal+=1
+            expiry_result = self._recover_expired_leases_in_transaction(c, n)
+            recovered = expiry_result["requeued"]
+            terminal = expiry_result["terminal"]
+            production_expired = expiry_result["production_expired"]
             if production_expired:
                 self._pause_production_in_transaction(c,
                     "Production worker lease expired; provider result may be ambiguous",
