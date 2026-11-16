@@ -286,8 +286,9 @@ class TikTokPublishStore:
                      WHERE job_id=? AND attempt_id=? AND video_id IS NOT NULL
                      ORDER BY id DESC LIMIT 1) AS video_id,
                     (SELECT operator_id FROM tiktok_publication_events
-                     WHERE job_id=? AND attempt_id=? AND operator_id IS NOT NULL
-                     ORDER BY id DESC LIMIT 1) AS operator_id
+                     WHERE job_id=? AND attempt_id=? AND event_type='operator_consent_recorded'
+                       AND operator_id IS NOT NULL
+                     ORDER BY id ASC LIMIT 1) AS operator_id
                 """, (job_id, attempt_id, job_id, attempt_id, job_id, attempt_id)).fetchone()
                 prior_publish_id = prior_event["publish_id"] if prior_event else None
                 prior_video_id = prior_event["video_id"] if prior_event else None
