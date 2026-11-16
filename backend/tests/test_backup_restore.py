@@ -134,8 +134,8 @@ class BackupRestoreTests(unittest.TestCase):
     def test_backup_and_restore_preserve_empty_media_directories(self):
         (self.media / "empty" / "nested").mkdir(parents=True)
         backup = create_backup(self.db, self.media, self.backups)["backup_path"]
-        (self.media / "empty").rmdir()
         (self.media / "empty" / "nested").rmdir()
+        (self.media / "empty").rmdir()
         result = restore_backup(
             backup, self.db, self.media, self.backups, confirm_restore=True
         )
