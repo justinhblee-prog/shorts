@@ -2072,3 +2072,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Pass the active worker ID and process-generation token from the SIGTERM handler into the durable queue pause operation.
 - Reject shutdown pause writes from an obsolete worker incarnation after a replacement process registers, while always signaling local stop and lease-loss events.
 - GitHub Actions checks for PR #281 both succeeded on commit `3000e30c18889d726adc439bf906aa704bc1470e`. This validates deterministic unit/CI coverage only; no live multi-process deployment validation is claimed.
+
+
+## BUILD-00277 — Verify stale SIGTERM cannot pause a replacement worker
+- Add a SQLite-backed regression that registers an old worker generation, registers its replacement, and lets the replacement claim a production job.
+- Deliver a delayed shutdown request with the old generation token and verify the local stop signals are still set while the replacement job remains running and the global production queue remains unpaused.
+- GitHub Actions validation for PR #282 is pending at the time of this documentation update. The regression uses local SQLite and does not claim live multi-process deployment or provider API validation.
