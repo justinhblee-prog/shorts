@@ -3,6 +3,7 @@
 External providers must return real artifact references. This module never fabricates
 scripts, audio, videos, durations, or provider success.
 """
+import base64
 import json
 import os
 import sqlite3
@@ -524,12 +525,26 @@ class ProductionStore:
             "unresolved": len(unresolved), "unresolved_jobs": unresolved,
         }
 
-    def integrity_report(self, queue, limit=50, offset=0):
+    def integrity_report(self, queue, limit=50, offset=0, cursor=None):
         """Return a read-only, bounded explanation of production/queue state mismatches."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
             raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
         bounded = max(1, min(int(limit), 200))
         page_offset = max(0, min(int(offset), 1000000))
+        cursor_key = None
+        if cursor is not None:
+            try:
+                encoded = str(cursor)
+                decoded = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+                parsed = json.loads(decoded)
+                if (not isinstance(parsed, dict)
+                        or parsed.get("group") not in (0, 1)
+                        or not isinstance(parsed.get("job_id"), str)
+                        or not parsed["job_id"] or len(parsed["job_id"]) > 256):
+                    raise ValueError
+                cursor_key = (parsed["group"], parsed["job_id"])
+            except (ValueError, TypeError, json.JSONDecodeError, base64.binascii.Error) as exc:
+                raise ValueError("Invalid integrity report cursor") from exc
         items = []
         with self.db() as c:
             mismatch_total = c.execute("""
@@ -553,15 +568,15 @@ class ProductionStore:
                   ON j.id=r.job_id AND j.job_type='short_video_production'
                 WHERE j.id IS NULL
             """).fetchone()[0]
-            rows = c.execute("""
+            report_rows_sql = """
                 SELECT * FROM (
-                  SELECT 'state_mismatch' AS record_kind,
+                  SELECT 'state_mismatch' AS record_kind,1 AS sort_group,
                          r.job_id,r.status AS production_status,r.current_stage,
                          r.created_at AS production_created_at,
                          r.updated_at AS production_updated_at,
                          j.status AS queue_status,j.job_type,j.error_code,j.error_message,
                          j.attempt,j.max_attempts,j.created_at AS queue_created_at,
-                         j.updated_at AS queue_updated_at,j.updated_at AS sort_updated_at
+                         j.updated_at AS queue_updated_at
                   FROM production_runs r
                   JOIN pipeline_jobs j ON j.id=r.job_id
                   WHERE j.job_type='short_video_production'
@@ -571,31 +586,43 @@ class ProductionStore:
                          OR j.status IN ('review_pending','approved','uploaded',
                                          'cancelled','failed_terminal'))
                   UNION ALL
-                  SELECT 'queue_without_production' AS record_kind,
+                  SELECT 'queue_without_production' AS record_kind,0 AS sort_group,
                          j.id AS job_id,NULL AS production_status,NULL AS current_stage,
                          NULL AS production_created_at,NULL AS production_updated_at,
                          j.status AS queue_status,j.job_type,j.error_code,j.error_message,
                          j.attempt,j.max_attempts,j.created_at AS queue_created_at,
-                         j.updated_at AS queue_updated_at,j.updated_at AS sort_updated_at
+                         j.updated_at AS queue_updated_at
                   FROM pipeline_jobs j
                   LEFT JOIN production_runs r ON r.job_id=j.id
                   WHERE j.job_type='short_video_production' AND r.job_id IS NULL
                   UNION ALL
-                  SELECT 'production_without_queue' AS record_kind,
+                  SELECT 'production_without_queue' AS record_kind,0 AS sort_group,
                          r.job_id,r.status AS production_status,r.current_stage,
                          r.created_at AS production_created_at,
                          r.updated_at AS production_updated_at,
                          NULL AS queue_status,NULL AS job_type,NULL AS error_code,
                          NULL AS error_message,NULL AS attempt,NULL AS max_attempts,
-                         NULL AS queue_created_at,NULL AS queue_updated_at,
-                         r.updated_at AS sort_updated_at
+                         NULL AS queue_created_at,NULL AS queue_updated_at
                   FROM production_runs r
                   LEFT JOIN pipeline_jobs j
                     ON j.id=r.job_id AND j.job_type='short_video_production'
                   WHERE j.id IS NULL
                 )
-                ORDER BY CASE WHEN record_kind='state_mismatch' THEN 1 ELSE 0 END,                         sort_updated_at DESC,job_id LIMIT ? OFFSET ?
-            """, (bounded, page_offset)).fetchall()
+            """
+            if cursor_key is not None:
+                rows = c.execute(
+                    report_rows_sql
+                    + " WHERE sort_group>? OR (sort_group=? AND job_id>?)"
+                    + " ORDER BY sort_group,job_id LIMIT ?",
+                    (cursor_key[0], cursor_key[0], cursor_key[1], bounded + 1),
+                ).fetchall()
+            else:
+                rows = c.execute(
+                    report_rows_sql + " ORDER BY sort_group,job_id LIMIT ? OFFSET ?",
+                    (bounded + 1, page_offset),
+                ).fetchall()
+            has_more = len(rows) > bounded
+            rows = rows[:bounded]
             for row in rows:
                 item = dict(row)
                 production_status = item["production_status"]
@@ -700,14 +727,26 @@ class ProductionStore:
                 items.append(item)
         orphaned = queue_orphan_total + production_orphan_total
         unresolved = mismatch_total + orphaned
+        has_more = has_more if cursor_key is not None else (
+            page_offset + len(items) < unresolved
+        )
+        next_cursor = None
+        if has_more and items:
+            last = items[-1]
+            group = 1 if last["record_kind"] == "state_mismatch" else 0
+            next_cursor = base64.urlsafe_b64encode(json.dumps(
+                {"group": group, "job_id": last["job_id"]},
+                separators=(",", ":"),
+            ).encode("utf-8")).decode("ascii").rstrip("=")
         return {
             "scanned": len(items),
             "limit": bounded,
             "offset": page_offset,
             "unresolved": unresolved,
             "orphaned": orphaned,
-            "has_more": page_offset + len(items) < unresolved,
-            "next_offset": page_offset + len(items) if page_offset + len(items) < unresolved else None,
+            "has_more": has_more,
+            "next_offset": page_offset + len(items) if cursor_key is None and has_more else None,
+            "next_cursor": next_cursor,
             "counts": {
                 "state_mismatch": mismatch_total,
                 "queue_without_production": queue_orphan_total,

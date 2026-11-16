@@ -130,6 +130,8 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('id="loadIntegrity"', html)
         self.assertIn('id="integrityMore"', html)
         self.assertIn('/api/production/integrity-report?limit=50', app_js)
+        self.assertIn('integrityNextCursor', app_js)
+        self.assertIn('&cursor=', app_js)
         self.assertIn('integrityMore").style.display=report.has_more', app_js)
         self.assertIn('approval_or_upload_boundary', app_js)
         self.assertIn('ambiguous_external_outcome', app_js)

@@ -674,3 +674,10 @@ Detail rows remain capped at 200. Orphan rows are prioritized in the sample so t
 The integrity endpoint accepts `limit` (1–200) and `offset` (0–1,000,000). Aggregate counts always describe the full matching set; `scanned` describes only the current page. When `has_more` is true, `next_offset` identifies the next page. The Operations panel appends pages with **다음 50건 더 보기** while retaining orphan-first ordering.
 
 Refresh the diagnostic report to restart from the first page after new events or state changes. Pagination is read-only and does not change lifecycle state.
+
+
+## BUILD-00185 — Stable integrity report pagination
+
+The Operations dashboard uses an opaque `next_cursor` token. Cursor ordering is based on the orphan/mismatch group and immutable job ID, not mutable update timestamps. This prevents a record changing its timestamp between page requests from moving across the already-read page boundary. Legacy `offset` pagination remains available for API compatibility but is not used by the dashboard.
+
+A cursor is a continuation position, not a frozen database snapshot: newly created or resolved inconsistencies can change aggregate totals while an operator is paging. Refresh the report to restart from the current first page.
