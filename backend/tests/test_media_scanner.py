@@ -29,7 +29,7 @@ class ClamAVScannerTests(unittest.TestCase):
         self.assertIn("--alert-exceeds-max=yes", calls[0][0])
         self.assertIn("--max-filesize=12345", calls[0][0])
         self.assertIn("--max-scansize=12345", calls[0][0])
-        self.assertIn("--max-scantime=7000", calls[0][0])
+        self.assertIn("--max-scantime=0", calls[0][0])
         self.assertNotIn("shell", calls[0][1])
 
     def test_infected_exit_is_rejected(self):
