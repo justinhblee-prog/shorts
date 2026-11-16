@@ -39,11 +39,13 @@ def _publication_age_bucket(uploaded_at, measured_at):
 
 
 def _duration_bucket(value):
+    if isinstance(value, bool):
+        return "unknown"
     try:
         seconds = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return "unknown"
-    if seconds <= 0:
+    if not math.isfinite(seconds) or seconds <= 0:
         return "unknown"
     if seconds < 20:
         return "under_20s"
@@ -88,10 +90,12 @@ def _retention_diagnostics(curve):
             continue
         position = point.get("elapsed_video_time_ratio")
         audience = point.get("audience_watch_ratio")
+        if isinstance(position, bool) or isinstance(audience, bool):
+            continue
         try:
             position = float(position)
             audience = float(audience)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if not (0 <= position <= 1 and 0 <= audience <= 1):
             continue
