@@ -1945,3 +1945,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Queue claim preserves the registered generation instead of replacing it with a fresh token.
 - Added regression coverage proving a replaced process cannot claim work, heartbeat, finish, or fail a lease owned under its old generation.
 - CI remains the deterministic validation boundary; no live multi-process production test is claimed.
+
+
+## BUILD-00240 — Fence worker-originated global pause
+- Worker-triggered global pause requests now carry the process generation token and worker ID.
+- The queue validates that generation under the same SQLite write lock before changing global pause state or fencing active jobs.
+- Operator/system pause calls without a worker generation remain supported as explicit control-plane actions.
+- Added regression coverage: a replaced process cannot pause the replacement's queue; the current generation can still pause it.
+- Automated CI is the validation boundary; no production multi-host race test is claimed.
