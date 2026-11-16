@@ -109,6 +109,27 @@ class ReviewWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(approved["production"]["status"], "approved")
 
+    def test_policy_evidence_api_store_accepts_tiktok_prohibited_aigc_flags(self):
+        brief = {
+            "brand": "Brain Glitch", "region": "US",
+            "language": "English", "topic": "AI likeness safety",
+        }
+        job = self.queue.enqueue("short_video_production", brief)
+        job_id = job["id"]
+        claimed = self.queue.claim("policy-worker-2", job_type="short_video_production")
+        self.production.create(job_id, brief)
+        self.production.stage(job_id, "rendered", "review_pending")
+        self.production.artifact(job_id, "script", "text", None, {"script": "Example"})
+        self.queue.finish(job_id, "policy-worker-2", claimed["lease_token"], {})
+        result = self.review.update_policy_evidence(job_id, "operator-1", {
+            "policy_flags": {"tiktok_prohibited_aigc_minor_likeness": True},
+        })
+        self.assertEqual(result["policy_preflight"]["status"], "blocked")
+        self.assertIn(
+            "tiktok_prohibited_aigc_minor_likeness",
+            result["policy_preflight"]["blocking_reasons"],
+        )
+
     def test_policy_approval_blockers_cannot_be_overridden_by_reviewer_comment(self):
         self.production.artifact("job-1", "script", "text", None, {
             "script": "Example", "policy_preflight": {
