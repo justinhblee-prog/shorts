@@ -381,3 +381,14 @@ Backup and restore enforce a maximum of 100,000 archive entries, a 16 MiB manife
 - Default per-minute limits: 120 overall, 20 auth, 10 publishing, 30 queue control, 60 review and 30 production. Tune the corresponding `NEXUS_API_*_RATE_LIMIT_PER_MINUTE` settings based on measured traffic.
 - Leave `NEXUS_TRUSTED_PROXY_CIDRS` blank unless the service is behind a known reverse proxy. If needed, list only exact proxy CIDRs; never trust arbitrary X-Forwarded-For values or use `0.0.0.0/0`.
 
+
+
+## Encrypted backup key setup (BUILD-00130)
+
+1. Generate a random key on the server: `python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"`.
+2. Store it as `NEXUS_BACKUP_ENCRYPTION_KEY` in the protected server environment. Never commit the value or place it inside the backup volume.
+3. Set `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` for production after the key has been securely backed up to an independent secret store. This blocks plaintext backup creation and restore.
+4. Run the normal Compose backup service; encrypted files end in `.tar.gz.enc`. Restore uses the same environment key and still requires `--confirm-restore` with all writers stopped.
+5. Test a restore in a separate staging environment. Losing or rotating the key without re-encrypting retained archives makes those archives unrecoverable.
+
+Legacy `.tar.gz` archives remain restorable while encryption-required mode is false. The restore process authenticates encrypted data before extracting it or changing live data.
