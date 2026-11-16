@@ -506,6 +506,7 @@ class JobQueue:
                 VALUES(?,?,?,'online') ON CONFLICT(worker_id) DO UPDATE SET
                 hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",
                 (worker_id, hostname, n))
+            c.commit()
         return {"worker_id": worker_id, "hostname": hostname,
                 "last_seen_at": n, "status": "online"}
 
@@ -521,6 +522,7 @@ class JobQueue:
                 "UPDATE worker_registry SET last_seen_at=?,status='offline' WHERE worker_id=?",
                 (n, worker_id),
             )
+            c.commit()
             return updated.rowcount == 1
 
     def workers(self, stale_after_seconds=None):
