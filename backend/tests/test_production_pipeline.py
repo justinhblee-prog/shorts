@@ -106,6 +106,14 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(len(script.calls), 1)
         self.assertEqual(len(voice.calls), 1)
         self.assertEqual(len(render.calls), 1)
+        self.assertTrue(script.calls[0][1]["request_idempotency_key"])
+        self.assertTrue(voice.calls[0][1]["request_idempotency_key"])
+        self.assertTrue(render.calls[0][1]["request_idempotency_key"])
+        attempts=self.store.provider_attempts("job-1")
+        self.assertEqual([item["stage"] for item in attempts],
+                         ["script","voice_generation","rendering"])
+        self.assertTrue(all(item["state"]=="response_received" for item in attempts))
+        self.assertTrue(all(item["response_json"] for item in attempts))
 
     def test_pipeline_transcribes_generated_audio_and_records_script_alignment(self):
         script_text = (
