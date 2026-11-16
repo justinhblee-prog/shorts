@@ -698,6 +698,12 @@ class YouTubePublisher:
         try:
             snapshot_path,_=create_verified_media_snapshot(resolved,approved_sha256,approved_size)
             upload_attempt=self.store.begin(job_id,title,description,require_current_approval=True)
+            # The initial read above is only an optimization. Another publisher
+            # may finish between that read and the serialized reservation.
+            # begin() returns the durable uploaded row in that race; never send
+            # a second remote insert for an already-confirmed upload.
+            if upload_attempt.get("status")=="uploaded":
+                return upload_attempt
             from googleapiclient.http import MediaFileUpload
             service=self._service()
             body={
