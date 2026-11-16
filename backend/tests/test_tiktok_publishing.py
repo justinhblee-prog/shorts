@@ -237,6 +237,9 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(current["events"][-1]["event_type"], "superseded_attempt_uncertain")
         self.assertEqual(current["events"][-1]["attempt_id"], first_attempt)
         self.assertEqual(current["events"][-1]["publish_id"], "old-publish-id")
+        self.assertIsNone(current["events"][-1]["video_id"])
+        self.assertEqual(current["events"][-1]["operator_id"], "operator-1")
+        self.assertEqual(current["events"][-1]["publish_id"], "old-publish-id")
         with self.assertRaisesRegex(TikTokPublishError, "unresolved or already active"):
             self.store.begin(
                 "job-1", "Third attempt", True, "operator-1",
