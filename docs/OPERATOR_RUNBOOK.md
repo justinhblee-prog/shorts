@@ -681,3 +681,8 @@ Refresh the diagnostic report to restart from the first page after new events or
 The Operations dashboard uses an opaque `next_cursor` token. Cursor ordering is based on the orphan/mismatch group and immutable job ID, not mutable update timestamps. This prevents a record changing its timestamp between page requests from moving across the already-read page boundary. Legacy `offset` pagination remains available for API compatibility but is not used by the dashboard.
 
 A cursor is a continuation position, not a frozen database snapshot: newly created or resolved inconsistencies can change aggregate totals while an operator is paging. Refresh the report to restart from the current first page.
+
+
+## BUILD-00186 — Batched audit history lookup
+
+Integrity report pages now fetch audit history for all displayed job IDs in one query and use a per-job rank to return at most the 10 newest events per record. The response still presents those events chronologically and retains the existing details allowlist. This avoids issuing one extra SQL query per displayed row while keeping the result bounded by the page size and per-job event cap.

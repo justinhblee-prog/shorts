@@ -841,6 +841,30 @@ class ProductionTests(unittest.TestCase):
         ))
         self.assertEqual(len(report["items"]), 1)
 
+
+    def test_integrity_report_batches_and_bounds_audit_history_per_job(self):
+        queue = JobQueue(self.store.db_path)
+        job_id = submit_production(queue, self.store, self.brief)["job"]["id"]
+        with queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?", (job_id,)
+            )
+            for index in range(12):
+                connection.execute("""
+                    INSERT INTO job_events
+                      (job_id,event_type,from_status,to_status,worker_id,details_json,created_at)
+                    VALUES(?,?,?,?,?,?,?)
+                """, (job_id, f"diagnostic_history_{index}", None, None, None, "{}",
+                      f"2026-11-16T00:00:{index:02d}+00:00"))
+        report = self.store.integrity_report(queue)
+        item = next(entry for entry in report["items"] if entry["job_id"] == job_id)
+        history = item["audit_history"]
+        self.assertEqual(len(history), 10)
+        self.assertEqual(
+            [event["event_type"] for event in history],
+            [f"diagnostic_history_{index}" for index in range(2, 12)]
+        )
+
     def test_integrity_report_explains_mismatch_without_mutating_either_ledger(self):
         queue = JobQueue(self.store.db_path)
         job_id = submit_production(queue, self.store, self.brief)["job"]["id"]
