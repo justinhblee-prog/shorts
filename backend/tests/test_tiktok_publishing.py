@@ -206,6 +206,23 @@ class TikTokPublishingTests(unittest.TestCase):
             "job-1", "not_published", "operator-ops",
             "Verified no post existed before retry", confirmed=True,
         )
+        # A later audit row without provider identifiers must not hide the
+        # identifiers recorded by the earlier initialization event.
+        with self.store.db() as connection:
+            connection.execute(
+                """
+                INSERT INTO tiktok_publication_events
+                  (job_id,attempt_id,event_type,outcome,publish_id,video_id,
+                   operator_id,note,created_at,policy_version)
+                VALUES(?,?,'diagnostic_without_provider_ids','informational',
+                       NULL,NULL,?,?,?,?)
+                """,
+                (
+                    "job-1", first_attempt, "operator-1",
+                    "Non-provider diagnostic", "2026-01-01T00:00:00+00:00",
+                    POLICY_VERSION,
+                ),
+            )
         second = self.store.begin(
             "job-1", "Retry after operator verification", True, "operator-1",
             "retry-attempt-002", False, False,

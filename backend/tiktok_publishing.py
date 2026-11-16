@@ -278,12 +278,23 @@ class TikTokPublishStore:
             if row and row["attempt_id"] != attempt_id:
                 now = _now()
                 prior_event = c.execute("""
-                  SELECT publish_id,video_id,operator_id FROM tiktok_publication_events
-                  WHERE job_id=? AND attempt_id=? ORDER BY id DESC LIMIT 1
-                """, (job_id, attempt_id)).fetchone()
+                  SELECT
+                    (SELECT publish_id FROM tiktok_publication_events
+                     WHERE job_id=? AND attempt_id=? AND publish_id IS NOT NULL
+                     ORDER BY id DESC LIMIT 1) AS publish_id,
+                    (SELECT video_id FROM tiktok_publication_events
+                     WHERE job_id=? AND attempt_id=? AND video_id IS NOT NULL
+                     ORDER BY id DESC LIMIT 1) AS video_id,
+                    (SELECT operator_id FROM tiktok_publication_events
+                     WHERE job_id=? AND attempt_id=? AND operator_id IS NOT NULL
+                     ORDER BY id DESC LIMIT 1) AS operator_id
+                """, (job_id, attempt_id, job_id, attempt_id, job_id, attempt_id)).fetchone()
                 prior_publish_id = prior_event["publish_id"] if prior_event else None
                 prior_video_id = prior_event["video_id"] if prior_event else None
-                prior_operator_id = prior_event["operator_id"] if prior_event else row["operator_id"]
+                prior_operator_id = (
+                    prior_event["operator_id"] if prior_event and prior_event["operator_id"]
+                    else row["operator_id"]
+                )
                 if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
                     c.execute("""
                       INSERT INTO tiktok_publication_events

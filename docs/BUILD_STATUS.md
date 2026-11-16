@@ -1816,3 +1816,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Terminal current outcomes are preserved and receive informational audit evidence only.
 - Added a regression covering operator-confirmed no-publication, a subsequent retry reservation, and a delayed uncertainty from the superseded attempt.
 - Deterministic local database validation only; no live TikTok API verification is implied.
+
+## BUILD-00220 — Preserve non-null TikTok superseded-attempt audit identifiers
+- Superseded-attempt uncertainty now retrieves the latest non-null publish ID, video ID, and operator ID independently instead of relying on the newest event row to contain all metadata.
+- Added a regression with a later diagnostic event containing null provider identifiers, verifying the earlier publish ID remains attached to the delayed uncertainty event.
+- Deterministic local database validation only; no live TikTok API verification is implied.
