@@ -56,6 +56,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Add a regression where every run has three measured outcomes but the cohort rotates each time; the evaluator must report insufficient stable-cohort coverage.
 - Automatic recommendation score adjustment remains disabled.
 
+## BUILD-00199 — fail closed when review queue state is missing
+
+- Require the durable queue table and a matching `short_video_production` queue row in `review_pending` before committing any human review decision.
+- Reject approval, rejection, or revision decisions if the queue table or job row is missing; do not silently allow a production-ledger-only transition.
+- Keep the production decision, queue transition, and audit event in one SQLite transaction.
+- Update legacy-style unit fixtures to use matching queue-backed review records and add missing-table/missing-row rollback regressions.
+- Automated validation is pending.
+
 ## BUILD-00188 — integrity API input boundaries
 
 - The read-only integrity endpoint enforces a page size of 1–200, offset of 0–1,000,000, and cursor length of at most 512 characters at the HTTP boundary.
