@@ -1714,3 +1714,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Persist the state transition and audit event in one SQLite transaction.
 - Reconciliation does not itself retry the job; queue retry remains a separate, explicit operator action.
 - `response_received` cannot be dismissed through this route; it must be recovered and adopted.
+
+
+## BUILD-00206 — scheduled lifecycle through TikTok SELF_ONLY publication
+
+- Extend the scheduled production lifecycle integration test to include both YouTube private upload and TikTok private-only upload from the same freshly staged and re-approved media artifact.
+- Exercise TikTok's explicit operator consent, current approval/queue revalidation, AIGC disclosure evidence, creator privacy capability check, upload initialization and media transfer.
+- Assert the TikTok request explicitly selects `SELF_ONLY`, records the operator-consent audit event, and does not invoke public posting.
+- TikTok creator and upload transport plus media inspection are deterministic test doubles. This is a local integration contract test, not live TikTok OAuth/API validation.
