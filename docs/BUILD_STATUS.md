@@ -1967,3 +1967,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Registered worker IDs now require a matching, online generation for claim, heartbeat, finish, fail, and worker-originated pause operations.
 - Unregistered legacy/test queue usage remains supported; explicit operator/system pause without worker identity remains supported.
 - Added regression coverage for omitted-token bypass attempts and verifies no lease or queue-control state changes.
+
+
+## BUILD-00243 — Concurrent platform publish reservation
+- Added concurrent same-job reservation tests for YouTube private uploads and TikTok SELF_ONLY publication.
+- Eight simultaneous reservation attempts must produce exactly one durable attempt and one start/consent audit record; all competing requests are rejected without replacing the winning attempt.
+- Confirms TikTok reservation remains SELF_ONLY.
+- Deterministic SQLite transaction tests only; no live platform API or account validation is claimed.
