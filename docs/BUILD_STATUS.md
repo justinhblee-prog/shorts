@@ -1285,3 +1285,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression coverage mixing malformed config containers and non-string profile values with a valid brand.
 - GitHub Actions validation: pending.
 - Recommendation ranking score adjustment remains disabled; no live provider validation is claimed.
+
+
+## BUILD-00157 — historical performance aggregate validation
+
+- Treat non-dictionary historical brand aggregates as unavailable evidence rather than raising during candidate ranking.
+- Accept sample counts only as nonnegative integers (excluding booleans); malformed strings, negative values and booleans default to zero.
+- Preserve editorial ranking output and keep historical performance display-only.
+- Add regression coverage for null/scalar aggregates and malformed count fields.
+- GitHub Actions validation: pending.
+- Recommendation ranking score adjustment remains disabled; no live analytics provider validation is claimed.
