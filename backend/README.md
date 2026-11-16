@@ -546,3 +546,12 @@ Persistent per-client rate limits default to 120 requests/minute overall, 20 aut
 
 
 BUILD-00039 automated validation: main-branch GitHub Actions run [43790981235](https://github.com/justinhblee-prog/shorts/actions/runs/43790981235) passed **400 backend tests** and the full `scripts/validate.sh` command. No live reverse-proxy deployment or multi-operator production identity-provider integration is claimed.
+
+
+## BUILD-00130 — encrypted backup archives
+
+- Set `NEXUS_BACKUP_ENCRYPTION_KEY` to a URL-safe base64 value decoding to exactly 32 bytes. Generate one with `python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"`.
+- When a key is present, `backup_restore.py backup` writes a streaming AES-256-GCM `.tar.gz.enc` archive. `restore` authenticates/decrypts to a private temporary directory before archive validation and live replacement.
+- Set `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` to reject plaintext backups and restore inputs. The default `false` preserves compatibility with existing `.tar.gz` archives.
+- Restore creates its pre-restore safety backup with the same encryption setting. Retention covers both encrypted and plaintext archives.
+- Store the key separately from the backup volume. Loss of the key means encrypted backups cannot be restored; rotate only with a documented re-encryption/retention plan.
