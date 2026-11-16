@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 import app as app_module
@@ -471,6 +472,37 @@ class ApiSecurityTests(unittest.TestCase):
                 os.environ.pop("NEXUS_REVIEW_TOKEN", None)
             else:
                 os.environ["NEXUS_REVIEW_TOKEN"] = previous
+
+
+    def test_integrity_report_endpoint_enforces_production_read_permission(self):
+        reviewer_token = "reviewer-token-" + ("r" * 40)
+        analyst_token = "analyst-token-" + ("a" * 40)
+        credentials = {"reviewer-one": reviewer_token, "analyst-one": analyst_token}
+        roles = {"reviewer-one": ["reviewer"], "analyst-one": ["analyst"]}
+        expected = {"unresolved": 0, "items": [], "worker_control": {"paused": False}}
+        with mock.patch.dict(os.environ, {
+            "NEXUS_REVIEW_CREDENTIALS_JSON": json.dumps(credentials),
+            "NEXUS_REVIEW_ROLE_MAP_JSON": json.dumps(roles),
+        }, clear=False):
+            with mock.patch.object(
+                app_module.production_store, "integrity_report", return_value=expected
+            ) as report:
+                self.assertEqual(
+                    app_module.production_integrity_report(
+                        limit=13, x_review_token=reviewer_token
+                    ), expected
+                )
+                report.assert_called_once_with(app_module.queue, limit=13)
+                with self.assertRaises(HTTPException) as denied:
+                    app_module.production_integrity_report(
+                        limit=13, x_review_token=analyst_token
+                    )
+                self.assertEqual(denied.exception.status_code, 403)
+                report.assert_called_once()
+                with self.assertRaises(HTTPException) as unauthenticated:
+                    app_module.production_integrity_report(limit=13, x_review_token=None)
+                self.assertEqual(unauthenticated.exception.status_code, 401)
+                report.assert_called_once()
 
 if __name__ == "__main__":
     unittest.main()

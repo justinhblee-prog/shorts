@@ -648,3 +648,8 @@ This endpoint is strictly read-only. It does not reconcile records, resume worke
 The Operations workspace includes a read-only **제작 상태 무결성** panel backed by `GET /api/production/integrity-report?limit=50`. Refresh it manually with **진단 갱신** or use the normal authenticated dashboard refresh. The panel displays both ledger states and timestamps, classification, queue error context, recommended action, and expandable recent audit chronology. All server-provided text is HTML-escaped before display.
 
 The panel is intentionally diagnostic only. It does not repair mismatches, retry provider work, approve content, resume the queue, upload media, or publish to a platform. Follow the API/runbook evidence procedure and use the separate audited operator controls only after investigation.
+
+
+## BUILD-00181 — Integrity report access control
+
+The integrity report requires the `production.read` permission. A configured reviewer role has read access; an analyst role without that permission must receive HTTP 403. Missing or invalid credentials receive HTTP 401. The endpoint must not call the report store for denied or unauthenticated requests. This behavior is covered by the BUILD-00181 API security regression test.
