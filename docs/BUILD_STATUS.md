@@ -1809,3 +1809,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The current row retains the newer attempt identity while the uncertainty audit event retains the superseded attempt identity.
 - Extended the regression to assert both identities remain distinct and correctly recorded.
 - Deterministic local database validation only; no live YouTube API verification is implied.
+
+## BUILD-00219 — Block TikTok retries after superseded-attempt uncertainty
+- A late transport failure from a previously reconciled TikTok attempt is no longer silently discarded when a newer attempt has started.
+- The old attempt identity and its own publish/video identifiers are preserved in a `superseded_attempt_uncertain` audit event, while the current publication is moved to `reconciliation_required` without replacing its current attempt ID.
+- Terminal current outcomes are preserved and receive informational audit evidence only.
+- Added a regression covering operator-confirmed no-publication, a subsequent retry reservation, and a delayed uncertainty from the superseded attempt.
+- Deterministic local database validation only; no live TikTok API verification is implied.
