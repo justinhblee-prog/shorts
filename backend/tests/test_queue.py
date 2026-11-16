@@ -850,7 +850,7 @@ class QueueTests(unittest.TestCase):
  def test_worker_lifecycle_events_reuse_transition_timestamp(self):
   completed=self.q.enqueue("render",{"topic":"finish-event-time"})
   finished=self.q.claim("worker-finish-event")
-  decision=datetime(2034,5,6,7,8,9,tzinfo=timezone.utc)
+  decision=datetime.fromisoformat(finished["lease_expires_at"])-timedelta(seconds=60)
   later=decision+timedelta(seconds=19)
   with patch.object(queue_store,"now",side_effect=[decision,later]):
    self.q.finish(completed["id"],"worker-finish-event",finished["lease_token"],{"ok":True})
@@ -861,7 +861,7 @@ class QueueTests(unittest.TestCase):
 
   failed=self.q.enqueue("render",{"topic":"fail-event-time"})
   claimed=self.q.claim("worker-fail-event")
-  decision=datetime(2034,5,6,7,9,9,tzinfo=timezone.utc)
+  decision=datetime.fromisoformat(claimed["lease_expires_at"])-timedelta(seconds=60)
   later=decision+timedelta(seconds=23)
   with patch.object(queue_store,"now",side_effect=[decision,later]):
    self.q.fail(failed["id"],"worker-fail-event",claimed["lease_token"],
