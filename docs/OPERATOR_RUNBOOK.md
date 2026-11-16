@@ -599,6 +599,8 @@ Use this only when the provider execution ledger contains a `rendering` attempt 
 3. NEXUS downloads the file through the existing HTTPS allowlist, public-IP pinning, redirect rejection, size/signature checks and optional malware scan. It then inspects the staged file bytes with ffprobe.
 4. Adoption is rejected unless inspection completed, the file is vertical 9:16 within tolerance, has an audio stream, and is no longer than 180 seconds. The attempt, artifact row, production status and queue transition are committed in one SQLite transaction.
 5. A successful adoption changes the production and queue state to `review_pending`, records the SHA-256 fingerprint and provider attempt ID, and emits a `provider_result_recovered` queue event. Repeating the action is rejected; a pre-existing render artifact or an active worker lease also blocks adoption.
-6. The result is **not approved or published**. A human must inspect the actual video, rights, claims, captions, audio, platform disclosures and brand fit before normal review approval and publication.
+6. Before queueing review, NEXUS rebuilds a fresh quality report from the stored script/voice artifacts, provider render metadata and ffprobe inspection. Missing script or voice source artifacts block adoption. The report is stored as the normal `quality_check` artifact, so the existing review approval gate still enforces blockers and requires a reviewer note for warnings.
+
+The result is **not approved or published**. A human must inspect the actual video, rights, claims, captions, audio, platform disclosures and brand fit before normal review approval and publication.
 
 If allowlisting, malware scanning, media inspection or required metadata is unavailable, do not bypass the gate. Fix the configuration or leave the provider response preserved for later investigation. The recovery endpoint does not support arbitrary URLs supplied by the operator; it only uses the URL in the stored provider response.
