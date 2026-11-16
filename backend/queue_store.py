@@ -557,6 +557,20 @@ class JobQueue:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             n = stamp(now())
+            # Rotating a process generation invalidates the old worker's lease
+            # writes, but the old process may still be inside an external provider
+            # call. Quarantine any production work it still owns before allowing
+            # the replacement generation to become active.
+            active_production = c.execute("""SELECT id FROM pipeline_jobs
+                WHERE worker_id=? AND job_type='short_video_production'
+                  AND status='running'
+                ORDER BY created_at,id LIMIT 1""", (worker_id,)).fetchone()
+            if active_production:
+                self._pause_production_in_transaction(
+                    c,
+                    "Production worker generation was replaced while a job remained active; external outcome is ambiguous",
+                    active_production["id"], n, actor="system",
+                )
             c.execute("""INSERT INTO worker_registry(
                 worker_id,hostname,last_seen_at,status,generation_token)
                 VALUES(?,?,?,'online',?) ON CONFLICT(worker_id) DO UPDATE SET
