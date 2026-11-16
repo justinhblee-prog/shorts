@@ -513,6 +513,10 @@ class YouTubeUploadStore:
             )
             return updated.rowcount == 1
 
+    def assert_metrics_collector_lease(self, owner_id, token):
+        with self.db() as c:
+            self._assert_metrics_collector_lease(c, owner_id, token)
+
     @staticmethod
     def _assert_metrics_collector_lease(c, owner_id, token):
         if owner_id is None and token is None:
@@ -799,6 +803,7 @@ class YouTubePublisher:
         video_ids = self.store.due_metric_video_ids(limit, min_age_seconds)
         if not video_ids:
             return {"requested": 0, "collected": 0, "missing": [], "source": "YouTube Data API v3"}
+        self.store.assert_metrics_collector_lease(lease_owner, lease_token)
         service = self._service()
         response = service.videos().list(
             part="statistics,status", id=",".join(video_ids), maxResults=len(video_ids)
@@ -838,6 +843,7 @@ class YouTubePublisher:
         elif not lease_owner or not lease_token:
             raise ValueError("Both metrics collector lease owner and token are required")
         try:
+            self.store.assert_metrics_collector_lease(lease_owner, lease_token)
             service = self._service()
             response = service.videos().list(
                 part="statistics,status", id=video_id
