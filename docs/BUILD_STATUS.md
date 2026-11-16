@@ -2111,11 +2111,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Move the production retry-reconciliation timestamp capture inside the `BEGIN IMMEDIATE` transaction, immediately after SQLite grants the write lock.
 - Prevent lock contention from making the retry availability time, job update time, reconciliation record, and audit event predate the serialized operator decision.
 - Add a deterministic SQLite lock-contention regression that advances the controlled clock while reconciliation waits and checks all persisted timestamps.
-- Validation pending GitHub Actions. Local deterministic SQLite concurrency coverage only; no production database or provider-console validation is claimed.
+- GitHub Actions [run #43924694183](https://github.com/justinhblee-prog/shorts/actions/runs/43924694183) passed on the PR head; deterministic local SQLite concurrency coverage only, with no production database or provider-console validation claimed.
 
 
 ## BUILD-00283 — Quarantine active production when a worker generation is replaced
 - During worker registration, detect production jobs still running under the reused worker ID before rotating its process-generation token.
 - If an in-flight production lease exists, persist the global production pause and terminalize all running production leases as ambiguous before the replacement process becomes active; the old process cannot continue through a valid queue lease and the new process cannot start another production job until operator review.
 - Add a SQLite regression for re-registration during an active production lease, covering lease revocation, ambiguous-job discovery, stale-heartbeat rejection, replacement-worker claim blocking, and preservation of the new online generation.
-- GitHub Actions validation pending. Deterministic local SQLite coverage only; no live multi-process/provider verification is claimed.
+- GitHub Actions [run #43930282954](https://github.com/justinhblee-prog/shorts/actions/runs/43930282954) passed: `scripts/validate.sh` completed and all 642 backend tests passed. This is deterministic CI/SQLite coverage only; no live multi-process/provider verification is claimed.
