@@ -249,6 +249,9 @@ class PerformanceTests(unittest.TestCase):
   ]
   for job,video,percentage,duration,engaged_share in values:
    self.video(job,"Brain Glitch","US","AI robotics explained",video)
+   with self.u.db() as connection:
+    connection.execute("UPDATE youtube_uploads SET uploaded_at=? WHERE job_id=?",
+                       ("2026-11-14T00:00:00+00:00",job))
    self.p.artifact(job,"rendering","video","https://media.example/"+video+".mp4",
                    {"duration_seconds":30,"aspect_ratio":"9:16"})
    analytics.save(video,"2026-11-01","2026-11-14",{
@@ -282,6 +285,9 @@ class PerformanceTests(unittest.TestCase):
 
  def test_sparse_analytics_cohort_does_not_emit_comparative_observation(self):
   self.video("j-sparse","Brain Glitch","US","AI robotics explained","retention-sparse")
+  with self.u.db() as connection:
+   connection.execute("UPDATE youtube_uploads SET uploaded_at=? WHERE job_id=?",
+                      ("2026-11-14T00:00:00+00:00","j-sparse"))
   self.p.artifact("j-sparse","rendering","video","https://media.example/sparse.mp4",
                   {"duration_seconds":30,"aspect_ratio":"9:16"})
   YouTubeAnalyticsStore(self.db).save(
@@ -309,6 +315,9 @@ class PerformanceTests(unittest.TestCase):
   ]
   for job,video,percentage,duration in fixtures:
    self.video(job,"Brain Glitch","US","AI robotics explained",video)
+   with self.u.db() as connection:
+    connection.execute("UPDATE youtube_uploads SET uploaded_at=? WHERE job_id=?",
+                       ("2026-11-14T00:00:00+00:00",job))
    self.p.artifact(job,"rendering","video","https://media.example/"+video+".mp4",
                    {"duration_seconds":30,"aspect_ratio":"9:16"})
    metrics={"views":1000,"averageViewDuration":duration}
