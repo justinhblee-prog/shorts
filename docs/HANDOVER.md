@@ -1083,7 +1083,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - New modules: `backend/reviewer_auth.py`, `backend/operator_rbac.py`, `backend/api_rate_limit.py`.
 - `NEXUS_REVIEW_CREDENTIALS_JSON` maps unique reviewer/operator IDs to 32–512 character tokens. When set, it fully replaces the legacy `NEXUS_REVIEW_TOKEN`; the legacy token maps to fixed identity `legacy-operator`.
-- `NEXUS_REVIEW_ROLE_MAP_JSON` assigns explicit roles: admin, producer, reviewer, publisher, analyst, operator, finance or worker. If omitted, wildcard permissions are retained for compatibility; production deployments should configure a least-privilege role map.
+- `NEXUS_REVIEW_ROLE_MAP_JSON` assigns explicit roles: admin, producer, reviewer, publisher, analyst, operator, finance or worker. If per-operator credentials are enabled and the role map is omitted, role-protected requests fail closed. Wildcard compatibility is retained only for the legacy single-token migration mode.
 - All protected API routes now call an explicit permission guard. Review evidence and approve/reject/revision records use the authenticated operator ID, not a body-supplied reviewer ID.
 - Persistent SQLite rate-limit buckets enforce per-minute auth/publish/control/review/production/default limits and emit standard rate-limit headers.
 - X-Forwarded-For is ignored unless the immediate peer is in `NEXUS_TRUSTED_PROXY_CIDRS`; proxy chains are parsed right-to-left and untrusted prefixes are ignored.
