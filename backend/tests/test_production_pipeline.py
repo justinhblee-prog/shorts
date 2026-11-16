@@ -714,6 +714,71 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(self.store.get(job_id)["artifacts"],[])
         self.assertEqual(queue.get(job_id)["status"],"queued")
 
+    def test_status_integrity_repairs_only_safe_terminal_and_review_handoffs(self):
+        queue = JobQueue(self.store.db_path)
+        terminal_job = submit_production(queue, self.store, self.brief)["job"]["id"]
+        review_job = submit_production(queue, self.store, self.brief)["job"]["id"]
+        approved_job = submit_production(queue, self.store, self.brief)["job"]["id"]
+
+        # Simulate a crash after queue terminalization but before production sync.
+        with queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='failed_terminal',error_message='provider failed' WHERE id=?",
+                (terminal_job,)
+            )
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                (review_job,)
+            )
+            connection.execute(
+                "UPDATE production_runs SET status='rendered',current_stage='rendered' WHERE job_id=?",
+                (review_job,)
+            )
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                (approved_job,)
+            )
+            connection.execute(
+                "UPDATE production_runs SET status='approved',current_stage='review' WHERE job_id=?",
+                (approved_job,)
+            )
+
+        result = self.store.reconcile_status_integrity(queue)
+        self.assertEqual(result["repaired"], 2)
+        self.assertEqual(result["unresolved"], 1)
+        self.assertEqual(self.store.get(terminal_job)["status"], "failed_terminal")
+        self.assertEqual(self.store.get(review_job)["status"], "review_pending")
+        self.assertEqual(self.store.get(approved_job)["status"], "approved")
+        self.assertEqual(queue.get(approved_job)["status"], "review_pending")
+        self.assertEqual(
+            [event["event_type"] for event in queue.events(terminal_job)],
+            ["production_state_reconciled"],
+        )
+        self.assertEqual(
+            [event["event_type"] for event in queue.events(review_job)],
+            ["production_state_reconciled"],
+        )
+        self.assertEqual(result["unresolved_jobs"][0]["job_id"], approved_job)
+
+    def test_status_integrity_is_idempotent_after_safe_repair(self):
+        queue = JobQueue(self.store.db_path)
+        job_id = submit_production(queue, self.store, self.brief)["job"]["id"]
+        with queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='cancelled',error_message='operator cancel' WHERE id=?",
+                (job_id,)
+            )
+        first = self.store.reconcile_status_integrity(queue)
+        second = self.store.reconcile_status_integrity(queue)
+        self.assertEqual(first["repaired"], 1)
+        self.assertEqual(second["scanned"], 0)
+        self.assertEqual(len(queue.events(job_id)), 1)
+
+    def test_status_integrity_rejects_different_databases(self):
+        other = JobQueue(str(Path(self.tmp.name) / "other.sqlite3"))
+        with self.assertRaisesRegex(ValueError, "same SQLite database"):
+            self.store.reconcile_status_integrity(other)
+
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
             ProductionPipeline.validate_brief({"brand": "x", "region": "US",

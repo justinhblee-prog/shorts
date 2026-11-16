@@ -1474,3 +1474,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - Follow-up hardening: when an approved production is explicitly returned to `review_pending` for a new artifact/review pass, atomically reopen its queue row and append a `review_reopened` event. This supports a fresh approval after media staging or artifact changes without leaving the queue falsely approved.
 - The full lifecycle regression exercises the two-review cycle (initial review, exact media staging, fresh review, private upload).
+
+
+## BUILD-00178 — production lifecycle state integrity monitor
+
+- Add a bounded lifecycle consistency scan before the worker claims new production work.
+- Automatically repair only two deterministic crash windows: queue cancellation/terminal failure not yet mirrored to production, and completed queue review handoff where production remains `rendered`.
+- Record each automatic repair as an immutable-in-practice queue event with source and before/after states.
+- Never guess or auto-promote approval/upload states. Any unresolved mismatch pauses the worker before another provider job can be claimed and requires operator investigation.
+- Regression tests cover safe repair, unresolved approval mismatch, idempotency, and shared-database enforcement.

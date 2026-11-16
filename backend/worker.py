@@ -67,8 +67,18 @@ def run_once():
         return False
     # Recovery failures escape: no claim may occur while state is uncertain.
     store.reconcile_missing_runs(queue)
-    store.reconcile_terminal_jobs(queue)
-    store.reconcile_review_pending(queue)
+    integrity = store.reconcile_status_integrity(queue)
+    if integrity["unresolved"]:
+        reason = (
+            "Production lifecycle state mismatch requires operator reconciliation: "
+            + json.dumps(integrity["unresolved_jobs"][:10], ensure_ascii=False)
+        )
+        queue.pause(reason)
+        print(
+            f"production_state_integrity_blocked unresolved={integrity['unresolved']} "
+            f"repaired={integrity['repaired']}; worker_paused"
+        )
+        return False
     job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production")
     if job is None:
         return False
