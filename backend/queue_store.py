@@ -376,7 +376,8 @@ class JobQueue:
                     WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
                     (stage,error_message,n,jid))
             self.event(c,jid,"cancelled",row["status"],"cancelled",None,
-                       {"reason":reason,"external_outcome_ambiguous":ambiguous})
+                       {"reason":reason,"external_outcome_ambiguous":ambiguous},
+                       created_at=n)
             if ambiguous:
                 self._pause_production_in_transaction(
                     c,
