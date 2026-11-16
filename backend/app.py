@@ -334,7 +334,17 @@ def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionActi
         if not isinstance(video_url,str) or not video_url.startswith("https://"):
             raise HTTPException(409,"Stored provider response has no HTTPS video URL")
         staged=media_stager.stage(job_id,video_url)
-        inspected=MediaInspector().inspect(media_stager.media_dir / staged["media_path"])
+        staged_path=media_stager.media_dir / staged["media_path"]
+        inspected=MediaInspector().inspect(staged_path)
+        # Re-fingerprint after ffprobe: inspection must describe the exact bytes
+        # that are durably recorded for adoption, not a file replaced mid-check.
+        verified=media_stager.fingerprint(staged_path)
+        if (verified["media_path"] != staged["media_path"]
+                or verified["size_bytes"] != staged["size_bytes"]
+                or verified["sha256"] != staged["sha256"]):
+            raise MediaStagingError("Staged media changed after inspection; recovery adoption was blocked")
+        staged=verified
+        inspected={**inspected,"media_path":verified["media_path"]}
         result=production_store.adopt_recovered_render(
             job_id,body.provider_attempt_id,staged,inspected)
         return {"adoption":result,"media_inspection":inspected,
