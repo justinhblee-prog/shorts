@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -377,6 +378,24 @@ class TikTokMetricsTests(unittest.TestCase):
                 "SELECT COUNT(*) FROM tiktok_video_metric_snapshots"
             ).fetchone()[0]
         self.assertEqual(count, 1)
+
+
+    def test_metrics_lease_duration_rejects_ambiguous_or_unbounded_values(self):
+        for invalid in (True, False, 1.5, "60", 0, -1, 3601, 10**9):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "lease duration"):
+                    self.store.acquire_lease("collector-invalid", invalid)
+        token = self.store.acquire_lease("collector-minimum", 1)
+        self.assertIsNotNone(token)
+        with self.store.db() as connection:
+            row = connection.execute(
+                "SELECT expires_at FROM tiktok_metrics_collector_lease WHERE id=1"
+            ).fetchone()
+        expires = datetime.fromisoformat(row["expires_at"])
+        self.assertGreaterEqual((expires - datetime.now(timezone.utc)).total_seconds(), 29)
+        self.assertTrue(self.store.renew_lease("collector-minimum", token, 3600))
+        with self.assertRaisesRegex(ValueError, "lease duration"):
+            self.store.renew_lease("collector-minimum", token, True)
 
 if __name__ == "__main__":
     unittest.main()
