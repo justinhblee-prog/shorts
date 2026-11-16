@@ -660,7 +660,9 @@ def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
 @app.post("/api/youtube/uploads/{job_id}/reconcile")
 def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
                               x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.reconcile")
+    authenticated_operator=require_review_permission(x_review_token,"publish.reconcile")
+    if body.operator_id != authenticated_operator:
+        raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
     if not body.confirmed:
         raise HTTPException(422,"Explicit operator confirmation is required")
     if body.outcome=="uploaded" and not body.video_id:
@@ -676,7 +678,9 @@ def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
 @app.post("/api/youtube/uploads/{job_id}/resolve-late-result")
 def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
                                 x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.reconcile")
+    authenticated_operator=require_review_permission(x_review_token,"publish.reconcile")
+    if body.operator_id != authenticated_operator:
+        raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
     try:
         return youtube_upload_store.resolve_late_success(
             job_id,body.operator_id,body.note,body.video_id
@@ -872,7 +876,9 @@ def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=Non
 @app.post("/api/tiktok/publications/{job_id}/reconcile")
 def reconcile_tiktok_publication(job_id:str,body:TikTokPublicationReconciliation,
                                  x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.reconcile")
+    authenticated_operator=require_review_permission(x_review_token,"publish.reconcile")
+    if body.operator_id != authenticated_operator:
+        raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
     try:
         return tiktok_publish_store.reconcile(job_id,body.outcome,body.operator_id,
             body.note,video_id=body.video_id,confirmed=body.confirmed)
