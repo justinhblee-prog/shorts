@@ -375,6 +375,24 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(self.q.workers()[0]["generation_token"],current["generation_token"])
   self.assertEqual(self.q.workers()[0]["status"],"online")
 
+ def test_registered_worker_cannot_mutate_queue_without_generation_token(self):
+  registration=self.q.register_worker("token-required-worker","host-a")
+  job=self.q.enqueue("render",{"topic":"missing-generation-token"})
+  claimed=self.q.claim("token-required-worker","host-a",generation_token=registration["generation_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.claim("token-required-worker","host-a")
+  with self.assertRaises(LeaseConflict):
+   self.q.heartbeat(job["id"],"token-required-worker",claimed["lease_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"token-required-worker",claimed["lease_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.fail(job["id"],"token-required-worker",claimed["lease_token"],"stale","missing generation",False)
+  with self.assertRaises(LeaseConflict):
+   self.q.pause("missing generation",worker_id="token-required-worker")
+  self.assertFalse(self.q.is_paused())
+  self.assertEqual(self.q.get(job["id"])["status"],"running")
+  self.assertEqual(self.q.workers()[0]["generation_token"],registration["generation_token"])
+
  def test_stale_worker_generation_cannot_pause_replacement_process(self):
   first=self.q.register_worker("pause-worker","host-a")
   second=self.q.register_worker("pause-worker","host-a")
