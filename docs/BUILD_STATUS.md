@@ -1759,3 +1759,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add API-level regressions for spoofed operator identities and for matching authenticated identities on both platform reconciliation endpoints.
 - This prevents an authorized reviewer from attributing a platform reconciliation audit event to an arbitrary operator ID.
 - GitHub Actions validation was triggered for the initial implementation commit; confirm the final branch-head run before treating this change as validated.
+
+
+## BUILD-00211 — lock platform reconciliation confirmation gates with API regressions
+
+- Add API-level regressions proving YouTube reconciliation rejects an unconfirmed outcome before calling the store.
+- Add API-level regression proving TikTok's explicit-confirmation requirement is enforced by its reconciliation store and surfaced as a conflict; the mocked store confirms the route does not bypass or reinterpret that contract.
+- Add API-level regression proving a YouTube `uploaded` reconciliation cannot proceed without a verified video ID.
+- No production runtime behavior changed; the change adds regression coverage for existing fail-closed validation.

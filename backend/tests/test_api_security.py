@@ -911,6 +911,68 @@ class ApiSecurityTests(unittest.TestCase):
             "Verified no matching creator post", video_id=None, confirmed=True,
         )
 
+
+    def test_youtube_reconciliation_requires_explicit_confirmation_before_store_mutation(self):
+        from app import YouTubeUploadReconciliation, reconcile_youtube_upload
+        body = YouTubeUploadReconciliation(
+            outcome="not_uploaded", confirmed=False,
+            note="Unable to verify", operator_id="operator-1",
+        )
+        with (
+            mock.patch.object(
+                app_module, "require_review_permission", return_value="operator-1"
+            ) as authorize,
+            mock.patch.object(app_module.youtube_upload_store, "reconcile") as mutation,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                reconcile_youtube_upload("job-1", body, x_review_token="review-token")
+        self.assertEqual(caught.exception.status_code, 422)
+        authorize.assert_called_once_with("review-token", "publish.reconcile")
+        mutation.assert_not_called()
+
+    def test_tiktok_reconciliation_requires_explicit_confirmation_before_store_mutation(self):
+        from app import TikTokPublicationReconciliation, reconcile_tiktok_publication
+        body = TikTokPublicationReconciliation(
+            outcome="not_published", confirmed=False,
+            note="Unable to verify", operator_id="operator-1",
+        )
+        with (
+            mock.patch.object(
+                app_module, "require_review_permission", return_value="operator-1"
+            ) as authorize,
+            mock.patch.object(
+                app_module.tiktok_publish_store, "reconcile",
+                side_effect=app_module.TikTokPublishError(
+                    "Explicit confirmation of the TikTok account's remote result is required"
+                ),
+            ) as mutation,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                reconcile_tiktok_publication("job-1", body, x_review_token="review-token")
+        self.assertEqual(caught.exception.status_code, 409)
+        authorize.assert_called_once_with("review-token", "publish.reconcile")
+        mutation.assert_called_once_with(
+            "job-1", "not_published", "operator-1", "Unable to verify",
+            video_id=None, confirmed=False,
+        )
+
+    def test_youtube_reconciliation_requires_video_id_for_uploaded_outcome(self):
+        from app import YouTubeUploadReconciliation, reconcile_youtube_upload
+        body = YouTubeUploadReconciliation(
+            outcome="uploaded", confirmed=True, video_id=None,
+            note="Operator confirms upload", operator_id="operator-1",
+        )
+        with (
+            mock.patch.object(
+                app_module, "require_review_permission", return_value="operator-1"
+            ),
+            mock.patch.object(app_module.youtube_upload_store, "reconcile") as mutation,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                reconcile_youtube_upload("job-1", body, x_review_token="review-token")
+        self.assertEqual(caught.exception.status_code, 422)
+        mutation.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()
 
