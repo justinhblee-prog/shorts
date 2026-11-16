@@ -818,4 +818,22 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(persisted["updated_at"],decision.isoformat())
   self.assertEqual(event["created_at"],decision.isoformat())
 
+ def test_operator_reconciliation_job_event_uses_locked_decision_timestamp(self):
+  job=self.q.enqueue("short_video_production",{"topic":"reconcile-audit-time"})
+  claim=self.q.claim("worker-reconcile-audit",job_type="short_video_production")
+  self.q.cancel(job["id"],"test ambiguous cancellation")
+  decision=datetime(2032,3,4,5,6,7,tzinfo=timezone.utc)
+  later=decision+timedelta(seconds=13)
+  with patch.object(queue_store,"now",side_effect=[decision,later]):
+   result=self.q.reconcile_production_retry(
+    job["id"],"operator-2","provider-console:confirmed-no-request",
+    "Provider confirms no side effect")
+  self.assertEqual(result["status"],"failed_retriable")
+  event=[item for item in self.q.events(job["id"])
+         if item["event_type"]=="operator_reconciliation"][-1]
+  audit=self.q.production_reconciliation_events(job["id"])[-1]
+  self.assertEqual(event["created_at"],decision.isoformat())
+  self.assertEqual(audit["created_at"],decision.isoformat())
+  self.assertEqual(result["updated_at"],decision.isoformat())
+
 if __name__=="__main__": unittest.main()
