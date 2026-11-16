@@ -92,7 +92,235 @@ class PerformanceAnalyzer:
         finally:
             c.close()
 
-    def analyze(self, brand=None):
+    def _analyze_tiktok(self, brand=None):
+        with self.db() as connection:
+            where = "WHERE p.status='publish_complete'"
+            args = []
+            if brand:
+                where += " AND r.brand=?"
+                args.append(brand)
+            rows = connection.execute("""
+                SELECT r.job_id,r.brand,r.region,r.topic,p.video_id,
+                       COALESCE(published.published_at,p.updated_at) AS published_at,
+                       a.metadata_json AS rendering_metadata_json,
+                       s.view_count,s.like_count,s.comment_count,s.share_count,s.collected_at
+                FROM production_runs r
+                JOIN tiktok_publications p ON p.job_id=r.job_id
+                LEFT JOIN (
+                    SELECT job_id,MIN(created_at) AS published_at
+                    FROM tiktok_publication_events
+                    WHERE event_type='status_refreshed'
+                      AND UPPER(outcome)='PUBLISH_COMPLETE'
+                    GROUP BY job_id
+                ) published ON published.job_id=p.job_id
+                LEFT JOIN production_artifacts a
+                  ON a.job_id=r.job_id AND a.stage='rendering' AND a.artifact_type='video'
+                LEFT JOIN tiktok_video_metric_snapshots s ON s.video_id=p.video_id
+            """ + where + " ORDER BY r.brand,r.region,r.job_id,s.collected_at", args).fetchall()
+            ledger_where = "WHERE 1=1"
+            ledger_args = []
+            if brand:
+                ledger_where += " AND brand=?"
+                ledger_args.append(brand)
+            ledger = connection.execute("""
+                SELECT brand,currency,entry_type,SUM(amount) amount,COUNT(*) entries
+                FROM financial_ledger
+            """ + ledger_where + " GROUP BY brand,currency,entry_type ORDER BY brand,currency,entry_type",
+                ledger_args).fetchall()
+
+        grouped = {}
+        for row in rows:
+            key = row["job_id"]
+            item = grouped.setdefault(key, {
+                "job_id":key,"brand":row["brand"],"region":row["region"],
+                "topic":row["topic"],"video_id":row["video_id"],
+                "uploaded_at":row["published_at"],
+                "rendering_metadata_json":row["rendering_metadata_json"],
+                "snapshots":[],
+            })
+            if row["collected_at"] is not None:
+                item["snapshots"].append({
+                    "views":row["view_count"],"likes":row["like_count"],
+                    "comments":row["comment_count"],"shares":row["share_count"],
+                    "collected_at":row["collected_at"],
+                })
+
+        by_brand = {}
+        by_region = {}
+        video_results = []
+        for video in grouped.values():
+            brand_row = by_brand.setdefault(video["brand"], {
+                "brand":video["brand"],"videos":0,"measured_videos":0,
+                "unmeasured_videos":0,"view_delta":0,"like_delta":0,
+                "comment_delta":0,"share_delta":0,"recommendations":[],
+                "_views_per_hour_samples":[],"_interaction_rate_samples":[],
+            })
+            region_key=(video["brand"],video["region"])
+            region_row=by_region.setdefault(region_key,{
+                "brand":video["brand"],"region":video["region"],"videos":0,
+                "measured_videos":0,"unmeasured_videos":0,"view_delta":0,
+                "like_delta":0,"comment_delta":0,"share_delta":0,
+            })
+            brand_row["videos"]+=1
+            region_row["videos"]+=1
+            try:
+                render_metadata=json.loads(video["rendering_metadata_json"] or "{}")
+                if not isinstance(render_metadata,dict):
+                    render_metadata={}
+            except (TypeError,ValueError):
+                render_metadata={}
+            duration=render_metadata.get("duration_seconds")
+            if duration is None and isinstance(render_metadata.get("media_inspection"),dict):
+                duration=render_metadata["media_inspection"].get("duration_seconds")
+            result={
+                "platform":"tiktok","job_id":video["job_id"],"brand":video["brand"],
+                "region":video["region"],"topic":video["topic"],
+                "topic_signature":_topic_signature(video["topic"]),
+                "video_id":video["video_id"],"uploaded_at":video["uploaded_at"],
+                "duration_seconds":duration,"duration_bucket":_duration_bucket(duration),
+                "format":_render_format(render_metadata),
+                "snapshot_count":len(video["snapshots"]),
+                "publication_age_bucket":"unknown",
+                "measurement_status":"insufficient_snapshots",
+                "views_per_hour":None,"interactions_per_1000_view_delta":None,
+            }
+            snapshots=video["snapshots"]
+            if len(snapshots)>=2:
+                first,last=snapshots[0],snapshots[-1]
+                elapsed=_elapsed_hours(first["collected_at"],last["collected_at"])
+                result["first_snapshot_at"]=first["collected_at"]
+                result["last_snapshot_at"]=last["collected_at"]
+                result["elapsed_hours"]=elapsed
+                result["publication_age_bucket"]=_publication_age_bucket(
+                    video["uploaded_at"],last["collected_at"]
+                )
+                deltas={}
+                for source,target in (("views","view_delta"),("likes","like_delta"),
+                                      ("comments","comment_delta"),("shares","share_delta")):
+                    left,right=first[source],last[source]
+                    deltas[target]=(right-left) if left is not None and right is not None else None
+                    if deltas[target] is not None and deltas[target]<0:
+                        deltas[target]=None
+                result.update(deltas)
+                if deltas["view_delta"] is not None and elapsed is not None:
+                    result["measurement_status"]="measured"
+                    result["views_per_hour"]=round(deltas["view_delta"]/elapsed,2)
+                    brand_row["measured_videos"]+=1
+                    region_row["measured_videos"]+=1
+                    for field in ("view_delta","like_delta","comment_delta","share_delta"):
+                        if deltas[field] is not None:
+                            brand_row[field]+=deltas[field]
+                            region_row[field]+=deltas[field]
+                    interaction_values=[deltas[x] for x in ("like_delta","comment_delta","share_delta")]
+                    interaction_delta=sum(interaction_values) if all(x is not None for x in interaction_values) else None
+                    result["interaction_delta"]=interaction_delta
+                    result["interactions_per_1000_view_delta"]=(
+                        round(interaction_delta*1000/deltas["view_delta"],2)
+                        if interaction_delta is not None and deltas["view_delta"]>0 else None
+                    )
+                    brand_row["_views_per_hour_samples"].append(result["views_per_hour"])
+                    if result["interactions_per_1000_view_delta"] is not None:
+                        brand_row["_interaction_rate_samples"].append(
+                            result["interactions_per_1000_view_delta"]
+                        )
+                else:
+                    result["measurement_status"]="counter_reset_or_invalid"
+                    brand_row["unmeasured_videos"]+=1
+                    region_row["unmeasured_videos"]+=1
+            else:
+                brand_row["unmeasured_videos"]+=1
+                region_row["unmeasured_videos"]+=1
+            video_results.append(result)
+
+        for item in by_brand.values():
+            rates=item.pop("_views_per_hour_samples")
+            interactions=item.pop("_interaction_rate_samples")
+            item["rate_sample_count"]=len(rates)
+            item["median_views_per_hour"]=round(statistics.median(rates),2) if rates else None
+            item["interaction_rate_sample_count"]=len(interactions)
+            item["median_interactions_per_1000_view_delta"]=(
+                round(statistics.median(interactions),2) if interactions else None
+            )
+            item["performance_evidence_status"]="limited" if len(rates)<3 else "sample_available"
+            if not item["measured_videos"]:
+                item["recommendations"].append({
+                    "type":"insufficient_evidence","basis":"no_valid_comparable_tiktok_snapshots",
+                    "action":"Collect at least two valid TikTok metric snapshots per published video before comparing performance"
+                })
+            elif item["unmeasured_videos"]:
+                item["recommendations"].append({
+                    "type":"measurement_coverage","basis":"some_tiktok_videos_lack_valid_snapshots",
+                    "action":"Collect missing TikTok snapshots and verify counter resets before comparing all videos"
+                })
+            item["view_delta_is_snapshot_difference"]=True
+
+        cohort_groups={}
+        for video in video_results:
+            if video.get("measurement_status")!="measured":
+                continue
+            rate=video.get("views_per_hour")
+            if not isinstance(rate,(int,float)) or rate<0:
+                continue
+            key=(video["brand"],video["region"],video["publication_age_bucket"],
+                 video["duration_bucket"],video["format"],video["topic_signature"])
+            cohort=cohort_groups.setdefault(key,{
+                "platform":"tiktok","brand":key[0],"region":key[1],
+                "publication_age_bucket":key[2],"duration_bucket":key[3],
+                "format":key[4],"topic_signature":key[5],
+                "_views_per_hour":[],"_interaction_rates":[],
+            })
+            cohort["_views_per_hour"].append(float(rate))
+            interaction=video.get("interactions_per_1000_view_delta")
+            if isinstance(interaction,(int,float)) and interaction>=0:
+                cohort["_interaction_rates"].append(float(interaction))
+        cohorts=[]
+        for cohort in cohort_groups.values():
+            rates=cohort.pop("_views_per_hour")
+            interactions=cohort.pop("_interaction_rates")
+            cohort.update({
+                "sample_count":len(rates),
+                "median_views_per_hour":round(statistics.median(rates),2),
+                "interaction_rate_sample_count":len(interactions),
+                "median_interactions_per_1000_view_delta":(
+                    round(statistics.median(interactions),2) if interactions else None
+                ),
+                "evidence_status":"limited" if len(rates)<3 else "observed",
+                "ranking_score_adjustment":0,
+                "usage":"display_only_pending_held_out_validation",
+            })
+            cohorts.append(cohort)
+        cohorts.sort(key=lambda x:(x["brand"],x["region"],x["publication_age_bucket"],
+                                   x["duration_bucket"],x["format"],x["topic_signature"]))
+        financial={}
+        for row in ledger:
+            key=(row["brand"],row["currency"])
+            item=financial.setdefault(key,{"brand":row["brand"],"currency":row["currency"],
+                "revenue":0.0,"costs":0.0,"net":0.0,"entries":0})
+            amount=float(row["amount"])
+            item["entries"]+=int(row["entries"])
+            if row["entry_type"] in ("youtube_ads","affiliate","sponsor"):
+                item["revenue"]+=amount
+            else:
+                item["costs"]+=amount
+            item["net"]=round(item["revenue"]-item["costs"],2)
+        return {
+            "platform":"tiktok","brands":list(by_brand.values()),
+            "regions":list(by_region.values()),"videos":video_results,
+            "cohorts":cohorts,"financial":list(financial.values()),
+            "metric_boundary":{
+                "source":"TikTok Display API v2",
+                "available":["view_count","like_count","comment_count","share_count"],
+                "unavailable":["audience_retention","watch_time","estimated_revenue"],
+                "view_velocity":"difference between stored snapshots normalized by elapsed time; not a TikTok-provided recommendation score",
+                "ranking_score_adjustment":0,
+            },
+        }
+
+    def analyze(self, brand=None, platform="youtube"):
+        if platform == "tiktok":
+            return self._analyze_tiktok(brand)
+        if platform != "youtube":
+            raise ValueError("platform must be youtube or tiktok")
         with self.db() as c:
             where = "WHERE r.status IN ('uploaded','approved')"
             args = []

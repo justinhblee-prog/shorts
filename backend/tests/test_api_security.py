@@ -163,7 +163,7 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(brief["trend_context"]["url"], "https://news.example/ai")
         self.assertEqual(brief["brand_profile"]["review_rules"],
                          ["Distinguish demos from shipped products"])
-        self.assertEqual(brief["idempotency_key"], "trend:trend-abc:future-leak:en")
+        self.assertEqual(brief["idempotency_key"], "trend:trend-abc:future-leak:en:youtube")
 
     def test_trend_production_draft_rejects_missing_trend_and_unsupported_region(self):
         body = TrendProductionDraft(brand="future-leak", language="en")

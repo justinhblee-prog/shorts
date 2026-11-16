@@ -33,6 +33,17 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(ranked[0]["recommendation_score"],
                          round(sum(ranked[0]["score_breakdown"].values()), 2))
 
+    def test_recommendations_are_labeled_for_selected_platform(self):
+        now=datetime(2026,11,15,tzinfo=timezone.utc)
+        result=rank_trend_candidates(
+            [{"id":"tt","title":"AI technology research","region":"US",
+              "published_at":now.isoformat()}],
+            [{"slug":"future-leak","name":"Future Leak","active":True,
+              "config":{"positioning":"AI technology","regions":["US"],"languages":["en"]}}],
+            now=now,platform="tiktok",
+        )
+        self.assertEqual(result[0]["platform"],"tiktok")
+
     def test_no_brand_match_is_not_invented(self):
         result = rank_trend_candidates(
             [{"id": "x", "title": "Local gardening", "region": "US"}],

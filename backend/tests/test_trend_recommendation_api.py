@@ -30,7 +30,7 @@ class TrendRecommendationApiTests(unittest.TestCase):
               mock.patch("app.performance_analyzer.analyze", return_value={"videos": []})):
             result = app_module.recommendation_evaluation(x_review_token="valid")
         self.assertEqual(result, expected)
-        evaluate.assert_called_once_with({"videos": []})
+        evaluate.assert_called_once_with({"videos": []}, platform="youtube")
 
     def test_endpoint_requires_review_token_and_returns_explained_editorial_rank(self):
         route = next(r for r in app_module.app.routes
@@ -75,7 +75,7 @@ class TrendRecommendationApiTests(unittest.TestCase):
         self.assertEqual(result["count"], 1)
         self.assertEqual(result["evaluation_run_id"], "run-123")
         self.assertEqual(result["evaluation_candidates_recorded"], 1)
-        record_run.assert_called_once_with("US", result["items"])
+        record_run.assert_called_once_with("US", result["items"], platform="youtube")
         self.assertEqual(result["items"][0]["best_brand"]["brand"], "future-leak")
         historical = result["items"][0]["best_brand"]["historical_performance"]
         self.assertEqual(historical["median_views_per_hour"], 90.0)

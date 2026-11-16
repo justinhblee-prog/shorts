@@ -54,7 +54,8 @@ class RecommendationEvaluationStore:
             c.executescript("""
             CREATE TABLE IF NOT EXISTS recommendation_runs(
               id TEXT PRIMARY KEY, region TEXT, generated_at TEXT NOT NULL,
-              candidate_count INTEGER NOT NULL, scoring_method TEXT NOT NULL);
+              candidate_count INTEGER NOT NULL, scoring_method TEXT NOT NULL,
+              platform TEXT NOT NULL DEFAULT 'youtube');
             CREATE TABLE IF NOT EXISTS recommendation_candidates(
               id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES recommendation_runs(id),
               trend_id TEXT NOT NULL, trend_title TEXT NOT NULL, trend_region TEXT,
@@ -73,6 +74,8 @@ class RecommendationEvaluationStore:
             ).fetchall()}
             if "signature" not in columns:
                 c.execute("ALTER TABLE recommendation_runs ADD COLUMN signature TEXT NOT NULL DEFAULT ''")
+            if "platform" not in columns:
+                c.execute("ALTER TABLE recommendation_runs ADD COLUMN platform TEXT NOT NULL DEFAULT 'youtube'")
 
     @contextmanager
     def db(self):
@@ -89,7 +92,9 @@ class RecommendationEvaluationStore:
         finally:
             c.close()
 
-    def record_run(self, region, items, generated_at=None):
+    def record_run(self, region, items, generated_at=None, platform="youtube"):
+        if platform not in ("youtube", "tiktok"):
+            raise ValueError("platform must be youtube or tiktok")
         timestamp = generated_at or _now()
         run_id = str(uuid.uuid4())
         rows = []
@@ -114,7 +119,7 @@ class RecommendationEvaluationStore:
                 timestamp,
             ))
         signature_payload = [
-            [row[2], row[5], row[7], row[8], row[9], row[10]]
+            [platform, row[2], row[5], row[7], row[8], row[9], row[10]]
             for row in rows
         ]
         signature = hashlib.sha256(json.dumps(
@@ -128,9 +133,9 @@ class RecommendationEvaluationStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             previous = c.execute("""SELECT id,candidate_count FROM recommendation_runs
-                WHERE region IS ? AND signature=? AND generated_at>=?
+                WHERE region IS ? AND signature=? AND generated_at>=? AND platform=?
                 ORDER BY generated_at DESC LIMIT 1""",
-                (region, signature, cutoff)).fetchone()
+                (region, signature, cutoff, platform)).fetchone()
             if previous:
                 return {
                     "run_id": previous["id"],
@@ -138,9 +143,9 @@ class RecommendationEvaluationStore:
                     "deduplicated": True,
                 }
             c.execute("""INSERT INTO recommendation_runs
-              (id,region,generated_at,candidate_count,scoring_method,signature)
-              VALUES(?,?,?,?,?,?)""",
-              (run_id, region, timestamp, len(rows), "editorial_v1", signature))
+              (id,region,generated_at,candidate_count,scoring_method,signature,platform)
+              VALUES(?,?,?,?,?,?,?)""",
+              (run_id, region, timestamp, len(rows), "editorial_v1", signature, platform))
             c.executemany("""INSERT INTO recommendation_candidates
               (id,run_id,trend_id,trend_title,trend_region,brand_slug,brand_name,
                recommendation_rank,recommendation_score,score_breakdown_json,
@@ -161,14 +166,18 @@ class RecommendationEvaluationStore:
             "deduplicated": False,
         }
 
-    def link_production(self, trend_id, brand_slug, job_id, selected_at=None):
+    def link_production(self, trend_id, brand_slug, job_id, selected_at=None, platform="youtube"):
+        if platform not in ("youtube", "tiktok"):
+            raise ValueError("platform must be youtube or tiktok")
         timestamp = selected_at or _now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            row = c.execute("""SELECT id FROM recommendation_candidates
-                WHERE trend_id=? AND brand_slug=? AND selected_job_id IS NULL
-                ORDER BY created_at DESC LIMIT 1""",
-                (str(trend_id), str(brand_slug))).fetchone()
+            row = c.execute("""SELECT c.id FROM recommendation_candidates c
+                JOIN recommendation_runs r ON r.id=c.run_id
+                WHERE c.trend_id=? AND c.brand_slug=? AND c.selected_job_id IS NULL
+                  AND r.platform=?
+                ORDER BY c.created_at DESC LIMIT 1""",
+                (str(trend_id), str(brand_slug), platform)).fetchone()
             if row is None:
                 return {"linked": False, "reason": "no_matching_recommendation_exposure"}
             changed = c.execute("""UPDATE recommendation_candidates
@@ -177,21 +186,24 @@ class RecommendationEvaluationStore:
                 (str(job_id), timestamp, row["id"])).rowcount
             return {"linked": bool(changed), "candidate_id": row["id"] if changed else None}
 
-    def evaluate(self, performance):
+    def evaluate(self, performance, platform="youtube"):
+        if platform not in ("youtube", "tiktok"):
+            raise ValueError("platform must be youtube or tiktok")
         measured = {
             str(item.get("job_id")): item for item in performance.get("videos", [])
             if item.get("measurement_status") == "measured"
+            and item.get("platform", "youtube") == platform
             and isinstance(item.get("views_per_hour"), (int, float))
             and item.get("views_per_hour") >= 0
         }
         with self.db() as c:
-            rows = c.execute("""SELECT c.run_id,r.generated_at AS run_generated_at,
+            rows = c.execute("""SELECT c.run_id,r.generated_at AS run_generated_at,r.platform,
                 c.selected_job_id,c.selected_at,c.created_at,
                 c.recommendation_rank,c.recommendation_score,c.trend_id,c.brand_slug
                 FROM recommendation_candidates c
                 JOIN recommendation_runs r ON r.id=c.run_id
-                WHERE c.selected_job_id IS NOT NULL
-                ORDER BY r.generated_at,c.recommendation_rank,c.selected_job_id""").fetchall()
+                WHERE c.selected_job_id IS NOT NULL AND r.platform=?
+                ORDER BY r.generated_at,c.recommendation_rank,c.selected_job_id""",(platform,)).fetchall()
         # One outcome per production job. A unique constraint also prevents
         # accidentally attaching one job to multiple candidate exposures.
         observations = []
@@ -205,6 +217,7 @@ class RecommendationEvaluationStore:
                 "job_id": job_id,
                 "run_id": row["run_id"],
                 "run_generated_at": row["run_generated_at"],
+                "platform": row["platform"],
                 "observed_at": row["selected_at"] or row["created_at"],
                 "recommendation_rank": int(row["recommendation_rank"]),
                 "recommendation_score": float(row["recommendation_score"]),
@@ -226,7 +239,7 @@ class RecommendationEvaluationStore:
         for item in observations:
             run_id = item["run_id"]
             cohort_key = (
-                item.get("outcome_brand"), item.get("outcome_region"),
+                item.get("platform"), item.get("outcome_brand"), item.get("outcome_region"),
                 item.get("publication_age_bucket"), item.get("duration_bucket"),
                 item.get("format"),
             )
@@ -283,7 +296,7 @@ class RecommendationEvaluationStore:
             "holdout_positive_score_association_share": None,
             "score_adjustment_enabled": False,
             "reason": (
-                "At least five recommendation exposure runs with one comparable "
+                "At least five recommendation exposure runs on the selected platform with one comparable "
                 "brand/region/publication-age/duration/format cohort containing three "
                 "or more selected and measured candidates each are required."
             ),
@@ -321,6 +334,7 @@ class RecommendationEvaluationStore:
             })
         result = {
             "status": "insufficient_data",
+            "platform": platform,
             "method": "chronological_70_30_holdout_spearman",
             "selected_production_count": total_selected,
             "measured_outcome_count": total_measured,

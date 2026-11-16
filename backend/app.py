@@ -187,6 +187,7 @@ class ProductionBrief(BaseModel):
     region:str=Field(min_length=2,max_length=8)
     language:str=Field(min_length=2,max_length=40)
     topic:str=Field(min_length=1,max_length=500)
+    platforms:list[Literal["youtube","tiktok"]]=Field(default_factory=lambda:["youtube"])
     idempotency_key:str|None=None
 
 class ProductionExecute(BaseModel):
@@ -202,6 +203,7 @@ class TrendCollect(BaseModel):
 class TrendProductionDraft(BaseModel):
     brand:str=Field(min_length=1,max_length=100)
     language:str=Field(min_length=2,max_length=40)
+    platform:Literal["youtube","tiktok"]="youtube"
     idempotency_key:str|None=None
 
 @app.get("/api/brands")
@@ -664,9 +666,11 @@ def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|Non
 
 
 @app.get("/api/performance/insights")
-def performance_insights(brand:str|None=None,x_review_token:str|None=Header(default=None)):
+def performance_insights(brand:str|None=None,
+                         platform:Literal["youtube","tiktok"]="youtube",
+                         x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    return performance_analyzer.analyze(brand)
+    return performance_analyzer.analyze(brand,platform=platform)
 
 
 
@@ -749,9 +753,9 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
         profile=config
         brief={
             "brand":brand["name"],"region":region,"language":body.language,
-            "topic":title[:500],
+            "topic":title[:500],"platforms":[body.platform],
             "idempotency_key":body.idempotency_key or
-                f"trend:{trend_id}:{brand['slug']}:{body.language}",
+                f"trend:{trend_id}:{brand['slug']}:{body.language}:{body.platform}",
             "brand_profile":{
                 "positioning":profile.get("positioning",""),
                 "audience":profile.get("audience",""),
@@ -767,7 +771,7 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
         }
         submitted=submit_production(queue,production_store,brief)
         recommendation_evaluation_store.link_production(
-            trend_id,brand["slug"],submitted["job"]["id"]
+            trend_id,brand["slug"],submitted["job"]["id"],platform=body.platform
         )
         return submitted
     except IdempotencyConflict as e:
@@ -851,16 +855,17 @@ def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Heade
         raise HTTPException(422,str(e))
 
 
-def _build_trend_recommendations(region, limit):
+def _build_trend_recommendations(region, limit, platform="youtube"):
     trends=trend_store.list(region=region,limit=200)
     brands=brand_store.list(active_only=True)
-    performance=performance_analyzer.analyze()
+    performance=performance_analyzer.analyze(platform=platform)
     performance_by_brand={item["brand"]:item for item in performance.get("brands",[])}
     return rank_trend_candidates(
         trends,brands,competitor_store,limit,
         performance_by_brand=performance_by_brand,
         performance_videos=performance.get("videos",[]),
-        performance_cohorts=performance.get("cohorts",[])
+        performance_cohorts=performance.get("cohorts",[]),
+        platform=platform
     )
 
 
@@ -874,19 +879,22 @@ def _trend_recommendation_payload(ranked):
 
 
 @app.get("/api/trends/recommendations")
-def trend_recommendations(region:str|None=None,limit:int=30,x_review_token:str|None=Header(default=None)):
+def trend_recommendations(region:str|None=None,limit:int=30,
+                          platform:Literal["youtube","tiktok"]="youtube",
+                          x_review_token:str|None=Header(default=None)):
     """Read-only recommendation retrieval; does not create an evaluation exposure."""
     require_review_access(x_review_token)
-    return _trend_recommendation_payload(_build_trend_recommendations(region,limit))
+    return _trend_recommendation_payload(_build_trend_recommendations(region,limit,platform))
 
 
 @app.post("/api/trends/recommendations/snapshot")
 def capture_trend_recommendations(region:str|None=None,limit:int=30,
+                                  platform:Literal["youtube","tiktok"]="youtube",
                                   x_review_token:str|None=Header(default=None)):
-    """Explicitly capture the recommendation set returned to the production workspace."""
+    """Explicitly capture a platform-specific recommendation exposure."""
     require_review_access(x_review_token)
-    ranked=_build_trend_recommendations(region,limit)
-    exposure=recommendation_evaluation_store.record_run(region,ranked)
+    ranked=_build_trend_recommendations(region,limit,platform)
+    exposure=recommendation_evaluation_store.record_run(region,ranked,platform=platform)
     return {
         **_trend_recommendation_payload(ranked),
         "evaluation_run_id":exposure["run_id"],
@@ -895,10 +903,13 @@ def capture_trend_recommendations(region:str|None=None,limit:int=30,
     }
 
 @app.get("/api/recommendations/evaluation")
-def recommendation_evaluation(x_review_token:str|None=Header(default=None)):
-    """Report chronological holdout diagnostics for selected recommendation outcomes."""
+def recommendation_evaluation(platform:Literal["youtube","tiktok"]="youtube",
+                               x_review_token:str|None=Header(default=None)):
+    """Report chronological holdout diagnostics for one platform only."""
     require_review_access(x_review_token)
-    return recommendation_evaluation_store.evaluate(performance_analyzer.analyze())
+    return recommendation_evaluation_store.evaluate(
+        performance_analyzer.analyze(platform=platform),platform=platform
+    )
 
 
 @app.get("/api/opportunities")

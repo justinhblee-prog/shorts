@@ -61,7 +61,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("data-recommend-brand", app_js)
         self.assertIn("EDITORIAL MATCH", html)
         self.assertIn("trendRecommendations", html)
-        self.assertIn("수익성이나 조회수 예측 점수가 아닙니다", html)
+        self.assertIn("성과가 충분히 검증되기 전까지 추천 점수는 자동 변경하지 않습니다", html)
         self.assertIn("competitor_context", app_js)
         self.assertIn("median_matched_views", app_js)
         self.assertIn("경쟁 영상 표본 미수집", app_js)

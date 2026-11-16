@@ -189,6 +189,17 @@
     }
   }
 
+  async function loadRecommendationEvaluation(){
+    const platform=$("trendPlatform").value;
+    const data=await api("/api/recommendations/evaluation?platform="+encodeURIComponent(platform));
+    const within=data.within_run_validation||{};
+    $("recommendationEvaluation").innerHTML=
+      '<b>'+esc(platform==="tiktok"?"TikTok":"YouTube Shorts")+' · '+esc(within.status||"insufficient_data")+'</b>'+
+      '<span>노출 실행 '+Number(within.eligible_run_count||0)+'회 · 비교 코호트 '+Number(within.eligible_cohort_count||0)+'개 · 측정 결과 '+Number(data.measured_outcome_count||0)+'건</span>'+
+      '<span>'+esc(within.reason||data.warning||"비교 데이터가 충분하지 않습니다.")+'</span>'+
+      '<span>자동 점수 조정: 비활성 · 실제 운영 데이터 기반의 추가 검증 필요</span>';
+  }
+
   async function loadTrends(){
     const data=await api("/api/trends?limit=12");
     const active=brands.filter(b=>b.active);
@@ -206,7 +217,8 @@
 
   async function loadTrendRecommendations(){
     const region=$("trendRegion").value;
-    const data=await api("/api/trends/recommendations/snapshot?region="+encodeURIComponent(region)+"&limit=20",{method:"POST"});
+    const platform=$("trendPlatform").value;
+    const data=await api("/api/trends/recommendations/snapshot?region="+encodeURIComponent(region)+"&limit=20&platform="+encodeURIComponent(platform),{method:"POST"});
     const items=data.items||[];
     $("trendRecommendations").innerHTML=items.map(item=>{
       const trend=item.trend||{};
@@ -215,7 +227,7 @@
       const options=candidates.filter(x=>(x.supported_languages||[]).includes(language))
         .map(x=>'<option value="'+esc(x.brand)+'">'+esc(x.brand_name)+'</option>').join("");
       const controls=trend.id&&options
-        ? '<div class="trend-actions"><select aria-label="추천 제작 브랜드" data-recommend-brand="'+esc(trend.id)+'">'+options+'</select><button type="button" class="button button-secondary" data-recommend-draft="'+esc(trend.id)+'" data-recommend-language="'+language+'">추천 브랜드로 기획</button></div>'
+        ? '<div class="trend-actions"><select aria-label="추천 제작 브랜드" data-recommend-brand="'+esc(trend.id)+'">'+options+'</select><button type="button" class="button button-secondary" data-recommend-draft="'+esc(trend.id)+'" data-recommend-language="'+language+'" data-recommend-platform="'+platform+'">추천 브랜드로 기획</button></div>'
         : '<small class="trend-unavailable">현재 시장·언어에 맞는 활성 브랜드가 없습니다.</small>';
       const competitor=item.competitor_context||{};
       const competitorSummary=Number(competitor.observed_videos||0)>0
@@ -298,7 +310,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -361,6 +373,9 @@
   });
 
   $("loadTrendRecommendations").addEventListener("click",()=>loadTrendRecommendations().catch(e=>toast(e.message)));
+  $("loadRecommendationEvaluation").addEventListener("click",()=>loadRecommendationEvaluation().catch(e=>toast(e.message)));
+  $("trendPlatform").addEventListener("change",()=>Promise.all([loadTrendRecommendations(),loadRecommendationEvaluation()]).catch(e=>toast(e.message)));
+
   $("trendRecommendations").addEventListener("click",async e=>{
     const button=e.target.closest("[data-recommend-draft]");
     if(!button)return;
@@ -370,7 +385,7 @@
     button.disabled=true;
     try{
       const result=await api("/api/trends/"+encodeURIComponent(button.dataset.recommendDraft)+"/draft-production",{
-        method:"POST",body:JSON.stringify({brand:selector.value,language:button.dataset.recommendLanguage})
+        method:"POST",body:JSON.stringify({brand:selector.value,language:button.dataset.recommendLanguage,platform:button.dataset.recommendPlatform||$("trendPlatform").value})
       });
       toast("추천 후보 제작 기획 등록 완료 · "+result.job.id);
       await loadMetrics();
