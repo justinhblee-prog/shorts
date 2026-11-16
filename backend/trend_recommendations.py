@@ -402,7 +402,7 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
                 ),
                 "supported_languages": config.get("languages", [])
             })
-        if region and region != "GLOBAL" and region_eligible == 0:
+        if brand_rows and region and region != "GLOBAL" and region_eligible == 0:
             continue
         candidates.sort(key=lambda x: (-x["fit_score"], x["brand"] or ""))
         best = candidates[0] if candidates else None
