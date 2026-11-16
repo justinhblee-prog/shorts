@@ -65,6 +65,7 @@ class YouTubeAnalyticsStore:
             CREATE TABLE IF NOT EXISTS youtube_analytics_collector_lease(
               id INTEGER PRIMARY KEY CHECK(id=1),
               owner_id TEXT NOT NULL,
+              token TEXT NOT NULL DEFAULT '',
               lease_until REAL NOT NULL,
               updated_at TEXT NOT NULL
             );
@@ -93,6 +94,16 @@ class YouTubeAnalyticsStore:
             if "engaged_view_share" not in columns:
                 connection.execute(
                     "ALTER TABLE youtube_analytics_snapshots ADD COLUMN engaged_view_share REAL"
+                )
+            lease_columns = {
+                row["name"] for row in connection.execute(
+                    "PRAGMA table_info(youtube_analytics_collector_lease)"
+                ).fetchall()
+            }
+            if "token" not in lease_columns:
+                connection.execute(
+                    "ALTER TABLE youtube_analytics_collector_lease "
+                    "ADD COLUMN token TEXT NOT NULL DEFAULT ''"
                 )
 
     @contextmanager
@@ -135,7 +146,7 @@ class YouTubeAnalyticsStore:
 
     def save(self, video_id, start_date, end_date, metrics, retention,
              analytics_status="available", retention_status="available",
-             retention_error=None):
+             retention_error=None, lease_owner=None, lease_token=None):
         values = {
             "views": _as_number(metrics.get("views")),
             "engaged_views": _as_number(metrics.get("engagedViews")),
@@ -167,6 +178,9 @@ class YouTubeAnalyticsStore:
             })
         safe_curve.sort(key=lambda point: point["elapsed_video_time_ratio"])
         with self.db() as connection:
+            if lease_owner is not None or lease_token is not None:
+                connection.execute("BEGIN IMMEDIATE")
+                self._assert_lease(connection, lease_owner, lease_token)
             connection.execute("""
                 INSERT INTO youtube_analytics_snapshots(
                   video_id,start_date,end_date,views,engaged_views,engaged_view_share,
@@ -195,7 +209,8 @@ class YouTubeAnalyticsStore:
             ))
 
     def record_collection(self, status, requested=0, collected=0, failed=0,
-                          error=None, source="YouTube Analytics API v2"):
+                          error=None, source="YouTube Analytics API v2",
+                          lease_owner=None, lease_token=None):
         if status not in {"running", "succeeded", "partial", "failed"}:
             raise ValueError("Invalid YouTube Analytics collection status")
         stamp = _now()
@@ -302,44 +317,66 @@ class YouTubeAnalyticsStore:
             result["retention_curve"] = []
         return result
 
-    def acquire_lease(self, owner_id, lease_seconds=300):
-        now = datetime.now(timezone.utc).timestamp()
+    @staticmethod
+    def _assert_lease(connection, owner_id, token):
+        if owner_id is None and token is None:
+            return
+        if not owner_id or not token:
+            raise ValueError("Both YouTube Analytics lease owner and token are required")
+        row = connection.execute(
+            "SELECT owner_id,token,lease_until FROM youtube_analytics_collector_lease WHERE id=1"
+        ).fetchone()
+        if (
+            row is None or row["owner_id"] != owner_id or row["token"] != token
+            or float(row["lease_until"]) <= datetime.now(timezone.utc).timestamp()
+        ):
+            raise RuntimeError("YouTube Analytics lease lost; stale write rejected")
+
+    def acquire_lease(self, owner_id, lease_seconds=300, now=None):
+        now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
+        token = uuid.uuid4().hex
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
-                "SELECT owner_id,lease_until FROM youtube_analytics_collector_lease WHERE id=1"
+                "SELECT lease_until FROM youtube_analytics_collector_lease WHERE id=1"
             ).fetchone()
-            if row and row["lease_until"] > now and row["owner_id"] != owner_id:
+            if row and float(row["lease_until"]) > now:
                 return None
             connection.execute("""
-                INSERT INTO youtube_analytics_collector_lease(id,owner_id,lease_until,updated_at)
-                VALUES(1,?,?,?)
+                INSERT INTO youtube_analytics_collector_lease
+                  (id,owner_id,token,lease_until,updated_at)
+                VALUES(1,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET
-                  owner_id=excluded.owner_id,lease_until=excluded.lease_until,
-                  updated_at=excluded.updated_at
-            """, (owner_id, now + max(30, int(lease_seconds)), _now()))
-        return owner_id
+                  owner_id=excluded.owner_id,token=excluded.token,
+                  lease_until=excluded.lease_until,updated_at=excluded.updated_at
+            """, (owner_id, token, now + max(30, int(lease_seconds)),
+                  datetime.fromtimestamp(now, timezone.utc).isoformat()))
+        return token
 
-    def renew_lease(self, owner_id, lease_seconds=300):
-        """Extend only a still-live lease held by this owner; never resurrect expiry."""
-        now = datetime.now(timezone.utc).timestamp()
+    def renew_lease(self, owner_id, token, lease_seconds=300, now=None):
+        """Renew only the current unexpired owner/token pair."""
+        now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
         with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             updated = connection.execute(
                 """
                 UPDATE youtube_analytics_collector_lease
                 SET lease_until=?,updated_at=?
-                WHERE id=1 AND owner_id=? AND lease_until>?
+                WHERE id=1 AND owner_id=? AND token=? AND lease_until>?
                 """,
-                (now + max(30, int(lease_seconds)), _now(), owner_id, now),
+                (now + max(30, int(lease_seconds)),
+                 datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                 owner_id, token, now),
             )
-        return updated.rowcount == 1
+            return updated.rowcount == 1
 
-    def release_lease(self, owner_id):
+    def release_lease(self, owner_id, token):
         with self.db() as connection:
-            connection.execute(
-                "DELETE FROM youtube_analytics_collector_lease WHERE id=1 AND owner_id=?",
-                (owner_id,),
+            updated = connection.execute(
+                "DELETE FROM youtube_analytics_collector_lease WHERE id=1 AND owner_id=? AND token=?",
+                (owner_id, token),
             )
+            return updated.rowcount == 1
 
 
 class YouTubeAnalyticsCollector:
@@ -485,7 +522,8 @@ class YouTubeAnalyticsCollector:
             parsed.append(point)
         return parsed
 
-    def collect_video(self, video_id, start_date=None, end_date=None):
+    def collect_video(self, video_id, start_date=None, end_date=None,
+                      lease_owner=None, lease_token=None):
         if (
             not isinstance(video_id, str) or not video_id.strip()
             or len(video_id) > MAX_ANALYTICS_VIDEO_ID_CHARS
@@ -518,6 +556,7 @@ class YouTubeAnalyticsCollector:
                 video_id, end.isoformat(), end.isoformat(), {}, [],
                 analytics_status="pending_availability",
                 retention_status="pending_availability",
+                lease_owner=lease_owner, lease_token=lease_token,
             )
             return {
                 "video_id": video_id,
@@ -570,6 +609,7 @@ class YouTubeAnalyticsCollector:
         self.store.save(
             video_id, start.isoformat(), end.isoformat(), metrics, retention,
             analytics_status, retention_status, retention_error,
+            lease_owner=lease_owner, lease_token=lease_token,
         )
         return {
             "video_id": video_id,
@@ -595,13 +635,16 @@ class YouTubeAnalyticsCollector:
             "live_connectivity_verified": True,
         }
 
-    def refresh_due_metrics(self, limit=20, min_age_seconds=86400):
+    def refresh_due_metrics(self, limit=20, min_age_seconds=86400,
+                            lease_owner=None, lease_token=None):
         video_ids = self.store.due_video_ids(limit, min_age_seconds)
         results = []
         failures = []
         for video_id in video_ids:
             try:
-                results.append(self.collect_video(video_id))
+                results.append(self.collect_video(
+                    video_id, lease_owner=lease_owner, lease_token=lease_token
+                ))
             except Exception as exc:
                 failures.append({"video_id": video_id, "error": type(exc).__name__})
         return {
