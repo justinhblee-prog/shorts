@@ -1,4 +1,6 @@
 """Configuration-only readiness report; never exposes secret values."""
+import base64
+import binascii
 import os
 from pathlib import Path
 
@@ -13,6 +15,16 @@ def _group(source, required, optional=()):
         "missing": missing,
         "optional_missing": optional_missing,
     }
+
+
+def _valid_backup_encryption_key(value):
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        raw = base64.b64decode(value.encode("ascii"), altchars=b"-_", validate=True)
+    except (UnicodeEncodeError, ValueError, binascii.Error):
+        return False
+    return len(raw) == 32
 
 
 def _valid_operator_token(value):
@@ -112,6 +124,25 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
         "optional_missing": [],
     }
 
+    backup_key = str(source.get("NEXUS_BACKUP_ENCRYPTION_KEY", "")).strip()
+    backup_required = str(
+        source.get("NEXUS_BACKUP_ENCRYPTION_REQUIRED", "false")
+    ).strip().lower() in {"1", "true", "yes", "on"}
+    backup_key_valid = _valid_backup_encryption_key(backup_key)
+    checks["backup_encryption"] = {
+        "configured": backup_key_valid,
+        "missing": (
+            ["NEXUS_BACKUP_ENCRYPTION_KEY (must be URL-safe base64 for 32 bytes)"]
+            if backup_key and not backup_key_valid
+            else (["NEXUS_BACKUP_ENCRYPTION_KEY"] if backup_required and not backup_key else [])
+        ),
+        "optional_missing": (
+            ["NEXUS_BACKUP_ENCRYPTION_KEY"]
+            if not backup_key and not backup_required else []
+        ),
+        "optional": not backup_required,
+    }
+
     tiktok_oauth_keys = [
         "TIKTOK_CLIENT_KEY",
         "TIKTOK_CLIENT_SECRET",
@@ -156,6 +187,7 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
         "capabilities": {
             "protected_operations": operation,
             "operator_rbac_configured": checks["operator_rbac"]["configured"],
+            "backup_encryption_configured": backup_key_valid,
             "ai_generation_configured": generation,
             "artifact_staging_configured": staging,
             "youtube_upload_configured": youtube_upload,

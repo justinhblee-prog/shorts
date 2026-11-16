@@ -116,3 +116,6 @@ BUILD-00038 adds daily SQLite + media backups and a checksum-verified, explicitl
 
 
 BUILD-00039 adds per-operator credentials, least-privilege role guards, authenticated reviewer identity and persistent API rate limiting. Per-operator credentials require an explicit role map; otherwise protected requests fail closed. Forwarded client IPs are trusted only from explicitly configured proxy CIDRs.
+
+
+BUILD-00130 adds optional AES-256-GCM encryption for the complete SQLite + media backup archive; production can set `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` to refuse plaintext backups and restores. The encryption key must be stored separately from backup files.

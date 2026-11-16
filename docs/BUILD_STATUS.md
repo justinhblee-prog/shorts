@@ -84,10 +84,10 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 ## Validation — current truth
 
-- Latest verified main-branch CI run: [43790981235](https://github.com/justinhblee-prog/shorts/actions/runs/43790981235), which passed **400 backend tests** and the complete `scripts/validate.sh` command after BUILD-00039 merged.
+- Latest verified candidate CI run: [43791757173](https://github.com/justinhblee-prog/shorts/actions/runs/43791757173), which passed **408 backend tests** and the complete `scripts/validate.sh` command for BUILD-00130.
 - CI executed Python 3.11 tests on a GitHub-hosted runner. Provider/API tests use controlled test doubles where credentials or external services are required; this verifies application logic, not live provider success.
 - The validation script also checks Python compilation, frontend JavaScript syntax/DOM IDs and Docker Compose YAML parsing.
-- Recent verified milestones: BUILD-00031 — 326 tests; BUILD-00032 — 336 tests; BUILD-00033 — 338 tests; BUILD-00034 — 339 tests; BUILD-00036 — 352 tests; BUILD-00037 — 356 tests; BUILD-00038 initial backup implementation — 362 tests; BUILD-00038 restore hardening — 365 tests; BUILD-00039 RBAC/rate limiting — 400 tests.
+- Recent verified milestones: BUILD-00031 — 326 tests; BUILD-00032 — 336 tests; BUILD-00033 — 338 tests; BUILD-00034 — 339 tests; BUILD-00036 — 352 tests; BUILD-00037 — 356 tests; BUILD-00038 initial backup implementation — 362 tests; BUILD-00038 restore hardening — 365 tests; BUILD-00039 RBAC/rate limiting — 400 tests; BUILD-00130 encrypted backups — 408 tests.
 - Not yet verified in a deployed environment: live AI provider generation, actual media rendering/staging, YouTube/TikTok OAuth and account permissions, real uploads, analytics coverage, revenue reconciliation, production worker/scheduler recovery, PostgreSQL migration, backups and restore.
 - No real earnings, monetization eligibility, platform-policy approval or complete unattended business cycle is claimed.
 - Production public publishing remains gated by explicit human approval.
@@ -1056,3 +1056,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Trust X-Forwarded-For only when the immediate peer belongs to an explicitly configured trusted proxy CIDR; default is no trusted proxies.
 - GitHub Actions run [43790865052](https://github.com/justinhblee-prog/shorts/actions/runs/43790865052) passed **400 backend tests** and `scripts/validate.sh`.
 
+
+
+## BUILD-00130 — authenticated encryption for complete SQLite and media backups
+
+- Added streaming AES-256-GCM encryption for complete `.tar.gz` backup archives, not only the SQLite file.
+- Encryption keys are URL-safe base64 values decoding to exactly 32 bytes and are read from `NEXUS_BACKUP_ENCRYPTION_KEY`; they are never accepted as command-line arguments or written into archive metadata.
+- Encrypted archives use the `.tar.gz.enc` suffix and a versioned header. Restore authenticates the complete ciphertext before extracting any files; wrong keys, tampering and truncation fail before live data is touched.
+- `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` refuses plaintext backup creation and restore. With the default false setting, legacy plaintext archives remain readable.
+- Pre-restore backups inherit the active encryption key; retention handles encrypted and plaintext archives together. Archive files are restricted to owner-only permissions on POSIX systems.
+- Preflight reports invalid/missing keys and whether encryption is mandatory. GitHub Actions run [43791757173](https://github.com/justinhblee-prog/shorts/actions/runs/43791757173) passed **408 backend tests** and `scripts/validate.sh`.
+- Losing the key makes encrypted backups unrecoverable. Keep it in a secret manager/off-host secure location separate from backup storage; no key is committed.

@@ -1,5 +1,7 @@
 """Consistent SQLite + media backup and guarded restore utilities (stdlib only)."""
 import argparse
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -9,6 +11,9 @@ import tarfile
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
+
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 
 BACKUP_PREFIX = "nexus-backup-"
@@ -21,6 +26,12 @@ MAX_MANIFEST_BYTES = 16 * 1024 * 1024
 MAX_DATABASE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_MEDIA_BYTES = 200 * 1024 * 1024 * 1024
 MAX_ARCHIVE_BYTES = MAX_MANIFEST_BYTES + MAX_DATABASE_BYTES + MAX_MEDIA_BYTES
+ENCRYPTED_MAGIC = b"NEXUSBK1"
+ENCRYPTED_NONCE_BYTES = 12
+ENCRYPTED_TAG_BYTES = 16
+ENCRYPTED_SUFFIX = ".tar.gz.enc"
+CHUNK_BYTES = 1024 * 1024
+_USE_ENV_KEY = object()
 
 
 class BackupRestoreError(RuntimeError):
@@ -41,6 +52,131 @@ def _sha256(path):
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _env_flag(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _effective_encryption_key(value):
+    if value is _USE_ENV_KEY:
+        value = os.getenv("NEXUS_BACKUP_ENCRYPTION_KEY", "").strip()
+    return value or None
+
+
+def _encryption_key_bytes(key):
+    if key is None:
+        raise BackupRestoreError("NEXUS_BACKUP_ENCRYPTION_KEY is required for encrypted backup operations")
+    try:
+        raw = key.encode("ascii") if isinstance(key, str) else bytes(key)
+        decoded = base64.b64decode(raw, altchars=b"-_", validate=True)
+    except (UnicodeEncodeError, ValueError, TypeError, binascii.Error) as exc:
+        raise BackupRestoreError(
+            "Backup encryption key must be URL-safe base64 encoding of exactly 32 bytes"
+        ) from exc
+    if len(decoded) != 32:
+        raise BackupRestoreError(
+            "Backup encryption key must decode to exactly 32 bytes"
+        )
+    return decoded
+
+
+def _is_encrypted_archive(path):
+    path = Path(path)
+    if path.name.endswith(ENCRYPTED_SUFFIX):
+        return True
+    try:
+        with path.open("rb") as stream:
+            return stream.read(len(ENCRYPTED_MAGIC)) == ENCRYPTED_MAGIC
+    except OSError as exc:
+        raise BackupRestoreError("Backup archive cannot be read") from exc
+
+
+def _encrypt_file(source, destination, key):
+    """Stream AES-256-GCM encryption and publish only after the tag is written."""
+    key_bytes = _encryption_key_bytes(key)
+    source = Path(source)
+    destination = Path(destination)
+    if source.is_symlink() or not source.is_file():
+        raise BackupRestoreError("Backup encryption source must be a regular file")
+    if destination.exists() or destination.is_symlink():
+        raise BackupRestoreError("Encrypted backup destination already exists")
+    nonce = os.urandom(ENCRYPTED_NONCE_BYTES)
+    encryptor = Cipher(algorithms.AES(key_bytes), modes.GCM(nonce)).encryptor()
+    created = False
+    try:
+        with source.open("rb") as input_file, destination.open("xb") as output_file:
+            created = True
+            if os.name != "nt":
+                os.chmod(destination, 0o600)
+            output_file.write(ENCRYPTED_MAGIC + nonce)
+            while True:
+                chunk = input_file.read(CHUNK_BYTES)
+                if not chunk:
+                    break
+                output_file.write(encryptor.update(chunk))
+            output_file.write(encryptor.finalize())
+            output_file.write(encryptor.tag)
+            output_file.flush()
+            os.fsync(output_file.fileno())
+    except Exception:
+        if created:
+            destination.unlink(missing_ok=True)
+        raise
+
+
+def _decrypt_file(source, destination, key):
+    """Authenticate before any extracted content can be used; delete partial plaintext."""
+    key_bytes = _encryption_key_bytes(key)
+    source = Path(source)
+    destination = Path(destination)
+    if source.is_symlink() or not source.is_file():
+        raise BackupRestoreError("Encrypted backup must be a regular non-symlink file")
+    if destination.exists() or destination.is_symlink():
+        raise BackupRestoreError("Decryption destination already exists")
+    minimum_size = len(ENCRYPTED_MAGIC) + ENCRYPTED_NONCE_BYTES + ENCRYPTED_TAG_BYTES
+    size = source.stat().st_size
+    if size < minimum_size:
+        raise BackupRestoreError("Encrypted backup is truncated")
+    created = False
+    try:
+        with source.open("rb") as input_file:
+            if input_file.read(len(ENCRYPTED_MAGIC)) != ENCRYPTED_MAGIC:
+                raise BackupRestoreError("Encrypted backup format or version is invalid")
+            nonce = input_file.read(ENCRYPTED_NONCE_BYTES)
+            input_file.seek(-ENCRYPTED_TAG_BYTES, os.SEEK_END)
+            tag = input_file.read(ENCRYPTED_TAG_BYTES)
+            ciphertext_bytes = size - minimum_size
+            input_file.seek(len(ENCRYPTED_MAGIC) + ENCRYPTED_NONCE_BYTES)
+            decryptor = Cipher(
+                algorithms.AES(key_bytes), modes.GCM(nonce, tag)
+            ).decryptor()
+            with destination.open("xb") as output_file:
+                created = True
+                if os.name != "nt":
+                    os.chmod(destination, 0o600)
+                remaining = ciphertext_bytes
+                while remaining:
+                    chunk = input_file.read(min(CHUNK_BYTES, remaining))
+                    if not chunk:
+                        raise BackupRestoreError("Encrypted backup ciphertext is truncated")
+                    remaining -= len(chunk)
+                    output_file.write(decryptor.update(chunk))
+                try:
+                    output_file.write(decryptor.finalize())
+                except InvalidTag as exc:
+                    raise BackupRestoreError(
+                        "Encrypted backup authentication failed; key or data is invalid"
+                    ) from exc
+                output_file.flush()
+                os.fsync(output_file.fileno())
+    except Exception:
+        if created:
+            destination.unlink(missing_ok=True)
+        raise
 
 
 def _sqlite_snapshot(source_path, destination_path):
@@ -106,28 +242,49 @@ def _prune_backups(output_dir, retain_days):
     output_dir = Path(output_dir)
     cutoff = _now().timestamp() - max(1, int(retain_days)) * 86400
     removed = []
-    for path in output_dir.glob(BACKUP_PREFIX + "*.tar.gz"):
-        if path.is_file() and path.stat().st_mtime < cutoff:
+    for path in output_dir.iterdir():
+        if (
+            path.name.startswith(BACKUP_PREFIX)
+            and (path.name.endswith(".tar.gz") or path.name.endswith(ENCRYPTED_SUFFIX))
+            and not path.is_symlink()
+            and path.is_file()
+            and path.stat().st_mtime < cutoff
+        ):
             path.unlink()
             removed.append(path.name)
     return removed
 
 
-def create_backup(db_path, media_dir, output_dir, retain_days=14):
+def create_backup(db_path, media_dir, output_dir, retain_days=14,
+                  encryption_key=_USE_ENV_KEY):
+    encryption_key = _effective_encryption_key(encryption_key)
+    encryption_required = _env_flag("NEXUS_BACKUP_ENCRYPTION_REQUIRED", False)
+    if encryption_required and encryption_key is None:
+        raise BackupRestoreError(
+            "NEXUS_BACKUP_ENCRYPTION_REQUIRED is enabled but NEXUS_BACKUP_ENCRYPTION_KEY is missing"
+        )
+    if encryption_key is not None:
+        _encryption_key_bytes(encryption_key)
+
     db_path = Path(db_path).resolve()
     media_dir = Path(media_dir).resolve()
     output_dir = Path(output_dir).resolve()
     if output_dir == media_dir or media_dir in output_dir.parents:
         raise BackupRestoreError("Backup output directory must be outside the media directory")
     output_dir.mkdir(parents=True, exist_ok=True)
+    if output_dir.is_symlink() or not output_dir.is_dir():
+        raise BackupRestoreError("Backup output directory must be a real directory")
     if not db_path.is_file():
         raise BackupRestoreError("SQLite database does not exist: " + str(db_path))
 
     stamp = _stamp()
-    filename = f"{BACKUP_PREFIX}{stamp}.tar.gz"
+    encrypted = encryption_key is not None
+    suffix = ENCRYPTED_SUFFIX if encrypted else ".tar.gz"
+    filename = f"{BACKUP_PREFIX}{stamp}{suffix}"
     final_path = output_dir / filename
-    if final_path.exists():
+    if final_path.exists() or final_path.is_symlink():
         raise BackupRestoreError("Backup already exists for this timestamp")
+    temporary_encrypted = output_dir / (filename + ".tmp") if encrypted else None
     with tempfile.TemporaryDirectory(prefix="nexus-backup-", dir=output_dir) as temp:
         stage = Path(temp)
         db_snapshot = stage / DATABASE_NAME
@@ -153,21 +310,28 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14):
             json.dumps(manifest, sort_keys=True, indent=2) + "\n",
             encoding="utf-8",
         )
-        temporary_archive = output_dir / (filename + ".tmp")
+        temporary_archive = stage / "backup.tar.gz"
         try:
             with tarfile.open(temporary_archive, "w:gz") as archive:
                 archive.add(stage / MANIFEST_NAME, arcname=MANIFEST_NAME)
                 archive.add(db_snapshot, arcname=DATABASE_NAME)
                 archive.add(media_snapshot, arcname=MEDIA_ROOT)
-            os.replace(temporary_archive, final_path)
+            if encrypted:
+                _encrypt_file(temporary_archive, temporary_encrypted, encryption_key)
+                os.replace(temporary_encrypted, final_path)
+            else:
+                if os.name != "nt":
+                    os.chmod(temporary_archive, 0o600)
+                os.replace(temporary_archive, final_path)
         finally:
-            if temporary_archive.exists():
-                temporary_archive.unlink()
+            if temporary_encrypted and temporary_encrypted.exists():
+                temporary_encrypted.unlink()
     removed = _prune_backups(output_dir, retain_days)
     return {
         "backup_path": str(final_path),
         "size_bytes": final_path.stat().st_size,
         "sha256": _sha256(final_path),
+        "encrypted": encrypted,
         "media_file_count": len(inventory),
         "pruned_backups": removed,
     }
@@ -323,25 +487,44 @@ def _extract_and_verify(archive_path, destination):
 
 
 def restore_backup(archive_path, db_path, media_dir, backup_dir,
-                   confirm_restore=False, retain_days=14):
+                   confirm_restore=False, retain_days=14,
+                   encryption_key=_USE_ENV_KEY):
     if confirm_restore is not True:
         raise BackupRestoreError("Restore requires explicit --confirm-restore")
+    encryption_key = _effective_encryption_key(encryption_key)
+    encryption_required = _env_flag("NEXUS_BACKUP_ENCRYPTION_REQUIRED", False)
+    if encryption_required and encryption_key is None:
+        raise BackupRestoreError(
+            "NEXUS_BACKUP_ENCRYPTION_REQUIRED is enabled but NEXUS_BACKUP_ENCRYPTION_KEY is missing"
+        )
     db_path = Path(db_path).resolve()
     media_dir = Path(media_dir).resolve()
     backup_dir = Path(backup_dir).resolve()
+    archive_path = Path(archive_path)
     if not db_path.parent.exists():
         db_path.parent.mkdir(parents=True, exist_ok=True)
     media_dir.parent.mkdir(parents=True, exist_ok=True)
-    if not Path(archive_path).is_file():
-        raise BackupRestoreError("Backup archive does not exist")
+    if archive_path.is_symlink() or not archive_path.is_file():
+        raise BackupRestoreError("Backup archive does not exist or is not a regular file")
     if not db_path.is_file():
         raise BackupRestoreError("Current database must exist for pre-restore backup")
+    encrypted = _is_encrypted_archive(archive_path)
+    if encryption_required and not encrypted:
+        raise BackupRestoreError(
+            "Backup encryption is required; refusing to restore a plaintext archive"
+        )
 
     with tempfile.TemporaryDirectory(prefix="nexus-restore-", dir=db_path.parent) as temp:
         stage = Path(temp)
-        manifest = _extract_and_verify(archive_path, stage)
-        staged_db = stage / DATABASE_NAME
-        staged_media = stage / MEDIA_ROOT
+        source_archive = archive_path
+        if encrypted:
+            decrypted_archive = stage / "backup.tar.gz"
+            _decrypt_file(archive_path, decrypted_archive, encryption_key)
+            source_archive = decrypted_archive
+        extracted = stage / "extracted"
+        manifest = _extract_and_verify(source_archive, extracted)
+        staged_db = extracted / DATABASE_NAME
+        staged_media = extracted / MEDIA_ROOT
         new_db = db_path.parent / (db_path.name + ".restore-" + _stamp())
         new_media = media_dir.parent / (media_dir.name + ".restore-" + _stamp())
         old_db = db_path.parent / (db_path.name + ".pre-restore-" + _stamp())
@@ -350,7 +533,8 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
         _copy_media(staged_media, new_media)
 
         pre_restore = create_backup(
-            db_path, media_dir, backup_dir, retain_days=retain_days
+            db_path, media_dir, backup_dir, retain_days=retain_days,
+            encryption_key=encryption_key,
         )["backup_path"]
         moved_old_db = False
         moved_old_media = False
@@ -398,6 +582,7 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
                 shutil.rmtree(new_media)
     return {
         "restored": True,
+        "encrypted": encrypted,
         "database": str(db_path),
         "media_directory": str(media_dir),
         "pre_restore_backup": pre_restore,
