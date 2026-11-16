@@ -301,6 +301,36 @@ class QueueTests(unittest.TestCase):
   with self.assertRaises(LeaseConflict):
    self.q.finish(job["id"],"worker-active",claimed["lease_token"])
   self.assertEqual(self.q.events(job["id"])[-1]["event_type"],"worker_pause")
+ 
+ def test_concurrent_production_lease_recovery_pauses_and_audits_once(self):
+  job=self.q.enqueue("short_video_production", {"topic":"parallel-ambiguous"})
+  with self.q.db() as c:
+   c.execute("""CREATE TABLE production_runs(
+    job_id TEXT PRIMARY KEY,status TEXT,current_stage TEXT,error TEXT,updated_at TEXT)""")
+   c.execute("INSERT INTO production_runs VALUES(?,?,?,?,?)",
+             (job["id"],"rendering","rendering",None,"before"))
+  claimed=self.q.claim("worker-production-lost")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+             (job["id"],))
+  with ThreadPoolExecutor(max_workers=8) as pool:
+   results=list(pool.map(lambda _:self.q.recover(),range(8)))
+  self.assertEqual(sum(result["requeued"] for result in results),0)
+  self.assertEqual(sum(result["terminal"] for result in results),1)
+  current=self.q.get(job["id"])
+  self.assertEqual(current["status"],"failed_terminal")
+  self.assertEqual(current["error_code"],"production_lease_expired_ambiguous")
+  events=[event for event in self.q.events(job["id"]) if event["event_type"]=="lease_expired"]
+  self.assertEqual(len(events),1)
+  self.assertEqual(events[0]["worker_id"],"worker-production-lost")
+  with self.q.db() as c:
+   run=c.execute("SELECT status,current_stage FROM production_runs WHERE job_id=?",
+                 (job["id"],)).fetchone()
+  self.assertEqual(tuple(run),("failed_terminal","lease_expired_ambiguous"))
+  self.assertTrue(self.q.is_paused())
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"worker-production-lost",claimed["lease_token"])
+
  def test_expired_production_lease_is_terminal_and_pauses_queue(self):
   job=self.q.enqueue("short_video_production", {"topic":"ambiguous"})
   claimed=self.q.claim("worker-lost")
