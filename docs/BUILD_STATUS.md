@@ -47,6 +47,13 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - The endpoint remains read-only and retains the existing production-read permission requirement.
 - Automated validation is pending.
 
+## BUILD-00189 — provider-attempt diagnostic redaction
+
+- The provider-attempt read endpoint now returns operational metadata only; raw provider response JSON, signed artifact URLs, idempotency keys, provider request IDs, and raw transport errors are withheld.
+- The endpoint reports whether a response/error exists and uses a fixed instruction to inspect protected server logs.
+- Durable provider response data remains available to the server-side recovery/adoption flow; this change does not disable recovery.
+- Automated validation is pending.
+
 ## BUILD-00001 — durable queue and Worker Lease
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.
