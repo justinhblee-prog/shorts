@@ -21,11 +21,13 @@ class FakeRequest:
 
 
 class FakeVideos:
+    def __init__(self): self.list_calls=[]
     def insert(self,**kwargs):
         self.body=kwargs["body"]
         self.media=kwargs["media_body"]
         return FakeRequest({"id":"yt-video-123"})
     def list(self,**kwargs):
+        self.list_calls.append(kwargs)
         return FakeRequest({"items":[{"statistics":{"viewCount":"123","likeCount":"8",
                             "commentCount":"2"},"status":{"privacyStatus":"private"}}]})
 
@@ -546,6 +548,31 @@ class YouTubePublishingTests(unittest.TestCase):
                 "job-1",self.media,self.review,"Sleep short"
             )
         self.assertIsNone(self.uploads.get("job-1"))
+
+    def test_manual_youtube_metrics_refresh_cannot_bypass_batch_collector_lease(self):
+        token = self.uploads.acquire_metrics_collector_lease("batch-collector")
+        self.assertIsNotNone(token)
+        with self.assertRaisesRegex(YouTubeUploadError, "already in progress"):
+            self.publisher.refresh_metrics("yt-manual")
+        self.assertEqual(self.service._videos.list_calls, [])
+        self.assertTrue(self.uploads.release_metrics_collector_lease(
+            "batch-collector", token,
+        ))
+
+    def test_manual_youtube_metrics_refresh_acquires_and_releases_collector_lease(self):
+        result = self.publisher.refresh_metrics("yt-manual")
+        self.assertEqual(result["video_id"], "yt-manual")
+        self.assertEqual(result["statistics"]["viewCount"], "123")
+        self.assertEqual(self.service._videos.list_calls[0]["id"], "yt-manual")
+        with self.uploads.db() as connection:
+            lease = connection.execute(
+                "SELECT COUNT(*) FROM youtube_metrics_collector_lease"
+            ).fetchone()[0]
+            snapshots = connection.execute(
+                "SELECT COUNT(*) FROM youtube_video_snapshots WHERE video_id='yt-manual'"
+            ).fetchone()[0]
+        self.assertEqual(lease, 0)
+        self.assertEqual(snapshots, 1)
 
     def test_metrics_collector_lease_is_single_owner_and_releasable(self):
         second_store=YouTubeUploadStore(self.db)
