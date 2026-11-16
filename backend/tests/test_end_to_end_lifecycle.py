@@ -148,7 +148,10 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.production.artifact(
             job_id,"rendering","video",video_artifact["artifact_url"],updated_metadata
         )
-        self.production.stage(job_id,"review","review_pending")
+        self.review.reopen_for_review(
+            job_id,"Media staging fingerprint changed; fresh human review required"
+        )
+        self.assertEqual(self.queue.get(job_id)["status"],"review_pending")
         self.review.decide(
             job_id,"approved","human-reviewer",
             "Re-reviewed exact staged media fingerprint and content"

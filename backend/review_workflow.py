@@ -318,13 +318,24 @@ class ReviewStore:
                     )
                 if policy_report.get("status") == "review_required" and not comment:
                     raise ValueError("Policy review requires an explicit reviewer confirmation note")
+            queue_table = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
+            ).fetchone()
+            queue_job = None
+            if queue_table is not None:
+                queue_job = c.execute("""SELECT job_type,status FROM pipeline_jobs
+                    WHERE id=?""", (job_id,)).fetchone()
+                if (queue_job is None or queue_job["job_type"] != "short_video_production"
+                        or queue_job["status"] != "review_pending"):
+                    raise ReviewConflict("Queue job is not in review_pending state")
+
             snapshot = [{
                 "stage": a["stage"], "artifact_type": a["artifact_type"],
                 "artifact_url": a["artifact_url"],
                 "metadata": json.loads(a["metadata_json"])
             } for a in artifacts]
             timestamp = _now()
-            c.execute("""
+            decision_cursor = c.execute("""
               INSERT INTO review_decisions
                 (job_id,decision,previous_status,reviewer_id,comment,
                  artifact_snapshot_json,created_at)
@@ -338,6 +349,29 @@ class ReviewStore:
                   timestamp, job_id))
             if updated.rowcount != 1:
                 raise ReviewConflict("Review state changed concurrently")
+            if queue_job is not None:
+                queue_error_code = (
+                    "review_rejected" if decision == "rejected"
+                    else "review_revision_requested" if decision == "revision_requested"
+                    else None
+                )
+                queue_updated = c.execute("""UPDATE pipeline_jobs SET status=?,
+                    worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
+                    completed_at=?,updated_at=?,error_code=?,error_message=?
+                    WHERE id=? AND job_type='short_video_production'
+                      AND status='review_pending'""",
+                    (decision,timestamp,timestamp,queue_error_code,
+                     comment if decision != "approved" else None,job_id))
+                if queue_updated.rowcount != 1:
+                    raise ReviewConflict("Queue state changed concurrently during review decision")
+                c.execute("""INSERT INTO job_events
+                    (job_id,event_type,from_status,to_status,worker_id,details_json,created_at)
+                    VALUES(?,'review_decision','review_pending',?,NULL,?,?)""",
+                    (job_id,decision,json.dumps({
+                        "reviewer_id":reviewer_id,
+                        "decision_id":decision_cursor.lastrowid,
+                        "comment":comment,
+                    },ensure_ascii=False),timestamp))
             row = c.execute(
                 "SELECT * FROM production_runs WHERE job_id=?", (job_id,)
             ).fetchone()
@@ -345,6 +379,49 @@ class ReviewStore:
             c.commit()
             return {"production": self._with_artifacts(c, dict(row)),
                     "decision": decisions[-1], "history": decisions}
+
+    def reopen_for_review(self, job_id, reason):
+        """Reopen an approved production only when a new artifact requires fresh human review."""
+        reason = str(reason or "").strip()
+        if not reason or len(reason) > 1000:
+            raise ValueError("A review-reopen reason is required (max 1000 characters)")
+        timestamp = _now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            run = c.execute("SELECT status FROM production_runs WHERE job_id=?",
+                            (job_id,)).fetchone()
+            if run is None:
+                raise ReviewNotFound(job_id)
+            queue_table = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
+            ).fetchone()
+            if queue_table is None:
+                if run["status"] == "review_pending":
+                    return {"job_id":job_id,"status":"review_pending","reopened":False}
+                raise ReviewConflict("Durable production queue is unavailable to reopen review")
+            queue_job = c.execute("""SELECT job_type,status FROM pipeline_jobs
+                WHERE id=?""",(job_id,)).fetchone()
+            if queue_job is None or queue_job["job_type"] != "short_video_production":
+                raise ReviewConflict("Matching durable production queue job is unavailable")
+            if run["status"] == "review_pending" and queue_job["status"] == "review_pending":
+                return {"job_id":job_id,"status":"review_pending","reopened":False}
+            if run["status"] != "approved" or queue_job["status"] != "approved":
+                raise ReviewConflict("Only a consistently approved production can be reopened")
+            updated_run = c.execute("""UPDATE production_runs SET status='review_pending',
+                current_stage='review_reopened',error=NULL,updated_at=?
+                WHERE job_id=? AND status='approved'""",(timestamp,job_id))
+            updated_job = c.execute("""UPDATE pipeline_jobs SET status='review_pending',
+                completed_at=NULL,updated_at=?,error_code=NULL,error_message=NULL
+                WHERE id=? AND job_type='short_video_production' AND status='approved'""",
+                (timestamp,job_id))
+            if updated_run.rowcount != 1 or updated_job.rowcount != 1:
+                raise ReviewConflict("Production changed while reopening review")
+            c.execute("""INSERT INTO job_events
+                (job_id,event_type,from_status,to_status,worker_id,details_json,created_at)
+                VALUES(?,'review_reopened','approved','review_pending',NULL,?,?)""",
+                (job_id,json.dumps({"reason":reason},ensure_ascii=False),timestamp))
+            c.commit()
+            return {"job_id":job_id,"status":"review_pending","reopened":True}
 
     def history(self, job_id):
         with self.db() as c:
