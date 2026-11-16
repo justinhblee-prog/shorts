@@ -35,6 +35,10 @@ class YouTubeMetricsLeaseTests(unittest.TestCase):
             "worker-a", 60, now=1000
         )
         self.assertTrue(token)
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE youtube_metrics_collector_lease SET lease_until=0 WHERE id=1"
+            )
         self.assertFalse(
             self.store.renew_metrics_collector_lease(
                 "worker-a", token, 120, now=1001
