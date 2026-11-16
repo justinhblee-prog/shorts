@@ -233,8 +233,19 @@ class ProductionStore:
                 c.execute("BEGIN IMMEDIATE")
                 self._assert_worker_lease(c, job_id, worker_id, lease_token, generation_token)
             if stage == "script" and status == "running":
-                # A fresh attempt invalidates every artifact from the previous attempt.
-                # Keep this in the same transaction as the fenced stage transition.
+                # Never destroy the last known-good artifacts while an external
+                # provider request may still have completed or returned late.
+                unresolved = c.execute("""
+                    SELECT stage,state FROM provider_execution_attempts
+                    WHERE job_id=?
+                      AND state IN ('request_started','outcome_unknown','response_received')
+                    ORDER BY stage,attempt_number LIMIT 1
+                """, (job_id,)).fetchone()
+                if unresolved is not None:
+                    raise ProductionLeaseConflict(
+                        "Unresolved provider outcome must be reconciled before starting a fresh run"
+                    )
+                # Keep invalidation in the same transaction as the fenced stage transition.
                 c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
             timestamp = utc_now()
             updated=c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
