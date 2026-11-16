@@ -1307,3 +1307,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Accept only non-boolean integers from 1 to 3600 seconds; preserve the existing minimum TTLs (10 seconds for worker jobs, 15 seconds for scheduler leadership).
 - Reject floats, strings, booleans, non-positive values, and unbounded TTLs before worker or scheduler state is initialized or renewed.
 - Add regression coverage for constructor validation and scheduler acquire/renew validation.
+- GitHub Actions run [43809336911](https://github.com/justinhblee-prog/shorts/actions/runs/43809336911) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
