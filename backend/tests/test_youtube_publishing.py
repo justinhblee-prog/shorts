@@ -662,6 +662,71 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(current["status"],"uploaded")
         self.assertEqual(current["events"][-1]["event_type"],"post_confirmation_worker_error")
 
+    def test_concurrent_publishers_do_not_both_insert_after_begin_race(self):
+        # The preflight get() is deliberately stale for both publishers:
+        # both see no upload before either reaches the serialized reservation.
+        first_at_begin = threading.Event()
+        release_first = threading.Event()
+        original_begin = self.uploads.begin
+        call_lock = threading.Lock()
+        begin_calls = {"count": 0}
+
+        def coordinated_begin(*args, **kwargs):
+            with call_lock:
+                begin_calls["count"] += 1
+                number = begin_calls["count"]
+            if number == 1:
+                result = original_begin(*args, **kwargs)
+                first_at_begin.set()
+                self.assertTrue(release_first.wait(5))
+                return result
+            first_at_begin.wait(5)
+            result = original_begin(*args, **kwargs)
+            return result
+
+        self.uploads.begin = coordinated_begin
+        first_service = FakeService()
+        second_service = FakeService()
+        first_publisher = YouTubePublisher(self.uploads, first_service)
+        second_publisher = YouTubePublisher(self.uploads, second_service)
+        results = []
+        errors = []
+
+        def run(publisher):
+            try:
+                results.append(publisher.upload_approved(
+                    "job-1", self.media, self.review, "Concurrent title"
+                ))
+            except Exception as exc:
+                errors.append(exc)
+
+        first = threading.Thread(target=run, args=(first_publisher,))
+        second = threading.Thread(target=run, args=(second_publisher,))
+        try:
+            first.start()
+            self.assertTrue(first_at_begin.wait(5))
+            second.start()
+            # Let the second caller contend for begin() while the first
+            # reservation is already durable but remote publication is held.
+            release_first.set()
+            first.join(5)
+            second.join(5)
+        finally:
+            release_first.set()
+            self.uploads.begin = original_begin
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0]["video_id"], results[1]["video_id"])
+        # Exactly one remote insert must have been made. The second caller
+        # either sees the active reservation and is rejected, or sees uploaded.
+        self.assertEqual(
+            first_service._videos.body is not None
+            + second_service._videos.body is not None,
+            1,
+        )
+
     def test_upload_is_idempotent_after_success(self):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
         second=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
