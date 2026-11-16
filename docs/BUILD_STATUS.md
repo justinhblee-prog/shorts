@@ -2078,3 +2078,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add a SQLite-backed regression that registers an old worker generation, registers its replacement, and lets the replacement claim a production job.
 - Deliver a delayed shutdown request with the old generation token and verify the local stop signals are still set while the replacement job remains running and the global production queue remains unpaused.
 - GitHub Actions validation for PR #282 is pending at the time of this documentation update. The regression uses local SQLite and does not claim live multi-process deployment or provider API validation.
+
+
+## BUILD-00278 — Verify current-generation shutdown safely pauses active production
+- Add a SQLite-backed positive-path test for SIGTERM from the currently registered worker generation while it owns a production job.
+- Assert local stop/lost-lease signals, durable global pause, terminalization with lease revocation, worker-pause audit event, and rejection of a late completion attempt.
+- GitHub Actions validation for PR #283 is pending. This is deterministic SQLite coverage, not live multi-process deployment or provider API validation.
