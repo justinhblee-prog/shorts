@@ -631,6 +631,26 @@ class TikTokPublishingTests(unittest.TestCase):
             for event in after["events"]
         ))
 
+    def test_stale_status_response_cannot_overwrite_changed_source_state(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        current = self.store.mark_status(
+            "job-1", attempt_id, "PROCESSING_UPLOAD", [], None
+        )
+        event_count = len(current["events"])
+        with self.assertRaisesRegex(TikTokPublishError, "state changed while the status request"):
+            self.store.mark_status(
+                "job-1", attempt_id, "PUBLISH_COMPLETE", ["stale-video-id"], None,
+                expected_status="uploading",
+            )
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], "processing")
+        self.assertIsNone(after["video_id"])
+        self.assertEqual(len(after["events"]), event_count)
+
     def test_late_processing_status_cannot_downgrade_published_result(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
