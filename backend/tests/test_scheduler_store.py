@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import tempfile
 import unittest
 from datetime import datetime, timezone, timedelta
@@ -89,7 +90,7 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(first["count"], 0)
         self.assertEqual(len(self.schedules.pending_dispatches()), 1)
         self.assertEqual(self.queue.stats()["total"], 1)
-        second = self.schedules.dispatch_due(flaky, now=now)
+        second = self.schedules.dispatch_due(flaky, now=now + timedelta(seconds=30))
         self.assertEqual(second["count"], 1)
         self.assertEqual(self.queue.stats()["total"], 1)
         self.assertEqual(self.schedules.pending_dispatches(), [])
@@ -108,10 +109,63 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(len(pending), 1)
         self.assertEqual(pending[0]["attempts"], 1)
         self.assertIn("temporary queue outage", pending[0]["last_error"])
-        second = self.schedules.dispatch_due(self.queue, now=now)
+        second = self.schedules.dispatch_due(self.queue, now=now + timedelta(seconds=30))
         self.assertEqual(second["count"], 1)
         self.assertEqual(self.schedules.pending_dispatches(), [])
         self.assertEqual(self.queue.stats()["total"], 1)
+
+
+
+    def test_existing_outbox_table_is_migrated_without_losing_pending_rows(self):
+        legacy_db = os.path.join(self.tmp.name, "legacy.sqlite3")
+        with sqlite3.connect(legacy_db) as connection:
+            connection.execute("""CREATE TABLE schedule_dispatch_outbox(
+                id TEXT PRIMARY KEY, schedule_id TEXT NOT NULL,
+                scheduled_for TEXT NOT NULL, payload_json TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT, created_at TEXT NOT NULL, dispatched_at TEXT,
+                UNIQUE(schedule_id,scheduled_for)
+            )""")
+            connection.execute("""INSERT INTO schedule_dispatch_outbox
+                (id,schedule_id,scheduled_for,payload_json,status,created_at)
+                VALUES('legacy-1','schedule-1','2026-11-16T00:00:00+00:00','{}','pending',
+                       '2026-11-16T00:00:00+00:00')""")
+        migrated = ScheduleStore(legacy_db)
+        pending = migrated.pending_dispatches(now=datetime(2026, 11, 16, 1, tzinfo=timezone.utc))
+        self.assertEqual(len(pending), 1)
+        self.assertIsNone(pending[0]["next_attempt_at"])
+
+    def test_outbox_retry_uses_exponential_backoff_and_caps_at_one_hour(self):
+        now = datetime.now(timezone.utc)
+        item = self.schedule(now - timedelta(minutes=5))
+        class FailingQueue:
+            def is_paused(self):
+                return False
+            def enqueue(self, *args, **kwargs):
+                raise RuntimeError("temporary outage")
+        first = self.schedules.dispatch_due(FailingQueue(), now=now)
+        self.assertEqual(first["count"], 0)
+        row = self.schedules.pending_dispatches()[0]
+        self.assertEqual(row["attempts"], 1)
+        self.assertEqual(datetime.fromisoformat(row["next_attempt_at"]), now + timedelta(seconds=30))
+        self.assertEqual(self.schedules.dispatch_due(self.queue, now=now + timedelta(seconds=29))["count"], 0)
+        self.assertEqual(self.schedules.dispatch_due(self.queue, now=now + timedelta(seconds=30))["count"], 1)
+
+    def test_outbox_retry_schedule_caps_after_repeated_failures(self):
+        now = datetime.now(timezone.utc)
+        self.schedule(now - timedelta(minutes=5))
+        class FailingQueue:
+            def is_paused(self):
+                return False
+            def enqueue(self, *args, **kwargs):
+                raise RuntimeError("still unavailable")
+        for attempt in range(9):
+            current = now + timedelta(seconds=3600 * attempt)
+            self.schedules.dispatch_due(FailingQueue(), now=current)
+        row = self.schedules.pending_dispatches()[0]
+        self.assertEqual(row["attempts"], 9)
+        self.assertEqual(datetime.fromisoformat(row["next_attempt_at"]),
+                         now + timedelta(seconds=8 * 3600 + 3600))
 
     def test_paused_production_holds_due_schedule_in_outbox_until_resume(self):
         now = datetime.now(timezone.utc)
