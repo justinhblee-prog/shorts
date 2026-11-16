@@ -187,9 +187,10 @@
       $("youtubeConnectionStatus").textContent=connected
         ? "OAuth 승인·토큰 저장됨 · 실계정 API 확인 전 · "+mode+scopeLabel
         : "연결 필요 · YouTube 업로드와 Analytics 권한 승인 필요";
-      $("youtubeConnect").textContent=connected?"YouTube 연결됨":"YouTube 계정 연결";
-      $("youtubeConnect").disabled=connected;
-      $("youtubeDisconnect").disabled=!connected||data.mode==="environment_refresh_token";
+      const managed=data.mode==="encrypted_oauth";
+      $("youtubeConnect").textContent=managed?"YouTube OAuth 연결됨":(connected?"암호화 OAuth로 전환":"YouTube 계정 연결");
+      $("youtubeConnect").disabled=managed;
+      $("youtubeDisconnect").disabled=!managed||!!data.static_fallback_configured;
     }catch(err){
       $("youtubeConnectionStatus").textContent="연결 설정 확인 필요 · "+err.message;
       $("youtubeConnect").textContent="YouTube 연결";
