@@ -67,3 +67,8 @@ This runs Python bytecode compilation, unittest discovery, and (when Node.js is 
 ### TikTok operator workflow
 
 The review workspace includes a TikTok connection action, creator capability display, private-only publishing action, status refresh/reconciliation controls, and a metrics panel. Posting requires a human-approved job, an unchanged approved media fingerprint, a connected TikTok account, a creator-info lookup, explicit operator consent, and `SELF_ONLY` privacy. The approved queue remains visible until both platform publication records are complete. OAuth and live account checks require the operator's TikTok developer credentials and account consent.
+
+
+### Platform-specific recommendation evidence
+
+The trend workspace supports separate YouTube Shorts and TikTok recommendation exposures. TikTok performance analysis uses owned-video Display API snapshots only (views, likes, comments, shares), computes time-normalized view velocity and interaction-rate deltas, and forms comparable brand/region/topic/duration/format/publication-age cohorts. Recommendation exposures and production selections are tagged and evaluated within their platform; YouTube outcomes are never mixed with TikTok outcomes. Score adjustment remains disabled until the required within-exposure holdout sample is available. TikTok Display API data in this collector does not provide audience retention, watch time or estimated revenue, so those metrics are not inferred.
