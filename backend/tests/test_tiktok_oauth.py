@@ -222,7 +222,7 @@ class TikTokOAuthTests(unittest.TestCase):
             "expires_in": 7200,
             "refresh_expires_in": 15552000,
         })
-        lease_a = self.store.acquire_refresh_lease("process-a", 60)
+        lease_a = self.store.acquire_refresh_lease(self.manager._owner_id, 60)
         self.assertIsNotNone(lease_a)
         with self.store.db() as connection:
             connection.execute(
