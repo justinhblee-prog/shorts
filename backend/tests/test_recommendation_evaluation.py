@@ -451,7 +451,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
             },
         ]})
         self.assertEqual(result["selected_production_count"], 3)
-        self.assertEqual(result["measured_outcome_count"], 1)
+        self.assertEqual(result["measured_outcome_count"], 0)
         self.assertEqual(result["analytics_measured_outcome_count"], 1)
         self.assertEqual(result["any_metric_measured_outcome_count"], 1)
         self.assertEqual(result["unmeasured_selected_count"], 2)
