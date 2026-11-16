@@ -416,5 +416,28 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(rank_trend_candidates("not-a-list", {}, now=datetime.now(timezone.utc)), [])
 
 
+    def test_malformed_brand_profile_config_is_isolated(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        trend = {
+            "id": "brand-profile-safe",
+            "title": "AI technology explained",
+            "region": "US",
+            "published_at": now.isoformat(),
+            "source": "google_news_rss",
+            "url": "https://news.example/brand-profile",
+        }
+        brands = [
+            {"slug": "bad-config", "name": "Bad Config", "active": True,
+             "config": "not-a-dictionary"},
+            {"slug": "numeric-config", "name": 42, "active": True,
+             "config": {"positioning": 17, "vertical": None, "audience": ["bad"]}},
+            {"slug": "good-config", "name": "AI Brand", "active": True,
+             "config": {"positioning": "AI technology", "regions": ["US"]}},
+        ]
+        ranked = rank_trend_candidates([trend], brands, now=now)
+        self.assertEqual(len(ranked), 1)
+        self.assertEqual(ranked[0]["best_brand"]["brand"], "good-config")
+
+
 if __name__ == "__main__":
     unittest.main()
