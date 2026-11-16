@@ -80,6 +80,23 @@ class PreflightTests(unittest.TestCase):
             result["missing"],
         )
 
+    def test_enabled_media_scan_rejects_size_limits_above_clamav_capacity(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database_dir = Path(temp_dir) / "signatures"
+            database_dir.mkdir()
+            (database_dir / "main.cvd").write_bytes(b"signature-db")
+            with patch("preflight.shutil.which", return_value="/usr/bin/clamscan"):
+                result = build_preflight({
+                    "NEXUS_MEDIA_SCAN_ENABLED": "true",
+                    "NEXUS_CLAMSCAN_PATH": "/usr/bin/clamscan",
+                    "NEXUS_CLAMAV_DATABASE_DIR": str(database_dir),
+                    "NEXUS_MAX_MEDIA_BYTES": str(3 * 1024 * 1024 * 1024),
+                })
+        self.assertIn(
+            "NEXUS_MAX_MEDIA_BYTES (ClamAV supports up to 2 GiB)",
+            result["missing"],
+        )
+
     def test_enabled_media_scan_fails_preflight_without_signatures(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             with patch("preflight.shutil.which", return_value="/usr/bin/clamscan"):
