@@ -1230,3 +1230,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression coverage for malformed timestamp, region and identity payloads.
 - GitHub Actions run [43805417830](https://github.com/justinhblee-prog/shorts/actions/runs/43805417830) passed `scripts/validate.sh` after the timestamp-defaulting regression fix.
 - Ranking score adjustment remains disabled; no live provider validation is claimed.
+
+
+## BUILD-00151 — bounded recommendation trend identifiers
+
+- Enforce the same 160-character trend identifier limit when capturing recommendation exposures that is already required when linking a production selection.
+- Drop overlong identifiers before persistence so candidates cannot be stored in a state that the production-link API can never select.
+- Add a regression test proving overlong IDs are excluded while valid candidates remain selectable.
+- Ranking score adjustment remains disabled; no live provider validation is claimed.
