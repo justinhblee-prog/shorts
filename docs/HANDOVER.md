@@ -881,4 +881,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added encrypted OAuth, private-only Direct Post, creator-info privacy validation, AI disclosure mapping, explicit operator consent, publication reconciliation, and TikTok metrics collector.
 - TikTok publication uses the approved media SHA-256 fingerprint and current local policy version/date; uncertain remote outcomes block retries until operator reconciliation.
 - API routes are protected by the review token except the OAuth callback, which requires a one-time state matching a secure HTTP-only cookie.
-- CI pending. Frontend controls, TikTok developer app approval, OAuth credentials and live account verification remain outstanding.
+- GitHub Actions run [43781739033](https://github.com/justinhblee-prog/shorts/actions/runs/43781739033) passed **317 backend tests** and `scripts/validate.sh`; PR #87 was squash-merged into `main` as `43b8c0048e117af3864908e23f50dcf2b3443c9f`. Frontend controls, TikTok developer app approval, OAuth credentials and live account verification remain outstanding.
