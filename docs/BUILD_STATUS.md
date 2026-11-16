@@ -1543,3 +1543,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add opaque keyset cursors ordered by immutable record group and job ID, avoiding offset-page duplicates/skips when an existing record's updated timestamp changes.
 - Retain bounded offset pagination for backward compatibility; the Operations dashboard now uses cursor pagination.
 - Reject malformed cursor tokens and test cursor continuity under mutable record timestamps.
+
+
+## BUILD-00186 — batched integrity audit history
+
+- Replace per-record audit-history queries with one bounded page-level query.
+- Use a per-job window rank to retain only the 10 newest events for each displayed record.
+- Preserve chronological presentation and the existing safe-field allowlist.
+- Add regression coverage for the per-job 10-event cap and ordering.

@@ -623,6 +623,27 @@ class ProductionStore:
                 ).fetchall()
             has_more = len(rows) > bounded
             rows = rows[:bounded]
+            audit_by_job = {}
+            if rows:
+                job_ids = [row["job_id"] for row in rows]
+                placeholders = ",".join("?" for _ in job_ids)
+                event_rows = c.execute(f"""
+                    SELECT job_id,id,event_type,from_status,to_status,worker_id,
+                           details_json,created_at
+                    FROM (
+                        SELECT job_id,id,event_type,from_status,to_status,worker_id,
+                               details_json,created_at,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY job_id ORDER BY id DESC
+                               ) AS event_rank
+                        FROM job_events
+                        WHERE job_id IN ({placeholders})
+                    )
+                    WHERE event_rank<=10
+                    ORDER BY job_id,id DESC
+                """, job_ids).fetchall()
+                for event in event_rows:
+                    audit_by_job.setdefault(event["job_id"], []).append(event)
             for row in rows:
                 item = dict(row)
                 production_status = item["production_status"]
@@ -698,10 +719,7 @@ class ProductionStore:
                     item["recommended_action"] = (
                         "Keep production paused and escalate for manual ledger and audit review."
                     )
-                history = c.execute("""
-                    SELECT event_type,from_status,to_status,worker_id,details_json,created_at
-                    FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT 10
-                """, (item["job_id"],)).fetchall()
+                history = audit_by_job.get(item["job_id"], [])
                 safe_details = []
                 for event in reversed(history):
                     try:
