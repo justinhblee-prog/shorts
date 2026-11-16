@@ -1216,3 +1216,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - `NEXUS_METRICS_LEASE_SECONDS` defaults to 300 seconds for YouTube Data API and TikTok; `YOUTUBE_ANALYTICS_LEASE_SECONDS` defaults to 900 seconds.
 - Database initialization adds token columns to existing YouTube lease tables. Restart the metrics-collector service after deploying the migration.
 - CI validation pending.
+
+
+### BUILD-00138 validation record
+
+- GitHub Actions PR run [43797131269](https://github.com/justinhblee-prog/shorts/actions/runs/43797131269) completed successfully.
+- The complete validation script passed with **462 backend tests**.
+- Tests cover all three collectors, token renewal/expiry, stale snapshot/state write rejection, failure cleanup and heartbeat loss.
+- The run validates SQLite/test-double behavior; live concurrent workers and real provider latency remain deployment checks.
