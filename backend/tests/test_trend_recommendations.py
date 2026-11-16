@@ -368,10 +368,6 @@ class TrendRecommendationTests(unittest.TestCase):
         store.list_videos.assert_called_once_with("us-channel", limit=30)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
     def test_trends_remain_rankable_when_no_brands_are_active(self):
         now = datetime(2026, 11, 15, tzinfo=timezone.utc)
         trends = [{
@@ -393,3 +389,7 @@ if __name__ == "__main__":
                 self.assertIsNone(ranked[0]["best_brand"])
                 self.assertEqual(ranked[0]["brand_candidates"], [])
                 self.assertEqual(ranked[0]["score_breakdown"]["brand_fit"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
