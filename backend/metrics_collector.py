@@ -14,6 +14,7 @@ from youtube_publishing import YouTubeUploadStore, YouTubePublisher
 from tiktok_publishing import TikTokPublishStore
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager
 from tiktok_metrics import TikTokMetricsStore, TikTokMetricsCollector
+from youtube_analytics import YouTubeAnalyticsStore, YouTubeAnalyticsCollector
 
 DB = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
 INTERVAL = max(300, int(os.getenv("NEXUS_METRICS_COLLECTION_INTERVAL_SECONDS", "21600")))
@@ -48,6 +49,30 @@ def run_once(store=None, publisher=None):
         store.release_metrics_collector_lease(OWNER_ID)
 
 
+
+
+
+def run_youtube_analytics_once(store=None, collector=None):
+    store = store or YouTubeAnalyticsStore(DB)
+    collector = collector or YouTubeAnalyticsCollector(store)
+    token = store.acquire_lease(OWNER_ID, lease_seconds=300)
+    if token is None:
+        logger.info("youtube_analytics_collection_skipped reason=another_collector_holds_lease")
+        return {"skipped": True, "requested": 0, "collected": 0, "failed": []}
+    try:
+        result = collector.refresh_due_metrics(
+            limit=min(20, BATCH_SIZE),
+            min_age_seconds=max(300, int(os.getenv(
+                "YOUTUBE_ANALYTICS_MIN_AGE_SECONDS", "86400"
+            ))),
+        )
+        logger.info(
+            "youtube_analytics_collection_completed requested=%s collected=%s failed=%s",
+            result["requested"], result["collected"], len(result["failed"]),
+        )
+        return result
+    finally:
+        store.release_lease(OWNER_ID)
 
 
 def run_tiktok_once(store=None, collector=None, publication_store=None, token_manager=None):
@@ -85,7 +110,7 @@ def main():
         INTERVAL, MIN_AGE, BATCH_SIZE
     )
     while True:
-        for provider_name,collector_run in (("youtube",run_once),("tiktok",run_tiktok_once)):
+        for provider_name,collector_run in (("youtube",run_once),("youtube_analytics",run_youtube_analytics_once),("tiktok",run_tiktok_once)):
             try:
                 collector_run()
             except Exception:
