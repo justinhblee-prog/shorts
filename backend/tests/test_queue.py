@@ -149,6 +149,26 @@ class QueueTests(unittest.TestCase):
   result=self.q.recover()
   self.assertEqual(result["requeued"],1)
   self.assertEqual(self.q.get(j["id"])["status"],"queued")
+ def test_concurrent_recovery_reclaims_expired_lease_once(self):
+  job=self.q.enqueue("render",{"topic":"concurrent-recovery"})
+  claimed=self.q.claim("worker-lost")
+  with self.q.db() as c:
+   c.execute(
+    "UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+    (job["id"],),
+   )
+  with ThreadPoolExecutor(max_workers=8) as pool:
+   results=list(pool.map(lambda _:self.q.recover(),range(8)))
+  self.assertEqual(sum(result["requeued"] for result in results),1)
+  self.assertEqual(sum(result["terminal"] for result in results),0)
+  self.assertEqual(self.q.get(job["id"])["status"],"queued")
+  events=[event for event in self.q.events(job["id"]) if event["event_type"]=="lease_expired"]
+  self.assertEqual(len(events),1)
+  self.assertEqual(events[0]["worker_id"],"worker-lost")
+  self.assertEqual(events[0]["details"]["expired_worker_id"],"worker-lost")
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"worker-lost",claimed["lease_token"])
+
  def test_retry_state_and_event_log(self):
   j=self.q.enqueue("research",{}); a=self.q.claim("worker-a")
   failed=self.q.fail(j["id"],"worker-a",a["lease_token"],"network","temporary",True)

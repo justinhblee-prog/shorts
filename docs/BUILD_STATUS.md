@@ -1896,3 +1896,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Recovery now snapshots the owner before clearing the lease and records it as the event actor and `expired_worker_id` detail. Lease tokens are intentionally not written to audit logs.
 - Added assertions for ordinary retryable/exhausted jobs and ambiguous production leases across both claim-triggered and periodic recovery paths.
 - Backend deterministic CI only; no external provider validation.
+
+## BUILD-00233 — Verify concurrent expired-lease recovery is idempotent
+- Added an eight-way concurrent recovery regression against one expired ordinary job.
+- Exactly one recovery call may requeue the job and append the `lease_expired` audit event; all other recovery calls must observe the committed state and do nothing.
+- The original worker's lease token remains fenced after recovery. This validates the existing SQLite `BEGIN IMMEDIATE` transaction and conditional row update under concurrent callers.
+- Backend deterministic CI only; no multi-host production database test is claimed.
