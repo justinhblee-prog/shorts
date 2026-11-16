@@ -101,6 +101,15 @@ class ProductionStore:
               stage TEXT NOT NULL, artifact_type TEXT NOT NULL, artifact_url TEXT,
               metadata_json TEXT NOT NULL, created_at TEXT NOT NULL,
               UNIQUE(job_id, stage));
+            CREATE TABLE IF NOT EXISTS provider_execution_attempts(
+              id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES production_runs(job_id),
+              stage TEXT NOT NULL, attempt_number INTEGER NOT NULL,
+              idempotency_key TEXT NOT NULL UNIQUE, state TEXT NOT NULL,
+              provider_request_id TEXT, response_json TEXT, error TEXT,
+              started_at TEXT NOT NULL, completed_at TEXT,
+              UNIQUE(job_id,stage,attempt_number));
+            CREATE INDEX IF NOT EXISTS idx_provider_attempt_state
+              ON provider_execution_attempts(state,started_at);
             """)
     
     @contextmanager
@@ -180,6 +189,75 @@ class ProductionStore:
               (str(uuid.uuid4()), job_id, stage, artifact_type, url,
                json.dumps(metadata, ensure_ascii=False), utc_now()))
 
+
+    def next_provider_attempt_number(self, job_id, stage):
+        with self.db() as c:
+            row=c.execute("""SELECT COALESCE(MAX(attempt_number),0)+1 AS next_attempt
+                FROM provider_execution_attempts WHERE job_id=? AND stage=?""",
+                (job_id,stage)).fetchone()
+            return int(row["next_attempt"])
+
+    def begin_provider_attempt(self, job_id, stage, attempt_number,
+                               worker_id=None, lease_token=None):
+        """Persist the provider request identity before any external side effect."""
+        attempt_number = max(1, int(attempt_number))
+        request_key = str(uuid.uuid4())
+        timestamp = utc_now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            if worker_id is not None or lease_token is not None:
+                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            c.execute("""INSERT INTO provider_execution_attempts
+                (id,job_id,stage,attempt_number,idempotency_key,state,started_at)
+                VALUES(?,?,?,?,?,'request_started',?)""",
+                (str(uuid.uuid4()),job_id,stage,attempt_number,request_key,timestamp))
+        return request_key
+
+    def finish_provider_attempt(self, job_id, stage, attempt_number, request_key,
+                                response, worker_id=None, lease_token=None):
+        """Persist the provider response before downstream artifact writes."""
+        if not isinstance(response,dict):
+            raise ValueError("provider response must be an object")
+        safe_response=json.dumps(response,ensure_ascii=False)
+        if len(safe_response.encode("utf-8")) > 2_000_000:
+            raise ValueError("provider response exceeds 2 MB recovery limit")
+        timestamp=utc_now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            updated=c.execute("""UPDATE provider_execution_attempts
+                SET state='response_received',provider_request_id=?,
+                    response_json=?,completed_at=?,error=NULL
+                WHERE job_id=? AND stage=? AND attempt_number=?
+                  AND idempotency_key=? AND state='request_started'""",
+                (str(response.get("request_id") or response.get("job_id") or "")[:500] or None,
+                 safe_response,timestamp,job_id,stage,attempt_number,request_key))
+            if updated.rowcount != 1:
+                raise ValueError("provider attempt is missing or no longer recoverable")
+        return True
+
+    def mark_provider_attempt_unknown(self, job_id, stage, attempt_number,
+                                      request_key, error, worker_id=None, lease_token=None):
+        """A transport error cannot prove that the provider did not execute the request."""
+        timestamp=utc_now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            updated=c.execute("""UPDATE provider_execution_attempts
+                SET state='outcome_unknown',error=?,completed_at=?
+                WHERE job_id=? AND stage=? AND attempt_number=?
+                  AND idempotency_key=? AND state='request_started'""",
+                (str(error)[:2000],timestamp,job_id,stage,attempt_number,request_key))
+            if updated.rowcount != 1:
+                raise ValueError("provider attempt is missing or already finalized")
+        return True
+
+    def provider_attempts(self, job_id, unresolved_only=False):
+        where=" AND state IN ('request_started','outcome_unknown','response_received')" if unresolved_only else ""
+        with self.db() as c:
+            rows=c.execute("""SELECT id,job_id,stage,attempt_number,idempotency_key,
+                state,provider_request_id,response_json,error,started_at,completed_at
+                FROM provider_execution_attempts WHERE job_id=?""" + where +
+                " ORDER BY started_at,id",(job_id,)).fetchall()
+            return [dict(row) for row in rows]
 
     def reconcile_missing_runs(self, queue, job_ids=None, limit=200):
         """Restore production rows if a process crashed between queue enqueue and record creation."""
@@ -445,6 +523,24 @@ class ProductionPipeline:
                 "Worker heartbeat/stop signal was lost; no further provider calls are allowed"
             )
 
+    def _provider_request(self, job_id, stage, attempt_number, provider, payload,
+                          worker_id=None, lease_token=None):
+        request_key=self.store.begin_provider_attempt(
+            job_id,stage,attempt_number,worker_id,lease_token)
+        try:
+            response=provider.post(stage,{**payload,"request_idempotency_key":request_key})
+        except Exception as exc:
+            try:
+                self.store.mark_provider_attempt_unknown(
+                    job_id,stage,attempt_number,request_key,str(exc),
+                    worker_id,lease_token)
+            except ProductionLeaseConflict:
+                raise
+            raise
+        self.store.finish_provider_attempt(
+            job_id,stage,attempt_number,request_key,response,worker_id,lease_token)
+        return response
+
     def execute(self, job_id, brief, worker_id=None, lease_token=None, stop_event=None):
         brief = self.validate_brief(brief)
         if (worker_id is None) != (lease_token is None):
@@ -460,7 +556,7 @@ class ProductionPipeline:
                                     retryable=False)
             self.store.stage(job_id, "script", **lease)
             self._check_stop(stop_event)
-            script = self.script.post("script", {
+            script = self._provider_request(job_id,"script",self.store.next_provider_attempt_number(job_id,"script"),self.script, {
                 "task": "create_short_video_script",
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "topic": brief["topic"],
@@ -482,7 +578,7 @@ class ProductionPipeline:
                     "Verify claims independently, cite the source in the script notes, and "
                     "do not invent facts or imply that popularity proves truth."
                 ),
-            })
+            }, **lease)
             self._check_stop(stop_event)
             script_text = script.get("script")
             if not isinstance(script_text, str) or not script_text.strip():
@@ -507,12 +603,12 @@ class ProductionPipeline:
             self._check_stop(stop_event)
             self.store.stage(job_id, "voice_generation", **lease)
             self._check_stop(stop_event)
-            voice = self.voice.post("voice_generation", {
+            voice = self._provider_request(job_id,"voice_generation",self.store.next_provider_attempt_number(job_id,"voice_generation"),self.voice, {
                 "script": script_text, "language": brief["language"],
                 "brand": brief["brand"], "format": "narration",
                 "voice_tone": brief.get("brand_profile", {}).get("tone", []),
                 "target_audience": brief.get("brand_profile", {}).get("audience", ""),
-            })
+            }, **lease)
             self._check_stop(stop_event)
             audio_url = voice.get("audio_url")
             if not isinstance(audio_url, str) or not audio_url.startswith(("https://", "http://")):
@@ -557,13 +653,13 @@ class ProductionPipeline:
             self._check_stop(stop_event)
             self.store.stage(job_id, "rendering", **lease)
             self._check_stop(stop_event)
-            rendered = self.render.post("rendering", {
+            rendered = self._provider_request(job_id,"rendering",self.store.next_provider_attempt_number(job_id,"rendering"),self.render, {
                 "script": script_text, "audio_url": audio_url,
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "aspect_ratio": "9:16",
                 "subtitles": True,
                 "brand_profile": brief.get("brand_profile", {}),
-            })
+            }, **lease)
             self._check_stop(stop_event)
             video_url = rendered.get("video_url")
             if not isinstance(video_url, str) or not video_url.startswith(("https://", "http://")):

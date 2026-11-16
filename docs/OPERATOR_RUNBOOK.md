@@ -573,3 +573,18 @@ A production lease expiry or cancellation during a provider request is ambiguous
 6. If the provider shows that generation completed, do **not** use the retry action. Preserve the remote artifact and escalate for a result-adoption workflow; this release intentionally does not fabricate or auto-import provider output.
 
 The append-only `production_reconciliation_events` ledger records operator, outcome, evidence reference, note, previous/resulting state and timestamp. Database triggers reject update/delete. Access requires `queue.read`, `production.read` or `queue.control` permissions as appropriate. The evidence reference is an operator-supplied pointer, not independent proof validated by NEXUS.
+
+
+### Provider execution response recovery — BUILD-00174
+
+Provider calls are now journaled before the outbound request. Each stage attempt receives a unique persisted request key, attempt number, and state. The key is passed to the provider payload as `request_idempotency_key`; a provider must explicitly support and honor that field before it can be relied upon for remote deduplication.
+
+- `request_started`: NEXUS committed the attempt before the network call. If the process disappears, assume the remote outcome is unknown.
+- `response_received`: the complete JSON response was persisted before the pipeline attempts to create or update the corresponding production artifact. The attempt record is the recovery source if artifact persistence did not happen.
+- `outcome_unknown`: a transport/provider exception occurred after dispatch may have begun. Do not issue a replacement request based on a timeout alone.
+- Authenticated `GET /api/production/jobs/{job_id}/provider-attempts` exposes the attempt ledger, provider request ID, and stored response to principals with `production.read`.
+- A response is bounded to 2 MB and stored as JSON. It may contain signed artifact URLs; protect this endpoint and do not copy response bodies into tickets or public logs.
+- The request-start transition is fenced by the current worker lease. Once a request has been dispatched, recording the returned response or an unknown outcome is allowed even if that lease expires; this preserves remote truth without allowing the stale worker to write production artifacts.
+- The request key is an advisory payload field only. Until the configured vendor confirms support for idempotency keys and request lookup, operators must use the provider's console/request ID to establish whether a generation completed.
+
+This release journals and exposes the response; it does not automatically adopt a recovered artifact or declare it review-ready. Verify the provider request ID, output URL, ownership/retention and actual media bytes, then use the existing allowlisted staging and quality/review workflow. If the provider offers no lookup mechanism, leave the attempt unresolved and do not regenerate automatically.
