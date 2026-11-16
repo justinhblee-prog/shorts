@@ -87,6 +87,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Add regression tests for job, event, and worker-control response redaction.
 - Automated validation is pending.
 
+## BUILD-00194 — sanitize provider failure responses
+
+- Stop embedding raw HTTP error response bodies in provider exceptions; retain only the HTTP status code and retryability.
+- Return a fixed, stage-aware API error message from production execution instead of exposing provider exception text to the caller.
+- Preserve detailed failure context in protected server-side records for operator investigation.
+- Add regression tests proving provider response bodies and bearer-like values are absent from exceptions and API responses.
+- Automated validation is pending.
+
 ## BUILD-00001 — durable queue and Worker Lease
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.
