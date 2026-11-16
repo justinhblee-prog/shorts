@@ -283,6 +283,9 @@ def _extract_and_verify(archive_path, destination):
                 expected_directories.add("/".join(parts[:index]))
         if not expected_directories.issubset(directory_names):
             raise BackupRestoreError("Backup archive is missing required media directories")
+        for name in sorted(directory_names, key=lambda value: (value.count("/"), value)):
+            target = destination.joinpath(*PurePosixPath(name).parts)
+            target.mkdir(parents=True, exist_ok=True)
 
         for name, member in file_members.items():
             pure = _validate_member_name(name)
