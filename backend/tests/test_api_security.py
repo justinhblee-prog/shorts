@@ -542,10 +542,16 @@ class ApiSecurityTests(unittest.TestCase):
         route = next(r for r in app.routes
                      if getattr(r, "path", None) == "/api/production/integrity-report")
         params = {p.name: p for p in route.dependant.query_params}
-        self.assertEqual((params["limit"].field_info.ge, params["limit"].field_info.le), (1, 200))
-        self.assertEqual((params["offset"].field_info.ge, params["offset"].field_info.le),
+        limit_constraints = {type(item).__name__: item
+                             for item in params["limit"].field_info.metadata}
+        offset_constraints = {type(item).__name__: item
+                              for item in params["offset"].field_info.metadata}
+        cursor_constraints = {type(item).__name__: item
+                              for item in params["cursor"].field_info.metadata}
+        self.assertEqual((limit_constraints["Ge"].ge, limit_constraints["Le"].le), (1, 200))
+        self.assertEqual((offset_constraints["Ge"].ge, offset_constraints["Le"].le),
                          (0, 1000000))
-        self.assertEqual(params["cursor"].field_info.max_length, 512)
+        self.assertEqual(cursor_constraints["MaxLen"].max_length, 512)
 
 if __name__ == "__main__":
     unittest.main()
