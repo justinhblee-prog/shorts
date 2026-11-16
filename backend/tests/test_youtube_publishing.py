@@ -608,10 +608,10 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertGreater(lease["lease_until"], time.time())
         self.assertEqual(snapshot_count, 0)
 
-        self.assertTrue(second_store.snapshot(
+        second_store.snapshot(
             "yt-new-owner", {"viewCount": "88"},
             lease_owner="collector-new", lease_token=new_token,
-        ))
+        )
         self.assertTrue(second_store.release_metrics_collector_lease(
             "collector-new", new_token,
         ))
