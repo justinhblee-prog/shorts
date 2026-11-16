@@ -1262,3 +1262,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Enforce 0–1 bounds for elapsed-video-time and audience-watch retention ratios at the persistence boundary; keep valid relative-retention negative values.
 - Preserve valid average view percentages above 100% and other valid metrics when unrelated fields are malformed.
 - Add direct-store regression coverage for booleans, negative/out-of-range ratios and valid boundary values.
+
+
+## BUILD-00155 — complete TikTok published-video metrics coverage
+
+- Add a lightweight publication-store query for all completed TikTok publications with video IDs; avoid the UI's intentionally bounded 200-record history API for analytics collection and coverage.
+- Use the complete eligible publication set when scheduling due metrics and calculating coverage, while keeping the dashboard's recent-metrics display bounded to its requested limit.
+- Add regression coverage with more than 200 completed publications to verify full coverage and that collection can reach records beyond the recent-history window.
+- TikTok Display API requests remain capped at 20 videos per collection run; this change does not claim live TikTok account validation.
+- GitHub Actions run [43808106089](https://github.com/justinhblee-prog/shorts/actions/runs/43808106089) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
