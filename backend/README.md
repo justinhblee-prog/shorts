@@ -500,3 +500,6 @@ BUILD-00036 automated validation: GitHub Actions run [43788265493](https://githu
 ## BUILD-00037 — verify live YouTube connectivity
 
 After completing encrypted OAuth, use the dashboard's **실계정 연결 테스트** action or protected `POST /api/youtube/oauth/verify`. It refreshes the token, calls `channels.list(mine=true)` and runs a channel-level YouTube Analytics views report. The result records the selected channel ID/title and independent Data API and Analytics API verification states. A successful OAuth callback alone means only that a refresh token was stored; it does not mean the account APIs are reachable. A Data API success with Analytics permission failure is shown as a partial result.
+
+
+BUILD-00037 automated validation: GitHub Actions run [43788723765](https://github.com/justinhblee-prog/shorts/actions/runs/43788723765) passed **356 backend tests** and `scripts/validate.sh`. The live verification action itself has not been executed against a real channel.

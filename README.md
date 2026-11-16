@@ -104,3 +104,6 @@ BUILD-00036 added encrypted YouTube OAuth connection and dashboard controls. CI 
 
 
 YouTube OAuth now has an explicit live verification action that checks the selected channel through Data API v3 and Analytics API v2 separately. OAuth token storage is not represented as live connectivity until these checks succeed.
+
+
+BUILD-00037 adds a protected live verification action for YouTube Data API and Analytics API access. The implementation passed **356 backend tests** in [run 43788723765](https://github.com/justinhblee-prog/shorts/actions/runs/43788723765); actual channel verification still requires operator OAuth consent and execution.

@@ -1037,3 +1037,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Dashboard adds a live verification action and displays the authorized channel identity and per-API status.
 - Static environment refresh tokens remain a compatibility path but are not eligible for persisted live verification until converted to managed encrypted OAuth.
 - Validation pending; live account verification remains operator-triggered.
+
+
+## BUILD-00037 validation record
+
+- GitHub Actions run [43788723765](https://github.com/justinhblee-prog/shorts/actions/runs/43788723765) passed **356 backend tests** and `scripts/validate.sh`.
+- Tests verify dual API checks, partial Analytics failure handling, stored channel identity and additive migration.
+- No real account was connected during CI; live verification is a protected dashboard action after operator OAuth consent.
