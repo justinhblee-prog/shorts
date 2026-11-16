@@ -847,8 +847,9 @@ class ProductionPipeline:
                 script_text=metadata.get("script")
                 if not isinstance(script_text,str) or not script_text.strip():
                     raise ProviderError("script","Recovered script artifact is invalid",False)
+                script_metadata=metadata.get("provider_quality_metadata") or {}
                 script={"script":script_text,"provider":metadata.get("provider"),
-                    **(metadata.get("provider_quality_metadata") or {})}
+                    **script_metadata}
                 policy_report=metadata.get("policy_preflight") or policy_report
             else:
                 self.store.stage(job_id,"script",**lease)
