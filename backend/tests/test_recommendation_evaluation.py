@@ -73,6 +73,61 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(rows[1]["recommendation_score"], 80.0)
         self.assertIsNone(json.loads(rows[1]["cohort_context_json"])["bad"])
 
+    def test_record_run_rejects_invalid_timestamp_and_region_before_writing(self):
+        for timestamp in ("not-a-date", "", [], "2026-99-99T00:00:00Z"):
+            with self.subTest(timestamp=timestamp):
+                with self.assertRaisesRegex(ValueError, "generated_at"):
+                    self.store.record_run("US", [], timestamp)
+        for region in ([], {"region": "US"}, "", "R" * 121):
+            with self.subTest(region=region):
+                with self.assertRaisesRegex(ValueError, "region"):
+                    self.store.record_run(region, [], "2026-11-01T00:00:00Z")
+        with self.store.db() as connection:
+            self.assertEqual(connection.execute(
+                "SELECT COUNT(*) FROM recommendation_runs"
+            ).fetchone()[0], 0)
+
+    def test_record_run_normalizes_timezone_and_naive_timestamps(self):
+        aware = self.store.record_run(
+            "US", [], "2026-11-01T00:00:00Z"
+        )
+        naive = self.store.record_run(
+            "US", [], "2026-11-01T00:02:00"
+        )
+        with self.store.db() as connection:
+            timestamps = [
+                row[0] for row in connection.execute(
+                    "SELECT generated_at FROM recommendation_runs ORDER BY generated_at"
+                ).fetchall()
+            ]
+        self.assertEqual(timestamps[0], "2026-11-01T00:00:00+00:00")
+        self.assertEqual(timestamps[1], "2026-11-01T00:02:00+00:00")
+
+    def test_link_production_rejects_malformed_identity_and_timestamp(self):
+        exposure = self.store.record_run(
+            "US", [self.item(98, 80)], "2026-11-01T00:00:00Z"
+        )
+        for trend, brand, job in (
+            ([], "future-leak", "job"),
+            ("trend-98", [], "job"),
+            ("trend-98", "future-leak", {"job": "id"}),
+        ):
+            with self.subTest(trend=trend, brand=brand, job=job):
+                result = self.store.link_production(
+                    trend, brand, job, run_id=exposure["run_id"]
+                )
+                self.assertFalse(result["linked"])
+                self.assertEqual(result["reason"], "invalid_production_identity")
+        with self.assertRaisesRegex(ValueError, "selected_at"):
+            self.store.link_production(
+                "trend-98", "future-leak", "job-valid",
+                selected_at="yesterday", run_id=exposure["run_id"]
+            )
+        self.assertTrue(self.store.link_production(
+            "trend-98", "future-leak", "job-valid",
+            selected_at="2026-11-01T01:00:00Z", run_id=exposure["run_id"]
+        )["linked"])
+
     def test_record_run_rejects_non_list_payload_without_crashing(self):
         exposure = self.store.record_run(
             "US", {"unexpected": "mapping"}, "2026-11-01T00:00:00+00:00"

@@ -1220,3 +1220,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression coverage for malformed, oversized and whitespace-padded dimensions.
 - GitHub Actions run [43804517687](https://github.com/justinhblee-prog/shorts/actions/runs/43804517687) passed the complete `scripts/validate.sh` workflow on the code/test commit; documentation-only commits followed.
 - Ranking score adjustment remains disabled; live provider validation is not claimed.
+
+
+## BUILD-00150 — recommendation timestamp ingress validation
+
+- Validate exposure and production-selection timestamps as ISO-8601 before persistence; naive timestamps are explicitly normalized to UTC.
+- Reject malformed region labels and invalid production trend/brand/job identities at the SQLite ingress boundary.
+- Require platform values to be supported strings.
+- Add regression coverage for malformed timestamp, region and identity payloads.
+- GitHub Actions run [43805417830](https://github.com/justinhblee-prog/shorts/actions/runs/43805417830) passed `scripts/validate.sh` after the timestamp-defaulting regression fix.
+- Ranking score adjustment remains disabled; no live provider validation is claimed.

@@ -72,6 +72,18 @@ def _normalized_dimension(value, max_length=120):
         return None
     return value
 
+def _normalized_timestamp(value, field_name):
+    """Validate an ISO-8601 timestamp and normalize naive values to UTC."""
+    if not isinstance(value, str) or not value.strip() or len(value) > 64:
+        raise ValueError(f"{field_name} must be a valid ISO-8601 timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(f"{field_name} must be a valid ISO-8601 timestamp") from None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.isoformat()
+
 
 def _json_safe(value):
     """Return JSON-safe metadata, replacing unsupported/non-finite leaves with null."""
@@ -220,9 +232,13 @@ class RecommendationEvaluationStore:
             c.close()
 
     def record_run(self, region, items, generated_at=None, platform="youtube"):
-        if platform not in ("youtube", "tiktok"):
+        if not isinstance(platform, str) or platform not in ("youtube", "tiktok"):
             raise ValueError("platform must be youtube or tiktok")
-        timestamp = generated_at or _now()
+        if region is not None:
+            region = _normalized_dimension(region, 120)
+            if region is None:
+                raise ValueError("region must be a non-empty string of at most 120 characters")
+        timestamp = _normalized_timestamp(_now() if generated_at is None else generated_at, "generated_at")
         run_id = str(uuid.uuid4())
         rows = []
         for rank, item in enumerate(items if isinstance(items, list) else [], start=1):
@@ -329,11 +345,18 @@ class RecommendationEvaluationStore:
 
     def link_production(self, trend_id, brand_slug, job_id, selected_at=None,
                         platform="youtube", run_id=None):
-        if platform not in ("youtube", "tiktok"):
+        if not isinstance(platform, str) or platform not in ("youtube", "tiktok"):
             raise ValueError("platform must be youtube or tiktok")
         if not isinstance(run_id, str) or not run_id.strip() or len(run_id) > 64:
             return {"linked": False, "reason": "recommendation_run_id_required"}
-        timestamp = selected_at or _now()
+        trend_id = _normalized_dimension(str(trend_id), 160) if isinstance(
+            trend_id, (str, int)
+        ) and not isinstance(trend_id, bool) else None
+        brand_slug = _normalized_dimension(brand_slug, 160)
+        job_id = _normalized_dimension(job_id, 160)
+        if trend_id is None or brand_slug is None or job_id is None:
+            return {"linked": False, "reason": "invalid_production_identity"}
+        timestamp = _normalized_timestamp(_now() if selected_at is None else selected_at, "selected_at")
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute("""SELECT c.id FROM recommendation_candidates c
