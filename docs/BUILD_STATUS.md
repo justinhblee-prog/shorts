@@ -1077,3 +1077,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a persistent `clamav_db` volume and a `media-scan` Compose profile running `freshclam`; the API mounts signatures read-only. Preflight checks executable, signature files and timeout before reporting the feature ready.
 - Docker image now includes `clamav` and `clamav-freshclam`; image size and signature storage increase. CI uses injected scanner stubs and does not download or validate live signatures.
 - GitHub Actions run [43792634688](https://github.com/justinhblee-prog/shorts/actions/runs/43792634688) passed **427 backend tests** and `scripts/validate.sh`. No production ClamAV scan or signature refresh is claimed.
+
+
+## BUILD-00132 — secure provider endpoint transport and bounded responses
+
+- Validate script, voice, render and optional transcription provider URLs before attaching bearer credentials. HTTPS is mandatory; malformed URLs, embedded user/password, fragments, whitespace and invalid ports are rejected.
+- The built-in urllib transport refuses redirects so Authorization headers cannot be forwarded to a different host.
+- Provider response bodies are capped at 2 MiB before buffering/JSON parsing, including custom transport results. HTTP error bodies are never persisted or echoed; only sanitized status codes are retained.
+- Preflight reports invalid provider URLs without exposing the configured URL or token. Provider bearer tokens remain optional for unauthenticated provider endpoints.
+- CI validation pending. No live provider connectivity or vendor compatibility is claimed.
