@@ -122,7 +122,13 @@ def _normalized_outcome(item):
         item.get("average_view_duration_seconds")
     )
     curve = []
-    for point in item.get("audience_retention_curve", []):
+    raw_curve = item.get("audience_retention_curve", [])
+    # Provider payloads can contain null/scalar values when retention is
+    # unavailable. Treat a malformed container as no curve, not as a failed
+    # evaluation for every otherwise valid outcome in the batch.
+    if not isinstance(raw_curve, list):
+        raw_curve = []
+    for point in raw_curve:
         if not isinstance(point, dict):
             continue
         elapsed = _normalized_ratio(point.get("elapsed_video_time_ratio"))

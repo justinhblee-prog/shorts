@@ -1246,3 +1246,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Exclude duplicated job IDs instead of allowing last-write-wins behavior to make metrics depend on input ordering.
 - Add a regression test covering conflicting duplicate measurements alongside a valid unique outcome.
 - Evaluation remains observational and score adjustments remain disabled.
+
+
+## BUILD-00153 — malformed audience-retention payload isolation
+
+- Treat a non-list `audience_retention_curve` value (including null, scalar and string payloads) as unavailable retention evidence rather than allowing iteration to raise and abort the entire recommendation evaluation.
+- Preserve independently valid metrics such as views/hour for the affected production outcome; retention checkpoints remain null when no valid curve is supplied.
+- Add regression coverage for malformed curve containers and verify the evaluation batch remains available.
+- Recommendation ranking remains unchanged; no live provider/account validation is claimed.
