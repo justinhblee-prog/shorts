@@ -1902,3 +1902,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Exactly one recovery call may requeue the job and append the `lease_expired` audit event; all other recovery calls must observe the committed state and do nothing.
 - The original worker's lease token remains fenced after recovery. This validates the existing SQLite `BEGIN IMMEDIATE` transaction and conditional row update under concurrent callers.
 - Backend deterministic CI only; no multi-host production database test is claimed.
+
+## BUILD-00234 — Verify heartbeat and expired-lease recovery fencing
+- Added a lifecycle regression covering a valid heartbeat extension, a later expired-lease recovery, and a new worker claiming the requeued job.
+- The original worker's heartbeat is rejected both immediately after recovery and after the new worker claims the job; it cannot overwrite the new owner's lease.
+- Confirms a valid heartbeat prevents premature recovery and that rejected stale heartbeats do not create heartbeat audit events or mutate the new lease.
+- Backend deterministic CI only; no multi-host production database test is claimed.
