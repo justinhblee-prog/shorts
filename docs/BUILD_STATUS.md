@@ -2024,3 +2024,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Ensure stale workers cannot persist either a success or failed collection state after lease renewal fails.
 - Verify the worker still attempts to release its own lease during cleanup.
 - GitHub Actions [run #3493](https://github.com/justinhblee-prog/shorts/actions/runs/43914162222) succeeded on commit `f939df3e5ff72723f96d5ac5942b8f78c202fc8e`; `scripts/validate.sh` passed. Tests use fake stores and collectors; no live TikTok OAuth/account/API validation is claimed.
+
+
+## BUILD-00270 — Verify provider collection-cycle failure isolation
+- Extract one scheduled metrics collection cycle so the provider isolation policy can be tested directly.
+- Add a regression proving a YouTube provider exception is logged while YouTube Analytics and TikTok collectors still run in the same cycle.
+- Verify process-control exceptions such as KeyboardInterrupt are not swallowed by the provider-failure handler.
+- GitHub Actions validation pending. This is deterministic local unit coverage; no live provider API validation is claimed.
