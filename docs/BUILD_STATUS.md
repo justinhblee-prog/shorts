@@ -1741,3 +1741,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - These tests complement YouTube's existing ambiguous resumable-upload timeout/reconciliation tests and TikTok's existing status-poll and terminal-state protections.
 - Validation uses deterministic transport doubles; it does not constitute live TikTok or YouTube service validation.
 - GitHub Actions run [43845160197](https://github.com/justinhblee-prog/shorts/actions/runs/43845160197) passed the complete `scripts/validate.sh` workflow, including 577 backend tests.
+
+
+## BUILD-00209 — cross-platform publishing recovery contract
+
+- Add `docs/PLATFORM_PUBLISHING_RECOVERY.md` with a shared failure/recovery matrix for preflight failures, ambiguous remote dispatch, YouTube resumable uploads, TikTok initialization/chunk transfer, status polling, inbox handoff, terminal completion, and evidence-backed reconciliation.
+- Make the distinction explicit between an AI-provider reconciliation workflow and platform-publishing reconciliation; do not imply that BUILD-00205 implements the latter.
+- Define retry authorization as a separate operator action after affirmative non-execution evidence, current approval/artifact revalidation, and platform-specific privacy/consent checks.
+- Record the validation boundary: deterministic CI doubles do not establish live OAuth, account permission, actual upload, or production recovery readiness.
+- Documentation-only change; no new runtime behavior or test result is claimed.
