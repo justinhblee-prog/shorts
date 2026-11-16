@@ -1974,3 +1974,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Eight simultaneous reservation attempts must produce exactly one durable attempt and one start/consent audit record; all competing requests are rejected without replacing the winning attempt.
 - Confirms TikTok reservation remains SELF_ONLY.
 - Deterministic SQLite transaction tests only; no live platform API or account validation is claimed.
+
+
+## BUILD-00244 — Verify end-to-end concurrent YouTube upload exclusion
+- Added an eight-caller publisher-level regression that races fully approved upload requests, not only low-level reservation calls.
+- Asserts exactly one request reaches the YouTube remote insert adapter, one private upload is finalized, and only one attempt-start audit event exists.
+- This exercises media fingerprint verification, current approval reservation, and the remote-call boundary together.
+- Mocked provider adapter and local SQLite only; no live YouTube account/API validation is claimed.
