@@ -997,6 +997,162 @@ class TikTokPublishingTests(unittest.TestCase):
         with self.assertRaisesRegex(TikTokPublishError, "unexpected shape"):
             self.publisher.refresh_status("job-1")
 
+    def test_concurrent_scheduler_poll_leases_allow_only_one_process(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            leases = list(pool.map(
+                lambda _: self.store.acquire_status_poll_lease(
+                    "job-1", attempt_id, lease_seconds=45
+                ),
+                range(2),
+            ))
+        acquired = [lease for lease in leases if lease is not None]
+        self.assertEqual(len(acquired), 1)
+        self.assertEqual(
+            self.store.due_status_job_ids(limit=5, min_age_seconds=0), []
+        )
+        self.assertTrue(self.store.release_status_poll_lease(
+            "job-1", attempt_id, acquired[0]
+        ))
+        self.assertEqual(
+            self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"]
+        )
+
+    def test_manual_status_refresh_returns_terminal_state_without_remote_poll(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        terminal = self.store.mark_status(
+            "job-1", attempt_id, "PUBLISH_COMPLETE", ["terminal-video"],
+        )
+        self.transport.calls.clear()
+        result = self.publisher.refresh_status("job-1")
+        self.assertEqual(result["status"], "publish_complete")
+        self.assertEqual(result["video_id"], "terminal-video")
+        self.assertEqual(self.transport.calls, [])
+
+    def test_manual_status_refresh_cannot_bypass_scheduler_poll_lease(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        scheduler_token = self.store.acquire_status_poll_lease(
+            "job-1", attempt_id, lease_seconds=45
+        )
+        self.assertIsNotNone(scheduler_token)
+        self.transport.calls.clear()
+        with self.assertRaisesRegex(TikTokPublishError, "already being refreshed"):
+            self.publisher.refresh_status("job-1")
+        self.assertEqual(self.transport.calls, [])
+        self.assertTrue(self.store.release_status_poll_lease(
+            "job-1", attempt_id, scheduler_token
+        ))
+
+    def test_manual_status_refresh_acquires_and_releases_shared_poll_lease(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        self.transport.responses.append((200, {
+            "data": {"status": "PROCESSING_UPLOAD", "publicaly_available_post_id": []},
+            "error": {"code": "ok"},
+        }))
+        result = self.publisher.refresh_status("job-1")
+        self.assertEqual(result["status"], "processing")
+        self.assertEqual(
+            self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"]
+        )
+
+    def test_expired_poll_result_cannot_overwrite_publication_state_after_takeover(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        old_token = self.store.acquire_status_poll_lease(
+            "job-1", attempt_id, lease_seconds=45
+        )
+        self.assertIsNotNone(old_token)
+
+        original_call = self.publisher._call
+        def expire_lease_then_return(*args, **kwargs):
+            with self.store.db() as connection:
+                connection.execute("""
+                    UPDATE tiktok_status_poll_leases
+                    SET lease_expires_at='2000-01-01T00:00:00+00:00'
+                    WHERE job_id='job-1' AND lease_token=?
+                """, (old_token,))
+            return {
+                "data": {"status": "PUBLISH_COMPLETE",
+                         "publicaly_available_post_id": ["late-video-id"]},
+                "error": {"code": "ok"},
+            }
+        self.publisher._call = expire_lease_then_return
+        try:
+            with self.assertRaisesRegex(TikTokPublishError, "lease expired or was replaced"):
+                self.publisher.refresh_status("job-1", poll_lease_token=old_token)
+        finally:
+            self.publisher._call = original_call
+
+        unchanged = self.store.get("job-1")
+        self.assertEqual(unchanged["status"], "uploading")
+        self.assertIsNone(unchanged["video_id"])
+
+        new_token = self.store.acquire_status_poll_lease(
+            "job-1", attempt_id, lease_seconds=45
+        )
+        self.assertIsNotNone(new_token)
+        accepted = self.store.mark_status(
+            "job-1", attempt_id, "PUBLISH_COMPLETE", ["verified-video-id"],
+            expected_status="uploading", poll_lease_token=new_token,
+        )
+        self.assertEqual(accepted["status"], "publish_complete")
+        self.assertEqual(accepted["video_id"], "verified-video-id")
+        self.store.release_status_poll_lease("job-1", attempt_id, new_token)
+
+    def test_expired_poll_lease_can_be_taken_over_and_stale_owner_cannot_release(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        old_token = self.store.acquire_status_poll_lease(
+            "job-1", attempt_id, lease_seconds=45
+        )
+        self.assertIsNotNone(old_token)
+        with self.store.db() as connection:
+            connection.execute("""
+                UPDATE tiktok_status_poll_leases
+                SET lease_expires_at=strftime(
+                    '%Y-%m-%dT%H:%M:%f+00:00','now','-1 seconds'
+                )
+                WHERE job_id='job-1'
+            """)
+        new_token = self.store.acquire_status_poll_lease(
+            "job-1", attempt_id, lease_seconds=45
+        )
+        self.assertIsNotNone(new_token)
+        self.assertNotEqual(old_token, new_token)
+        self.assertFalse(self.store.release_status_poll_lease(
+            "job-1", attempt_id, old_token
+        ))
+        self.assertEqual(
+            self.store.due_status_job_ids(limit=5, min_age_seconds=0), []
+        )
+        self.assertTrue(self.store.release_status_poll_lease(
+            "job-1", attempt_id, new_token
+        ))
+        self.assertEqual(
+            self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"]
+        )
+
     def test_scheduler_poll_refreshes_pending_status_and_stops_after_completion(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",

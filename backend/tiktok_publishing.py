@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -69,6 +69,11 @@ class TikTokPublishStore:
             );
             CREATE INDEX IF NOT EXISTS idx_tiktok_publication_events_job
               ON tiktok_publication_events(job_id,id);
+            CREATE TABLE IF NOT EXISTS tiktok_status_poll_leases(
+              job_id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL,
+              lease_token TEXT NOT NULL, lease_expires_at TEXT NOT NULL,
+              acquired_at TEXT NOT NULL
+            );
             CREATE TRIGGER IF NOT EXISTS tiktok_publication_events_no_update
               BEFORE UPDATE ON tiktok_publication_events
               BEGIN SELECT RAISE(ABORT,'TikTok publication audit events are immutable'); END;
@@ -214,7 +219,8 @@ class TikTokPublishStore:
               FROM tiktok_publications WHERE job_id=?
             """, (_now(), job_id))
 
-    def mark_status(self, job_id, attempt_id, status, video_ids=None, fail_reason=None, expected_status=None):
+    def mark_status(self, job_id, attempt_id, status, video_ids=None, fail_reason=None,
+                    expected_status=None, poll_lease_token=None):
         allowed = {
             "PROCESSING_UPLOAD": "processing",
             "PUBLISH_COMPLETE": "publish_complete",
@@ -229,6 +235,12 @@ class TikTokPublishStore:
         video_id = (video_ids or [None])[0]
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if not self._status_poll_lease_is_current(
+                c, job_id, attempt_id, poll_lease_token
+            ):
+                raise TikTokPublishError(
+                    "TikTok status poll lease expired or was replaced; stale result rejected"
+                )
             row = c.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
@@ -497,6 +509,55 @@ class TikTokPublishStore:
             c.commit()
             return True
 
+    def acquire_status_poll_lease(self, job_id, attempt_id, lease_seconds=45):
+        """Acquire one cross-process lease for a scheduled TikTok status poll."""
+        seconds = max(5, min(int(lease_seconds), 120))
+        token = uuid.uuid4().hex
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            publication = c.execute(
+                "SELECT attempt_id,status FROM tiktok_publications WHERE job_id=?",
+                (job_id,),
+            ).fetchone()
+            if (publication is None or publication["attempt_id"] != attempt_id
+                    or publication["status"] not in (
+                        "uploading", "processing", "reconciliation_required"
+                    )):
+                return None
+            now = datetime.now(timezone.utc)
+            now_text = now.isoformat()
+            expires = (now + timedelta(seconds=seconds)).isoformat()
+            current = c.execute("""
+                SELECT attempt_id,
+                       CASE WHEN julianday(lease_expires_at) > julianday(?)
+                            THEN 1 ELSE 0 END AS is_active
+                FROM tiktok_status_poll_leases WHERE job_id=?
+            """, (now_text, job_id)).fetchone()
+            if (current is not None and current["attempt_id"] == attempt_id
+                    and current["is_active"]):
+                return None
+            c.execute("""
+              INSERT INTO tiktok_status_poll_leases
+                (job_id,attempt_id,lease_token,lease_expires_at,acquired_at)
+              VALUES(?,?,?,?,?)
+              ON CONFLICT(job_id) DO UPDATE SET
+                attempt_id=excluded.attempt_id,
+                lease_token=excluded.lease_token,
+                lease_expires_at=excluded.lease_expires_at,
+                acquired_at=excluded.acquired_at
+            """, (job_id, attempt_id, token, expires, now_text))
+            return token
+
+    def release_status_poll_lease(self, job_id, attempt_id, lease_token):
+        """Release only the exact lease owner; stale pollers cannot release a takeover."""
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            deleted = c.execute("""
+              DELETE FROM tiktok_status_poll_leases
+              WHERE job_id=? AND attempt_id=? AND lease_token=?
+            """, (job_id, attempt_id, lease_token))
+            return deleted.rowcount == 1
+
     def due_status_job_ids(self, limit=5, min_age_seconds=60):
         minimum_age = max(0, int(min_age_seconds))
         with self.db() as c:
@@ -522,8 +583,13 @@ class TikTokPublishStore:
               LEFT JOIN failure_counts AS failures
                 ON failures.job_id=p.job_id
                AND failures.attempt_id=p.attempt_id
+              LEFT JOIN tiktok_status_poll_leases AS poll_lease
+                ON poll_lease.job_id=p.job_id
+               AND poll_lease.attempt_id=p.attempt_id
               WHERE p.publish_id IS NOT NULL
                 AND p.status IN ('uploading','processing','reconciliation_required')
+                AND (poll_lease.job_id IS NULL
+                     OR julianday(poll_lease.lease_expires_at) <= julianday('now'))
                 AND julianday(p.updated_at) <= julianday('now') - (
                   MAX(?, CASE
                     WHEN COALESCE(failures.failures,0)=0 THEN 0
@@ -536,9 +602,26 @@ class TikTokPublishStore:
             """, (minimum_age, max(1, min(int(limit), 20)))).fetchall()
             return [row["job_id"] for row in rows]
 
-    def record_status_poll_error(self, job_id, attempt_id, message, expected_status=None):
+    @staticmethod
+    def _status_poll_lease_is_current(c, job_id, attempt_id, lease_token):
+        if lease_token is None:
+            return True
+        now_text = datetime.now(timezone.utc).isoformat()
+        row = c.execute("""
+          SELECT 1 FROM tiktok_status_poll_leases
+          WHERE job_id=? AND attempt_id=? AND lease_token=?
+            AND julianday(lease_expires_at) > julianday(?)
+        """, (job_id, attempt_id, lease_token, now_text)).fetchone()
+        return row is not None
+
+    def record_status_poll_error(self, job_id, attempt_id, message, expected_status=None,
+                                  poll_lease_token=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if not self._status_poll_lease_is_current(
+                c, job_id, attempt_id, poll_lease_token
+            ):
+                return False
             row = c.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
@@ -1003,7 +1086,31 @@ class TikTokPublisher:
             except OSError:
                 pass
 
-    def refresh_status(self, job_id):
+    def refresh_status(self, job_id, poll_lease_token=None):
+        # Manual/API-triggered polls must use the same durable lease as the
+        # scheduler. Otherwise an operator refresh can race a scheduled poll.
+        if poll_lease_token is None:
+            record = self.store.get(job_id)
+            if record is None:
+                raise TikTokPublishError("TikTok publication record not found")
+            if record["status"] in ("publish_complete", "failed", "send_to_inbox"):
+                return record
+            owned_token = self.store.acquire_status_poll_lease(
+                job_id, record["attempt_id"], lease_seconds=45,
+            )
+            if owned_token is None:
+                raise TikTokPublishError(
+                    "TikTok publication status is already being refreshed"
+                )
+            try:
+                return self._refresh_status_with_lease(job_id, owned_token)
+            finally:
+                self.store.release_status_poll_lease(
+                    job_id, record["attempt_id"], owned_token,
+                )
+        return self._refresh_status_with_lease(job_id, poll_lease_token)
+
+    def _refresh_status_with_lease(self, job_id, poll_lease_token):
         record = self.store.get(job_id)
         if record is None:
             raise TikTokPublishError("TikTok publication record not found")
@@ -1028,6 +1135,7 @@ class TikTokPublisher:
             video_ids,
             data.get("fail_reason"),
             expected_status=record["status"],
+            poll_lease_token=poll_lease_token,
         )
 
     def refresh_due_statuses(self, limit=5, min_age_seconds=60):
@@ -1036,20 +1144,34 @@ class TikTokPublisher:
         job_ids = self.store.due_status_job_ids(limit, min_age_seconds)
         updated = []
         errors = []
+        checked = 0
         for job_id in job_ids:
             record = self.store.get(job_id)
             if record is None:
                 continue
+            attempt_id = record["attempt_id"]
+            poll_lease = self.store.acquire_status_poll_lease(
+                job_id, attempt_id, lease_seconds=45,
+            )
+            if poll_lease is None:
+                continue
+            checked += 1
             try:
-                result = self.refresh_status(job_id)
+                result = self.refresh_status(job_id, poll_lease_token=poll_lease)
                 updated.append({"job_id": job_id, "status": result["status"]})
             except TikTokPublishError as exc:
-                self.store.record_status_poll_error(
-                    job_id, record["attempt_id"], str(exc),
+                recorded = self.store.record_status_poll_error(
+                    job_id, attempt_id, str(exc),
                     expected_status=record["status"],
+                    poll_lease_token=poll_lease,
                 )
-                errors.append({"job_id": job_id, "error": str(exc)})
+                if recorded:
+                    errors.append({"job_id": job_id, "error": str(exc)})
+            finally:
+                self.store.release_status_poll_lease(
+                    job_id, attempt_id, poll_lease,
+                )
         return {
-            "skipped": False, "checked": len(job_ids),
+            "skipped": False, "checked": checked,
             "updated": len(updated), "results": updated, "errors": errors,
         }
