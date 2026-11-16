@@ -1438,7 +1438,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Allow late provider response/unknown-state journaling after lease expiry while keeping production artifact writes lease-fenced.
 - Add authenticated `GET /api/production/jobs/{job_id}/provider-attempts` for operator recovery and bounded response storage.
 - The provider idempotency key is advisory unless a vendor contract confirms support. Automated result adoption is intentionally not included; recovered outputs still require provider verification, allowlisted media staging, quality checks and human review.
-- CI validation pending.
+- GitHub Actions run [43817538942](https://github.com/justinhblee-prog/shorts/actions/runs/43817538942) passed the complete `scripts/validate.sh` workflow, including 525 backend tests.
 
 
 ## BUILD-00175 — verified adoption of recovered provider renders
