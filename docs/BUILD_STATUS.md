@@ -1253,7 +1253,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 ## BUILD-00153 — bounded symmetric recommendation exposure deduplication
 
-- Restrict duplicate exposure detection to a symmetric ±60-second window; previously the lower-bound-only query could collapse a new earlier exposure against a much later record.
+- Restrict duplicate exposure detection to a symmetric ±60-second window using SQLite `julianday`; this avoids future-dated false matches and correctly compares legacy rows stored with non-UTC offsets.
 - Canonicalize accepted ISO-8601 timestamps to UTC before persistence so SQL timestamp-window comparisons remain chronologically sortable across input offsets.
 - Add regression tests for future-dated false deduplication, the exact one-minute boundary, and equivalent timestamps expressed with different offsets.
 - GitHub Actions validation: pending.
