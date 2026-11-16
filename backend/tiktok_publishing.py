@@ -232,8 +232,43 @@ class TikTokPublishStore:
             row = c.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
-            if not row or row["attempt_id"] != attempt_id:
-                raise TikTokPublishError("TikTok status belongs to an unknown or superseded attempt")
+            if not row:
+                raise TikTokPublishError("TikTok publication record not found")
+            if row["attempt_id"] != attempt_id:
+                # A poll started for an older attempt can finish after an operator
+                # reconciles it and a retry begins. Keep its provider result in the
+                # old attempt's immutable audit trail; never apply it to the new row.
+                prior = c.execute("""
+                  SELECT
+                    (SELECT publish_id FROM tiktok_publication_events
+                     WHERE job_id=? AND attempt_id=? AND publish_id IS NOT NULL
+                     ORDER BY id DESC LIMIT 1) AS publish_id,
+                    (SELECT operator_id FROM tiktok_publication_events
+                     WHERE job_id=? AND attempt_id=? AND event_type='operator_consent_recorded'
+                       AND operator_id IS NOT NULL ORDER BY id ASC LIMIT 1) AS operator_id
+                """, (job_id, attempt_id, job_id, attempt_id)).fetchone()
+                stamp = _now()
+                blocking = normalized in ("publish_complete", "processing")
+                previous = row["status"]
+                if blocking and previous not in ("publish_complete", "failed", "send_to_inbox"):
+                    c.execute("""
+                      UPDATE tiktok_publications SET status='reconciliation_required',
+                        error=?,updated_at=? WHERE job_id=? AND attempt_id=?
+                        AND status=?
+                    """, ("A superseded TikTok attempt returned a late provider status; verify the remote account before retrying.",
+                          stamp, job_id, row["attempt_id"], previous))
+                c.execute("""
+                  INSERT INTO tiktok_publication_events
+                    (job_id,attempt_id,event_type,outcome,publish_id,video_id,
+                     operator_id,note,created_at,policy_version)
+                  VALUES(?,?,'superseded_attempt_status_observed',?,?,?,?,?,?,?)
+                """, (job_id, attempt_id, normalized, prior["publish_id"] if prior else None,
+                      video_id, prior["operator_id"] if prior else None,
+                      (fail_reason or "Late provider status observed for superseded attempt")[:1000],
+                      stamp, row["policy_version"]))
+                return dict(c.execute(
+                    "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
+                ).fetchone())
             # A slower concurrent poll must never downgrade a terminal outcome.
             if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
                 return dict(row)
