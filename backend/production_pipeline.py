@@ -369,6 +369,44 @@ class ProductionStore:
                 raise ValueError("provider attempt is missing or already finalized")
         return True
 
+    def confirm_provider_attempt_not_executed(
+            self, job_id, attempt_id, operator_id, evidence_reference, note):
+        """Resolve an ambiguous provider attempt only with explicit operator evidence."""
+        values=(operator_id,evidence_reference,note)
+        if any(not isinstance(value,str) or not value.strip() for value in values):
+            raise ValueError("operator, evidence reference and note are required")
+        if any(len(value)>limit for value,limit in zip(values,(128,1000,2000))):
+            raise ValueError("provider reconciliation metadata exceeds its limit")
+        timestamp=utc_now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            attempt=c.execute("""SELECT stage,state FROM provider_execution_attempts
+                WHERE id=? AND job_id=?""",(attempt_id,job_id)).fetchone()
+            if attempt is None:
+                raise KeyError("provider attempt not found")
+            if attempt["state"] not in ("request_started","outcome_unknown"):
+                raise ValueError("only an ambiguous provider attempt can be reconciled")
+            updated=c.execute("""UPDATE provider_execution_attempts
+                SET state='not_executed_confirmed',completed_at=?
+                WHERE id=? AND job_id=? AND state IN ('request_started','outcome_unknown')""",
+                (timestamp,attempt_id,job_id))
+            if updated.rowcount != 1:
+                raise ValueError("provider attempt changed during reconciliation")
+            details=json.dumps({
+                "provider_attempt_id":attempt_id,"stage":attempt["stage"],
+                "operator_id":operator_id.strip(),
+                "evidence_reference":evidence_reference.strip(),
+                "note":note.strip(),
+                "resolution":"not_executed_confirmed",
+            },ensure_ascii=False)
+            c.execute("""INSERT INTO job_events
+                (job_id,event_type,from_status,to_status,worker_id,details_json,created_at)
+                VALUES(?,'provider_attempt_reconciled',?,?,NULL,?,?)""",
+                (job_id,attempt["state"],"not_executed_confirmed",details,timestamp))
+        return {"job_id":job_id,"provider_attempt_id":attempt_id,
+                "stage":attempt["stage"],"state":"not_executed_confirmed",
+                "operator_id":operator_id.strip(),"reconciled_at":timestamp}
+
     def provider_attempts(self, job_id, unresolved_only=False):
         where=" AND state IN ('request_started','outcome_unknown','response_received')" if unresolved_only else ""
         with self.db() as c:
