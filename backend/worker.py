@@ -151,7 +151,7 @@ def run_once():
     except PolicyBlocked as exc:
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "policy_blocked", str(exc, generation_token=WORKER_GENERATION_TOKEN), False)
+                       "policy_blocked", str(exc), False, generation_token=WORKER_GENERATION_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         print(f"policy_blocked job={job['id']} stage={exc.stage}")
@@ -159,7 +159,7 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "provider_" + exc.stage, str(exc, generation_token=WORKER_GENERATION_TOKEN), exc.retryable)
+                       "provider_" + exc.stage, str(exc), exc.retryable, generation_token=WORKER_GENERATION_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
@@ -171,7 +171,7 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "worker_interrupted_ambiguous", str(exc, generation_token=WORKER_GENERATION_TOKEN), False)
+                       "worker_interrupted_ambiguous", str(exc), False, generation_token=WORKER_GENERATION_TOKEN)
         except LeaseConflict:
             pass
         try:
@@ -183,7 +183,7 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "worker_error", str(exc, generation_token=WORKER_GENERATION_TOKEN), False)
+                       "worker_error", str(exc), False, generation_token=WORKER_GENERATION_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
