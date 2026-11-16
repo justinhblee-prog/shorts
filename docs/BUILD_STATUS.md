@@ -1264,6 +1264,6 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - Fix an unbound local region variable when the active brand set is empty; the ranking endpoint previously crashed instead of returning valid unbranded trend candidates.
 - Compute each trend's region before iterating active brands and preserve the existing no-brand ranking behavior.
-- Add regression coverage for both an empty brand list and a list containing only inactive brands.
-- GitHub Actions validation: pending.
+- Add regression coverage for both an empty brand list and a list containing only inactive brands; ensure unittest discovery collects the regression.
+- Initial CI passed 477 tests but did not collect the appended regression because it was placed after the module main guard. Corrected test placement; final validation rerunning.
 - No ranking score adjustment is enabled; no live provider validation is claimed.
