@@ -359,3 +359,8 @@ docker compose up -d
 ```
 
 Do not delete the pre-restore backup until the application, media artifacts, OAuth token decryption and worker queue have been checked.
+
+
+### BUILD-00038 archive validation limits
+
+Backup and restore enforce a maximum of 100,000 archive entries, a 16 MiB manifest, an 8 GiB SQLite database and 200 GiB total media payload. Restore validates paths, manifest shape, duplicate entries, file inventory, SHA-256 checksums and SQLite integrity before it begins replacing live data. These are safety limits, not a substitute for off-host copies and restore drills.
