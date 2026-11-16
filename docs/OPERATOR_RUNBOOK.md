@@ -282,3 +282,9 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - The dashboard distinguishes required missing values from optional token omissions.
 - YouTube and TikTok configuration readiness are reported independently. TikTok OAuth readiness is separate from the legacy static-token fallback.
 - A green configuration result is not a live connectivity or account-authorization test. Complete a real provider generation and private platform test only after credentials, consent, policy review and cost limits are confirmed.
+
+
+### BUILD-00031 — readiness preflight correction
+
+- GitHub Actions run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930) passed **326 backend tests** and the full validation script.
+- The check validates configuration logic and frontend syntax only; perform real provider, OAuth, media and platform checks separately before operating.
