@@ -8,6 +8,7 @@ class ApiRbacCoverageTests(unittest.TestCase):
         "/api/brands",
         "/api/brands/{slug}",
         "/api/health",
+        "/api/ready",
         "/api/tiktok/oauth/callback",
         "/api/youtube/oauth/callback",
     }
