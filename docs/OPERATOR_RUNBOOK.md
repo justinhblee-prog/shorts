@@ -303,3 +303,15 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - The dashboard's engaged-view share is a derived diagnostic (engagedViews divided by views), not a YouTube-published percentage.
 - The signal is used for performance context and evaluation only. Recommendation score weighting remains disabled until actual channel data and a controlled evaluation justify a separate change.
 - GitHub Actions run [43787047727](https://github.com/justinhblee-prog/shorts/actions/runs/43787047727) passed **339 backend tests**.
+
+
+## BUILD-00036 — connect YouTube securely
+
+1. In Google Cloud Console, enable YouTube Data API v3 and YouTube Analytics API, configure the OAuth consent screen and create a confidential Web application OAuth client.
+2. Register the exact HTTPS redirect URI: `https://YOUR_DOMAIN/api/youtube/oauth/callback`. Set the same value in YOUTUBE_REDIRECT_URI.
+3. Set YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET. Generate YOUTUBE_TOKEN_ENCRYPTION_KEY with `Fernet.generate_key()`; protect this key as a production secret and keep it stable so stored tokens remain decryptable.
+4. Remove any legacy YOUTUBE_REFRESH_TOKEN environment value if you intend to use the encrypted dashboard connection. Authenticate to the NEXUS dashboard, choose YouTube 연결, complete Google consent, then authenticate to the dashboard again and verify status.
+5. Verify the status includes the required youtube.upload and youtube.readonly scopes. The app also requests yt-analytics.readonly. Reconnect if required scopes are missing.
+6. Perform a private test upload and Analytics refresh. Do not publish publicly until review, rights, policy and disclosure gates have been completed.
+
+The OAuth callback is protected by a one-time state stored as a hash and a Secure/HttpOnly/SameSite=Lax cookie. Refresh tokens are encrypted at rest. The status endpoint never returns token values. A static YOUTUBE_REFRESH_TOKEN fallback is supported for legacy deployments but must be removed before using the disconnect action.
