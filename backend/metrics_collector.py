@@ -9,6 +9,7 @@ import os
 import socket
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import uuid
 
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher
@@ -261,19 +262,33 @@ def run_tiktok_once(store=None, collector=None, publication_store=None, token_ma
 
 
 def run_collection_cycle(collector_runs=None):
-    """Run each provider once, isolating ordinary failures between providers."""
-    collector_runs = collector_runs or (
+    """Run providers concurrently and isolate ordinary provider failures."""
+    collector_runs = tuple(collector_runs or (
         ("youtube", run_once),
         ("youtube_analytics", run_youtube_analytics_once),
         ("tiktok", run_tiktok_once),
-    )
-    for provider_name, collector_run in collector_runs:
-        try:
-            collector_run()
-        except Exception:
-            # Provider failures are isolated; one platform outage does not
-            # suppress the other platform's metrics collection.
-            logger.exception("%s_metrics_collection_failed", provider_name)
+    ))
+    if not collector_runs:
+        return
+
+    # Each provider owns an independent database lease and store operations
+    # use short-lived connections. Running them concurrently prevents a slow
+    # analytics/API request from delaying unrelated platform collection.
+    with ThreadPoolExecutor(
+        max_workers=len(collector_runs), thread_name_prefix="metrics-provider"
+    ) as executor:
+        futures = {
+            executor.submit(collector_run): provider_name
+            for provider_name, collector_run in collector_runs
+        }
+        for future in as_completed(futures):
+            provider_name = futures[future]
+            try:
+                future.result()
+            except Exception:
+                # Isolate provider outages while allowing process-control
+                # exceptions (BaseException) to propagate to the main loop.
+                logger.exception("%s_metrics_collection_failed", provider_name)
 
 
 def main():
