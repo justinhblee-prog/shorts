@@ -140,11 +140,13 @@
             : '<button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">비공개 업로드</button>'));
       const tiktokAction=tiktokStatus==="publish_complete"
         ? '<button class="button button-quiet" disabled>TikTok 게시 완료</button>'
-        : (tiktokUncertain
-          ? '<button class="button button-outline" data-tiktok-reconcile-id="'+esc(item.job_id)+'">TikTok 결과 대조</button>'
-          : (["initializing","uploading","processing"].includes(tiktokStatus)
-            ? '<button class="button button-quiet" data-tiktok-refresh-id="'+esc(item.job_id)+'">TikTok 상태 확인</button>'
-            : '<button class="button button-secondary" data-tiktok-publish-id="'+esc(item.job_id)+'">TikTok 비공개 게시</button>'));
+        : (tiktokStatus==="send_to_inbox"
+          ? '<button class="button button-quiet" disabled>TikTok 앱에서 게시 완료 필요</button>'
+          : (tiktokUncertain
+            ? '<button class="button button-outline" data-tiktok-reconcile-id="'+esc(item.job_id)+'">TikTok 결과 대조</button>'
+            : (["initializing","uploading","processing"].includes(tiktokStatus)
+              ? '<button class="button button-quiet" data-tiktok-refresh-id="'+esc(item.job_id)+'">TikTok 상태 확인</button>'
+              : '<button class="button button-secondary" data-tiktok-publish-id="'+esc(item.job_id)+'">TikTok 비공개 게시</button>')));
       const tiktokStatusText=tiktokStatus==="publish_complete"?"TikTok 게시 완료":
         (tiktokUncertain?"TikTok 게시 결과 확인 필요":
         (["initializing","uploading","processing"].includes(tiktokStatus)?"TikTok 처리 중":
@@ -529,6 +531,8 @@
         const creator=await api("/api/tiktok/creator-info");
         if(!(creator.privacy_level_options||[]).includes("SELF_ONLY"))
           throw new Error("현재 TikTok 계정에서 SELF_ONLY 비공개 게시 옵션을 사용할 수 없습니다.");
+        $("tiktokConnectionStatus").textContent="연결됨 · "+esc(creator.creator_nickname||creator.creator_username||"TikTok 계정")+
+          " · 최대 "+Number(creator.max_video_post_duration_sec||0)+"초 · 비공개 게시";
         const staged=await api("/api/production/jobs/"+encodeURIComponent(id)+"/stage-media",{method:"POST"});
         if(staged.review_required){
           toast("미디어 지문을 승인 기록에 반영했습니다. 콘텐츠를 다시 검수·승인한 뒤 게시하세요.");
@@ -539,6 +543,10 @@
         if(!confirm("이 승인된 영상을 TikTok에 전송하는 데 동의하십니까? 공개 범위는 SELF_ONLY(나만 보기)로 제한됩니다."))return;
         const brandContent=confirm("다른 브랜드/제3자와의 유료 파트너십 또는 협찬 콘텐츠입니까? 해당하면 확인을 누르세요.");
         const brandOwn=confirm("자신의 브랜드/사업을 홍보하는 콘텐츠입니까? 해당하면 확인을 누르세요.");
+        if(brandContent&&brandOwn){
+          toast("제3자 협찬과 자체 브랜드 홍보를 동시에 선택하지 마세요. 실제 관계에 맞게 한 항목만 선택하세요.");
+          return;
+        }
         await api("/api/tiktok/publish/"+encodeURIComponent(id),{method:"POST",body:JSON.stringify({
           media_path:staged.media_path,title:title.trim(),operator_id:reviewer||"operator",
           privacy_level:"SELF_ONLY",explicit_consent:true,
