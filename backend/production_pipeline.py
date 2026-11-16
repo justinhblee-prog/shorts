@@ -238,15 +238,21 @@ class ProductionStore:
                 unresolved = c.execute("""
                     SELECT stage,state FROM provider_execution_attempts
                     WHERE job_id=?
-                      AND state IN ('request_started','outcome_unknown','response_received')
+                      AND state IN ('request_started','outcome_unknown')
                     ORDER BY stage,attempt_number LIMIT 1
                 """, (job_id,)).fetchone()
                 if unresolved is not None:
                     raise ProductionLeaseConflict(
-                        "Unresolved provider outcome must be reconciled before starting a fresh run"
+                        "Ambiguous provider outcome must be reconciled before starting a fresh run"
                     )
-                # Keep invalidation in the same transaction as the fenced stage transition.
-                c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
+                recoverable = c.execute("""
+                    SELECT 1 FROM provider_execution_attempts
+                    WHERE job_id=? AND state='response_received' LIMIT 1
+                """, (job_id,)).fetchone()
+                # A durable response_received result is recoverable, not ambiguous.
+                # Preserve prior artifacts until that response has been adopted.
+                if recoverable is None:
+                    c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
             timestamp = utc_now()
             updated=c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
                          WHERE job_id=?""", (stage, status, error, timestamp, job_id))
