@@ -873,4 +873,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - Updated local policy pack to `2026-11-16.1` and added non-overridable TikTok flags for prohibited AIGC likeness and deceptive impersonation categories.
 - Added `policy_flags` to the human policy-evidence API and review-store merge contract so reviewers can record blocking evidence after generation.
-- Regression coverage added for policy evaluation, API schema and persisted review evidence. CI pending.
+- Regression coverage added for policy evaluation, API schema and persisted review evidence. GitHub Actions run [43780970297](https://github.com/justinhblee-prog/shorts/actions/runs/43780970297) passed **255 backend tests** and `scripts/validate.sh`. PR #85 was squash-merged into `main` as `8c5b67313072a4b3f1f2599c9c6e982f11886ab4`.
