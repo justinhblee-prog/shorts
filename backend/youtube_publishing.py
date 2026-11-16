@@ -373,12 +373,12 @@ class YouTubeUploadStore:
             if outcome=="uploaded":
                 updated=c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
                   privacy_status='private',uploaded_at=?,updated_at=?,error=NULL
-                  WHERE job_id=? AND status IN ('uploading','reconciliation_required')""",
-                  (video_id.strip(),_now(),_now(),job_id))
+                  WHERE job_id=? AND status IN ('uploading','reconciliation_required') AND attempt_id=?""",
+                  (video_id.strip(),_now(),_now(),job_id,row["attempt_id"]))
             else:
                 updated=c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
-                  WHERE job_id=? AND status IN ('uploading','reconciliation_required')""",
-                  ("Operator verified no matching remote upload. "+note,_now(),job_id))
+                  WHERE job_id=? AND status IN ('uploading','reconciliation_required') AND attempt_id=?""",
+                  ("Operator verified no matching remote upload. "+note,_now(),job_id,row["attempt_id"]))
             if updated.rowcount != 1:
                 raise YouTubeUploadError("Upload state changed during reconciliation")
             resulting="uploaded" if outcome=="uploaded" else "failed"
