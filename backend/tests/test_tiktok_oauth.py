@@ -153,6 +153,57 @@ class TikTokOAuthTests(unittest.TestCase):
         self.assertEqual(body["token"], ["access-to-revoke"])
         self.assertEqual(body["client_secret"], ["client-secret"])
 
+    def test_expired_disconnect_owner_can_finalize_success_if_not_replaced(self):
+        self.manager._save_token_response({
+            "access_token": "access-expired-lease",
+            "refresh_token": "refresh-expired-lease",
+            "open_id": "creator-123",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        row = self.store.token_record()
+        operation = "disconnect-expired-owner"
+        self.assertTrue(self.store.begin_disconnect(
+            operation, row["access_token_encrypted"]
+        ))
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_oauth_disconnect_lease SET expires_at=? WHERE id=1",
+                ("2000-01-01T00:00:00+00:00",),
+            )
+        self.assertTrue(self.store.finish_disconnect(operation, success=True))
+        self.assertIsNone(self.store.token_record())
+
+    def test_expired_disconnect_owner_cannot_finalize_after_replacement(self):
+        self.manager._save_token_response({
+            "access_token": "access-replaced-lease",
+            "refresh_token": "refresh-replaced-lease",
+            "open_id": "creator-123",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        row = self.store.token_record()
+        old_operation = "disconnect-old-owner"
+        new_operation = "disconnect-new-owner"
+        self.assertTrue(self.store.begin_disconnect(
+            old_operation, row["access_token_encrypted"]
+        ))
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_oauth_disconnect_lease SET expires_at=? WHERE id=1",
+                ("2000-01-01T00:00:00+00:00",),
+            )
+        self.assertTrue(self.store.begin_disconnect(
+            new_operation, row["access_token_encrypted"]
+        ))
+        self.assertFalse(self.store.finish_disconnect(old_operation, success=True))
+        self.assertIsNotNone(self.store.token_record())
+        self.assertTrue(self.store.finish_disconnect(new_operation, success=False))
+
     def test_disconnect_lease_fences_token_write_and_preserves_tokens_on_failure(self):
         self.manager._save_token_response({
             "access_token": "access-original",
