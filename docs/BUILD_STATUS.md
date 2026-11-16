@@ -992,7 +992,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Display a per-video sparkline plus the 25%, 50% and 75% audience-watch-ratio checkpoints.
 - Label checkpoint values as ratios (x), not percentages, because the absolute audience-watch ratio can exceed 1 when viewers replay a segment.
 - Preserve unavailable/empty retention as an explicit no-data state; no curve is synthesized.
-- Validation pending.
+- Restore validation now rejects traversal paths, malformed manifests, duplicate entries, links/special files and oversized archives before live data is replaced; empty media directories are preserved.
+- Regression tests added for malformed manifests, traversal attempts and empty directories. Initial CI exposed and fixed a test-fixture directory-removal ordering error; rerun validation pending.
 
 
 ### BUILD-00036 — encrypted YouTube OAuth account connection (2026-11-16)
