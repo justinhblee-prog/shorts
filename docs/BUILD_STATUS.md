@@ -1680,3 +1680,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Expire a claimed lease without allowing another worker to reclaim it, then assert each stale operation raises `LeaseConflict`.
 - Verify rejected stale operations leave the running row, worker ownership, and lease token unchanged.
 - This validates the existing transactional lease-expiry guard independently of the separate reclaim path.
+
+
+## BUILD-00203 — scheduled dispatch through private YouTube lifecycle E2E
+
+- Extend the integrated lifecycle test to start from a persisted production schedule rather than direct submission.
+- Acquire the scheduler leader lease, dispatch the due occurrence through the durable outbox, and assert idempotent second dispatch.
+- Exercise worker-startup reconciliation that restores the production ledger row from the scheduled queue job before claim.
+- Continue through provider generation, human review, staged-media reapproval, private YouTube upload, and finance-ledger recording.
+- All external AI/CDN/YouTube behavior remains explicitly mocked; this is an integration contract test, not live-service validation.
