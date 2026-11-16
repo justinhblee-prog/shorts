@@ -106,6 +106,19 @@ class MediaStagingScanIntegrationTests(unittest.TestCase):
         self.assertFalse(os.path.exists(stager.staged_path("invalid-scan-config")))
         self.assertFalse(any(name.endswith(".part") for name in os.listdir(self.tmp.name)))
 
+    def test_invalid_scan_toggle_is_treated_as_enabled(self):
+        from unittest.mock import patch
+        scanner = self.Scanner()
+        with patch.dict(os.environ, {"NEXUS_MEDIA_SCAN_ENABLED": "treu"}):
+            stager = MediaStager(
+                self.tmp.name, "cdn.example.test", 1024,
+                resolver=lambda host: ["8.8.8.8"], fetcher=self.fetcher,
+                scanner=scanner,
+            )
+        result = stager.stage("invalid-toggle", "https://cdn.example.test/video.mp4")
+        self.assertEqual(result["malware_scan"], "clean")
+        self.assertEqual(len(self.scanned), 1)
+
     def test_disabled_scan_does_not_construct_optional_scanner(self):
         from unittest.mock import patch
         with patch.dict(os.environ, {"NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS": "invalid"}):
