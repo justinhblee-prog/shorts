@@ -370,6 +370,11 @@ class YouTubePublishingTests(unittest.TestCase):
         # setUp already records the initial approval; simulate a revised
         # artifact returning to review before the later revision decision.
         self.prod.stage("job-1","review","review_pending")
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                ("job-1",),
+            )
         self.review.decide("job-1","revision_requested","reviewer-2","Correct captions")
         with self.assertRaisesRegex(YouTubeUploadError,"latest human review decision"):
             self.publisher.upload_approved(
@@ -422,6 +427,17 @@ class YouTubePublishingTests(unittest.TestCase):
         self.prod.create("job-2",{"brand":"Future Leak","region":"US",
                                   "language":"English","topic":"Robotics"})
         self.prod.stage("job-2","rendered","review_pending")
+        with self.queue.db() as connection:
+            timestamp="2026-11-16T00:00:00+00:00"
+            connection.execute("""
+                INSERT INTO pipeline_jobs
+                  (id,job_type,payload_json,status,priority,attempt,max_attempts,
+                   available_at,created_at,updated_at)
+                VALUES(?,?,?,'review_pending',100,0,3,?,?,?)
+            """, ("job-2","short_video_production",
+                  json.dumps({"brand":"Future Leak","region":"US",
+                              "language":"English","topic":"Robotics"}),
+                  timestamp,timestamp,timestamp))
         policy = evaluate_content_policy({
             "rights": {"visuals_cleared": True, "audio_cleared": True,
                        "likeness_authorized": True},
