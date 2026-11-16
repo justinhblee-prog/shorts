@@ -1,4 +1,5 @@
-import os,tempfile,unittest
+import json,os,tempfile,unittest
+from queue_store import JobQueue
 from production_pipeline import ProductionStore
 from youtube_publishing import YouTubeUploadStore
 from tiktok_publishing import TikTokPublishStore
@@ -12,11 +13,21 @@ from policy_engine import evaluate_content_policy
 class PerformanceTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.db=os.path.join(self.tmp.name,"x.db")
-  self.p=ProductionStore(self.db); self.review=ReviewStore(self.db); self.u=YouTubeUploadStore(self.db); self.l=LedgerStore(self.db)
+  self.q=JobQueue(self.db); self.p=ProductionStore(self.db); self.review=ReviewStore(self.db); self.u=YouTubeUploadStore(self.db); self.l=LedgerStore(self.db)
  def tearDown(self): self.tmp.cleanup()
  def video(self,job,brand,region,topic,video):
   self.p.create(job,{"brand":brand,"region":region,"language":"English","topic":topic})
   self.p.stage(job,"rendered","review_pending")
+  timestamp="2026-11-16T00:00:00+00:00"
+  with self.q.db() as connection:
+   connection.execute("""
+    INSERT INTO pipeline_jobs
+      (id,job_type,payload_json,status,priority,attempt,max_attempts,
+       available_at,created_at,updated_at)
+    VALUES(?,?,?,'review_pending',100,0,3,?,?,?)
+   """,(job,"short_video_production",
+        json.dumps({"brand":brand,"region":region,"language":"English","topic":topic}),
+        timestamp,timestamp,timestamp))
   policy = evaluate_content_policy({
    "rights":{"visuals_cleared":True,"audio_cleared":True,"likeness_authorized":True},
    "synthetic_media_status":"none","factual_claims_verified":True,
