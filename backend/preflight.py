@@ -29,12 +29,16 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
         },
         "operator_rbac": {
             "configured": bool(str(source.get("NEXUS_REVIEW_ROLE_MAP_JSON", "")).strip()),
-            "missing": [],
-            "optional_missing": (
+            "missing": (
                 [] if str(source.get("NEXUS_REVIEW_ROLE_MAP_JSON", "")).strip()
-                else ["NEXUS_REVIEW_ROLE_MAP_JSON"]
+                or not reviewer_credentials else ["NEXUS_REVIEW_ROLE_MAP_JSON"]
             ),
-            "optional": True,
+            "optional_missing": (
+                ["NEXUS_REVIEW_ROLE_MAP_JSON"]
+                if not str(source.get("NEXUS_REVIEW_ROLE_MAP_JSON", "")).strip()
+                and not reviewer_credentials else []
+            ),
+            "optional": not reviewer_credentials,
         },
         # Provider bearer tokens are optional: endpoint adapters support
         # unauthenticated providers as well as bearer-authenticated providers.
