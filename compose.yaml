@@ -27,7 +27,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: ["sh", "-c", "freshclam --daemon --foreground --datadir "${NEXUS_CLAMAV_DATABASE_DIR:-/var/lib/clamav}""]
+    command: ["sh", "-c", 'freshclam --daemon --foreground --datadir "${NEXUS_CLAMAV_DATABASE_DIR:-/var/lib/clamav}"']
     env_file: .env
     volumes:
       - clamav_db:${NEXUS_CLAMAV_DATABASE_DIR:-/var/lib/clamav}
