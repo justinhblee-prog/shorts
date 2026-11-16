@@ -122,3 +122,6 @@ BUILD-00130 adds optional AES-256-GCM encryption for the complete SQLite + media
 
 
 BUILD-00131 adds an optional ClamAV gate before staged renderer media is published. Enable `NEXUS_MEDIA_SCAN_ENABLED=true` and start the `media-scan` Compose profile to maintain persistent signatures; the gate fails closed if the scanner or signature database is unavailable. Scanner size limits are aligned to `NEXUS_MAX_MEDIA_BYTES`, over-limit results are treated as failures, and the external process timeout—not ClamAV's skip-and-assume-clean scan timer—enforces the deadline.
+
+
+Latest verified recommendation attribution validation: GitHub Actions run [43798469723](https://github.com/justinhblee-prog/shorts/actions/runs/43798469723), **464 backend tests passed** and `scripts/validate.sh` succeeded for BUILD-00139.

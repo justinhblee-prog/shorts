@@ -65,11 +65,13 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertNotEqual(youtube["run_id"], tiktok["run_id"])
         yt_link = self.store.link_production(
             "trend-1","future-leak","job-youtube",
-            "2026-11-01T01:00:00+00:00",platform="youtube"
+            "2026-11-01T01:00:00+00:00",platform="youtube",
+            run_id=youtube["run_id"],
         )
         tt_link = self.store.link_production(
             "trend-1","future-leak","job-tiktok",
-            "2026-11-01T01:00:00+00:00",platform="tiktok"
+            "2026-11-01T01:00:00+00:00",platform="tiktok",
+            run_id=tiktok["run_id"],
         )
         self.assertTrue(yt_link["linked"])
         self.assertTrue(tt_link["linked"])
@@ -82,27 +84,81 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(result["measured_outcome_count"],1)
 
     def test_records_exposure_and_links_selected_production_job(self):
-        self.store.record_run("US", [self.item(1, 82.5)],
-                              "2026-11-01T00:00:00+00:00")
+        exposure = self.store.record_run(
+            "US", [self.item(1, 82.5)], "2026-11-01T00:00:00+00:00"
+        )
         linked = self.store.link_production(
             "trend-1", "future-leak", "job-1",
-            "2026-11-01T01:00:00+00:00"
+            "2026-11-01T01:00:00+00:00", run_id=exposure["run_id"]
         )
         self.assertTrue(linked["linked"])
         self.assertFalse(self.store.link_production(
-            "trend-1", "future-leak", "job-2"
+            "trend-1", "future-leak", "job-2",
+            run_id=exposure["run_id"],
         )["linked"])
+
+    def test_selection_links_to_the_exact_exposure_not_a_later_refresh(self):
+        first = self.store.record_run(
+            "US", [self.item(7, 88.0)], "2026-11-01T00:00:00+00:00"
+        )
+        second = self.store.record_run(
+            "US", [self.item(7, 91.0)], "2026-11-01T00:02:00+00:00"
+        )
+        self.assertNotEqual(first["run_id"], second["run_id"])
+
+        linked = self.store.link_production(
+            "trend-7", "future-leak", "job-from-first-screen",
+            "2026-11-01T00:03:00+00:00", run_id=first["run_id"],
+        )
+        self.assertTrue(linked["linked"])
+        self.assertEqual(linked["run_id"], first["run_id"])
+
+        with self.store.db() as connection:
+            first_row = connection.execute(
+                "SELECT selected_job_id FROM recommendation_candidates WHERE run_id=?",
+                (first["run_id"],),
+            ).fetchone()
+            second_row = connection.execute(
+                "SELECT selected_job_id FROM recommendation_candidates WHERE run_id=?",
+                (second["run_id"],),
+            ).fetchone()
+        self.assertEqual(first_row["selected_job_id"], "job-from-first-screen")
+        self.assertIsNone(second_row["selected_job_id"])
+
+    def test_missing_or_unknown_exposure_never_falls_back_to_latest_run(self):
+        self.store.record_run(
+            "US", [self.item(8, 88.0)], "2026-11-01T00:00:00+00:00"
+        )
+        missing = self.store.link_production(
+            "trend-8", "future-leak", "job-without-run"
+        )
+        stale = self.store.link_production(
+            "trend-8", "future-leak", "job-with-stale-run",
+            run_id="stale-run-id",
+        )
+        self.assertFalse(missing["linked"])
+        self.assertEqual(missing["reason"], "recommendation_run_id_required")
+        self.assertFalse(stale["linked"])
+        self.assertEqual(
+            stale["reason"], "no_matching_candidate_in_recommendation_run"
+        )
+        with self.store.db() as connection:
+            row = connection.execute(
+                "SELECT selected_job_id FROM recommendation_candidates"
+            ).fetchone()
+        self.assertIsNone(row["selected_job_id"])
 
     def test_holdout_is_chronological_and_reports_score_outcome_association(self):
         videos = []
         for index in range(10):
             timestamp = (datetime(2026, 11, 1, tzinfo=timezone.utc)
                          + timedelta(days=index)).isoformat()
-            self.store.record_run("US", [self.item(index, 50 + index * 2)],
-                                  timestamp)
+            exposure = self.store.record_run(
+                "US", [self.item(index, 50 + index * 2)], timestamp
+            )
             self.store.link_production(
                 f"trend-{index}", "future-leak", f"job-{index}",
-                timestamp
+                timestamp, run_id=exposure["run_id"]
             )
             videos.append({
                 "job_id": f"job-{index}",
@@ -131,12 +187,13 @@ class RecommendationEvaluationTests(unittest.TestCase):
                 self.item(run_index * 3 + 1, 80),
                 self.item(run_index * 3 + 2, 70),
             ]
-            self.store.record_run("US", items, timestamp)
+            exposure = self.store.record_run("US", items, timestamp)
             for candidate_index in range(3):
                 trend_id = f"trend-{run_index * 3 + candidate_index}"
                 job_id = f"within-job-{run_index}-{candidate_index}"
                 self.store.link_production(
-                    trend_id, "future-leak", job_id, timestamp
+                    trend_id, "future-leak", job_id, timestamp,
+                    run_id=exposure["run_id"],
                 )
                 videos.append({
                     "job_id": job_id,
@@ -168,12 +225,13 @@ class RecommendationEvaluationTests(unittest.TestCase):
                 self.item(run_index * 2 + 0, 90),
                 self.item(run_index * 2 + 1, 70),
             ]
-            self.store.record_run("US", items, timestamp)
+            exposure = self.store.record_run("US", items, timestamp)
             for candidate_index in range(2):
                 job_id = f"two-job-{run_index}-{candidate_index}"
                 self.store.link_production(
                     f"trend-{run_index * 2 + candidate_index}",
                     "future-leak", job_id, timestamp,
+                    run_id=exposure["run_id"],
                 )
                 videos.append({
                     "job_id": job_id, "measurement_status": "measured",
@@ -190,9 +248,12 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertFalse(result["ranking_score_adjustment_enabled"])
 
     def test_insufficient_or_unmeasured_outcomes_never_claim_validation(self):
-        self.store.record_run("US", [self.item(1, 80)],
-                              "2026-11-01T00:00:00+00:00")
-        self.store.link_production("trend-1", "future-leak", "job-1")
+        exposure = self.store.record_run(
+            "US", [self.item(1, 80)], "2026-11-01T00:00:00+00:00"
+        )
+        self.store.link_production(
+            "trend-1", "future-leak", "job-1", run_id=exposure["run_id"]
+        )
         result = self.store.evaluate({"videos": []})
         self.assertEqual(result["status"], "insufficient_data")
         self.assertEqual(result["selected_production_count"], 1)
@@ -211,7 +272,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
                 self.item(run_index * 3 + 1, 80),
                 self.item(run_index * 3 + 2, 70),
             ]
-            self.store.record_run("US", items, timestamp)
+            exposure = self.store.record_run("US", items, timestamp)
             videos = []
             for candidate_index, (percentage, duration, retention) in enumerate(
                 ((90.0, 20.0, 0.9), (70.0, 15.0, 0.6), (50.0, 10.0, 0.3))
@@ -220,6 +281,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
                 self.store.link_production(
                     f"trend-{run_index * 3 + candidate_index}",
                     "future-leak", job_id, timestamp,
+                    run_id=exposure["run_id"],
                 )
                 videos.append({
                     "job_id": job_id,
