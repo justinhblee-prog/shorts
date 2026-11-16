@@ -1,5 +1,7 @@
+import io
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 
 from production_pipeline import (
@@ -490,6 +492,23 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(result["status"], "failed_terminal")
         self.assertEqual(len(result["artifacts"]), 2)
         self.assertEqual(render.calls, [])
+
+    def test_json_provider_http_error_body_is_not_in_exception(self):
+        secret_body = b'{"error":"Bearer provider-body-secret","access_token":"body-token"}'
+        error = urllib.error.HTTPError(
+            "https://provider.example/generate", 500, "Server Error", {},
+            io.BytesIO(secret_body),
+        )
+        from unittest import mock
+        with mock.patch("production_pipeline.urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(ProviderError) as caught:
+                JsonProvider._request(
+                    "https://provider.example/generate", {}, b"{}", 5
+                )
+        self.assertIn("Provider HTTP 500", str(caught.exception))
+        self.assertNotIn("provider-body-secret", str(caught.exception))
+        self.assertNotIn("body-token", str(caught.exception))
+        self.assertTrue(caught.exception.retryable)
 
     def test_missing_provider_url_fails_closed(self):
         provider = JsonProvider("")

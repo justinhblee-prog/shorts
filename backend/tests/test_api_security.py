@@ -561,6 +561,12 @@ class ApiSecurityTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as caught:
                 execute_production_job("job-provider", body, x_review_token="test-token")
         self.assertEqual(caught.exception.status_code, 502)
+        self.assertEqual(caught.exception.detail, {
+            "stage": "script",
+            "error": "Provider request failed; inspect protected server logs for details.",
+            "retryable": True,
+        })
+        self.assertNotIn("provider timeout", json.dumps(caught.exception.detail))
         fail.assert_called_once()
         pause.assert_called_once()
 
