@@ -114,7 +114,8 @@ Configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REFRESH_TOK
 The upload endpoint requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-Token` and a job with a recorded `approved` human decision:
 - `POST /api/youtube/upload/{job_id}`
 - `GET /api/youtube/uploads/{job_id}`
-- `POST /api/youtube/videos/{video_id}/refresh-metrics` (YouTube Data API v3 counters)\n- `POST /api/youtube/videos/{video_id}/refresh-analytics` and `GET /api/youtube/videos/{video_id}/analytics` (protected YouTube Analytics reports)
+- `POST /api/youtube/videos/{video_id}/refresh-metrics` (YouTube Data API v3 counters)
+- `POST /api/youtube/videos/{video_id}/refresh-analytics` and `GET /api/youtube/videos/{video_id}/analytics` (protected YouTube Analytics reports)
 
 Upload body includes a server-local `media_path`, title, description, tags and category ID. The API forces `privacyStatus=private`; there is no public/unlisted override. The server must already have the rendered file at that local path. Current render providers return artifact URLs, so downloading/staging remote artifacts into trusted local storage is a separate deployment integration and is not silently performed by this endpoint.
 
