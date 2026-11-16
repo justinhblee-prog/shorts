@@ -1908,3 +1908,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The original worker's heartbeat is rejected both immediately after recovery and after the new worker claims the job; it cannot overwrite the new owner's lease.
 - Confirms a valid heartbeat prevents premature recovery and that rejected stale heartbeats do not create heartbeat audit events or mutate the new lease.
 - Backend deterministic CI only; no multi-host production database test is claimed.
+
+
+## BUILD-00235 — Evaluate worker lease clocks after transaction lock
+- Moved lease timestamps for claim, heartbeat, completion, failure, and periodic recovery inside the `BEGIN IMMEDIATE` transaction, after SQLite grants the write lock.
+- Prevents lock contention from making a heartbeat or completion validate against a timestamp captured before the lease actually expired; prevents newly claimed leases from losing their duration while waiting for the lock.
+- Added a deterministic lock-contention regression: advance the clock beyond expiry while heartbeat is blocked on the write lock and verify the stale heartbeat is rejected without an audit event or lease mutation.
+- Backend deterministic CI only; no multi-host production database test is claimed.

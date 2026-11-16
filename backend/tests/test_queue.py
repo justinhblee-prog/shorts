@@ -1,7 +1,10 @@
-import sys, tempfile, unittest
+import sys, tempfile, unittest, time
+from datetime import datetime, timedelta, timezone
+from threading import Event, Thread
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import queue_store
 from queue_store import JobQueue, LeaseConflict, IdempotencyConflict
 
 class QueueTests(unittest.TestCase):
@@ -194,6 +197,45 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(
    len([event for event in self.q.events(job["id"]) if event["event_type"]=="heartbeat"]),1
   )
+
+ def test_heartbeat_checks_lease_time_after_waiting_for_write_lock(self):
+  base=datetime(2030,1,1,tzinfo=timezone.utc)
+  clock={"value":base}
+  original_now=queue_store.now
+  queue_store.now=lambda:clock["value"]
+  job=self.q.enqueue("render",{"topic":"lock-clock"})
+  claimed=self.q.claim("worker-clock")
+  lock_context=self.q.db()
+  lock_connection=lock_context.__enter__()
+  thread_result={}
+  started=Event()
+  try:
+   lock_connection.execute("BEGIN IMMEDIATE")
+   def heartbeat():
+    started.set()
+    try:
+     thread_result["result"]=self.q.heartbeat(job["id"],"worker-clock",claimed["lease_token"])
+    except Exception as exc:
+     thread_result["error"]=exc
+   thread=Thread(target=heartbeat)
+   thread.start()
+   self.assertTrue(started.wait(1))
+   time.sleep(0.05)
+   clock["value"]=base+timedelta(seconds=11)
+   lock_connection.commit()
+   thread.join(2)
+   self.assertFalse(thread.is_alive())
+   self.assertIsInstance(thread_result.get("error"),LeaseConflict)
+   persisted=self.q.get(job["id"])
+   self.assertEqual(persisted["lease_token"],claimed["lease_token"])
+   self.assertEqual(
+    len([event for event in self.q.events(job["id"]) if event["event_type"]=="heartbeat"]),0
+   )
+  finally:
+   if lock_connection.in_transaction:
+    lock_connection.rollback()
+   lock_context.__exit__(None,None,None)
+   queue_store.now=original_now
 
  def test_retry_state_and_event_log(self):
   j=self.q.enqueue("research",{}); a=self.q.claim("worker-a")
