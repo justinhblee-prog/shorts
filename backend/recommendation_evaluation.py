@@ -155,22 +155,42 @@ class RecommendationEvaluationStore:
             trend = item.get("trend") or {}
             best = item.get("best_brand") or {}
             trend_id = str(trend.get("id") or "")
-            brand_slug = str(best.get("brand") or "")
-            brand_name = str(best.get("brand_name") or "")
-            if not trend_id or not brand_slug or not brand_name:
+            if not trend_id:
                 continue
-            rows.append((
-                str(uuid.uuid4()), run_id, trend_id,
-                str(trend.get("title") or "")[:500],
-                str(trend.get("region") or ""),
-                brand_slug, brand_name, rank,
-                float(item.get("recommendation_score") or 0),
-                json.dumps(item.get("score_breakdown") or {}, ensure_ascii=False,
-                           sort_keys=True),
-                json.dumps(best.get("comparable_cohort_performance") or {},
-                           ensure_ascii=False, sort_keys=True),
-                timestamp,
-            ))
+
+            # The dashboard offers every brand candidate, not only best_brand.
+            # Capture each selectable option so a later selection can be linked
+            # to the exact exposure without inventing an unrecorded candidate.
+            offered = item.get("brand_candidates")
+            candidates = offered if isinstance(offered, list) else []
+            if not candidates:
+                candidates = [best]
+            seen_brands = set()
+            for candidate in candidates[:10]:
+                if not isinstance(candidate, dict):
+                    continue
+                brand_slug = str(candidate.get("brand") or "").strip()
+                brand_name = str(candidate.get("brand_name") or "").strip()
+                if not brand_slug or not brand_name or brand_slug in seen_brands:
+                    continue
+                seen_brands.add(brand_slug)
+                score_breakdown = item.get("score_breakdown")
+                score_breakdown = dict(score_breakdown) if isinstance(score_breakdown, dict) else {}
+                if candidate.get("fit_score") is not None:
+                    score_breakdown["selected_brand_fit"] = candidate.get("fit_score")
+                cohort_context = candidate.get("comparable_cohort_performance")
+                if not isinstance(cohort_context, dict):
+                    cohort_context = {}
+                rows.append((
+                    str(uuid.uuid4()), run_id, trend_id,
+                    str(trend.get("title") or "")[:500],
+                    str(trend.get("region") or ""),
+                    brand_slug, brand_name, rank,
+                    float(item.get("recommendation_score") or 0),
+                    json.dumps(score_breakdown, ensure_ascii=False, sort_keys=True),
+                    json.dumps(cohort_context, ensure_ascii=False, sort_keys=True),
+                    timestamp,
+                ))
         signature_payload = [
             [platform, row[2], row[5], row[7], row[8], row[9], row[10]]
             for row in rows

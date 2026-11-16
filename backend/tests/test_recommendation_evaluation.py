@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import unittest
@@ -52,6 +53,83 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertTrue(repeated["deduplicated"])
         self.assertNotEqual(first["run_id"], later["run_id"])
         self.assertFalse(later["deduplicated"])
+
+    def test_exposure_records_every_brand_option_offered_in_the_dashboard(self):
+        item = self.item(21, 86.0)
+        item["brand_candidates"] = [
+            {
+                "brand": "future-leak", "brand_name": "Future Leak",
+                "fit_score": 32.0,
+                "comparable_cohort_performance": {"matched_cohort_count": 2},
+            },
+            {
+                "brand": "brain-glitch", "brand_name": "Brain Glitch",
+                "fit_score": 28.0,
+                "comparable_cohort_performance": {"matched_cohort_count": 1},
+            },
+            {
+                "brand": "silent-signals", "brand_name": "Silent Signals",
+                "fit_score": 22.0,
+            },
+        ]
+        exposure = self.store.record_run(
+            "US", [item], "2026-11-01T00:00:00+00:00"
+        )
+        self.assertEqual(exposure["recorded_candidates"], 3)
+
+        linked = self.store.link_production(
+            "trend-21", "brain-glitch", "job-alternate-brand",
+            run_id=exposure["run_id"],
+        )
+        self.assertTrue(linked["linked"])
+        with self.store.db() as connection:
+            rows = connection.execute(
+                """SELECT brand_slug,selected_job_id,score_breakdown_json,
+                          cohort_context_json
+                   FROM recommendation_candidates WHERE run_id=?
+                   ORDER BY brand_slug""",
+                (exposure["run_id"],),
+            ).fetchall()
+        by_brand = {row["brand_slug"]: row for row in rows}
+        self.assertEqual(set(by_brand), {
+            "future-leak", "brain-glitch", "silent-signals"
+        })
+        self.assertEqual(
+            by_brand["brain-glitch"]["selected_job_id"], "job-alternate-brand"
+        )
+        self.assertIsNone(by_brand["future-leak"]["selected_job_id"])
+        self.assertEqual(
+            json.loads(by_brand["brain-glitch"]["score_breakdown_json"])[
+                "selected_brand_fit"
+            ],
+            28.0,
+        )
+        self.assertEqual(
+            json.loads(by_brand["brain-glitch"]["cohort_context_json"])[
+                "matched_cohort_count"
+            ],
+            1,
+        )
+
+    def test_exposure_signature_includes_alternative_brand_options(self):
+        first_item = self.item(22, 86.0)
+        first_item["brand_candidates"] = [
+            {"brand": "future-leak", "brand_name": "Future Leak", "fit_score": 32.0},
+            {"brand": "brain-glitch", "brand_name": "Brain Glitch", "fit_score": 28.0},
+        ]
+        changed_item = self.item(22, 86.0)
+        changed_item["brand_candidates"] = [
+            {"brand": "future-leak", "brand_name": "Future Leak", "fit_score": 32.0},
+            {"brand": "silent-signals", "brand_name": "Silent Signals", "fit_score": 24.0},
+        ]
+        first = self.store.record_run(
+            "US", [first_item], "2026-11-01T00:00:00+00:00"
+        )
+        changed = self.store.record_run(
+            "US", [changed_item], "2026-11-01T00:00:30+00:00"
+        )
+        self.assertNotEqual(first["run_id"], changed["run_id"])
+        self.assertFalse(changed["deduplicated"])
 
     def test_same_trend_exposures_are_isolated_by_platform(self):
         youtube = self.store.record_run(
