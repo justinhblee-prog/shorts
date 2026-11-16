@@ -647,10 +647,6 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertIsNone(_spearman([1, 1, 1], [10, 20, 30]))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
     def test_evaluate_ignores_malformed_retention_curve_container(self):
         exposure = self.store.record_run(
             "US", [self.item(153, 82.5)], "2026-11-01T00:00:00+00:00"
@@ -671,3 +667,7 @@ if __name__ == "__main__":
                 self.assertEqual(result["measured_outcome_count"], 1)
                 self.assertEqual(result["any_metric_measured_outcome_count"], 1)
                 self.assertFalse(result["ranking_score_adjustment_enabled"])
+
+
+if __name__ == "__main__":
+    unittest.main()
