@@ -314,8 +314,9 @@
   async function loadSchedules(){
     const [data,outbox]=await Promise.all([api("/api/schedules"),api("/api/schedules/outbox")]);
     const schedules=(data.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.name)+' · '+(x.active?"활성":"중지")+'</b><small>'+esc(x.payload.brand)+' · '+esc(x.payload.region)+' · '+esc((x.payload.platforms||["youtube"])[0])+' · 다음 실행 '+esc(x.next_run_at)+'</small></div>').join("")||'<div class="empty-state">등록된 예약이 없습니다.</div>';
-    const dispatches=(outbox.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.schedule_id)+'</b><small>'+esc(x.scheduled_for)+' · attempts '+x.attempts+(x.last_error?' · '+esc(x.last_error):'')+'</small></div>').join("");
-    $("scheduleList").innerHTML='<div class="notice">Outbox pending/retry: '+Number(outbox.pending_retries||0)+' · dispatched: '+Number((outbox.counts||{}).dispatched||0)+'</div>'+schedules+'<h4>예약 실행 복구 로그</h4>'+(dispatches||'<div class="empty-state">예약 실행 이력이 없습니다.</div>');
+    const counts=outbox.counts||{};
+    const dispatches=(outbox.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.schedule_id)+'</b><small>'+esc(x.scheduled_for)+' · 실패 '+Number(x.attempts||0)+'회'+(x.next_attempt_at?' · 다음 재시도 '+esc(x.next_attempt_at):'')+(x.last_error?' · '+esc(x.last_error):'')+'</small>'+(x.status==="dead_letter"?'<button class="button button-secondary button-small" type="button" data-schedule-outbox-retry="'+esc(x.id)+'">수동 재시도</button>':'')+'</div>').join("");
+    $("scheduleList").innerHTML='<div class="notice">즉시 실행 가능 '+Number(outbox.pending_ready||0)+' · 재시도 대기 '+Number(outbox.pending_retries||0)+' · 격리 '+Number(counts.dead_letter||0)+' · 전달 완료 '+Number(counts.dispatched||0)+'</div>'+schedules+'<h4>예약 실행 복구 로그</h4>'+(dispatches||'<div class="empty-state">예약 실행 이력이 없습니다.</div>');
   }
   async function loadOpportunities(){
     const data=await api("/api/opportunities?limit=20");
@@ -478,6 +479,20 @@
   });
   $("loadTikTokMetrics").addEventListener("click",()=>loadTikTokMetrics().catch(e=>toast(e.message)));
 
+  $("scheduleList").addEventListener("click",async e=>{
+    const button=e.target.closest("button[data-schedule-outbox-retry]");
+    if(!button)return;
+    if(!requireToken())return;
+    const outboxId=button.dataset.scheduleOutboxRetry;
+    if(!confirm("격리된 예약 실행을 다시 대기열에 넣으시겠습니까? 해당 예약이 활성 상태여야 하며, 기존 실행 식별자는 유지됩니다."))return;
+    button.disabled=true;
+    try{
+      await api("/api/schedules/outbox/"+encodeURIComponent(outboxId)+"/retry",{method:"POST"});
+      toast("수동 재시도 요청 완료");
+      await loadSchedules();
+    }catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
   $("loadSchedules").addEventListener("click",()=>loadSchedules().catch(e=>toast(e.message)));
   $("loadInsights").addEventListener("click",()=>loadInsights().catch(e=>toast(e.message)));
   $("insightList").addEventListener("click",async e=>{
