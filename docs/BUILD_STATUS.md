@@ -935,4 +935,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add TikTok OAuth connection/status, creator-info and private publishing controls to the review workspace.
 - Require explicit consent, SELF_ONLY privacy, and separate brand-content/own-brand declarations; prevent selecting both commercial categories simultaneously.
 - Add publication status refresh, operator reconciliation, and owned-video metrics display.
-- The UI stages media before posting and stops for re-review if staging changes the approved fingerprint. CI validation pending. Real OAuth/developer-app/account testing remains external.
+- The UI stages media before posting and stops for re-review if staging changes the approved fingerprint. GitHub Actions run [43782071923](https://github.com/justinhblee-prog/shorts/actions/runs/43782071923) passed **317 backend tests** and `scripts/validate.sh`. PR #89 was squash-merged into `main` as `2ea68c4314f11c23fdcaafd31f648adc5d4c1fef`. Real OAuth/developer-app/account testing remains external.
