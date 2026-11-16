@@ -1012,6 +1012,50 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "same SQLite database"):
             self.store.reconcile_status_integrity(other)
 
+
+    def _create_claimed_production_job(self):
+        queue = JobQueue(self.store.db_path)
+        job = queue.enqueue("short_video_production", self.brief)
+        self.store.create(job["id"], self.brief)
+        claimed = queue.claim("worker-old", job_type="short_video_production")
+        self.assertEqual(claimed["id"], job["id"])
+        request_key = self.store.begin_provider_attempt(
+            job["id"], "rendering", 1,
+            worker_id="worker-old", lease_token=claimed["lease_token"],
+        )
+        # Simulate a replacement lease while the provider request is in flight.
+        with queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET lease_token=? WHERE id=?",
+                ("replacement-fencing-token", job["id"]),
+            )
+        return queue, job["id"], request_key, claimed["lease_token"]
+
+    def test_stale_worker_cannot_finalize_provider_response_after_lease_replacement(self):
+        queue, job_id, request_key, old_token = self._create_claimed_production_job()
+        with self.assertRaises(ProductionLeaseConflict):
+            self.store.finish_provider_attempt(
+                job_id, "rendering", 1, request_key,
+                {"video_url": "https://cdn.example.test/stale.mp4"},
+                worker_id="worker-old", lease_token=old_token,
+            )
+        attempt = self.store.provider_attempts(job_id)[0]
+        self.assertEqual(attempt["state"], "request_started")
+        self.assertIsNone(attempt["response_json"])
+        self.assertEqual(queue.get(job_id)["lease_token"], "replacement-fencing-token")
+
+    def test_stale_worker_cannot_finalize_unknown_provider_outcome_after_lease_replacement(self):
+        queue, job_id, request_key, old_token = self._create_claimed_production_job()
+        with self.assertRaises(ProductionLeaseConflict):
+            self.store.mark_provider_attempt_unknown(
+                job_id, "rendering", 1, request_key, "connection lost",
+                worker_id="worker-old", lease_token=old_token,
+            )
+        attempt = self.store.provider_attempts(job_id)[0]
+        self.assertEqual(attempt["state"], "request_started")
+        self.assertIsNone(attempt["error"])
+        self.assertEqual(queue.get(job_id)["lease_token"], "replacement-fencing-token")
+
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
             ProductionPipeline.validate_brief({"brand": "x", "region": "US",
