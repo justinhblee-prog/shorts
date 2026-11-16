@@ -375,6 +375,40 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(event["operator_id"],"old-operator")
         self.assertIsNone(result["video_id"])
 
+    def test_late_superseded_tiktok_inbox_delivery_blocks_retry_after_new_attempt_failed(self):
+        first_attempt = "old-inbox-poll-attempt"
+        self.store.begin("job-1","Old attempt",True,"old-operator",first_attempt,False,False)
+        self.store.set_initialized(
+            "job-1",first_attempt,"old-publish-id",
+            {"creator_username":"creator","creator_nickname":"Creator"},
+        )
+        self.store.mark_uncertain("job-1",first_attempt,"old request timed out")
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_publications SET updated_at=? WHERE job_id=?",
+                ("2026-01-01T00:00:00+00:00","job-1"),
+            )
+        self.store.reconcile(
+            "job-1","not_published","reviewer","Verified no post existed",confirmed=True,
+        )
+        self.store.begin("job-1","New attempt",True,"new-operator","new-inbox-current",False,False)
+        self.store.mark_failed_before_remote("job-1","new-inbox-current","local preflight failure")
+        result=self.store.mark_status(
+            "job-1",first_attempt,"SEND_TO_USER_INBOX",["late-inbox-video"],None,
+        )
+        self.assertEqual(result["attempt_id"],"new-inbox-current")
+        self.assertEqual(result["status"],"reconciliation_required")
+        result=self.store.get("job-1")
+        event=result["events"][-1]
+        self.assertEqual(event["event_type"],"superseded_attempt_status_observed")
+        self.assertEqual(event["attempt_id"],first_attempt)
+        self.assertEqual(event["outcome"],"send_to_inbox")
+        self.assertEqual(event["publish_id"],"old-publish-id")
+        self.assertEqual(event["video_id"],"late-inbox-video")
+        self.assertEqual(event["operator_id"],"old-operator")
+        with self.assertRaises(TikTokPublishError):
+            self.store.begin("job-1","Duplicate retry",True,"new-operator","third-inbox-attempt",False,False)
+
     def test_tiktok_reconciliation_published_records_verified_video_id(self):
         attempt_id = self._uncertain_tiktok_attempt()
         result = self.store.reconcile(

@@ -1879,3 +1879,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The old failure is appended to the old attempt's audit trail with its publish ID and original consent operator; the active new attempt remains initializing and its identity/video fields remain unchanged.
 - This distinguishes a provider-confirmed old failure from late PROCESSING/PUBLISH_COMPLETE outcomes, which correctly require reconciliation and block retry.
 - Backend deterministic CI only; no live TikTok API verification.
+
+## BUILD-00230 — Treat late TikTok inbox delivery as a remote side effect
+- Extended superseded-attempt status fencing to include `SEND_TO_USER_INBOX`. Although this is not a published-feed completion, it still delivers content to the creator's inbox and must not be treated as a safe no-side-effect failure.
+- A late inbox-delivery result from an older attempt is preserved in that attempt's audit trail and moves a retryable current attempt to `reconciliation_required`, preventing duplicate delivery.
+- Added regression coverage for late inbox delivery after a newer attempt failed preflight. Backend deterministic CI only; no live TikTok API verification.
