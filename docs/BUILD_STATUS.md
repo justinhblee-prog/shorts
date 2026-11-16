@@ -2173,3 +2173,15 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - PRs #288–#293 remain open Draft PRs in a stacked chain and are unmerged. Preserve the no-merge/no-main-push constraint.
 - Next engineering item: BUILD-00289 — move enqueue timestamp capture after SQLite `BEGIN IMMEDIATE` and persist that same timestamp to the enqueue audit event.
 - CI and deterministic SQLite coverage must remain separate from live external-service and production validation.
+
+
+## BUILD-00289 — serialize enqueue audit timestamp after SQLite write-lock acquisition
+- Capture the enqueue transition timestamp only after `BEGIN IMMEDIATE` succeeds; use the same value for queue created_at/updated_at and the immutable enqueued job event.
+- Add a lock-contention regression proving the clock is not sampled while enqueue waits for the write lock.
+- GitHub Actions run 43935191681 passed on exact PR #294 head `12187bbb6b7ad108894405dbbacb84f9456416bf`; `scripts/validate.sh` completed successfully. This is Python 3.11 CI/SQLite coverage, not live multi-host or provider validation.
+
+## BUILD-00290 — serialize production-run creation timestamp
+- Acquire SQLite's immediate write lock before sampling the production-run creation timestamp.
+- Persist one identical timestamp to production_runs.created_at and updated_at instead of sampling the clock twice before the implicit write transaction.
+- Add a lock-contention regression that verifies no clock read occurs while waiting for the lock and both persisted fields use the same decision time.
+- Validation pending GitHub Actions; local SQLite regression is not live deployment validation.
