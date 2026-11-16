@@ -365,6 +365,13 @@ class TikTokPublishingTests(unittest.TestCase):
                 "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
                 ("job-1",),
             )
+            queue_state = connection.execute(
+                "SELECT job_type,status FROM pipeline_jobs WHERE id=?", ("job-1",)
+            ).fetchone()
+            self.assertEqual(
+                (queue_state["job_type"], queue_state["status"]),
+                ("short_video_production", "review_pending"),
+            )
         self.review.decide("job-1", "revision_requested", "reviewer-2",
                            comment="Please correct the disclosure metadata.")
         with self.assertRaisesRegex(TikTokPublishError, "latest human review"):
