@@ -41,6 +41,60 @@ class QueueTests(unittest.TestCase):
   cancelled=self.q.cancel(j["id"],"operator stop")
   self.assertEqual(cancelled["status"],"cancelled")
   with self.assertRaises(LeaseConflict): self.q.finish(j["id"],"worker-a",a["lease_token"])
+
+ def test_cancel_queued_production_updates_queue_and_production_atomically(self):
+  job=self.q.enqueue("short_video_production",{"topic":"queued"})
+  with self.q.db() as c:
+   c.execute("""CREATE TABLE production_runs(
+    job_id TEXT PRIMARY KEY,status TEXT,current_stage TEXT,error TEXT,updated_at TEXT)""")
+   c.execute("INSERT INTO production_runs VALUES(?,?,?,?,?)",
+             (job["id"],"queued","queued",None,"now"))
+  cancelled=self.q.cancel(job["id"],"operator requested cancellation")
+  self.assertEqual(cancelled["status"],"cancelled")
+  self.assertEqual(cancelled["error_code"],"cancelled")
+  self.assertFalse(self.q.is_paused())
+  with self.q.db() as c:
+   row=c.execute("SELECT status,current_stage FROM production_runs WHERE job_id=?",
+                 (job["id"],)).fetchone()
+  self.assertEqual(tuple(row),("cancelled","cancelled"))
+
+ def test_cancel_running_production_marks_ambiguous_and_pauses_queue(self):
+  job=self.q.enqueue("short_video_production",{"topic":"running"})
+  with self.q.db() as c:
+   c.execute("""CREATE TABLE production_runs(
+    job_id TEXT PRIMARY KEY,status TEXT,current_stage TEXT,error TEXT,updated_at TEXT)""")
+   c.execute("INSERT INTO production_runs VALUES(?,?,?,?,?)",
+             (job["id"],"rendering","rendering",None,"now"))
+  claim=self.q.claim("worker-running",job_type="short_video_production")
+  cancelled=self.q.cancel(job["id"],"operator requested cancellation")
+  self.assertEqual(cancelled["status"],"cancelled")
+  self.assertEqual(cancelled["error_code"],"cancelled_external_outcome_ambiguous")
+  self.assertIn("reconciled manually",cancelled["error_message"])
+  self.assertTrue(self.q.is_paused())
+  self.assertIsNone(cancelled["lease_token"])
+  with self.q.db() as c:
+   row=c.execute("SELECT status,current_stage,error FROM production_runs WHERE job_id=?",
+                 (job["id"],)).fetchone()
+  self.assertEqual(row["status"],"cancelled")
+  self.assertEqual(row["current_stage"],"cancelled_ambiguous")
+  self.assertIn("external outcome",row["error"])
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"worker-running",claim["lease_token"])
+
+ def test_cancel_rejects_production_after_review_handoff(self):
+  job=self.q.enqueue("short_video_production",{"topic":"review"})
+  claim=self.q.claim("worker-review",job_type="short_video_production")
+  self.q.finish(job["id"],"worker-review",claim["lease_token"])
+  with self.assertRaisesRegex(ValueError,"review handoff"):
+   self.q.cancel(job["id"])
+  self.assertEqual(self.q.get(job["id"])["status"],"review_pending")
+
+ def test_graceful_worker_shutdown_is_persisted_as_offline_not_stale(self):
+  self.q.register_worker("worker-clean","host-a")
+  self.assertTrue(self.q.mark_worker_offline("worker-clean"))
+  self.assertEqual(self.q.workers()[0]["status"],"offline")
+  self.assertFalse(self.q.mark_worker_offline("missing-worker"))
+
  def test_recover_expired_lease(self):
   j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
   with self.q.db() as c:
