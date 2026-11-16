@@ -1191,3 +1191,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Preserve display-only cohort context; ranking adjustment remains zero.
 - Add regression coverage for invalid and valid cohort aggregates.
 - GitHub Actions run [43802473568](https://github.com/justinhblee-prog/shorts/actions/runs/43802473568) passed the complete `scripts/validate.sh` workflow on the regression-test commit.
+
+
+## BUILD-00147 — recommendation outcome ingress validation
+
+- Reject boolean, non-finite, negative and overflowing outcome metrics at evaluation ingress.
+- Enforce normalized ratio bounds for engaged-view share and audience-retention coordinates.
+- Preserve valid average view percentages above 100%.
+- Add regression tests; ranking adjustment remains disabled.
+- GitHub Actions run [43803213470](https://github.com/justinhblee-prog/shorts/actions/runs/43803213470) passed the complete `scripts/validate.sh` workflow on the corrected code/test commit.
