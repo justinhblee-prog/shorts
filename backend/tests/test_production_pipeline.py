@@ -656,6 +656,26 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(self.store.next_provider_attempt_number(
             "job-provider-unknown","voice_generation"),2)
 
+    def test_unresolved_provider_attempt_blocks_new_attempt_for_all_ambiguous_states(self):
+        for state in ("request_started","outcome_unknown","response_received"):
+            with self.subTest(state=state):
+                job_id="job-unresolved-"+state
+                self.store.create(job_id,self.brief)
+                key=self.store.begin_provider_attempt(job_id,"rendering",1)
+                if state=="outcome_unknown":
+                    self.store.mark_provider_attempt_unknown(
+                        job_id,"rendering",1,key,"transport timeout")
+                elif state=="response_received":
+                    self.store.finish_provider_attempt(
+                        job_id,"rendering",1,key,
+                        {"request_id":"remote-"+state,"video_url":"https://media.example/video.mp4"})
+                with self.assertRaisesRegex(
+                        ProviderAttemptConflict,"unresolved external outcome"):
+                    self.store.begin_provider_attempt(job_id,"rendering",2)
+                attempts=self.store.provider_attempts(job_id)
+                self.assertEqual(len(attempts),1)
+                self.assertEqual(attempts[0]["state"],state)
+
     def test_provider_response_rejects_oversized_or_non_object_payload(self):
         self.store.create("job-provider-bounds",self.brief)
         key=self.store.begin_provider_attempt("job-provider-bounds","script",1)
