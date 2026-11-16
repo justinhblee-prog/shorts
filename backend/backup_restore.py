@@ -112,6 +112,8 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14):
     db_path = Path(db_path).resolve()
     media_dir = Path(media_dir).resolve()
     output_dir = Path(output_dir).resolve()
+    if output_dir == media_dir or media_dir in output_dir.parents:
+        raise BackupRestoreError("Backup output directory must be outside the media directory")
     output_dir.mkdir(parents=True, exist_ok=True)
     if not db_path.is_file():
         raise BackupRestoreError("SQLite database does not exist: " + str(db_path))
