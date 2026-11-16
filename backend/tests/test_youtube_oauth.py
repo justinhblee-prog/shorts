@@ -117,6 +117,7 @@ class YouTubeOAuthTests(unittest.TestCase):
         self.assertEqual(self.manager.get_refresh_token(), "refresh-secret")
         status = self.manager.status()
         self.assertTrue(status["connected"])
+        self.assertFalse(status["live_connectivity_verified"])
         self.assertEqual(status["mode"], "encrypted_oauth")
         self.assertNotIn("refresh_token", status)
         self.assertNotIn("access-secret", str(status))
@@ -193,6 +194,17 @@ class YouTubeOAuthTests(unittest.TestCase):
         self.store.save_token(
             encrypted, " ".join((*REQUIRED_SCOPES, ANALYTICS_READ_SCOPE)), "Bearer"
         )
+
+
+    def test_live_verifier_requires_encrypted_oauth_connection(self):
+        verifier = YouTubeConnectionVerifier(
+            self.manager,
+            credentials_factory=FakeCredentials,
+            service_factory=lambda *args, **kwargs: FakeYouTubeService(),
+            request_factory=FakeRequest,
+        )
+        with self.assertRaisesRegex(YouTubeOAuthError, "encrypted OAuth"):
+            verifier.verify()
 
     def test_live_verifier_checks_data_api_and_analytics_and_persists_channel(self):
         self._store_connected_token()
