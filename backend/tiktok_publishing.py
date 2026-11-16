@@ -219,7 +219,8 @@ class TikTokPublishStore:
               FROM tiktok_publications WHERE job_id=?
             """, (_now(), job_id))
 
-    def mark_status(self, job_id, attempt_id, status, video_ids=None, fail_reason=None, expected_status=None):
+    def mark_status(self, job_id, attempt_id, status, video_ids=None, fail_reason=None,
+                    expected_status=None, poll_lease_token=None):
         allowed = {
             "PROCESSING_UPLOAD": "processing",
             "PUBLISH_COMPLETE": "publish_complete",
@@ -234,6 +235,12 @@ class TikTokPublishStore:
         video_id = (video_ids or [None])[0]
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if not self._status_poll_lease_is_current(
+                c, job_id, attempt_id, poll_lease_token
+            ):
+                raise TikTokPublishError(
+                    "TikTok status poll lease expired or was replaced; stale result rejected"
+                )
             row = c.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
@@ -595,9 +602,26 @@ class TikTokPublishStore:
             """, (minimum_age, max(1, min(int(limit), 20)))).fetchall()
             return [row["job_id"] for row in rows]
 
-    def record_status_poll_error(self, job_id, attempt_id, message, expected_status=None):
+    @staticmethod
+    def _status_poll_lease_is_current(c, job_id, attempt_id, lease_token):
+        if lease_token is None:
+            return True
+        now_text = datetime.now(timezone.utc).isoformat()
+        row = c.execute("""
+          SELECT 1 FROM tiktok_status_poll_leases
+          WHERE job_id=? AND attempt_id=? AND lease_token=?
+            AND julianday(lease_expires_at) > julianday(?)
+        """, (job_id, attempt_id, lease_token, now_text)).fetchone()
+        return row is not None
+
+    def record_status_poll_error(self, job_id, attempt_id, message, expected_status=None,
+                                  poll_lease_token=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if not self._status_poll_lease_is_current(
+                c, job_id, attempt_id, poll_lease_token
+            ):
+                return False
             row = c.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
@@ -1062,7 +1086,7 @@ class TikTokPublisher:
             except OSError:
                 pass
 
-    def refresh_status(self, job_id):
+    def refresh_status(self, job_id, poll_lease_token=None):
         record = self.store.get(job_id)
         if record is None:
             raise TikTokPublishError("TikTok publication record not found")
@@ -1087,6 +1111,7 @@ class TikTokPublisher:
             video_ids,
             data.get("fail_reason"),
             expected_status=record["status"],
+            poll_lease_token=poll_lease_token,
         )
 
     def refresh_due_statuses(self, limit=5, min_age_seconds=60):
@@ -1108,14 +1133,18 @@ class TikTokPublisher:
                 continue
             checked += 1
             try:
-                result = self.refresh_status(job_id)
+                result = self.refresh_status(job_id, poll_lease_token=poll_lease)
                 updated.append({"job_id": job_id, "status": result["status"]})
             except TikTokPublishError as exc:
                 self.store.record_status_poll_error(
                     job_id, attempt_id, str(exc),
                     expected_status=record["status"],
+                    poll_lease_token=poll_lease,
                 )
-                errors.append({"job_id": job_id, "error": str(exc)})
+                if self.store._status_poll_lease_is_current_for_token(
+                    job_id, attempt_id, poll_lease
+                ):
+                    errors.append({"job_id": job_id, "error": str(exc)})
             finally:
                 self.store.release_status_poll_lease(
                     job_id, attempt_id, poll_lease,
