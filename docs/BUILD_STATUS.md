@@ -1960,3 +1960,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Verifies the expired job is requeued exactly once, only one lease-expired audit event is emitted, the replacement generation remains online, and the old process cannot mark it offline or heartbeat its stale lease.
 - Confirms the replacement generation can claim the recovered job after the race.
 - This is deterministic local SQLite concurrency coverage; it is not a claim of multi-host production validation.
+
+
+## BUILD-00242 — Require generation proof for registered worker mutations
+- Closed a fencing bypass where callers could omit the generation token after a worker ID had been registered.
+- Registered worker IDs now require a matching, online generation for claim, heartbeat, finish, fail, and worker-originated pause operations.
+- Unregistered legacy/test queue usage remains supported; explicit operator/system pause without worker identity remains supported.
+- Added regression coverage for omitted-token bypass attempts and verifies no lease or queue-control state changes.
