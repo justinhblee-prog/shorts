@@ -1283,5 +1283,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Normalize brand configuration to a dictionary before reading profile fields and stringify optional profile text safely, preventing malformed stored profiles from aborting trend ranking.
 - Preserve valid brand profiles in the same batch and keep malformed config fields from creating accidental matches.
 - Add regression coverage mixing malformed config containers and non-string profile values with a valid brand.
-- GitHub Actions validation: pending.
+- GitHub Actions run [43806840333](https://github.com/justinhblee-prog/shorts/actions/runs/43806840333) passed the complete `scripts/validate.sh` workflow with **482 backend tests**.
 - Recommendation ranking score adjustment remains disabled; no live provider validation is claimed.
+
+
+## BUILD-00157 — historical performance aggregate validation
+
+- Treat non-dictionary historical brand aggregates and invalid top-level optional enrichment containers as unavailable evidence rather than raising during candidate ranking.
+- Accept sample counts only as nonnegative integers (excluding booleans); malformed strings, negative values and booleans default to zero.
+- Preserve editorial ranking output and keep historical performance display-only.
+- Add regression coverage for null/scalar aggregates, malformed count fields and invalid top-level enrichment containers.
+- GitHub Actions validation: pending.
+- Recommendation ranking score adjustment remains disabled; no live analytics provider validation is claimed.

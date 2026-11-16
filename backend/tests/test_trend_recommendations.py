@@ -439,5 +439,47 @@ class TrendRecommendationTests(unittest.TestCase):
         self.assertEqual(ranked[0]["best_brand"]["brand"], "good-config")
 
 
+    def test_malformed_historical_performance_aggregates_are_display_safe(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        trend = {
+            "id": "aggregate-safe", "title": "AI technology explained",
+            "region": "US", "published_at": now.isoformat(),
+        }
+        brand = {
+            "slug": "future-leak", "name": "Future Leak", "active": True,
+            "config": {"positioning": "AI technology", "regions": ["US"]},
+        }
+        baseline = rank_trend_candidates([trend], [brand], now=now)[0]
+        for aggregate in (None, "invalid", {
+            "measured_videos": "five",
+            "rate_sample_count": True,
+            "interaction_rate_sample_count": -2,
+            "median_views_per_hour": 125.5,
+        }):
+            with self.subTest(aggregate=aggregate):
+                result = rank_trend_candidates(
+                    [trend], [brand], now=now,
+                    performance_by_brand={"Future Leak": aggregate},
+                )[0]
+                historical = result["best_brand"]["historical_performance"]
+                self.assertEqual(historical["measured_videos"], 0)
+                self.assertEqual(historical["rate_sample_count"], 0)
+                self.assertEqual(historical["interaction_rate_sample_count"], 0)
+                self.assertEqual(historical["evidence_status"], "no_data")
+                self.assertEqual(result["recommendation_score"], baseline["recommendation_score"])
+
+        for invalid_container in ("not-a-dictionary", None, []):
+            with self.subTest(performance_by_brand=invalid_container):
+                safe = rank_trend_candidates(
+                    [trend], [brand], now=now,
+                    performance_by_brand=invalid_container,
+                )
+                self.assertEqual(len(safe), 1)
+                self.assertEqual(
+                    safe[0]["best_brand"]["historical_performance"]["evidence_status"],
+                    "no_data",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

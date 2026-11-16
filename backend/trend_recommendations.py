@@ -27,6 +27,13 @@ def _normalized_ratio(value):
     return number if number is not None and number <= 1 else None
 
 
+def _nonnegative_count(value):
+    """Accept integer sample counts only; malformed aggregates default to zero."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return 0
+    return value
+
+
 def _age_hours(value, now):
     if not value:
         return None
@@ -325,9 +332,9 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
     trends = [item for item in trends if isinstance(item, dict)] if isinstance(trends, list) else []
     brands = [item for item in brands if isinstance(item, dict)] if isinstance(brands, list) else []
     now = now or datetime.now(timezone.utc)
-    performance_by_brand = performance_by_brand or {}
-    performance_videos = performance_videos or []
-    performance_cohorts = performance_cohorts or []
+    performance_by_brand = performance_by_brand if isinstance(performance_by_brand, dict) else {}
+    performance_videos = performance_videos if isinstance(performance_videos, list) else []
+    performance_cohorts = performance_cohorts if isinstance(performance_cohorts, list) else []
     brand_rows = []
     for brand in brands:
         if not brand.get("active", True):
@@ -376,18 +383,19 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
             if fit <= 0:
                 continue
             observed = performance_by_brand.get(brand.get("name"), {})
-            rate_samples = int(observed.get("rate_sample_count") or 0)
+            observed = observed if isinstance(observed, dict) else {}
+            rate_samples = _nonnegative_count(observed.get("rate_sample_count"))
             candidates.append({
                 "brand": brand.get("slug"), "brand_name": brand.get("name"),
                 "fit_score": fit, "matched_terms": matched_terms,
                 "excluded_terms": excluded_terms,
                 "match_method": "weighted_profile_term_coverage",
                 "historical_performance": {
-                    "measured_videos": int(observed.get("measured_videos") or 0),
+                    "measured_videos": _nonnegative_count(observed.get("measured_videos")),
                     "rate_sample_count": rate_samples,
                     "median_views_per_hour": observed.get("median_views_per_hour"),
-                    "interaction_rate_sample_count": int(
-                        observed.get("interaction_rate_sample_count") or 0
+                    "interaction_rate_sample_count": _nonnegative_count(
+                        observed.get("interaction_rate_sample_count")
                     ),
                     "median_interactions_per_1000_view_delta": observed.get(
                         "median_interactions_per_1000_view_delta"
