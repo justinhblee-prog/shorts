@@ -141,6 +141,18 @@ class EndToEndLifecycleTests(unittest.TestCase):
                               if item["artifact_type"] == "video")
         staged = stager.stage(job_id, video_artifact["artifact_url"])
         self.assertTrue((self.media_dir / staged["media_path"]).is_file())
+        # Manual staging happens after the first review decision. Persist the
+        # byte fingerprint into the artifact and require a fresh human approval.
+        updated_metadata=dict(video_artifact.get("metadata") or {})
+        updated_metadata["media_staging"]=staged
+        self.production.artifact(
+            job_id,"rendering","video",video_artifact["artifact_url"],updated_metadata
+        )
+        self.production.stage(job_id,"review","review_pending")
+        self.review.decide(
+            job_id,"approved","human-reviewer",
+            "Re-reviewed exact staged media fingerprint and content"
+        )
 
         uploaded = self.publisher.upload_approved(
             job_id, staged["media_path"], self.review,
