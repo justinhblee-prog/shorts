@@ -1381,3 +1381,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add an authenticated, confirmation-gated manual retry action for dead-letter records; the backend remains authoritative and rejects retries for inactive schedules.
 - Add frontend contract tests and update the operator runbook.
 - GitHub Actions run [43813399491](https://github.com/justinhblee-prog/shorts/actions/runs/43813399491) passed the complete `scripts/validate.sh` workflow, including 507 backend tests.
+
+
+## BUILD-00169 — database-backed readiness probe
+
+- Preserve `GET /api/health` as a process-liveness probe independent of downstream storage.
+- Add public `GET /api/ready` that verifies the durable queue and scheduler stores can serve core reads; return HTTP 503 without exposing database errors when storage is unavailable.
+- Switch the API container healthcheck and dependent service startup gates to the readiness endpoint.
+- Add regression tests for ready, unavailable-storage and liveness independence behavior.
+- CI validation pending.
