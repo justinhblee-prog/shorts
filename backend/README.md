@@ -555,3 +555,5 @@ BUILD-00039 automated validation: main-branch GitHub Actions run [43790981235](h
 - Set `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` to reject plaintext backups and restore inputs. The default `false` preserves compatibility with existing `.tar.gz` archives.
 - Restore creates its pre-restore safety backup with the same encryption setting. Retention covers both encrypted and plaintext archives.
 - Store the key separately from the backup volume. Loss of the key means encrypted backups cannot be restored; rotate only with a documented re-encryption/retention plan.
+
+BUILD-00130 automated validation: GitHub Actions run [43791757173](https://github.com/justinhblee-prog/shorts/actions/runs/43791757173) passed **408 backend tests** and the full `scripts/validate.sh` command. This validates code-level encryption/restore behavior, not a production key ceremony or off-host restore drill.
