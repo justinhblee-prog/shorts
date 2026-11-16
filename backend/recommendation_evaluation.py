@@ -85,6 +85,11 @@ def _normalized_timestamp(value, field_name):
     return parsed.isoformat()
 
 
+
+def _timestamp_order(value):
+    """Parse an already validated timestamp for absolute chronological ordering."""
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
 def _json_safe(value):
     """Return JSON-safe metadata, replacing unsupported/non-finite leaves with null."""
     if value is None or isinstance(value, (str, bool, int)):
@@ -153,7 +158,7 @@ def _retention_at(curve, target):
 
 
 def _metric_holdout(diagnostics):
-    diagnostics = sorted(diagnostics, key=lambda item: item["generated_at"])
+    diagnostics = sorted(diagnostics, key=lambda item: _timestamp_order(item["generated_at"]))
     result = {
         "status": "insufficient_run_coverage",
         "eligible_run_count": len(diagnostics),
@@ -458,7 +463,7 @@ class RecommendationEvaluationStore:
         ]
         # The pooled holdout is chronological by production selection/outcome time,
         # not by exposure creation order. Operators may select older exposures later.
-        view_observations.sort(key=lambda item: item["observed_at"])
+        view_observations.sort(key=lambda item: _timestamp_order(item["observed_at"]))
         total_measured = len(view_observations)
         analytics_metric_names = (
             "engaged_view_share", "average_view_percentage", "average_view_duration_seconds",
@@ -564,7 +569,7 @@ class RecommendationEvaluationStore:
             metric_name: _metric_holdout(diagnostics)
             for metric_name, diagnostics in analytics_run_diagnostics.items()
         }
-        run_diagnostics.sort(key=lambda item: item["generated_at"])
+        run_diagnostics.sort(key=lambda item: _timestamp_order(item["generated_at"]))
         within_run = {
             "status": "insufficient_run_coverage",
             "method": "within_exposure_comparable_cohort_spearman_chronological_holdout",
