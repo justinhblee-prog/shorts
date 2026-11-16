@@ -199,6 +199,70 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(result["unmeasured_selected_count"], 1)
         self.assertFalse(result["ranking_score_adjustment_enabled"])
 
+
+    def test_analytics_only_outcomes_are_evaluated_in_separate_chronological_holdouts(self):
+        for run_index in range(5):
+            timestamp = (
+                datetime(2026, 11, 1, tzinfo=timezone.utc)
+                + timedelta(days=run_index)
+            ).isoformat()
+            items = [
+                self.item(run_index * 3 + 0, 90),
+                self.item(run_index * 3 + 1, 80),
+                self.item(run_index * 3 + 2, 70),
+            ]
+            self.store.record_run("US", items, timestamp)
+            videos = []
+            for candidate_index, (percentage, duration, retention) in enumerate(
+                ((90.0, 20.0, 0.9), (70.0, 15.0, 0.6), (50.0, 10.0, 0.3))
+            ):
+                job_id = f"analytics-job-{run_index}-{candidate_index}"
+                self.store.link_production(
+                    f"trend-{run_index * 3 + candidate_index}",
+                    "future-leak", job_id, timestamp,
+                )
+                videos.append({
+                    "job_id": job_id,
+                    "platform": "youtube",
+                    "measurement_status": "insufficient_snapshots",
+                    "views_per_hour": None,
+                    "average_view_percentage": percentage,
+                    "average_view_duration_seconds": duration,
+                    "audience_retention_curve": [
+                        {"elapsed_video_time_ratio": 0.25,
+                         "audience_watch_ratio": retention},
+                        {"elapsed_video_time_ratio": 0.50,
+                         "audience_watch_ratio": retention - 0.1},
+                        {"elapsed_video_time_ratio": 0.75,
+                         "audience_watch_ratio": retention - 0.2},
+                    ],
+                    "brand": "Future Leak",
+                    "region": "US",
+                    "publication_age_bucket": "1_7d",
+                    "duration_bucket": "under_20s",
+                    "format": "vertical_short",
+                })
+            if run_index == 0:
+                all_videos = videos
+            else:
+                all_videos.extend(videos)
+
+        result = self.store.evaluate({"videos": all_videos})
+        self.assertEqual(result["measured_outcome_count"], 0)
+        self.assertEqual(result["analytics_measured_outcome_count"], 15)
+        self.assertEqual(result["any_metric_measured_outcome_count"], 15)
+        analytics = result["analytics_outcome_validation"]
+        for metric in (
+            "average_view_percentage", "average_view_duration_seconds",
+            "audience_watch_ratio_25", "audience_watch_ratio_50",
+            "audience_watch_ratio_75",
+        ):
+            self.assertEqual(analytics[metric]["status"], "holdout_available")
+            self.assertEqual(analytics[metric]["eligible_run_count"], 5)
+            self.assertEqual(analytics[metric]["holdout_run_count"], 2)
+            self.assertFalse(analytics[metric]["score_adjustment_enabled"])
+        self.assertFalse(result["ranking_score_adjustment_enabled"])
+
     def test_spearman_handles_ties_and_constant_values(self):
         self.assertEqual(_spearman([1, 2, 3], [10, 20, 30]), 1.0)
         self.assertIsNone(_spearman([1, 1, 1], [10, 20, 30]))
