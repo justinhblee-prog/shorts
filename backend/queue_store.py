@@ -473,7 +473,7 @@ class JobQueue:
                     "operator_id":operator_id,
                     "evidence_reference":evidence_reference,
                     "retry_attempt_ceiling":next_attempt_ceiling,
-                })
+                }, created_at=timestamp)
             result = c.execute("SELECT * FROM pipeline_jobs WHERE id=?", (job_id,)).fetchone()
             c.commit()
             return self.decode(result)
