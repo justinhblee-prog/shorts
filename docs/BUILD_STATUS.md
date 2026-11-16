@@ -2053,3 +2053,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add a deterministic concurrent regression where a production worker restarts while an expired production lease is recovered.
 - Verify the ambiguous external provider operation is terminalized rather than automatically requeued, the production queue remains paused for manual reconciliation, and the prior process generation cannot mark the replacement worker offline or finish the old job.
 - GitHub Actions run [#3504](https://github.com/justinhblee-prog/shorts/actions/runs/43917868295) succeeded on commit `9f118549903b1f252b8c911cd363d96c827568cb`; `scripts/validate.sh` passed. The test uses local SQLite and concurrent threads; no live provider or production worker validation is claimed.
+
+
+## BUILD-00274 — Fence concurrent provider retries
+- Add a concurrent same-job/stage regression using synchronized threads: exactly one provider attempt may start while the external outcome is unresolved; competing attempts receive a conflict.
+- Verify a further retry remains blocked until an operator explicitly confirms the prior request was not executed with supporting evidence.
+- After that reconciliation, verify a new attempt is permitted with a distinct idempotency key and incremented attempt number.
+- GitHub Actions checks for PR #279 both succeeded on commit `443bb057c65b63427f73ad7dbc14b5319daef5f9`; deterministic local SQLite/concurrency tests only. No live provider API validation is claimed.
