@@ -191,7 +191,7 @@
       $("youtubeConnect").textContent=managed?"YouTube OAuth 연결됨":(data.mode==="encrypted_oauth"?"YouTube 권한 재승인":(connected?"암호화 OAuth로 전환":"YouTube 계정 연결"));
       $("youtubeConnect").disabled=managed;
       $("youtubeDisconnect").disabled=!managed||!!data.static_fallback_configured;
-      $("youtubeVerify").disabled=!connected;
+      $("youtubeVerify").disabled=!managed;
     }catch(err){
       $("youtubeConnectionStatus").textContent="연결 설정 확인 필요 · "+err.message;
       $("youtubeConnect").textContent="YouTube 연결";
