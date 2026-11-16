@@ -94,6 +94,37 @@ class ScheduledYouTubeAnalyticsOAuthTests(unittest.TestCase):
             metrics_collector.OWNER_ID, "lease-token"
         )
 
+    def test_collection_cycle_continues_after_one_provider_failure(self):
+        calls = []
+
+        def youtube_fails():
+            calls.append("youtube")
+            raise RuntimeError("YouTube temporarily unavailable")
+
+        def analytics_succeeds():
+            calls.append("youtube_analytics")
+
+        def tiktok_succeeds():
+            calls.append("tiktok")
+
+        with self.assertLogs(metrics_collector.logger, level="ERROR") as captured:
+            metrics_collector.run_collection_cycle([
+                ("youtube", youtube_fails),
+                ("youtube_analytics", analytics_succeeds),
+                ("tiktok", tiktok_succeeds),
+            ])
+
+        self.assertEqual(calls, ["youtube", "youtube_analytics", "tiktok"])
+        self.assertEqual(len(captured.records), 1)
+        self.assertIn("youtube_metrics_collection_failed", captured.output[0])
+
+    def test_collection_cycle_does_not_swallow_process_control_exceptions(self):
+        def stop_process():
+            raise KeyboardInterrupt()
+
+        with self.assertRaises(KeyboardInterrupt):
+            metrics_collector.run_collection_cycle([("youtube", stop_process)])
+
     def test_collector_failure_still_releases_lease(self):
         store = Mock()
         store.acquire_lease.return_value = "lease-token"
