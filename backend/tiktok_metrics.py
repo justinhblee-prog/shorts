@@ -53,6 +53,10 @@ class TikTokMetricsStore:
               id INTEGER PRIMARY KEY CHECK(id=1), owner_id TEXT NOT NULL,
               lease_token TEXT NOT NULL, expires_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS tiktok_metrics_missing_retry(
+              video_id TEXT PRIMARY KEY, attempts INTEGER NOT NULL DEFAULT 0,
+              next_retry_at TEXT NOT NULL, last_missing_at TEXT NOT NULL
+            );
             """)
 
     @contextmanager
@@ -210,6 +214,61 @@ class TikTokMetricsStore:
                  values["comment_count"], values["share_count"], collected_at)
                 for job_id, video_id, values in normalized
             ])
+            c.executemany(
+                "DELETE FROM tiktok_metrics_missing_retry WHERE video_id=?",
+                [(video_id,) for _, video_id, _ in normalized],
+            )
+
+    def deferred_video_ids(self, now=None):
+        """Return provider-missing videos still inside their retry backoff."""
+        stamp = _stamp(now)
+        with self.db() as c:
+            rows = c.execute(
+                "SELECT video_id FROM tiktok_metrics_missing_retry WHERE next_retry_at>?",
+                (stamp,),
+            ).fetchall()
+        return {row["video_id"] for row in rows}
+
+    def record_missing_video_ids(self, video_ids, retry_seconds=21600,
+                                 lease_owner=None, lease_token=None, now=None):
+        """Back off missing provider results so they cannot starve older videos."""
+        if isinstance(retry_seconds, bool) or not isinstance(retry_seconds, int) or retry_seconds < 1:
+            raise TikTokMetricsError("TikTok missing-video retry interval is invalid")
+        if not isinstance(video_ids, (list, tuple, set)):
+            raise TikTokMetricsError("TikTok missing-video IDs must be a collection")
+        normalized = []
+        for video_id in video_ids:
+            if (not isinstance(video_id, str) or not video_id.strip()
+                    or len(video_id) > 256 or any(ord(char) < 32 for char in video_id)):
+                raise TikTokMetricsError("TikTok missing-video ID is invalid")
+            if video_id not in normalized:
+                normalized.append(video_id)
+        if not normalized:
+            return
+        current = now or _now()
+        if isinstance(current, (int, float)):
+            current = datetime.fromtimestamp(float(current), timezone.utc)
+        stamp = _stamp(current)
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            self._assert_lease(c, lease_owner, lease_token)
+            for video_id in normalized:
+                row = c.execute(
+                    "SELECT attempts FROM tiktok_metrics_missing_retry WHERE video_id=?",
+                    (video_id,),
+                ).fetchone()
+                attempts = int(row["attempts"]) + 1 if row else 1
+                delay = min(7 * 86400, retry_seconds * (2 ** min(attempts - 1, 5)))
+                retry_at = _stamp(current + timedelta(seconds=delay))
+                c.execute("""
+                    INSERT INTO tiktok_metrics_missing_retry
+                      (video_id,attempts,next_retry_at,last_missing_at)
+                    VALUES(?,?,?,?)
+                    ON CONFLICT(video_id) DO UPDATE SET
+                      attempts=excluded.attempts,
+                      next_retry_at=excluded.next_retry_at,
+                      last_missing_at=excluded.last_missing_at
+                """, (video_id, attempts, retry_at, stamp))
 
     def latest_snapshot_times(self):
         with self.db() as c:
@@ -304,8 +363,13 @@ class TikTokMetricsCollector:
         min_age_seconds = max(0, int(min_age_seconds))
         eligible = self.publication_store.list_metrics_eligible()
         latest = self.store.latest_snapshot_times()
+        deferred = self.store.deferred_video_ids()
         cutoff = _stamp(_now() - timedelta(seconds=min_age_seconds))
-        due = [x for x in eligible if x["video_id"] not in latest or latest[x["video_id"]] < cutoff][:limit]
+        due = [
+            x for x in eligible
+            if x["video_id"] not in deferred
+            and (x["video_id"] not in latest or latest[x["video_id"]] < cutoff)
+        ][:limit]
         if not due:
             return {"requested": 0, "collected": 0, "missing": [], "source": "TikTok Display API v2"}
         try:
@@ -355,5 +419,8 @@ class TikTokMetricsCollector:
             snapshot_items, lease_owner=lease_owner, lease_token=lease_token
         )
         missing = [video_id for video_id in ids if video_id not in collected_ids]
+        self.store.record_missing_video_ids(
+            missing, lease_owner=lease_owner, lease_token=lease_token
+        )
         return {"requested": len(ids), "collected": len(collected_ids),
                 "missing": missing, "source": "TikTok Display API v2"}
