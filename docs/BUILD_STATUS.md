@@ -1283,7 +1283,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Normalize brand configuration to a dictionary before reading profile fields and stringify optional profile text safely, preventing malformed stored profiles from aborting trend ranking.
 - Preserve valid brand profiles in the same batch and keep malformed config fields from creating accidental matches.
 - Add regression coverage mixing malformed config containers and non-string profile values with a valid brand.
-- GitHub Actions validation: pending.
+- GitHub Actions run [43806840333](https://github.com/justinhblee-prog/shorts/actions/runs/43806840333) passed the complete `scripts/validate.sh` workflow with **482 backend tests**.
 - Recommendation ranking score adjustment remains disabled; no live provider validation is claimed.
 
 
