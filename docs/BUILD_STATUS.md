@@ -1145,4 +1145,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Pass lease owner/token through collector batches so a replaced or expired worker cannot persist late results.
 - Make YouTube Data API/TikTok lease duration configurable with `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds); YouTube Analytics remains separately configurable (default 900 seconds).
 - Add tests for lease renewal, expiry, replacement-token fencing, runner failure cleanup and heartbeat loss.
-- Validation pending.
+- GitHub Actions PR run [43797131269](https://github.com/justinhblee-prog/shorts/actions/runs/43797131269) passed **462 backend tests** and the complete `scripts/validate.sh` command.
