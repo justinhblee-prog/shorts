@@ -1494,3 +1494,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Explicitly flag approval/upload boundaries and ambiguous external outcomes. The report never repairs state, authorizes retry, resumes workers, or publishes content.
 - Reuse the existing evidence-backed `/api/production/jobs/{job_id}/reconcile-retry` and separate audited queue-resume workflows rather than introducing a competing state override.
 - Regression tests verify read-only behavior, audit-detail filtering, bounded results, and same-database enforcement.
+
+
+## BUILD-00180 — operator integrity dashboard
+
+- Connect the BUILD-00179 read-only integrity report to the Operations workspace.
+- Show the bounded mismatch count, queue pause state, both ledger states/timestamps, classifications, safe recommended action, queue error context, and recent audit event chronology.
+- Escape all dynamic content before rendering; no status-change, retry, approval, resume, upload, or publish control is exposed in this diagnostic panel.
+- Load the report during authenticated dashboard refresh and provide an explicit manual refresh action.
+- Add frontend regression coverage for endpoint wiring, diagnostic content, and read-only boundaries.

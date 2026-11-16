@@ -122,3 +122,19 @@ class FrontendPortalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_integrity_report_is_visible_as_read_only_operator_diagnostic(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        css = (frontend / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('id="integritySummary"', html)
+        self.assertIn('id="integrityList"', html)
+        self.assertIn('id="loadIntegrity"', html)
+        self.assertIn('/api/production/integrity-report?limit=50', app_js)
+        self.assertIn('approval_or_upload_boundary', app_js)
+        self.assertIn('ambiguous_external_outcome', app_js)
+        self.assertIn('item.recommended_action', app_js)
+        self.assertIn('진단 전용 · 자동 복구·재시도·승인·게시 없음', app_js)
+        self.assertIn('.integrity-item', css)
+        self.assertIn('loadIntegrityReport()', app_js)
