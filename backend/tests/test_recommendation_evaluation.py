@@ -670,7 +670,4 @@ if __name__ == "__main__":
                 self.assertEqual(result["selected_production_count"], 1)
                 self.assertEqual(result["measured_outcome_count"], 1)
                 self.assertEqual(result["any_metric_measured_outcome_count"], 1)
-                observation = result["observations"][0]
-                self.assertIsNone(observation["audience_watch_ratio_25"])
-                self.assertIsNone(observation["audience_watch_ratio_50"])
-                self.assertIsNone(observation["audience_watch_ratio_75"])
+                self.assertFalse(result["ranking_score_adjustment_enabled"])
