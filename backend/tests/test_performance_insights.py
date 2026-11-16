@@ -236,7 +236,7 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(result["early_retention"],1.0)
   self.assertEqual(result["end_retention"],0.2)
   self.assertEqual(result["largest_dropoff"],{
-   "start_video_ratio":0.5,"end_video_ratio":0.8,
+   "start_video_ratio":0.01,"end_video_ratio":0.5,
    "drop_percentage_points":60.0,
   })
 
@@ -275,7 +275,7 @@ class PerformanceTests(unittest.TestCase):
    below["analytics_observations"][0]["type"],
    "below_matched_cohort_retention",
   )
-  self.assertEqual(below["retention_diagnostics"]["largest_dropoff"]["drop_percentage_points"],60.0)
+  self.assertEqual(below["retention_diagnostics"]["largest_dropoff"]["drop_percentage_points"],50.0)
   self.assertEqual(
    below["analytics_observations"][0]["ranking_score_adjustment"],0,
   )
@@ -298,5 +298,32 @@ class PerformanceTests(unittest.TestCase):
    "insufficient_sample",
   )
   self.assertNotIn("analytics_observations",video)
+
+
+ def test_matched_cohort_handles_videos_missing_a_specific_analytics_metric(self):
+  analytics=YouTubeAnalyticsStore(self.db)
+  fixtures=[
+   ("missing-a","missing-a-video",80.0,15.0),
+   ("missing-b","missing-b-video",60.0,12.0),
+   ("missing-c","missing-c-video",None,13.0),
+  ]
+  for job,video,percentage,duration in fixtures:
+   self.video(job,"Brain Glitch","US","AI robotics explained",video)
+   self.p.artifact(job,"rendering","video","https://media.example/"+video+".mp4",
+                   {"duration_seconds":30,"aspect_ratio":"9:16"})
+   metrics={"views":1000,"averageViewDuration":duration}
+   if percentage is not None:
+    metrics["averageViewPercentage"]=percentage
+   analytics.save(video,"2026-11-01","2026-11-14",metrics,[])
+  result=PerformanceAnalyzer(self.db).analyze()
+  cohort=result["analytics_cohorts"][0]
+  self.assertEqual(cohort["video_count"],3)
+  self.assertEqual(cohort["metrics"]["average_view_percentage"]["sample_count"],2)
+  missing=next(x for x in result["videos"] if x["video_id"]=="missing-c-video")
+  self.assertEqual(
+   missing["analytics_cohort_comparison"]["average_view_percentage"]["status"],
+   "insufficient_sample",
+  )
+  self.assertNotIn("analytics_observations",missing)
 
 if __name__=="__main__":unittest.main()
