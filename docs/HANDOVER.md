@@ -1199,3 +1199,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Cancelling a running production job is marked externally ambiguous, revokes its lease and pauses production to prevent unsafe retries.
 - `worker.main` marks its worker registry record offline in a `finally` block without masking an earlier worker exception.
 - CI validation pending.
+
+
+### BUILD-00137 validation record
+
+- GitHub Actions PR run [43796187131](https://github.com/justinhblee-prog/shorts/actions/runs/43796187131) completed successfully.
+- The full validation script passed with **451 backend tests**, including atomic production cancellation, ambiguous in-flight cancellation, review-handoff protection and worker-offline state.
+- This validates local SQLite state transitions; actual provider-side cancellation and deployed worker shutdown remain operational checks.
