@@ -546,6 +546,27 @@ class JobQueue:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             n = stamp(now())
+            previous = c.execute(
+                "SELECT status,generation_token FROM worker_registry WHERE worker_id=?",
+                (worker_id,),
+            ).fetchone()
+            if previous is not None and previous["status"] == "online":
+                # A replacement process invalidates the previous generation.
+                # If that generation still owns production work, its external
+                # provider outcome is ambiguous: pause and terminalize production
+                # before the replacement can claim anything.
+                active = c.execute("""SELECT id FROM pipeline_jobs
+                    WHERE status='running' AND job_type='short_video_production'
+                      AND worker_id=? ORDER BY created_at,id""",
+                    (worker_id,),
+                ).fetchall()
+                if active:
+                    self._pause_production_in_transaction(
+                        c,
+                        "Worker process restarted while production lease was active; provider outcome is ambiguous",
+                        active[0]["id"],
+                        n,
+                    )
             c.execute("""INSERT INTO worker_registry(
                 worker_id,hostname,last_seen_at,status,generation_token)
                 VALUES(?,?,?,'online',?) ON CONFLICT(worker_id) DO UPDATE SET
