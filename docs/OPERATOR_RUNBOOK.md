@@ -609,3 +609,12 @@ If allowlisting, malware scanning, media inspection or required metadata is unav
 ### Review workspace provenance for recovered provider results — BUILD-00176
 
 The pending-review card labels any video artifact carrying `recovered_from_provider_attempt`. It displays the provider attempt ID, staged file SHA-256, byte size and staged filename, plus an explicit notice that the recovered output is not approved or publishable until a human reviewer completes the normal review and separate approval process. Use the hash when comparing the staged file with the recovery record; do not treat provenance display as a rights, factuality or platform-policy certification.
+
+
+## BUILD-00177 — Review decision and publication handoff
+
+- A recovered render is adopted only into `review_pending`; inspect the recovered provider-attempt provenance and current quality/policy reports before deciding.
+- Approve, reject or request revision only through the authenticated review decision action. The review ledger, production run and matching `short_video_production` queue row are synchronized in one SQLite transaction. A mismatched queue state is a conflict and must be reconciled; do not edit either table manually to force approval.
+- Every synchronized decision emits a `job_events` record containing the reviewer identity and decision. Verify the production and queue statuses agree after the decision.
+- Approval is not publication consent. YouTube upload and TikTok private posting remain separate operator-triggered actions; their publisher-specific policy, approval-snapshot, media-byte and consent checks remain mandatory. TikTok remains `SELF_ONLY` in this flow.
+- Never infer successful upload/publication from review approval or queue status. Confirm the platform's returned/verified media ID and publication status in its respective operator workflow.
