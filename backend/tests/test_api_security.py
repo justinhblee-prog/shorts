@@ -61,6 +61,22 @@ class ApiSecurityTests(unittest.TestCase):
                 self.assertIn("x_review_token",routes[path].endpoint.__annotations__)
         self.assertIn("request",routes["/api/tiktok/oauth/callback"].endpoint.__annotations__)
 
+    def test_youtube_analytics_routes_are_registered_and_token_protected(self):
+        routes = {
+            (getattr(route, "path", ""), tuple(sorted(getattr(route, "methods", []) or []))): route
+            for route in app.routes
+        }
+        refresh = routes.get((
+            "/api/youtube/videos/{video_id}/refresh-analytics", ("POST",)
+        ))
+        report = routes.get((
+            "/api/youtube/videos/{video_id}/analytics", ("GET",)
+        ))
+        self.assertIsNotNone(refresh)
+        self.assertIsNotNone(report)
+        self.assertIn("x_review_token", refresh.endpoint.__annotations__)
+        self.assertIn("x_review_token", report.endpoint.__annotations__)
+
     def test_late_upload_resolution_route_is_registered_and_token_protected(self):
         route = next((r for r in app.routes
                       if getattr(r,"path",None)=="/api/youtube/uploads/{job_id}/resolve-late-result"),None)
