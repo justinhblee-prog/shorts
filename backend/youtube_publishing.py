@@ -501,10 +501,21 @@ class YouTubeUploadStore:
                   last_success_at=CASE WHEN excluded.status='succeeded'
                     THEN excluded.last_attempt_at
                     ELSE youtube_metrics_collection_state.last_success_at END,
-                  last_error=CASE WHEN excluded.status='succeeded' THEN NULL
+                  last_error=CASE
+                    WHEN excluded.status='succeeded' THEN NULL
+                    WHEN excluded.status='running'
+                      THEN youtube_metrics_collection_state.last_error
                     ELSE excluded.last_error END,
-                  requested=excluded.requested,collected=excluded.collected,
-                  missing=excluded.missing,source=excluded.source,updated_at=excluded.updated_at
+                  requested=CASE WHEN excluded.status='running'
+                    THEN youtube_metrics_collection_state.requested
+                    ELSE excluded.requested END,
+                  collected=CASE WHEN excluded.status='running'
+                    THEN youtube_metrics_collection_state.collected
+                    ELSE excluded.collected END,
+                  missing=CASE WHEN excluded.status='running'
+                    THEN youtube_metrics_collection_state.missing
+                    ELSE excluded.missing END,
+                  source=excluded.source,updated_at=excluded.updated_at
             """, (status, stamp, stamp if status == "succeeded" else None,
                   str(error)[:500] if error else None, max(0, int(requested)),
                   max(0, int(collected)), max(0, int(missing)), source, stamp))
