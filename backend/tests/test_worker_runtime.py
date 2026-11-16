@@ -154,7 +154,7 @@ class WorkerRuntimeTests(unittest.TestCase):
             self.assertTrue(queue.is_paused())
             terminal = queue.get(job["id"])
             self.assertEqual(terminal["status"], "failed_terminal")
-            self.assertEqual(terminal["error_code"], "worker_paused")
+            self.assertEqual(terminal["error_code"], "production_pause_external_outcome_ambiguous")
             self.assertIsNone(terminal["lease_token"])
             self.assertEqual(queue.events(job["id"])[-1]["event_type"], "worker_pause")
             with self.assertRaises(LeaseConflict):
