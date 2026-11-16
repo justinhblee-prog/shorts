@@ -391,10 +391,12 @@ class JobQueue:
                     error_code,error_message,updated_at
                 FROM pipeline_jobs
                 WHERE job_type='short_video_production'
-                  AND status='failed_terminal'
-                  AND error_code IN (
-                    'production_lease_expired_ambiguous',
-                    'cancelled_external_outcome_ambiguous'
+                  AND (
+                    (status='failed_terminal'
+                     AND error_code='production_lease_expired_ambiguous')
+                    OR
+                    (status='cancelled'
+                     AND error_code='cancelled_external_outcome_ambiguous')
                   )
                 ORDER BY updated_at DESC,id LIMIT ?""", (bounded,)).fetchall()
             return [dict(row) for row in rows]
@@ -421,7 +423,12 @@ class JobQueue:
                 WHERE id=? AND job_type='short_video_production'""", (job_id,)).fetchone()
             if row is None:
                 raise JobNotFound()
-            if (row["status"] != "failed_terminal" or row["error_code"] not in (
+            expected_status = (
+                "cancelled"
+                if row["error_code"] == "cancelled_external_outcome_ambiguous"
+                else "failed_terminal"
+            )
+            if (row["status"] != expected_status or row["error_code"] not in (
                 "production_lease_expired_ambiguous",
                 "cancelled_external_outcome_ambiguous",
             )):
@@ -431,10 +438,10 @@ class JobQueue:
             updated = c.execute("""UPDATE pipeline_jobs SET status='failed_retriable',
                 max_attempts=?,available_at=?,updated_at=?,
                 error_code='operator_reconciled_no_side_effect',error_message=?
-                WHERE id=? AND status='failed_terminal' AND error_code=?""",
+                WHERE id=? AND status=? AND error_code=?""",
                 (next_attempt_ceiling, timestamp, timestamp,
                  ("Operator confirmed no external side effect: " + note)[:2000],
-                 job_id, row["error_code"]))
+                 job_id, expected_status, row["error_code"]))
             if updated.rowcount != 1:
                 raise ValueError("Job state changed during reconciliation")
             has_runs = c.execute(
