@@ -464,6 +464,103 @@ class TikTokPublishingTests(unittest.TestCase):
             privacy_level="SELF_ONLY",
             )
 
+    def test_init_timeout_blocks_duplicate_tiktok_request_until_reconciliation(self):
+        class InitTimeoutTransport:
+            def __init__(self):
+                self.calls = []
+
+            def __call__(self, url, headers, body, timeout, method="POST"):
+                self.calls.append((url, method))
+                if url.endswith("/v2/post/publish/video/init/"):
+                    raise TimeoutError("simulated response lost after request dispatch")
+                return 200, json.dumps({
+                    "data": {
+                        "privacy_level_options": ["SELF_ONLY"],
+                        "max_video_post_duration_sec": 600,
+                    },
+                    "error": {"code": "ok"},
+                }).encode("utf-8")
+
+        transport = InitTimeoutTransport()
+        publisher = TikTokPublisher(
+            self.store, "test-token", transport,
+            media_inspector=FakeMediaInspector(),
+        )
+        with self.assertRaisesRegex(TikTokPublishError, "outcome is uncertain"):
+            publisher.publish_private_approved(
+                "job-1", self.media, self.review, "Caption", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        record = self.store.get("job-1")
+        self.assertEqual(record["status"], "reconciliation_required")
+        self.assertIsNone(record["publish_id"])
+        self.assertEqual(record["events"][-1]["event_type"], "remote_outcome_uncertain")
+        first_attempt_calls = len(transport.calls)
+
+        with self.assertRaisesRegex(TikTokPublishError, "unresolved"):
+            publisher.publish_private_approved(
+                "job-1", self.media, self.review, "Caption", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(len(transport.calls), first_attempt_calls)
+        self.assertEqual(
+            sum(url.endswith("/v2/post/publish/video/init/") for url, _ in transport.calls),
+            1,
+        )
+
+    def test_chunk_upload_timeout_preserves_publish_id_and_blocks_duplicate_init(self):
+        class ChunkTimeoutTransport:
+            def __init__(self):
+                self.calls = []
+
+            def __call__(self, url, headers, body, timeout, method="POST"):
+                self.calls.append((url, method))
+                if url.startswith("https://upload.us.tiktokapis.com/"):
+                    raise TimeoutError("simulated media chunk response lost")
+                if url.endswith("/v2/post/publish/creator_info/query/"):
+                    payload = {
+                        "data": {
+                            "privacy_level_options": ["SELF_ONLY"],
+                            "max_video_post_duration_sec": 600,
+                        },
+                        "error": {"code": "ok"},
+                    }
+                else:
+                    payload = {
+                        "data": {
+                            "publish_id": "publish-chunk-uncertain",
+                            "upload_url": "https://upload.us.tiktokapis.com/video/?token=test",
+                        },
+                        "error": {"code": "ok"},
+                    }
+                return 200, json.dumps(payload).encode("utf-8")
+
+        transport = ChunkTimeoutTransport()
+        publisher = TikTokPublisher(
+            self.store, "test-token", transport,
+            media_inspector=FakeMediaInspector(),
+        )
+        with self.assertRaisesRegex(TikTokPublishError, "outcome is uncertain"):
+            publisher.publish_private_approved(
+                "job-1", self.media, self.review, "Caption", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        record = self.store.get("job-1")
+        self.assertEqual(record["status"], "reconciliation_required")
+        self.assertEqual(record["publish_id"], "publish-chunk-uncertain")
+        first_attempt_calls = len(transport.calls)
+
+        with self.assertRaisesRegex(TikTokPublishError, "unresolved"):
+            publisher.publish_private_approved(
+                "job-1", self.media, self.review, "Caption", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(len(transport.calls), first_attempt_calls)
+        self.assertEqual(
+            sum(url.endswith("/v2/post/publish/video/init/") for url, _ in transport.calls),
+            1,
+        )
+
     def test_send_to_user_inbox_status_is_tracked_separately(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
