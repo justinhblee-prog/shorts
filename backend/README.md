@@ -578,3 +578,8 @@ BUILD-00131 validation: GitHub Actions run [43792634688](https://github.com/just
 ### Scheduled YouTube Analytics collection
 
 The periodic `metrics-collector` service uses the encrypted YouTube OAuth token store shared with the API. Complete YouTube OAuth in the dashboard; a plaintext `YOUTUBE_REFRESH_TOKEN` environment variable is not required for scheduled Analytics collection when encrypted OAuth credentials are present. The collector processes due uploaded videos at the configured `YOUTUBE_ANALYTICS_MIN_AGE_SECONDS` cadence and renews its SQLite lease during long batches (`YOUTUBE_ANALYTICS_LEASE_SECONDS`, default 900). A missing token or provider failure is recorded as a per-video collection failure; no metrics are fabricated.
+
+
+### YouTube Analytics collection status
+
+The authenticated `GET /api/youtube/analytics/collection-status` endpoint and the performance dashboard show the last collection attempt/success, last batch requested/collected/failed counts, latest stored report timestamp, and coverage across uploaded videos. Collection state distinguishes `running`, `succeeded`, `partial` and `failed`; a partial batch never hides its failed count. Coverage counts are based on uploaded video IDs and stored Analytics snapshots, not guessed metrics.

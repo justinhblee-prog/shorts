@@ -220,6 +220,64 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertFalse(self.store.renew_lease("worker-a", 300))
         self.assertEqual(self.store.acquire_lease("worker-b", 300), "worker-b")
 
+
+    def test_collection_state_reports_batch_health_and_video_coverage(self):
+        from youtube_publishing import YouTubeUploadStore
+        uploads = YouTubeUploadStore(self.db)
+        with uploads.db() as connection:
+            for job_id, video_id in (
+                ("job-a", "video-a"), ("job-b", "video-b"), ("job-c", "video-c")
+            ):
+                connection.execute(
+                    "INSERT INTO youtube_uploads(job_id,video_id,status,title,description,updated_at) "
+                    "VALUES(?,?,'uploaded','title','','2026-11-14')",
+                    (job_id, video_id),
+                )
+        self.store.save("video-a", "2026-11-01", "2026-11-14", {
+            "views": 100, "averageViewDuration": 12.5,
+        }, [])
+        self.store.save("video-b", "2026-11-01", "2026-11-14", {
+            "views": 200, "averageViewPercentage": 60,
+        }, [])
+        self.store.record_collection(
+            "partial", requested=3, collected=2, failed=1,
+            error="1 video collection(s) failed",
+        )
+
+        status = self.store.status(freshness_seconds=86400)
+        self.assertEqual(status["platform"], "youtube")
+        self.assertEqual(status["status"], "partial")
+        self.assertEqual(status["last_batch"], {
+            "requested": 3, "collected": 2, "failed": 1,
+        })
+        self.assertEqual(status["coverage"], {
+            "published_videos": 3,
+            "with_snapshot": 2,
+            "without_snapshot": 1,
+            "stale_or_missing": 1,
+        })
+        self.assertIsNotNone(status["last_attempt_at"])
+        self.assertIsNotNone(status["last_success_at"])
+        self.assertIsNotNone(status["latest_snapshot_at"])
+        self.assertEqual(status["last_error"], "1 video collection(s) failed")
+
+        self.store.record_collection("running")
+        running = self.store.status()
+        self.assertEqual(running["status"], "running")
+        self.assertEqual(running["last_batch"], {
+            "requested": 3, "collected": 2, "failed": 1,
+        })
+        self.assertEqual(running["last_error"], "1 video collection(s) failed")
+
+        self.store.record_collection("succeeded", requested=0, collected=0)
+        recovered = self.store.status()
+        self.assertEqual(recovered["status"], "succeeded")
+        self.assertIsNone(recovered["last_error"])
+
+    def test_collection_state_rejects_unknown_status(self):
+        with self.assertRaises(ValueError):
+            self.store.record_collection("unknown")
+
     def test_lease_prevents_overlapping_collectors(self):
         self.assertEqual(self.store.acquire_lease("worker-a", 300), "worker-a")
         self.assertIsNone(self.store.acquire_lease("worker-b", 300))

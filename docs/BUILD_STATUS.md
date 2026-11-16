@@ -1016,7 +1016,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Independently call YouTube Analytics API v2 for a channel-level views report; Data API success remains visible if Analytics permission is missing.
 - Persist channel ID/title, last verification time and separate Data API/Analytics API outcomes; status distinguishes stored OAuth approval from live connectivity.
 - Require the encrypted OAuth connection for persistent verification; legacy environment tokens remain usable for compatibility but do not produce a persisted verified-account status.
-- Validation pending. Live verification only occurs when the operator runs the action with a real account.
+- GitHub Actions PR run [43795106625](https://github.com/justinhblee-prog/shorts/actions/runs/43795106625) passed **438 backend tests** and the complete `scripts/validate.sh` command. Live verification only occurs when the operator runs the action with a real account.
 
 
 ### BUILD-00037 validation record
@@ -1095,4 +1095,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Renew the collector's SQLite lease during long batches; renewal is conditional on the same owner and an unexpired lease, so an expired owner cannot resurrect its lease.
 - Make the lease duration configurable with `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds); heartbeat interval is one-third of the lease.
 - Preserve provider failure isolation and ensure the lease is released in all exit paths.
+- Validation pending.
+
+
+## BUILD-00134 — YouTube Analytics collection observability (2026-11-16)
+
+- Persist scheduled collection status and batch totals for `running`, `succeeded`, `partial` and `failed` outcomes.
+- Expose the last attempt, last successful cycle, sanitized error summary, last batch counts and latest report timestamp.
+- Calculate coverage across uploaded videos: with snapshot, without snapshot and stale/missing according to the configured Analytics minimum age.
+- Add authenticated `GET /api/youtube/analytics/collection-status` and surface the collector state/coverage in the performance dashboard.
+- Preserve previous completed batch totals and last error while a new batch is running; a completed successful batch clears the prior error.
 - Validation pending.

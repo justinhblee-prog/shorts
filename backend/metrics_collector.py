@@ -74,7 +74,6 @@ def run_youtube_analytics_once(store=None, collector=None, token_manager=None):
     heartbeat_stop = threading.Event()
     lease_lost = threading.Event()
     heartbeat_interval = max(5, lease_seconds // 3)
-
     def renew_lease_loop():
         while not heartbeat_stop.wait(heartbeat_interval):
             try:
@@ -94,6 +93,7 @@ def run_youtube_analytics_once(store=None, collector=None, token_manager=None):
     )
     heartbeat.start()
     try:
+        store.record_collection("running")
         result = collector.refresh_due_metrics(
             limit=min(20, BATCH_SIZE),
             min_age_seconds=max(300, int(os.getenv(
@@ -104,11 +104,38 @@ def run_youtube_analytics_once(store=None, collector=None, token_manager=None):
             raise RuntimeError(
                 "YouTube Analytics collector lost its lease; batch outcome requires inspection"
             )
+        failures = result.get("failed") or []
+        failed_count = len(failures)
+        if failed_count and result.get("collected", 0):
+            collection_status = "partial"
+        elif failed_count:
+            collection_status = "failed"
+        else:
+            collection_status = "succeeded"
+        failure_summary = (
+            str(failed_count) + " video collection(s) failed"
+            if failed_count else None
+        )
+        store.record_collection(
+            collection_status,
+            requested=result.get("requested", 0),
+            collected=result.get("collected", 0),
+            failed=failed_count,
+            error=failure_summary,
+            source=result.get("source", "YouTube Analytics API v2"),
+        )
         logger.info(
-            "youtube_analytics_collection_completed requested=%s collected=%s failed=%s",
-            result["requested"], result["collected"], len(result["failed"]),
+            "youtube_analytics_collection_completed status=%s requested=%s collected=%s failed=%s",
+            collection_status, result["requested"], result["collected"], failed_count,
         )
         return result
+    except Exception as exc:
+        store.record_collection(
+            "failed", error=type(exc).__name__,
+            source="YouTube Analytics API v2",
+        )
+        logger.exception("youtube_analytics_collection_failed")
+        raise
     finally:
         heartbeat_stop.set()
         heartbeat.join(timeout=5)

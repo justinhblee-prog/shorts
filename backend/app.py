@@ -597,6 +597,13 @@ def get_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=No
     return result
 
 
+@app.get("/api/youtube/analytics/collection-status")
+def youtube_analytics_collection_status(x_review_token:str|None=Header(default=None)):
+    require_review_permission(x_review_token,"analytics.read")
+    freshness=max(300,int(os.getenv("YOUTUBE_ANALYTICS_MIN_AGE_SECONDS","86400")))
+    return youtube_analytics_store.status(freshness_seconds=freshness)
+
+
 
 @app.get("/api/youtube/oauth/start")
 def start_youtube_oauth(response:Response,x_review_token:str|None=Header(default=None)):
