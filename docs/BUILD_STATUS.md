@@ -1663,3 +1663,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Stop exposing raw provider/worker error text through the production integrity report.
 - Preserve the controlled error code and return a fixed instruction to inspect protected server logs.
 - Add a regression test using a bearer-token-like secret in the stored error message.
+
+
+## BUILD-00201 — fence YouTube upload reservations by current queue approval
+
+- Require the real YouTube publisher to re-read the durable `short_video_production` queue row inside the same `BEGIN IMMEDIATE` transaction that reserves an upload attempt.
+- Reject missing queue rows, wrong job types, and queue states other than `approved`, even when the production ledger and latest human decision still appear approved.
+- Preserve the low-level store default for fixture/metrics seeding; the actual publisher always enables strict current-approval validation.
+- Add regressions for queue reopening and queue-row deletion immediately before upload reservation.
+- Keep YouTube visibility private; no public publishing behavior is introduced.

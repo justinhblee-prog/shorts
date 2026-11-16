@@ -390,6 +390,27 @@ class YouTubePublishingTests(unittest.TestCase):
             )
         self.assertIsNone(self.uploads.get("job-1"))
 
+    def test_current_queue_status_must_still_be_approved_at_reservation(self):
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                ("job-1",),
+            )
+        with self.assertRaisesRegex(YouTubeUploadError,"queue job must remain approved"):
+            self.publisher.upload_approved(
+                "job-1",self.media,self.review,"Sleep short"
+            )
+        self.assertIsNone(self.uploads.get("job-1"))
+
+    def test_missing_queue_row_blocks_actual_youtube_publish_reservation(self):
+        with self.queue.db() as connection:
+            connection.execute("DELETE FROM pipeline_jobs WHERE id=?",("job-1",))
+        with self.assertRaisesRegex(YouTubeUploadError,"queue job must remain approved"):
+            self.publisher.upload_approved(
+                "job-1",self.media,self.review,"Sleep short"
+            )
+        self.assertIsNone(self.uploads.get("job-1"))
+
     def test_metrics_collector_lease_is_single_owner_and_releasable(self):
         second_store=YouTubeUploadStore(self.db)
         first = self.uploads.acquire_metrics_collector_lease("collector-a")
