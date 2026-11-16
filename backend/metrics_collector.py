@@ -22,6 +22,7 @@ DB = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
 INTERVAL = max(300, int(os.getenv("NEXUS_METRICS_COLLECTION_INTERVAL_SECONDS", "21600")))
 MIN_AGE = max(300, int(os.getenv("NEXUS_METRICS_MIN_AGE_SECONDS", str(INTERVAL))))
 BATCH_SIZE = max(1, min(50, int(os.getenv("NEXUS_METRICS_BATCH_SIZE", "50"))))
+METRICS_LEASE_SECONDS = max(30, int(os.getenv("NEXUS_METRICS_LEASE_SECONDS", "300")))
 OWNER_ID = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4()}"
 
 logging.basicConfig(
