@@ -1165,4 +1165,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Keep legacy recommendation payloads compatible by falling back to `best_brand` when `brand_candidates` is absent or empty.
 - Include all recorded brand options in the exposure signature so changing the selectable alternatives creates a distinct exposure instead of being incorrectly deduplicated.
 - Add regression tests for selecting a non-default brand and for exposure signature changes when alternate brands change.
-- Validation pending on this branch.
+- GitHub Actions PR run [43798824433](https://github.com/justinhblee-prog/shorts/actions/runs/43798824433) passed **466 backend tests** and the complete `scripts/validate.sh` command.
