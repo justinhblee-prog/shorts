@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from media_scanner import ClamAVScanner, MediaScanError
+
 
 class MediaStagingError(RuntimeError):
     pass
@@ -27,7 +29,8 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
 
 class MediaStager:
     def __init__(self, media_dir=None, allowed_hosts=None, max_bytes=None,
-                 resolver=None, fetcher=None, timeout=45):
+                 resolver=None, fetcher=None, timeout=45, scanner=None,
+                 scan_enabled=None):
         self.media_dir = Path(media_dir or os.getenv("NEXUS_MEDIA_DIR", "data/media")).resolve()
         configured = allowed_hosts if allowed_hosts is not None else os.getenv("RENDER_ARTIFACT_HOSTS", "")
         self.allowed_hosts = {x.strip().lower().rstrip(".") for x in configured.split(",") if x.strip()}
@@ -35,6 +38,19 @@ class MediaStager:
         self.resolver = resolver or self._resolve
         self.fetcher = fetcher or self._fetch
         self.timeout = timeout
+        if scan_enabled is None:
+            scan_enabled = os.getenv("NEXUS_MEDIA_SCAN_ENABLED", "false").strip().lower() in {
+                "1", "true", "yes", "on"
+            }
+        elif isinstance(scan_enabled, str):
+            scan_enabled = scan_enabled.strip().lower() in {"1", "true", "yes", "on"}
+        self.scan_enabled = bool(scan_enabled)
+        # Do not even construct the scanner when disabled: a broken optional
+        # scanner setting must not prevent the normal API from starting.
+        self.scanner = (
+            scanner if scanner is not None
+            else (ClamAVScanner() if self.scan_enabled else None)
+        )
 
     @staticmethod
     def _resolve(host):
@@ -197,8 +213,27 @@ class MediaStager:
                 os.fsync(out.fileno())
             if total < 12 or prefix[4:8] != b"ftyp":
                 raise MediaStagingError("Downloaded artifact does not contain an MP4 file signature")
+            scan_status = "disabled"
+            if self.scan_enabled:
+                if self.scanner is None:
+                    raise MediaStagingError("Malware scanner is enabled but no scanner is configured")
+                try:
+                    scan_result = self.scanner.scan(temporary)
+                except MediaScanError as exc:
+                    raise MediaStagingError(str(exc)) from exc
+                except Exception as exc:
+                    raise MediaStagingError("Malware scanner failed; artifact was not staged") from exc
+                if not isinstance(scan_result, dict) or scan_result.get("status") != "clean":
+                    raise MediaStagingError("Malware scanner did not explicitly confirm a clean artifact")
+                scan_status = "clean"
             os.replace(str(temporary), str(destination))
-            return {"media_path": filename, "size_bytes": total, "sha256": digest.hexdigest(), "content_type": "video/mp4"}
+            return {
+                "media_path": filename,
+                "size_bytes": total,
+                "sha256": digest.hexdigest(),
+                "content_type": "video/mp4",
+                "malware_scan": scan_status,
+            }
         except Exception:
             if temporary is not None:
                 try: temporary.unlink(missing_ok=True)
