@@ -46,7 +46,7 @@ With Python dependencies installed:
 sh scripts/validate.sh
 ```
 
-This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified scheduled-production validation is GitHub Actions PR run [43783409343](https://github.com/justinhblee-prog/shorts/actions/runs/43783409343), which passed **322 backend tests** and `scripts/validate.sh` before PR #93 was squash-merged into `main` (`cd5f8c4f`). The merge commit itself has not had a separate CI run recorded. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
+This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified readiness-preflight validation is GitHub Actions PR run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930), which passed **326 backend tests** and `scripts/validate.sh` before PR #95 was squash-merged into `main` (`7ce6e7fd`). The merge commit itself has not had a separate CI run recorded. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
 
 ## Documentation
 
