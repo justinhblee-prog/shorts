@@ -252,15 +252,21 @@ class QueueTests(unittest.TestCase):
    current=restarted.result()
    result=recovery.result()
   self.assertNotEqual(old["generation_token"],current["generation_token"])
-  self.assertEqual(result,{"requeued":0,"terminal":1})
+  # Whichever transaction wins must quarantine the in-flight provider call.
+  # Recovery-first records lease expiry; restart-first records generation replacement.
+  self.assertIn(result,({"requeued":0,"terminal":0},{"requeued":0,"terminal":1}))
   persisted=self.q.get(job["id"])
   self.assertEqual(persisted["status"],"failed_terminal")
-  self.assertEqual(persisted["error_code"],"production_lease_expired_ambiguous")
+  self.assertIn(persisted["error_code"],(
+   "production_lease_expired_ambiguous",
+   "production_pause_external_outcome_ambiguous"))
   self.assertTrue(self.q.is_paused())
   with self.q.db() as c:
    run=c.execute("SELECT status,current_stage FROM production_runs WHERE job_id=?",
                  (job["id"],)).fetchone()
-  self.assertEqual(tuple(run),("failed_terminal","lease_expired_ambiguous"))
+  self.assertEqual(tuple(run),("failed_terminal",
+   "lease_expired_ambiguous" if persisted["error_code"]=="production_lease_expired_ambiguous"
+   else "pause_outcome_ambiguous"))
   self.assertFalse(self.q.mark_worker_offline("production-restart-worker",
                                                old["generation_token"]))
   registry=next(row for row in self.q.workers()
@@ -762,5 +768,21 @@ class QueueTests(unittest.TestCase):
      self.assertEqual(worker["status"], "online")
 
 
+
+ def test_production_pause_audit_uses_serialized_transition_timestamp(self):
+  job=self.q.enqueue("short_video_production",{"topic":"pause-audit-timestamp"})
+  claimed=self.q.claim("pause-audit-worker",job_type="short_video_production")
+  transition_time="2030-04-05T06:07:08+00:00"
+  with self.q.db() as c:
+   c.execute("BEGIN IMMEDIATE")
+   self.q._pause_production_in_transaction(
+    c,"controlled pause",job["id"],transition_time,actor="system")
+   c.commit()
+  event=[item for item in self.q.events(job["id"])
+         if item["event_type"]=="worker_pause"][-1]
+  control_event=self.q.worker_control_events(1)[0]
+  self.assertEqual(event["created_at"],transition_time)
+  self.assertEqual(control_event["created_at"],transition_time)
+  self.assertEqual(self.q.get(job["id"])["updated_at"],transition_time)
 
 if __name__=="__main__": unittest.main()

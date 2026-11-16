@@ -95,9 +95,11 @@ class JobQueue:
         finally:
             c.close()
 
-    def event(self,c,jid,kind,before,after,worker,details=None):
+    def event(self,c,jid,kind,before,after,worker,details=None,created_at=None):
+        """Append an audit event using the enclosing transition's timestamp when supplied."""
         c.execute("INSERT INTO job_events(job_id,event_type,from_status,to_status,worker_id,details_json,created_at) VALUES(?,?,?,?,?,?,?)",
-          (jid,kind,before,after,worker,json.dumps(details or {},ensure_ascii=False),stamp(now())))
+          (jid,kind,before,after,worker,json.dumps(details or {},ensure_ascii=False),
+           created_at if created_at is not None else stamp(now())))
 
     def decode(self,row):
         if row is None: return None
@@ -150,7 +152,8 @@ class JobQueue:
                 WHERE id=? AND status='running'""",
                 (timestamp, ("Production paused while provider outcome may be in flight: " + reason)[:2000], row["id"]))
             self.event(c, row["id"], "worker_pause", "running", "failed_terminal",
-                       row["worker_id"], {"reason": reason, "paused_job_id": job_id})
+                       row["worker_id"], {"reason": reason, "paused_job_id": job_id},
+                       created_at=timestamp)
             if has_runs:
                 c.execute("""UPDATE production_runs SET status='failed_terminal',
                     current_stage='pause_outcome_ambiguous',error=?,updated_at=?
