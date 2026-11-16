@@ -12,7 +12,7 @@ services:
       - "8502:8502"
     volumes:
       - nexus_data:/app/data
-      - clamav_db:/var/lib/clamav:ro
+      - clamav_db:${NEXUS_CLAMAV_DATABASE_DIR:-/var/lib/clamav}:ro
     healthcheck:
       test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8502/api/health',timeout=3)"]
       interval: 30s
@@ -27,10 +27,10 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: ["freshclam", "--daemon", "--foreground"]
+    command: ["sh", "-c", "freshclam --daemon --foreground --datadir \"$NEXUS_CLAMAV_DATABASE_DIR\""]
     env_file: .env
     volumes:
-      - clamav_db:/var/lib/clamav
+      - clamav_db:${NEXUS_CLAMAV_DATABASE_DIR:-/var/lib/clamav}
     restart: unless-stopped
 
   worker:
