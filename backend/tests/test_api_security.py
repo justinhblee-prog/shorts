@@ -429,7 +429,7 @@ class ApiSecurityTests(unittest.TestCase):
                 self.assertEqual(caught.exception.status_code, 422)
     def test_review_token_fails_closed(self):
         previous = os.environ.get("NEXUS_REVIEW_TOKEN")
-        os.environ["NEXUS_REVIEW_TOKEN"] = "unit-test-secret"
+        os.environ["NEXUS_REVIEW_TOKEN"] = "unit-test-secret-with-at-least-32-characters"
         try:
             with self.assertRaises(HTTPException) as missing:
                 require_review_access(None)
@@ -437,7 +437,10 @@ class ApiSecurityTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as invalid:
                 require_review_access("wrong-secret")
             self.assertEqual(invalid.exception.status_code, 401)
-            self.assertIsNone(require_review_access("unit-test-secret"))
+            self.assertEqual(
+                require_review_access("unit-test-secret-with-at-least-32-characters"),
+                "legacy-operator",
+            )
         finally:
             if previous is None:
                 os.environ.pop("NEXUS_REVIEW_TOKEN", None)
