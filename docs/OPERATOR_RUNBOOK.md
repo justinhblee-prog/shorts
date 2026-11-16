@@ -440,3 +440,8 @@ GitHub Actions run [43794744350](https://github.com/justinhblee-prog/shorts/acti
 - Compare published videos, with-snapshot, without-snapshot and stale/missing counts. The coverage is based on uploaded video IDs and does not imply a metric value for videos whose report is unavailable.
 - Use `docker compose logs -f metrics-collector` for detailed exception classes. The API stores only a bounded error summary, not OAuth tokens or response bodies.
 - A successful cycle with zero due videos is a successful scheduler cycle, not proof that a new Analytics report was fetched.
+
+
+### BUILD-00134 validation checkpoint
+
+GitHub Actions run [43795106625](https://github.com/justinhblee-prog/shorts/actions/runs/43795106625) passed **438 backend tests** and the full validation script. This does not prove a deployed metrics-collector service is running or that live YouTube Analytics reports are available.
