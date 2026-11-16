@@ -19,23 +19,23 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 ## Current checkpoint
 
 - Latest work item: BUILD-00288, worker lifecycle audit timestamp consistency.
-- PR #293: https://github.com/justinhblee-prog/shorts/pull/293
+- PR #293: https://github.com/justinhblee-prog/shorts/pull/293 (BUILD-00288 CI verified)
 - Current PR #293 head: `aa789fb3d7b759e54c5fea596c32d752f183126d`.
 - GitHub Actions check for that exact head: success. Workflow runs Python 3.11, installs backend requirements, and executes `sh scripts/validate.sh`.
-- PRs #288–#293 remain open Draft PRs in a stacked chain; none is merged. Preserve Draft status and do not merge or push to main.
-- Active work item: BUILD-00289 — capture enqueue transition timestamp after acquiring SQLite's immediate write lock and reuse it for the enqueue audit event.
+- PRs #288–#294 remain open Draft PRs in a stacked chain; none is merged. Preserve Draft status and do not merge or push to main.
+- Completed next item: BUILD-00289 — capture enqueue transition timestamp after acquiring SQLite's immediate write lock and reuse it for the enqueue audit event. Its exact PR head passed GitHub Actions.\n- Active work item: BUILD-00290 — capture production-run creation time after acquiring SQLite's immediate write lock and reuse one timestamp for both created_at and updated_at.
 
 ## Phase 1 — Engineering closure (rolling)
 
 **Exit criteria:** each code change has a focused regression, full CI validation on the exact PR head, updated BUILD ledger, and explicit limits on what was not tested.
 
 Current ordered work:
-1. BUILD-00289: enqueue job/event timestamp consistency under SQLite lock contention.
-2. Audit every remaining queue, worker registry, scheduler/outbox, production-run, review, upload and reconciliation transition for timestamp sampling before lock acquisition or independently sampled audit times.
-3. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records across the same subsystems.
-4. Reconcile API authorization and diagnostic redaction with UI actions; identify any shared-token/claimed-identity limitations before multi-user deployment.
-5. Audit frontend workflows and accessibility/error/loading states; add browser-level checks where the deployment environment permits.
-6. Re-run full repository validation after the audit queue is exhausted; fix all regressions and publish a verified test inventory.
+1. BUILD-00289: enqueue job/event timestamp consistency under SQLite lock contention — CI passed on PR #294 head.\n2. BUILD-00290: production-run creation timestamp consistency under SQLite lock contention.
+3. Audit every remaining queue, worker registry, scheduler/outbox, production-run, review, upload and reconciliation transition for timestamp sampling before lock acquisition or independently sampled audit times.
+4. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records across the same subsystems.
+5. Reconcile API authorization and diagnostic redaction with UI actions; identify any shared-token/claimed-identity limitations before multi-user deployment.
+6. Audit frontend workflows and accessibility/error/loading states; add browser-level checks where the deployment environment permits.
+7. Re-run full repository validation after the audit queue is exhausted; fix all regressions and publish a verified test inventory.
 
 This is a rolling audit, not a claim that exactly six BUILD items remain. Add newly discovered defects in dependency order.
 
