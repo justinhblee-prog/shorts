@@ -359,3 +359,8 @@ docker compose up -d
 ```
 
 Do not delete the pre-restore backup until the application, media artifacts, OAuth token decryption and worker queue have been checked.
+
+
+### BUILD-00038 validation checkpoint
+
+The backup/restore utility and Compose configuration passed **362 backend tests** in [GitHub Actions run 43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031). This verifies code and configuration, not a running daily backup. After deployment, confirm that an archive appears in the backup volume, copy it off-host, and perform a restore drill in a separate staging environment before relying on it for disaster recovery.
