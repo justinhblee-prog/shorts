@@ -1326,3 +1326,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Require the poll interval to be no more than one-third of the lease TTL so a healthy scheduler has time to renew leadership before expiry.
 - Add isolated unit coverage for defaults, invalid values, bounds and poll/lease relationship.
 - CI validation pending; deployment-level multi-instance behavior remains separate.
+
+
+## BUILD-00163 — strict scheduler store control inputs
+
+- Require schedule activation state to be an actual boolean at the persistence boundary; do not interpret truthy strings, integers or containers as an activation command.
+- Validate outbox query and dispatch limits as non-boolean integers within explicit bounds rather than silently coercing or clamping values.
+- Validate dispatch lease TTL before any database work, including empty/no-due batches, so invalid configuration cannot pass unnoticed on an idle scheduler.
+- Add direct-store regression tests for all control boundaries.
+- CI validation pending.
