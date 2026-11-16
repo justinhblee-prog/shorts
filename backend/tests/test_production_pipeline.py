@@ -736,9 +736,9 @@ class ProductionTests(unittest.TestCase):
         self.store.mark_provider_attempt_unknown(
             "job-provider-reconcile","script",1,key,"connection timed out")
         attempt=self.store.provider_attempts("job-provider-reconcile")[0]
-        with self.assertRaisesRegex(ValueError,"only an ambiguous"):
+        with self.assertRaisesRegex(ValueError,"operator, evidence reference and note"):
             self.store.confirm_provider_attempt_not_executed(
-                "job-provider-reconcile",attempt["id"],"admin-1","case-123","confirmed")
+                "job-provider-reconcile",attempt["id"],"admin-1","","confirmed")
         result=self.store.confirm_provider_attempt_not_executed(
             "job-provider-reconcile",attempt["id"],"admin-1",
             "provider-console-case-123","Provider console confirms no remote job.")
