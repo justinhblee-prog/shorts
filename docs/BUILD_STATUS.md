@@ -1270,3 +1270,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Use the complete eligible publication set when scheduling due metrics and calculating coverage, while keeping the dashboard's recent-metrics display bounded to its requested limit.
 - Add regression coverage with more than 200 completed publications to verify full coverage and that collection can reach records beyond the recent-history window.
 - TikTok Display API requests remain capped at 20 videos per collection run; this change does not claim live TikTok account validation.
+- GitHub Actions run [43808106089](https://github.com/justinhblee-prog/shorts/actions/runs/43808106089) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
