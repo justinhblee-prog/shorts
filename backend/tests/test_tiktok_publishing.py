@@ -1022,6 +1022,21 @@ class TikTokPublishingTests(unittest.TestCase):
             self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"]
         )
 
+    def test_manual_status_refresh_returns_terminal_state_without_remote_poll(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        terminal = self.store.mark_status(
+            "job-1", attempt_id, "PUBLISH_COMPLETE", ["terminal-video"],
+        )
+        self.transport.calls.clear()
+        result = self.publisher.refresh_status("job-1")
+        self.assertEqual(result["status"], "publish_complete")
+        self.assertEqual(result["video_id"], "terminal-video")
+        self.assertEqual(self.transport.calls, [])
+
     def test_manual_status_refresh_cannot_bypass_scheduler_poll_lease(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
