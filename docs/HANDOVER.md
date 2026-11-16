@@ -1134,3 +1134,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Long Analytics batches renew their SQLite lease every third of the configured lease period. Renewal requires the same owner and a lease that has not already expired.
 - `YOUTUBE_ANALYTICS_LEASE_SECONDS` defaults to 900 seconds.
 - CI validation pending.
+
+
+### BUILD-00133 validation record
+
+- GitHub Actions PR run [43794744350](https://github.com/justinhblee-prog/shorts/actions/runs/43794744350) completed successfully.
+- The complete validation script passed with **436 backend tests**.
+- Tests verify encrypted OAuth manager wiring, injected-collector behavior, lease release on provider failure, lease renewal by the active owner and refusal to resurrect an expired lease.
+- This is code-level verification. A live encrypted OAuth token, authorized channel and real Analytics report collection still require deployment validation.
