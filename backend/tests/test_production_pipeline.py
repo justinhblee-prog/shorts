@@ -1071,6 +1071,52 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "same SQLite database"):
             self.store.integrity_report(other)
 
+    def test_reconciliation_writes_require_current_worker_generation(self):
+        queue = JobQueue(self.store.db_path)
+        old = queue.register_worker("reconciler", "host-a")
+        current = queue.register_worker("reconciler", "host-a")
+        self.assertNotEqual(old["generation_token"], current["generation_token"])
+
+        stale_calls = (
+            lambda: self.store.reconcile_missing_runs(
+                queue, worker_id="reconciler",
+                generation_token=old["generation_token"],
+            ),
+            lambda: self.store.reconcile_status_integrity(
+                queue, worker_id="reconciler",
+                generation_token=old["generation_token"],
+            ),
+            lambda: self.store.reconcile_terminal_jobs(
+                queue, worker_id="reconciler",
+                generation_token=old["generation_token"],
+            ),
+            lambda: self.store.reconcile_review_pending(
+                queue, worker_id="reconciler",
+                generation_token=old["generation_token"],
+            ),
+        )
+        for call in stale_calls:
+            with self.subTest(call=call), self.assertRaises(ProductionLeaseConflict):
+                call()
+
+        # The current process incarnation can still execute each safe repair path.
+        self.store.reconcile_missing_runs(
+            queue, worker_id="reconciler",
+            generation_token=current["generation_token"],
+        )
+        self.store.reconcile_status_integrity(
+            queue, worker_id="reconciler",
+            generation_token=current["generation_token"],
+        )
+        self.store.reconcile_terminal_jobs(
+            queue, worker_id="reconciler",
+            generation_token=current["generation_token"],
+        )
+        self.store.reconcile_review_pending(
+            queue, worker_id="reconciler",
+            generation_token=current["generation_token"],
+        )
+
     def test_status_integrity_repairs_only_safe_terminal_and_review_handoffs(self):
         queue = JobQueue(self.store.db_path)
         terminal_job = submit_production(queue, self.store, self.brief)["job"]["id"]
