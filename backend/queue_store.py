@@ -47,6 +47,12 @@ class JobQueue:
               event_type TEXT NOT NULL, from_status TEXT, to_status TEXT, worker_id TEXT,
               details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS idx_events_job ON job_events(job_id,id);
+            CREATE TRIGGER IF NOT EXISTS job_events_no_update
+              BEFORE UPDATE ON job_events
+              BEGIN SELECT RAISE(ABORT,'job events are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS job_events_no_delete
+              BEFORE DELETE ON job_events
+              BEGIN SELECT RAISE(ABORT,'job events are immutable'); END;
             CREATE TABLE IF NOT EXISTS worker_registry(
               worker_id TEXT PRIMARY KEY, hostname TEXT, last_seen_at TEXT NOT NULL,
               status TEXT NOT NULL, generation_token TEXT);
@@ -59,6 +65,12 @@ class JobQueue:
               id INTEGER PRIMARY KEY AUTOINCREMENT, event_type TEXT NOT NULL,
               actor TEXT NOT NULL, reason TEXT NOT NULL, paused_job_id TEXT,
               created_at TEXT NOT NULL);
+            CREATE TRIGGER IF NOT EXISTS worker_control_events_no_update
+              BEFORE UPDATE ON worker_control_events
+              BEGIN SELECT RAISE(ABORT,'worker control events are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS worker_control_events_no_delete
+              BEFORE DELETE ON worker_control_events
+              BEGIN SELECT RAISE(ABORT,'worker control events are immutable'); END;
             CREATE TABLE IF NOT EXISTS production_reconciliation_events(
               id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
               outcome TEXT NOT NULL, operator_id TEXT NOT NULL,
