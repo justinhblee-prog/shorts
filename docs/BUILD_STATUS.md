@@ -64,6 +64,16 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Update legacy-style unit fixtures to use matching queue-backed review records and add missing-table/missing-row rollback regressions.
 - CI passed: run 43838159960; 564 backend tests, including missing-queue table/job rollback and queue-backed approval fixtures for YouTube, TikTok, and analytics.
 
+## BUILD-00200 — fence TikTok publish attempts by current approval
+
+- Recheck the latest human review decision, production-run status, and durable queue status inside the same `BEGIN IMMEDIATE` transaction that reserves a TikTok publish attempt.
+- Require all three records to agree on an approved `short_video_production` job.
+- Revalidate the approval artifact snapshot against current artifacts in that transaction, closing the race between publisher preflight and reviewer reopening.
+- Add regressions for approval invalidation and queue-state mismatch immediately before attempt reservation.
+- TikTok remains private-only (`SELF_ONLY`) and still requires explicit operator consent.
+
+- CI passed: run 43838656483; 566 backend tests, including transactional current-approval and queue-state fencing regressions. Earlier runs exposed and corrected a test-call flag mismatch; final run passed.
+
 ## BUILD-00188 — integrity API input boundaries
 
 - The read-only integrity endpoint enforces a page size of 1–200, offset of 0–1,000,000, and cursor length of at most 512 characters at the HTTP boundary.
