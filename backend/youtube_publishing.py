@@ -306,6 +306,10 @@ class YouTubeUploadStore:
             if row is None:
                 return
             now=_now()
+            prior_video = c.execute("""SELECT video_id FROM youtube_upload_events
+              WHERE job_id=? AND attempt_id=? AND video_id IS NOT NULL
+              ORDER BY id DESC LIMIT 1""",(job_id,attempt_id)).fetchone()
+            attempt_video_id = prior_video["video_id"] if prior_video else row["video_id"]
             if row["status"]=="late_success_review_required":
                 event_type=("post_confirmation_worker_error"
                             if row["attempt_id"]==attempt_id
@@ -315,7 +319,7 @@ class YouTubeUploadStore:
                    previous_status,resulting_status,created_at)
                   VALUES(?,?,?,'informational',?,'system:upload_worker',?,
                     'late_success_review_required','late_success_review_required',?)""",
-                  (job_id,attempt_id,event_type,row["video_id"],str(error)[:2000],now))
+                  (job_id,attempt_id,event_type,attempt_video_id,str(error)[:2000],now))
                 return
             if row["status"]=="uploaded":
                 event_type=("post_confirmation_worker_error"
