@@ -921,3 +921,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - `sh scripts/validate.sh` passed; the backend suite reported **326 tests, OK**.
 - Frontend JavaScript syntax/DOM validation and Compose YAML validation are included in the validation script.
 - No live AI provider, OAuth, YouTube/TikTok account, media rendering/upload or revenue validation is claimed.
+
+
+## BUILD-00032 — YouTube Analytics watch-time and audience retention
+
+- New module: `backend/youtube_analytics.py`; regression tests: `backend/tests/test_youtube_analytics.py`.
+- API: protected `POST /api/youtube/videos/{video_id}/refresh-analytics` and `GET /api/youtube/videos/{video_id}/analytics`.
+- Scheduled collection: `run_youtube_analytics_once` in `backend/metrics_collector.py`, default minimum refresh age 86,400 seconds, separate SQLite lease, per-video failure isolation.
+- Performance analysis joins stored Analytics reports into each YouTube video result and brand median summaries. Dashboard exposes average view duration, average view percentage, retention point count and manual refresh.
+- The basic user-activity report uses the `video==VIDEO_ID` filter without a `video` dimension; the retention report uses `elapsedVideoTimeRatio` as its required dimension.
+- Current OAuth helper requests `youtube.readonly`; the existing refresh token must actually have that granted scope. Re-consent is required if it does not.
+- No live API response, real account permission, actual retention coverage or ranking-score lift is claimed until deployment verification and holdout evaluation.

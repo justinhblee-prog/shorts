@@ -114,11 +114,12 @@ Configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REFRESH_TOK
 The upload endpoint requires the configured `NEXUS_REVIEW_TOKEN` in `X-Review-Token` and a job with a recorded `approved` human decision:
 - `POST /api/youtube/upload/{job_id}`
 - `GET /api/youtube/uploads/{job_id}`
-- `POST /api/youtube/videos/{video_id}/refresh-metrics`
+- `POST /api/youtube/videos/{video_id}/refresh-metrics` (YouTube Data API v3 counters)
+- `POST /api/youtube/videos/{video_id}/refresh-analytics` and `GET /api/youtube/videos/{video_id}/analytics` (protected YouTube Analytics reports)
 
 Upload body includes a server-local `media_path`, title, description, tags and category ID. The API forces `privacyStatus=private`; there is no public/unlisted override. The server must already have the rendered file at that local path. Current render providers return artifact URLs, so downloading/staging remote artifacts into trusted local storage is a separate deployment integration and is not silently performed by this endpoint.
 
-Uploads use the Google API client resumable media upload interface. The upload record and source-provided view/like/comment counters are persisted. A missing first metrics response does not invalidate a confirmed upload. Data API counters are not revenue; estimated or actual monetization revenue is handled separately in BUILD-00009.
+Uploads use the Google API client resumable media upload interface. The upload record and source-provided view/like/comment counters are persisted. A missing first metrics response does not invalidate a confirmed upload. Data API counters are not revenue; estimated or actual monetization revenue is handled separately in BUILD-00009. The independent YouTube Analytics collector queries watch time, average view duration, average view percentage and the per-video audience-retention curve, stores source-reported results, and refreshes uploaded videos daily (configurable with `YOUTUBE_ANALYTICS_MIN_AGE_SECONDS`). It runs under its own SQLite lease and isolates errors per video. The review workspace can manually refresh a video's Analytics report.
 
 OAuth credentials are supplied through environment secrets; an interactive OAuth consent UI/token provisioning flow is not included. The initial adapter supports one authenticated YouTube channel per runtime. Mocked tests are committed; real OAuth, upload quota, media processing and live metrics have not been validated.
 
@@ -132,7 +133,7 @@ Use entry types `youtube_ads`, `affiliate`, `sponsor`, `production_cost`, `platf
 
 ## BUILD-00010 — performance insights
 
-GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports brand-level video snapshot differences and recorded ledger totals. It does not estimate earnings from views or infer trends from a single snapshot. Recommendations are rule-based and include their evidence basis. YouTube retention/watch-time, controlled experiments and autonomous strategy updates are not implemented.
+GET `/api/performance/insights?brand=...` requires `X-Review-Token`. It reports brand-level video snapshot differences and recorded ledger totals. It does not estimate earnings from views or infer trends from a single snapshot. Recommendations are rule-based and include their evidence basis. YouTube Analytics watch-time and audience-retention collection is now implemented under BUILD-00032; reports remain unavailable when the channel/video is ineligible or OAuth/API access is denied. TikTok does not provide these same retention metrics through the current Display API. Controlled experiments and autonomous strategy updates remain unimplemented.
 
 ## BUILD-00011 — persistent scheduler
 
@@ -442,3 +443,14 @@ Backend endpoints include OAuth start/callback/status/disconnect, creator-info, 
 ### BUILD-00027 validation
 
 GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43781739033 passed **317 backend tests** and `scripts/validate.sh`. PR #87 was squash-merged into `main` as `43b8c0048e117af3864908e23f50dcf2b3443c9f`. The backend integration is CI-verified; no live TikTok creator account post or metrics fetch was performed.
+
+
+## BUILD-00032 — YouTube Analytics watch-time and audience retention
+
+- Uses the authenticated channel's YouTube Analytics API v2 `reports.query` endpoint with the video filter to collect views, estimated minutes watched, average view duration and average view percentage.
+- Separately requests the 100-point audience-retention curve (`elapsedVideoTimeRatio`, `audienceWatchRatio`, `relativeRetentionPerformance`) for each uploaded video. Retention failures or ineligible videos do not discard successfully collected watch-time metrics.
+- Persists source metrics in an additive SQLite table and refreshes due videos through the independent `metrics-collector` service with a separate singleton lease. Default refresh age is 24 hours; configure `YOUTUBE_ANALYTICS_MIN_AGE_SECONDS`.
+- Adds protected manual refresh/read endpoints and exposes per-video curves plus brand-level median watch-time metrics in the performance dashboard.
+- No recommendation score changes are enabled. Sparse samples, missing data and ineligible reports remain explicit; actual channel OAuth/API access and live account data must be validated in deployment.
+- OAuth must have the currently documented `youtube.readonly` permission for `reports.query`. A refresh token that was not granted the required scope needs a fresh operator consent flow; changing the requested scope in code does not upgrade an existing token.
+- Automated validation pending on this branch.

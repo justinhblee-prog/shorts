@@ -272,9 +272,9 @@
       api("/api/performance/insights"),
       api("/api/recommendations/evaluation")
     ]);
-    const brands=(data.brands||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+Number(x.view_delta||0).toLocaleString()+' views (snapshot delta)</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+' · 미측정 '+x.unmeasured_videos+' · '+esc((x.recommendations||[]).map(r=>r.action).join(" / "))+'</small></div>').join("");
+    const brands=(data.brands||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+Number(x.view_delta||0).toLocaleString()+' views (snapshot delta)</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+' · 평균 시청 시간 중앙값 '+(x.median_average_view_duration_seconds===null||x.median_average_view_duration_seconds===undefined?"—":Number(x.median_average_view_duration_seconds).toFixed(1)+"초")+' · 평균 시청 비율 '+(x.median_average_view_percentage===null||x.median_average_view_percentage===undefined?"—":Number(x.median_average_view_percentage).toFixed(1)+"%")+' · Analytics 실측 '+Number(x.analytics_measured_videos||0)+'개</small><small>미측정 '+x.unmeasured_videos+' · '+esc((x.recommendations||[]).map(r=>r.action).join(" / "))+'</small></div>').join("");
     const regions=(data.regions||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+Number(x.view_delta||0).toLocaleString()+' views</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+'</small></div>').join("");
-    const videos=(data.videos||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+esc(x.topic)+'</b><small>'+esc(x.measurement_status)+' · snapshots '+x.snapshot_count+(x.view_delta===undefined?"":" · Δ "+Number(x.view_delta).toLocaleString())+'</small></div>').join("");
+    const videos=(data.videos||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+esc(x.topic)+'</b><small>'+esc(x.measurement_status)+' · snapshots '+x.snapshot_count+(x.view_delta===undefined?"":" · Δ "+Number(x.view_delta).toLocaleString())+' · 평균 시청 '+(x.average_view_duration_seconds===null||x.average_view_duration_seconds===undefined?"—":Number(x.average_view_duration_seconds).toFixed(1)+"초")+' · 시청 비율 '+(x.average_view_percentage===null||x.average_view_percentage===undefined?"—":Number(x.average_view_percentage).toFixed(1)+"%")+' · 유지율 곡선 '+Number((x.audience_retention_curve||[]).length)+'점 · '+esc(x.analytics_status||"not_collected")+'</small>'+(x.video_id?'<button type="button" class="button button-quiet" data-youtube-analytics-refresh="'+esc(x.video_id)+'">Analytics 갱신</button>':"")+'</div>').join("");
     const cohorts=(data.cohorts||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+esc(x.topic_signature)+' · '+esc(x.duration_bucket)+' · '+esc(x.publication_age_bucket)+'</b><small>'+esc(x.format)+' · 비교 표본 '+Number(x.sample_count||0)+'개 · 중앙값 '+Number(x.median_views_per_hour||0).toLocaleString()+' views/hour · '+esc(x.evidence_status)+' · 추천 점수 반영 안 함</small></div>').join("");
     const finance=(data.financial||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+esc(x.currency)+' · net '+money(x.net,x.currency)+'</b><small>매출 '+money(x.revenue,x.currency)+' · 비용 '+money(x.costs,x.currency)+' · '+x.entries+'건</small></div>').join("");
     const evalStatus=evaluation.status==="holdout_available"?"시계열 홀드아웃 진단 가능":evaluation.status==="holdout_inconclusive"?"홀드아웃 결과 불충분":"검증 표본 수집 중";
@@ -362,6 +362,19 @@
 
   $("loadSchedules").addEventListener("click",()=>loadSchedules().catch(e=>toast(e.message)));
   $("loadInsights").addEventListener("click",()=>loadInsights().catch(e=>toast(e.message)));
+  $("insightList").addEventListener("click",async e=>{
+    const button=e.target.closest("button[data-youtube-analytics-refresh]");
+    if(!button)return;
+    if(!requireToken())return;
+    const videoId=button.dataset.youtubeAnalyticsRefresh;
+    button.disabled=true;
+    try{
+      const result=await api("/api/youtube/videos/"+encodeURIComponent(videoId)+"/refresh-analytics",{method:"POST"});
+      toast("YouTube Analytics 갱신 완료 · 평균 시청 "+(result.metrics.average_view_duration_seconds===null?"—":Number(result.metrics.average_view_duration_seconds).toFixed(1)+"초")+" · 유지율 "+result.retention_status);
+      await loadInsights();
+    }catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
   $("loadPreflight").addEventListener("click",()=>loadPreflight().catch(e=>toast(e.message)));
   $("productionForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;

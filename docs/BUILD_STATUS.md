@@ -964,3 +964,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression tests for optional provider tokens, TikTok OAuth readiness, static-token fallback, secret redaction and fail-closed empty configuration.
 - Configuration checks do not verify live provider compatibility, OAuth scopes, creator permissions, platform connectivity or publishing.
 - GitHub Actions PR run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930) passed **326 backend tests**; `scripts/validate.sh` completed successfully. The test run covered the code head before documentation-only validation-record commits and the PR was squash-merged as `7ce6e7fd5a52d7510369c853ec0126bcefcd9527`.
+
+
+### BUILD-00032 — YouTube Analytics watch-time and audience retention (2026-11-16)
+
+- Add `backend/youtube_analytics.py` with channel-authorized YouTube Analytics API v2 reports for views, estimated minutes watched, average view duration and average view percentage.
+- Collect per-video audience-retention curves from elapsed-video-time ratio, audience-watch ratio and relative-retention performance. Retention query failures are isolated from core watch-time reports.
+- Persist reports in an additive SQLite table with a separate collector lease; run daily from the existing metrics-collector service and support protected manual refresh/read endpoints.
+- Add per-video and brand-level median Analytics evidence to performance insights and dashboard; missing/eligibility-limited metrics remain null and are not inferred.
+- Recommendation ranking remains unchanged; analytics are evidence for later controlled holdout evaluation, not an automatic score input.
+- Validation pending on this branch.

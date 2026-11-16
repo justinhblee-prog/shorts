@@ -19,6 +19,7 @@ from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUplo
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
 from tiktok_metrics import TikTokMetricsStore
+from youtube_analytics import YouTubeAnalyticsStore, YouTubeAnalyticsCollector
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
@@ -59,6 +60,8 @@ brand_store=BrandStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_publisher=YouTubePublisher(youtube_upload_store)
+youtube_analytics_store=YouTubeAnalyticsStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+youtube_analytics_collector=YouTubeAnalyticsCollector(youtube_analytics_store)
 tiktok_publish_store=TikTokPublishStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 tiktok_oauth_store=TikTokOAuthStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 tiktok_oauth_manager=TikTokOAuthManager(tiktok_oauth_store)
@@ -529,6 +532,26 @@ def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=
         return youtube_publisher.refresh_metrics(video_id)
     except YouTubeUploadError as e:
         raise HTTPException(502,str(e))
+
+
+@app.post("/api/youtube/videos/{video_id}/refresh-analytics")
+def refresh_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return youtube_analytics_collector.collect_video(video_id)
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    except Exception as e:
+        raise HTTPException(502,"YouTube Analytics collection failed: "+type(e).__name__)
+
+
+@app.get("/api/youtube/videos/{video_id}/analytics")
+def get_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    result=youtube_analytics_store.get(video_id)
+    if result is None:
+        raise HTTPException(404,"YouTube Analytics report has not been collected")
+    return result
 
 
 

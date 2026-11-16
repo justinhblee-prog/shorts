@@ -77,3 +77,6 @@ The trend workspace supports separate YouTube Shorts and TikTok recommendation e
 ### Platform-aware scheduled production
 
 Manual production requests and recurring schedules let the operator select YouTube Shorts or TikTok. The platform selection is persisted in the schedule payload and survives the durable scheduler outbox and queue dispatch, so downstream production policy checks and approval/publishing gates receive the intended target platform. YouTube remains the default for existing schedules and older payloads.
+
+
+YouTube Shorts performance insights now support authenticated YouTube Analytics reports for average view duration, average view percentage and per-video audience-retention curves. These are separate from public Data API counter snapshots and remain unavailable until the configured channel refresh token has the required Analytics permission and the API returns eligible data. Metrics are shown as evidence only; recommendation ranking is not automatically changed.
