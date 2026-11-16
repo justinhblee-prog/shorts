@@ -5,6 +5,27 @@
   let brands = [];
   let toastTimer;
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  function retentionCheckpoint(points,target){
+    const valid=(Array.isArray(points)?points:[]).filter(p=>p&&Number.isFinite(Number(p.elapsed_video_time_ratio))&&Number.isFinite(Number(p.audience_watch_ratio)));
+    if(!valid.length)return "—";
+    const point=valid.reduce((best,item)=>Math.abs(Number(item.elapsed_video_time_ratio)-target)<Math.abs(Number(best.elapsed_video_time_ratio)-target)?item:best);
+    return Number(point.audience_watch_ratio).toFixed(2)+"x";
+  }
+  function retentionSummary(points){
+    if(!Array.isArray(points)||!points.length)return "데이터 없음";
+    return [0.25,0.50,0.75].map((ratio,index)=>[25,50,75][index]+"% "+retentionCheckpoint(points,ratio)).join(" · ");
+  }
+  function retentionSparkline(points){
+    const valid=(Array.isArray(points)?points:[]).filter(p=>p&&Number.isFinite(Number(p.elapsed_video_time_ratio))&&Number.isFinite(Number(p.audience_watch_ratio))).sort((a,b)=>Number(a.elapsed_video_time_ratio)-Number(b.elapsed_video_time_ratio));
+    if(valid.length<2)return "";
+    const maxValue=Math.max(1,...valid.map(p=>Number(p.audience_watch_ratio)));
+    const coordinates=valid.map(p=>{
+      const x=Math.max(0,Math.min(100,Number(p.elapsed_video_time_ratio)*100));
+      const y=28-(Math.max(0,Math.min(maxValue,Number(p.audience_watch_ratio)))/maxValue)*26;
+      return x.toFixed(2)+","+y.toFixed(2);
+    }).join(" ");
+    return '<svg viewBox="0 0 100 30" role="img" aria-label="YouTube audience retention curve" style="width:120px;height:30px;vertical-align:middle"><polyline fill="none" stroke="currentColor" stroke-width="2" points="'+coordinates+'"></polyline></svg>';
+  }
   const money = (n,c="USD") => new Intl.NumberFormat("en-US",{style:"currency",currency:c,maximumFractionDigits:2}).format(Number(n||0));
   function toast(message){$("toast").textContent=message;$("toast").classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),2800);}
   function msg(id,text,error=false){const el=$(id);el.textContent=text;el.classList.toggle("error",!!error);}
@@ -280,7 +301,10 @@
     ]);
     const brands=(data.brands||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+Number(x.view_delta||0).toLocaleString()+' views (snapshot delta)</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+' · 평균 시청 시간 중앙값 '+(x.median_average_view_duration_seconds===null||x.median_average_view_duration_seconds===undefined?"—":Number(x.median_average_view_duration_seconds).toFixed(1)+"초")+' · 평균 시청 비율 '+(x.median_average_view_percentage===null||x.median_average_view_percentage===undefined?"—":Number(x.median_average_view_percentage).toFixed(1)+"%")+' · 참여 조회 비율 중앙값 '+(x.median_engaged_view_share===null||x.median_engaged_view_share===undefined?"—":(Number(x.median_engaged_view_share)*100).toFixed(1)+"%")+' · Analytics 실측 '+Number(x.analytics_measured_videos||0)+'개</small><small>미측정 '+x.unmeasured_videos+' · '+esc((x.recommendations||[]).map(r=>r.action).join(" / "))+'</small></div>').join("");
     const regions=(data.regions||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+Number(x.view_delta||0).toLocaleString()+' views</b><small>측정 영상 '+x.measured_videos+'/'+x.videos+'</small></div>').join("");
-    const videos=(data.videos||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+esc(x.topic)+'</b><small>'+esc(x.measurement_status)+' · snapshots '+x.snapshot_count+(x.view_delta===undefined?"":" · Δ "+Number(x.view_delta).toLocaleString())+' · 참여 조회 비율 '+(x.engaged_view_share===null||x.engaged_view_share===undefined?"—":(Number(x.engaged_view_share)*100).toFixed(1)+"%")+' · 평균 시청 '+(x.average_view_duration_seconds===null||x.average_view_duration_seconds===undefined?"—":Number(x.average_view_duration_seconds).toFixed(1)+"초")+' · 시청 비율 '+(x.average_view_percentage===null||x.average_view_percentage===undefined?"—":Number(x.average_view_percentage).toFixed(1)+"%")+' · 유지율 곡선 '+Number((x.audience_retention_curve||[]).length)+'점 · '+esc(x.analytics_status||"not_collected")+'</small>'+(x.video_id?'<button type="button" class="button button-quiet" data-youtube-analytics-refresh="'+esc(x.video_id)+'">Analytics 갱신</button>':"")+'</div>').join("");
+    const videos=(data.videos||[]).map(x=>{
+      const curve=x.audience_retention_curve||[];
+      return '<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+esc(x.topic)+'</b><small>'+esc(x.measurement_status)+' · snapshots '+x.snapshot_count+(x.view_delta===undefined?"":" · Δ "+Number(x.view_delta).toLocaleString())+' · 참여 조회 비율 '+(x.engaged_view_share===null||x.engaged_view_share===undefined?"—":(Number(x.engaged_view_share)*100).toFixed(1)+"%")+' · 평균 시청 '+(x.average_view_duration_seconds===null||x.average_view_duration_seconds===undefined?"—":Number(x.average_view_duration_seconds).toFixed(1)+"초")+' · 평균 시청 비율 '+(x.average_view_percentage===null||x.average_view_percentage===undefined?"—":Number(x.average_view_percentage).toFixed(1)+"%")+'</small><small>구간별 시청 비율: '+esc(retentionSummary(curve))+'</small>'+(curve.length>1?'<div class="retention-curve">'+retentionSparkline(curve)+'</div>':'')+'<small>'+esc(x.analytics_status||"not_collected")+' · 유지율 표본 '+Number(curve.length)+'점</small>'+(x.video_id?'<button type="button" class="button button-quiet" data-youtube-analytics-refresh="'+esc(x.video_id)+'">Analytics 갱신</button>':"")+'</div>';
+    }).join("");
     const cohorts=(data.cohorts||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' / '+esc(x.region)+' · '+esc(x.topic_signature)+' · '+esc(x.duration_bucket)+' · '+esc(x.publication_age_bucket)+'</b><small>'+esc(x.format)+' · 비교 표본 '+Number(x.sample_count||0)+'개 · 중앙값 '+Number(x.median_views_per_hour||0).toLocaleString()+' views/hour · '+esc(x.evidence_status)+' · 추천 점수 반영 안 함</small></div>').join("");
     const finance=(data.financial||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+esc(x.currency)+' · net '+money(x.net,x.currency)+'</b><small>매출 '+money(x.revenue,x.currency)+' · 비용 '+money(x.costs,x.currency)+' · '+x.entries+'건</small></div>').join("");
     const evalStatus=evaluation.status==="holdout_available"?"시계열 홀드아웃 진단 가능":evaluation.status==="holdout_inconclusive"?"홀드아웃 결과 불충분":"검증 표본 수집 중";

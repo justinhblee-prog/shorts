@@ -984,3 +984,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions PR run [43787047727](https://github.com/justinhblee-prog/shorts/actions/runs/43787047727) passed **339 backend tests** and `scripts/validate.sh`.
 - Regression tests cover legacy SQLite migration, engagedViews parsing, derived share, performance aggregation, topic history and recommendation holdout evidence.
 - No recommendation score adjustment or live YouTube account verification is claimed.
+
+
+### BUILD-00035 — audience-retention curve visualization (2026-11-16)
+
+- Sort stored audience-retention points by elapsed video-time ratio before exposing them to the dashboard.
+- Display a per-video sparkline plus the 25%, 50% and 75% audience-watch-ratio checkpoints.
+- Label checkpoint values as ratios (x), not percentages, because the absolute audience-watch ratio can exceed 1 when viewers replay a segment.
+- Preserve unavailable/empty retention as an explicit no-data state; no curve is synthesized.
+- Validation pending.
