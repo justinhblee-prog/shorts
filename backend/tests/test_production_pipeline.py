@@ -717,7 +717,9 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"does not match the staged media fingerprint"):
             self.store.adopt_recovered_render(job_id,attempt["id"],staged,inspection)
         self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"response_received")
-        self.assertEqual(self.store.get(job_id)["artifacts"],[])
+        self.assertEqual(
+            {item["stage"] for item in self.store.get(job_id)["artifacts"]},
+            {"script","voice_generation"})
         self.assertEqual(queue.get(job_id)["status"],"queued")
 
     def test_provider_render_adoption_rejects_unverified_or_nonvertical_media(self):
