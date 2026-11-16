@@ -205,6 +205,53 @@ class QueueTests(unittest.TestCase):
   with self.assertRaises(LeaseConflict):
    self.q.heartbeat(job["id"],"race-worker",claimed["lease_token"],old["generation_token"])
 
+ def test_production_restart_racing_expired_lease_recovery_never_requeues_ambiguous_work(self):
+  old=self.q.register_worker("production-restart-worker","host-a")
+  job=self.q.enqueue("short_video_production",{"topic":"restart-ambiguous"})
+  with self.q.db() as c:
+   c.execute("""CREATE TABLE production_runs(
+    job_id TEXT PRIMARY KEY,status TEXT,current_stage TEXT,error TEXT,updated_at TEXT)""")
+   c.execute("INSERT INTO production_runs VALUES(?,?,?,?,?)",
+             (job["id"],"rendering","rendering",None,"now"))
+  claimed=self.q.claim("production-restart-worker","host-a",
+                       job_type="short_video_production",
+                       generation_token=old["generation_token"])
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+             (job["id"],))
+  gate=Event()
+  def restart():
+   gate.wait()
+   return self.q.register_worker("production-restart-worker","host-a")
+  def recover():
+   gate.wait()
+   return self.q.recover()
+  with ThreadPoolExecutor(max_workers=2) as pool:
+   restarted=pool.submit(restart)
+   recovery=pool.submit(recover)
+   gate.set()
+   current=restarted.result()
+   result=recovery.result()
+  self.assertNotEqual(old["generation_token"],current["generation_token"])
+  self.assertEqual(result,{"requeued":0,"terminal":1})
+  persisted=self.q.get(job["id"])
+  self.assertEqual(persisted["status"],"failed_terminal")
+  self.assertEqual(persisted["error_code"],"production_lease_expired_ambiguous")
+  self.assertTrue(self.q.is_paused())
+  with self.q.db() as c:
+   run=c.execute("SELECT status,current_stage FROM production_runs WHERE job_id=?",
+                 (job["id"],)).fetchone()
+  self.assertEqual(tuple(run),("failed_terminal","lease_expired_ambiguous"))
+  self.assertFalse(self.q.mark_worker_offline("production-restart-worker",
+                                               old["generation_token"]))
+  registry=next(row for row in self.q.workers()
+                if row["worker_id"]=="production-restart-worker")
+  self.assertEqual(registry["generation_token"],current["generation_token"])
+  self.assertEqual(registry["status"],"online")
+  with self.assertRaises(LeaseConflict):
+   self.q.finish(job["id"],"production-restart-worker",claimed["lease_token"],
+                 generation_token=old["generation_token"])
+
  def test_heartbeat_and_recovery_fence_stale_worker_after_reclaim(self):
   job=self.q.enqueue("render",{"topic":"heartbeat-recovery"})
   first=self.q.claim("worker-first")

@@ -2047,3 +2047,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Wait for the heartbeat thread to exit before clearing active-job state.
 - Add a regression that blocks the heartbeat database call and asserts cleanup joins without a timeout.
 - GitHub Actions [run #3500](https://github.com/justinhblee-prog/shorts/actions/runs/43916192844) succeeded on commit `7c647861481854ed91216dac9d9b69c4ce1d89ba`; `scripts/validate.sh` passed. Unit tests use a controlled thread and mocked provider execution; no live production worker/database deployment validation is claimed.
+
+
+## BUILD-00273 — Test production worker restart and lease-recovery race
+- Add a deterministic concurrent regression where a production worker restarts while an expired production lease is recovered.
+- Verify the ambiguous external provider operation is terminalized rather than automatically requeued, the production queue remains paused for manual reconciliation, and the prior process generation cannot mark the replacement worker offline or finish the old job.
+- GitHub Actions run [#3504](https://github.com/justinhblee-prog/shorts/actions/runs/43917868295) succeeded on commit `9f118549903b1f252b8c911cd363d96c827568cb`; `scripts/validate.sh` passed. The test uses local SQLite and concurrent threads; no live provider or production worker validation is claimed.
