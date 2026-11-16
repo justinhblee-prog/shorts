@@ -39,11 +39,17 @@ class MediaStager:
         self.fetcher = fetcher or self._fetch
         self.timeout = timeout
         if scan_enabled is None:
-            scan_enabled = os.getenv("NEXUS_MEDIA_SCAN_ENABLED", "false").strip().lower() in {
-                "1", "true", "yes", "on"
-            }
+            raw_scan_setting = os.getenv("NEXUS_MEDIA_SCAN_ENABLED", "false").strip().lower()
+            scan_enabled = (
+                raw_scan_setting in {"1", "true", "yes", "on"}
+                or raw_scan_setting not in {"0", "false", "no", "off", ""}
+            )
         elif isinstance(scan_enabled, str):
-            scan_enabled = scan_enabled.strip().lower() in {"1", "true", "yes", "on"}
+            raw_scan_setting = scan_enabled.strip().lower()
+            scan_enabled = (
+                raw_scan_setting in {"1", "true", "yes", "on"}
+                or raw_scan_setting not in {"0", "false", "no", "off", ""}
+            )
         self.scan_enabled = bool(scan_enabled)
         # Construct the optional scanner lazily during staging so malformed
         # scan settings are reported by preflight and do not prevent API startup.
