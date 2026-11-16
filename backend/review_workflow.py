@@ -150,7 +150,7 @@ class ReviewStore:
             raise ValueError("policy declarations are required")
 
         allowed = {
-            "rights", "synthetic_media_status", "platform_disclosures", "platforms",
+            "rights", "synthetic_media_status", "policy_flags", "platform_disclosures", "platforms",
             "risk_flags", "factual_claims_verified", "originality_notes",
             "claim_evidence_notes", "source_urls", "transformative_contribution",
             "commercial_relationship_disclosed", "child_safety_review_confirmed",
@@ -188,7 +188,7 @@ class ReviewStore:
 
             updated_payload = dict(payload)
             for key, value in declarations.items():
-                if key in ("rights", "platform_disclosures", "risk_flags"):
+                if key in ("rights", "policy_flags", "platform_disclosures", "risk_flags"):
                     existing = updated_payload.get(key) or {}
                     if not isinstance(existing, dict) or not isinstance(value, dict):
                         raise ValueError(f"{key} must be an object")
