@@ -1146,3 +1146,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Make YouTube Data API/TikTok lease duration configurable with `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds); YouTube Analytics remains separately configurable (default 900 seconds).
 - Add tests for lease renewal, expiry, replacement-token fencing, runner failure cleanup and heartbeat loss.
 - GitHub Actions PR run [43797131269](https://github.com/justinhblee-prog/shorts/actions/runs/43797131269) passed **462 backend tests** and the complete `scripts/validate.sh` command.
+
+
+## BUILD-00139 — exact recommendation exposure attribution (2026-11-16)
+
+- Carry the captured `evaluation_run_id` from the recommendation snapshot into the selected production draft request.
+- Link a production job only to the exact recommendation run, trend and brand that the operator selected; never infer attribution from the newest matching exposure.
+- Ordinary trend-to-production drafts do not create recommendation-evaluation outcomes unless they carry an explicit captured recommendation run ID.
+- Return an explicit attribution result to the dashboard when a recommendation selection is linked or cannot be linked.
+- Add regression tests for two refreshes of the same recommendation, exact older-run selection, missing/stale run IDs and cross-platform isolation.
+- Validation pending on this branch.
