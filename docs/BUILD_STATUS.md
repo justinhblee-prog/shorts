@@ -1974,3 +1974,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Eight simultaneous reservation attempts must produce exactly one durable attempt and one start/consent audit record; all competing requests are rejected without replacing the winning attempt.
 - Confirms TikTok reservation remains SELF_ONLY.
 - Deterministic SQLite transaction tests only; no live platform API or account validation is claimed.
+
+## BUILD-00249 — Serialize YouTube failure finalization
+- Acquire SQLite's immediate write lock before capturing the failure timestamp and updating the matching upload attempt.
+- Preserve attempt fencing and write the failure audit only when the active attempt transitions from uploading to failed.
+- Regression verifies one failure audit and that a delayed stale failure cannot downgrade a newer uploading attempt.
+- Deterministic local SQLite validation only; no live YouTube API test is claimed.
