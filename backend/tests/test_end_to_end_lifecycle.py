@@ -5,6 +5,7 @@ This test validates integration and state transitions, not live AI/CDN/YouTube s
 import os
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from ledger import LedgerStore
@@ -13,6 +14,7 @@ from production_pipeline import ProductionPipeline, ProductionStore, submit_prod
 from queue_store import JobQueue
 from review_workflow import ReviewStore
 from youtube_publishing import YouTubePublisher, YouTubeUploadStore
+from scheduler_store import ScheduleStore
 
 
 class FakeProvider:
@@ -99,9 +101,37 @@ class EndToEndLifecycleTests(unittest.TestCase):
                  "rights": {"visuals_cleared": True, "audio_cleared": True,
                             "likeness_authorized": True},
                  "synthetic_media_status": "none"}
-        submitted = submit_production(self.queue, self.production, brief)
-        job_id = submitted["job"]["id"]
-        self.assertEqual(submitted["job"]["status"], "queued")
+        # Exercise the real persisted scheduler outbox and leader fencing,
+        # then let the worker's startup reconciliation restore the production
+        # row created by scheduled queue dispatch.
+        scheduler = ScheduleStore(self.db)
+        scheduled_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+        schedule = scheduler.create(
+            "e2e hourly production", 3600, brief, start_at=scheduled_at.isoformat()
+        )
+        dispatch_now = datetime.now(timezone.utc)
+        scheduler_token = scheduler.acquire_scheduler_lease(
+            "e2e-scheduler", 90, dispatch_now
+        )
+        self.assertIsNotNone(scheduler_token)
+        dispatched = scheduler.dispatch_due(
+            self.queue, now=dispatch_now, lease_owner="e2e-scheduler",
+            lease_token=scheduler_token, lease_seconds=90
+        )
+        self.assertEqual(dispatched["count"], 1)
+        self.assertFalse(dispatched.get("lease_lost", False))
+        self.assertEqual(scheduler.outbox_status()["counts"].get("dispatched"), 1)
+        self.assertEqual(scheduler.dispatch_due(
+            self.queue, now=datetime.now(timezone.utc),
+            lease_owner="e2e-scheduler", lease_token=scheduler_token,
+            lease_seconds=90
+        )["count"], 0)
+
+        job_id = dispatched["dispatched"][0]["job"]["id"]
+        self.assertEqual(self.queue.get(job_id)["status"], "queued")
+        restored = self.production.reconcile_missing_runs(self.queue)
+        self.assertEqual(restored["job_ids"], [job_id])
+        self.assertEqual(self.production.get(job_id)["status"], "queued")
 
         claimed = self.queue.claim("integration-worker", "test-host",
                                    job_type="short_video_production")
