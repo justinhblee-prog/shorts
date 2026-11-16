@@ -2097,3 +2097,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Prevent lock contention from causing a cancellation's persisted `updated_at` and audit-event timestamp to predate the actual serialized state transition.
 - Add a deterministic lock-contention regression that advances the controlled clock while cancellation waits for the write lock and checks both the job timestamp and cancellation event timestamp.
 - Validation is pending GitHub Actions. This is local SQLite concurrency coverage only; no production database or provider validation is claimed.
+
+
+## BUILD-00281 — Reconcile production jobs fenced by a queue pause
+- Treat every in-flight production job revoked by a global production pause as an ambiguous external outcome instead of a generic `worker_paused` terminal failure.
+- Expose these jobs through `ambiguous_production_jobs()` and permit only evidence-gated operator reconciliation; the production queue remains paused after authorization.
+- Extend the pause regression to verify lease fencing, ambiguity discovery, missing-evidence rejection, authorized retry transition, and audit provenance.
+- Validation pending GitHub Actions. SQLite-backed deterministic tests only; no production provider verification is claimed.
