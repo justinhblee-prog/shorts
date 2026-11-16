@@ -472,3 +472,8 @@ GitHub Actions run [43795822579](https://github.com/justinhblee-prog/shorts/acti
 - Cancelling a queued production job updates both queue and production state. Cancellation after review handoff or approval is rejected.
 - Cancelling while a provider request may be in flight marks the outcome ambiguous and pauses production. Reconcile provider-side job state before resuming or retrying.
 - Graceful worker termination now sets the worker registry state to offline immediately. Hard crashes continue to appear offline after their heartbeat becomes stale.
+
+
+### BUILD-00137 validation checkpoint
+
+GitHub Actions run [43796187131](https://github.com/justinhblee-prog/shorts/actions/runs/43796187131) passed **451 backend tests** and the full validation script. Verify provider-side state manually before resuming after an ambiguous cancellation.
