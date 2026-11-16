@@ -9,7 +9,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  ProductionLeaseConflict, ProductionBrief, create_production_job,
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
-                 OpportunityInput, create_opportunity_score, PolicyEvidenceInput)
+                 OpportunityInput, create_opportunity_score, PolicyEvidenceInput, ScheduleInput)
 from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
@@ -33,6 +33,18 @@ class ApiSecurityTests(unittest.TestCase):
             policy_flags={"tiktok_prohibited_aigc_minor_likeness": True},
         )
         self.assertTrue(body.policy_flags["tiktok_prohibited_aigc_minor_likeness"])
+
+    def test_production_and_schedule_models_accept_platform_selection(self):
+        production=ProductionBrief(
+            brand="Brain Glitch",region="US",language="English",
+            topic="Topic",platforms=["tiktok"]
+        )
+        schedule=ScheduleInput(
+            name="TikTok daily",interval_seconds=86400,brand="Brain Glitch",
+            region="US",language="English",topic="Topic",platform="tiktok"
+        )
+        self.assertEqual(production.platforms,["tiktok"])
+        self.assertEqual(schedule.platform,"tiktok")
 
     def test_tiktok_operational_routes_are_registered_and_token_protected(self):
         protected_paths = {

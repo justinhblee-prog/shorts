@@ -177,6 +177,7 @@ class ScheduleInput(BaseModel):
     region:str=Field(min_length=2,max_length=8)
     language:str=Field(min_length=2,max_length=40)
     topic:str=Field(min_length=1,max_length=500)
+    platform:Literal["youtube","tiktok"]="youtube"
     start_at:str|None=None
 
 class BrandActivation(BaseModel):
@@ -683,7 +684,8 @@ def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=No
     if body.region not in brand["config"]["regions"] or body.language not in brand["config"]["languages"]:
         raise HTTPException(422,"Region or language is not enabled for this brand")
     payload={"brand":brand["name"],"region":body.region,
-             "language":body.language,"topic":body.topic}
+             "language":body.language,"topic":body.topic,
+             "platforms":[body.platform]}
     try:return schedule_store.create(body.name,body.interval_seconds,payload,body.start_at)
     except ValueError as e:raise HTTPException(422,str(e))
 
