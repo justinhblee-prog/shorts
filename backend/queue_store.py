@@ -376,7 +376,8 @@ class JobQueue:
                     WHERE job_id=? AND status NOT IN ('approved','uploaded')""",
                     (stage,error_message,n,jid))
             self.event(c,jid,"cancelled",row["status"],"cancelled",None,
-                       {"reason":reason,"external_outcome_ambiguous":ambiguous})
+                       {"reason":reason,"external_outcome_ambiguous":ambiguous},
+                       created_at=n)
             if ambiguous:
                 self._pause_production_in_transaction(
                     c,
@@ -473,7 +474,7 @@ class JobQueue:
                     "operator_id":operator_id,
                     "evidence_reference":evidence_reference,
                     "retry_attempt_ceiling":next_attempt_ceiling,
-                })
+                }, created_at=timestamp)
             result = c.execute("SELECT * FROM pipeline_jobs WHERE id=?", (job_id,)).fetchone()
             c.commit()
             return self.decode(result)
