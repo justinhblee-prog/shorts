@@ -12,6 +12,12 @@ def stamp(value):
     return value.astimezone(timezone.utc).isoformat()
 
 
+def _lease_seconds(value, minimum):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1 or value > 3600:
+        raise ValueError("lease_seconds must be an integer from 1 to 3600")
+    return max(minimum, value)
+
+
 class LeaseConflict(Exception): pass
 class JobNotFound(Exception): pass
 class IdempotencyConflict(ValueError): pass
@@ -20,7 +26,7 @@ class IdempotencyConflict(ValueError): pass
 class JobQueue:
     def __init__(self, db_path="data/nexus.sqlite3", lease_seconds=90):
         self.db_path=str(db_path)
-        self.lease_seconds=max(10,int(lease_seconds))
+        self.lease_seconds=_lease_seconds(lease_seconds, 10)
         Path(self.db_path).parent.mkdir(parents=True,exist_ok=True)
         with self.db() as c:
             c.execute("PRAGMA journal_mode=WAL")
