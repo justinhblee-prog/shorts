@@ -43,6 +43,17 @@ class WorkerFailClosedTests(unittest.TestCase):
         self.assertTrue(worker.stopping.is_set())
 
 
+    def test_heartbeat_stops_renewing_lease_after_shutdown_signal(self):
+        lost_lease = worker.threading.Event()
+        heartbeat_stop = worker.threading.Event()
+        lost_lease.set()
+        with mock.patch.object(worker.queue, "heartbeat") as heartbeat:
+            worker.heartbeat_loop(
+                "job-shutdown-heartbeat", "lease-shutdown-heartbeat",
+                lost_lease, heartbeat_stop, interval=0,
+            )
+        heartbeat.assert_not_called()
+
     def test_orphaned_lifecycle_record_pauses_before_claiming_work(self):
         report = {
             "orphaned": 1,
