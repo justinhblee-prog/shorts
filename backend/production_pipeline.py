@@ -214,11 +214,37 @@ class ProductionStore:
             c.execute("BEGIN IMMEDIATE")
             if worker_id is not None or lease_token is not None:
                 self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            unresolved=c.execute("""SELECT id,state,attempt_number FROM provider_execution_attempts
+                WHERE job_id=? AND stage=?
+                  AND state IN ('request_started','outcome_unknown','response_received')
+                ORDER BY attempt_number LIMIT 1""",(job_id,stage)).fetchone()
+            if unresolved is not None:
+                raise ProviderError(
+                    stage,
+                    "Previous provider attempt " + str(unresolved["attempt_number"])
+                    + " remains " + unresolved["state"]
+                    + "; reconcile or adopt its result before issuing another request",
+                    retryable=False,
+                )
             c.execute("""INSERT INTO provider_execution_attempts
                 (id,job_id,stage,attempt_number,idempotency_key,state,started_at)
                 VALUES(?,?,?,?,?,'request_started',?)""",
                 (str(uuid.uuid4()),job_id,stage,attempt_number,request_key,timestamp))
         return request_key
+
+    def mark_provider_attempt_adopted(self, job_id, stage, attempt_number, request_key):
+        """Mark a durable provider response consumed by its corresponding artifact."""
+        timestamp=utc_now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            updated=c.execute("""UPDATE provider_execution_attempts
+                SET state='adopted',adopted_at=?
+                WHERE job_id=? AND stage=? AND attempt_number=?
+                  AND idempotency_key=? AND state='response_received'""",
+                (timestamp,job_id,stage,attempt_number,request_key))
+            if updated.rowcount != 1:
+                raise ValueError("provider response was not available for artifact adoption")
+        return True
 
     def finish_provider_attempt(self, job_id, stage, attempt_number, request_key,
                                 response, worker_id=None, lease_token=None):
@@ -696,7 +722,7 @@ class ProductionPipeline:
             raise
         self.store.finish_provider_attempt(
             job_id,stage,attempt_number,request_key,response,worker_id,lease_token)
-        return response
+        return response,request_key
 
     def execute(self, job_id, brief, worker_id=None, lease_token=None, stop_event=None):
         brief = self.validate_brief(brief)
@@ -713,7 +739,7 @@ class ProductionPipeline:
                                     retryable=False)
             self.store.stage(job_id, "script", **lease)
             self._check_stop(stop_event)
-            script = self._provider_request(job_id,"script",self.store.next_provider_attempt_number(job_id,"script"),self.script, {
+            script,script_request_key = self._provider_request(job_id,"script",self.store.next_provider_attempt_number(job_id,"script"),self.script, {
                 "task": "create_short_video_script",
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "topic": brief["topic"],
@@ -756,11 +782,14 @@ class ProductionPipeline:
                                 **lease)
             self.store.artifact(job_id, "originality_check", "report", None,
                                 originality_report, **lease)
+            self.store.mark_provider_attempt_adopted(
+                job_id,"script",self.store.next_provider_attempt_number(job_id,"script")-1,
+                script_request_key)
 
             self._check_stop(stop_event)
             self.store.stage(job_id, "voice_generation", **lease)
             self._check_stop(stop_event)
-            voice = self._provider_request(job_id,"voice_generation",self.store.next_provider_attempt_number(job_id,"voice_generation"),self.voice, {
+            voice,voice_request_key = self._provider_request(job_id,"voice_generation",self.store.next_provider_attempt_number(job_id,"voice_generation"),self.voice, {
                 "script": script_text, "language": brief["language"],
                 "brand": brief["brand"], "format": "narration",
                 "voice_tone": brief.get("brand_profile", {}).get("tone", []),
@@ -773,6 +802,10 @@ class ProductionPipeline:
             self.store.artifact(job_id, "voice_generation", "audio", audio_url,
                                 {k: v for k, v in voice.items() if k != "audio_url"},
                                 **lease)
+            self.store.mark_provider_attempt_adopted(
+                job_id,"voice_generation",
+                self.store.next_provider_attempt_number(job_id,"voice_generation")-1,
+                voice_request_key)
 
             speech_report = None
             transcript_text = None
@@ -810,7 +843,7 @@ class ProductionPipeline:
             self._check_stop(stop_event)
             self.store.stage(job_id, "rendering", **lease)
             self._check_stop(stop_event)
-            rendered = self._provider_request(job_id,"rendering",self.store.next_provider_attempt_number(job_id,"rendering"),self.render, {
+            rendered,render_request_key = self._provider_request(job_id,"rendering",self.store.next_provider_attempt_number(job_id,"rendering"),self.render, {
                 "script": script_text, "audio_url": audio_url,
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "aspect_ratio": "9:16",
@@ -866,6 +899,9 @@ class ProductionPipeline:
                     ) from exc
             self.store.artifact(job_id, "rendering", "video", video_url,
                                 render_metadata, **lease)
+            self.store.mark_provider_attempt_adopted(
+                job_id,"rendering",self.store.next_provider_attempt_number(job_id,"rendering")-1,
+                render_request_key)
             quality_report = evaluate_production_quality(
                 script_text, script_metadata,
                 {k: v for k, v in voice.items() if k != "audio_url"},
