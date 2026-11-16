@@ -256,6 +256,29 @@ class ProductionStore:
                 (job_id,stage)).fetchone()
             return int(row["next_attempt"])
 
+    def recover_provider_response(self, job_id, stage,
+                                  worker_id=None, lease_token=None):
+        """Return a durable, unadopted provider response without making a new call."""
+        with self.db() as c:
+            if worker_id is not None or lease_token is not None:
+                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            row=c.execute("""SELECT response_json FROM provider_execution_attempts
+                WHERE job_id=? AND stage=? AND state='response_received'
+                ORDER BY attempt_number LIMIT 1""",(job_id,stage)).fetchone()
+            if row is None:
+                return None
+            try:
+                response=json.loads(row["response_json"])
+            except (TypeError,ValueError) as exc:
+                raise ProviderAttemptConflict(
+                    "Persisted provider response is invalid; operator reconciliation required"
+                ) from exc
+            if not isinstance(response,dict):
+                raise ProviderAttemptConflict(
+                    "Persisted provider response is invalid; operator reconciliation required"
+                )
+            return response
+
     def begin_provider_attempt(self, job_id, stage, attempt_number,
                                worker_id=None, lease_token=None):
         """Persist the provider request identity before any external side effect."""
@@ -1081,6 +1104,10 @@ class ProductionPipeline:
 
     def _provider_request(self, job_id, stage, attempt_number, provider, payload,
                           worker_id=None, lease_token=None):
+        recovered=self.store.recover_provider_response(
+            job_id,stage,worker_id,lease_token)
+        if recovered is not None:
+            return recovered
         request_key=self.store.begin_provider_attempt(
             job_id,stage,attempt_number,worker_id,lease_token)
         try:
