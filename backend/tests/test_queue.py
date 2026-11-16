@@ -252,15 +252,21 @@ class QueueTests(unittest.TestCase):
    current=restarted.result()
    result=recovery.result()
   self.assertNotEqual(old["generation_token"],current["generation_token"])
-  self.assertEqual(result,{"requeued":0,"terminal":1})
+  # Whichever transaction wins must quarantine the in-flight provider call.
+  # Recovery-first records lease expiry; restart-first records generation replacement.
+  self.assertIn(result,({"requeued":0,"terminal":0},{"requeued":0,"terminal":1}))
   persisted=self.q.get(job["id"])
   self.assertEqual(persisted["status"],"failed_terminal")
-  self.assertEqual(persisted["error_code"],"production_lease_expired_ambiguous")
+  self.assertIn(persisted["error_code"],(
+   "production_lease_expired_ambiguous",
+   "production_pause_external_outcome_ambiguous"))
   self.assertTrue(self.q.is_paused())
   with self.q.db() as c:
    run=c.execute("SELECT status,current_stage FROM production_runs WHERE job_id=?",
                  (job["id"],)).fetchone()
-  self.assertEqual(tuple(run),("failed_terminal","lease_expired_ambiguous"))
+  self.assertEqual(tuple(run),("failed_terminal",
+   "lease_expired_ambiguous" if persisted["error_code"]=="production_lease_expired_ambiguous"
+   else "pause_outcome_ambiguous"))
   self.assertFalse(self.q.mark_worker_offline("production-restart-worker",
                                                old["generation_token"]))
   registry=next(row for row in self.q.workers()
