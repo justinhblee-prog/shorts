@@ -275,6 +275,32 @@ class TikTokPublishStore:
             row = c.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
+            if row and row["attempt_id"] != attempt_id:
+                now = _now()
+                if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
+                    c.execute("""
+                      INSERT INTO tiktok_publication_events
+                        (job_id,attempt_id,event_type,outcome,publish_id,video_id,
+                         operator_id,note,created_at,policy_version)
+                      VALUES(?,?,'superseded_attempt_uncertain','informational',?,?,?,?,?,?)
+                    """, (job_id, attempt_id, row["publish_id"], row["video_id"],
+                          row["operator_id"], message[:1000], now, row["policy_version"]))
+                    return
+                updated = c.execute("""
+                  UPDATE tiktok_publications SET status='reconciliation_required',
+                    error=?,updated_at=? WHERE job_id=? AND attempt_id=?
+                    AND status IN ('initializing','uploading','processing','failed','reconciliation_required')
+                """, (message[:1000], now, job_id, row["attempt_id"]))
+                if updated.rowcount != 1:
+                    return
+                c.execute("""
+                  INSERT INTO tiktok_publication_events
+                    (job_id,attempt_id,event_type,outcome,publish_id,operator_id,
+                     note,created_at,policy_version)
+                  VALUES(?,?,'superseded_attempt_uncertain','unknown',?,?,?,?,?)
+                """, (job_id, attempt_id, row["publish_id"], row["operator_id"],
+                      message[:1000], now, row["policy_version"]))
+                return
             if row and row["attempt_id"] == attempt_id:
                 now = _now()
                 # A late timeout from a concurrent status poll must not erase
