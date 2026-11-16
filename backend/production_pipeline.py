@@ -935,8 +935,7 @@ class ProductionStore:
         invalid = []
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if worker_id is not None or generation_token is not None:
-                self._assert_worker_generation(c, worker_id, generation_token)
+            self._assert_reconciliation_authority(c, worker_id, generation_token)
             params = []
             where = """j.job_type='short_video_production'
                 AND j.status IN ('queued','failed_retriable','running')
@@ -974,8 +973,7 @@ class ProductionStore:
         changed = []
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if worker_id is not None or generation_token is not None:
-                self._assert_worker_generation(c, worker_id, generation_token)
+            self._assert_reconciliation_authority(c, worker_id, generation_token)
             rows = c.execute("""SELECT r.job_id,j.status,j.error_message
                 FROM production_runs r JOIN pipeline_jobs j ON j.id=r.job_id
                 WHERE j.job_type='short_video_production'
@@ -1000,8 +998,7 @@ class ProductionStore:
         repaired = []
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if worker_id is not None or generation_token is not None:
-                self._assert_worker_generation(c, worker_id, generation_token)
+            self._assert_reconciliation_authority(c, worker_id, generation_token)
             rows = c.execute("""SELECT r.job_id FROM production_runs r
                 JOIN pipeline_jobs j ON j.id=r.job_id
                 WHERE r.status='rendered'
