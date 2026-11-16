@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from media_scanner import ClamAVScanner, MediaScanError
 from media_staging import MediaStager, MediaStagingError
 
@@ -20,7 +21,9 @@ class ClamAVScannerTests(unittest.TestCase):
         def runner(args, **kwargs):
             calls.append((args, kwargs))
             return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-        result = ClamAVScanner(executable="/usr/bin/clamscan", runner=runner).scan(self.path)
+        result = ClamAVScanner(
+            executable="/usr/bin/clamscan", timeout=7, max_bytes=12345, runner=runner
+        ).scan(self.path)
         self.assertEqual(result, {"status": "clean", "engine": "clamav"})
         self.assertEqual(calls[0][0][0], "/usr/bin/clamscan")
         self.assertIn("--database=/var/lib/clamav", calls[0][0])
