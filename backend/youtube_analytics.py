@@ -621,6 +621,8 @@ class YouTubeAnalyticsCollector:
             ).execute()
             retention = self._parse_retention_response(retention_report)
             retention_status = "available" if retention else "no_data"
+        except YouTubeAnalyticsLeaseLost:
+            raise
         except Exception as exc:
             # Keep watch-time metrics usable when a video is not eligible for
             # audience-retention reporting or the API denies that report.
