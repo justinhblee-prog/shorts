@@ -153,6 +153,47 @@ class TikTokOAuthTests(unittest.TestCase):
         self.assertEqual(body["token"], ["access-to-revoke"])
         self.assertEqual(body["client_secret"], ["client-secret"])
 
+    def test_disconnect_lease_fences_token_write_and_preserves_tokens_on_failure(self):
+        self.manager._save_token_response({
+            "access_token": "access-original",
+            "refresh_token": "refresh-original",
+            "open_id": "creator-123",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        original = self.store.token_record()
+        operation = "disconnect-test"
+        self.assertTrue(self.store.begin_disconnect(
+            operation, original["access_token_encrypted"]
+        ))
+        with self.assertRaisesRegex(TikTokOAuthError, "concurrent token operation"):
+            self.manager._save_token_response({
+                "access_token": "access-new",
+                "refresh_token": "refresh-new",
+                "open_id": "creator-456",
+                "scope": "video.publish",
+                "token_type": "Bearer",
+                "expires_in": 7200,
+                "refresh_expires_in": 15552000,
+            })
+        self.assertTrue(self.store.finish_disconnect(operation, success=False))
+        self.assertEqual(
+            self.store.token_record()["access_token_encrypted"],
+            original["access_token_encrypted"],
+        )
+        self.manager._save_token_response({
+            "access_token": "access-new",
+            "refresh_token": "refresh-new",
+            "open_id": "creator-456",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        self.assertEqual(self.store.token_record()["open_id"], "creator-456")
+
     def test_failed_remote_revoke_keeps_local_tokens(self):
         self.manager._save_token_response({
             "access_token": "access-still-connected",
