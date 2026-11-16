@@ -237,6 +237,7 @@ class TrendProductionDraft(BaseModel):
     language:str=Field(min_length=2,max_length=40)
     platform:Literal["youtube","tiktok"]="youtube"
     idempotency_key:str|None=None
+    recommendation_run_id:str|None=Field(default=None,min_length=1,max_length=64)
 
 @app.get("/api/brands")
 def list_brands(active_only:bool=False):
@@ -907,9 +908,15 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
             },
         }
         submitted=submit_production(queue,production_store,brief)
-        recommendation_evaluation_store.link_production(
-            trend_id,brand["slug"],submitted["job"]["id"],platform=body.platform
-        )
+        attribution = None
+        if body.recommendation_run_id:
+            attribution = recommendation_evaluation_store.link_production(
+                trend_id,brand["slug"],submitted["job"]["id"],
+                platform=body.platform,run_id=body.recommendation_run_id
+            )
+        submitted["recommendation_attribution"] = attribution or {
+            "linked": False, "reason": "not_a_captured_recommendation_selection"
+        }
         return submitted
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
