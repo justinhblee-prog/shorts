@@ -450,9 +450,9 @@ class JobQueue:
 
     def pause(self, reason, job_id=None, actor="system"):
         """Persist a production pause, fence in-flight leases, and audit the action."""
-        n=stamp(now())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            n=stamp(now())
             self._pause_production_in_transaction(c, reason, job_id, n, actor)
             c.commit()
             return self.worker_control()
@@ -463,9 +463,9 @@ class JobQueue:
         note = str(note).strip()[:2000]
         if not actor or not note:
             raise ValueError("operator_id and resume note are required")
-        n=stamp(now())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            n=stamp(now())
             row=c.execute("SELECT paused,pause_reason,paused_job_id FROM worker_control WHERE id=1").fetchone()
             if not row or not row["paused"]:
                 raise ValueError("Production queue is not paused")
@@ -499,12 +499,14 @@ class JobQueue:
     def register_worker(self, worker_id, hostname=None):
         if not str(worker_id).strip():
             raise ValueError("worker_id required")
-        n = stamp(now())
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            n = stamp(now())
             c.execute("""INSERT INTO worker_registry(worker_id,hostname,last_seen_at,status)
                 VALUES(?,?,?,'online') ON CONFLICT(worker_id) DO UPDATE SET
                 hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,status='online'""",
                 (worker_id, hostname, n))
+            c.commit()
         return {"worker_id": worker_id, "hostname": hostname,
                 "last_seen_at": n, "status": "online"}
 
@@ -514,10 +516,13 @@ class JobQueue:
         if not worker_id:
             raise ValueError("worker_id required")
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            n = stamp(now())
             updated = c.execute(
                 "UPDATE worker_registry SET last_seen_at=?,status='offline' WHERE worker_id=?",
-                (stamp(now()), worker_id),
+                (n, worker_id),
             )
+            c.commit()
             return updated.rowcount == 1
 
     def workers(self, stale_after_seconds=None):
