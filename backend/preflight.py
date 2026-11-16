@@ -17,8 +17,25 @@ def _group(source, required, optional=()):
 
 def build_preflight(env=None, youtube_refresh_token_configured=None):
     source = os.environ if env is None else env
+    legacy_review_token = bool(str(source.get("NEXUS_REVIEW_TOKEN", "")).strip())
+    reviewer_credentials = bool(str(source.get("NEXUS_REVIEW_CREDENTIALS_JSON", "")).strip())
     checks = {
-        "operator_auth": _group(source, ["NEXUS_REVIEW_TOKEN"]),
+        "operator_auth": {
+            "configured": legacy_review_token or reviewer_credentials,
+            "missing": [] if legacy_review_token or reviewer_credentials else [
+                "NEXUS_REVIEW_TOKEN", "NEXUS_REVIEW_CREDENTIALS_JSON"
+            ],
+            "optional_missing": [],
+        },
+        "operator_rbac": {
+            "configured": bool(str(source.get("NEXUS_REVIEW_ROLE_MAP_JSON", "")).strip()),
+            "missing": [],
+            "optional_missing": (
+                [] if str(source.get("NEXUS_REVIEW_ROLE_MAP_JSON", "")).strip()
+                else ["NEXUS_REVIEW_ROLE_MAP_JSON"]
+            ),
+            "optional": True,
+        },
         # Provider bearer tokens are optional: endpoint adapters support
         # unauthenticated providers as well as bearer-authenticated providers.
         "script_generation": _group(
@@ -116,6 +133,7 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
         "checks": checks,
         "capabilities": {
             "protected_operations": operation,
+            "operator_rbac_configured": checks["operator_rbac"]["configured"],
             "ai_generation_configured": generation,
             "artifact_staging_configured": staging,
             "youtube_upload_configured": youtube_upload,
