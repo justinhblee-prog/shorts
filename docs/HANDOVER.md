@@ -896,4 +896,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - YouTube and TikTok performance snapshots are now analyzed separately. TikTok uses only owned-video Display API view/like/comment/share snapshots, with hourly view delta and interaction rate; unavailable retention/watch-time/revenue are explicitly not inferred.
 - Recommendation exposures are tagged by platform, deduplicated per platform, linked only to same-platform production drafts and evaluated only against same-platform outcomes.
 - Review workspace can choose YouTube Shorts or TikTok for recommendations and displays platform-specific holdout evidence. Automatic ranking score changes remain disabled pending minimum sample coverage and holdout validation.
-- CI pending.
+- GitHub Actions run [43782980545](https://github.com/justinhblee-prog/shorts/actions/runs/43782980545) passed **320 backend tests** and `scripts/validate.sh`; PR #91 was squash-merged into `main` as `883870472bb1784ea093b65698221890d6db4b06`.

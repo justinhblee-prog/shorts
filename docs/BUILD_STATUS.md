@@ -944,4 +944,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add platform column and additive migration to recommendation exposure records; deduplicate, link selected production jobs and evaluate outcomes only within the same platform.
 - Add platform selector to trend recommendation workspace and platform-specific holdout evaluation panel.
 - Add platform field to trend production drafts and policy platform selection so TikTok recommendations create TikTok-scoped production jobs.
-- Keep recommendation score adjustment disabled; TikTok API does not expose audience retention/watch-time/estimated revenue in this collector. CI validation pending.
+- Keep recommendation score adjustment disabled; TikTok API does not expose audience retention/watch-time/estimated revenue in this collector. GitHub Actions run [43782980545](https://github.com/justinhblee-prog/shorts/actions/runs/43782980545) passed **320 backend tests** and `scripts/validate.sh`. PR #91 was squash-merged into `main` as `883870472bb1784ea093b65698221890d6db4b06`.
