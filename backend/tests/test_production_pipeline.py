@@ -1223,12 +1223,17 @@ class ProductionTests(unittest.TestCase):
                 job_id, "script", worker_id="worker-old", lease_token=lease_token
             )
 
-        artifacts = self.store.artifacts(job_id)
-        self.assertTrue(any(
-            item["stage"] == "script"
-            and item["metadata"].get("script") == "last known-good script"
-            for item in artifacts
-        ))
+        with self.store.db() as connection:
+            artifact = connection.execute(
+                "SELECT metadata_json FROM production_artifacts "
+                "WHERE job_id=? AND stage='script'",
+                (job_id,),
+            ).fetchone()
+        self.assertIsNotNone(artifact)
+        self.assertEqual(
+            json.loads(artifact["metadata_json"])["script"],
+            "last known-good script",
+        )
         attempt = self.store.provider_attempts(job_id)[0]
         self.assertEqual(attempt["state"], "request_started")
 
