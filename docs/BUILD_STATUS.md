@@ -1994,4 +1994,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Revalidate between watch-time and retention requests so a collector that loses ownership cannot issue the second request.
 - Propagate lease-loss exceptions out of the batch loop rather than continuing to initialize clients or request later videos under stale ownership.
 - Add regressions for takeover during OAuth initialization, lease loss between report requests, and batch termination.
-- Validation is pending CI; tests use local SQLite and fake report services. No live YouTube OAuth/API verification is claimed.
+- GitHub Actions run #3474 succeeded on commit `5516b913382aec51a4614b03c02b6462e559bee9` (job `test`; `scripts/validate.sh` passed). Tests use local SQLite and fake report services. No live YouTube OAuth/API verification is claimed.
