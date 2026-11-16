@@ -489,10 +489,10 @@ class ApiSecurityTests(unittest.TestCase):
             ) as report:
                 self.assertEqual(
                     app_module.production_integrity_report(
-                        limit=13, offset=17, cursor='page-cursor', x_review_token=reviewer_token
+                        limit=13, offset=0, cursor='page-cursor', x_review_token=reviewer_token
                     ), expected
                 )
-                report.assert_called_once_with(app_module.queue, limit=13, offset=17, cursor='page-cursor')
+                report.assert_called_once_with(app_module.queue, limit=13, offset=0, cursor='page-cursor')
                 with self.assertRaises(HTTPException) as denied:
                     app_module.production_integrity_report(
                         limit=13, offset=17, cursor='page-cursor', x_review_token=analyst_token
@@ -503,6 +503,55 @@ class ApiSecurityTests(unittest.TestCase):
                     app_module.production_integrity_report(limit=13, x_review_token=None)
                 self.assertEqual(unauthenticated.exception.status_code, 401)
                 report.assert_called_once()
+
+
+    def test_integrity_report_rejects_ambiguous_offset_and_cursor(self):
+        with mock.patch.object(app_module, "require_review_permission"):
+            with self.assertRaises(HTTPException) as caught:
+                app_module.production_integrity_report(
+                    limit=10, offset=1, cursor="opaque", x_review_token="token"
+                )
+        self.assertEqual(caught.exception.status_code, 422)
+
+    def test_integrity_report_maps_invalid_cursor_to_422(self):
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.production_store, "integrity_report",
+                              side_effect=ValueError("Invalid integrity report cursor")),
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                app_module.production_integrity_report(
+                    limit=10, offset=0, cursor="malformed", x_review_token="token"
+                )
+        self.assertEqual(caught.exception.status_code, 422)
+        self.assertEqual(caught.exception.detail, "Invalid integrity report cursor")
+
+    def test_integrity_report_keeps_storage_conflicts_as_409(self):
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.production_store, "integrity_report",
+                              side_effect=ValueError("database path conflict")),
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                app_module.production_integrity_report(
+                    limit=10, offset=0, cursor=None, x_review_token="token"
+                )
+        self.assertEqual(caught.exception.status_code, 409)
+
+    def test_integrity_report_declares_query_parameter_bounds(self):
+        route = next(r for r in app.routes
+                     if getattr(r, "path", None) == "/api/production/integrity-report")
+        params = {p.name: p for p in route.dependant.query_params}
+        limit_constraints = {type(item).__name__: item
+                             for item in params["limit"].field_info.metadata}
+        offset_constraints = {type(item).__name__: item
+                              for item in params["offset"].field_info.metadata}
+        cursor_constraints = {type(item).__name__: item
+                              for item in params["cursor"].field_info.metadata}
+        self.assertEqual((limit_constraints["Ge"].ge, limit_constraints["Le"].le), (1, 200))
+        self.assertEqual((offset_constraints["Ge"].ge, offset_constraints["Le"].le),
+                         (0, 1000000))
+        self.assertEqual(cursor_constraints["MaxLen"].max_length, 512)
 
 if __name__ == "__main__":
     unittest.main()

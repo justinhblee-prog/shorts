@@ -40,6 +40,13 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 | BUILD-00011 | Scheduling and recovery operations | Durable schedule outbox, atomic due-occurrence reservation and idempotent crash replay implemented; runtime validation pending |
 | BUILD-00012 | Integrated validation and deployment | Docker Compose API/worker/scheduler/metrics-collector packaging and CI validation script committed; production deployment and runtime verification pending |
 
+## BUILD-00188 — integrity API input boundaries
+
+- The read-only integrity endpoint enforces a page size of 1–200, offset of 0–1,000,000, and cursor length of at most 512 characters at the HTTP boundary.
+- Cursor pagination cannot be combined with a non-zero offset; malformed cursors return HTTP 422 while storage configuration conflicts remain HTTP 409.
+- The endpoint remains read-only and retains the existing production-read permission requirement.
+- Automated validation is pending.
+
 ## BUILD-00001 — durable queue and Worker Lease
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.

@@ -2,7 +2,7 @@ import os
 import logging
 import secrets
 from typing import Any, Literal
-from fastapi import FastAPI, HTTPException, Header, Request, Response
+from fastapi import FastAPI, HTTPException, Header, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -303,14 +303,22 @@ def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
     return result
 
 @app.get("/api/production/integrity-report")
-def production_integrity_report(limit:int=50,offset:int=0,cursor:str|None=None,
-                                x_review_token:str|None=Header(default=None)):
+def production_integrity_report(
+    limit:int=Query(default=50, ge=1, le=200),
+    offset:int=Query(default=0, ge=0, le=1000000),
+    cursor:str|None=Query(default=None, max_length=512),
+    x_review_token:str|None=Header(default=None),
+):
     require_review_permission(x_review_token,"production.read")
+    if cursor is not None and offset != 0:
+        raise HTTPException(422,"offset cannot be combined with cursor pagination")
     try:
         return production_store.integrity_report(
             queue,limit=limit,offset=offset,cursor=cursor
         )
     except ValueError as e:
+        if str(e) == "Invalid integrity report cursor":
+            raise HTTPException(422,"Invalid integrity report cursor")
         raise HTTPException(409,str(e))
 
 @app.get("/api/production/jobs/{job_id}/provider-attempts")
