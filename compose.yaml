@@ -70,5 +70,33 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  backup:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          python backup_restore.py backup --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --retain-days "$NEXUS_BACKUP_RETENTION_DAYS" || echo "nexus_backup_failed";
+          sleep "$NEXUS_BACKUP_INTERVAL_SECONDS";
+        done
+    env_file: .env
+    environment:
+      NEXUS_DB_PATH: /app/data/nexus.sqlite3
+      NEXUS_MEDIA_DIR: /app/data/media
+      NEXUS_BACKUP_DIR: /backups
+      NEXUS_BACKUP_RETENTION_DAYS: ${NEXUS_BACKUP_RETENTION_DAYS:-14}
+      NEXUS_BACKUP_INTERVAL_SECONDS: ${NEXUS_BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - nexus_data:/app/data
+      - nexus_backups:/backups
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   nexus_data:
+  nexus_backups:
