@@ -2104,3 +2104,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Expose these jobs through `ambiguous_production_jobs()` and permit only evidence-gated operator reconciliation; the production queue remains paused after authorization.
 - Extend the pause regression to verify lease fencing, ambiguity discovery, missing-evidence rejection, authorized retry transition, and audit provenance.
 - Validation pending GitHub Actions. SQLite-backed deterministic tests only; no production provider verification is claimed.
+
+
+
+## BUILD-00282 — Capture reconciliation timestamps after acquiring the queue write lock
+- Move the production retry-reconciliation timestamp capture inside the `BEGIN IMMEDIATE` transaction, immediately after SQLite grants the write lock.
+- Prevent lock contention from making the retry availability time, job update time, reconciliation record, and audit event predate the serialized operator decision.
+- Add a deterministic SQLite lock-contention regression that advances the controlled clock while reconciliation waits and checks all persisted timestamps.
+- Validation pending GitHub Actions. Local deterministic SQLite concurrency coverage only; no production database or provider-console validation is claimed.

@@ -419,9 +419,9 @@ class JobQueue:
             raise ValueError("evidence_reference is required and must be at most 1000 characters")
         if not note or len(note) > 2000:
             raise ValueError("note is required and must be at most 2000 characters")
-        timestamp = stamp(now())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            timestamp = stamp(now())
             row = c.execute("""SELECT * FROM pipeline_jobs
                 WHERE id=? AND job_type='short_video_production'""", (job_id,)).fetchone()
             if row is None:
