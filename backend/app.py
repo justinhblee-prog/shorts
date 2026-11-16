@@ -55,6 +55,8 @@ def required_operator_permission(path, method):
     method=method.upper()
     if path in ("/api/health","/api/brands","/api/brands/{slug}"):
         return None
+    if path.startswith("/api/brands/") and method=="GET" and path.count("/")==3:
+        return None
     if path=="/api/tiktok/oauth/callback":
         return None
     if path.startswith("/api/review/"):
