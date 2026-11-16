@@ -2017,3 +2017,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Revalidate after token acquisition and immediately before the TikTok Display API request to cover lease loss during OAuth refresh.
 - Add regressions for a stale lease before OAuth initialization and lease replacement during token refresh; both must prevent the Display API transport call.
 - GitHub Actions [run #3490](https://github.com/justinhblee-prog/shorts/actions/runs/43913802483) succeeded on commit `5edfebbfdb2c07450038c56f53be31816b680f9a`; `scripts/validate.sh` passed. Tests use local SQLite and fake token/transport providers; no live TikTok OAuth/account/API validation is claimed.
+
+
+## BUILD-00269 — Verify TikTok metrics heartbeat lease-loss handling
+- Add scheduled TikTok metrics collector regressions for lease loss after a successful provider batch and during provider-error handling.
+- Ensure stale workers cannot persist either a success or failed collection state after lease renewal fails.
+- Verify the worker still attempts to release its own lease during cleanup.
+- GitHub Actions validation pending. Tests use fake stores and collectors; no live TikTok OAuth/account/API validation is claimed.
