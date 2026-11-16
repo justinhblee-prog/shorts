@@ -618,3 +618,6 @@ The pending-review card labels any video artifact carrying `recovered_from_provi
 - Every synchronized decision emits a `job_events` record containing the reviewer identity and decision. Verify the production and queue statuses agree after the decision.
 - Approval is not publication consent. YouTube upload and TikTok private posting remain separate operator-triggered actions; their publisher-specific policy, approval-snapshot, media-byte and consent checks remain mandatory. TikTok remains `SELF_ONLY` in this flow.
 - Never infer successful upload/publication from review approval or queue status. Confirm the platform's returned/verified media ID and publication status in its respective operator workflow.
+
+
+- If media staging or any other artifact change requires another review, the production review transition reopens an approved queue row to `review_pending` and records `review_reopened`. Confirm both ledgers are pending before taking the fresh approval; do not reuse the prior approval snapshot.

@@ -167,10 +167,57 @@ class ProductionStore:
                 # A fresh attempt invalidates every artifact from the previous attempt.
                 # Keep this in the same transaction as the fenced stage transition.
                 c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
+            timestamp = utc_now()
             updated=c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
-                         WHERE job_id=?""", (stage, status, error, utc_now(), job_id))
+                         WHERE job_id=?""", (stage, status, error, timestamp, job_id))
             if updated.rowcount != 1:
                 raise KeyError(job_id)
+
+            # A changed artifact must return an already-approved production to
+            # review. Keep its durable queue state in lockstep so a fresh human
+            # decision can be recorded and no stale approval remains actionable.
+            if stage == "review" and status == "review_pending":
+                queue_table = c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
+                ).fetchone()
+                if queue_table:
+                    queued = c.execute(
+                        "SELECT job_type,status FROM pipeline_jobs WHERE id=?", (job_id,)
+                    ).fetchone()
+                    if queued is not None:
+                        if queued["job_type"] != "short_video_production":
+                            raise ProductionLeaseConflict(
+                                "Review handoff queue row is not a production job"
+                            )
+                        if queued["status"] == "approved":
+                            reopened = c.execute("""
+                              UPDATE pipeline_jobs SET status='review_pending',
+                                worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
+                                updated_at=? WHERE id=? AND status='approved'
+                            """, (timestamp, job_id))
+                            if reopened.rowcount != 1:
+                                raise ProductionLeaseConflict(
+                                    "Approved queue state changed during review reopening"
+                                )
+                            events_table = c.execute(
+                                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_events'"
+                            ).fetchone()
+                            if events_table:
+                                c.execute("""
+                                  INSERT INTO job_events
+                                    (job_id,event_type,from_status,to_status,worker_id,
+                                     details_json,created_at)
+                                  VALUES(?,'review_reopened','approved','review_pending',NULL,?,?)
+                                """, (
+                                    job_id,
+                                    json.dumps({"reason": "production artifacts or review state changed"},
+                                               ensure_ascii=False),
+                                    timestamp,
+                                ))
+                        elif queued["status"] != "review_pending":
+                            raise ProductionLeaseConflict(
+                                "Queue job cannot be reopened from its current state"
+                            )
 
     def artifact(self, job_id, stage, artifact_type, url, metadata,
                  worker_id=None, lease_token=None):

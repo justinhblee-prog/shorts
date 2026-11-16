@@ -207,6 +207,18 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(review_event["worker_id"], "operator-approval")
         self.assertEqual(review_event["details"]["reviewer_id"], "operator-approval")
 
+    def test_changed_artifacts_reopen_approved_queue_for_fresh_review(self):
+        job_id = self._create_queue_backed_review_job("unused")
+        self.review.decide(job_id, "approved", "operator-approval", "First approval")
+        self.assertEqual(self.queue.get(job_id)["status"], "approved")
+        self.production.stage(job_id, "review", "review_pending")
+        self.assertEqual(self.production.get(job_id)["status"], "review_pending")
+        self.assertEqual(self.queue.get(job_id)["status"], "review_pending")
+        self.assertEqual(self.queue.events(job_id)[-1]["event_type"], "review_reopened")
+        self.review.decide(job_id, "approved", "operator-reapproval", "Fresh review complete")
+        self.assertEqual(self.queue.get(job_id)["status"], "approved")
+        self.assertEqual(len(self.review.history(job_id)), 2)
+
     def test_rejection_atomically_synchronizes_queue_and_audit_event(self):
         job_id = self._create_queue_backed_review_job("unused")
         self.review.decide(job_id, "rejected", "operator-rejection", "Output is unsuitable")
