@@ -5,8 +5,8 @@ It evaluates declarations supplied by the operator; it does not inspect media by
 """
 from datetime import datetime, timezone
 
-POLICY_VERSION = "2026-11-15.2"
-POLICY_CHECKED_ON = "2026-11-15"
+POLICY_VERSION = "2026-11-16.1"
+POLICY_CHECKED_ON = "2026-11-16"
 PLATFORMS = ("youtube", "tiktok")
 
 POLICY_SOURCES = [
@@ -51,6 +51,10 @@ BLOCKING_FLAGS = (
     "child_safety_violation",
     "fraud_or_scam",
     "private_personal_data_exposure",
+    "tiktok_prohibited_aigc_minor_likeness",
+    "tiktok_prohibited_aigc_private_adult_likeness_without_permission",
+    "tiktok_false_authoritative_source_or_crisis",
+    "tiktok_false_public_figure_endorsement",
 )
 
 RISK_ACTIONS = {
