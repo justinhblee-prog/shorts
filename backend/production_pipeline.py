@@ -116,6 +116,14 @@ class ProductionStore:
               UNIQUE(job_id,stage,attempt_number));
             CREATE INDEX IF NOT EXISTS idx_provider_attempt_state
               ON provider_execution_attempts(state,started_at);
+            CREATE TABLE IF NOT EXISTS provider_attempt_reconciliation_events(
+              id TEXT PRIMARY KEY, job_id TEXT NOT NULL,
+              provider_attempt_id TEXT NOT NULL, stage TEXT NOT NULL,
+              operator_id TEXT NOT NULL, evidence_reference TEXT NOT NULL,
+              note TEXT NOT NULL, resolution TEXT NOT NULL,
+              created_at TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS idx_provider_reconciliation_job
+              ON provider_attempt_reconciliation_events(job_id,created_at);
             """)
             columns = {row[1] for row in c.execute(
                 "PRAGMA table_info(provider_execution_attempts)").fetchall()}
@@ -399,10 +407,13 @@ class ProductionStore:
                 "note":note.strip(),
                 "resolution":"not_executed_confirmed",
             },ensure_ascii=False)
-            c.execute("""INSERT INTO job_events
-                (job_id,event_type,from_status,to_status,worker_id,details_json,created_at)
-                VALUES(?,'provider_attempt_reconciled',?,?,NULL,?,?)""",
-                (job_id,attempt["state"],"not_executed_confirmed",details,timestamp))
+            c.execute("""INSERT INTO provider_attempt_reconciliation_events
+                (id,job_id,provider_attempt_id,stage,operator_id,evidence_reference,
+                 note,resolution,created_at)
+                VALUES(?,?,?,?,?,?,?,?,?)""",
+                (str(uuid.uuid4()),job_id,attempt_id,attempt["stage"],
+                 operator_id.strip(),evidence_reference.strip(),note.strip(),
+                 "not_executed_confirmed",timestamp))
         return {"job_id":job_id,"provider_attempt_id":attempt_id,
                 "stage":attempt["stage"],"state":"not_executed_confirmed",
                 "operator_id":operator_id.strip(),"reconciled_at":timestamp}
