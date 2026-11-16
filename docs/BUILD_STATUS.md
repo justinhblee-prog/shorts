@@ -1291,3 +1291,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression tests that inject a retry-table write failure and verify that no snapshot is partially committed, plus a successful mixed-result collector test.
 - Provider/account behavior remains unverified against a live TikTok account.
 - GitHub Actions run [43808905182](https://github.com/justinhblee-prog/shorts/actions/runs/43808905182) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
+
+
+## BUILD-00158 — bound TikTok metrics collector lease duration
+
+- Validate collector lease durations as non-boolean integers between 1 and 3600 seconds before acquiring or renewing a lease.
+- Preserve the existing 30-second minimum while preventing floats, strings, booleans, non-positive values, and arbitrarily long leases from being silently coerced.
+- Add regression coverage for invalid inputs, minimum-duration behavior, and renew-time validation.
