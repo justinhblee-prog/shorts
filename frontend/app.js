@@ -82,6 +82,15 @@
       const artifacts=item.artifacts||[];
       const video=artifacts.find(a=>a.artifact_type==="video");
       const videoUrl=safeExternalMediaUrl(video?.artifact_url);
+      const recoveryAttempt=video?.metadata?.recovered_from_provider_attempt;
+      const recoveryFingerprint=video?.metadata?.media_staging||{};
+      const recoverySummary=recoveryAttempt
+        ? '<section class="review-policy"><strong>외부 AI 생성 결과 복구</strong>'
+          +'<p>공급자 실행 기록: '+esc(recoveryAttempt)+'</p>'
+          +'<p>검증 파일 SHA-256: <code>'+esc(recoveryFingerprint.sha256||"기록 없음")+'</code></p>'
+          +'<p>파일 크기: '+esc(recoveryFingerprint.size_bytes||"알 수 없음")+' bytes · 경로: '+esc(recoveryFingerprint.media_path||"기록 없음")+'</p>'
+          +'<small>기존 공급자 응답에서 복구한 결과입니다. 파일 검사와 품질 게이트를 통과했더라도 사람의 최종 검수 및 별도 승인 전에는 게시할 수 없습니다.</small></section>'
+        : '';
       const scriptArtifact=artifacts.find(a=>a.artifact_type==="text"&&a.stage==="script");
       const audioArtifact=artifacts.find(a=>a.artifact_type==="audio");
       const qualityArtifact=artifacts.find(a=>a.stage==="quality_check"&&a.artifact_type==="report");
@@ -146,7 +155,7 @@
       const guidance=profile.risk_level
         ? '<section class="review-guidance"><div><strong>브랜드 검수 기준</strong><span class="risk-level risk-'+esc(profile.risk_level)+'">위험도 '+esc(profile.risk_level)+'</span></div>'+(profile.positioning?'<p>'+esc(profile.positioning)+'</p>':'')+(rules.length?'<ul>'+rules.map(rule=>'<li>'+esc(rule)+'</li>').join('')+'</ul>':'')+'</section>'
         : '';
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+recoverySummary+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
 
