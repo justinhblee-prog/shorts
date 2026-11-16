@@ -1020,3 +1020,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Configure Google Cloud OAuth consent and register the exact HTTPS YOUTUBE_REDIRECT_URI. Set YOUTUBE_TOKEN_ENCRYPTION_KEY to a valid Fernet key before connecting.
 - No live Google OAuth, refresh, channel access or upload is claimed until the operator connects a real account and verifies it.
 - Validation pending.
+
+
+## BUILD-00036 validation record
+
+- GitHub Actions run [43788265493](https://github.com/justinhblee-prog/shorts/actions/runs/43788265493) passed **352 backend tests** and `scripts/validate.sh`.
+- OAuth state, scope enforcement, encrypted refresh-token storage, static fallback and route-security tests passed.
+- Live Google OAuth consent, refresh, channel API access and actual YouTube upload have not been exercised.
