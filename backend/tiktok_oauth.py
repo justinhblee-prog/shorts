@@ -103,9 +103,17 @@ class TikTokOAuthStore:
             )
             return True
 
-    def save_tokens(self, values):
+    def save_tokens(self, values, refresh_lease=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if refresh_lease is not None:
+                owner_id, lease_token = refresh_lease
+                lease = c.execute("""
+                  SELECT expires_at FROM tiktok_oauth_refresh_lease
+                  WHERE id=1 AND owner_id=? AND lease_token=?
+                """, (owner_id, lease_token)).fetchone()
+                if lease is None or lease["expires_at"] <= _stamp(_now()):
+                    return False
             c.execute("""
               INSERT INTO tiktok_oauth_tokens
                 (id,open_id,access_token_encrypted,refresh_token_encrypted,scope,
@@ -125,6 +133,7 @@ class TikTokOAuthStore:
                 values["token_type"], values["access_expires_at"],
                 values["refresh_expires_at"], _stamp(_now()),
             ))
+            return True
 
     def token_record(self):
         with self.db() as c:
@@ -256,7 +265,7 @@ class TikTokOAuthManager:
             )
         return data
 
-    def _save_token_response(self, data):
+    def _save_token_response(self, data, refresh_lease=None):
         required = ("access_token", "refresh_token", "open_id")
         if any(not isinstance(data.get(key), str) or not data[key] for key in required):
             raise TikTokOAuthError("TikTok OAuth token response is missing required token fields")
@@ -275,7 +284,11 @@ class TikTokOAuthManager:
             "access_expires_at": _stamp(now + timedelta(seconds=access_seconds)),
             "refresh_expires_at": _stamp(now + timedelta(seconds=refresh_seconds)),
         }
-        self.store.save_tokens(values)
+        saved = self.store.save_tokens(values, refresh_lease=refresh_lease)
+        if not saved:
+            raise TikTokOAuthError(
+                "TikTok refresh lease was lost before token persistence; refusing stale token overwrite"
+            )
         return values
 
     def exchange_code(self, code, state):
@@ -356,7 +369,7 @@ class TikTokOAuthManager:
                     "grant_type": "refresh_token",
                     "refresh_token": refresh_token,
                 })
-                self._save_token_response(data)
+                self._save_token_response(data, refresh_lease=(self._owner_id, lease))
                 if required_scope not in {scope.strip() for scope in str(data.get("scope") or "").split(",")}:
                     raise TikTokOAuthError("Refreshed TikTok token is missing the required " + required_scope + " scope")
                 return data["access_token"]
