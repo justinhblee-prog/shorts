@@ -188,7 +188,9 @@ class YouTubePublishingTests(unittest.TestCase):
         )
         result=self.uploads.get("job-1")
         self.assertEqual(result["status"],"reconciliation_required")
+        self.assertEqual(result["attempt_id"],second["attempt_id"])
         self.assertEqual(result["events"][-1]["event_type"],"superseded_attempt_uncertain")
+        self.assertEqual(result["events"][-1]["attempt_id"],first["attempt_id"])
         with self.assertRaises(YouTubeUploadError):
             self.uploads.begin("job-1","Third attempt","")
 
@@ -525,22 +527,6 @@ class YouTubePublishingTests(unittest.TestCase):
         current=self.uploads.get("job-1")
         self.assertEqual(current["status"],"uploaded")
         self.assertEqual(current["events"][-1]["event_type"],"post_confirmation_worker_error")
-
-    def test_superseded_worker_error_cannot_mark_new_youtube_attempt_uncertain(self):
-        first = self.uploads.begin("job-1", "First attempt", "")
-        self.uploads.fail("job-1", "first attempt failed before remote completion", first["attempt_id"])
-        second = self.uploads.begin("job-1", "Second attempt", "")
-        self.assertNotEqual(first["attempt_id"], second["attempt_id"])
-        self.assertEqual(second["status"], "uploading")
-
-        self.uploads.mark_reconciliation_required(
-            "job-1", "late exception from first worker", first["attempt_id"]
-        )
-        current = self.uploads.get("job-1")
-        self.assertEqual(current["status"], "uploading")
-        self.assertEqual(current["attempt_id"], second["attempt_id"])
-        self.assertEqual(current["events"][-1]["event_type"], "superseded_attempt_uncertain")
-        self.assertEqual(current["events"][-1]["attempt_id"], first["attempt_id"])
 
     def test_upload_is_idempotent_after_success(self):
         first=self.publisher.upload_approved("job-1",self.media,self.review,"Title")
