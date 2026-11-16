@@ -43,6 +43,54 @@ class WorkerFailClosedTests(unittest.TestCase):
         self.assertTrue(worker.stopping.is_set())
 
 
+    def test_worker_waits_for_heartbeat_thread_before_clearing_job_context(self):
+        job = {
+            "id": "job-heartbeat-join",
+            "payload": {"topic": "test"},
+            "lease_token": "lease-heartbeat-join",
+        }
+        heartbeat_started = worker.threading.Event()
+        release_heartbeat = worker.threading.Event()
+        join_timeouts = []
+        original_join = worker.threading.Thread.join
+
+        def blocked_heartbeat(*args):
+            heartbeat_started.set()
+            release_heartbeat.wait(timeout=2)
+
+        def execute(*args, **kwargs):
+            self.assertTrue(heartbeat_started.wait(timeout=2))
+            return {"artifacts": []}
+
+        def join_spy(thread, timeout=None):
+            join_timeouts.append(timeout)
+            release_heartbeat.set()
+            return original_join(thread, timeout=timeout)
+
+        with (
+            mock.patch.object(worker, "HEARTBEAT_SECONDS", 0.01),
+            mock.patch.object(worker.queue, "is_paused", return_value=False),
+            mock.patch.object(worker.store, "reconcile_missing_runs"),
+            mock.patch.object(worker.store, "reconcile_status_integrity",
+                              return_value={"unresolved": 0, "repaired": 0,
+                                            "unresolved_jobs": []}),
+            mock.patch.object(worker.store, "integrity_report",
+                              return_value={"orphaned": 0, "items": []}),
+            mock.patch.object(worker.queue, "claim", return_value=job),
+            mock.patch.object(worker.queue, "heartbeat", side_effect=blocked_heartbeat),
+            mock.patch.object(worker.pipeline, "execute", side_effect=execute),
+            mock.patch.object(worker.queue, "finish"),
+            mock.patch.object(worker.store, "reconcile_review_pending"),
+            mock.patch.object(worker.threading.Thread, "join", autospec=True,
+                              side_effect=join_spy),
+        ):
+            self.assertTrue(worker.run_once())
+
+        self.assertEqual(join_timeouts, [None])
+        self.assertFalse(heartbeat_started.is_set() and not release_heartbeat.is_set())
+        self.assertIsNone(worker.active_job_id)
+        self.assertIsNone(worker.active_lost_lease_event)
+
     def test_orphaned_lifecycle_record_pauses_before_claiming_work(self):
         report = {
             "orphaned": 1,
