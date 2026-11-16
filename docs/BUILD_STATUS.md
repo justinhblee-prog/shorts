@@ -1240,3 +1240,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression coverage for null, numeric, string and mapping curve payloads.
 - GitHub Actions runs [43805844306](https://github.com/justinhblee-prog/shorts/actions/runs/43805844306) and [43805847271](https://github.com/justinhblee-prog/shorts/actions/runs/43805847271) passed the complete `scripts/validate.sh` workflow on the source and regression-test commits; documentation-only updates followed.
 - Ranking score adjustment remains disabled; no live provider validation is claimed.
+
+
+## BUILD-00152 — chronological production-outcome holdout ordering
+
+- Sort pooled views/hour observations by the production selection timestamp before computing the chronological holdout; exposure creation order can differ when older recommendations are selected later.
+- Keep within-exposure diagnostics ordered by exposure generation time.
+- Add regression coverage with intentionally reversed exposure and selection chronology.
+- GitHub Actions validation: pending.
+- Ranking score adjustment remains disabled; no live provider validation is claimed.
