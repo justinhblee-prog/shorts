@@ -2002,3 +2002,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Retain the post-initialization lease check immediately before the Analytics report request, because OAuth/client setup can outlive the lease.
 - Add a regression that expires the lease before collection and proves service/OAuth initialization is never invoked.
 - GitHub Actions [run #3479](https://github.com/justinhblee-prog/shorts/actions/runs/43912866442) succeeded on commit `7ee9ffe69d833c57680a934abb2c61da09316655`; `scripts/validate.sh` passed. Deterministic local SQLite/service-stub CI only; no live YouTube OAuth or Analytics API validation is claimed.
+
+
+## BUILD-00267 — Verify YouTube Analytics heartbeat lease-loss handling
+- Add scheduled-collector regressions where lease renewal succeeds before collection but fails immediately after the provider batch returns; completed results must not be persisted as success.
+- Cover provider-error handling when the lease is lost concurrently; the stale worker must not write a failed collection state either.
+- Verify the collector releases only its own lease in both cases.
+- GitHub Actions [run #3484](https://github.com/justinhblee-prog/shorts/actions/runs/43913434527) succeeded on commit `22f456ea042f1441917b9c56e872aff4bd030b41`; `scripts/validate.sh` passed. Mocked-store/collector tests only; no live YouTube OAuth or Analytics API validation is claimed.
