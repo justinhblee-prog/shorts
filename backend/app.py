@@ -185,6 +185,7 @@ class TikTokPublishRequest(BaseModel):
 
 
 class TikTokPublicationReconciliation(BaseModel):
+    attempt_id:str=Field(min_length=1,max_length=128)
     outcome:Literal["published","not_published"]
     confirmed:bool
     video_id:str|None=Field(default=None,min_length=1,max_length=128)
@@ -193,6 +194,7 @@ class TikTokPublicationReconciliation(BaseModel):
 
 
 class YouTubeUploadReconciliation(BaseModel):
+    attempt_id:str=Field(min_length=1,max_length=128)
     outcome:Literal["uploaded","not_uploaded"]
     confirmed:bool
     video_id:str|None=Field(default=None,min_length=1,max_length=128)
@@ -200,6 +202,7 @@ class YouTubeUploadReconciliation(BaseModel):
     operator_id:str=Field(min_length=1,max_length=128)
 
 class YouTubeLateSuccessResolution(BaseModel):
+    attempt_id:str=Field(min_length=1,max_length=128)
     operator_id:str=Field(min_length=1,max_length=128)
     video_id:str=Field(min_length=1,max_length=128)
     note:str=Field(min_length=1,max_length=2000)
@@ -669,7 +672,8 @@ def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
         raise HTTPException(422,"A verified YouTube video ID is required")
     try:
         return youtube_upload_store.reconcile(
-            job_id,body.outcome,body.video_id,body.note,body.operator_id
+            job_id,body.outcome,body.video_id,body.note,body.operator_id,
+            expected_attempt_id=body.attempt_id
         )
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
@@ -683,7 +687,8 @@ def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
         raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
     try:
         return youtube_upload_store.resolve_late_success(
-            job_id,body.operator_id,body.note,body.video_id
+            job_id,body.operator_id,body.note,body.video_id,
+            expected_attempt_id=body.attempt_id
         )
     except YouTubeUploadError as e:
         raise HTTPException(409,str(e))
@@ -881,7 +886,8 @@ def reconcile_tiktok_publication(job_id:str,body:TikTokPublicationReconciliation
         raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
     try:
         return tiktok_publish_store.reconcile(job_id,body.outcome,body.operator_id,
-            body.note,video_id=body.video_id,confirmed=body.confirmed)
+            body.note,video_id=body.video_id,confirmed=body.confirmed,
+            expected_attempt_id=body.attempt_id)
     except TikTokPublishError as e:
         raise HTTPException(409,str(e))
 
