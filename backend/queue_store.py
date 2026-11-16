@@ -276,7 +276,7 @@ class JobQueue:
               attempt=attempt+1,started_at=COALESCE(started_at,?),updated_at=?,error_code=NULL,error_message=NULL
               WHERE id=? AND status=?""",(worker_id,token,expiry,n,n,row["id"],row["status"]))
             claimed=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(row["id"],)).fetchone()
-            self.event(c,row["id"],"claimed",row["status"],"running",worker_id,{"attempt":claimed["attempt"],"lease_expires_at":expiry})
+            self.event(c,row["id"],"claimed",row["status"],"running",worker_id,{"attempt":claimed["attempt"],"lease_expires_at":expiry},created_at=n)
             c.commit(); return self.decode(claimed)
 
     def assert_lease(self,row,worker,token,n):
@@ -292,7 +292,7 @@ class JobQueue:
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); self.assert_lease(row,worker,token,n)
             c.execute("UPDATE pipeline_jobs SET lease_expires_at=?,updated_at=? WHERE id=?",(expiry,n,jid))
             c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",(n,worker))
-            self.event(c,jid,"heartbeat","running","running",worker,{"lease_expires_at":expiry})
+            self.event(c,jid,"heartbeat","running","running",worker,{"lease_expires_at":expiry},created_at=n)
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
     def finish(self,jid,worker,token,result=None,generation_token=None):
@@ -303,7 +303,7 @@ class JobQueue:
             self.assert_lease(row,worker,token,n)
             c.execute("""UPDATE pipeline_jobs SET status='review_pending',worker_id=NULL,lease_token=NULL,
               lease_expires_at=NULL,completed_at=?,updated_at=? WHERE id=?""",(n,n,jid))
-            self.event(c,jid,"completed","running","review_pending",worker,{"result":result or {}})
+            self.event(c,jid,"completed","running","review_pending",worker,{"result":result or {}},created_at=n)
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
     def fail(self,jid,worker,token,error_code,error_message,retryable=True,generation_token=None):
@@ -315,7 +315,7 @@ class JobQueue:
             retry=bool(retryable and row["attempt"]<row["max_attempts"]); status="failed_retriable" if retry else "failed_terminal"
             c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
               available_at=?,updated_at=?,error_code=?,error_message=? WHERE id=?""",(status,n,n,error_code,error_message[:2000],jid))
-            self.event(c,jid,"failed","running",status,worker,{"error_code":error_code,"retryable":retry})
+            self.event(c,jid,"failed","running",status,worker,{"error_code":error_code,"retryable":retry},created_at=n)
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
     def get(self,jid):
