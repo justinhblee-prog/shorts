@@ -1449,4 +1449,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Atomically insert the recovered video artifact, mark the provider attempt adopted, update production and queue jobs to `review_pending`, and record a queue audit event.
 - Block duplicate adoption, active worker jobs and replacement of approved/uploaded/published outputs.
 - Human review and explicit publication approval remain mandatory; no automatic approval or posting.
-- CI validation pending.
+- GitHub Actions run [43817903769](https://github.com/justinhblee-prog/shorts/actions/runs/43817903769) passed the complete `scripts/validate.sh` workflow, including 525 backend tests. The recovered-output path also rebuilds a fresh quality report from the stored script/voice metadata and byte-level media inspection before queueing review.
