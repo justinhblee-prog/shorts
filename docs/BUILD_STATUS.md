@@ -84,10 +84,10 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 ## Validation — current truth
 
-- Latest verified GitHub Actions run: [43788723765](https://github.com/justinhblee-prog/shorts/actions/runs/43788723765), which passed **356 backend tests** and the complete `scripts/validate.sh` command on the BUILD-00037 implementation.
+- Latest verified GitHub Actions run: [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031), which passed **362 backend tests** and the complete `scripts/validate.sh` command on the BUILD-00038 implementation.
 - CI executed Python 3.11 tests on a GitHub-hosted runner. Provider/API tests use controlled test doubles where credentials or external services are required; this verifies application logic, not live provider success.
 - The validation script also checks Python compilation, frontend JavaScript syntax/DOM IDs and Docker Compose YAML parsing.
-- Recent verified milestones: BUILD-00031 — 326 tests; BUILD-00032 — 336 tests; BUILD-00033 — 338 tests; BUILD-00034 — 339 tests; BUILD-00036 — 352 tests; BUILD-00037 — 356 tests.
+- Recent verified milestones: BUILD-00031 — 326 tests; BUILD-00032 — 336 tests; BUILD-00033 — 338 tests; BUILD-00034 — 339 tests; BUILD-00036 — 352 tests; BUILD-00037 — 356 tests; BUILD-00038 — 362 tests.
 - Not yet verified in a deployed environment: live AI provider generation, actual media rendering/staging, YouTube/TikTok OAuth and account permissions, real uploads, analytics coverage, revenue reconciliation, production worker/scheduler recovery, PostgreSQL migration, backups and restore.
 - No real earnings, monetization eligibility, platform-policy approval or complete unattended business cycle is claimed.
 - Production public publishing remains gated by explicit human approval.
@@ -1036,3 +1036,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Restore stages new DB/media beside their destinations and rolls back filesystem replacements on failure.
 - Backups contain the database and media only; environment secrets/encryption keys are not included. The backup volume is not off-site and must be copied to independent storage.
 - Validation pending.
+
+
+### BUILD-00038 validation record
+
+- GitHub Actions PR run [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031) passed **362 backend tests** and `scripts/validate.sh`.
+- Tests verify SQLite online backup, media manifest/checksums, restore confirmation, pre-restore backup, rollback-safe replacement and symlink/path rejection.
+- Compose YAML validation passed. The scheduled backup service has not been deployed or observed in a running environment.
