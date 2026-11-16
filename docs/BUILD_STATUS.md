@@ -1155,4 +1155,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Ordinary trend-to-production drafts do not create recommendation-evaluation outcomes unless they carry an explicit captured recommendation run ID.
 - Return an explicit attribution result to the dashboard when a recommendation selection is linked or cannot be linked.
 - Add regression tests for two refreshes of the same recommendation, exact older-run selection, missing/stale run IDs and cross-platform isolation.
-- Validation pending on this branch.
+- GitHub Actions PR run [43798545897](https://github.com/justinhblee-prog/shorts/actions/runs/43798545897) passed **464 backend tests** and the complete `scripts/validate.sh` command. The code and validation-record documentation are merged in PR #131.
