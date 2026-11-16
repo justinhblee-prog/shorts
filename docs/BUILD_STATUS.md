@@ -1096,3 +1096,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Make the lease duration configurable with `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds); heartbeat interval is one-third of the lease.
 - Preserve provider failure isolation and ensure the lease is released in all exit paths.
 - Validation pending.
+
+
+## BUILD-00134 — YouTube Analytics collection observability (2026-11-16)
+
+- Persist scheduled collection status and batch totals for `running`, `succeeded`, `partial` and `failed` outcomes.
+- Expose the last attempt, last successful cycle, sanitized error summary, last batch counts and latest report timestamp.
+- Calculate coverage across uploaded videos: with snapshot, without snapshot and stale/missing according to the configured Analytics minimum age.
+- Add authenticated `GET /api/youtube/analytics/collection-status` and surface the collector state/coverage in the performance dashboard.
+- Preserve previous completed batch totals and last error while a new batch is running; a completed successful batch clears the prior error.
+- Validation pending.
