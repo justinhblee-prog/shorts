@@ -21,6 +21,12 @@ def _lease_seconds(value, minimum):
     return max(minimum, value)
 
 
+def _bounded_limit(value, name, maximum):
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= maximum:
+        raise ValueError(f"{name} must be an integer from 1 to {maximum}")
+    return value
+
+
 class ScheduleStore:
     def __init__(self, db_path="data/nexus.sqlite3"):
         self.db_path = str(db_path)
@@ -112,6 +118,8 @@ class ScheduleStore:
                 "SELECT * FROM production_schedules ORDER BY created_at DESC")]
 
     def set_active(self, sid, active):
+        if not isinstance(active, bool):
+            raise ValueError("active must be a boolean")
         stamp = _stamp(datetime.now(timezone.utc))
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
@@ -128,21 +136,23 @@ class ScheduleStore:
             return self.get(sid, c)
 
     def pending_dispatches(self, limit=100):
+        limit = _bounded_limit(limit, "limit", 500)
         with self.db() as c:
             rows = c.execute("""SELECT * FROM schedule_dispatch_outbox
                 WHERE status='pending' ORDER BY created_at LIMIT ?""",
-                (max(1, min(int(limit), 500)),)).fetchall()
+                (limit,)).fetchall()
             return [dict(row) for row in rows]
 
 
     def outbox_status(self, limit=20):
+        limit = _bounded_limit(limit, "limit", 100)
         with self.db() as c:
             counts = {row["status"]: row["n"] for row in c.execute(
                 "SELECT status,COUNT(*) n FROM schedule_dispatch_outbox GROUP BY status")}
             rows = c.execute("""SELECT id,schedule_id,scheduled_for,status,attempts,
                 last_error,created_at FROM schedule_dispatch_outbox
                 ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END,
-                created_at DESC LIMIT ?""", (max(1, min(int(limit), 100)),)).fetchall()
+                created_at DESC LIMIT ?""", (limit,)).fetchall()
             return {"counts": counts, "items": [dict(row) for row in rows],
                     "pending_retries": counts.get("pending", 0)}
 
@@ -212,6 +222,8 @@ class ScheduleStore:
         if current.tzinfo is None:
             raise ValueError("now must be timezone-aware")
         current_s = _stamp(current)
+        limit = _bounded_limit(limit, "limit", 100)
+        _lease_seconds(lease_seconds, 15)
         if (lease_owner is None) != (lease_token is None):
             raise ValueError("lease_owner and lease_token must be supplied together")
         if lease_owner is not None and not self.scheduler_lease_is_valid(
@@ -250,7 +262,7 @@ class ScheduleStore:
         # Queue enqueue is idempotent. If the process dies before marking outbox
         # dispatched, the next scheduler loop safely replays the same idempotency key.
         dispatched = []
-        for item in self.pending_dispatches(limit=max(20, min(int(limit) * 5, 500))):
+        for item in self.pending_dispatches(limit=min(limit * 5, 500)):
             try:
                 if lease_owner is not None and not self.renew_scheduler_lease(
                         lease_owner, lease_token, lease_seconds):
