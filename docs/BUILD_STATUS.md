@@ -973,4 +973,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Persist reports in an additive SQLite table with a separate collector lease; run daily from the existing metrics-collector service and support protected manual refresh/read endpoints.
 - Add per-video and brand-level median Analytics evidence to performance insights and dashboard; missing/eligibility-limited metrics remain null and are not inferred.
 - Recommendation ranking remains unchanged; analytics are evidence for later controlled holdout evaluation, not an automatic score input.
-- Validation pending on this branch.
+- GitHub Actions PR run [43785987107](https://github.com/justinhblee-prog/shorts/actions/runs/43785987107) passed **336 backend tests** and `scripts/validate.sh`. The run validated the implementation code; the later documentation-only commit corrected the API endpoint list formatting.
