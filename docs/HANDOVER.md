@@ -984,3 +984,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Existing Analytics SQLite schema migration and all metric/report unit tests passed.
 - The derived engaged-view share is not a YouTube-published rate; it is used only as a separate diagnostic.
 - No live channel OAuth/API response, actual engaged-view coverage or recommendation lift has been validated.
+
+
+## Current verified project checkpoint — BUILD-00034
+
+- Latest CI: [43787047727](https://github.com/justinhblee-prog/shorts/actions/runs/43787047727), **339 backend tests passed** and `scripts/validate.sh` succeeded.
+- Main contains BUILD-00031 through BUILD-00034, including YouTube Analytics watch-time/retention, retention-aware holdouts and Shorts engagedViews.
+- The engaged-view share is derived from YouTube Analytics `engagedViews / views`; it is not a YouTube-published rate and does not modify ranking scores.
+- External validation still required: real provider credentials, live AI generation/rendering, YouTube/TikTok account authorization and posting, actual Analytics coverage, revenue reconciliation, production deployment and restore testing.
