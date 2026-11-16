@@ -187,6 +187,22 @@ class ProductionStore:
                 "Worker process generation was replaced; stale reconciliation write rejected"
             )
 
+    @staticmethod
+    def _assert_reconciliation_authority(c, worker_id, generation_token):
+        if worker_id is None and generation_token is None:
+            # Keep standalone maintenance/tests usable when no worker process
+            # is registered. Once a worker is online, reconciliation must prove
+            # its process incarnation; omission must not bypass the fence.
+            active = c.execute(
+                "SELECT 1 FROM worker_registry WHERE status='online' LIMIT 1"
+            ).fetchone()
+            if active is not None:
+                raise ProductionLeaseConflict(
+                    "Worker generation proof is required while a worker is online"
+                )
+            return
+        ProductionStore._assert_worker_generation(c, worker_id, generation_token)
+
     def stage(self, job_id, stage, status="running", error=None,
               worker_id=None, lease_token=None):
         with self.db() as c:
@@ -589,8 +605,7 @@ class ProductionStore:
         terminal = ("cancelled", "failed_terminal")
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if worker_id is not None or generation_token is not None:
-                self._assert_worker_generation(c, worker_id, generation_token)
+            self._assert_reconciliation_authority(c, worker_id, generation_token)
             rows = c.execute("""
                 SELECT r.job_id,r.status AS production_status,r.current_stage,
                        j.status AS queue_status,j.job_type,j.error_message
