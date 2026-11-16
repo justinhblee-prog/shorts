@@ -949,7 +949,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Analytics-only outcomes can be evaluated even when public counter snapshots are insufficient; they are not fabricated as views/hour.
 - Comparable evaluation requires known platform, brand, region, publication-age, duration and format; minimum five eligible exposure runs and three measured selected candidates per cohort.
 - Dashboard surfaces topic-level watch-quality context and metric-specific holdout coverage. Recommendation scores remain unchanged until evidence quality and a future controlled evaluation justify a separate decision.
-- GitHub Actions run [43790865052](https://github.com/justinhblee-prog/shorts/actions/runs/43790865052) passed **400 backend tests** and the full `scripts/validate.sh` command. No live reverse-proxy or production multi-operator deployment test is claimed.
+- Main-branch GitHub Actions run [43790981235](https://github.com/justinhblee-prog/shorts/actions/runs/43790981235) passed **400 backend tests** and the full `scripts/validate.sh` command. No live reverse-proxy or production multi-operator deployment test is claimed.
 
 
 ### BUILD-00033 validation record
