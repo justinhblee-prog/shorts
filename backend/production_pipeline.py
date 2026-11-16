@@ -149,11 +149,13 @@ class ProductionStore:
 
     def create(self, job_id, brief):
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            timestamp = utc_now()
             c.execute("""INSERT OR IGNORE INTO production_runs
               (job_id,brand,region,language,topic,status,current_stage,created_at,updated_at)
               VALUES(?,?,?,?,?,'queued','queued',?,?)""",
               (job_id, brief["brand"], brief["region"], brief["language"],
-               brief["topic"], utc_now(), utc_now()))
+               brief["topic"], timestamp, timestamp))
 
     @staticmethod
     def _assert_worker_lease(c, job_id, worker_id, lease_token):
