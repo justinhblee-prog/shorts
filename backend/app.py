@@ -666,9 +666,11 @@ def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|Non
 
 
 @app.get("/api/performance/insights")
-def performance_insights(brand:str|None=None,x_review_token:str|None=Header(default=None)):
+def performance_insights(brand:str|None=None,
+                         platform:Literal["youtube","tiktok"]="youtube",
+                         x_review_token:str|None=Header(default=None)):
     require_review_access(x_review_token)
-    return performance_analyzer.analyze(brand)
+    return performance_analyzer.analyze(brand,platform=platform)
 
 
 
