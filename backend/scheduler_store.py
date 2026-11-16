@@ -173,6 +173,23 @@ class ScheduleStore:
                     "pending_retries": counts.get("pending", 0)}
 
 
+
+    def retry_dead_letter(self, outbox_id):
+        """Explicitly requeue a dead-letter item without changing its idempotency key."""
+        if not isinstance(outbox_id, str) or not outbox_id.strip():
+            raise ValueError("outbox_id is required")
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            cur = c.execute("""UPDATE schedule_dispatch_outbox
+                SET status='pending',attempts=0,last_error=NULL,next_attempt_at=NULL,
+                    dispatched_at=NULL
+                WHERE id=? AND status='dead_letter'""", (outbox_id,))
+            if not cur.rowcount:
+                return None
+            row = c.execute("SELECT * FROM schedule_dispatch_outbox WHERE id=?",
+                            (outbox_id,)).fetchone()
+            return dict(row)
+
     def acquire_scheduler_lease(self, owner_id, lease_seconds=90, now=None):
         """Acquire or renew the singleton scheduler lease; return its fencing token."""
         if not owner_id or not str(owner_id).strip():
@@ -312,10 +329,14 @@ class ScheduleStore:
                 # attempts=0 receives 30s; exponential growth is capped at 1h.
                 delay = min(30 * (2 ** min(int(item["attempts"]), 7)), 3600)
                 retry_at = _stamp(current + timedelta(seconds=delay))
+                next_attempt = int(item["attempts"]) + 1
+                next_status = "dead_letter" if next_attempt >= 10 else "pending"
                 with self.db() as c:
                     c.execute("""UPDATE schedule_dispatch_outbox
-                        SET attempts=attempts+1,last_error=?,next_attempt_at=?
+                        SET attempts=?,last_error=?,next_attempt_at=?,status=?
                         WHERE id=? AND status='pending'""",
-                        (type(exc).__name__ + ": " + str(exc)[:500], retry_at, item["id"]))
+                        (next_attempt, type(exc).__name__ + ": " + str(exc)[:500],
+                         None if next_status == "dead_letter" else retry_at,
+                         next_status, item["id"]))
         return {"dispatched": dispatched, "count": len(dispatched),
                 "pending": len(self.pending_dispatches())}
