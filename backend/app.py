@@ -383,9 +383,20 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
     try:
         existing=media_stager.staged_path(job_id)
         if existing.is_file() and not existing.is_symlink():
-            return {"media_path":existing.name,"size_bytes":existing.stat().st_size,
-                    "already_staged":True}
-        return media_stager.stage(job_id,video["artifact_url"])
+            staged=media_stager.fingerprint(existing)
+            staged["already_staged"]=True
+        else:
+            staged=media_stager.stage(job_id,video["artifact_url"])
+        metadata=dict(video.get("metadata") or {})
+        previous=metadata.get("media_staging") or {}
+        if (previous.get("sha256")!=staged.get("sha256")
+                or previous.get("size_bytes")!=staged.get("size_bytes")
+                or previous.get("media_path")!=staged.get("media_path")):
+            metadata["media_staging"]=staged
+            production_store.artifact(job_id,"rendering","video",video["artifact_url"],metadata)
+            production_store.stage(job_id,"review","review_pending")
+            staged["review_required"]=True
+        return staged
     except MediaStagingError as e:
         raise HTTPException(502,str(e))
 
