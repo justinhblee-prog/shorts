@@ -897,3 +897,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Recommendation exposures are tagged by platform, deduplicated per platform, linked only to same-platform production drafts and evaluated only against same-platform outcomes.
 - Review workspace can choose YouTube Shorts or TikTok for recommendations and displays platform-specific holdout evidence. Automatic ranking score changes remain disabled pending minimum sample coverage and holdout validation.
 - GitHub Actions run [43782980545](https://github.com/justinhblee-prog/shorts/actions/runs/43782980545) passed **320 backend tests** and `scripts/validate.sh`; PR #91 was squash-merged into `main` as `883870472bb1784ea093b65698221890d6db4b06`.
+
+
+### BUILD-00030 — platform-aware manual and scheduled production (2026-11-16)
+
+- Added platform selection to the production form and recurring schedule form. The chosen platform is persisted as `platforms:[youtube|tiktok]` in the schedule payload and survives outbox/queue dispatch.
+- Scheduled jobs therefore retain the intended platform through generation and policy preflight rather than silently defaulting to YouTube.
+- CI pending.
