@@ -318,13 +318,24 @@ class ReviewStore:
                     )
                 if policy_report.get("status") == "review_required" and not comment:
                     raise ValueError("Policy review requires an explicit reviewer confirmation note")
+            queue_table = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
+            ).fetchone()
+            if queue_table is None:
+                raise ReviewConflict("Durable production queue is unavailable for review decisions")
+            queue_job = c.execute("""SELECT job_type,status FROM pipeline_jobs
+                WHERE id=?""", (job_id,)).fetchone()
+            if (queue_job is None or queue_job["job_type"] != "short_video_production"
+                    or queue_job["status"] != "review_pending"):
+                raise ReviewConflict("Queue job is not in review_pending state")
+
             snapshot = [{
                 "stage": a["stage"], "artifact_type": a["artifact_type"],
                 "artifact_url": a["artifact_url"],
                 "metadata": json.loads(a["metadata_json"])
             } for a in artifacts]
             timestamp = _now()
-            c.execute("""
+            decision_cursor = c.execute("""
               INSERT INTO review_decisions
                 (job_id,decision,previous_status,reviewer_id,comment,
                  artifact_snapshot_json,created_at)
@@ -338,6 +349,28 @@ class ReviewStore:
                   timestamp, job_id))
             if updated.rowcount != 1:
                 raise ReviewConflict("Review state changed concurrently")
+            queue_error_code = (
+                "review_rejected" if decision == "rejected"
+                else "review_revision_requested" if decision == "revision_requested"
+                else None
+            )
+            queue_updated = c.execute("""UPDATE pipeline_jobs SET status=?,
+                worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
+                completed_at=?,updated_at=?,error_code=?,error_message=?
+                WHERE id=? AND job_type='short_video_production'
+                  AND status='review_pending'""",
+                (decision,timestamp,timestamp,queue_error_code,
+                 comment if decision != "approved" else None,job_id))
+            if queue_updated.rowcount != 1:
+                raise ReviewConflict("Queue state changed concurrently during review decision")
+            c.execute("""INSERT INTO job_events
+                (job_id,event_type,from_status,to_status,worker_id,details_json,created_at)
+                VALUES(?,'review_decision','review_pending',?,NULL,?,?)""",
+                (job_id,decision,json.dumps({
+                    "reviewer_id":reviewer_id,
+                    "decision_id":decision_cursor.lastrowid,
+                    "comment":comment,
+                },ensure_ascii=False),timestamp))
             row = c.execute(
                 "SELECT * FROM production_runs WHERE job_id=?", (job_id,)
             ).fetchone()
