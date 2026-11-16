@@ -55,6 +55,18 @@ class YouTubeAnalyticsStore:
               lease_until REAL NOT NULL,
               updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS youtube_analytics_collection_state(
+              id INTEGER PRIMARY KEY CHECK(id=1),
+              status TEXT NOT NULL,
+              last_attempt_at TEXT,
+              last_success_at TEXT,
+              last_error TEXT,
+              requested INTEGER NOT NULL DEFAULT 0,
+              collected INTEGER NOT NULL DEFAULT 0,
+              failed INTEGER NOT NULL DEFAULT 0,
+              source TEXT,
+              updated_at TEXT NOT NULL
+            );
             """)
             columns = {
                 row["name"] for row in connection.execute(
@@ -168,6 +180,88 @@ class YouTubeAnalyticsStore:
                 values["average_view_percentage"], json.dumps(safe_curve, separators=(",", ":")),
                 analytics_status, retention_status, retention_error, _now(),
             ))
+
+    def record_collection(self, status, requested=0, collected=0, failed=0,
+                          error=None, source="YouTube Analytics API v2"):
+        if status not in {"running", "succeeded", "partial", "failed"}:
+            raise ValueError("Invalid YouTube Analytics collection status")
+        stamp = _now()
+        with self.db() as connection:
+            connection.execute("""
+                INSERT INTO youtube_analytics_collection_state
+                  (id,status,last_attempt_at,last_success_at,last_error,requested,
+                   collected,failed,source,updated_at)
+                VALUES(1,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET
+                  status=excluded.status,
+                  last_attempt_at=excluded.last_attempt_at,
+                  last_success_at=CASE
+                    WHEN excluded.status IN ('succeeded','partial')
+                    THEN excluded.last_attempt_at
+                    ELSE youtube_analytics_collection_state.last_success_at END,
+                  last_error=CASE WHEN excluded.status='succeeded'
+                    THEN NULL ELSE excluded.last_error END,
+                  requested=excluded.requested,collected=excluded.collected,
+                  failed=excluded.failed,source=excluded.source,
+                  updated_at=excluded.updated_at
+            """, (
+                status, stamp,
+                stamp if status in ("succeeded", "partial") else None,
+                str(error)[:500] if error else None,
+                max(0, int(requested)), max(0, int(collected)),
+                max(0, int(failed)), source, stamp,
+            ))
+
+    def status(self, freshness_seconds=86400):
+        cutoff = datetime.now(timezone.utc).timestamp() - max(0, int(freshness_seconds))
+        cutoff_stamp = datetime.fromtimestamp(cutoff, timezone.utc).isoformat()
+        with self.db() as connection:
+            state = connection.execute(
+                "SELECT * FROM youtube_analytics_collection_state WHERE id=1"
+            ).fetchone()
+            coverage = connection.execute("""
+                SELECT COUNT(DISTINCT u.video_id) AS published_videos,
+                       COUNT(DISTINCT CASE WHEN a.video_id IS NOT NULL
+                         THEN u.video_id END) AS with_snapshot,
+                       COUNT(DISTINCT CASE WHEN a.video_id IS NULL
+                         OR julianday(a.collected_at)<julianday(?)
+                         THEN u.video_id END) AS stale_or_missing
+                FROM youtube_uploads u
+                LEFT JOIN youtube_analytics_snapshots a ON a.video_id=u.video_id
+                WHERE u.status='uploaded' AND u.video_id IS NOT NULL
+            """, (cutoff_stamp,)).fetchone()
+            latest = connection.execute(
+                "SELECT MAX(collected_at) FROM youtube_analytics_snapshots"
+            ).fetchone()[0]
+        saved = dict(state) if state else {}
+        published = int(coverage["published_videos"] or 0)
+        with_snapshot = int(coverage["with_snapshot"] or 0)
+        return {
+            "platform": "youtube",
+            "status": saved.get("status", "not_started"),
+            "last_attempt_at": saved.get("last_attempt_at"),
+            "last_success_at": saved.get("last_success_at"),
+            "last_error": saved.get("last_error"),
+            "last_batch": {
+                "requested": int(saved.get("requested") or 0),
+                "collected": int(saved.get("collected") or 0),
+                "failed": int(saved.get("failed") or 0),
+            },
+            "source": saved.get("source", "YouTube Analytics API v2"),
+            "latest_snapshot_at": latest,
+            "coverage": {
+                "published_videos": published,
+                "with_snapshot": with_snapshot,
+                "without_snapshot": max(0, published - with_snapshot),
+                "stale_or_missing": int(coverage["stale_or_missing"] or 0),
+            },
+            "available_metrics": [
+                "views", "engaged_views", "engaged_view_share",
+                "estimated_minutes_watched", "average_view_duration",
+                "average_view_percentage", "audience_retention_curve",
+            ],
+            "read_only": True,
+        }
 
     def get(self, video_id):
         with self.db() as connection:
