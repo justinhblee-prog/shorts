@@ -882,3 +882,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - TikTok publication uses the approved media SHA-256 fingerprint and current local policy version/date; uncertain remote outcomes block retries until operator reconciliation.
 - API routes are protected by the review token except the OAuth callback, which requires a one-time state matching a secure HTTP-only cookie.
 - GitHub Actions run [43781739033](https://github.com/justinhblee-prog/shorts/actions/runs/43781739033) passed **317 backend tests** and `scripts/validate.sh`; PR #87 was squash-merged into `main` as `43b8c0048e117af3864908e23f50dcf2b3443c9f`. Frontend controls, TikTok developer app approval, OAuth credentials and live account verification remain outstanding.
+
+
+### BUILD-00028 — TikTok operator controls in the review workspace (2026-11-16)
+
+- Added TikTok connection/status, creator capability display, explicit private publish action, publication status refresh, uncertain-result reconciliation and metrics panel to the existing approval workspace.
+- The approved queue now remains visible until both YouTube and TikTok have reached terminal completion. A new media fingerprint after approval returns the job to re-review and blocks posting.
+- CI pending. Real TikTok OAuth and account validation require the user's developer-app credentials and explicit account consent.
