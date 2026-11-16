@@ -84,10 +84,10 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 ## Validation — current truth
 
-- Latest verified candidate CI run: [43791757173](https://github.com/justinhblee-prog/shorts/actions/runs/43791757173), which passed **408 backend tests** and the complete `scripts/validate.sh` command for BUILD-00130.
+- Latest verified candidate CI run: [43798901325](https://github.com/justinhblee-prog/shorts/actions/runs/43798901325), which passed **466 backend tests** and the complete `scripts/validate.sh` command for BUILD-00140.
 - CI executed Python 3.11 tests on a GitHub-hosted runner. Provider/API tests use controlled test doubles where credentials or external services are required; this verifies application logic, not live provider success.
 - The validation script also checks Python compilation, frontend JavaScript syntax/DOM IDs and Docker Compose YAML parsing.
-- Recent verified milestones: BUILD-00031 — 326 tests; BUILD-00032 — 336 tests; BUILD-00033 — 338 tests; BUILD-00034 — 339 tests; BUILD-00036 — 352 tests; BUILD-00037 — 356 tests; BUILD-00038 initial backup implementation — 362 tests; BUILD-00038 restore hardening — 365 tests; BUILD-00039 RBAC/rate limiting — 400 tests; BUILD-00130 encrypted backups — 408 tests.
+- Recent verified milestones: BUILD-00130 encrypted backups — 408 tests; BUILD-00139 exact recommendation exposure attribution — 464 tests; BUILD-00140 all selectable brand candidates in recommendation exposures — 466 tests.
 - Not yet verified in a deployed environment: live AI provider generation, actual media rendering/staging, YouTube/TikTok OAuth and account permissions, real uploads, analytics coverage, revenue reconciliation, production worker/scheduler recovery, PostgreSQL migration, backups and restore.
 - No real earnings, monetization eligibility, platform-policy approval or complete unattended business cycle is claimed.
 - Production public publishing remains gated by explicit human approval.
@@ -1166,3 +1166,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Include all recorded brand options in the exposure signature so changing the selectable alternatives creates a distinct exposure instead of being incorrectly deduplicated.
 - Add regression tests for selecting a non-default brand and for exposure signature changes when alternate brands change.
 - GitHub Actions PR run [43798824433](https://github.com/justinhblee-prog/shorts/actions/runs/43798824433) passed **466 backend tests** and the complete `scripts/validate.sh` command.
+
+
+## BUILD-00141 — refresh repository validation summary
+
+- Refresh the top-level validation checkpoint to the latest verified BUILD-00140 CI run.
+- Replace the stale 408-test summary with the current 466-test result and link to the exact GitHub Actions run.
+- Keep all live-provider, account, deployment and revenue limitations explicit.
