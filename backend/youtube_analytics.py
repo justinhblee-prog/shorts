@@ -226,7 +226,8 @@ class YouTubeAnalyticsCollector:
         if not isinstance(video_id, str) or not video_id.strip() or len(video_id) > 128:
             raise ValueError("A valid YouTube video ID is required")
         end = end_date or (self.today() - timedelta(days=2))
-        uploaded_at = self.store.upload_date(video_id)
+        # Explicit report ranges do not need local publication metadata.
+        uploaded_at = self.store.upload_date(video_id) if start_date is None else None
         if start_date:
             start = start_date
         elif uploaded_at:
