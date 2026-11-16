@@ -553,5 +553,50 @@ class ApiSecurityTests(unittest.TestCase):
                          (0, 1000000))
         self.assertEqual(cursor_constraints["MaxLen"].max_length, 512)
 
+
+    def test_provider_attempt_diagnostics_redact_raw_response_and_errors(self):
+        token = "reviewer-token-" + ("r" * 40)
+        attempts = [{
+            "id": "attempt-1",
+            "job_id": "job-safe",
+            "stage": "rendering",
+            "attempt_number": 1,
+            "state": "response_received",
+            "started_at": "2026-11-16T00:00:00Z",
+            "completed_at": "2026-11-16T00:00:05Z",
+            "idempotency_key": "internal-idempotency-secret",
+            "provider_request_id": "provider-request-1",
+            "response_json": (
+                '{"video_url":"https://cdn.example/video.mp4?sig=signed-secret",'
+                '"access_token":"provider-access-secret"}'
+            ),
+            "error": "Authorization: Bearer raw-provider-secret",
+        }]
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.production_store, "get",
+                              return_value={"id": "job-safe"}),
+            mock.patch.object(app_module.production_store, "provider_attempts",
+                              return_value=attempts),
+        ):
+            result = app_module.get_production_provider_attempts(
+                "job-safe", x_review_token=token
+            )
+        serialized = json.dumps(result)
+        for secret in (
+            "signed-secret", "provider-access-secret",
+            "raw-provider-secret", "internal-idempotency-secret",
+        ):
+            self.assertNotIn(secret, serialized)
+        self.assertEqual(result["attempts"][0]["id"], "attempt-1")
+        self.assertTrue(result["attempts"][0]["has_response"])
+        self.assertTrue(result["attempts"][0]["has_error"])
+        self.assertEqual(
+            result["attempts"][0]["error_message"],
+            "상세 오류는 보호된 서버 로그에서 확인하세요.",
+        )
+        self.assertNotIn("response_json", result["attempts"][0])
+        self.assertNotIn("provider_request_id", result["attempts"][0])
+
 if __name__ == "__main__":
     unittest.main()

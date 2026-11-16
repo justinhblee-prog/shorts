@@ -328,9 +328,27 @@ def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(d
     if result is None:
         raise HTTPException(404,"Production job not found")
     attempts=production_store.provider_attempts(job_id)
-    # The response payload may contain provider output and signed URLs; return
-    # it only to authorized production readers and never expose auth tokens.
-    return {"job_id":job_id,"attempts":attempts}
+    # Provider response bodies and transport errors may contain credentials,
+    # signed artifact URLs, or customer data. Expose only operational metadata;
+    # recovery/adoption continues to read the protected response from storage.
+    safe_attempts = []
+    for attempt in attempts:
+        safe_attempts.append({
+            "id": attempt["id"],
+            "job_id": attempt["job_id"],
+            "stage": attempt["stage"],
+            "attempt_number": attempt["attempt_number"],
+            "state": attempt["state"],
+            "started_at": attempt["started_at"],
+            "completed_at": attempt["completed_at"],
+            "has_response": bool(attempt.get("response_json")),
+            "has_error": bool(attempt.get("error")),
+            "error_message": (
+                "상세 오류는 보호된 서버 로그에서 확인하세요."
+                if attempt.get("error") else None
+            ),
+        })
+    return {"job_id":job_id,"attempts":safe_attempts}
 
 @app.post("/api/production/jobs/{job_id}/adopt-recovered-render")
 def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionAction,
