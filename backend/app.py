@@ -309,9 +309,23 @@ def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(d
     if result is None:
         raise HTTPException(404,"Production job not found")
     attempts=production_store.provider_attempts(job_id)
-    # The response payload may contain provider output and signed URLs; return
-    # it only to authorized production readers and never expose auth tokens.
-    return {"job_id":job_id,"attempts":attempts}
+    # Provider responses can contain signed media URLs, prompt material and
+    # provider-specific metadata. Keep the read endpoint to a status summary;
+    # the privileged adoption action consumes the stored response server-side.
+    safe_attempts=[{
+        "id":item["id"],
+        "stage":item["stage"],
+        "attempt_number":item["attempt_number"],
+        "state":item["state"],
+        "provider_request_id":item["provider_request_id"],
+        "has_recoverable_response":(
+            item["state"]=="response_received" and bool(item.get("response_json"))
+        ),
+        "error":item["error"],
+        "started_at":item["started_at"],
+        "completed_at":item["completed_at"],
+    } for item in attempts]
+    return {"job_id":job_id,"attempts":safe_attempts}
 
 @app.post("/api/production/jobs/{job_id}/adopt-recovered-render")
 def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionAction,
