@@ -390,7 +390,7 @@
     $("queueDetails").innerHTML=
       '<div class="data-item"><b>생산 큐 제어 · '+status+'</b><small>중지 작업: '+esc(state.paused_job_id||"없음")+' · 갱신 '+esc(state.updated_at||"")+'</small></div>'+
       '<div class="data-item"><b>Queue status</b><small>'+esc(JSON.stringify(q))+'</small></div>'+
-      (w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status)+'</b><small>'+esc(x.hostname||"")+' · '+esc(x.last_seen_at||"")+'</small></div>').join("")+
+      (w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status==="stale"?"응답 지연":x.status==="offline"?"오프라인":"온라인")+'</b><small>'+esc(x.hostname||"")+' · 마지막 응답 '+esc(x.last_seen_at||"")+' · 경과 '+esc(Number(x.heartbeat_age_seconds||0))+'초 / 기준 '+esc(Number(x.stale_after_seconds||0))+'초</small></div>').join("")+
       '<h4>운영 중지·재개 감사 기록</h4>'+(events||'<div class="empty-state">아직 제어 이력이 없습니다.</div>');
   }
   async function refreshAll(){
