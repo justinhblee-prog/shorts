@@ -1866,3 +1866,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The store now appends the late result to the original attempt's audit history and retains its publish ID, video ID, and original consent operator. It never overwrites the newer attempt's identity or video fields.
 - Late published/processing outcomes move a nonterminal current row to reconciliation_required, blocking another retry until an operator verifies the remote account. Existing terminal current outcomes remain intact.
 - Added regression coverage. Backend deterministic CI only; no live TikTok API verification.
+
+- Follow-up boundary check: a newer attempt in the retryable `failed` state is not treated as terminal when an older attempt later reports processing/published. It is moved to reconciliation_required, consistent with the superseded-uncertainty policy.

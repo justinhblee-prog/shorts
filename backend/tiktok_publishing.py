@@ -250,7 +250,7 @@ class TikTokPublishStore:
                 stamp = _now()
                 blocking = normalized in ("publish_complete", "processing")
                 previous = row["status"]
-                if blocking and previous not in ("publish_complete", "failed", "send_to_inbox"):
+                if blocking and previous not in ("publish_complete", "send_to_inbox"):
                     c.execute("""
                       UPDATE tiktok_publications SET status='reconciliation_required',
                         error=?,updated_at=? WHERE job_id=? AND attempt_id=?
