@@ -945,3 +945,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add platform selector to trend recommendation workspace and platform-specific holdout evaluation panel.
 - Add platform field to trend production drafts and policy platform selection so TikTok recommendations create TikTok-scoped production jobs.
 - Keep recommendation score adjustment disabled; TikTok API does not expose audience retention/watch-time/estimated revenue in this collector. GitHub Actions run [43782980545](https://github.com/justinhblee-prog/shorts/actions/runs/43782980545) passed **320 backend tests** and `scripts/validate.sh`. PR #91 was squash-merged into `main` as `883870472bb1784ea093b65698221890d6db4b06`.
+
+
+### BUILD-00030 — platform-aware manual and scheduled production (2026-11-16)
+
+- Add platform selection to the normal production request and recurring schedule API/UI.
+- Persist selected platform as the production brief's `platforms` list through the schedule outbox and queue dispatch, so scheduled TikTok jobs receive TikTok policy preflight and TikTok publishing eligibility.
+- Display the platform on each scheduled job and add regression tests for schedule payload persistence and API model validation.
+- CI validation pending.
