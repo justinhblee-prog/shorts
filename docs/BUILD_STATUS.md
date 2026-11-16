@@ -1199,4 +1199,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Enforce normalized ratio bounds for engaged-view share and audience-retention coordinates.
 - Preserve valid average view percentages above 100%.
 - Add regression tests; ranking adjustment remains disabled.
-- Validation pending GitHub Actions on the BUILD-00147 branch.
+- GitHub Actions run [43803213470](https://github.com/justinhblee-prog/shorts/actions/runs/43803213470) passed the complete `scripts/validate.sh` workflow on the corrected code/test commit.
