@@ -219,25 +219,29 @@ class RecommendationEvaluationStore:
             "deduplicated": False,
         }
 
-    def link_production(self, trend_id, brand_slug, job_id, selected_at=None, platform="youtube"):
+    def link_production(self, trend_id, brand_slug, job_id, selected_at=None,
+                        platform="youtube", run_id=None):
         if platform not in ("youtube", "tiktok"):
             raise ValueError("platform must be youtube or tiktok")
+        if not isinstance(run_id, str) or not run_id.strip() or len(run_id) > 64:
+            return {"linked": False, "reason": "recommendation_run_id_required"}
         timestamp = selected_at or _now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute("""SELECT c.id FROM recommendation_candidates c
                 JOIN recommendation_runs r ON r.id=c.run_id
-                WHERE c.trend_id=? AND c.brand_slug=? AND c.selected_job_id IS NULL
-                  AND r.platform=?
-                ORDER BY c.created_at DESC LIMIT 1""",
-                (str(trend_id), str(brand_slug), platform)).fetchone()
+                WHERE c.run_id=? AND c.trend_id=? AND c.brand_slug=?
+                  AND c.selected_job_id IS NULL AND r.platform=?
+                LIMIT 1""",
+                (run_id, str(trend_id), str(brand_slug), platform)).fetchone()
             if row is None:
-                return {"linked": False, "reason": "no_matching_recommendation_exposure"}
+                return {"linked": False, "reason": "no_matching_candidate_in_recommendation_run"}
             changed = c.execute("""UPDATE recommendation_candidates
                 SET selected_job_id=?,selected_at=?
                 WHERE id=? AND selected_job_id IS NULL""",
                 (str(job_id), timestamp, row["id"])).rowcount
-            return {"linked": bool(changed), "candidate_id": row["id"] if changed else None}
+            return {"linked": bool(changed), "candidate_id": row["id"] if changed else None,
+                    "run_id": run_id}
 
     def evaluate(self, performance, platform="youtube"):
         if platform not in ("youtube", "tiktok"):
