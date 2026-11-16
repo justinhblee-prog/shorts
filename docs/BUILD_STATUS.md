@@ -1247,5 +1247,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Sort pooled views/hour observations by absolute production selection timestamp before computing the chronological holdout; exposure creation order can differ when older recommendations are selected later, and ISO strings with different timezone offsets are not lexicographically chronological.
 - Keep within-exposure diagnostics ordered by exposure generation time.
 - Parse timestamps for absolute ordering in pooled and within-run holdouts; add regression coverage for reversed exposure/selection chronology and mixed timezone offsets.
-- GitHub Actions validation: pending.
+- GitHub Actions runs [43806060109](https://github.com/justinhblee-prog/shorts/actions/runs/43806060109) and [43806062228](https://github.com/justinhblee-prog/shorts/actions/runs/43806062228) passed the complete `scripts/validate.sh` workflow on the final source and regression-test commits; documentation-only updates followed.
 - Ranking score adjustment remains disabled; no live provider validation is claimed.
