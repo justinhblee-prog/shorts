@@ -1697,3 +1697,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Keep the check inside the same immediate SQLite transaction as attempt reservation, preventing concurrent retry races.
 - Add regression coverage for process-crash-in-flight, ambiguous transport timeout, and durable response-not-yet-adopted states.
 - This deliberately fails closed rather than risking duplicate paid AI/provider side effects; recovery or operator reconciliation must happen before retry.
+
+
+### BUILD-00204 recovery follow-up
+
+- Pipeline resume now reads a durable `response_received` provider journal before reserving a new attempt.
+- Script, voice, and render stages can reuse the exact persisted response after a process interruption; normal artifact persistence then marks that attempt `adopted`.
+- This avoids a second paid external request when the provider response was saved but local artifact adoption had not completed.
+- `request_started` and `outcome_unknown` remain fail-closed; they still require explicit reconciliation because the provider outcome cannot be inferred safely.
