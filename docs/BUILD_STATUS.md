@@ -917,4 +917,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Refresh the local policy pack to `2026-11-16.1` after checking current official YouTube and TikTok policy references.
 - Add explicit non-overridable TikTok flags for AI-generated likenesses of minors, private adults without permission, fake authoritative/crisis content, and false public-figure endorsements.
 - Expose `policy_flags` in the human policy-evidence API and allow the review store to merge/persist these declarations.
-- Add regression tests for the policy engine, API model and review-store evidence update. CI validation pending.
+- Add regression tests for the policy engine, API model and review-store evidence update. GitHub Actions run [43780970297](https://github.com/justinhblee-prog/shorts/actions/runs/43780970297) passed **255 backend tests** and `scripts/validate.sh`. PR #85 was squash-merged into `main` as `8c5b67313072a4b3f1f2599c9c6e982f11886ab4`.
