@@ -9,7 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from contextlib import contextmanager
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -53,9 +53,33 @@ class YouTubeOAuthStore:
               refresh_token_encrypted TEXT NOT NULL,
               scope TEXT NOT NULL,
               token_type TEXT NOT NULL,
-              updated_at TEXT NOT NULL
+              updated_at TEXT NOT NULL,
+              channel_id TEXT,
+              channel_title TEXT,
+              last_verified_at TEXT,
+              data_api_verified INTEGER NOT NULL DEFAULT 0,
+              analytics_api_verified INTEGER NOT NULL DEFAULT 0,
+              last_error TEXT
             );
             """)
+            columns = {
+                row["name"] for row in connection.execute(
+                    "PRAGMA table_info(youtube_oauth_tokens)"
+                ).fetchall()
+            }
+            migrations = {
+                "channel_id": "TEXT",
+                "channel_title": "TEXT",
+                "last_verified_at": "TEXT",
+                "data_api_verified": "INTEGER NOT NULL DEFAULT 0",
+                "analytics_api_verified": "INTEGER NOT NULL DEFAULT 0",
+                "last_error": "TEXT",
+            }
+            for name, declaration in migrations.items():
+                if name not in columns:
+                    connection.execute(
+                        f"ALTER TABLE youtube_oauth_tokens ADD COLUMN {name} {declaration}"
+                    )
 
     @contextmanager
     def db(self):
@@ -116,7 +140,9 @@ class YouTubeOAuthStore:
                 ON CONFLICT(id) DO UPDATE SET
                   refresh_token_encrypted=excluded.refresh_token_encrypted,
                   scope=excluded.scope,token_type=excluded.token_type,
-                  updated_at=excluded.updated_at
+                  updated_at=excluded.updated_at,channel_id=NULL,channel_title=NULL,
+                  last_verified_at=NULL,data_api_verified=0,
+                  analytics_api_verified=0,last_error=NULL
             """, (encrypted_refresh_token, scope, token_type, _stamp(_now())))
 
     def token_record(self):
@@ -125,6 +151,22 @@ class YouTubeOAuthStore:
                 "SELECT * FROM youtube_oauth_tokens WHERE id=1"
             ).fetchone()
         return dict(row) if row else None
+
+    def record_verification(self, channel_id=None, channel_title=None,
+                            data_api_verified=False, analytics_api_verified=False,
+                            error=None):
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("""
+                UPDATE youtube_oauth_tokens SET
+                  channel_id=?,channel_title=?,last_verified_at=?,
+                  data_api_verified=?,analytics_api_verified=?,last_error=?
+                WHERE id=1
+            """, (
+                channel_id, channel_title, _stamp(_now()),
+                int(bool(data_api_verified)), int(bool(analytics_api_verified)),
+                str(error)[:128] if error else None,
+            ))
 
     def clear_token(self):
         with self.db() as connection:
@@ -298,6 +340,12 @@ class YouTubeOAuthManager:
                 "updated_at": row["updated_at"],
                 "mode": "encrypted_oauth",
                 "static_fallback_configured": bool(os.getenv("YOUTUBE_REFRESH_TOKEN")),
+                "channel_id": row.get("channel_id"),
+                "channel_title": row.get("channel_title"),
+                "last_verified_at": row.get("last_verified_at"),
+                "data_api_verified": bool(row.get("data_api_verified")),
+                "analytics_api_verified": bool(row.get("analytics_api_verified")),
+                "last_error": row.get("last_error"),
             }
         if os.getenv("YOUTUBE_REFRESH_TOKEN"):
             return {
@@ -316,3 +364,118 @@ class YouTubeOAuthManager:
     def disconnect(self):
         self.store.clear_token()
         return {"connected": False, "status": "disconnected"}
+
+
+
+class YouTubeConnectionVerifier:
+    """Perform explicit live Data API and Analytics API checks after OAuth."""
+
+    def __init__(self, oauth_manager, credentials_factory=None,
+                 service_factory=None, request_factory=None, today=None):
+        self.oauth_manager = oauth_manager
+        self.credentials_factory = credentials_factory
+        self.service_factory = service_factory
+        self.request_factory = request_factory
+        self.today = today or date.today
+
+    def _factories(self):
+        credentials_factory = self.credentials_factory
+        service_factory = self.service_factory
+        request_factory = self.request_factory
+        if credentials_factory is None:
+            from google.oauth2.credentials import Credentials
+            credentials_factory = Credentials
+        if service_factory is None:
+            from googleapiclient.discovery import build
+            service_factory = build
+        if request_factory is None:
+            from google.auth.transport.requests import Request
+            request_factory = Request
+        return credentials_factory, service_factory, request_factory
+
+    def verify(self):
+        row = self.oauth_manager.store.token_record()
+        if row is None and not os.getenv("YOUTUBE_REFRESH_TOKEN"):
+            raise YouTubeOAuthError("YouTube OAuth account is not connected")
+        refresh = self.oauth_manager.get_refresh_token()
+        credentials_factory, service_factory, request_factory = self._factories()
+        channel_id = None
+        channel_title = None
+        data_verified = False
+        analytics_verified = False
+        error = None
+        try:
+            credentials = credentials_factory(
+                token=None,
+                refresh_token=refresh,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=self.oauth_manager.client_id,
+                client_secret=self.oauth_manager.client_secret,
+                scopes=list(REQUESTED_SCOPES),
+            )
+            credentials.refresh(request_factory())
+            youtube = service_factory(
+                "youtube", "v3", credentials=credentials, cache_discovery=False
+            )
+            channel_response = youtube.channels().list(
+                part="id,snippet", mine=True, maxResults=1
+            ).execute()
+            channels = channel_response.get("items") or []
+            if not channels:
+                error = "channel_not_found"
+                raise YouTubeOAuthError("No YouTube channel is available for this account")
+            channel = channels[0]
+            channel_id = channel.get("id")
+            channel_title = (channel.get("snippet") or {}).get("title")
+            data_verified = bool(channel_id)
+            if not data_verified:
+                error = "channel_id_missing"
+                raise YouTubeOAuthError("YouTube Data API did not return a channel ID")
+        except YouTubeOAuthError:
+            self.oauth_manager.store.record_verification(
+                channel_id, channel_title, data_verified, False, error or "oauth_or_data_api_error"
+            )
+            raise
+        except Exception as exc:
+            error = type(exc).__name__
+            self.oauth_manager.store.record_verification(
+                channel_id, channel_title, False, False, error
+            )
+            return {
+                "connected": True, "data_api_verified": False,
+                "analytics_api_verified": False, "live_connectivity_verified": False,
+                "error": error,
+            }
+
+        analytics_error = None
+        try:
+            analytics = service_factory(
+                "youtubeAnalytics", "v2", credentials=credentials,
+                cache_discovery=False,
+            )
+            end = self.today() - timedelta(days=2)
+            start = end - timedelta(days=27)
+            analytics.reports().query(
+                ids="channel==MINE",
+                startDate=start.isoformat(),
+                endDate=end.isoformat(),
+                metrics="views",
+                maxResults=1,
+            ).execute()
+            analytics_verified = True
+        except Exception as exc:
+            analytics_error = type(exc).__name__
+            error = analytics_error
+        self.oauth_manager.store.record_verification(
+            channel_id, channel_title, data_verified, analytics_verified, error
+        )
+        return {
+            "connected": True,
+            "channel_id": channel_id,
+            "channel_title": channel_title,
+            "data_api_verified": data_verified,
+            "analytics_api_verified": analytics_verified,
+            "live_connectivity_verified": data_verified and analytics_verified,
+            "analytics_error": analytics_error,
+            "verified_at": self.oauth_manager.store.token_record().get("last_verified_at"),
+        }
