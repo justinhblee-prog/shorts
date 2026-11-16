@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import tempfile
+import time
 import unittest
 from datetime import date
 
@@ -202,7 +203,7 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         with self.store.db() as connection:
             connection.execute(
                 "UPDATE youtube_analytics_collector_lease SET lease_until=? WHERE id=1",
-                (date.today().toordinal() - 1,),
+                (time.time() - 1,),
             )
         new_token = self.store.acquire_lease("collector-new", lease_seconds=300)
         self.assertIsNotNone(new_token)
