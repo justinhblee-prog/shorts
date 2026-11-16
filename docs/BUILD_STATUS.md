@@ -1740,3 +1740,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Both cases must persist `reconciliation_required`, retain any known `publish_id`, and block a second publish initialization or upload request until explicit operator reconciliation.
 - These tests complement YouTube's existing ambiguous resumable-upload timeout/reconciliation tests and TikTok's existing status-poll and terminal-state protections.
 - Validation uses deterministic transport doubles; it does not constitute live TikTok or YouTube service validation.
+- GitHub Actions run [43845160197](https://github.com/justinhblee-prog/shorts/actions/runs/43845160197) passed the complete `scripts/validate.sh` workflow, including 577 backend tests.
