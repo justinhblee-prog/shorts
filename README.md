@@ -98,3 +98,6 @@ BUILD-00034 adds YouTube Shorts engagedViews as a separate quality signal and di
 
 
 YouTube account connection now supports a server-side OAuth flow with one-time state, encrypted refresh-token storage and dashboard status controls. Live Google consent and account verification still require the operator's Google Cloud OAuth client and registered HTTPS callback.
+
+
+BUILD-00036 added encrypted YouTube OAuth connection and dashboard controls. CI passed **352 backend tests** in [run 43788265493](https://github.com/justinhblee-prog/shorts/actions/runs/43788265493); live Google consent and channel verification remain deployment steps.
