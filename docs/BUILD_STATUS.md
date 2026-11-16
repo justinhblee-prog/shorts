@@ -1281,3 +1281,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression tests proving the next batch advances to older videos and successful collection clears the defer state.
 - This handles provider omissions only; no live TikTok account validation or inference about why a video is absent is claimed.
 - GitHub Actions run [43808258956](https://github.com/justinhblee-prog/shorts/actions/runs/43808258956) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
+
+
+## BUILD-00157 — atomic TikTok metrics batch persistence
+
+- Persist successfully returned metric snapshots and retry backoff for omitted video IDs within the same SQLite transaction.
+- Prevent process interruption or a retry-state write failure from committing only half of a provider batch, which could otherwise reintroduce starvation or lose collected snapshots.
+- Validate missing IDs and reject overlap between collected and missing IDs before opening the write transaction.
+- Add regression tests that inject a retry-table write failure and verify that no snapshot is partially committed, plus a successful mixed-result collector test.
+- Provider/account behavior remains unverified against a live TikTok account.
