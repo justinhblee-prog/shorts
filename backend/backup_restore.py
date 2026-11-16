@@ -288,9 +288,15 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
             raise
         else:
             if old_db.exists():
-                old_db.unlink()
+                try:
+                    old_db.unlink()
+                except OSError:
+                    pass
             if old_media.exists():
-                shutil.rmtree(old_media)
+                try:
+                    shutil.rmtree(old_media)
+                except OSError:
+                    pass
         finally:
             if new_db.exists():
                 new_db.unlink()
