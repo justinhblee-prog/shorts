@@ -137,6 +137,8 @@ class TikTokMetricsStore:
             raise ValueError("Invalid TikTok metrics collection status")
         stamp = _stamp()
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            self._assert_lease(c, lease_owner, lease_token)
             c.execute("""
               INSERT INTO tiktok_metrics_collection_state
                 (id,status,last_attempt_at,last_success_at,last_error,requested,
