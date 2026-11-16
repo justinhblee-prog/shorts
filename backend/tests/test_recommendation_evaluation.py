@@ -53,6 +53,34 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertNotEqual(first["run_id"], later["run_id"])
         self.assertFalse(later["deduplicated"])
 
+    def test_same_trend_exposures_are_isolated_by_platform(self):
+        youtube = self.store.record_run(
+            "US", [self.item(1, 82.5)], "2026-11-01T00:00:00+00:00",
+            platform="youtube",
+        )
+        tiktok = self.store.record_run(
+            "US", [self.item(1, 82.5)], "2026-11-01T00:00:00+00:00",
+            platform="tiktok",
+        )
+        self.assertNotEqual(youtube["run_id"], tiktok["run_id"])
+        yt_link = self.store.link_production(
+            "trend-1","future-leak","job-youtube",
+            "2026-11-01T01:00:00+00:00",platform="youtube"
+        )
+        tt_link = self.store.link_production(
+            "trend-1","future-leak","job-tiktok",
+            "2026-11-01T01:00:00+00:00",platform="tiktok"
+        )
+        self.assertTrue(yt_link["linked"])
+        self.assertTrue(tt_link["linked"])
+        result=self.store.evaluate({"videos":[
+            {"job_id":"job-youtube","platform":"youtube","measurement_status":"measured","views_per_hour":100},
+            {"job_id":"job-tiktok","platform":"tiktok","measurement_status":"measured","views_per_hour":200},
+        ]},platform="tiktok")
+        self.assertEqual(result["platform"],"tiktok")
+        self.assertEqual(result["selected_production_count"],1)
+        self.assertEqual(result["measured_outcome_count"],1)
+
     def test_records_exposure_and_links_selected_production_job(self):
         self.store.record_run("US", [self.item(1, 82.5)],
                               "2026-11-01T00:00:00+00:00")
