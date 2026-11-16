@@ -111,6 +111,7 @@ class WorkerFailClosedTests(unittest.TestCase):
         finish.assert_called_once_with(
             "job-heartbeat", worker.WORKER_ID, "lease-heartbeat",
             {"production_status": "review_pending", "artifact_count": 0},
+            generation_token=worker.WORKER_GENERATION_TOKEN,
         )
         self.assertIsNone(worker.active_job_id)
         self.assertIsNone(worker.active_lost_lease_event)
@@ -155,15 +156,13 @@ class WorkerFailClosedTests(unittest.TestCase):
         worker.stopping.clear()
         registration = {"generation_token": "process-generation-1"}
 
-        def stop_after_idle(_timeout):
+        def register_and_stop(*args):
             worker.stopping.set()
-            return True
+            return registration
 
         with (
             mock.patch.object(worker.signal, "signal"),
-            mock.patch.object(worker.queue, "register_worker", return_value=registration) as register,
-            mock.patch.object(worker.queue, "is_paused", return_value=False),
-            mock.patch.object(worker.stopping, "wait", side_effect=stop_after_idle),
+            mock.patch.object(worker.queue, "register_worker", side_effect=register_and_stop) as register,
             mock.patch.object(worker.queue, "mark_worker_offline") as offline,
         ):
             worker.main()
