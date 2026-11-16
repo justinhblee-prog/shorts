@@ -106,6 +106,16 @@ class TikTokPublishingTests(unittest.TestCase):
             )
         return attempt_id
 
+    def test_tiktok_upload_attempt_records_active_policy_version_and_check_date(self):
+        record=self.store.begin(
+            "job-1","Approved caption",True,"operator-1","audit-attempt",
+            False,False,
+        )
+        self.assertEqual(record["policy_version"],POLICY_VERSION)
+        self.assertEqual(record["policy_checked_on"],POLICY_CHECKED_ON)
+        self.assertEqual(record["events"][0]["policy_version"],POLICY_VERSION)
+        self.assertEqual(record["events"][0]["policy_checked_on"],POLICY_CHECKED_ON)
+
     def test_tiktok_reconciliation_requires_explicit_confirmation(self):
         self._uncertain_tiktok_attempt()
         with self.assertRaisesRegex(TikTokPublishError, "Explicit confirmation"):
