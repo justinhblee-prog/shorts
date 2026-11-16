@@ -621,6 +621,12 @@ class YouTubePublishingTests(unittest.TestCase):
             event["event_type"] == "operator_reconciliation"
             for event in current["events"]
         ))
+        resolved = self.uploads.reconcile(
+            "job-1", "not_uploaded", note="Verified no matching upload",
+            expected_attempt_id=attempt["attempt_id"],
+        )
+        self.assertEqual(resolved["status"], "failed")
+        self.assertEqual(resolved["events"][-1]["attempt_id"], attempt["attempt_id"])
 
     def test_active_upload_cannot_be_reconciled_early(self):
         self.uploads.begin("job-1","Sleep short","")
