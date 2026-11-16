@@ -139,3 +139,16 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('진단 전용 · 자동 복구·재시도·승인·게시 없음', app_js)
         self.assertIn('.integrity-item', css)
         self.assertIn('loadIntegrityReport()', app_js)
+
+    def test_completed_youtube_upload_action_is_disabled_in_review_workspace(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        start = app_js.index('const action=status==="uploaded"')
+        end = app_js.index("const tiktokAction=", start)
+        upload_action = app_js[start:end]
+        self.assertIn('status==="uploaded"', upload_action)
+        self.assertIn('disabled>YouTube 업로드 완료</button>', upload_action)
+        self.assertIn('data-upload-id=', upload_action)
+        self.assertLess(
+            upload_action.index('status==="uploaded"'),
+            upload_action.index('data-upload-id='),
+        )

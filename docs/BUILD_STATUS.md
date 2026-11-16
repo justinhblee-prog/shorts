@@ -1974,3 +1974,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Eight simultaneous reservation attempts must produce exactly one durable attempt and one start/consent audit record; all competing requests are rejected without replacing the winning attempt.
 - Confirms TikTok reservation remains SELF_ONLY.
 - Deterministic SQLite transaction tests only; no live platform API or account validation is claimed.
+
+## BUILD-00248 — Frontend completed-upload action safety
+- The approved-content panel now disables the YouTube upload action when the canonical upload status is already uploaded.
+- This reduces accidental repeat submissions at the UI boundary; backend idempotency and duplicate prevention remain authoritative.
+- Static source change; browser interaction testing is pending.

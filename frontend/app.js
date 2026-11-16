@@ -172,13 +172,15 @@
       const lateIds=(item.upload_events||[]).filter(event=>event.event_type==="late_remote_success"&&event.video_id).map(event=>event.video_id);
       const lateIdSummary=lateIds.length?'<p>늦게 확인된 영상 ID: '+lateIds.map(esc).join(" · ")+'</p>':"";
       const existingIdSummary=item.upload_video_id?'<p>현재 기록된 영상 ID: '+esc(item.upload_video_id)+'</p>':"";
-      const action=status==="late_success_review_required"
-        ? '<button class="button button-outline" data-resolve-late-id="'+esc(item.job_id)+'">늦은 업로드 결과 확정</button>'
-        : (uncertain
-          ? '<button class="button button-outline" data-reconcile-id="'+esc(item.job_id)+'">업로드 결과 대조</button>'
-          : (status==="uploading"
-            ? '<button class="button button-quiet" disabled>업로드 진행 중 · 대기</button>'
-            : '<button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">비공개 업로드</button>'));
+      const action=status==="uploaded"
+        ? '<button class="button button-quiet" disabled>YouTube 업로드 완료</button>'
+        : (status==="late_success_review_required"
+          ? '<button class="button button-outline" data-resolve-late-id="'+esc(item.job_id)+'">늦은 업로드 결과 확정</button>'
+          : (uncertain
+            ? '<button class="button button-outline" data-reconcile-id="'+esc(item.job_id)+'">업로드 결과 대조</button>'
+            : (status==="uploading"
+              ? '<button class="button button-quiet" disabled>업로드 진행 중 · 대기</button>'
+              : '<button class="button button-primary" data-upload-id="'+esc(item.job_id)+'">비공개 업로드</button>')));
       const tiktokAction=tiktokStatus==="publish_complete"
         ? '<button class="button button-quiet" disabled>TikTok 게시 완료</button>'
         : (tiktokStatus==="send_to_inbox"
