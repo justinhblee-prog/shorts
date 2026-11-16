@@ -185,7 +185,7 @@
       const scopeLabel=data.scopes&&data.scopes.length?" · "+data.scopes.join(", "):"";
       const mode=data.mode==="environment_refresh_token"?"환경 토큰(권한 목록 확인 불가)":"암호화 OAuth";
       $("youtubeConnectionStatus").textContent=connected
-        ? "연결됨 · "+mode+scopeLabel
+        ? "OAuth 승인·토큰 저장됨 · 실계정 API 확인 전 · "+mode+scopeLabel
         : "연결 필요 · YouTube 업로드와 Analytics 권한 승인 필요";
       $("youtubeConnect").textContent=connected?"YouTube 연결됨":"YouTube 계정 연결";
       $("youtubeConnect").disabled=connected;
@@ -720,7 +720,7 @@
   $("ledgerCurrency").addEventListener("change",()=>loadFinance().catch(e=>toast(e.message)));
   $("ledgerDate").value=new Date().toISOString().slice(0,10);
   const youtubeOAuthResult=new URLSearchParams(window.location.search).get("youtube_oauth");
-  if(youtubeOAuthResult==="connected")toast("YouTube 계정 연결 완료 · 운영자 인증 후 연결 상태를 확인하세요.");
+  if(youtubeOAuthResult==="connected")toast("YouTube OAuth 승인 및 암호화 토큰 저장 완료 · 실계정 API 검증은 별도입니다.");
   else if(youtubeOAuthResult==="error"||youtubeOAuthResult==="denied")toast("YouTube OAuth 연결이 완료되지 않았습니다. 설정과 동의 권한을 확인하세요.");
   loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
 })();
