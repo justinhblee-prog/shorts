@@ -1850,3 +1850,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - When a superseded attempt has no recorded provider video ID, its informational worker-error audit event now keeps video_id null instead of borrowing the current attempt's video ID.
 - Added a regression proving the canonical current upload remains intact while the superseded attempt's audit event does not misattribute the newer video's identifier.
 - Backend deterministic CI only; no live YouTube API verification.
+
+## BUILD-00226 — Prevent cross-attempt TikTok operator attribution
+- When a superseded TikTok attempt has no recorded operator identity, its uncertainty audit event now keeps operator_id null rather than borrowing the current attempt's operator.
+- Added regression coverage for an old attempt with missing operator metadata while a newer attempt has a distinct operator.
+- Backend deterministic CI only; no live TikTok API verification.
+
+### BUILD-00226 validation correction
+- The first regression draft attempted to mutate an immutable audit row and correctly failed the repository's append-only audit trigger.
+- Reworked the fixture to create an attempt with no consent operator identity, then reconcile it under a separate reviewer identity. The lookup now derives attempt ownership only from the immutable consent event, not from later reviewer/audit actors.
+- This prevents both cross-attempt attribution and misclassification of a reconciliation reviewer as the original publisher.
