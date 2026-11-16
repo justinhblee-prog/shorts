@@ -1267,3 +1267,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression coverage for both an empty brand list and a list containing only inactive brands; ensure unittest discovery collects the regression.
 - GitHub Actions run [43806438008](https://github.com/justinhblee-prog/shorts/actions/runs/43806438008) passed the complete `scripts/validate.sh` workflow with **478 backend tests**, including the corrected empty-brand regression.
 - No ranking score adjustment is enabled; no live provider validation is claimed.
+
+
+## BUILD-00155 — malformed trend batch isolation
+
+- Filter non-dictionary trend and brand records at the ranking boundary so null/scalar/malformed feed entries cannot abort processing of valid candidates in the same batch.
+- Treat non-list trend/brand batch containers as empty input and return an empty ranking rather than raising during iteration.
+- Add regression tests for mixed malformed/valid records and malformed batch containers.
+- GitHub Actions run [43806606030](https://github.com/justinhblee-prog/shorts/actions/runs/43806606030) passed the complete `scripts/validate.sh` workflow with **480 backend tests**.
+- Recommendation ranking score adjustment remains disabled; no live feed/provider validation is claimed.

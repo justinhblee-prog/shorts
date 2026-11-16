@@ -320,6 +320,10 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
     """Rank collected trends for one platform; never mix cross-platform outcomes."""
     if platform not in ("youtube", "tiktok"):
         raise ValueError("platform must be youtube or tiktok")
+    # Provider/feed batches can contain nulls or malformed entries. Isolate those
+    # records instead of allowing one bad item to abort ranking for the full batch.
+    trends = [item for item in trends if isinstance(item, dict)] if isinstance(trends, list) else []
+    brands = [item for item in brands if isinstance(item, dict)] if isinstance(brands, list) else []
     now = now or datetime.now(timezone.utc)
     performance_by_brand = performance_by_brand or {}
     performance_videos = performance_videos or []
