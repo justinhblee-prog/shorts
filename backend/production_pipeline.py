@@ -189,16 +189,27 @@ class ProductionStore:
 
     @staticmethod
     def _assert_reconciliation_authority(c, worker_id, generation_token):
-        if worker_id is None and generation_token is None:
-            # Keep standalone maintenance/tests usable when no worker process
-            # is registered. Once a worker is online, reconciliation must prove
-            # its process incarnation; omission must not bypass the fence.
-            active = c.execute(
-                "SELECT 1 FROM worker_registry WHERE status='online' LIMIT 1"
+        if generation_token is None:
+            if worker_id is not None:
+                registered = c.execute(
+                    "SELECT status,generation_token FROM worker_registry WHERE worker_id=?",
+                    (worker_id,),
+                ).fetchone()
+                # Legacy workers and test harnesses have no process token.
+                # They remain compatible only while the registry itself has
+                # no generation token; a modern worker cannot omit its proof.
+                if registered is not None and registered["generation_token"] is not None:
+                    raise ProductionLeaseConflict(
+                        "Worker process generation proof is required for reconciliation"
+                    )
+                return
+            modern_worker = c.execute(
+                "SELECT 1 FROM worker_registry WHERE status='online' "
+                "AND generation_token IS NOT NULL LIMIT 1"
             ).fetchone()
-            if active is not None:
+            if modern_worker is not None:
                 raise ProductionLeaseConflict(
-                    "Worker generation proof is required while a worker is online"
+                    "Worker generation proof is required while a modern worker is online"
                 )
             return
         ProductionStore._assert_worker_generation(c, worker_id, generation_token)
