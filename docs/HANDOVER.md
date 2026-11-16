@@ -1054,3 +1054,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Restore requires explicit `--confirm-restore`, validates every archive path and file checksum before touching live data, makes a pre-restore backup, stages DB/media next to targets and rolls back failed swaps.
 - Secrets and Fernet keys are not included in backups. Keep the encryption key in a separate secret manager and replicate the backup volume off-host for disaster recovery.
 - Validation pending.
+
+
+## BUILD-00038 validation record
+
+- GitHub Actions run [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031) passed **362 backend tests** and `scripts/validate.sh`.
+- Backup/restore tests cover database/media snapshots, checksums, confirmation, pre-restore archive, path validation and symlink rejection.
+- Compose YAML parsing passed. No live Compose service was deployed and no restore was run against production data.
