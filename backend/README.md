@@ -423,3 +423,8 @@ Immediately before creating a YouTube upload attempt, the upload store checks th
 ### Immutable upload policy-version audit stamps
 
 The YouTube upload record and immutable `upload_attempt_started` audit event now retain the exact local policy version and checked-on date that passed the upload-time freshness gate. Existing databases are migrated additively; old records retain null values and are not retroactively represented as having been checked under the current version.
+
+
+### Upload policy check-date freshness
+
+The upload gate requires both the current script policy evidence and the human-approved script snapshot to match the active local `POLICY_VERSION` and `POLICY_CHECKED_ON`. Missing or stale dates are rejected before the YouTube API is called; audit stamps therefore cannot record a stale or absent check date as current evidence. This remains a local evidence-freshness check, not a live fetch of official platform policies.
