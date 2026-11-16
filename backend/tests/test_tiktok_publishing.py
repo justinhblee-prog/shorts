@@ -132,6 +132,7 @@ class TikTokPublishingTests(unittest.TestCase):
             self.store.begin(
                 "job-1", "Approved caption", True, "operator-1",
                 "stale-approval-attempt", False, False,
+                require_current_approval=True,
             )
         self.assertIsNone(self.store.get("job-1"))
 
@@ -145,6 +146,7 @@ class TikTokPublishingTests(unittest.TestCase):
             self.store.begin(
                 "job-1", "Approved caption", True, "operator-1",
                 "queue-state-mismatch-attempt", False, False,
+                require_current_approval=True,
             )
         self.assertIsNone(self.store.get("job-1"))
 
