@@ -19,6 +19,7 @@ class MediaStagerTests(unittest.TestCase):
         result = self.stager.stage("job-1","https://cdn.example.test/path/video.mp4?sig=abc")
         self.assertTrue(os.path.isfile(os.path.join(self.tmp.name,result["media_path"])))
         self.assertEqual(result["size_bytes"],len(self.payload))
+        self.assertEqual(result["malware_scan"], "disabled")
         self.assertEqual(self.calls[0][2],"/path/video.mp4?sig=abc")
     def test_stage_returns_sha256_fingerprint(self):
         result=self.stager.stage("job-hash","https://cdn.example.test/video.mp4")
