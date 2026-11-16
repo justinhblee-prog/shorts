@@ -336,7 +336,7 @@ class YouTubePublishingTests(unittest.TestCase):
         Path(self.media).write_bytes(b"modified-after-human-approval")
         with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
             self.publisher.upload_approved("job-1",self.media,self.review,"Title")
-        self.assertEqual(self.service._videos.insert_calls,0)
+        self.assertFalse(hasattr(self.service._videos,"body"))
         self.assertIsNone(self.uploads.get("job-1"))
 
     def test_upload_rejects_media_path_not_matching_approved_fingerprint(self):
