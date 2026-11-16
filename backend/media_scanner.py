@@ -36,6 +36,7 @@ class ClamAVScanner:
             or self.timeout < 1
             or not self.database_dir
             or any(ord(character) < 32 or ord(character) == 127 for character in self.executable)
+            or any(ord(character) < 32 or ord(character) == 127 for character in self.database_dir)
         ):
             raise ValueError("scanner executable, database directory and positive timeout are required")
 
