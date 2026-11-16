@@ -69,7 +69,8 @@ class ReviewWorkflowTests(unittest.TestCase):
             "signed-secret", "private-request-id", "raw-provider-error",
         ):
             self.assertNotIn(secret, serialized_approved)
-        self.assertEqual(approved["error"], ReviewStore.SAFE_ERROR_NOTICE)
+        # Approval clears the operational error; no raw diagnostic is returned.
+        self.assertIsNone(approved["error"])
 
     def test_pending_review_exposes_frozen_brand_guidance_from_job_payload(self):
         queue = JobQueue(self.db)
