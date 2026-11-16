@@ -1238,3 +1238,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Drop overlong identifiers before persistence so candidates cannot be stored in a state that the production-link API can never select.
 - Add a regression test proving overlong IDs are excluded while valid candidates remain selectable.
 - Ranking score adjustment remains disabled; no live provider validation is claimed.
+
+
+## BUILD-00152 — duplicate performance outcome isolation
+
+- Detect repeated performance rows for the same normalized production job within one evaluation payload.
+- Exclude duplicated job IDs instead of allowing last-write-wins behavior to make metrics depend on input ordering.
+- Add a regression test covering conflicting duplicate measurements alongside a valid unique outcome.
+- Evaluation remains observational and score adjustments remain disabled.

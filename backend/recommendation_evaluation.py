@@ -380,6 +380,8 @@ class RecommendationEvaluationStore:
         if platform not in ("youtube", "tiktok"):
             raise ValueError("platform must be youtube or tiktok")
         measured = {}
+        seen_performance_jobs = set()
+        duplicate_performance_jobs = set()
         performance_rows = performance.get("videos", []) if isinstance(performance, dict) else []
         for raw_item in performance_rows if isinstance(performance_rows, list) else []:
             item = _normalized_outcome(raw_item)
@@ -388,6 +390,13 @@ class RecommendationEvaluationStore:
             job_id = item.get("job_id")
             if not isinstance(job_id, str) or not job_id.strip():
                 continue
+            # Conflicting duplicate snapshots must not be resolved by input order.
+            # Exclude the job entirely so the evaluation cannot silently choose one.
+            if job_id in seen_performance_jobs:
+                measured.pop(job_id, None)
+                duplicate_performance_jobs.add(job_id)
+                continue
+            seen_performance_jobs.add(job_id)
             has_views = (
                 item.get("measurement_status") == "measured"
                 and item["views_per_hour"] is not None
