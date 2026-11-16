@@ -478,3 +478,6 @@ BUILD-00034 automated validation: GitHub Actions run [43787047727](https://githu
 ## BUILD-00035 — audience-retention visualization
 
 The performance dashboard now renders a sorted per-video retention sparkline and 25%, 50% and 75% video-time checkpoints. Checkpoint values are labeled as audience-watch ratios rather than percentages because the metric may exceed 1 due to rewatches. Empty or unavailable reports remain explicit no-data states.
+
+
+BUILD-00035 validation: GitHub Actions run [43787457716](https://github.com/justinhblee-prog/shorts/actions/runs/43787457716) passed **339 backend tests** and `scripts/validate.sh`.

@@ -976,7 +976,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add an additive SQLite migration for `engaged_views` and derived `engaged_view_share = engagedViews / views`; do not label the derived ratio as a platform-provided rate.
 - Surface engaged-view share in per-video and brand performance, topic-matched historical context and recommendation holdout diagnostics.
 - Keep the signal separate from public Data API counters and existing views/hour; do not change recommendation scores.
-- Validation pending.
+- GitHub Actions run [43787457716](https://github.com/justinhblee-prog/shorts/actions/runs/43787457716) passed **339 backend tests** and `scripts/validate.sh`.
 
 
 ### BUILD-00034 validation record
