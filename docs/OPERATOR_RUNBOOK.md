@@ -653,3 +653,10 @@ The panel is intentionally diagnostic only. It does not repair mismatches, retry
 ## BUILD-00181 — Integrity report access control
 
 The integrity report requires the `production.read` permission. A configured reviewer role has read access; an analyst role without that permission must receive HTTP 403. Missing or invalid credentials receive HTTP 401. The endpoint must not call the report store for denied or unauthenticated requests. This behavior is covered by the BUILD-00181 API security regression test.
+
+
+## BUILD-00182 — Orphan lifecycle records
+
+The integrity report scans three cases: state mismatches, short-video queue jobs with no production row, and production rows with no matching short-video queue job. Queue-only records are normally restored only by the existing payload-validated recovery path. If they remain missing after that path, the worker pauses and requires operator investigation. Production-only records are never converted into queue jobs automatically.
+
+The report is bounded (maximum 200 records per call) and read-only. It does not create, delete, retry, approve, upload, or publish records. The worker blocks new claims when an orphan remains after recovery. A displayed limit is a scan bound, not a complete inventory count.

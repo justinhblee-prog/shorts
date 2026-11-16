@@ -42,6 +42,33 @@ class WorkerFailClosedTests(unittest.TestCase):
         self.assertTrue(lost_lease.is_set())
         self.assertTrue(worker.stopping.is_set())
 
+
+    def test_orphaned_lifecycle_record_pauses_before_claiming_work(self):
+        report = {
+            "orphaned": 1,
+            "items": [{
+                "record_kind": "queue_without_production",
+                "job_id": "orphan-job",
+                "classification": "queue_without_production_record",
+                "production_status": None,
+                "queue_status": "queued",
+            }],
+        }
+        with (
+            mock.patch.object(worker.queue, "is_paused", return_value=False),
+            mock.patch.object(worker.store, "reconcile_missing_runs"),
+            mock.patch.object(worker.store, "reconcile_status_integrity",
+                              return_value={"unresolved": 0, "repaired": 0,
+                                            "unresolved_jobs": []}),
+            mock.patch.object(worker.store, "integrity_report", return_value=report),
+            mock.patch.object(worker.queue, "pause") as pause,
+            mock.patch.object(worker.queue, "claim") as claim,
+        ):
+            self.assertFalse(worker.run_once())
+        pause.assert_called_once()
+        self.assertIn("orphan-job", pause.call_args.args[0])
+        claim.assert_not_called()
+
     def test_provider_error_stops_worker_after_recording_job_failure(self):
         job = {"id": "job-1", "payload": {"topic": "test"}, "lease_token": "token-1"}
         with (

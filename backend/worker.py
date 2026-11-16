@@ -69,6 +69,30 @@ def run_once():
     # Recovery failures escape: no claim may occur while state is uncertain.
     store.reconcile_missing_runs(queue)
     integrity = store.reconcile_status_integrity(queue)
+    orphan_report = store.integrity_report(queue, limit=200)
+    if orphan_report.get("orphaned", 0):
+        orphaned_items = [
+            {
+                "job_id": item["job_id"],
+                "classification": item["classification"],
+                "production_status": item["production_status"],
+                "queue_status": item["queue_status"],
+            }
+            for item in orphan_report["items"]
+            if item["record_kind"] in (
+                "queue_without_production", "production_without_queue"
+            )
+        ]
+        reason = (
+            "Orphaned production lifecycle records require operator investigation: "
+            + json.dumps(orphaned_items[:10], ensure_ascii=False)
+        )
+        queue.pause(reason)
+        print(
+            f"production_orphan_integrity_blocked orphaned={orphan_report['orphaned']}; "
+            "worker_paused"
+        )
+        return False
     if integrity["unresolved"]:
         reason = (
             "Production lifecycle state mismatch requires operator reconciliation: "
