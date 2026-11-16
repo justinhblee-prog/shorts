@@ -89,7 +89,7 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(first["count"], 0)
         self.assertEqual(len(self.schedules.pending_dispatches()), 1)
         self.assertEqual(self.queue.stats()["total"], 1)
-        second = self.schedules.dispatch_due(flaky, now=now)
+        second = self.schedules.dispatch_due(flaky, now=now + timedelta(seconds=30))
         self.assertEqual(second["count"], 1)
         self.assertEqual(self.queue.stats()["total"], 1)
         self.assertEqual(self.schedules.pending_dispatches(), [])
@@ -108,10 +108,43 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(len(pending), 1)
         self.assertEqual(pending[0]["attempts"], 1)
         self.assertIn("temporary queue outage", pending[0]["last_error"])
-        second = self.schedules.dispatch_due(self.queue, now=now)
+        second = self.schedules.dispatch_due(self.queue, now=now + timedelta(seconds=30))
         self.assertEqual(second["count"], 1)
         self.assertEqual(self.schedules.pending_dispatches(), [])
         self.assertEqual(self.queue.stats()["total"], 1)
+
+
+    def test_outbox_retry_uses_exponential_backoff_and_caps_at_one_hour(self):
+        now = datetime.now(timezone.utc)
+        item = self.schedule(now - timedelta(minutes=5))
+        class FailingQueue:
+            def is_paused(self):
+                return False
+            def enqueue(self, *args, **kwargs):
+                raise RuntimeError("temporary outage")
+        first = self.schedules.dispatch_due(FailingQueue(), now=now)
+        self.assertEqual(first["count"], 0)
+        row = self.schedules.pending_dispatches()[0]
+        self.assertEqual(row["attempts"], 1)
+        self.assertEqual(datetime.fromisoformat(row["next_attempt_at"]), now + timedelta(seconds=30))
+        self.assertEqual(self.schedules.dispatch_due(self.queue, now=now + timedelta(seconds=29))["count"], 0)
+        self.assertEqual(self.schedules.dispatch_due(self.queue, now=now + timedelta(seconds=30))["count"], 1)
+
+    def test_outbox_retry_schedule_caps_after_repeated_failures(self):
+        now = datetime.now(timezone.utc)
+        self.schedule(now - timedelta(minutes=5))
+        class FailingQueue:
+            def is_paused(self):
+                return False
+            def enqueue(self, *args, **kwargs):
+                raise RuntimeError("still unavailable")
+        for attempt in range(9):
+            current = now + timedelta(seconds=3600 * attempt)
+            self.schedules.dispatch_due(FailingQueue(), now=current)
+        row = self.schedules.pending_dispatches()[0]
+        self.assertEqual(row["attempts"], 9)
+        self.assertEqual(datetime.fromisoformat(row["next_attempt_at"]),
+                         now + timedelta(seconds=8 * 3600 + 3600))
 
     def test_paused_production_holds_due_schedule_in_outbox_until_resume(self):
         now = datetime.now(timezone.utc)
