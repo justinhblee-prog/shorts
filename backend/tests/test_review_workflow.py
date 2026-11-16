@@ -225,6 +225,21 @@ class ReviewWorkflowTests(unittest.TestCase):
             self.review.decide("job-1", "rejected", "operator-2", "Changed mind")
         self.assertEqual(len(self.review.history("job-1")), 1)
 
+    def test_changed_media_reopens_approved_production_and_queue_atomically(self):
+        self.review.decide("job-1","approved","operator-1","Original video reviewed")
+        reopened = self.review.reopen_for_review(
+            "job-1","Media staging fingerprint changed; fresh review required")
+        self.assertTrue(reopened["reopened"])
+        self.assertEqual(self.production.get("job-1")["status"],"review_pending")
+        self.assertEqual(self.queue.get("job-1")["status"],"review_pending")
+        event = self.queue.events("job-1")[-1]
+        self.assertEqual(event["event_type"],"review_reopened")
+        self.assertEqual(event["from_status"],"approved")
+        self.assertEqual(event["to_status"],"review_pending")
+        repeated = self.review.reopen_for_review("job-1","Repeated staging check")
+        self.assertFalse(repeated["reopened"])
+        self.assertEqual(len(self.review.history("job-1")),1)
+
     def test_rejection_updates_queue_and_preserves_reason(self):
         result = self.review.decide("job-1", "rejected", "operator-1",
                                     "Rights evidence is insufficient")
