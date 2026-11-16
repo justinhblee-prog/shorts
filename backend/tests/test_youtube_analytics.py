@@ -23,7 +23,7 @@ class FakeReports:
 
     def query(self, **kwargs):
         self.calls.append(kwargs)
-        if kwargs["dimensions"] == "video":
+        if "dimensions" not in kwargs:
             return FakeRequest(self.metrics)
         if self.retention_error:
             raise self.retention_error
@@ -82,6 +82,7 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(saved["retention_curve"][1]["audience_watch_ratio"], 0.42)
         self.assertEqual(reports.calls[0]["ids"], "channel==MINE")
         self.assertEqual(reports.calls[0]["filters"], "video==video-1")
+        self.assertNotIn("dimensions", reports.calls[0])
         self.assertEqual(reports.calls[0]["metrics"],
                          "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage")
 
