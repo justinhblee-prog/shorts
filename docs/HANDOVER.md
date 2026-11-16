@@ -1098,5 +1098,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Encrypted archives use the `.tar.gz.enc` suffix and a versioned header. Restore authenticates the complete ciphertext before extracting any files; wrong keys, tampering and truncation fail before live data is touched.
 - `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` refuses plaintext backup creation and restore. With the default false setting, legacy plaintext archives remain readable.
 - Pre-restore backups inherit the active encryption key; retention handles encrypted and plaintext archives together. Archive files are restricted to owner-only permissions on POSIX systems.
-- Preflight reports invalid/missing keys and whether encryption is mandatory. CI validation pending.
+- Preflight reports invalid/missing keys and whether encryption is mandatory. GitHub Actions run [43791757173](https://github.com/justinhblee-prog/shorts/actions/runs/43791757173) passed **408 backend tests** and `scripts/validate.sh`.
 - Losing the key makes encrypted backups unrecoverable. Keep it in a secret manager/off-host secure location separate from backup storage; no key is committed.
