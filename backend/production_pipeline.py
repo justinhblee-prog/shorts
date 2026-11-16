@@ -224,8 +224,6 @@ class ProductionStore:
         timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c,job_id,worker_id,lease_token)
             updated=c.execute("""UPDATE provider_execution_attempts
                 SET state='response_received',provider_request_id=?,
                     response_json=?,completed_at=?,error=NULL
@@ -243,8 +241,6 @@ class ProductionStore:
         timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c,job_id,worker_id,lease_token)
             updated=c.execute("""UPDATE provider_execution_attempts
                 SET state='outcome_unknown',error=?,completed_at=?
                 WHERE job_id=? AND stage=? AND attempt_number=?
