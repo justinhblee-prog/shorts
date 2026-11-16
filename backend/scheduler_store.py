@@ -160,17 +160,28 @@ class ScheduleStore:
             return [dict(row) for row in rows]
 
 
-    def outbox_status(self, limit=20):
+    def outbox_status(self, limit=20, now=None):
         limit = _bounded_limit(limit, "limit", 100)
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            raise ValueError("now must be timezone-aware")
+        current_s = _stamp(current)
         with self.db() as c:
             counts = {row["status"]: row["n"] for row in c.execute(
                 "SELECT status,COUNT(*) n FROM schedule_dispatch_outbox GROUP BY status")}
+            pending_retries = c.execute("""SELECT COUNT(*) FROM schedule_dispatch_outbox
+                WHERE status='pending' AND next_attempt_at IS NOT NULL
+                AND next_attempt_at>?""", (current_s,)).fetchone()[0]
+            pending_ready = c.execute("""SELECT COUNT(*) FROM schedule_dispatch_outbox
+                WHERE status='pending' AND
+                (next_attempt_at IS NULL OR next_attempt_at<=?)""",
+                (current_s,)).fetchone()[0]
             rows = c.execute("""SELECT id,schedule_id,scheduled_for,status,attempts,
                 last_error,created_at,next_attempt_at FROM schedule_dispatch_outbox
-                ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END,
+                ORDER BY CASE status WHEN 'dead_letter' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
                 created_at DESC LIMIT ?""", (limit,)).fetchall()
             return {"counts": counts, "items": [dict(row) for row in rows],
-                    "pending_retries": counts.get("pending", 0)}
+                    "pending_retries": pending_retries, "pending_ready": pending_ready}
 
 
 
