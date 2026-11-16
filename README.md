@@ -46,7 +46,7 @@ With Python dependencies installed:
 sh scripts/validate.sh
 ```
 
-This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified readiness-preflight validation is GitHub Actions PR run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930), which passed **326 backend tests** and `scripts/validate.sh` before PR #95 was squash-merged into `main` (`7ce6e7fd`). The merge commit itself has not had a separate CI run recorded. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
+This runs Python bytecode compilation, unittest discovery, and (when Node.js is available) JavaScript syntax validation. Latest verified CI is GitHub Actions run [43789858034](https://github.com/justinhblee-prog/shorts/actions/runs/43789858034), which passed **365 backend tests** and `scripts/validate.sh` on BUILD-00038 restore hardening. CI validates automated logic only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, scheduled backup operations or a production restore drill. Validation includes Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing. This verifies automated checks only, not live provider connectivity, deployed browser behavior, YouTube OAuth/upload, or financial reconciliation.
 
 ## Documentation
 
@@ -112,4 +112,4 @@ BUILD-00037 adds a protected live verification action for YouTube Data API and A
 Compose now includes an automated daily SQLite + media backup service with checksums, integrity validation, retention and an explicitly confirmed restore command. Backups are stored in a separate Docker volume and must be replicated off-host for disaster recovery; secrets are never included.
 
 
-BUILD-00038 adds daily SQLite + media backups and a checksum-verified, explicitly confirmed restore path. CI passed **362 backend tests** in [run 43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031); the backup service has not yet been deployed to a live host.
+BUILD-00038 adds daily SQLite + media backups and a checksum-verified, explicitly confirmed restore path. Restore hardening passed **365 backend tests** in [run 43789858034](https://github.com/justinhblee-prog/shorts/actions/runs/43789858034); the backup service has not yet been deployed to a live host.

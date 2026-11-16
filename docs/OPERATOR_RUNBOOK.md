@@ -364,3 +364,8 @@ Do not delete the pre-restore backup until the application, media artifacts, OAu
 ### BUILD-00038 validation checkpoint
 
 The backup/restore utility and Compose configuration passed **362 backend tests** in [GitHub Actions run 43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031). This verifies code and configuration, not a running daily backup. After deployment, confirm that an archive appears in the backup volume, copy it off-host, and perform a restore drill in a separate staging environment before relying on it for disaster recovery.
+
+
+### BUILD-00038 archive validation limits
+
+Backup and restore enforce a maximum of 100,000 archive entries, a 16 MiB manifest, an 8 GiB SQLite database and 200 GiB total media payload. Restore validates paths, manifest shape, duplicate entries, file inventory, SHA-256 checksums and SQLite integrity before it begins replacing live data. These are safety limits, not a substitute for off-host copies and restore drills.
