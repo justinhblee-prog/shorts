@@ -18,6 +18,37 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _finite_nonnegative(value):
+    """Return a finite nonnegative metric, excluding bool (a Python int subtype)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    if not math.isfinite(number) or number < 0:
+        return None
+    return number
+
+
+def _retention_points(curve):
+    """Keep only valid normalized YouTube audience-retention coordinates."""
+    valid = []
+    for point in curve if isinstance(curve, list) else []:
+        if not isinstance(point, dict):
+            continue
+        position = point.get("elapsed_video_time_ratio")
+        audience = point.get("audience_watch_ratio")
+        if isinstance(position, bool) or isinstance(audience, bool):
+            continue
+        position = _finite_nonnegative(position)
+        audience = _finite_nonnegative(audience)
+        if position is None or audience is None or position > 1 or audience > 1:
+            continue
+        valid.append({
+            "elapsed_video_time_ratio": position,
+            "audience_watch_ratio": audience,
+        })
+    return valid
+
+
 def _rank(values):
     ordered = sorted(enumerate(values), key=lambda item: item[1])
     ranks = [0.0] * len(values)
@@ -48,18 +79,12 @@ def _spearman(left, right):
 
 
 def _retention_at(curve, target):
-    """Return the nearest source-reported audienceWatchRatio to a video-time ratio."""
-    candidates = []
-    for point in curve if isinstance(curve, list) else []:
-        if not isinstance(point, dict):
-            continue
-        ratio = point.get("elapsed_video_time_ratio")
-        value = point.get("audience_watch_ratio")
-        if not isinstance(ratio, (int, float)) or not isinstance(value, (int, float)):
-            continue
-        if not math.isfinite(float(ratio)) or not math.isfinite(float(value)) or value < 0:
-            continue
-        candidates.append((abs(float(ratio) - target), float(value)))
+    """Return the nearest valid normalized audienceWatchRatio to a video-time ratio."""
+    candidates = [
+        (abs(point["elapsed_video_time_ratio"] - target),
+         point["audience_watch_ratio"])
+        for point in _retention_points(curve)
+    ]
     if not candidates:
         return None
     return min(candidates, key=lambda item: item[0])[1]
@@ -267,22 +292,30 @@ class RecommendationEvaluationStore:
         if platform not in ("youtube", "tiktok"):
             raise ValueError("platform must be youtube or tiktok")
         measured = {}
+        analytics_keys = (
+            "engaged_view_share", "average_view_percentage",
+            "average_view_duration_seconds",
+        )
         for item in performance.get("videos", []):
             if item.get("platform", "youtube") != platform or not item.get("job_id"):
                 continue
-            views = item.get("views_per_hour")
+            normalized = dict(item)
+            normalized["views_per_hour"] = _finite_nonnegative(item.get("views_per_hour"))
+            for key in analytics_keys:
+                normalized[key] = _finite_nonnegative(item.get(key))
+            normalized["audience_retention_curve"] = _retention_points(
+                item.get("audience_retention_curve")
+            )
             has_views = (
                 item.get("measurement_status") == "measured"
-                and isinstance(views, (int, float)) and math.isfinite(float(views))
-                and views >= 0
+                and normalized["views_per_hour"] is not None
             )
-            has_analytics = any(
-                isinstance(item.get(key), (int, float))
-                and math.isfinite(float(item[key])) and item[key] >= 0
-                for key in ("engaged_view_share", "average_view_percentage", "average_view_duration_seconds")
-            ) or bool(item.get("audience_retention_curve"))
+            has_analytics = (
+                any(normalized[key] is not None for key in analytics_keys)
+                or bool(normalized["audience_retention_curve"])
+            )
             if has_views or has_analytics:
-                measured[str(item["job_id"])] = item
+                measured[str(item["job_id"])] = normalized
         with self.db() as c:
             rows = c.execute("""SELECT c.run_id,r.generated_at AS run_generated_at,r.platform,
                 c.selected_job_id,c.selected_at,c.created_at,
@@ -308,12 +341,7 @@ class RecommendationEvaluationStore:
                 "observed_at": row["selected_at"] or row["created_at"],
                 "recommendation_rank": int(row["recommendation_rank"]),
                 "recommendation_score": float(row["recommendation_score"]),
-                "views_per_hour": (
-                    float(measured[job_id]["views_per_hour"])
-                    if isinstance(measured[job_id].get("views_per_hour"), (int, float))
-                    and math.isfinite(float(measured[job_id]["views_per_hour"]))
-                    and measured[job_id]["views_per_hour"] >= 0 else None
-                ),
+                "views_per_hour": measured[job_id].get("views_per_hour"),
                 "engaged_view_share": measured[job_id].get("engaged_view_share"),
                 "average_view_percentage": measured[job_id].get("average_view_percentage"),
                 "average_view_duration_seconds": measured[job_id].get("average_view_duration_seconds"),
@@ -337,7 +365,7 @@ class RecommendationEvaluationStore:
         total_selected = len(rows)
         view_observations = [
             item for item in observations
-            if isinstance(item.get("views_per_hour"), (int, float))
+            if _finite_nonnegative(item.get("views_per_hour")) is not None
         ]
         total_measured = len(view_observations)
         analytics_metric_names = (
@@ -347,7 +375,8 @@ class RecommendationEvaluationStore:
         )
         analytics_measured = [
             item for item in observations
-            if any(isinstance(item.get(name), (int, float)) for name in analytics_metric_names)
+            if any(_finite_nonnegative(item.get(name)) is not None
+                   for name in analytics_metric_names)
         ]
         # Compare candidates within the same exposure and comparable outcome cohort.
         # Raw scores from different API runs, brands, regions, ages or formats are
@@ -396,9 +425,7 @@ class RecommendationEvaluationStore:
                 for metric_name in analytics_metric_names:
                     metric_items = [
                         item for item in cohort_items
-                        if isinstance(item.get(metric_name), (int, float))
-                        and math.isfinite(float(item[metric_name]))
-                        and item[metric_name] >= 0
+                        if _finite_nonnegative(item.get(metric_name)) is not None
                     ]
                     if len(metric_items) < 3:
                         continue
