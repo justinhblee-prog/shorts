@@ -619,7 +619,7 @@ class YouTubePublisher:
                 raise
             if upload_attempt is None:
                 raise YouTubeUploadError(
-                    "Approved media verification or upload initialization failed: "+type(exc).__name__
+                    "Approved media verification or upload initialization failed: "+str(exc)
                 ) from exc
             if remote_request_started:
                 raise YouTubeUploadError(
