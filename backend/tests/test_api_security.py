@@ -11,7 +11,7 @@ from app import (app, require_review_access, YouTubeLateSuccessResolution, Enque
                  QueueControlAction, queue_control, pause_queue, resume_queue,
                  TrendProductionDraft, draft_production_from_trend,
                  OpportunityInput, create_opportunity_score, PolicyEvidenceInput, ScheduleInput)
-from production_pipeline import ProviderError
+from production_pipeline import ProviderError, PolicyBlocked
 
 class ApiSecurityTests(unittest.TestCase):
 
@@ -545,6 +545,42 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 409)
         fail.assert_not_called()
         pause.assert_called_once()
+    def test_api_policy_blocked_fails_only_the_job_without_pausing_workers(self):
+        job = {"id": "job-policy-blocked", "job_type": "short_video_production",
+               "status": "running", "worker_id": "worker-1",
+               "lease_token": "lease-1", "payload": {"topic": "test"}}
+        body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
+        with (
+            mock.patch("app.require_review_access"),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(
+                app_module.production_pipeline, "execute",
+                side_effect=PolicyBlocked(
+                    "policy_preflight", "Production blocked by explicit policy risk flags: deceptive_impersonation",
+                    retryable=False,
+                ),
+            ),
+            mock.patch.object(app_module.queue, "fail") as fail,
+            mock.patch.object(app_module.queue, "pause") as pause,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job(
+                    "job-policy-blocked", body, x_review_token="test-token"
+                )
+        self.assertEqual(caught.exception.status_code, 422)
+        self.assertEqual(caught.exception.detail, {
+            "stage": "policy_preflight",
+            "error": "Production blocked by policy preflight.",
+            "retryable": False,
+        })
+        fail.assert_called_once_with(
+            "job-policy-blocked", "worker-1", "lease-1",
+            "policy_blocked",
+            "Production blocked by explicit policy risk flags: deceptive_impersonation",
+            False,
+        )
+        pause.assert_not_called()
+
     def test_api_provider_error_records_failure_and_pauses_production(self):
         job = {"id": "job-provider", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
