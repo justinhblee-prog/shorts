@@ -28,6 +28,10 @@ class ProviderError(RuntimeError):
         self.retryable = retryable
 
 
+class ProviderAttemptConflict(RuntimeError):
+    """A previous provider side effect has not been safely reconciled."""
+
+
 class ProductionLeaseConflict(RuntimeError):
     """Raised when a stale worker attempts to mutate production state."""
 
@@ -262,6 +266,15 @@ class ProductionStore:
             c.execute("BEGIN IMMEDIATE")
             if worker_id is not None or lease_token is not None:
                 self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            unresolved=c.execute("""SELECT attempt_number,state
+                FROM provider_execution_attempts
+                WHERE job_id=? AND stage=?
+                  AND state IN ('request_started','outcome_unknown','response_received')
+                ORDER BY attempt_number LIMIT 1""",(job_id,stage)).fetchone()
+            if unresolved is not None:
+                raise ProviderAttemptConflict(
+                    "Provider attempt has an unresolved external outcome; reconcile it before retrying"
+                )
             c.execute("""INSERT INTO provider_execution_attempts
                 (id,job_id,stage,attempt_number,idempotency_key,state,started_at)
                 VALUES(?,?,?,?,?,'request_started',?)""",
