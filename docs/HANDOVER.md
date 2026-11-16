@@ -1190,3 +1190,19 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The full validation script passed with **447 backend tests**.
 - Frontend checks verify the review video, approved video and narration audio paths use the HTTPS-only URL validator and `noopener noreferrer`.
 - Static source tests do not replace browser-level testing or backend media host/DNS/TLS checks.
+
+
+## BUILD-00137 — lifecycle-safe cancellation and graceful worker offline
+
+- `JobQueue.cancel` now updates the queue row and corresponding `production_runs` row atomically.
+- Production cancellation is limited to pre-review states; review-pending cancellation is permitted only in the queue/production crash window where the production record is still `rendered`.
+- Cancelling a running production job is marked externally ambiguous, revokes its lease and pauses production to prevent unsafe retries.
+- `worker.main` marks its worker registry record offline in a `finally` block without masking an earlier worker exception.
+- CI validation pending.
+
+
+### BUILD-00137 validation record
+
+- GitHub Actions PR run [43796187131](https://github.com/justinhblee-prog/shorts/actions/runs/43796187131) completed successfully.
+- The full validation script passed with **451 backend tests**, including atomic production cancellation, ambiguous in-flight cancellation, review-handoff protection and worker-offline state.
+- This validates local SQLite state transitions; actual provider-side cancellation and deployed worker shutdown remain operational checks.
