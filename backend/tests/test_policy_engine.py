@@ -34,6 +34,22 @@ class PolicyEngineTests(unittest.TestCase):
         self.assertEqual(len(report["policy_sources"]), 6)
         self.assertTrue(report["limitations"])
 
+    def test_tiktok_prohibited_aigc_likeness_and_deception_flags_block(self):
+        prohibited = (
+            "tiktok_prohibited_aigc_minor_likeness",
+            "tiktok_prohibited_aigc_private_adult_likeness_without_permission",
+            "tiktok_false_authoritative_source_or_crisis",
+            "tiktok_false_public_figure_endorsement",
+        )
+        for flag in prohibited:
+            with self.subTest(flag=flag):
+                report = evaluate_content_policy({
+                    "platforms": ["tiktok"],
+                    "policy_flags": {flag: True},
+                })
+                self.assertEqual(report["status"], "blocked")
+                self.assertIn(flag, report["blocking_reasons"])
+
     def test_explicit_denial_of_asset_rights_blocks(self):
         report = evaluate_content_policy({"rights": {"visuals_cleared": False}})
         self.assertEqual(report["status"], "blocked")
