@@ -1075,7 +1075,24 @@ def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None)
     return {"opportunities":opportunity_store.list(limit)}
 
 @app.get("/api/health")
-def health(): return {"status":"ok","service":"nexus-studio-pro"}
+def health():
+    """Process liveness only; intentionally does not depend on downstream services."""
+    return {"status":"ok","service":"nexus-studio-pro"}
+
+
+@app.get("/api/ready")
+def readiness():
+    """Fail readiness when the durable application database cannot serve core reads."""
+    try:
+        queue.stats()
+        schedule_store.outbox_status(limit=1)
+    except Exception:
+        raise HTTPException(503, "Application storage is not ready")
+    return {
+        "status": "ready",
+        "service": "nexus-studio-pro",
+        "checks": {"queue_store": "ok", "scheduler_store": "ok"},
+    }
 @app.get("/api/queue/stats")
 def stats(x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"queue.read")
