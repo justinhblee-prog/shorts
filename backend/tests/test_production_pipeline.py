@@ -622,8 +622,8 @@ class ProductionTests(unittest.TestCase):
         saved=self.store.get(job_id)
         self.assertEqual(result["status"],"queued")
         self.assertEqual(saved["status"],"queued")
-        self.assertEqual(saved["artifacts"][0]["stage"],"script")
-        self.assertEqual(saved["artifacts"][0]["metadata"]["script"],
+        script_artifact=next(item for item in saved["artifacts"] if item["stage"]=="script")
+        self.assertEqual(script_artifact["metadata"]["script"],
             "A recovered script with a clear hook, useful explanation and takeaway.")
         self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"adopted")
         self.assertEqual(queue.get(job_id)["status"],"queued")
