@@ -232,7 +232,7 @@ class BackupRestoreTests(unittest.TestCase):
     def test_invalid_encryption_key_is_rejected_before_backup_publication(self):
         with self.assertRaisesRegex(BackupRestoreError, "URL-safe base64"):
             create_backup(
-                self.db, self.media, self.backups, encryption_key="not-a-valid-key"
+                self.db, self.media, self.backups, encryption_key="not@a-valid-key"
             )
         self.assertEqual(list(self.backups.iterdir()), [])
 
