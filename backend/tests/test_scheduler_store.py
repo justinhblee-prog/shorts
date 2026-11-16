@@ -184,8 +184,8 @@ class SchedulerTests(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 with self.assertRaisesRegex(ValueError, "active must be a boolean"):
                     self.schedules.set_active(item["id"], invalid)
-        self.assertTrue(self.schedules.set_active(item["id"], False)["active"])
-        self.assertFalse(self.schedules.set_active(item["id"], True)["active"])
+        self.assertFalse(self.schedules.set_active(item["id"], False)["active"])
+        self.assertTrue(self.schedules.set_active(item["id"], True)["active"])
 
     def test_scheduler_store_limits_reject_coercion_and_out_of_range_values(self):
         for method, maximum in (
@@ -196,7 +196,10 @@ class SchedulerTests(unittest.TestCase):
                 with self.subTest(method=method.__name__, invalid=invalid):
                     with self.assertRaisesRegex(ValueError, "limit must be an integer"):
                         method(invalid)
-            self.assertEqual(method(1), [])
+            result = method(1)
+            self.assertEqual(result, [] if method == self.schedules.pending_dispatches else {
+                "counts": {}, "items": [], "pending_retries": 0
+            })
         for invalid in (True, False, 1.5, "10", 0, -1, 101):
             with self.subTest(dispatch_limit=invalid):
                 with self.assertRaisesRegex(ValueError, "limit must be an integer"):
