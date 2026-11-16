@@ -456,6 +456,9 @@ class RecommendationEvaluationStore:
             item for item in observations
             if isinstance(item.get("views_per_hour"), (int, float))
         ]
+        # The pooled holdout is chronological by production selection/outcome time,
+        # not by exposure creation order. Operators may select older exposures later.
+        view_observations.sort(key=lambda item: item["observed_at"])
         total_measured = len(view_observations)
         analytics_metric_names = (
             "engaged_view_share", "average_view_percentage", "average_view_duration_seconds",
