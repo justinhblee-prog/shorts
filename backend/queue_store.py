@@ -476,11 +476,16 @@ class JobQueue:
             c.commit()
         return {"requeued":recovered,"terminal":terminal}
 
-    def pause(self, reason, job_id=None, actor="system"):
-        """Persist a production pause, fence in-flight leases, and audit the action."""
+    def pause(self, reason, job_id=None, actor="system", worker_id=None,
+              generation_token=None):
+        """Persist a pause; worker-originated pauses are fenced by process generation."""
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             n=stamp(now())
+            if generation_token is not None:
+                if not worker_id:
+                    raise ValueError("worker_id required with generation_token")
+                self._assert_worker_generation(c, worker_id, generation_token)
             self._pause_production_in_transaction(c, reason, job_id, n, actor)
             c.commit()
             return self.worker_control()
