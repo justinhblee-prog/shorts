@@ -533,3 +533,8 @@ Outbox entries are retried with exponential backoff for up to 10 failed attempts
 ### BUILD-00167 — inactive schedule dead-letter protection
 
 Manual dead-letter recovery is permitted only while the parent schedule is active. If a schedule is deactivated, its dead-letter records remain visible for audit but cannot be requeued. Reactivate the schedule first, then retry the specific outbox item. The active-state check and retry-state reset occur in one SQLite statement to avoid a check-then-update race.
+
+
+### BUILD-00168 — scheduler outbox dashboard
+
+The schedule operations panel distinguishes pending work ready to dispatch from entries deferred by backoff and dead-letter entries requiring operator action. Dead-letter rows expose a manual retry action after confirmation. The API requires the existing `schedules.manage` permission, and the store rejects retry if the parent schedule is inactive; reactivate the schedule before retrying. The outbox item retains its original idempotency key.
