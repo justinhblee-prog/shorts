@@ -132,7 +132,7 @@ class WorkerFailClosedTests(unittest.TestCase):
 
         with (
             mock.patch.object(worker, "ensure_worker_registered"),
-            mock.patch.object(worker.queue, "is_paused", side_effect=[False, True]),
+            mock.patch.object(worker.queue, "is_paused", side_effect=[False, False]),
             mock.patch.object(worker.store, "reconcile_missing_runs"),
             mock.patch.object(worker.store, "reconcile_status_integrity",
                               return_value={"unresolved": 0, "repaired": 0,
@@ -147,9 +147,9 @@ class WorkerFailClosedTests(unittest.TestCase):
 
         execute.assert_not_called()
         pause.assert_called_once()
-        # The signal arrived before active_job_id was published; the global
-        # pause still terminalizes all running production jobs transactionally.
-        self.assertIsNone(pause.call_args.args[1])
+        # The signal arrived before active_job_id was published, so run_once
+        # persists the pause with the just-claimed job ID before returning.
+        self.assertEqual(pause.call_args.args[1], "job-claim-signal-race")
         self.assertTrue(worker.stopping.is_set())
         self.assertIsNone(worker.active_job_id)
         self.assertIsNone(worker.active_lost_lease_event)
