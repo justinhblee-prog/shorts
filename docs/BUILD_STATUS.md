@@ -1400,3 +1400,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Cap effective heartbeat to one-third of the lease.
 - Add pure configuration regression tests and operator documentation.
 - GitHub Actions run [43814172390](https://github.com/justinhblee-prog/shorts/actions/runs/43814172390) passed the complete `scripts/validate.sh` workflow, including 514 backend tests.
+
+
+## BUILD-00171 — worker heartbeat observability
+
+- Worker registry API now returns `heartbeat_age_seconds` and `stale_after_seconds` for each worker.
+- Distinguish a stale online worker from a worker that explicitly completed graceful shutdown (`offline`). Malformed heartbeat timestamps fail closed as stale.
+- Operations dashboard shows worker state, last heartbeat age and stale threshold.
+- Added regression tests for stale classification and preservation of explicit offline state.
+- CI validation pending.
