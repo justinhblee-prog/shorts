@@ -1043,3 +1043,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions PR run [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031) passed **362 backend tests** and `scripts/validate.sh`.
 - Tests verify SQLite online backup, media manifest/checksums, restore confirmation, pre-restore backup, rollback-safe replacement and symlink/path rejection.
 - Compose YAML validation passed. The scheduled backup service has not been deployed or observed in a running environment.
+
+
+### BUILD-00039 — per-operator RBAC and persistent API rate limits (2026-11-16)
+
+- Add per-operator token authentication with a fixed legacy shared-token identity for controlled migration; configured individual credentials replace the legacy fallback.
+- Add explicit role permissions for admin, producer, reviewer, publisher, analyst, operator, finance and worker roles; protected API routes now declare permission guards.
+- Ignore caller-supplied reviewer IDs for policy evidence and review decisions; persist the authenticated token identity instead.
+- Add atomic SQLite fixed-window rate limits by client identity and request class, with response headers and 429 retry information.
+- Trust X-Forwarded-For only when the immediate peer belongs to an explicitly configured trusted proxy CIDR; default is no trusted proxies.
+- Validation pending.
