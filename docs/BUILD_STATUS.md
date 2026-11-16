@@ -1791,3 +1791,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The returned status is applied only if the same attempt is still in that source state. A response that arrives after another poll or recovery action changed the state is rejected without changing the publication row or appending a status-refresh event.
 - Added a regression for a late completion response arriving after the publication has already advanced to processing.
 - Deterministic local database validation only; no live TikTok API verification is implied.
+
+## BUILD-00216 — Fence TikTok poll-error backoff by source state
+- Scheduler status-poll failures now carry the publication state observed before the poll began.
+- A delayed poll error is ignored if the same attempt has since moved to another state; it cannot refresh retry backoff timestamps or append a misleading retry-scheduled event.
+- Added a regression verifying stale poll errors leave status, update timestamp, and event history unchanged.
+- Deterministic local database validation only; no live TikTok API verification is implied.
