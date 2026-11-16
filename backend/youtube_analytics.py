@@ -140,6 +140,7 @@ class YouTubeAnalyticsStore:
                 "audience_watch_ratio": audience,
                 "relative_retention_performance": relative,
             })
+        safe_curve.sort(key=lambda point: point["elapsed_video_time_ratio"])
         with self.db() as connection:
             connection.execute("""
                 INSERT INTO youtube_analytics_snapshots(
