@@ -39,6 +39,46 @@ class RecommendationEvaluationTests(unittest.TestCase):
             },
         }
 
+    def test_record_run_ignores_malformed_exposure_rows_and_scores(self):
+        valid = self.item(90, 82.5)
+        invalid_score_bool = self.item(91, 80)
+        invalid_score_bool["recommendation_score"] = True
+        invalid_score_nan = self.item(92, 80)
+        invalid_score_nan["recommendation_score"] = float("nan")
+        invalid_score_overflow = self.item(93, 80)
+        invalid_score_overflow["recommendation_score"] = 10 ** 10000
+        malformed_nested = self.item(94, 80)
+        malformed_nested["trend"] = "not-an-object"
+        malformed_nested["best_brand"] = ["not-an-object"]
+        malformed_candidates = self.item(95, 80)
+        malformed_candidates["brand_candidates"] = [
+            None, "bad-row", {"brand": "  ", "brand_name": "Blank"},
+            {"brand": "valid-brand", "brand_name": "Valid Brand",
+             "fit_score": float("inf"),
+             "comparable_cohort_performance": {"bad": float("nan")}},
+        ]
+        exposure = self.store.record_run("US", [
+            None, "not-a-dict", invalid_score_bool, invalid_score_nan,
+            invalid_score_overflow, malformed_nested, malformed_candidates, valid,
+        ], "2026-11-01T00:00:00+00:00")
+        self.assertEqual(exposure["recorded_candidates"], 2)
+        with self.store.db() as connection:
+            rows = connection.execute(
+                "SELECT trend_id,recommendation_score,score_breakdown_json,cohort_context_json "
+                "FROM recommendation_candidates WHERE run_id=? ORDER BY trend_id",
+                (exposure["run_id"],),
+            ).fetchall()
+        self.assertEqual([row["trend_id"] for row in rows], ["trend-90", "trend-95"])
+        self.assertEqual(rows[0]["recommendation_score"], 82.5)
+        self.assertEqual(rows[1]["recommendation_score"], 80.0)
+        self.assertIsNone(json.loads(rows[1]["cohort_context_json"])["bad"])
+
+    def test_record_run_rejects_non_list_payload_without_crashing(self):
+        exposure = self.store.record_run(
+            "US", {"unexpected": "mapping"}, "2026-11-01T00:00:00+00:00"
+        )
+        self.assertEqual(exposure["recorded_candidates"], 0)
+
     def test_identical_api_result_is_deduplicated_within_one_minute(self):
         first = self.store.record_run(
             "US", [self.item(1, 82.5)], "2026-11-01T00:00:00+00:00"
