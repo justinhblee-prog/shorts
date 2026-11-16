@@ -216,6 +216,28 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(status["items"][0]["status"], "dispatched")
 
 
+
+    def test_outbox_status_distinguishes_deferred_retries_from_ready_pending(self):
+        now = datetime.now(timezone.utc)
+        self.schedule(now - timedelta(minutes=5))
+        class FailingQueue:
+            def is_paused(self):
+                return False
+            def enqueue(self, *args, **kwargs):
+                raise RuntimeError("temporary queue outage")
+        self.schedules.dispatch_due(FailingQueue(), now=now)
+        deferred = self.schedules.outbox_status(now=now)
+        self.assertEqual(deferred["counts"].get("pending"), 1)
+        self.assertEqual(deferred["pending_retries"], 1)
+        self.assertEqual(deferred["pending_ready"], 0)
+        ready = self.schedules.outbox_status(now=now + timedelta(seconds=30))
+        self.assertEqual(ready["pending_retries"], 0)
+        self.assertEqual(ready["pending_ready"], 1)
+
+    def test_outbox_status_rejects_naive_clock(self):
+        with self.assertRaisesRegex(ValueError, "timezone-aware"):
+            self.schedules.outbox_status(now=datetime(2026, 1, 1))
+
     def test_outbox_moves_to_dead_letter_after_ten_failed_attempts(self):
         now = datetime.now(timezone.utc)
         self.schedules.create("annual", 31536000,
@@ -307,7 +329,7 @@ class SchedulerTests(unittest.TestCase):
                         method(invalid)
             result = method(1)
             self.assertEqual(result, [] if method == self.schedules.pending_dispatches else {
-                "counts": {}, "items": [], "pending_retries": 0
+                "counts": {}, "items": [], "pending_retries": 0, "pending_ready": 0
             })
         for invalid in (True, False, 1.5, "10", 0, -1, 101):
             with self.subTest(dispatch_limit=invalid):
