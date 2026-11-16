@@ -221,7 +221,7 @@ class MediaStager:
                 scanner = self.scanner
                 if scanner is None:
                     try:
-                        scanner = ClamAVScanner()
+                        scanner = ClamAVScanner(max_bytes=self.max_bytes)
                     except Exception as exc:
                         raise MediaStagingError("Malware scanner configuration is invalid") from exc
                 try:
