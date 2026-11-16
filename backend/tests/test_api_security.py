@@ -812,3 +812,37 @@ class ApiSecurityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_provider_attempt_reconciliation_requires_explicit_confirmation_and_admin_permission(self):
+        from app import ProviderAttemptReconciliationAction, reconcile_provider_attempt
+        body=ProviderAttemptReconciliationAction(
+            operator_id="admin-1",evidence_reference="provider-console-case-123",
+            note="Provider console confirms no job was created.",
+            confirmed_not_executed=True)
+        with (
+            mock.patch.object(app_module,"require_review_permission") as auth,
+            mock.patch.object(app_module.production_store,
+                "confirm_provider_attempt_not_executed",
+                return_value={"state":"not_executed_confirmed"}) as resolve,
+        ):
+            result=reconcile_provider_attempt(
+                "job-1",body,provider_attempt_id="attempt-1",x_review_token="admin-token")
+        auth.assert_called_once_with("admin-token","production.provider_reconcile")
+        resolve.assert_called_once_with(
+            "job-1","attempt-1","admin-1","provider-console-case-123",
+            "Provider console confirms no job was created.")
+        self.assertEqual(result["reconciliation"]["state"],"not_executed_confirmed")
+        self.assertIn("separate operator-controlled",result["warning"])
+
+    def test_provider_attempt_reconciliation_rejects_unconfirmed_outcome(self):
+        from app import ProviderAttemptReconciliationAction, reconcile_provider_attempt
+        body=ProviderAttemptReconciliationAction(
+            operator_id="admin-1",evidence_reference="case-123",
+            note="No remote job exists.",confirmed_not_executed=False)
+        with mock.patch.object(app_module,"require_review_permission"):
+            with self.assertRaises(HTTPException) as caught:
+                reconcile_provider_attempt(
+                    "job-1",body,provider_attempt_id="attempt-1")
+        self.assertEqual(caught.exception.status_code,422)
+
