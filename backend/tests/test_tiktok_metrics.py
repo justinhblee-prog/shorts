@@ -339,5 +339,44 @@ class TikTokMetricsTests(unittest.TestCase):
         })
         self.assertNotIn("video-1", self.store.deferred_video_ids())
 
+
+    def test_snapshot_and_missing_retry_state_commit_atomically(self):
+        with self.store.db() as connection:
+            connection.execute("""
+                CREATE TRIGGER reject_missing_retry
+                BEFORE INSERT ON tiktok_metrics_missing_retry
+                BEGIN SELECT RAISE(ABORT,'simulated retry persistence failure'); END
+            """)
+        with self.assertRaisesRegex(Exception, "simulated retry persistence failure"):
+            self.store.save_snapshots(
+                [("job-1", {"id": "video-1", "view_count": 10})],
+                missing_video_ids=["video-2"],
+            )
+        with self.store.db() as connection:
+            snapshots = connection.execute(
+                "SELECT COUNT(*) FROM tiktok_video_metric_snapshots"
+            ).fetchone()[0]
+            retries = connection.execute(
+                "SELECT COUNT(*) FROM tiktok_metrics_missing_retry"
+            ).fetchone()[0]
+        self.assertEqual(snapshots, 0)
+        self.assertEqual(retries, 0)
+
+    def test_collector_persists_collected_and_missing_ids_in_one_batch(self):
+        self._publish("job-2", "video-2")
+        collector = self._collector({
+            "data": {"videos": [{"id": "video-1", "view_count": 10}]},
+            "error": {"code": "ok"},
+        })
+        result = collector.refresh_due_metrics(limit=2, min_age_seconds=0)
+        self.assertEqual(result["collected"], 1)
+        self.assertEqual(result["missing"], ["video-2"])
+        self.assertIn("video-2", self.store.deferred_video_ids())
+        with self.store.db() as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM tiktok_video_metric_snapshots"
+            ).fetchone()[0]
+        self.assertEqual(count, 1)
+
 if __name__ == "__main__":
     unittest.main()
