@@ -317,7 +317,7 @@ class RecommendationEvaluationStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             previous = c.execute("""SELECT id,candidate_count FROM recommendation_runs
-                WHERE region IS ? AND signature=? AND generated_at BETWEEN ? AND ? AND platform=?
+                WHERE region IS ? AND signature=? AND julianday(generated_at) BETWEEN julianday(?) AND julianday(?) AND platform=?
                 ORDER BY generated_at DESC LIMIT 1""",
                 (region, signature, cutoff, dedup_upper, platform)).fetchone()
             if previous:
