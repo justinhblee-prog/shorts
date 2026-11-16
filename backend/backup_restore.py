@@ -281,8 +281,8 @@ def _extract_and_verify(archive_path, destination):
             parts = PurePosixPath(name).parts
             for index in range(1, len(parts)):
                 expected_directories.add("/".join(parts[:index]))
-        if directory_names != expected_directories:
-            raise BackupRestoreError("Backup archive directory entries do not match the manifest")
+        if not expected_directories.issubset(directory_names):
+            raise BackupRestoreError("Backup archive is missing required media directories")
 
         for name, member in file_members.items():
             pure = _validate_member_name(name)
