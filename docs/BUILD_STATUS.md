@@ -1428,3 +1428,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add append-only reconciliation audit records protected against UPDATE/DELETE and synchronize the production run state atomically with the queue transition.
 - If provider history shows generation completed, the retry action is not applicable; result adoption remains a separate follow-up and no provider result is fabricated.
 - GitHub Actions run [43816436787](https://github.com/justinhblee-prog/shorts/actions/runs/43816436787) passed the complete `scripts/validate.sh` workflow, including 520 backend tests. The earlier run exposed an optional-schema assumption in the reconciliation listing query; the query was narrowed to durable queue columns and the full suite passed on the corrected commit.
+
+
+## BUILD-00174 — durable provider response recovery ledger
+
+- Persist a per-stage provider attempt before each outbound AI request, with monotonic attempt number and unique request key.
+- Persist complete provider JSON response before artifact-row persistence, so a worker crash between provider response and local artifact adoption does not erase the returned output.
+- Record transport failures as `outcome_unknown`; never infer that a provider did not execute from a timeout.
+- Allow late provider response/unknown-state journaling after lease expiry while keeping production artifact writes lease-fenced.
+- Add authenticated `GET /api/production/jobs/{job_id}/provider-attempts` for operator recovery and bounded response storage.
+- The provider idempotency key is advisory unless a vendor contract confirms support. Automated result adoption is intentionally not included; recovered outputs still require provider verification, allowlisted media staging, quality checks and human review.
+- CI validation pending.
