@@ -3,6 +3,7 @@ import json
 import re
 import sqlite3
 import statistics
+from youtube_analytics import YouTubeAnalyticsStore
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
@@ -81,6 +82,7 @@ def _render_format(metadata):
 class PerformanceAnalyzer:
     def __init__(self, db_path="data/nexus.sqlite3"):
         self.db_path = str(db_path)
+        self.analytics_store = YouTubeAnalyticsStore(self.db_path)
 
     @contextmanager
     def db(self):
@@ -330,12 +332,19 @@ class PerformanceAnalyzer:
             videos = c.execute("""
                 SELECT r.job_id,r.brand,r.region,r.topic,u.video_id,u.uploaded_at,
                        a.metadata_json AS rendering_metadata_json,
-                       s.view_count,s.like_count,s.comment_count,s.collected_at
+                       s.view_count,s.like_count,s.comment_count,s.collected_at,
+                       an.average_view_duration AS analytics_average_view_duration,
+                       an.average_view_percentage AS analytics_average_view_percentage,
+                       an.estimated_minutes_watched AS analytics_estimated_minutes_watched,
+                       an.retention_json AS analytics_retention_json,
+                       an.analytics_status,an.retention_status,
+                       an.collected_at AS analytics_collected_at
                 FROM production_runs r
                 JOIN youtube_uploads u ON u.job_id=r.job_id AND u.status='uploaded'
                 LEFT JOIN production_artifacts a
                   ON a.job_id=r.job_id AND a.stage='rendering' AND a.artifact_type='video'
                 LEFT JOIN youtube_video_snapshots s ON s.video_id=u.video_id
+                LEFT JOIN youtube_analytics_snapshots an ON an.video_id=u.video_id
             """ + where + " ORDER BY r.brand,r.region,r.job_id,s.collected_at", args).fetchall()
 
             ledger_where = "WHERE 1=1"
@@ -357,6 +366,13 @@ class PerformanceAnalyzer:
                 "topic": row["topic"], "video_id": row["video_id"],
                 "uploaded_at": row["uploaded_at"],
                 "rendering_metadata_json": row["rendering_metadata_json"],
+                "analytics_average_view_duration": row["analytics_average_view_duration"],
+                "analytics_average_view_percentage": row["analytics_average_view_percentage"],
+                "analytics_estimated_minutes_watched": row["analytics_estimated_minutes_watched"],
+                "analytics_retention_json": row["analytics_retention_json"],
+                "analytics_status": row["analytics_status"],
+                "retention_status": row["retention_status"],
+                "analytics_collected_at": row["analytics_collected_at"],
                 "snapshots": []
             })
             if row["collected_at"] is not None:
@@ -373,7 +389,8 @@ class PerformanceAnalyzer:
                 "brand": video["brand"], "videos": 0, "measured_videos": 0,
                 "unmeasured_videos": 0, "view_delta": 0, "like_delta": 0,
                 "comment_delta": 0, "recommendations": [],
-                "_views_per_hour_samples": [], "_interaction_rate_samples": []
+                "_views_per_hour_samples": [], "_interaction_rate_samples": [],
+                "_average_view_duration_samples": [], "_average_view_percentage_samples": []
             })
             region_key = (video["brand"], video["region"])
             region_row = by_region.setdefault(region_key, {
@@ -401,8 +418,29 @@ class PerformanceAnalyzer:
                 "format": _render_format(render_metadata),
                 "snapshot_count": len(snaps),
                 "publication_age_bucket": "unknown",
-                "measurement_status": "insufficient_snapshots"
+                "measurement_status": "insufficient_snapshots",
+                "analytics_status": video.get("analytics_status") or "not_collected",
+                "retention_status": video.get("retention_status") or "not_collected",
+                "average_view_duration_seconds": video.get("analytics_average_view_duration"),
+                "average_view_percentage": video.get("analytics_average_view_percentage"),
+                "estimated_minutes_watched": video.get("analytics_estimated_minutes_watched"),
+                "analytics_collected_at": video.get("analytics_collected_at"),
             }
+            try:
+                retention_curve = json.loads(video.get("analytics_retention_json") or "[]")
+                result["audience_retention_curve"] = (
+                    retention_curve if isinstance(retention_curve, list) else []
+                )
+            except (TypeError, ValueError):
+                result["audience_retention_curve"] = []
+            if isinstance(result["average_view_duration_seconds"], (int, float)):
+                brand_row["_average_view_duration_samples"].append(
+                    float(result["average_view_duration_seconds"])
+                )
+            if isinstance(result["average_view_percentage"], (int, float)):
+                brand_row["_average_view_percentage_samples"].append(
+                    float(result["average_view_percentage"])
+                )
             if len(snaps) >= 2:
                 first, last = snaps[0], snaps[-1]
                 deltas = {}
@@ -473,6 +511,8 @@ class PerformanceAnalyzer:
         for item in by_brand.values():
             rate_samples = item.pop("_views_per_hour_samples")
             interaction_samples = item.pop("_interaction_rate_samples")
+            duration_samples = item.pop("_average_view_duration_samples")
+            percentage_samples = item.pop("_average_view_percentage_samples")
             item["rate_sample_count"] = len(rate_samples)
             item["median_views_per_hour"] = (
                 round(statistics.median(rate_samples), 2) if rate_samples else None
@@ -484,6 +524,13 @@ class PerformanceAnalyzer:
             )
             item["performance_evidence_status"] = (
                 "limited" if len(rate_samples) < 3 else "sample_available"
+            )
+            item["analytics_measured_videos"] = max(len(duration_samples), len(percentage_samples))
+            item["median_average_view_duration_seconds"] = (
+                round(statistics.median(duration_samples), 2) if duration_samples else None
+            )
+            item["median_average_view_percentage"] = (
+                round(statistics.median(percentage_samples), 2) if percentage_samples else None
             )
             if item["measured_videos"] == 0:
                 item["recommendations"].append({
@@ -599,7 +646,7 @@ class PerformanceAnalyzer:
                 "Views per hour is normalized between stored snapshots, not a platform-provided velocity metric.",
                 "Interactions per 1000 view delta uses like and comment counter differences only; it is not audience-retention or satisfaction data.",
                 "Negative view-counter differences are treated as resets or invalid measurements and excluded from aggregate growth; negative interaction deltas are omitted.",
-                "Audience retention, average view duration, viewed-versus-swiped-away and subscriber conversion require eligible YouTube Analytics data and are not inferred from Data API counters.",
+                "Average view duration, average view percentage and audience retention are sourced only from stored YouTube Analytics API reports; missing or ineligible reports remain unavailable and are never inferred from Data API counters.",
                 "Comparable cohorts use exact normalized topic-token signatures, region, age at the last stored snapshot, render duration and format; lexical signatures are not semantic topic classification.",
                 "Cohorts with fewer than three measured videos are marked limited; no cohort metric changes recommendation ranking until held-out evaluation validates an adjustment.",
                 "Format defaults to vertical_short_requested when the renderer does not return verifiable format metadata; this is a requested format, not proof of rendered dimensions.",
