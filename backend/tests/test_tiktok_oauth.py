@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import tempfile
@@ -152,6 +153,63 @@ class TikTokOAuthTests(unittest.TestCase):
         body = parse_qs(self.transport.calls[-1][2].decode("utf-8"))
         self.assertEqual(body["token"], ["access-to-revoke"])
         self.assertEqual(body["client_secret"], ["client-secret"])
+
+    def test_oauth_callback_started_before_disconnect_cannot_restore_connection(self):
+        auth = self.manager.start_authorization()
+        state = parse_qs(urlparse(auth["authorization_url"]).query)["state"][0]
+        expected_epoch = self.store.consume_state(
+            hashlib.sha256(state.encode()).hexdigest()
+        )
+        self.assertEqual(expected_epoch, 0)
+        self.manager._save_token_response({
+            "access_token": "access-before-disconnect",
+            "refresh_token": "refresh-before-disconnect",
+            "open_id": "creator-123",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        operation = "disconnect-epoch-test"
+        row = self.store.token_record()
+        self.assertTrue(self.store.begin_disconnect(
+            operation, row["access_token_encrypted"]
+        ))
+        self.assertTrue(self.store.finish_disconnect(operation, success=True))
+        with self.assertRaisesRegex(TikTokOAuthError, "authorization became stale"):
+            self.manager._save_token_response({
+                "access_token": "late-callback-access",
+                "refresh_token": "late-callback-refresh",
+                "open_id": "creator-456",
+                "scope": "video.publish",
+                "token_type": "Bearer",
+                "expires_in": 7200,
+                "refresh_expires_in": 15552000,
+            }, expected_epoch=expected_epoch)
+        self.assertIsNone(self.store.token_record())
+
+    def test_new_oauth_state_uses_incremented_connection_epoch(self):
+        self.manager._save_token_response({
+            "access_token": "access-old",
+            "refresh_token": "refresh-old",
+            "open_id": "creator-123",
+            "scope": "video.publish",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        operation = "disconnect-epoch-increment"
+        row = self.store.token_record()
+        self.assertTrue(self.store.begin_disconnect(
+            operation, row["access_token_encrypted"]
+        ))
+        self.assertTrue(self.store.finish_disconnect(operation, success=True))
+        auth = self.manager.start_authorization()
+        state = parse_qs(urlparse(auth["authorization_url"]).query)["state"][0]
+        epoch = self.store.consume_state(
+            hashlib.sha256(state.encode()).hexdigest()
+        )
+        self.assertEqual(epoch, 1)
 
     def test_disconnect_lease_fences_token_write_and_preserves_tokens_on_failure(self):
         self.manager._save_token_response({

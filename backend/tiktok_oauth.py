@@ -43,10 +43,15 @@ class TikTokOAuthStore:
             c.executescript("""
             CREATE TABLE IF NOT EXISTS tiktok_oauth_states(
               state_hash TEXT PRIMARY KEY, expires_at TEXT NOT NULL,
-              used_at TEXT, created_at TEXT NOT NULL
+              used_at TEXT, created_at TEXT NOT NULL,
+              connection_epoch INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_tiktok_oauth_states_expiry
               ON tiktok_oauth_states(expires_at);
+            CREATE TABLE IF NOT EXISTS tiktok_oauth_connection_epoch(
+              id INTEGER PRIMARY KEY CHECK(id=1), epoch INTEGER NOT NULL
+            );
+            INSERT OR IGNORE INTO tiktok_oauth_connection_epoch(id,epoch) VALUES(1,0);
             CREATE TABLE IF NOT EXISTS tiktok_oauth_tokens(
               id INTEGER PRIMARY KEY CHECK(id=1), open_id TEXT NOT NULL,
               access_token_encrypted TEXT NOT NULL,
@@ -65,6 +70,18 @@ class TikTokOAuthStore:
               created_at TEXT NOT NULL
             );
             """)
+        with self.db() as c:
+            columns = {row["name"] for row in c.execute(
+                "PRAGMA table_info(tiktok_oauth_states)"
+            ).fetchall()}
+            if "connection_epoch" not in columns:
+                c.execute(
+                    "ALTER TABLE tiktok_oauth_states ADD COLUMN "
+                    "connection_epoch INTEGER NOT NULL DEFAULT 0"
+                )
+            c.execute(
+                "INSERT OR IGNORE INTO tiktok_oauth_connection_epoch(id,epoch) VALUES(1,0)"
+            )
 
     @contextmanager
     def db(self):
@@ -88,9 +105,13 @@ class TikTokOAuthStore:
             c.execute("BEGIN IMMEDIATE")
             c.execute("DELETE FROM tiktok_oauth_states WHERE expires_at<? OR used_at IS NOT NULL",
                       (_stamp(now),))
+            epoch = c.execute(
+                "SELECT epoch FROM tiktok_oauth_connection_epoch WHERE id=1"
+            ).fetchone()["epoch"]
             c.execute(
-                "INSERT INTO tiktok_oauth_states(state_hash,expires_at,created_at) VALUES(?,?,?)",
-                (state_hash, _stamp(now + timedelta(seconds=ttl_seconds)), _stamp(now)),
+                "INSERT INTO tiktok_oauth_states"
+                "(state_hash,expires_at,created_at,connection_epoch) VALUES(?,?,?,?)",
+                (state_hash, _stamp(now + timedelta(seconds=ttl_seconds)), _stamp(now), epoch),
             )
 
     def consume_state(self, state_hash):
@@ -106,9 +127,9 @@ class TikTokOAuthStore:
                 "UPDATE tiktok_oauth_states SET used_at=? WHERE state_hash=? AND used_at IS NULL",
                 (now, state_hash),
             )
-            return True
+            return row["connection_epoch"]
 
-    def save_tokens(self, values, refresh_lease=None):
+    def save_tokens(self, values, refresh_lease=None, expected_epoch=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             active_disconnect = c.execute(
@@ -117,6 +138,12 @@ class TikTokOAuthStore:
             ).fetchone()
             if active_disconnect:
                 return False
+            if expected_epoch is not None:
+                current_epoch = c.execute(
+                    "SELECT epoch FROM tiktok_oauth_connection_epoch WHERE id=1"
+                ).fetchone()["epoch"]
+                if current_epoch != expected_epoch:
+                    return False
             if refresh_lease is not None:
                 owner_id, lease_token = refresh_lease
                 lease = c.execute("""
@@ -201,6 +228,9 @@ class TikTokOAuthStore:
                     return False
                 c.execute("DELETE FROM tiktok_oauth_tokens WHERE id=1")
                 c.execute("DELETE FROM tiktok_oauth_refresh_lease WHERE id=1")
+                c.execute(
+                    "UPDATE tiktok_oauth_connection_epoch SET epoch=epoch+1 WHERE id=1"
+                )
             c.execute("DELETE FROM tiktok_oauth_disconnect_lease WHERE id=1 AND operation_id=?",
                       (operation_id,))
             return True
@@ -335,7 +365,7 @@ class TikTokOAuthManager:
             )
         return data
 
-    def _save_token_response(self, data, refresh_lease=None):
+    def _save_token_response(self, data, refresh_lease=None, expected_epoch=None):
         required = ("access_token", "refresh_token", "open_id")
         if any(not isinstance(data.get(key), str) or not data[key] for key in required):
             raise TikTokOAuthError("TikTok OAuth token response is missing required token fields")
@@ -354,11 +384,15 @@ class TikTokOAuthManager:
             "access_expires_at": _stamp(now + timedelta(seconds=access_seconds)),
             "refresh_expires_at": _stamp(now + timedelta(seconds=refresh_seconds)),
         }
-        saved = self.store.save_tokens(values, refresh_lease=refresh_lease)
+        saved = self.store.save_tokens(
+            values, refresh_lease=refresh_lease, expected_epoch=expected_epoch
+        )
         if not saved:
             message = (
                 "TikTok refresh lease was lost before token persistence; refusing stale token overwrite"
                 if refresh_lease is not None else
+                "TikTok OAuth authorization became stale during a connection change; retry authorization"
+                if expected_epoch is not None else
                 "TikTok token persistence was fenced by a concurrent token operation; retry authorization"
             )
             raise TikTokOAuthError(message)
@@ -371,7 +405,7 @@ class TikTokOAuthManager:
         if not isinstance(state, str) or not state:
             raise TikTokOAuthError("TikTok OAuth state is required")
         state_hash = hashlib.sha256(state.encode()).hexdigest()
-        self.store.consume_state(state_hash)
+        expected_epoch = self.store.consume_state(state_hash)
         data = self._post_token({
             "client_key": self.client_key,
             "client_secret": self.client_secret,
@@ -379,7 +413,7 @@ class TikTokOAuthManager:
             "grant_type": "authorization_code",
             "redirect_uri": self.redirect_uri,
         })
-        saved = self._save_token_response(data)
+        saved = self._save_token_response(data, expected_epoch=expected_epoch)
         return {
             "connected": True, "open_id": saved["open_id"],
             "scope": saved["scope"], "access_expires_at": saved["access_expires_at"],
