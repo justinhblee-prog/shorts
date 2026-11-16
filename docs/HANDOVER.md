@@ -992,3 +992,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Main contains BUILD-00031 through BUILD-00034, including YouTube Analytics watch-time/retention, retention-aware holdouts and Shorts engagedViews.
 - The engaged-view share is derived from YouTube Analytics `engagedViews / views`; it is not a YouTube-published rate and does not modify ranking scores.
 - External validation still required: real provider credentials, live AI generation/rendering, YouTube/TikTok account authorization and posting, actual Analytics coverage, revenue reconciliation, production deployment and restore testing.
+
+
+## BUILD-00035 — audience-retention curve visualization
+
+- The Analytics store now sorts retention points by elapsed video-time ratio, regardless of provider response order.
+- The performance dashboard shows a per-video SVG sparkline and the nearest source-reported audience-watch ratio at 25%, 50% and 75% of video time.
+- Checkpoints are displayed as ratios (x), not percentages: YouTube documents that audienceWatchRatio may exceed 1 when a segment is replayed.
+- Missing or ineligible curves remain absent; no synthetic line is drawn.
+- Validation pending.
