@@ -524,3 +524,6 @@ docker compose up -d
 ```
 
 Restore validates the archive and creates a pre-restore backup before replacing data. Do not delete the pre-restore archive until the service has been verified. The backup volume is on the same Docker host; copy archives to independent off-site storage. Secrets and encryption keys are deliberately excluded.
+
+
+BUILD-00038 automated validation: GitHub Actions run [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031) passed **362 backend tests** and `scripts/validate.sh`. The scheduled backup service and restore procedure still require deployment verification.
