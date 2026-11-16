@@ -89,6 +89,19 @@ class FrontendPortalTests(unittest.TestCase):
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
             self.assertIn(section, html)
 
+
+    def test_scheduler_outbox_dashboard_exposes_readiness_counts_and_dead_letter_retry(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        self.assertIn("outbox.pending_ready", app_js)
+        self.assertIn("outbox.pending_retries", app_js)
+        self.assertIn("counts.dead_letter", app_js)
+        self.assertIn("data-schedule-outbox-retry", app_js)
+        self.assertIn("encodeURIComponent(outboxId)", app_js)
+        self.assertIn("/api/schedules/outbox/", app_js)
+        self.assertIn("기존 실행 식별자는 유지됩니다", app_js)
+        self.assertIn("격리된 예약 실행을 다시 대기열에 넣으시겠습니까?", app_js)
+
     def test_external_media_urls_require_https_without_embedded_credentials(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertIn("function safeExternalMediaUrl(value)", app_js)
