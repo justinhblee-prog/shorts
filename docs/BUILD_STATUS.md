@@ -2030,4 +2030,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Extract one scheduled metrics collection cycle so the provider isolation policy can be tested directly.
 - Add a regression proving a YouTube provider exception is logged while YouTube Analytics and TikTok collectors still run in the same cycle.
 - Verify process-control exceptions such as KeyboardInterrupt are not swallowed by the provider-failure handler.
-- GitHub Actions validation pending. This is deterministic local unit coverage; no live provider API validation is claimed.
+- GitHub Actions [run #3498](https://github.com/justinhblee-prog/shorts/actions/runs/43914864286) succeeded on commit `edc28c34ec29c1daeeb95e9c8223ba45b82a93d2`; `scripts/validate.sh` passed. This is deterministic local unit coverage; no live provider API validation is claimed.
