@@ -589,6 +589,10 @@ class YouTubeAnalyticsCollector:
                 "source": "YouTube Analytics API v2",
                 "live_connectivity_verified": False,
             }
+        # Reject an already-stale collector before OAuth token refresh can
+        # make an outbound request; the second check below fences initialization
+        # that itself outlives or loses the lease.
+        self.store.assert_lease(lease_owner, lease_token)
         service = self._service()
         # OAuth refresh/client initialization may block while the collector
         # lease expires or is replaced. Revalidate immediately before each

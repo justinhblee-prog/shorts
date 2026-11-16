@@ -386,6 +386,26 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.record_collection("unknown")
 
+    def test_collector_rejects_stale_lease_before_oauth_initialization(self):
+        token = self.store.acquire_lease("worker-old", 300)
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE youtube_analytics_collector_lease SET lease_until=0 WHERE id=1"
+            )
+
+        class ServiceMustNotInitialize(YouTubeAnalyticsCollector):
+            def _service(inner_self):
+                self.fail("OAuth/service initialization must not run for a stale lease")
+
+        collector = ServiceMustNotInitialize(
+            self.store, today=lambda: date(2026, 11, 17)
+        )
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            collector.collect_video(
+                "video-stale", start_date="2026-11-01", end_date="2026-11-14",
+                lease_owner="worker-old", lease_token=token,
+            )
+
     def test_collector_rechecks_lease_after_oauth_initialization_before_provider_call(self):
         token = self.store.acquire_lease("worker-old", 300)
         reports = FakeReports()
