@@ -2133,3 +2133,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Keep the recovery API's terminal count aligned with the durable state changes instead of reporting only the expired lease rows.
 - Add a regression with one expired and one still-valid production lease; recovery must report both terminalized jobs.
 - GitHub Actions validation pending. Deterministic SQLite coverage only; no live provider execution is claimed.
+
+
+## BUILD-00286 — Align expired-lease audit events with the recovery transaction timestamp
+- The recovery transaction already captures one timestamp after acquiring its SQLite write lock, but lease-expiry job events independently sampled the wall clock.
+- Pass the transaction timestamp into the immutable lease-expiry event so the event and job state describe the same serialized decision.
+- Add a deterministic regression that advances the mocked clock between the recovery decision and event creation.
+- GitHub Actions validation pending; no live multi-host validation is claimed.

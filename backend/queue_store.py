@@ -193,7 +193,8 @@ class JobQueue:
                        {"attempt": row["attempt"], "expired_worker_id": row["worker_id"],
                         "ambiguous_external_work": ambiguous,
                         "resolution": "manual_reconciliation_required" if ambiguous else
-                                     ("retry_available" if target == "queued" else "attempts_exhausted")})
+                                     ("retry_available" if target == "queued" else "attempts_exhausted")},
+                       created_at=timestamp)
             if ambiguous:
                 production_expired.append(row["id"])
                 if has_production_runs:
