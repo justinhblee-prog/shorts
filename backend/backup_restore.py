@@ -135,8 +135,9 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14):
         _sqlite_snapshot(db_path, db_snapshot)
         _copy_media(media_dir, media_snapshot)
         inventory = _media_inventory(media_snapshot)
-        if len(inventory) > MAX_ARCHIVE_MEMBERS - 2:
-            raise BackupRestoreError("Media backup contains too many files")
+        media_entry_count = sum(1 for _ in media_snapshot.rglob("*"))
+        if media_entry_count > MAX_ARCHIVE_MEMBERS - 2:
+            raise BackupRestoreError("Media backup contains too many entries")
         media_bytes = sum(item["size"] for item in inventory)
         if media_bytes > MAX_MEDIA_BYTES:
             raise BackupRestoreError("Media backup exceeds the supported size")
