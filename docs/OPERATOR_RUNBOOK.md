@@ -460,3 +460,8 @@ GitHub Actions run [43795614217](https://github.com/justinhblee-prog/shorts/acti
 ### BUILD-00136 — external media link behavior
 
 Renderer video links and narration previews appear only when their artifact URLs are absolute HTTPS URLs without embedded credentials. If a URL is malformed or uses another scheme, the dashboard hides the link/preview. This does not replace backend host allowlisting, DNS checks, TLS validation or media-byte inspection.
+
+
+### BUILD-00136 validation checkpoint
+
+GitHub Actions run [43795822579](https://github.com/justinhblee-prog/shorts/actions/runs/43795822579) passed **447 backend tests** and the full validation script. This does not replace browser-level security tests or backend allowlist/media-byte validation.
