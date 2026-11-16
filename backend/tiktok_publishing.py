@@ -707,6 +707,10 @@ class TikTokPublisher:
         # The preflight read above can race with another worker completing this
         # same job. Respect the authoritative row returned under BEGIN IMMEDIATE.
         if begun and begun.get("status") == "publish_complete":
+            try:
+                os.unlink(snapshot_path)
+            except OSError:
+                pass
             return begun
         remote_started = False
         try:
