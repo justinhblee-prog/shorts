@@ -557,3 +557,12 @@ BUILD-00039 automated validation: main-branch GitHub Actions run [43790981235](h
 - Store the key separately from the backup volume. Loss of the key means encrypted backups cannot be restored; rotate only with a documented re-encryption/retention plan.
 
 BUILD-00130 automated validation: GitHub Actions run [43791757173](https://github.com/justinhblee-prog/shorts/actions/runs/43791757173) passed **408 backend tests** and the full `scripts/validate.sh` command. This validates code-level encryption/restore behavior, not a production key ceremony or off-host restore drill.
+
+
+## BUILD-00131 — optional ClamAV media scan
+
+- Set `NEXUS_MEDIA_SCAN_ENABLED=true` to require a clean ClamAV result before a downloaded renderer artifact is atomically staged. The default is disabled for backward-compatible rollout.
+- Set `NEXUS_CLAMSCAN_PATH`, `NEXUS_CLAMAV_DATABASE_DIR` and `NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS` only when changing the defaults. The preflight checks executable presence, signature database files and positive timeout.
+- Start the updater and API with `docker compose --profile media-scan up -d`; `clamav-updater` refreshes the persistent named volume and the API mounts that volume read-only.
+- An infected result, missing executable, missing signatures, scanner error, invalid result or timeout blocks staging and deletes the temporary `.part` file. The staging response distinguishes `clean` from `disabled`.
+- CI uses fake scanner results; it does not prove live ClamAV signatures, a deployed updater or malware detection on production media.
