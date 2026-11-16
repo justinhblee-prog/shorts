@@ -1044,3 +1044,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions run [43788723765](https://github.com/justinhblee-prog/shorts/actions/runs/43788723765) passed **356 backend tests** and `scripts/validate.sh`.
 - Tests verify dual API checks, partial Analytics failure handling, stored channel identity and additive migration.
 - No real account was connected during CI; live verification is a protected dashboard action after operator OAuth consent.
+
+
+## BUILD-00038 — automated SQLite and media backup/restore
+
+- New stdlib-only utility: `backend/backup_restore.py`; tests: `backend/tests/test_backup_restore.py`.
+- Compose adds a daily backup service using the same app image, the shared `nexus_data` volume and a separate persistent `nexus_backups` volume.
+- The backup uses SQLite's online backup API (WAL-safe), captures media files, writes a SHA-256 manifest, checks database integrity and prunes old archives.
+- Restore requires explicit `--confirm-restore`, validates every archive path and file checksum before touching live data, makes a pre-restore backup, stages DB/media next to targets and rolls back failed swaps.
+- Secrets and Fernet keys are not included in backups. Keep the encryption key in a separate secret manager and replicate the backup volume off-host for disaster recovery.
+- Validation pending.

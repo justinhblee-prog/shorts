@@ -1026,3 +1026,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions PR run [43788723765](https://github.com/justinhblee-prog/shorts/actions/runs/43788723765) passed **356 backend tests** and `scripts/validate.sh`.
 - Tests cover both API checks, partial Analytics permission failure, verification persistence and migration from the prior OAuth token schema.
 - Live Google channel verification was not executed; it is an operator-triggered deployment step.
+
+
+### BUILD-00038 — automated SQLite and media backup/restore (2026-11-16)
+
+- Add a SQLite online-backup API snapshot plus media-file archive with SHA-256 manifest and integrity checks.
+- Add a Compose backup service that runs immediately and repeats daily, retaining 14 days by default in a separate named volume.
+- Add guarded restore requiring explicit `--confirm-restore`, validates archive paths/checksums/SQLite integrity before changing live data, and creates a pre-restore backup.
+- Restore stages new DB/media beside their destinations and rolls back filesystem replacements on failure.
+- Backups contain the database and media only; environment secrets/encryption keys are not included. The backup volume is not off-site and must be copied to independent storage.
+- Validation pending.

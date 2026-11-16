@@ -503,3 +503,24 @@ After completing encrypted OAuth, use the dashboard's **실계정 연결 테스�
 
 
 BUILD-00037 automated validation: GitHub Actions run [43788723765](https://github.com/justinhblee-prog/shorts/actions/runs/43788723765) passed **356 backend tests** and `scripts/validate.sh`. The live verification action itself has not been executed against a real channel.
+
+
+## BUILD-00038 — backup and restore
+
+Compose now runs a backup service immediately and every 24 hours. It snapshots SQLite using the online backup API, archives the media directory, verifies SQLite integrity and records SHA-256 checksums in a manifest. The default retention is 14 days in the separate `nexus_backups` volume.
+
+Manual backup:
+
+```bash
+docker compose run --rm --no-deps backup python backup_restore.py backup --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --retain-days 14
+```
+
+Restore only after stopping API, worker, scheduler, metrics collector and backup services:
+
+```bash
+docker compose stop api worker scheduler metrics-collector backup
+docker compose run --rm --no-deps --entrypoint python backup backup_restore.py restore --archive /backups/ARCHIVE_NAME.tar.gz --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --confirm-restore
+docker compose up -d
+```
+
+Restore validates the archive and creates a pre-restore backup before replacing data. Do not delete the pre-restore archive until the service has been verified. The backup volume is on the same Docker host; copy archives to independent off-site storage. Secrets and encryption keys are deliberately excluded.

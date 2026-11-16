@@ -336,3 +336,26 @@ The verification endpoint is protected by the dashboard review token. It never r
 ### BUILD-00037 verification test
 
 The live verification endpoint is implemented and covered by automated tests, but no real account was tested during CI. After OAuth consent, authenticate to the dashboard and run **실계정 연결 테스트**. Confirm the intended channel title/ID and both Data API and Analytics API states. Only then proceed to a private test upload.
+
+
+## 8. Automated backup and restore
+
+- Compose includes a backup service that runs immediately at startup and every 24 hours. It snapshots SQLite through the online backup API, archives the staged media directory, writes a SHA-256 manifest, verifies database integrity and retains 14 days by default.
+- Backups are written to the separate `nexus_backups` named volume. This protects against application-level mistakes and container recreation but is not off-host disaster recovery. Copy archives to independent object storage or another host.
+- Secrets, OAuth refresh tokens and Fernet encryption keys are intentionally excluded. Keep YOUTUBE_TOKEN_ENCRYPTION_KEY and TIKTOK_TOKEN_ENCRYPTION_KEY in a separate secret manager and preserve them across restore.
+
+Manual backup:
+
+```bash
+docker compose run --rm --no-deps backup python backup_restore.py backup --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --retain-days 14
+```
+
+Restore is destructive and requires the explicit `--confirm-restore` flag. Stop all writers first; the script validates archive paths, SHA-256 checksums and SQLite integrity, then creates a pre-restore backup before replacing data:
+
+```bash
+docker compose stop api worker scheduler metrics-collector backup
+docker compose run --rm --no-deps --entrypoint python backup backup_restore.py restore --archive /backups/ARCHIVE_NAME.tar.gz --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --confirm-restore
+docker compose up -d
+```
+
+Do not delete the pre-restore backup until the application, media artifacts, OAuth token decryption and worker queue have been checked.
