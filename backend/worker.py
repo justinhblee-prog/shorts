@@ -195,7 +195,9 @@ def run_once():
     finally:
         heartbeat_stop.set()
         if heartbeat.is_alive():
-            heartbeat.join(timeout=5)
+            # Do not clear the active-job context or claim another job while a
+            # prior heartbeat may still be blocked in its database operation.
+            heartbeat.join()
         active_job_id = None
         active_lost_lease_event = None
     return True
