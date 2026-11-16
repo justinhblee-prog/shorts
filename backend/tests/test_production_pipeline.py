@@ -1317,14 +1317,10 @@ class ProductionTests(unittest.TestCase):
             ).fetchone()["count"]
         self.assertEqual(artifact_count, 0)
 
-        current = queue.claim(
-            "worker-late", job_type="short_video_production",
-            generation_token=provider.replacement["generation_token"],
-        )
-        recovered = self.store.recover_provider_response(
-            job["id"], "script", "worker-late", current["lease_token"],
-            provider.replacement["generation_token"],
-        )
+        # The queue's existing expiry policy pauses production rather than
+        # automatically replaying an ambiguous provider job. The durable response
+        # remains available for the existing operator/current-worker recovery path.
+        recovered = self.store.recover_provider_response(job["id"], "script")
         self.assertEqual(recovered["script"], "late but durable")
 
     def test_stale_worker_cannot_finalize_provider_response_after_lease_replacement(self):
