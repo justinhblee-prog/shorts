@@ -1980,7 +1980,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The SIGTERM/SIGINT handler now performs only in-memory stop and lease-loss signalling; it never opens a SQLite transaction.
 - This prevents the signal handler from trying to acquire a second SQLite write lock when Python interrupts the main thread inside `queue.claim()` while the claim transaction already owns the writer lock.
 - `run_once()` observes the stop flag after claim returns, skips provider execution, and persists the durable pause after the claim transaction has unwound.
+- The heartbeat thread also stops renewing the lease after the shutdown/lost-lease event is set; it cannot keep a potentially hung provider operation alive indefinitely by extending the lease after SIGTERM.
 - Added a deterministic regression that holds a real SQLite `BEGIN IMMEDIATE` write transaction, delivers SIGTERM from inside the claim path, proves the handler returns without database I/O, and verifies pause persistence occurs afterward.
 - Updated runtime tests to assert the signal handler never performs database writes, including stale-generation and database-unavailable scenarios.
-- GitHub Actions run [43904001696](https://github.com/justinhblee-prog/shorts/actions/runs/43904001696) passed `scripts/validate.sh`: 618 backend tests.
+- GitHub Actions run [43904285905](https://github.com/justinhblee-prog/shorts/actions/runs/43904285905) passed `scripts/validate.sh`: 619 backend tests.
 - Validation is local SQLite/CI only; no deployed multi-process or production signal-delivery test is claimed.
