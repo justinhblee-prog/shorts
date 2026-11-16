@@ -60,32 +60,56 @@ class WorkerRuntimeTests(unittest.TestCase):
         class Queue:
             def __init__(self):
                 self.pauses = []
-            def pause(self, reason, job_id):
-                self.pauses.append((reason, job_id))
+            def pause(self, reason, job_id, worker_id=None, generation_token=None):
+                self.pauses.append((reason, job_id, worker_id, generation_token))
 
         queue = Queue()
         stopping = threading.Event()
         lost_lease = threading.Event()
-        request_worker_shutdown(queue, stopping, "job-1", lost_lease, 15)
+        request_worker_shutdown(
+            queue, stopping, "job-1", lost_lease, 15,
+            worker_id="worker-a", generation_token="generation-a",
+        )
         self.assertTrue(stopping.is_set())
         self.assertTrue(lost_lease.is_set())
         self.assertEqual(len(queue.pauses), 1)
         self.assertEqual(queue.pauses[0][1], "job-1")
+        self.assertEqual(queue.pauses[0][2:], ("worker-a", "generation-a"))
         self.assertIn("signal 15", queue.pauses[0][0])
 
     def test_sigterm_still_stops_locally_if_pause_persistence_fails(self):
         import threading
 
         class BrokenQueue:
-            def pause(self, reason, job_id):
+            def pause(self, reason, job_id, worker_id=None, generation_token=None):
                 raise OSError("database unavailable")
 
         stopping = threading.Event()
         lost_lease = threading.Event()
-        request_worker_shutdown(BrokenQueue(), stopping, "job-2", lost_lease, 15)
+        request_worker_shutdown(
+            BrokenQueue(), stopping, "job-2", lost_lease, 15,
+            worker_id="worker-b", generation_token="generation-b",
+        )
         self.assertTrue(stopping.is_set())
         self.assertTrue(lost_lease.is_set())
 
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_sigterm_without_generation_still_requests_local_stop(self):
+        import threading
+
+        class Queue:
+            def __init__(self):
+                self.pauses = []
+            def pause(self, reason, job_id, worker_id=None, generation_token=None):
+                self.pauses.append((reason, job_id, worker_id, generation_token))
+
+        queue = Queue()
+        stopping = threading.Event()
+        lost_lease = threading.Event()
+        request_worker_shutdown(queue, stopping, "job-3", lost_lease, 15)
+        self.assertTrue(stopping.is_set())
+        self.assertTrue(lost_lease.is_set())
+        self.assertEqual(queue.pauses, [(queue.pauses[0][0], "job-3", None, None)])
