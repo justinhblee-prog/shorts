@@ -1061,3 +1061,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions run [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031) passed **362 backend tests** and `scripts/validate.sh`.
 - Backup/restore tests cover database/media snapshots, checksums, confirmation, pre-restore archive, path validation and symlink rejection.
 - Compose YAML parsing passed. No live Compose service was deployed and no restore was run against production data.
+
+
+### BUILD-00038 restore hardening
+
+- Restore validates archive member count, uncompressed size bounds, manifest size, database size, media total size, SHA-256 formats, media path uniqueness and exact file inventory before copying payloads.
+- Rejects traversal paths, backslashes, NULs, links, special files, duplicate entries and unexpected control-file paths.
+- Preserves empty media directories. Backup creation and restore enforce matching database/media size limits and total archive entry limits.
+- Automated tests cover traversal and malformed-manifest rejection without modifying live data.
+- Restore must be run offline: stop API, worker, scheduler, metrics collector and backup service, then run the explicit-confirmation restore command. Do not restore while application writers are active.
