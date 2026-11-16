@@ -917,7 +917,7 @@ class ApiSecurityTests(unittest.TestCase):
     def test_youtube_reconciliation_requires_explicit_confirmation_before_store_mutation(self):
         from app import YouTubeUploadReconciliation, reconcile_youtube_upload
         body = YouTubeUploadReconciliation(
-            outcome="not_uploaded", confirmed=False,
+            attempt_id="attempt-1", outcome="not_uploaded", confirmed=False,
             note="Unable to verify", operator_id="operator-1",
         )
         with (
@@ -935,7 +935,7 @@ class ApiSecurityTests(unittest.TestCase):
     def test_tiktok_reconciliation_requires_explicit_confirmation_before_store_mutation(self):
         from app import TikTokPublicationReconciliation, reconcile_tiktok_publication
         body = TikTokPublicationReconciliation(
-            outcome="not_published", confirmed=False,
+            attempt_id="attempt-1", outcome="not_published", confirmed=False,
             note="Unable to verify", operator_id="operator-1",
         )
         with (
