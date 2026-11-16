@@ -214,7 +214,7 @@ class TikTokPublishStore:
               FROM tiktok_publications WHERE job_id=?
             """, (_now(), job_id))
 
-    def mark_status(self, job_id, attempt_id, status, video_ids=None, fail_reason=None):
+    def mark_status(self, job_id, attempt_id, status, video_ids=None, fail_reason=None, expected_status=None):
         allowed = {
             "PROCESSING_UPLOAD": "processing",
             "PUBLISH_COMPLETE": "publish_complete",
@@ -237,11 +237,17 @@ class TikTokPublishStore:
             # A slower concurrent poll must never downgrade a terminal outcome.
             if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
                 return dict(row)
+            if expected_status is not None and row["status"] != expected_status:
+                raise TikTokPublishError(
+                    "TikTok publication state changed while the status request was in flight"
+                )
             updated = c.execute("""
               UPDATE tiktok_publications SET status=?,video_id=COALESCE(?,video_id),
                 fail_reason=?,updated_at=? WHERE job_id=? AND attempt_id=?
+                AND (? IS NULL OR status=?)
                 AND status NOT IN ('publish_complete','failed','send_to_inbox')
-            """, (normalized, video_id, fail_reason, _now(), job_id, attempt_id))
+            """, (normalized, video_id, fail_reason, _now(), job_id, attempt_id,
+                  expected_status, expected_status))
             if updated.rowcount != 1:
                 current = c.execute(
                     "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
@@ -910,6 +916,7 @@ class TikTokPublisher:
             job_id, record["attempt_id"], status,
             video_ids,
             data.get("fail_reason"),
+            expected_status=record["status"],
         )
 
     def refresh_due_statuses(self, limit=5, min_age_seconds=60):
