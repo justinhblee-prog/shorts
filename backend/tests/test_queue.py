@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from threading import Event, Thread
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import queue_store
 from queue_store import JobQueue, LeaseConflict, IdempotencyConflict
@@ -800,5 +801,21 @@ class QueueTests(unittest.TestCase):
    self.assertEqual(persisted["status"],"failed_terminal")
    self.assertEqual(persisted["error_code"],"production_pause_external_outcome_ambiguous"
                     if job["id"]==active["id"] else "production_lease_expired_ambiguous")
+
+ def test_expired_lease_audit_uses_serialized_recovery_timestamp(self):
+  job=self.q.enqueue("render",{"topic":"lease-audit-timestamp"})
+  self.q.claim("worker-timestamp")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+             (job["id"],))
+  decision=datetime(2031,2,3,4,5,6,tzinfo=timezone.utc)
+  later=decision+timedelta(seconds=11)
+  with patch.object(queue_store,"now",side_effect=[decision,later]):
+   result=self.q.recover()
+  self.assertEqual(result,{"requeued":1,"terminal":0})
+  persisted=self.q.get(job["id"])
+  event=[item for item in self.q.events(job["id"]) if item["event_type"]=="lease_expired"][-1]
+  self.assertEqual(persisted["updated_at"],decision.isoformat())
+  self.assertEqual(event["created_at"],decision.isoformat())
 
 if __name__=="__main__": unittest.main()
