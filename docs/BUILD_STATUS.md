@@ -1915,3 +1915,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Prevents lock contention from making a heartbeat or completion validate against a timestamp captured before the lease actually expired; prevents newly claimed leases from losing their duration while waiting for the lock.
 - Added a deterministic lock-contention regression: advance the clock beyond expiry while heartbeat is blocked on the write lock and verify the stale heartbeat is rejected without an audit event or lease mutation.
 - Backend deterministic CI only; no multi-host production database test is claimed.
+
+
+## BUILD-00236 — Fence worker registry and control timestamps
+- Extended the post-lock timestamp rule to pause, resume, worker registration, and worker-offline transitions.
+- These operations now obtain the SQLite write lock before capturing their audit/heartbeat timestamp, preventing lock waits from writing out-of-order timestamps or stale worker liveness values.
+- Combined with BUILD-00235, all lease/control/registry state transitions that acquire the SQLite write lock use a timestamp observed after lock acquisition.
+- Backend deterministic CI only; no multi-host production database test is claimed.
