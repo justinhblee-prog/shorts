@@ -303,6 +303,29 @@ class YouTubePublishingTests(unittest.TestCase):
             self.uploads.begin("job-1", "Title", "Description")
         self.assertIsNone(self.uploads.get("job-1"))
 
+    def test_upload_is_blocked_when_an_approved_artifact_is_modified(self):
+        with self.uploads.db() as connection:
+            row = connection.execute(
+                "SELECT id FROM production_artifacts "
+                "WHERE job_id='job-1' AND stage='rendering' AND artifact_type='video'"
+            ).fetchone()
+            connection.execute(
+                "UPDATE production_artifacts SET metadata_json=? WHERE id=?",
+                (json.dumps({"tampered_after_approval": True}), row["id"]),
+            )
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
+            self.uploads.begin("job-1", "Title", "Description")
+        self.assertIsNone(self.uploads.get("job-1"))
+
+    def test_upload_is_blocked_when_an_artifact_is_added_after_approval(self):
+        self.prod.artifact(
+            "job-1", "post_approval", "report", None,
+            {"late_artifact": True},
+        )
+        with self.assertRaisesRegex(YouTubeUploadError, "changed after human approval"):
+            self.uploads.begin("job-1", "Title", "Description")
+        self.assertIsNone(self.uploads.get("job-1"))
+
     def test_upload_requires_approval(self):
         self.prod.create("job-2",{"brand":"Brain Glitch","region":"US",
                                   "language":"English","topic":"Focus"})
