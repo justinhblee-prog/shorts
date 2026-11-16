@@ -54,7 +54,7 @@ class ScheduledYouTubeAnalyticsOAuthTests(unittest.TestCase):
 
     def test_collector_failure_still_releases_lease(self):
         store = Mock()
-        store.acquire_lease.return_value = "owner"
+        store.acquire_lease.return_value = "lease-token"
         collector = Mock()
         collector.refresh_due_metrics.side_effect = RuntimeError("provider unavailable")
 
