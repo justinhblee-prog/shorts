@@ -564,5 +564,7 @@ BUILD-00130 automated validation: GitHub Actions run [43791757173](https://githu
 - Set `NEXUS_MEDIA_SCAN_ENABLED=true` to require a clean ClamAV result before a downloaded renderer artifact is atomically staged. The default is disabled for backward-compatible rollout.
 - Set `NEXUS_CLAMSCAN_PATH`, `NEXUS_CLAMAV_DATABASE_DIR` and `NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS` only when changing the defaults. The preflight checks executable presence, signature database files and positive timeout.
 - Start the updater and API with `docker compose --profile media-scan up -d`; `clamav-updater` refreshes the persistent named volume and the API mounts that volume read-only.
-- An infected result, missing executable, missing signatures, scanner error, invalid result or timeout blocks staging and deletes the temporary `.part` file. The staging response distinguishes `clean` from `disabled`.
+- An infected result, missing executable, missing signatures, scanner error, invalid result or timeout blocks staging and deletes the temporary `.part` file. ClamAV's default file/scan size limits can skip files and assume them clean, so the scanner sets both limits to `NEXUS_MAX_MEDIA_BYTES`, enables `--alert-exceeds-max=yes`, and disables the internal max-scantime skip in favor of the outer subprocess timeout. The staging response distinguishes `clean` from `disabled`.
 - CI uses fake scanner results; it does not prove live ClamAV signatures, a deployed updater or malware detection on production media.
+
+BUILD-00131 validation: GitHub Actions run [43792634688](https://github.com/justinhblee-prog/shorts/actions/runs/43792634688) passed **427 backend tests** and `scripts/validate.sh`. This does not validate live signature downloads or real malware samples.
