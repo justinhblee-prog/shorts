@@ -666,6 +666,7 @@ class ProductionTests(unittest.TestCase):
                 "sha256":"a"*64,"content_type":"video/mp4"}
         inspection={"status":"inspected","duration_seconds":32.5,
                     "width":1080,"height":1920,"audio_track_present":True,
+                    "size_bytes":4096,"media_path":"abc123.mp4",
                     "inspection_method":"ffprobe_file_bytes"}
         attempt=self.store.provider_attempts(job_id)[0]
         result=self.store.adopt_recovered_render(
@@ -689,6 +690,35 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"not available"):
             self.store.adopt_recovered_render(
                 job_id,attempt["id"],staged,inspection)
+
+    def test_recovered_render_adoption_rejects_inspection_for_different_staged_bytes(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        self.store.artifact(job_id,"script","text",None,{
+            "script":"A sufficiently detailed recovered video script with useful context."})
+        self.store.artifact(job_id,"voice_generation","audio",
+            "https://cdn.example.test/audio.mp3",{"duration_seconds":32.5})
+        key=self.store.begin_provider_attempt(job_id,"rendering",1)
+        self.store.finish_provider_attempt(
+            job_id,"rendering",1,key,
+            {"video_url":"https://cdn.example.test/output.mp4"})
+        attempt=self.store.provider_attempts(job_id)[0]
+        staged={"media_path":"verified.mp4","size_bytes":4096,
+                "sha256":"c"*64,"content_type":"video/mp4"}
+        inspection={"status":"inspected","duration_seconds":32.5,
+                    "width":1080,"height":1920,"audio_track_present":True,
+                    "size_bytes":4095,"media_path":"verified.mp4",
+                    "inspection_method":"ffprobe_file_bytes"}
+        with self.assertRaisesRegex(ValueError,"does not match the staged media fingerprint"):
+            self.store.adopt_recovered_render(job_id,attempt["id"],staged,inspection)
+        inspection["size_bytes"]=4096
+        inspection["media_path"]="different.mp4"
+        with self.assertRaisesRegex(ValueError,"does not match the staged media fingerprint"):
+            self.store.adopt_recovered_render(job_id,attempt["id"],staged,inspection)
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"response_received")
+        self.assertEqual(self.store.get(job_id)["artifacts"],[])
+        self.assertEqual(queue.get(job_id)["status"],"queued")
 
     def test_provider_render_adoption_rejects_unverified_or_nonvertical_media(self):
         queue=JobQueue(self.store.db_path)
