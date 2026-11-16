@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import tempfile
 import unittest
 from datetime import datetime, timezone, timedelta
@@ -113,6 +114,26 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(self.schedules.pending_dispatches(), [])
         self.assertEqual(self.queue.stats()["total"], 1)
 
+
+
+    def test_existing_outbox_table_is_migrated_without_losing_pending_rows(self):
+        legacy_db = os.path.join(self.tmp.name, "legacy.sqlite3")
+        with sqlite3.connect(legacy_db) as connection:
+            connection.execute("""CREATE TABLE schedule_dispatch_outbox(
+                id TEXT PRIMARY KEY, schedule_id TEXT NOT NULL,
+                scheduled_for TEXT NOT NULL, payload_json TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT, created_at TEXT NOT NULL, dispatched_at TEXT,
+                UNIQUE(schedule_id,scheduled_for)
+            )""")
+            connection.execute("""INSERT INTO schedule_dispatch_outbox
+                (id,schedule_id,scheduled_for,payload_json,status,created_at)
+                VALUES('legacy-1','schedule-1','2026-11-16T00:00:00+00:00','{}','pending',
+                       '2026-11-16T00:00:00+00:00')""")
+        migrated = ScheduleStore(legacy_db)
+        pending = migrated.pending_dispatches(now=datetime(2026, 11, 16, 1, tzinfo=timezone.utc))
+        self.assertEqual(len(pending), 1)
+        self.assertIsNone(pending[0]["next_attempt_at"])
 
     def test_outbox_retry_uses_exponential_backoff_and_caps_at_one_hour(self):
         now = datetime.now(timezone.utc)
