@@ -325,10 +325,10 @@ class JobQueue:
             return [{**dict(r),"details":json.loads(r["details_json"])} for r in c.execute("SELECT * FROM job_events WHERE job_id=? ORDER BY id",(jid,))]
 
     def cancel(self,jid,reason="Cancelled by operator"):
-        n=stamp(now())
         reason = str(reason)[:2000]
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            n=stamp(now())
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             if row is None: raise JobNotFound()
             if row["status"] in ("uploaded","cancelled","failed_terminal"):
