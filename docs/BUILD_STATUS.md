@@ -1953,3 +1953,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Operator/system pause calls without a worker generation remain supported as explicit control-plane actions.
 - Added regression coverage: a replaced process cannot pause the replacement's queue; the current generation can still pause it.
 - Automated CI is the validation boundary; no production multi-host race test is claimed.
+
+
+## BUILD-00241 — Race worker restart against expired lease recovery
+- Added a concurrent regression that releases worker re-registration and expired-lease recovery together against the same SQLite queue.
+- Verifies the expired job is requeued exactly once, only one lease-expired audit event is emitted, the replacement generation remains online, and the old process cannot mark it offline or heartbeat its stale lease.
+- Confirms the replacement generation can claim the recovered job after the race.
+- This is deterministic local SQLite concurrency coverage; it is not a claim of multi-host production validation.
