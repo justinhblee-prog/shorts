@@ -3,6 +3,7 @@
 Run: python worker.py
 The worker only claims short_video_production jobs; it does not consume other queue types.
 """
+import json
 import os
 import signal
 import socket
