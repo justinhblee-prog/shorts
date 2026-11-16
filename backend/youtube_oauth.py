@@ -287,6 +287,7 @@ class YouTubeOAuthManager:
                 "missing_scopes": missing,
                 "updated_at": row["updated_at"],
                 "mode": "encrypted_oauth",
+                "static_fallback_configured": bool(os.getenv("YOUTUBE_REFRESH_TOKEN")),
             }
         if os.getenv("YOUTUBE_REFRESH_TOKEN"):
             return {
@@ -294,8 +295,13 @@ class YouTubeOAuthManager:
                 "mode": "environment_refresh_token",
                 "scope_verification": "not_available",
                 "live_connectivity_verified": False,
+                "static_fallback_configured": True,
             }
-        return {"connected": False, "status": "disconnected", "mode": "none"}
+        return {
+            "connected": False, "status": "disconnected", "mode": "none",
+            "static_fallback_configured": False,
+            "live_connectivity_verified": False,
+        }
 
     def disconnect(self):
         self.store.clear_token()
