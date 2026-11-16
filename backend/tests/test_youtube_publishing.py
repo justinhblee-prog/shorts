@@ -716,14 +716,15 @@ class YouTubePublishingTests(unittest.TestCase):
             self.uploads.begin = original_begin
         self.assertFalse(first.is_alive())
         self.assertFalse(second.is_alive())
-        self.assertEqual(errors, [])
-        self.assertEqual(len(results), 2)
-        self.assertEqual(results[0]["video_id"], results[1]["video_id"])
-        # Exactly one remote insert must have been made. The second caller
-        # either sees the active reservation and is rejected, or sees uploaded.
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(errors), 1)
+        self.assertIsInstance(errors[0], YouTubeUploadError)
+        self.assertEqual(results[0]["status"], "uploaded")
+        # Exactly one remote insert must have been made; the competing caller
+        # is rejected by the durable uploading reservation.
         self.assertEqual(
-            first_service._videos.body is not None
-            + second_service._videos.body is not None,
+            int(getattr(first_service._videos, "body", None) is not None)
+            + int(getattr(second_service._videos, "body", None) is not None),
             1,
         )
 
