@@ -1054,3 +1054,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Restore requires explicit `--confirm-restore`, validates every archive path and file checksum before touching live data, makes a pre-restore backup, stages DB/media next to targets and rolls back failed swaps.
 - Secrets and Fernet keys are not included in backups. Keep the encryption key in a separate secret manager and replicate the backup volume off-host for disaster recovery.
 - Validation pending.
+
+
+### BUILD-00038 restore hardening
+
+- Restore validates archive member count, uncompressed size bounds, manifest size, database size, media total size, SHA-256 formats, media path uniqueness and exact file inventory before copying payloads.
+- Rejects traversal paths, backslashes, NULs, links, special files, duplicate entries and unexpected control-file paths.
+- Preserves empty media directories. Backup creation and restore enforce matching database/media size limits.
+- Automated tests cover traversal and malformed-manifest rejection without modifying live data.
+- Restore must be run offline: stop API, worker, scheduler, metrics collector and backup service first, then run the explicit-confirmation restore command. Do not restore while application writers are active.
