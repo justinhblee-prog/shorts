@@ -1459,3 +1459,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Explicitly state that recovery and automated file inspection do not constitute human approval or permission to publish.
 - Add frontend regression coverage for provenance and review-boundary messaging.
 - GitHub Actions run [43818084149](https://github.com/justinhblee-prog/shorts/actions/runs/43818084149) passed the complete `scripts/validate.sh` workflow, including 526 backend tests.
+
+
+## BUILD-00177 — atomic review decision and queue synchronization
+
+- Require a matching durable `short_video_production` queue row in `review_pending` before any reviewer decision.
+- Commit the immutable reviewer decision, production status, queue status and queue audit event in one SQLite transaction.
+- Synchronize `approved`, `rejected` and `revision_requested` states and clear stale worker lease fields.
+- Fail closed on missing, mismatched or non-pending queue records; no partial production-only decision is allowed.
+- Add regression coverage for all three decision types and queue-state mismatch rollback.
+- CI validation pending.
