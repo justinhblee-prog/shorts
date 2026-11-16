@@ -419,7 +419,10 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                 return FakeService(reports)
 
         self.store.due_video_ids = lambda limit, min_age_seconds: ["video-one", "video-two"]
-        collector = LeaseReplacingCollector(self.store)
+        collector = LeaseReplacingCollector(
+            self.store, today=lambda: date(2026, 11, 17)
+        )
+        self.store.upload_date = lambda video_id: "2026-01-01T00:00:00+00:00"
         with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
             collector.refresh_due_metrics(
                 lease_owner="worker-old", lease_token=token,
