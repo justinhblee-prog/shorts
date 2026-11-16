@@ -133,6 +133,14 @@ class YouTubeOAuthTests(unittest.TestCase):
         self.assertFalse(result["connected"])
         self.assertIsNone(self.store.token_record())
 
+
+    def test_stored_token_missing_upload_scope_cannot_be_used(self):
+        encrypted = self.manager.cipher.encrypt(b"restricted-refresh").decode("ascii")
+        self.store.save_token(encrypted, REQUIRED_SCOPES[1], "Bearer")
+        with self.assertRaisesRegex(YouTubeOAuthError, "missing required scopes"):
+            self.manager.get_refresh_token()
+        self.assertFalse(self.manager.status()["connected"])
+
     def test_static_environment_refresh_token_is_fallback_only(self):
         old = os.environ.get("YOUTUBE_REFRESH_TOKEN")
         os.environ["YOUTUBE_REFRESH_TOKEN"] = "env-refresh"
