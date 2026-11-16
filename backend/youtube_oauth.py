@@ -395,8 +395,10 @@ class YouTubeConnectionVerifier:
 
     def verify(self):
         row = self.oauth_manager.store.token_record()
-        if row is None and not os.getenv("YOUTUBE_REFRESH_TOKEN"):
-            raise YouTubeOAuthError("YouTube OAuth account is not connected")
+        if row is None:
+            raise YouTubeOAuthError(
+                "Connect YouTube with encrypted OAuth before storing live verification status"
+            )
         refresh = self.oauth_manager.get_refresh_token()
         credentials_factory, service_factory, request_factory = self._factories()
         channel_id = None
