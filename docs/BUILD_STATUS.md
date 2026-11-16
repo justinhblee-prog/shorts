@@ -1672,3 +1672,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Preserve the low-level store default for fixture/metrics seeding; the actual publisher always enables strict current-approval validation.
 - Add regressions for queue reopening and queue-row deletion immediately before upload reservation.
 - Keep YouTube visibility private; no public publishing behavior is introduced.
+
+
+## BUILD-00202 — direct expired-lease operation fencing regressions
+
+- Add direct-expiry regression coverage for all three worker-owned lease operations: heartbeat, finish, and fail.
+- Expire a claimed lease without allowing another worker to reclaim it, then assert each stale operation raises `LeaseConflict`.
+- Verify rejected stale operations leave the running row, worker ownership, and lease token unchanged.
+- This validates the existing transactional lease-expiry guard independently of the separate reclaim path.
