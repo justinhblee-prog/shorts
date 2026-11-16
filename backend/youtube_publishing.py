@@ -302,7 +302,7 @@ class YouTubeUploadStore:
     def mark_reconciliation_required(self,job_id,error,attempt_id=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            row=c.execute("SELECT status,attempt_id FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
+            row=c.execute("SELECT status,attempt_id,video_id FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
             if row is None:
                 return
             now=_now()
@@ -313,9 +313,9 @@ class YouTubeUploadStore:
                 c.execute("""INSERT INTO youtube_upload_events
                   (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,
                    previous_status,resulting_status,created_at)
-                  VALUES(?,?,?,'informational',NULL,'system:upload_worker',?,
+                  VALUES(?,?,?,'informational',?,'system:upload_worker',?,
                     'late_success_review_required','late_success_review_required',?)""",
-                  (job_id,attempt_id,event_type,str(error)[:2000],now))
+                  (job_id,attempt_id,event_type,row["video_id"],str(error)[:2000],now))
                 return
             if row["status"]=="uploaded":
                 event_type=("post_confirmation_worker_error"
@@ -323,9 +323,9 @@ class YouTubeUploadStore:
                             else "superseded_attempt_uncertain")
                 c.execute("""INSERT INTO youtube_upload_events
                   (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
-                  VALUES(?,?,?,'informational',NULL,'system:upload_worker',?,
+                  VALUES(?,?,?,'informational',?,'system:upload_worker',?,
                     'uploaded','uploaded',?)""",
-                  (job_id,attempt_id,event_type,str(error)[:2000],now))
+                  (job_id,attempt_id,event_type,row["video_id"],str(error)[:2000],now))
                 return
             if row["attempt_id"]!=attempt_id:
                 c.execute("""INSERT INTO youtube_upload_events

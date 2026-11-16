@@ -1827,3 +1827,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The event distinguishes a current-attempt post-confirmation error from a superseded-attempt uncertainty and preserves the existing late-success review state, current attempt ID, and recorded video ID.
 - Added a regression covering late remote success followed by a delayed worker error from the superseded attempt.
 - Deterministic SQLite validation only; no live YouTube API verification is implied.
+
+## BUILD-00222 — Preserve canonical video IDs in YouTube worker-error audit events
+- Post-confirmation worker-error events now retain the canonical video ID already recorded on the upload row, both after successful upload and while late-success review is pending.
+- This avoids audit events that identify the attempt but omit the remote video already associated with it.
+- Regression asserts the late-success review event carries the preserved video ID.
+- Deterministic backend CI only; no live YouTube API verification.
