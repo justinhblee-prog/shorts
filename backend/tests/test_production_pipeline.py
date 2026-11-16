@@ -5,7 +5,7 @@ import urllib.error
 from pathlib import Path
 
 from production_pipeline import (
-    JsonProvider, ProductionPipeline, ProductionStore, ProductionLeaseConflict, ProviderError,
+    JsonProvider, ProductionPipeline, ProductionStore, ProductionLeaseConflict, ProviderAttemptConflict, ProviderError,
     submit_production,
 )
 from queue_store import JobQueue
