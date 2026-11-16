@@ -54,6 +54,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Durable provider response data remains available to the server-side recovery/adoption flow; this change does not disable recovery.
 - Automated validation is pending.
 
+## BUILD-00190 — fence provider-attempt finalization by active worker lease
+
+- Require the current, unexpired worker ID and fencing token before persisting either a provider response or an unknown transport outcome.
+- Perform lease validation and attempt-state transition inside the same `BEGIN IMMEDIATE` transaction, preventing a stale worker from finalizing an attempt after its lease was replaced.
+- Preserve the unresolved `request_started` record after a stale worker is rejected; reconcile the ambiguous external outcome rather than trusting a former lease holder.
+- Add regression tests for stale response and stale transport-error finalization.
+- Automated validation is pending.
+
 ## BUILD-00001 — durable queue and Worker Lease
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.
