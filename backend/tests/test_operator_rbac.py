@@ -14,6 +14,15 @@ class OperatorRoleTests(unittest.TestCase):
             self.assertTrue(has_permission("any-authenticated-operator", "production.create"))
             self.assertTrue(has_permission("any-authenticated-operator", "publish.execute"))
 
+    def test_per_operator_credentials_require_explicit_role_map(self):
+        with mock.patch.dict(
+            "os.environ",
+            {"NEXUS_REVIEW_CREDENTIALS_JSON": json.dumps({"alice": ["not-a-token"]})},
+            clear=True,
+        ):
+            with self.assertRaises(OperatorRoleConfigurationError):
+                permissions_for("alice")
+
     def test_explicit_role_map_grants_only_declared_permissions(self):
         roles = json.dumps({
             "alice": ["reviewer"],
