@@ -116,6 +116,18 @@ class WorkerFailClosedTests(unittest.TestCase):
         self.assertIsNone(worker.active_job_id)
         self.assertIsNone(worker.active_lost_lease_event)
 
+
+    def test_run_once_after_stop_does_not_register_a_new_worker_generation(self):
+        previous_generation = worker.WORKER_GENERATION_TOKEN
+        worker.WORKER_GENERATION_TOKEN = None
+        worker.stopping.set()
+        try:
+            with mock.patch.object(worker.queue, "register_worker") as register:
+                self.assertFalse(worker.run_once())
+            register.assert_not_called()
+        finally:
+            worker.WORKER_GENERATION_TOKEN = previous_generation
+
     def test_sigterm_between_claim_commit_and_active_job_registration_skips_provider(self):
         job = {
             "id": "job-claim-signal-race",
