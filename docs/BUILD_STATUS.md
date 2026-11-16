@@ -1181,6 +1181,6 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Validate YouTube audience-retention curve coordinates as finite normalized ratios in the inclusive 0–1 range; malformed points do not count as evidence.
 - Preserve valid average view percentage values above 100%, which can occur when viewers replay content.
 - Add regression coverage for invalid-only outcomes, malformed retention coordinates and valid average view percentage above 100%.
-- GitHub Actions PR run [43799823287](https://github.com/justinhblee-prog/shorts/actions/runs/43799823287) passed the complete `scripts/validate.sh` workflow.
+- GitHub Actions PR runs [43799823287](https://github.com/justinhblee-prog/shorts/actions/runs/43799823287) and [43800307048](https://github.com/justinhblee-prog/shorts/actions/runs/43800307048) passed the complete `scripts/validate.sh` workflow. The follow-up also covers integer-to-float overflow.
 - Draft PR [#136](https://github.com/justinhblee-prog/shorts/pull/136) remains open and unmerged pending review; existing PR #36 is untouched.
 - This change does not alter ranking scores, production approval, publishing, or live-provider behavior.
