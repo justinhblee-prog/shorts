@@ -772,6 +772,29 @@ class YouTubePublisher:
 
     def refresh_due_metrics(self, limit=50, min_age_seconds=21600,
                             lease_owner=None, lease_token=None):
+        acquired = False
+        if lease_owner is None and lease_token is None:
+            lease_owner = f"youtube-metrics-batch:{uuid.uuid4().hex}"
+            lease_token = self.store.acquire_metrics_collector_lease(
+                lease_owner, lease_seconds=300,
+            )
+            if lease_token is None:
+                raise YouTubeUploadError(
+                    "YouTube metrics collection is already in progress"
+                )
+            acquired = True
+        elif not lease_owner or not lease_token:
+            raise ValueError("Both metrics collector lease owner and token are required")
+        try:
+            return self._refresh_due_metrics_with_lease(
+                limit, min_age_seconds, lease_owner, lease_token,
+            )
+        finally:
+            if acquired:
+                self.store.release_metrics_collector_lease(lease_owner, lease_token)
+
+    def _refresh_due_metrics_with_lease(self, limit=50, min_age_seconds=21600,
+                                        lease_owner=None, lease_token=None):
         """Refresh due uploaded videos in one quota-efficient videos.list request."""
         video_ids = self.store.due_metric_video_ids(limit, min_age_seconds)
         if not video_ids:
@@ -800,13 +823,35 @@ class YouTubePublisher:
             }
         }
 
-    def refresh_metrics(self,video_id):
-        service=self._service()
-        response=service.videos().list(part="statistics,status",id=video_id).execute()
-        items=response.get("items",[])
-        if not items:
-            raise YouTubeUploadError("Video not found or inaccessible")
-        item=items[0]
-        self.store.snapshot(video_id,item.get("statistics",{}))
-        return {"video_id":video_id,"statistics":item.get("statistics",{}),
-                "status":item.get("status",{}),"source":"YouTube Data API v3"}
+    def refresh_metrics(self, video_id, lease_owner=None, lease_token=None):
+        acquired = False
+        if lease_owner is None and lease_token is None:
+            lease_owner = f"youtube-metrics-manual:{uuid.uuid4().hex}"
+            lease_token = self.store.acquire_metrics_collector_lease(
+                lease_owner, lease_seconds=300,
+            )
+            if lease_token is None:
+                raise YouTubeUploadError(
+                    "YouTube metrics collection is already in progress"
+                )
+            acquired = True
+        elif not lease_owner or not lease_token:
+            raise ValueError("Both metrics collector lease owner and token are required")
+        try:
+            service = self._service()
+            response = service.videos().list(
+                part="statistics,status", id=video_id
+            ).execute()
+            items = response.get("items", [])
+            if not items:
+                raise YouTubeUploadError("Video not found or inaccessible")
+            item = items[0]
+            self.store.snapshot(
+                video_id, item.get("statistics", {}),
+                lease_owner=lease_owner, lease_token=lease_token,
+            )
+            return {"video_id": video_id, "statistics": item.get("statistics", {}),
+                    "status": item.get("status", {}), "source": "YouTube Data API v3"}
+        finally:
+            if acquired:
+                self.store.release_metrics_collector_lease(lease_owner, lease_token)
