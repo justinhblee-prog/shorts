@@ -1190,4 +1190,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Normalize cohort medians to finite nonnegative metrics and derive evidence status from validated counts.
 - Preserve display-only cohort context; ranking adjustment remains zero.
 - Add regression coverage for invalid and valid cohort aggregates.
-- Validation pending GitHub Actions on the BUILD-00146 branch.
+- GitHub Actions run [43802473568](https://github.com/justinhblee-prog/shorts/actions/runs/43802473568) passed the complete `scripts/validate.sh` workflow on the regression-test commit.
