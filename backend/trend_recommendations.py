@@ -215,8 +215,10 @@ def _novelty_scores(trends):
 
 def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=None,
                           performance_by_brand=None, performance_videos=None,
-                          performance_cohorts=None):
-    """Rank collected trends for editorial review; never fabricate demand or revenue."""
+                          performance_cohorts=None, platform="youtube"):
+    """Rank collected trends for one platform; never mix cross-platform outcomes."""
+    if platform not in ("youtube", "tiktok"):
+        raise ValueError("platform must be youtube or tiktok")
     now = now or datetime.now(timezone.utc)
     performance_by_brand = performance_by_brand or {}
     performance_videos = performance_videos or []
@@ -335,6 +337,7 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
         if source_evidence < 10:
             evidence_gaps.append("trend_source_provenance_incomplete")
         ranked.append({
+            "platform": platform,
             "trend": trend, "recommendation_score": score,
             "freshness_score": freshness, "source_evidence_score": source_evidence,
             "topic_distinctiveness_score": novelty,
