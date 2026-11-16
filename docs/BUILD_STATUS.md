@@ -1173,3 +1173,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Refresh the top-level validation checkpoint to the latest verified BUILD-00140 CI run.
 - Replace the stale 408-test summary with the current 466-test result and link to the exact GitHub Actions run.
 - Keep all live-provider, account, deployment and revenue limitations explicit.
+
+
+## BUILD-00144 — reject malformed metrics in performance insights
+
+- Ignore boolean retention coordinates so Python booleans cannot masquerade as normalized 0/1 ratios.
+- Reject non-finite and overflowing duration inputs; NaN no longer falls through to the longest-duration bucket.
+- Add regression tests for boolean coordinates, numeric overflow, NaN and infinities.
+- Draft PR [#138](https://github.com/justinhblee-prog/shorts/pull/138) is open; GitHub Actions validation is pending.
