@@ -1469,6 +1469,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression tests for approval/rejection synchronization, audit provenance, and queue-state mismatch rollback.
 - Preserve the separate publication boundary: approval alone does not invoke YouTube/TikTok publishers; platform upload remains a distinct explicit operator action with its own artifact-integrity, policy and platform-specific gates.
 - Automated tests use local SQLite/fake provider fixtures only; no live YouTube/TikTok account or external AI provider validation is claimed.
+- GitHub Actions runs [43820319862](https://github.com/justinhblee-prog/shorts/actions/runs/43820319862) and [43820326868](https://github.com/justinhblee-prog/shorts/actions/runs/43820326868) passed the complete `scripts/validate.sh` workflow, including 530 backend tests. The initial run exposed the expected second-review transition after media staging; the queue is now explicitly reopened with an audit event before fresh approval.
 
 
 - Follow-up hardening: when an approved production is explicitly returned to `review_pending` for a new artifact/review pass, atomically reopen its queue row and append a `review_reopened` event. This supports a fresh approval after media staging or artifact changes without leaving the queue falsely approved.
