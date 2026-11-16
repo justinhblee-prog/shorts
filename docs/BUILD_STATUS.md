@@ -2054,4 +2054,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Atomically pause the production queue and terminalize active production leases before allowing the replacement generation to proceed.
 - Preserve normal idle worker restarts: registering a new generation without an active production lease does not pause the queue.
 - Add queue-level regressions for active-work restart fencing and idle restart behavior.
-- GitHub Actions validation pending. Tests use a local SQLite database; no live multi-process production deployment validation is claimed.
+- GitHub Actions [run #3502](https://github.com/justinhblee-prog/shorts/actions/runs/43917014131) succeeded on commit `e1cc9bb9c3a14c19ba0255793e3520c79e09d783`; `scripts/validate.sh` passed. Tests use a local SQLite database; no live multi-process production deployment validation is claimed.
