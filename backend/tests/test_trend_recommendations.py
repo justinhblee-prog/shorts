@@ -391,5 +391,30 @@ class TrendRecommendationTests(unittest.TestCase):
                 self.assertEqual(ranked[0]["score_breakdown"]["brand_fit"], 0)
 
 
+    def test_malformed_trend_batch_entries_are_isolated(self):
+        now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+        valid = {
+            "id": "valid-after-invalid",
+            "title": "AI technology explained",
+            "region": "US",
+            "published_at": now.isoformat(),
+            "source": "google_news_rss",
+            "url": "https://news.example/valid",
+        }
+        ranked = rank_trend_candidates(
+            [None, "invalid", 42, [], {"title": None}, valid],
+            [None, "invalid", {"name": "AI Brand", "active": True,
+                               "config": {"positioning": "AI technology",
+                                          "regions": ["US"]}}],
+            now=now,
+        )
+        self.assertEqual(len(ranked), 1)
+        self.assertEqual(ranked[0]["trend"]["id"], "valid-after-invalid")
+
+    def test_non_list_trend_and_brand_batches_fail_closed_to_empty(self):
+        self.assertEqual(rank_trend_candidates(None, [], now=datetime.now(timezone.utc)), [])
+        self.assertEqual(rank_trend_candidates("not-a-list", {}, now=datetime.now(timezone.utc)), [])
+
+
 if __name__ == "__main__":
     unittest.main()
