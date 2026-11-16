@@ -262,4 +262,50 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(tuple(run),("failed_terminal","lease_expired_ambiguous"))
   self.assertTrue(self.q.is_paused())
 
+
+ def test_operator_reconciliation_authorizes_one_retry_only_with_evidence(self):
+  job=self.q.enqueue("short_video_production",{"topic":"ambiguous"},max_attempts=1)
+  with self.q.db() as c:
+   c.execute("""CREATE TABLE production_runs(
+    job_id TEXT PRIMARY KEY,status TEXT,current_stage TEXT,error TEXT,updated_at TEXT)""")
+   c.execute("INSERT INTO production_runs VALUES(?,?,?,?,?)",
+             (job["id"],"failed_terminal","lease_expired_ambiguous","uncertain","now"))
+  self.q.claim("worker-lost")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(job["id"],))
+  self.q.recover()
+  self.assertEqual(len(self.q.ambiguous_production_jobs()),1)
+  with self.assertRaisesRegex(ValueError,"evidence_reference"):
+   self.q.reconcile_production_retry(job["id"],"operator-1","","checked")
+  reconciled=self.q.reconcile_production_retry(
+   job["id"],"operator-1","provider-console:request-123",
+   "Provider console confirms request was rejected before execution")
+  self.assertEqual(reconciled["status"],"failed_retriable")
+  self.assertEqual(reconciled["attempt"],1)
+  self.assertEqual(reconciled["max_attempts"],2)
+  self.assertTrue(self.q.is_paused())
+  with self.q.db() as c:
+   run=c.execute("SELECT status,current_stage FROM production_runs WHERE job_id=?",
+                 (job["id"],)).fetchone()
+  self.assertEqual(tuple(run),("queued","operator_reconciled_retry_authorized"))
+  events=self.q.production_reconciliation_events(job["id"])
+  self.assertEqual(len(events),1)
+  self.assertEqual(events[0]["operator_id"],"operator-1")
+  self.assertEqual(events[0]["evidence_reference"],"provider-console:request-123")
+  with self.assertRaisesRegex(ValueError,"not awaiting"):
+   self.q.reconcile_production_retry(
+    job["id"],"operator-1","provider-console:request-123","duplicate action")
+  with self.q.db() as c:
+   with self.assertRaises(Exception):
+    c.execute("UPDATE production_reconciliation_events SET note='tampered' WHERE job_id=?",
+              (job["id"],))
+
+ def test_reconciliation_rejects_nonproduction_and_unambiguous_jobs(self):
+  ordinary=self.q.enqueue("render",{})
+  with self.assertRaises(Exception):
+   self.q.reconcile_production_retry(ordinary["id"],"operator","evidence","note")
+  production=self.q.enqueue("short_video_production",{"topic":"normal"})
+  with self.assertRaisesRegex(ValueError,"not awaiting"):
+   self.q.reconcile_production_retry(production["id"],"operator","evidence","note")
+
 if __name__=="__main__": unittest.main()

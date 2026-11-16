@@ -559,3 +559,17 @@ Values must be unsigned decimal strings with no whitespace, signs, decimals or e
 ### Worker heartbeat monitoring
 
 The authenticated `GET /api/workers` operations view reports each worker's heartbeat age and the stale threshold used for classification. `online` means the last heartbeat is within the threshold; `stale` means an expected heartbeat has stopped arriving; `offline` is reserved for a worker that completed its graceful shutdown bookkeeping. A stale worker is not automatically restarted by this view. Investigate the host/process and the associated job lease before taking recovery action. Production work with an ambiguous external-provider outcome must not be blindly replayed.
+
+
+### AI production provider outcome reconciliation — BUILD-00173
+
+A production lease expiry or cancellation during a provider request is ambiguous: the provider may have accepted or completed the request even when NEXUS did not persist the response. These jobs remain terminal and are never automatically replayed.
+
+1. Open the authenticated endpoint `GET /api/production/reconciliation` to list production jobs awaiting investigation.
+2. Inspect the provider's request/job history, usage/billing records and artifact history using the provider's own console. Do not infer that a request was rejected from a local timeout alone.
+3. Only when the provider evidence confirms that **no external side effect occurred**, call `POST /api/production/jobs/{job_id}/reconcile-retry` with `operator_id`, a stable `evidence_reference` (provider request ID or console record), and a non-empty investigation `note`.
+4. The action authorizes exactly one additional attempt by extending the attempt ceiling by one. It does not erase the original attempt count or reconciliation audit.
+5. The production queue remains paused. Review every affected job, then use the separate authenticated `POST /api/queue/resume` action with a new operator note before workers can claim production work.
+6. If the provider shows that generation completed, do **not** use the retry action. Preserve the remote artifact and escalate for a result-adoption workflow; this release intentionally does not fabricate or auto-import provider output.
+
+The append-only `production_reconciliation_events` ledger records operator, outcome, evidence reference, note, previous/resulting state and timestamp. Database triggers reject update/delete. Access requires `queue.read`, `production.read` or `queue.control` permissions as appropriate. The evidence reference is an operator-supplied pointer, not independent proof validated by NEXUS.

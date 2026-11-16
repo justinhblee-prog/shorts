@@ -113,6 +113,11 @@ class QueueControlAction(BaseModel):
     operator_id:str=Field(min_length=1,max_length=128)
     note:str=Field(min_length=1,max_length=2000)
 
+class ProductionReconciliationAction(BaseModel):
+    operator_id:str=Field(min_length=1,max_length=128)
+    evidence_reference:str=Field(min_length=1,max_length=1000)
+    note:str=Field(min_length=1,max_length=2000)
+
 class Claim(BaseModel):
     worker_id:str=Field(min_length=1,max_length=128)
     hostname:str|None=None
@@ -1101,6 +1106,36 @@ def stats(x_review_token:str|None=Header(default=None)):
 def queue_control(x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"queue.read")
     return {"control":queue.worker_control(),"events":queue.worker_control_events(30)}
+
+@app.get("/api/production/reconciliation")
+def list_production_reconciliation(limit:int=100,x_review_token:str|None=Header(default=None)):
+    require_review_permission(x_review_token,"queue.read")
+    return {"jobs":queue.ambiguous_production_jobs(limit)}
+
+@app.get("/api/production/jobs/{job_id}/reconciliation")
+def get_production_reconciliation(job_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_permission(x_review_token,"production.read")
+    try:
+        queue.get(job_id)
+        return {"events":queue.production_reconciliation_events(job_id)}
+    except JobNotFound:
+        raise HTTPException(404,"Job not found")
+
+@app.post("/api/production/jobs/{job_id}/reconcile-retry")
+def reconcile_production_retry(job_id:str,body:ProductionReconciliationAction,
+                                x_review_token:str|None=Header(default=None)):
+    require_review_permission(x_review_token,"queue.control")
+    if not body.operator_id.strip() or not body.evidence_reference.strip() or not body.note.strip():
+        raise HTTPException(422,"operator_id, evidence_reference and note must not be blank")
+    try:
+        job=queue.reconcile_production_retry(
+            job_id,body.operator_id,body.evidence_reference,body.note)
+        return {"job":job,"production_paused":queue.is_paused(),
+                "events":queue.production_reconciliation_events(job_id)}
+    except JobNotFound:
+        raise HTTPException(404,"Production job not found")
+    except ValueError as e:
+        raise HTTPException(409,str(e))
 
 @app.post("/api/queue/pause")
 def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):

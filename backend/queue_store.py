@@ -56,6 +56,20 @@ class JobQueue:
               id INTEGER PRIMARY KEY AUTOINCREMENT, event_type TEXT NOT NULL,
               actor TEXT NOT NULL, reason TEXT NOT NULL, paused_job_id TEXT,
               created_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS production_reconciliation_events(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
+              outcome TEXT NOT NULL, operator_id TEXT NOT NULL,
+              evidence_reference TEXT NOT NULL, note TEXT NOT NULL,
+              previous_status TEXT NOT NULL, resulting_status TEXT NOT NULL,
+              created_at TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS idx_production_reconciliation_job
+              ON production_reconciliation_events(job_id,id);
+            CREATE TRIGGER IF NOT EXISTS production_reconciliation_no_update
+              BEFORE UPDATE ON production_reconciliation_events
+              BEGIN SELECT RAISE(ABORT,'production reconciliation events are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS production_reconciliation_no_delete
+              BEFORE DELETE ON production_reconciliation_events
+              BEGIN SELECT RAISE(ABORT,'production reconciliation events are immutable'); END;
             INSERT OR IGNORE INTO worker_control(id,paused,updated_at)
               VALUES(1,0,'1970-01-01T00:00:00+00:00');
             """)
@@ -331,6 +345,92 @@ class JobQueue:
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             c.commit()
             return self.decode(out)
+
+    def ambiguous_production_jobs(self, limit=100):
+        """List production jobs blocked because an external provider outcome is unknown."""
+        bounded = max(1, min(int(limit), 200))
+        with self.db() as c:
+            rows = c.execute("""SELECT id,status,attempt,max_attempts,
+                    error_code,error_message,updated_at
+                FROM pipeline_jobs
+                WHERE job_type='short_video_production'
+                  AND status='failed_terminal'
+                  AND error_code IN (
+                    'production_lease_expired_ambiguous',
+                    'cancelled_external_outcome_ambiguous'
+                  )
+                ORDER BY updated_at DESC,id LIMIT ?""", (bounded,)).fetchall()
+            return [dict(row) for row in rows]
+
+    def reconcile_production_retry(self, job_id, operator_id, evidence_reference, note):
+        """Authorize exactly one new attempt only after an operator proves no side effect occurred.
+
+        The global production pause is intentionally retained. Resuming the queue is a
+        separate explicit control action after all affected work has been reviewed.
+        """
+        operator_id = str(operator_id or "").strip()
+        evidence_reference = str(evidence_reference or "").strip()
+        note = str(note or "").strip()
+        if not operator_id or len(operator_id) > 128:
+            raise ValueError("operator_id is required and must be at most 128 characters")
+        if not evidence_reference or len(evidence_reference) > 1000:
+            raise ValueError("evidence_reference is required and must be at most 1000 characters")
+        if not note or len(note) > 2000:
+            raise ValueError("note is required and must be at most 2000 characters")
+        timestamp = stamp(now())
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row = c.execute("""SELECT * FROM pipeline_jobs
+                WHERE id=? AND job_type='short_video_production'""", (job_id,)).fetchone()
+            if row is None:
+                raise JobNotFound()
+            if (row["status"] != "failed_terminal" or row["error_code"] not in (
+                "production_lease_expired_ambiguous",
+                "cancelled_external_outcome_ambiguous",
+            )):
+                raise ValueError("Job is not awaiting ambiguous production reconciliation")
+            previous_status = row["status"]
+            next_attempt_ceiling = max(row["max_attempts"], row["attempt"] + 1)
+            updated = c.execute("""UPDATE pipeline_jobs SET status='failed_retriable',
+                max_attempts=?,available_at=?,updated_at=?,
+                error_code='operator_reconciled_no_side_effect',error_message=?
+                WHERE id=? AND status='failed_terminal' AND error_code=?""",
+                (next_attempt_ceiling, timestamp, timestamp,
+                 ("Operator confirmed no external side effect: " + note)[:2000],
+                 job_id, row["error_code"]))
+            if updated.rowcount != 1:
+                raise ValueError("Job state changed during reconciliation")
+            has_runs = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+            ).fetchone()
+            if has_runs:
+                c.execute("""UPDATE production_runs SET status='queued',
+                    current_stage='operator_reconciled_retry_authorized',
+                    error=?,updated_at=? WHERE job_id=?
+                    AND status NOT IN ('approved','uploaded')""",
+                    (("Operator authorized one retry: " + note)[:2000], timestamp, job_id))
+            c.execute("""INSERT INTO production_reconciliation_events
+                (job_id,outcome,operator_id,evidence_reference,note,
+                 previous_status,resulting_status,created_at)
+                VALUES(?,?,?,?,?,?,?,?)""",
+                (job_id,"confirmed_no_external_side_effect",operator_id,
+                 evidence_reference,note,previous_status,"failed_retriable",timestamp))
+            self.event(c,job_id,"operator_reconciliation",previous_status,
+                "failed_retriable",None,{
+                    "outcome":"confirmed_no_external_side_effect",
+                    "operator_id":operator_id,
+                    "evidence_reference":evidence_reference,
+                    "retry_attempt_ceiling":next_attempt_ceiling,
+                })
+            result = c.execute("SELECT * FROM pipeline_jobs WHERE id=?", (job_id,)).fetchone()
+            c.commit()
+            return self.decode(result)
+
+    def production_reconciliation_events(self, job_id):
+        with self.db() as c:
+            return [dict(row) for row in c.execute("""SELECT * FROM
+                production_reconciliation_events WHERE job_id=? ORDER BY id""",
+                (job_id,)).fetchall()]
 
     def recover(self):
         n=stamp(now()); recovered=0; terminal=0
