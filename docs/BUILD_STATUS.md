@@ -2008,4 +2008,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add scheduled-collector regressions where lease renewal succeeds before collection but fails immediately after the provider batch returns; completed results must not be persisted as success.
 - Cover provider-error handling when the lease is lost concurrently; the stale worker must not write a failed collection state either.
 - Verify the collector releases only its own lease in both cases.
-- Local unit-test coverage only; GitHub Actions validation pending. No live YouTube OAuth or Analytics API validation is claimed.
+- GitHub Actions [run #3484](https://github.com/justinhblee-prog/shorts/actions/runs/43913434527) succeeded on commit `22f456ea042f1441917b9c56e872aff4bd030b41`; `scripts/validate.sh` passed. Mocked-store/collector tests only; no live YouTube OAuth or Analytics API validation is claimed.
