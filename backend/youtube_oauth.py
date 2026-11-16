@@ -281,8 +281,9 @@ class YouTubeOAuthManager:
             missing = [scope.rsplit("/", 1)[-1] for scope in REQUIRED_SCOPES if scope not in scopes]
             return {
                 "connected": not missing,
-                "status": "connected" if not missing else "reauthorization_required",
+                "status": "authorized_token_stored" if not missing else "reauthorization_required",
                 "scopes": sorted(scope.rsplit("/", 1)[-1] for scope in scopes),
+                "live_connectivity_verified": False,
                 "missing_scopes": missing,
                 "updated_at": row["updated_at"],
                 "mode": "encrypted_oauth",
@@ -292,6 +293,7 @@ class YouTubeOAuthManager:
                 "connected": True, "status": "static_env",
                 "mode": "environment_refresh_token",
                 "scope_verification": "not_available",
+                "live_connectivity_verified": False,
             }
         return {"connected": False, "status": "disconnected", "mode": "none"}
 
