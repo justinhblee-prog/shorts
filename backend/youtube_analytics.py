@@ -215,6 +215,8 @@ class YouTubeAnalyticsStore:
             raise ValueError("Invalid YouTube Analytics collection status")
         stamp = _now()
         with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._assert_lease(connection, lease_owner, lease_token)
             connection.execute("""
                 INSERT INTO youtube_analytics_collection_state
                   (id,status,last_attempt_at,last_success_at,last_error,requested,
