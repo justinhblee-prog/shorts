@@ -185,7 +185,23 @@ class TikTokPublishingTests(unittest.TestCase):
         ))
 
     def test_superseded_tiktok_attempt_uncertainty_blocks_new_attempt(self):
-        first_attempt = self._uncertain_tiktok_attempt()
+        first_attempt = "uncertain-attempt-001"
+        self.store.begin(
+            "job-1", "Approved caption", True, "operator-1",
+            first_attempt, False, False,
+        )
+        self.store.set_initialized(
+            "job-1", first_attempt, "old-publish-id",
+            {"creator_username": "creator", "creator_nickname": "Creator"},
+        )
+        self.store.mark_uncertain(
+            "job-1", first_attempt, "initial upload response became uncertain",
+        )
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_publications SET updated_at=? WHERE job_id=?",
+                ("2000-01-01T00:00:00+00:00", "job-1"),
+            )
         self.store.reconcile(
             "job-1", "not_published", "operator-ops",
             "Verified no post existed before retry", confirmed=True,
@@ -203,6 +219,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(current["attempt_id"], "retry-attempt-002")
         self.assertEqual(current["events"][-1]["event_type"], "superseded_attempt_uncertain")
         self.assertEqual(current["events"][-1]["attempt_id"], first_attempt)
+        self.assertEqual(current["events"][-1]["publish_id"], "old-publish-id")
         with self.assertRaisesRegex(TikTokPublishError, "unresolved or already active"):
             self.store.begin(
                 "job-1", "Third attempt", True, "operator-1",
