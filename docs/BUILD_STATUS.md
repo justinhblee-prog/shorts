@@ -1467,5 +1467,6 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Commit the immutable reviewer decision, production status, queue status and queue audit event in one SQLite transaction.
 - Synchronize `approved`, `rejected` and `revision_requested` states and clear stale worker lease fields.
 - Fail closed on missing, mismatched or non-pending queue records; no partial production-only decision is allowed.
+- Reopen an approved production and queue atomically when media staging changes the artifact fingerprint, with a dedicated audit event and a mandatory fresh human approval.
 - Add regression coverage for all three decision types and queue-state mismatch rollback.
 - CI validation pending.
