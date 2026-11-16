@@ -742,7 +742,9 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(item["job_id"], job_id)
         self.assertEqual(item["classification"], "approval_or_upload_boundary")
         self.assertIn("automatic promotion is prohibited", item["reason"])
-        self.assertEqual(item["audit_history"][0]["details"]["operator_id"], "review-operator")
+        reconciliation = next(event for event in item["audit_history"]
+                               if event["event_type"] == "operator_reconciliation")
+        self.assertEqual(reconciliation["details"]["operator_id"], "review-operator")
         self.assertNotIn("secret", str(item["audit_history"]))
         self.assertEqual(self.store.get(job_id)["status"], "approved")
         self.assertEqual(queue.get(job_id)["status"], "review_pending")
