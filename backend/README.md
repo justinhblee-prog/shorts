@@ -538,7 +538,7 @@ NEXUS_REVIEW_CREDENTIALS_JSON='{"alice":"REPLACE_WITH_48_PLUS_RANDOM_CHARACTERS"
 NEXUS_REVIEW_ROLE_MAP_JSON='{"alice":["admin"],"bob":["reviewer"]}'
 ```
 
-Tokens must be unique and 32–512 ASCII characters. If `NEXUS_REVIEW_CREDENTIALS_JSON` is configured, it replaces the legacy shared `NEXUS_REVIEW_TOKEN`; legacy mode maps to the fixed identity `legacy-operator`. If no role map is configured, all authenticated operators retain wildcard permissions for migration compatibility. Set an explicit role map before inviting multiple operators.
+Tokens must be unique and 32–512 ASCII characters. If `NEXUS_REVIEW_CREDENTIALS_JSON` is configured, it replaces the legacy shared `NEXUS_REVIEW_TOKEN`; legacy mode maps to the fixed identity `legacy-operator`. Per-operator credentials require an explicit role map; if it is missing, role-protected requests fail closed with HTTP 503. Only legacy single-token migration mode without a role map retains wildcard permissions. Configure the role map before switching to individual operator tokens.
 
 Available roles: admin, producer, reviewer, publisher, analyst, operator, finance and worker. Every protected route has an explicit permission guard. Review actions use the authenticated operator identity rather than caller-supplied reviewer IDs.
 
