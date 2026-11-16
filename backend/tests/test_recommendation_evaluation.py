@@ -680,3 +680,39 @@ if __name__ == "__main__":
             datetime.fromisoformat(result["holdout_end"]),
             base + timedelta(days=9),
         )
+
+
+    def test_exposure_deduplication_uses_a_bounded_symmetric_time_window(self):
+        later = self.store.record_run(
+            "US", [self.item(150, 82.5)], "2026-11-01T00:05:00Z"
+        )
+        earlier = self.store.record_run(
+            "US", [self.item(150, 82.5)], "2026-11-01T00:00:00Z"
+        )
+        self.assertNotEqual(later["run_id"], earlier["run_id"])
+        self.assertFalse(earlier["deduplicated"])
+
+        near = self.store.record_run(
+            "US", [self.item(151, 82.5)], "2026-11-01T00:00:00Z"
+        )
+        repeated = self.store.record_run(
+            "US", [self.item(151, 82.5)], "2026-11-01T00:01:00Z"
+        )
+        self.assertEqual(near["run_id"], repeated["run_id"])
+        self.assertTrue(repeated["deduplicated"])
+
+    def test_timestamp_ingress_canonicalizes_offsets_to_utc_for_storage(self):
+        exposure = self.store.record_run(
+            "US", [self.item(152, 82.5)], "2026-11-01T09:00:00+09:00"
+        )
+        with self.store.db() as connection:
+            stored = connection.execute(
+                "SELECT generated_at FROM recommendation_runs WHERE id=?",
+                (exposure["run_id"],),
+            ).fetchone()["generated_at"]
+        self.assertEqual(stored, "2026-11-01T00:00:00+00:00")
+        same_instant = self.store.record_run(
+            "US", [self.item(152, 82.5)], "2026-11-01T00:00:30Z"
+        )
+        self.assertEqual(same_instant["run_id"], exposure["run_id"])
+        self.assertTrue(same_instant["deduplicated"])
