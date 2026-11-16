@@ -1418,3 +1418,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Keep ambiguous short-video production outcomes terminal, update the associated production run, and pause production pending explicit operator reconciliation; never replay a potentially completed provider request automatically.
 - Add regression coverage for path parity, exhausted attempts, production-run synchronization, audit details and stale-worker fencing.
 - GitHub Actions run [43815743528](https://github.com/justinhblee-prog/shorts/actions/runs/43815743528) passed the complete `scripts/validate.sh` workflow, including 518 backend tests.
+
+
+## BUILD-00173 — operator reconciliation for ambiguous AI production outcomes
+
+- Add an authenticated endpoint to list production jobs blocked after an ambiguous provider outcome.
+- Permit a retry only when an operator explicitly confirms, with a provider-console/request evidence reference and investigation note, that no external side effect occurred.
+- Authorize exactly one additional attempt without resetting historical attempt counts; keep the global production pause in place until a separate explicit resume action.
+- Add append-only reconciliation audit records protected against UPDATE/DELETE and synchronize the production run state atomically with the queue transition.
+- If provider history shows generation completed, the retry action is not applicable; result adoption remains a separate follow-up and no provider result is fabricated.
+- CI validation pending.
