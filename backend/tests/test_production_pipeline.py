@@ -114,7 +114,7 @@ class ProductionTests(unittest.TestCase):
         attempts=self.store.provider_attempts("job-1")
         self.assertEqual([item["stage"] for item in attempts],
                          ["script","voice_generation","rendering"])
-        self.assertTrue(all(item["state"]=="response_received" for item in attempts))
+        self.assertTrue(all(item["state"]=="adopted" for item in attempts))
         self.assertTrue(all(item["response_json"] for item in attempts))
 
     def test_pipeline_transcribes_generated_audio_and_records_script_alignment(self):
