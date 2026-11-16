@@ -963,4 +963,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Preserve the existing `end_to_end_configured` field as the YouTube-oriented compatibility summary.
 - Add regression tests for optional provider tokens, TikTok OAuth readiness, static-token fallback, secret redaction and fail-closed empty configuration.
 - Configuration checks do not verify live provider compatibility, OAuth scopes, creator permissions, platform connectivity or publishing.
-- Validation pending on this branch.
+- GitHub Actions PR run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930) passed **326 backend tests**; `scripts/validate.sh` completed successfully. The test run covered the code head before documentation-only validation-record commits and the PR was squash-merged as `7ce6e7fd5a52d7510369c853ec0126bcefcd9527`.
