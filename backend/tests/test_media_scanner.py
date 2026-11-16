@@ -93,6 +93,19 @@ class MediaStagingScanIntegrationTests(unittest.TestCase):
             resolver=lambda host: ["8.8.8.8"], fetcher=self.fetcher,
             scanner=scanner, scan_enabled=True)
 
+    def test_invalid_scanner_configuration_fails_closed_without_blocking_stager_creation(self):
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS": "invalid"}):
+            stager = MediaStager(
+                self.tmp.name, "cdn.example.test", 1024,
+                resolver=lambda host: ["8.8.8.8"], fetcher=self.fetcher,
+                scan_enabled=True,
+            )
+            with self.assertRaisesRegex(MediaStagingError, "configuration is invalid"):
+                stager.stage("invalid-scan-config", "https://cdn.example.test/video.mp4")
+        self.assertFalse(os.path.exists(stager.staged_path("invalid-scan-config")))
+        self.assertFalse(any(name.endswith(".part") for name in os.listdir(self.tmp.name)))
+
     def test_disabled_scan_does_not_construct_optional_scanner(self):
         from unittest.mock import patch
         with patch.dict(os.environ, {"NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS": "invalid"}):
