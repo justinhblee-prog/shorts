@@ -910,3 +910,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - At upload, require the staged filename, byte length and SHA-256 to match the approved snapshot; copy verified bytes through a no-follow file descriptor into a private temporary snapshot and upload only that immutable copy.
 - Remove the temporary snapshot after success or failure. Manual staging persists the fingerprint and returns the production run to review_pending when the fingerprint changes, requiring fresh human approval.
 - Regression tests cover staged-media mutation, mismatched path and SHA-256 capture. GitHub Actions run [43780616121](https://github.com/justinhblee-prog/shorts/actions/runs/43780616121) passed **252 backend tests** and `scripts/validate.sh`. PR #83 was squash-merged into `main` as `26fcc66b2fe59cfa5521db0f02b34554bdd34259`.
+
+
+### BUILD-00026 — TikTok prohibited-AIGC policy guardrails (2026-11-16)
+
+- Refresh the local policy pack to `2026-11-16.1` after checking current official YouTube and TikTok policy references.
+- Add explicit non-overridable TikTok flags for AI-generated likenesses of minors, private adults without permission, fake authoritative/crisis content, and false public-figure endorsements.
+- Expose `policy_flags` in the human policy-evidence API and allow the review store to merge/persist these declarations.
+- Add regression tests for the policy engine, API model and review-store evidence update. CI validation pending.
