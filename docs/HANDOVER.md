@@ -866,4 +866,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Renderer staging records SHA-256 and byte length in rendering artifact metadata.
 - Upload requires staged filename and bytes to match the human-approved fingerprint, then uploads a private immutable snapshot rather than the mutable staging path.
 - Manual restaging persists the fingerprint and resets the production run to review_pending when it changes, requiring fresh human approval.
-- Regression tests cover media mutation, filename mismatch and fingerprint generation. CI validation pending.
+- Regression tests cover media mutation, filename mismatch and fingerprint generation. GitHub Actions run [43780616121](https://github.com/justinhblee-prog/shorts/actions/runs/43780616121) passed **252 backend tests** and `scripts/validate.sh`. PR #83 was squash-merged into `main` as `26fcc66b2fe59cfa5521db0f02b34554bdd34259`.
