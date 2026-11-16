@@ -73,6 +73,26 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(rows[1]["recommendation_score"], 80.0)
         self.assertIsNone(json.loads(rows[1]["cohort_context_json"])["bad"])
 
+    def test_record_run_rejects_trend_ids_that_cannot_be_linked(self):
+        valid = self.item(99, 80)
+        oversized = self.item(100, 81)
+        oversized["trend"]["id"] = "T" * 161
+        exposure = self.store.record_run(
+            "US", [oversized, valid], "2026-11-01T00:00:00Z"
+        )
+        self.assertEqual(exposure["recorded_candidates"], 1)
+        with self.store.db() as connection:
+            trend_ids = [row[0] for row in connection.execute(
+                "SELECT trend_id FROM recommendation_candidates WHERE run_id=?",
+                (exposure["run_id"],),
+            ).fetchall()]
+        self.assertEqual(trend_ids, ["trend-99"])
+        linked = self.store.link_production(
+            "trend-99", "future-leak", "job-valid-trend-id",
+            run_id=exposure["run_id"],
+        )
+        self.assertTrue(linked["linked"])
+
     def test_record_run_rejects_invalid_timestamp_and_region_before_writing(self):
         for timestamp in ("not-a-date", "", [], "2026-99-99T00:00:00Z"):
             with self.subTest(timestamp=timestamp):
