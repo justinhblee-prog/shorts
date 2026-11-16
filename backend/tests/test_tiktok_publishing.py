@@ -767,6 +767,24 @@ class TikTokPublishingTests(unittest.TestCase):
             self.store.due_status_job_ids(limit=5, min_age_seconds=60), []
         )
 
+    def test_stale_poll_error_does_not_schedule_retry_for_changed_state(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        self.store.mark_status("job-1", attempt_id, "PROCESSING_UPLOAD", [], None)
+        before = self.store.get("job-1")
+        result = self.store.record_status_poll_error(
+            "job-1", attempt_id, "late timeout from prior poll",
+            expected_status="uploading",
+        )
+        self.assertFalse(result)
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], "processing")
+        self.assertEqual(after["updated_at"], before["updated_at"])
+        self.assertEqual(len(after["events"]), len(before["events"]))
+
     def test_scheduler_poll_backoff_grows_and_success_resets_it(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
