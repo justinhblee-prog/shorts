@@ -1930,3 +1930,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Existing worker_registry databases receive an additive nullable column migration. Legacy offline calls without a generation token fail closed.
 - Added regressions for stale-generation shutdown and missing generation tokens.
 - Backend deterministic CI only; no multi-host production database test is claimed.
+
+
+## BUILD-00238 — Bind Worker generation to process lifetime
+- Worker runtime registers exactly once at process startup and retains that returned generation token for graceful shutdown.
+- Removed per-poll registration, which would otherwise rotate the token repeatedly and make process-scoped fencing meaningless.
+- Shutdown now supplies the retained token; stale process shutdown is rejected by the registry compare-and-set.
+- CI validates repository tests; no real multi-process production deployment is claimed.

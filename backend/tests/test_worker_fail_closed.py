@@ -151,6 +151,26 @@ class WorkerFailClosedTests(unittest.TestCase):
         fail.assert_not_called()
         pause.assert_called_once()
         self.assertTrue(worker.stopping.is_set())
+    def test_main_registers_once_and_uses_process_generation_on_shutdown(self):
+        worker.stopping.clear()
+        registration = {"generation_token": "process-generation-1"}
+
+        def stop_after_idle(_timeout):
+            worker.stopping.set()
+            return True
+
+        with (
+            mock.patch.object(worker.signal, "signal"),
+            mock.patch.object(worker.queue, "register_worker", return_value=registration) as register,
+            mock.patch.object(worker.queue, "is_paused", return_value=False),
+            mock.patch.object(worker.stopping, "wait", side_effect=stop_after_idle),
+            mock.patch.object(worker.queue, "mark_worker_offline") as offline,
+        ):
+            worker.main()
+
+        register.assert_called_once_with(worker.WORKER_ID, worker.socket.gethostname())
+        offline.assert_called_once_with(worker.WORKER_ID, "process-generation-1")
+
     def test_main_does_not_claim_another_job_after_stop_flag(self):
         worker.stopping.set()
         with (
