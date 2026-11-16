@@ -1250,3 +1250,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Each stored brand candidate retains its own fit score and comparable-cohort context. The trend-level rank and recommendation score remain unchanged.
 - Exposure deduplication now includes every selectable brand option and its candidate-specific evidence.
 - Regression coverage verifies alternate-brand linking and deduplication when available brand choices change.
+
+
+### BUILD-00140 validation
+
+- GitHub Actions PR run [43798824433](https://github.com/justinhblee-prog/shorts/actions/runs/43798824433) completed successfully.
+- Backend suite: **466 tests, OK**.
+- The full `scripts/validate.sh` command completed successfully.
+- This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
