@@ -403,4 +403,4 @@ Legacy `.tar.gz` archives remain restorable while encryption-required mode is fa
 5. Set `NEXUS_MEDIA_SCAN_ENABLED=true` and recreate the API container. Verify the readiness panel reports the malware scanner configured before allowing production staging.
 6. If the signature volume is empty or stale, scanner exit code 2/timeouts fail closed and renderer artifacts are not published. Keep the updater running to refresh signatures.
 
-ClamAV adds image size and signature-volume storage. CI validates the fail-closed integration with stubs only; it does not verify live signatures or actual malware detection. Keep HTTPS host allowlists, byte limits, MP4 validation and human approval in place.
+ClamAV adds image size and signature-volume storage. CI validates the fail-closed integration with stubs only; it does not verify live signatures or actual malware detection. Scanner limits are aligned with `NEXUS_MAX_MEDIA_BYTES`; oversized/incomplete scans are rejected rather than treated as clean. Keep HTTPS host allowlists, byte limits, MP4 validation and human approval in place.
