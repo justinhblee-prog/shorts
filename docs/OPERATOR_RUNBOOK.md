@@ -404,3 +404,16 @@ Legacy `.tar.gz` archives remain restorable while encryption-required mode is fa
 6. If the signature volume is empty or stale, scanner exit code 2/timeouts fail closed and renderer artifacts are not published. Keep the updater running to refresh signatures.
 
 ClamAV adds image size and signature-volume storage. CI validates the fail-closed integration with stubs only; it does not verify live signatures or actual malware detection. Scanner limits are aligned with `NEXUS_MAX_MEDIA_BYTES`; oversized/incomplete scans are rejected rather than treated as clean. Keep HTTPS host allowlists, byte limits, MP4 validation and human approval in place.
+
+
+### BUILD-00132 — interpreting YouTube retention insights
+
+- Review `retention_diagnostics.largest_dropoff` to identify the video-time interval with the largest adjacent observed audience-watch-ratio decline. This locates a segment; it does not establish why viewers left.
+- Compare `analytics_cohorts.metrics` only when `evidence_status=observed`. The cohort requires at least three videos matched on brand, region, publication age, render duration, format and exact topic-token signature.
+- Video-level above/below-median observations are hypotheses for controlled creative tests, not ranking boosts. The API keeps `ranking_score_adjustment=0` until held-out validation supports a change.
+- No synthetic or inferred retention metrics are generated when YouTube Analytics reports are missing or ineligible.
+
+
+### BUILD-00132 validation checkpoint
+
+GitHub Actions run [43794456586](https://github.com/justinhblee-prog/shorts/actions/runs/43794456586) passed **431 backend tests** and the complete validation script. This verifies code paths with synthetic fixtures; it does not prove that a live YouTube channel has enough authorized Analytics reports to populate matched cohorts.

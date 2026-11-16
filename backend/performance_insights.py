@@ -1,5 +1,6 @@
 """Evidence-bound performance analysis; no synthetic metrics or predictive claims."""
 import json
+import math
 import re
 import sqlite3
 import statistics
@@ -77,6 +78,60 @@ def _render_format(metadata):
     # All production jobs in this pipeline request 9:16; distinguish requested
     # format from verified rendered dimensions when the provider omits metadata.
     return "vertical_short_requested"
+
+
+def _retention_diagnostics(curve):
+    """Summarize observed adjacent retention changes without inferring causes."""
+    points = []
+    for point in curve if isinstance(curve, list) else []:
+        if not isinstance(point, dict):
+            continue
+        position = point.get("elapsed_video_time_ratio")
+        audience = point.get("audience_watch_ratio")
+        try:
+            position = float(position)
+            audience = float(audience)
+        except (TypeError, ValueError):
+            continue
+        if not (0 <= position <= 1 and 0 <= audience <= 1):
+            continue
+        if not (math.isfinite(position) and math.isfinite(audience)):
+            continue
+        points.append((position, audience))
+    points.sort(key=lambda item: item[0])
+    if not points:
+        return {
+            "status": "unavailable",
+            "point_count": 0,
+            "early_retention": None,
+            "end_retention": None,
+            "largest_dropoff": None,
+        }
+
+    early = next((audience for position, audience in points if position <= 0.1), None)
+    largest = None
+    for (start_position, start_value), (end_position, end_value) in zip(points, points[1:]):
+        drop = start_value - end_value
+        if drop > 0 and (largest is None or drop > largest["drop"]):
+            largest = {
+                "start_video_ratio": start_position,
+                "end_video_ratio": end_position,
+                "drop": drop,
+            }
+    if largest:
+        largest = {
+            "start_video_ratio": largest["start_video_ratio"],
+            "end_video_ratio": largest["end_video_ratio"],
+            "drop_percentage_points": round(largest["drop"] * 100, 2),
+        }
+    return {
+        "status": "available",
+        "point_count": len(points),
+        "early_retention": round(early, 4) if early is not None else None,
+        "end_retention": round(points[-1][1], 4),
+        "largest_dropoff": largest,
+    }
+
 
 
 class PerformanceAnalyzer:
@@ -440,6 +495,9 @@ class PerformanceAnalyzer:
                 )
             except (TypeError, ValueError):
                 result["audience_retention_curve"] = []
+            result["retention_diagnostics"] = _retention_diagnostics(
+                result["audience_retention_curve"]
+            )
             if result["publication_age_bucket"] == "unknown" and result.get("analytics_collected_at"):
                 result["publication_age_bucket"] = _publication_age_bucket(
                     video["uploaded_at"], result["analytics_collected_at"]
@@ -525,6 +583,110 @@ class PerformanceAnalyzer:
                 brand_row["unmeasured_videos"] += 1
                 region_row["unmeasured_videos"] += 1
             video_results.append(result)
+
+        # Compare retention metrics only inside tightly matched, sufficiently
+        # populated cohorts. These observations are explanatory, never ranking
+        # score inputs; sparse cohorts remain explicitly limited.
+        analytics_groups = {}
+        for video in video_results:
+            if video.get("analytics_status") != "available":
+                continue
+            # Unknown age/duration buckets are not a defensible matched cohort.
+            if video.get("publication_age_bucket") == "unknown" or video.get("duration_bucket") == "unknown":
+                continue
+            if not any(isinstance(video.get(field), (int, float)) for field in (
+                "average_view_percentage", "average_view_duration_seconds",
+                "engaged_view_share",
+            )):
+                continue
+            key = (
+                str(video.get("brand") or "unknown"),
+                str(video.get("region") or "unknown").upper(),
+                video.get("publication_age_bucket", "unknown"),
+                video.get("duration_bucket", "unknown"),
+                video.get("format", "unknown"),
+                video.get("topic_signature", "unknown"),
+            )
+            group = analytics_groups.setdefault(key, {
+                "brand": key[0], "region": key[1],
+                "publication_age_bucket": key[2], "duration_bucket": key[3],
+                "format": key[4], "topic_signature": key[5],
+                "videos": [],
+            })
+            group["videos"].append(video)
+
+        analytics_cohorts = []
+        for group in analytics_groups.values():
+            metric_fields = (
+                "average_view_percentage",
+                "average_view_duration_seconds",
+                "engaged_view_share",
+            )
+            metric_samples = {}
+            for field in metric_fields:
+                values = [
+                    float(video[field]) for video in group["videos"]
+                    if isinstance(video.get(field), (int, float))
+                    and math.isfinite(float(video[field]))
+                ]
+                metric_samples[field] = values
+            cohort_size = len(group["videos"])
+            cohort = {
+                key: value for key, value in group.items() if key != "videos"
+            }
+            cohort["video_count"] = cohort_size
+            cohort["metrics"] = {}
+            cohort["evidence_status"] = "limited" if cohort_size < 3 else "observed"
+            cohort["ranking_score_adjustment"] = 0
+            cohort["usage"] = "descriptive_only_pending_held_out_validation"
+            for field, values in metric_samples.items():
+                cohort["metrics"][field] = {
+                    "sample_count": len(values),
+                    "median": round(statistics.median(values), 4)
+                    if values else None,
+                }
+            for video in group["videos"]:
+                comparisons = {}
+                for field, values in metric_samples.items():
+                    sample_count = len(values)
+                    median = statistics.median(values) if values else None
+                    observed = video.get(field)
+                    comparisons[field] = {
+                        "status": "comparable" if sample_count >= 3 else "insufficient_sample",
+                        "sample_count": sample_count,
+                        "cohort_median": round(median, 4) if median is not None else None,
+                        "difference_from_median": (
+                            round(float(observed) - median, 4)
+                            if sample_count >= 3 and isinstance(observed, (int, float))
+                            else None
+                        ),
+                    }
+                video["analytics_cohort_comparison"] = comparisons
+                percentage_comparison = comparisons["average_view_percentage"]
+                if percentage_comparison["status"] == "comparable":
+                    difference = percentage_comparison["difference_from_median"]
+                    if difference is not None and difference < 0:
+                        video.setdefault("analytics_observations", []).append({
+                            "type": "below_matched_cohort_retention",
+                            "basis": "observed_average_view_percentage_below_cohort_median",
+                            "difference_percentage_points": round(difference, 2),
+                            "action": "Review the opening hook and pacing against matched videos; test one controlled edit",
+                            "ranking_score_adjustment": 0,
+                        })
+                    elif difference is not None and difference > 0:
+                        video.setdefault("analytics_observations", []).append({
+                            "type": "above_matched_cohort_retention",
+                            "basis": "observed_average_view_percentage_above_cohort_median",
+                            "difference_percentage_points": round(difference, 2),
+                            "action": "Preserve the current pacing as a hypothesis and test one controlled variation",
+                            "ranking_score_adjustment": 0,
+                        })
+            analytics_cohorts.append(cohort)
+
+        analytics_cohorts.sort(key=lambda item: (
+            item["brand"], item["region"], item["publication_age_bucket"],
+            item["duration_bucket"], item["format"], item["topic_signature"],
+        ))
 
         for item in by_brand.values():
             rate_samples = item.pop("_views_per_hour_samples")
@@ -664,6 +826,8 @@ class PerformanceAnalyzer:
             "regions": list(by_region.values()),
             "videos": video_results,
             "cohorts": cohorts,
+            "analytics_cohorts": analytics_cohorts,
+            "analytics_cohort_method": "Brand + region + publication-age bucket + render-duration bucket + format + exact normalized topic-token signature; median comparisons require at least three measured videos and never change ranking scores.",
             "cohort_method": "Brand + region + exact normalized topic-token signature + publication-age-at-last-snapshot + duration bucket + format; descriptive only.",
             "financial": list(financial.values()),
             "limitations": [

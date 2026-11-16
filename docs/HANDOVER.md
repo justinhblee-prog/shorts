@@ -1110,3 +1110,19 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a persistent `clamav_db` volume and a `media-scan` Compose profile running `freshclam`; the API mounts signatures read-only. Preflight checks executable, signature files and timeout before reporting the feature ready.
 - Docker image now includes `clamav` and `clamav-freshclam`; image size and signature storage increase. CI uses injected scanner stubs and does not download or validate live signatures.
 - GitHub Actions run [43792634688](https://github.com/justinhblee-prog/shorts/actions/runs/43792634688) passed **427 backend tests** and `scripts/validate.sh`. No production ClamAV scan or signature refresh is claimed.
+
+
+## BUILD-00132 — YouTube retention diagnostics and matched analytics cohorts
+
+- `backend/performance_insights.py` now adds `retention_diagnostics` per video: early retention, end retention and the largest adjacent drop-off segment, calculated only from valid stored YouTube Analytics audience-watch-ratio points.
+- `analytics_cohorts` compare average view percentage, average view duration and engaged-view share across matched brand, region, publication-age, duration, format and exact normalized topic signature.
+- Comparative observations require at least three videos. Smaller groups remain `limited` / `insufficient_sample`; they do not produce above/below-median recommendations.
+- All analytics observations are descriptive and have `ranking_score_adjustment: 0`; no ranking changes or causal claims are made. Use controlled experiments and held-out data before any ranking integration.
+- CI validation pending.
+
+
+### BUILD-00132 validation record
+
+- GitHub Actions PR run [43794456586](https://github.com/justinhblee-prog/shorts/actions/runs/43794456586) completed successfully.
+- The full validation script passed with **431 backend tests**; frontend JavaScript syntax/DOM checks and Compose YAML validation are part of the script.
+- This validates deterministic logic only. Real channel Analytics access, populated production cohorts and held-out ranking impact still require live account data and subsequent evaluation.

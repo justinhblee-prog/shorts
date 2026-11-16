@@ -1077,3 +1077,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a persistent `clamav_db` volume and a `media-scan` Compose profile running `freshclam`; the API mounts signatures read-only. Preflight checks executable, signature files and timeout before reporting the feature ready.
 - Docker image now includes `clamav` and `clamav-freshclam`; image size and signature storage increase. CI uses injected scanner stubs and does not download or validate live signatures.
 - GitHub Actions run [43792634688](https://github.com/justinhblee-prog/shorts/actions/runs/43792634688) passed **427 backend tests** and `scripts/validate.sh`. No production ClamAV scan or signature refresh is claimed.
+
+
+## BUILD-00132 — evidence-gated YouTube retention diagnostics and analytics cohorts (2026-11-16)
+
+- Derive descriptive retention-curve diagnostics from stored YouTube Analytics API audience-watch-ratio points: early retention, end retention and the largest adjacent observed drop-off segment.
+- Compare average view percentage, average view duration and engaged-view share only within matched brand/region/publication-age/duration/format/exact-topic cohorts.
+- Require at least three videos in a cohort before emitting a comparative observation; sparse cohorts remain explicitly limited.
+- Emit video-level descriptive observations for above/below cohort median retention, with controlled-test suggestions. Never modify recommendation ranking scores.
+- Ignore malformed, non-finite and out-of-range retention points; do not infer causal reasons from curve shape.
+- GitHub Actions PR run [43794456586](https://github.com/justinhblee-prog/shorts/actions/runs/43794456586) passed **431 backend tests** and the complete `scripts/validate.sh` command.
