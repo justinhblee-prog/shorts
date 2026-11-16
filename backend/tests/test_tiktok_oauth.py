@@ -224,6 +224,11 @@ class TikTokOAuthTests(unittest.TestCase):
         })
         lease_a = self.store.acquire_refresh_lease("process-a", 60)
         self.assertIsNotNone(lease_a)
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_oauth_refresh_lease SET expires_at=? WHERE id=1",
+                ("2000-01-01T00:00:00+00:00",),
+            )
         lease_b = self.store.acquire_refresh_lease("process-b", 60)
         self.assertIsNotNone(lease_b)
         before = self.store.token_record()
