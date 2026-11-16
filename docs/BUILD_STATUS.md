@@ -1723,3 +1723,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Assert the TikTok request explicitly selects `SELF_ONLY`, records the operator-consent audit event, and does not invoke public posting.
 - TikTok creator and upload transport plus media inspection are deterministic test doubles. This is a local integration contract test, not live TikTok OAuth/API validation.
 - GitHub Actions run [43844384565](https://github.com/justinhblee-prog/shorts/actions/runs/43844384565) passed the complete `scripts/validate.sh` workflow, including 575 backend tests.
+
+
+## BUILD-00207 — TikTok terminal status confirmation and duplicate-action idempotency
+
+- Extend the scheduled multi-platform lifecycle integration test to poll TikTok's creator status after upload and persist the terminal `PUBLISH_COMPLETE` result with its video ID.
+- Repeat the operator publish action after confirmation and assert the durable result is returned without another TikTok initialization or media transfer request.
+- This closes the mocked end-to-end path from schedule dispatch through human approval, explicit SELF_ONLY upload, remote status confirmation and duplicate-action suppression.
+- TikTok API transport and media inspection remain deterministic test doubles; no live OAuth/account validation is claimed.
