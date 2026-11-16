@@ -247,7 +247,8 @@ class YouTubeAnalyticsCollector:
             startDate=start.isoformat(),
             endDate=end.isoformat(),
             metrics="views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage",
-            dimensions="video",
+            # The basic user-activity report uses the video filter, not a video
+            # dimension; it returns one metric row for the selected video.
             filters="video==" + video_id,
             maxResults=1,
         ).execute()
