@@ -193,7 +193,7 @@ The UI includes production job intake, trends, competitors, profitability scorin
 
 ### Integration preflight
 
-Use protected `GET /api/preflight` (header `X-Review-Token`) or the dashboard readiness panel to identify missing environment settings. It checks configuration presence only; it does not make provider, OAuth or YouTube API calls.
+Use protected `GET /api/preflight` (header `X-Review-Token`) or the dashboard readiness panel to identify missing environment settings. Provider bearer tokens are optional; the endpoint reports them separately from required provider URLs. YouTube and TikTok readiness are reported independently, including TikTok OAuth configuration versus the optional static-token fallback. A ready status means configuration is present only: it does not make provider, OAuth or platform API calls, validate granted scopes, or prove live account access.
 
 Dashboard supports USD, KRW, JPY and GBP for ledger entries and profitability scenarios. Financial reports filter by one currency at a time; currency conversion is not inferred or applied.
 
