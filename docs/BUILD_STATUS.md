@@ -1974,3 +1974,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Eight simultaneous reservation attempts must produce exactly one durable attempt and one start/consent audit record; all competing requests are rejected without replacing the winning attempt.
 - Confirms TikTok reservation remains SELF_ONLY.
 - Deterministic SQLite transaction tests only; no live platform API or account validation is claimed.
+
+## BUILD-00250 — Cross-process TikTok OAuth refresh race
+- Added a two-manager/two-store concurrency test against the same SQLite database, with both managers observing an expired access token.
+- Holds the first mocked refresh in flight while the second manager contends for the distributed refresh lease.
+- Verifies one provider refresh request, both callers receive the rotated access token, and the rotated refresh token remains durably encrypted.
+- Deterministic local SQLite and mock transport only; no live TikTok OAuth exchange is claimed.
