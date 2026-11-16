@@ -76,7 +76,7 @@ def ensure_worker_registered():
 
 def run_once():
     ensure_worker_registered()
-    if queue.is_paused():
+    if stopping.is_set() or queue.is_paused():
         return False
     # Recovery failures escape: no claim may occur while state is uncertain.
     store.reconcile_missing_runs(
@@ -126,12 +126,26 @@ def run_once():
     lost_lease = threading.Event()
     heartbeat_stop = threading.Event()
     global active_job_id, active_lost_lease_event
+    # Publish the claimed job to the signal handler immediately. A SIGTERM can
+    # arrive after claim() commits but before the heartbeat thread is started.
     active_job_id = job["id"]
     active_lost_lease_event = lost_lease
     heartbeat = threading.Thread(
         target=heartbeat_loop, args=(job["id"], job["lease_token"], lost_lease, heartbeat_stop),
         daemon=True)
     try:
+        # If shutdown raced with claim(), do not start any provider work. The
+        # signal handler may already have paused/terminalized this running job;
+        # only persist a second pause if that first attempt did not stick.
+        if stopping.is_set() or lost_lease.is_set():
+            if not queue.is_paused():
+                queue.pause(
+                    "Worker shutdown requested immediately after job claim; "
+                    "provider execution was not started",
+                    job["id"], worker_id=WORKER_ID,
+                    generation_token=WORKER_GENERATION_TOKEN,
+                )
+            return True
         heartbeat.start()
         # Close the enqueue/worker race: repair a missing production row after claim.
         # Start the heartbeat first so SIGTERM or lease loss during reconciliation
@@ -140,8 +154,8 @@ def run_once():
             queue, job_ids=[job["id"]], worker_id=WORKER_ID,
             generation_token=WORKER_GENERATION_TOKEN,
         )
-        if lost_lease.is_set():
-            raise LeaseConflict("Worker lease was lost before provider execution")
+        if stopping.is_set() or lost_lease.is_set():
+            raise LeaseConflict("Worker shutdown or lease loss occurred before provider execution")
         result = pipeline.execute(job["id"], job["payload"],
                                   worker_id=WORKER_ID, lease_token=job["lease_token"],
                                   stop_event=lost_lease,
