@@ -199,10 +199,21 @@ class YouTubeAnalyticsStore:
                     WHEN excluded.status IN ('succeeded','partial')
                     THEN excluded.last_attempt_at
                     ELSE youtube_analytics_collection_state.last_success_at END,
-                  last_error=CASE WHEN excluded.status='succeeded'
-                    THEN NULL ELSE excluded.last_error END,
-                  requested=excluded.requested,collected=excluded.collected,
-                  failed=excluded.failed,source=excluded.source,
+                  last_error=CASE
+                    WHEN excluded.status='succeeded' THEN NULL
+                    WHEN excluded.status='running'
+                      THEN youtube_analytics_collection_state.last_error
+                    ELSE excluded.last_error END,
+                  requested=CASE WHEN excluded.status='running'
+                    THEN youtube_analytics_collection_state.requested
+                    ELSE excluded.requested END,
+                  collected=CASE WHEN excluded.status='running'
+                    THEN youtube_analytics_collection_state.collected
+                    ELSE excluded.collected END,
+                  failed=CASE WHEN excluded.status='running'
+                    THEN youtube_analytics_collection_state.failed
+                    ELSE excluded.failed END,
+                  source=excluded.source,
                   updated_at=excluded.updated_at
             """, (
                 status, stamp,
