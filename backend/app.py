@@ -3,7 +3,7 @@ import logging
 import secrets
 from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Header, Request, Response
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -14,7 +14,9 @@ from profitability import OpportunityStore, score_opportunity, analyze_competiti
 from trend_recommendations import rank_trend_candidates
 from production_pipeline import ProductionStore, ProductionPipeline, submit_production, ProviderError, ProductionLeaseConflict
 from brand_operations import BrandStore, BrandNotFound
-from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
+from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict
+from reviewer_auth import resolve_review_principal, ReviewCredentialConfigurationError
+from operator_rbac import has_permission, OperatorRoleConfigurationError
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
@@ -48,6 +50,118 @@ for access_handler in uvicorn_access_logger.handlers:
 
 
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
+
+def required_operator_permission(path, method):
+    method=method.upper()
+    if path in ("/api/health","/api/brands","/api/brands/{slug}"):
+        return None
+    if path=="/api/tiktok/oauth/callback":
+        return None
+    if path.startswith("/api/review/"):
+        if method=="GET":
+            return "review.read"
+        return "review.evidence" if path.endswith("/policy-evidence") else "review.decide"
+    if path=="/api/production/jobs":
+        return "production.create" if method=="POST" else "production.read"
+    if path.startswith("/api/production/jobs/"):
+        if path.endswith("/execute"):
+            return "production.execute"
+        if path.endswith("/stage-media") or path.endswith("/cleanup-media"):
+            return "media.manage"
+        return "production.read"
+    if path.startswith("/api/youtube/upload/"):
+        return "publish.execute"
+    if path.startswith("/api/youtube/uploads/"):
+        return "publishing.read" if method=="GET" else "publish.reconcile"
+    if path.startswith("/api/youtube/videos/"):
+        return "analytics.read"
+    if path.startswith("/api/tiktok/oauth/"):
+        return "publishing.read" if path.endswith("/status") else "publish.manage"
+    if path=="/api/tiktok/creator-info":
+        return "publish.execute"
+    if path.startswith("/api/tiktok/publish/"):
+        return "publish.execute"
+    if path.startswith("/api/tiktok/publications/"):
+        if path.endswith("/reconcile"):
+            return "publish.reconcile"
+        if path.endswith("/refresh-status"):
+            return "publish.execute"
+        return "publishing.read"
+    if path=="/api/tiktok/metrics":
+        return "analytics.read"
+    if path.startswith("/api/finance/"):
+        return "finance.read" if method=="GET" else "finance.write"
+    if path.startswith("/api/performance/"):
+        return "analytics.read"
+    if path.startswith("/api/schedules"):
+        return "schedules.manage"
+    if path=="/api/trends/collect":
+        return "trends.collect"
+    if path=="/api/trends/recommendations/snapshot":
+        return "recommendations.manage"
+    if path=="/api/recommendations/evaluation":
+        return "analytics.read"
+    if path.startswith("/api/trends/recommendations"):
+        return "recommendations.read"
+    if path.startswith("/api/trends/") and path.endswith("/draft-production"):
+        return "production.create"
+    if path=="/api/trends" or path.startswith("/api/trends/"):
+        return "trends.read"
+    if path.startswith("/api/competitors"):
+        return "intelligence.read"
+    if path.startswith("/api/opportunities/score"):
+        return "opportunities.manage"
+    if path.startswith("/api/opportunities"):
+        return "analytics.read"
+    if path.startswith("/api/brands/") and path.endswith("/activation"):
+        return "brand.manage"
+    if path.startswith("/api/queue/stats") or path.startswith("/api/queue/control"):
+        return "operations.read" if method=="GET" else "queue.control"
+    if path.startswith("/api/queue/"):
+        return "queue.control"
+    if path=="/api/jobs":
+        return "queue.enqueue" if method=="POST" else "queue.read"
+    if path=="/api/jobs/claim" or path.endswith("/heartbeat") or path.endswith("/complete") or path.endswith("/fail"):
+        return "worker.execute"
+    if path.endswith("/cancel") and path.startswith("/api/jobs/"):
+        return "queue.control"
+    if path.startswith("/api/jobs/"):
+        return "queue.read"
+    if path=="/api/workers":
+        return "operations.read"
+    if path=="/api/preflight":
+        return "operations.read"
+    if method=="GET":
+        return "operations.read"
+    return "operations.write"
+
+
+@app.middleware("http")
+async def enforce_operator_roles(request:Request, call_next):
+    path=request.url.path
+    if not path.startswith("/api/") or request.method.upper()=="OPTIONS":
+        return await call_next(request)
+    permission=required_operator_permission(path,request.method)
+    if permission is None:
+        return await call_next(request)
+    token=request.headers.get("x-review-token")
+    try:
+        operator_id=resolve_review_principal(token)
+    except ReviewCredentialConfigurationError:
+        return JSONResponse({"detail":"Review authentication is not configured safely"},status_code=503)
+    if not operator_id:
+        return JSONResponse({"detail":"Valid review token required"},status_code=401)
+    try:
+        allowed=has_permission(operator_id,permission)
+    except OperatorRoleConfigurationError:
+        return JSONResponse({"detail":"Operator role configuration is not configured safely"},status_code=503)
+    if not allowed:
+        return JSONResponse({"detail":"Operator role does not grant this action"},status_code=403)
+    request.state.operator_id=operator_id
+    return await call_next(request)
+
+
+
 trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 trend_ingestor=TrendIngestor(trend_store)
 competitor_store=CompetitorStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
@@ -317,9 +431,24 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
 
 
 def require_review_access(token):
-    expected=os.getenv("NEXUS_REVIEW_TOKEN")
-    if not valid_review_token(token, expected):
+    try:
+        operator_id=resolve_review_principal(token)
+    except ReviewCredentialConfigurationError:
+        raise HTTPException(503,"Review authentication is not configured safely")
+    if not operator_id:
         raise HTTPException(401,"Valid review token required")
+    return operator_id
+
+
+def require_review_permission(token, permission):
+    operator_id=require_review_access(token)
+    try:
+        allowed=has_permission(operator_id,permission)
+    except OperatorRoleConfigurationError:
+        raise HTTPException(503,"Operator role configuration is not configured safely")
+    if not allowed:
+        raise HTTPException(403,"Operator role does not grant this action")
+    return operator_id
 
 
 @app.get("/api/review/pending")
