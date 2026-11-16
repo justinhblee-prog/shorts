@@ -306,6 +306,94 @@ class ProductionStore:
                 " ORDER BY started_at,id",(job_id,)).fetchall()
             return [dict(row) for row in rows]
 
+
+    def adopt_recovered_provider_artifact(self, job_id, attempt_id):
+        """Adopt a stored script or voice response and requeue the job for safe continuation."""
+        timestamp=utc_now()
+        with self.db() as c:
+            attempt=c.execute("""SELECT * FROM provider_execution_attempts
+                WHERE id=? AND job_id=? AND stage IN ('script','voice_generation')""",
+                (attempt_id,job_id)).fetchone()
+            if attempt is None:
+                raise KeyError("recoverable script/voice provider attempt not found")
+            if attempt["state"] != "response_received" or not attempt["response_json"]:
+                raise ValueError("provider response is not available for adoption")
+            response=json.loads(attempt["response_json"])
+            if not isinstance(response,dict):
+                raise ValueError("stored provider response is invalid")
+            stage=attempt["stage"]
+            run=c.execute("SELECT * FROM production_runs WHERE job_id=?",(job_id,)).fetchone()
+            queue_row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(job_id,)).fetchone()
+            if run is None or queue_row is None or queue_row["job_type"]!="short_video_production":
+                raise ValueError("matching production run and queue job are required")
+            if run["status"] in ("approved","uploaded","published"):
+                raise ValueError("approved or published production cannot be changed by recovery")
+            if queue_row["status"] not in ("queued","failed_retriable","failed_terminal"):
+                raise ValueError("queue job is active or already finalized; recovery adoption blocked")
+            if stage=="script":
+                script_text=response.get("script")
+                if not isinstance(script_text,str) or not script_text.strip():
+                    raise ValueError("stored script response has no script text")
+                payload=json.loads(queue_row["payload_json"])
+                provider_quality={key:response[key] for key in
+                    ("source_urls","factual_claims_verified","fact_check_notes") if key in response}
+                originality=self.check_script_originality(job_id,run["language"],script_text)
+                provider_quality["originality_check"]=originality
+                artifacts=[("script","text",response.get("artifact_url"),{
+                    "script":script_text,"provider":response.get("provider"),
+                    "provider_quality_metadata":provider_quality,
+                    "policy_preflight":payload.get("policy_report") or {}}),
+                    ("originality_check","report",None,originality)]
+            else:
+                audio_url=response.get("audio_url")
+                if not isinstance(audio_url,str) or not audio_url.startswith("https://"):
+                    raise ValueError("stored voice response has no HTTPS audio URL")
+                script_row=c.execute("""SELECT metadata_json FROM production_artifacts
+                    WHERE job_id=? AND stage='script' AND artifact_type='text'""",(job_id,)).fetchone()
+                if script_row is None:
+                    raise ValueError("a recovered voice response requires an adopted script artifact")
+                script_metadata=json.loads(script_row["metadata_json"])
+                if not isinstance(script_metadata.get("script"),str) or not script_metadata["script"].strip():
+                    raise ValueError("stored script artifact is invalid")
+                voice_metadata={key:value for key,value in response.items()
+                    if key not in ("audio_url","request_id","job_id")}
+                artifacts=[("voice_generation","audio",audio_url,voice_metadata)]
+            for artifact_stage,_,_,_ in artifacts:
+                existing=c.execute("SELECT id FROM production_artifacts WHERE job_id=? AND stage=?",
+                    (job_id,artifact_stage)).fetchone()
+                if existing:
+                    raise ValueError("production artifact already exists; duplicate adoption blocked")
+            updated=c.execute("""UPDATE provider_execution_attempts
+                SET state='adopted',adopted_at=?
+                WHERE id=? AND job_id=? AND state='response_received'""",
+                (timestamp,attempt_id,job_id))
+            if updated.rowcount!=1:
+                raise ValueError("provider attempt was adopted concurrently")
+            for artifact_stage,artifact_type,artifact_url,metadata in artifacts:
+                c.execute("""INSERT INTO production_artifacts
+                    (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
+                    VALUES(?,?,?,?,?,?,?)""",
+                    (str(uuid.uuid4()),job_id,artifact_stage,artifact_type,artifact_url,
+                     json.dumps(metadata,ensure_ascii=False),timestamp))
+            previous=queue_row["status"]
+            updated_queue=c.execute("""UPDATE pipeline_jobs SET status='queued',
+                worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
+                completed_at=NULL,updated_at=?,error_code=NULL,error_message=NULL
+                WHERE id=? AND status IN ('queued','failed_retriable','failed_terminal')""",
+                (timestamp,job_id))
+            if updated_queue.rowcount!=1:
+                raise ValueError("queue state changed during provider result adoption")
+            c.execute("""UPDATE production_runs SET status='queued',current_stage=?,
+                error=NULL,updated_at=? WHERE job_id=?""",
+                ("recovered_"+stage+"_adopted",timestamp,job_id))
+            c.execute("""INSERT INTO job_events
+                (job_id,event_type,from_status,to_status,worker_id,details_json,created_at)
+                VALUES(?,'provider_result_recovered',?,'queued',NULL,?,?)""",
+                (job_id,previous,json.dumps({"provider_attempt_id":attempt_id,
+                    "recovered_stage":stage},ensure_ascii=False),timestamp))
+            return {"job_id":job_id,"provider_attempt_id":attempt_id,
+                "stage":stage,"status":"queued","artifacts_adopted":len(artifacts)}
+
     def adopt_recovered_render(self, job_id, attempt_id, staged, inspection):
         """Atomically adopt one recovered provider render after byte-level verification."""
         if not isinstance(staged,dict) or not isinstance(inspection,dict):
