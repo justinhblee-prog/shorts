@@ -744,6 +744,33 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(self.store.get(job_id)["artifacts"],[])
         self.assertEqual(queue.get(job_id)["status"],"queued")
 
+    def test_recovered_render_rejects_boolean_and_nonfinite_measurements(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        key=self.store.begin_provider_attempt(job_id,"rendering",1)
+        self.store.finish_provider_attempt(
+            job_id,"rendering",1,key,{"video_url":"https://cdn.example.test/output.mp4"})
+        attempt=self.store.provider_attempts(job_id)[0]
+        staged={"media_path":"finite.mp4","size_bytes":4096,
+                "sha256":"d"*64,"content_type":"video/mp4"}
+        base={"status":"inspected","duration_seconds":32.5,
+              "width":1080,"height":1920,"audio_track_present":True,
+              "size_bytes":4096,"media_path":"finite.mp4",
+              "inspection_method":"ffprobe_file_bytes"}
+        for field,value in (("duration_seconds",float("nan")),
+                            ("duration_seconds",float("inf")),
+                            ("width",True),("height",True)):
+            invalid={**base,field:value}
+            with self.assertRaisesRegex(ValueError,"metadata is invalid|failed required"):
+                self.store.adopt_recovered_render(job_id,attempt["id"],staged,invalid)
+        invalid_staged={**staged,"size_bytes":True}
+        with self.assertRaisesRegex(ValueError,"size must be an integer"):
+            self.store.adopt_recovered_render(job_id,attempt["id"],invalid_staged,base)
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"response_received")
+        self.assertEqual(self.store.get(job_id)["artifacts"],[])
+        self.assertEqual(queue.get(job_id)["status"],"queued")
+
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
             ProductionPipeline.validate_brief({"brand": "x", "region": "US",
