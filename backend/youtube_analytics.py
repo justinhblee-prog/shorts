@@ -537,6 +537,9 @@ class YouTubeAnalyticsCollector:
             or any(ord(character) < 32 for character in video_id)
         ):
             raise ValueError("A valid YouTube video ID is required")
+        if lease_owner is not None or lease_token is not None:
+            with self.store.db() as connection:
+                self.store._assert_lease(connection, lease_owner, lease_token)
         end = end_date or (self.today() - timedelta(days=2))
         # Explicit report ranges do not need local publication metadata.
         uploaded_at = self.store.upload_date(video_id) if start_date is None else None
@@ -597,6 +600,9 @@ class YouTubeAnalyticsCollector:
         retention_error = None
         retention = []
         try:
+            if lease_owner is not None or lease_token is not None:
+                with self.store.db() as connection:
+                    self.store._assert_lease(connection, lease_owner, lease_token)
             retention_report = service.reports().query(
                 ids="channel==MINE",
                 startDate=start.isoformat(),
@@ -652,6 +658,10 @@ class YouTubeAnalyticsCollector:
                 results.append(self.collect_video(
                     video_id, lease_owner=lease_owner, lease_token=lease_token
                 ))
+            except RuntimeError as exc:
+                if "lease lost; stale write rejected" in str(exc):
+                    raise
+                failures.append({"video_id": video_id, "error": type(exc).__name__})
             except Exception as exc:
                 failures.append({"video_id": video_id, "error": type(exc).__name__})
         return {
