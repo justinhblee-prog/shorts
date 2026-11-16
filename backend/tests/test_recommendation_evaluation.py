@@ -564,6 +564,50 @@ class RecommendationEvaluationTests(unittest.TestCase):
             self.assertFalse(analytics[metric]["score_adjustment_enabled"])
         self.assertFalse(result["ranking_score_adjustment_enabled"])
 
+    def test_analytics_holdout_requires_same_cohort_across_chronological_runs(self):
+        for run_index in range(5):
+            timestamp = (
+                datetime(2026, 11, 1, tzinfo=timezone.utc)
+                + timedelta(days=run_index)
+            ).isoformat()
+            items = [
+                self.item(run_index * 3 + i, score)
+                for i, score in enumerate((90, 80, 70))
+            ]
+            exposure = self.store.record_run("US", items, timestamp)
+            videos = []
+            # Rotate the brand/region/age cohort on every exposure. Each run
+            # independently has three measured outcomes, but no cohort recurs.
+            for candidate_index, retention in enumerate((0.9, 0.6, 0.3)):
+                job_id = f"rotating-cohort-{run_index}-{candidate_index}"
+                self.store.link_production(
+                    f"trend-{run_index * 3 + candidate_index}",
+                    "future-leak", job_id, timestamp, run_id=exposure["run_id"],
+                )
+                videos.append({
+                    "job_id": job_id,
+                    "platform": "youtube",
+                    "measurement_status": "insufficient_snapshots",
+                    "views_per_hour": None,
+                    "engaged_view_share": retention,
+                    "brand": f"Brand {run_index}",
+                    "region": f"R{run_index}",
+                    "publication_age_bucket": f"age-{run_index}",
+                    "duration_bucket": "under_20s",
+                    "format": "vertical_short",
+                })
+            if run_index == 0:
+                all_videos = videos
+            else:
+                all_videos.extend(videos)
+
+        result = self.store.evaluate({"videos": all_videos})
+        metric = result["analytics_outcome_validation"]["engaged_view_share"]
+        self.assertEqual(metric["status"], "insufficient_stable_cohort_coverage")
+        self.assertEqual(metric["eligible_run_count"], 1)
+        self.assertEqual(metric["eligible_cohort_count"], 0)
+        self.assertFalse(metric["score_adjustment_enabled"])
+
     def test_evaluation_rejects_boolean_nonfinite_and_out_of_range_metrics(self):
         exposure = self.store.record_run(
             "US", [self.item(31, 80), self.item(32, 70), self.item(33, 60)],
