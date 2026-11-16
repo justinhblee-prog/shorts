@@ -76,6 +76,49 @@ class TikTokMetricsTests(unittest.TestCase):
             [1200, 80, 12, 5],
         )
 
+    def test_stale_lease_is_rejected_before_oauth_token_provider(self):
+        token = self.store.acquire_lease("worker-old", 300)
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_metrics_collector_lease "
+                "SET expires_at='2000-01-01T00:00:00+00:00' WHERE id=1"
+            )
+        collector = self._collector({
+            "data": {"videos": []}, "error": {"code": "ok"},
+        })
+
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            collector.refresh_due_metrics(
+                min_age_seconds=0, lease_owner="worker-old", lease_token=token,
+            )
+
+        self.assertEqual(self.scopes, [])
+        self.assertEqual(self.calls, [])
+
+    def test_lease_replaced_during_oauth_refresh_stops_before_tiktok_request(self):
+        token = self.store.acquire_lease("worker-old", 300)
+        collector = self._collector({
+            "data": {"videos": []}, "error": {"code": "ok"},
+        })
+
+        def replacing_token_provider(required_scope):
+            self.scopes.append(required_scope)
+            with self.store.db() as connection:
+                connection.execute(
+                    "UPDATE tiktok_metrics_collector_lease "
+                    "SET lease_token='replacement' WHERE id=1"
+                )
+            return "metrics-access-token"
+
+        collector.token_provider = replacing_token_provider
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            collector.refresh_due_metrics(
+                min_age_seconds=0, lease_owner="worker-old", lease_token=token,
+            )
+
+        self.assertEqual(self.scopes, ["video.list"])
+        self.assertEqual(self.calls, [])
+
     def test_no_due_videos_does_not_request_token_or_contact_tiktok(self):
         self.store.save_snapshot("job-1", {
             "id": "video-1", "view_count": 1, "like_count": 0,

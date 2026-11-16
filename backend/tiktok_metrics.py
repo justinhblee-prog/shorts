@@ -81,6 +81,10 @@ class TikTokMetricsStore:
         finally:
             c.close()
 
+    def assert_lease(self, owner_id, lease_token):
+        with self.db() as c:
+            self._assert_lease(c, owner_id, lease_token)
+
     def acquire_lease(self, owner_id, lease_seconds=300, now=None):
         if not isinstance(owner_id, str) or not owner_id.strip():
             raise ValueError("A valid TikTok metrics collector owner ID is required")
@@ -417,12 +421,18 @@ class TikTokMetricsCollector:
         ][:limit]
         if not due:
             return {"requested": 0, "collected": 0, "missing": [], "source": "TikTok Display API v2"}
+        # OAuth token refresh may make a network request. Reject a worker
+        # whose lease is already stale before entering that initialization path.
+        self.store.assert_lease(lease_owner, lease_token)
         try:
             token = self.token_provider(required_scope="video.list")
         except Exception as exc:
             raise TikTokMetricsError("TikTok video.list authorization is unavailable: " + type(exc).__name__) from exc
         if not token:
             raise TikTokMetricsError("TikTok account is not connected for video.list analytics")
+        # Token refresh can outlive or lose the collector lease; fence the
+        # quota-consuming provider request immediately before dispatch.
+        self.store.assert_lease(lease_owner, lease_token)
         ids = [x["video_id"] for x in due]
         url = API_URL + "?" + urlencode({"fields": FIELDS})
         body = json.dumps({"filters": {"video_ids": ids}}).encode("utf-8")
