@@ -1072,8 +1072,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 ## BUILD-00131 — optional ClamAV malware gate for staged media
 
 - Added a local ClamAV scanner that runs without a shell and requires exit code 0 for a clean result; infected files, missing binaries, unavailable signatures, scanner errors and timeouts fail closed.
-- The scanner runs after bounded HTTPS download, allowlist/DNS checks, Content-Length validation and MP4 signature checks, but before the temporary file is atomically published as staged media.
+- The scanner runs after bounded HTTPS download, allowlist/DNS checks, Content-Length validation and MP4 signature checks, but before the temporary file is atomically published as staged media. It explicitly sets ClamAV file/scan size limits and `--alert-exceeds-max=yes`; ClamAV defaults can otherwise skip over-limit files and assume them clean.
 - Scanning is opt-in via `NEXUS_MEDIA_SCAN_ENABLED=true`; disabled mode does not construct the scanner and reports `malware_scan=disabled`.
 - Added a persistent `clamav_db` volume and a `media-scan` Compose profile running `freshclam`; the API mounts signatures read-only. Preflight checks executable, signature files and timeout before reporting the feature ready.
 - Docker image now includes `clamav` and `clamav-freshclam`; image size and signature storage increase. CI uses injected scanner stubs and does not download or validate live signatures.
-- CI validation pending. No production ClamAV scan or signature refresh is claimed.
+- GitHub Actions run [43792634688](https://github.com/justinhblee-prog/shorts/actions/runs/43792634688) passed **427 backend tests** and `scripts/validate.sh`. No production ClamAV scan or signature refresh is claimed.
