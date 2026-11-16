@@ -252,7 +252,7 @@
 
   async function loadSchedules(){
     const [data,outbox]=await Promise.all([api("/api/schedules"),api("/api/schedules/outbox")]);
-    const schedules=(data.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.name)+' · '+(x.active?"활성":"중지")+'</b><small>'+esc(x.payload.brand)+' · '+esc(x.payload.region)+' · 다음 실행 '+esc(x.next_run_at)+'</small></div>').join("")||'<div class="empty-state">등록된 예약이 없습니다.</div>';
+    const schedules=(data.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.name)+' · '+(x.active?"활성":"중지")+'</b><small>'+esc(x.payload.brand)+' · '+esc(x.payload.region)+' · '+esc((x.payload.platforms||["youtube"])[0])+' · 다음 실행 '+esc(x.next_run_at)+'</small></div>').join("")||'<div class="empty-state">등록된 예약이 없습니다.</div>';
     const dispatches=(outbox.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.schedule_id)+'</b><small>'+esc(x.scheduled_for)+' · attempts '+x.attempts+(x.last_error?' · '+esc(x.last_error):'')+'</small></div>').join("");
     $("scheduleList").innerHTML='<div class="notice">Outbox pending/retry: '+Number(outbox.pending_retries||0)+' · dispatched: '+Number((outbox.counts||{}).dispatched||0)+'</div>'+schedules+'<h4>예약 실행 복구 로그</h4>'+(dispatches||'<div class="empty-state">예약 실행 이력이 없습니다.</div>');
   }
@@ -363,7 +363,7 @@
   $("loadPreflight").addEventListener("click",()=>loadPreflight().catch(e=>toast(e.message)));
   $("productionForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
-    try{const result=await api("/api/production/jobs",{method:"POST",body:JSON.stringify({brand:$("brandSelect").value,region:$("regionSelect").value,language:$("languageSelect").value,topic:$("topicInput").value.trim()})});msg("productionMessage","작업 등록 완료 · "+result.job.id);$("topicInput").value="";await refreshAll();}
+    try{const result=await api("/api/production/jobs",{method:"POST",body:JSON.stringify({brand:$("brandSelect").value,region:$("regionSelect").value,language:$("languageSelect").value,topic:$("topicInput").value.trim(),platforms:[$("productionPlatform").value]})});msg("productionMessage","작업 등록 완료 · "+result.job.id);$("topicInput").value="";await refreshAll();}
     catch(err){msg("productionMessage",err.message,true);}
   });
   $("trendForm").addEventListener("submit",async e=>{
@@ -623,7 +623,7 @@
   });
   $("scheduleForm").addEventListener("submit",async e=>{
     e.preventDefault();if(!requireToken())return;
-    try{await api("/api/schedules",{method:"POST",body:JSON.stringify({name:$("scheduleName").value,interval_seconds:Number($("scheduleHours").value)*3600,brand:$("scheduleBrand").value,region:$("scheduleRegion").value,language:$("scheduleLanguage").value,topic:$("scheduleTopic").value})});toast("예약 제작 등록 완료");await loadSchedules();}
+    try{await api("/api/schedules",{method:"POST",body:JSON.stringify({name:$("scheduleName").value,interval_seconds:Number($("scheduleHours").value)*3600,brand:$("scheduleBrand").value,region:$("scheduleRegion").value,language:$("scheduleLanguage").value,topic:$("scheduleTopic").value,platform:$("schedulePlatform").value})});toast("예약 제작 등록 완료");await loadSchedules();}
     catch(err){toast(err.message);}
   });
   $("ledgerForm").addEventListener("submit",async e=>{
