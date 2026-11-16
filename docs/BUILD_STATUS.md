@@ -1503,3 +1503,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Escape all dynamic content before rendering; no status-change, retry, approval, resume, upload, or publish control is exposed in this diagnostic panel.
 - Load the report during authenticated dashboard refresh and provide an explicit manual refresh action.
 - Add frontend regression coverage for endpoint wiring, diagnostic content, and read-only boundaries.
+
+
+## BUILD-00181 — integrity report endpoint authorization regression
+
+- Add a direct endpoint regression test using configured per-operator credentials and role mapping.
+- Verify a reviewer with `production.read` can retrieve the report, an analyst without that permission receives HTTP 403, and a missing token receives HTTP 401.
+- Assert the underlying report store is never called for denied or unauthenticated requests.
+- Preserve the read-only behavior: the endpoint has no state mutation path.
