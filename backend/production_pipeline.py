@@ -309,12 +309,42 @@ class ProductionStore:
                 WHERE job_id=? AND stage='rendering'""",(job_id,)).fetchone()
             if existing:
                 raise ValueError("render artifact already exists; duplicate adoption blocked")
-            run=c.execute("SELECT status FROM production_runs WHERE job_id=?",
+            run=c.execute("SELECT * FROM production_runs WHERE job_id=?",
                           (job_id,)).fetchone()
             if run is None:
                 raise KeyError(job_id)
             if run["status"] in ("approved","uploaded","published"):
                 raise ValueError("published production output cannot be replaced by recovery")
+            source_artifacts=c.execute("""SELECT stage,artifact_type,metadata_json
+                FROM production_artifacts WHERE job_id=?""",(job_id,)).fetchall()
+            script_row=next((item for item in source_artifacts
+                             if item["stage"]=="script" and item["artifact_type"]=="text"),None)
+            voice_row=next((item for item in source_artifacts
+                            if item["stage"]=="voice_generation" and item["artifact_type"]=="audio"),None)
+            if script_row is None or voice_row is None:
+                raise ValueError("script and voice artifacts are required before render adoption")
+            script_metadata=json.loads(script_row["metadata_json"])
+            voice_metadata=json.loads(voice_row["metadata_json"])
+            script_text=script_metadata.get("script")
+            if not isinstance(script_text,str) or not script_text.strip():
+                raise ValueError("stored script artifact is missing its script text")
+            provider_quality=script_metadata.get("provider_quality_metadata") or {}
+            policy_report=script_metadata.get("policy_preflight")
+            render_metadata={key:value for key,value in response.items()
+                             if key not in ("video_url","request_id","job_id")}
+            speech_row=next((item for item in source_artifacts
+                             if item["stage"]=="speech_alignment" and item["artifact_type"]=="report"),None)
+            speech_report=json.loads(speech_row["metadata_json"]) if speech_row else None
+            quality_report=evaluate_production_quality(
+                script_text,provider_quality,voice_metadata,render_metadata,
+                {"brand":run["brand"],"region":run["region"],
+                 "language":run["language"],"topic":run["topic"]},
+                media_inspection=inspection,speech_report=speech_report)
+            if isinstance(policy_report,dict):
+                quality_report["policy_preflight"]={
+                    "status":policy_report.get("status"),
+                    "approval_blockers":policy_report.get("approval_blockers",[]),
+                }
             metadata={
                 "recovered_from_provider_attempt":attempt_id,
                 "provider_request_id":attempt["provider_request_id"],
@@ -327,6 +357,10 @@ class ProductionStore:
                 (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
                 VALUES(?,?,'rendering','video',?,?,?)""",
                 (artifact_id,job_id,video_url,json.dumps(metadata,ensure_ascii=False),timestamp))
+            c.execute("""INSERT INTO production_artifacts
+                (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
+                VALUES(?,?,'quality_check','report',NULL,?,?)""",
+                (str(uuid.uuid4()),job_id,json.dumps(quality_report,ensure_ascii=False),timestamp))
             updated=c.execute("""UPDATE provider_execution_attempts
                 SET state='adopted',adopted_at=?,adopted_artifact_sha256=?
                 WHERE id=? AND state='response_received'""",
