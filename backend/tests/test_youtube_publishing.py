@@ -666,6 +666,7 @@ class YouTubePublishingTests(unittest.TestCase):
         # The preflight get() is deliberately stale for both publishers:
         # both see no upload before either reaches the serialized reservation.
         first_at_begin = threading.Event()
+        second_begin_finished = threading.Event()
         release_first = threading.Event()
         original_begin = self.uploads.begin
         call_lock = threading.Lock()
@@ -681,8 +682,10 @@ class YouTubePublishingTests(unittest.TestCase):
                 self.assertTrue(release_first.wait(5))
                 return result
             first_at_begin.wait(5)
-            result = original_begin(*args, **kwargs)
-            return result
+            try:
+                return original_begin(*args, **kwargs)
+            finally:
+                second_begin_finished.set()
 
         self.uploads.begin = coordinated_begin
         first_service = FakeService()
@@ -706,8 +709,9 @@ class YouTubePublishingTests(unittest.TestCase):
             first.start()
             self.assertTrue(first_at_begin.wait(5))
             second.start()
-            # Let the second caller contend for begin() while the first
-            # reservation is already durable but remote publication is held.
+            # Wait until the second serialized reservation has completed
+            # (and observed the active attempt) before allowing remote upload.
+            self.assertTrue(second_begin_finished.wait(5))
             release_first.set()
             first.join(5)
             second.join(5)
