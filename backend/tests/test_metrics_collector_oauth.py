@@ -1,3 +1,5 @@
+import threading
+import time
 import unittest
 from unittest.mock import Mock, patch
 
@@ -117,6 +119,45 @@ class ScheduledYouTubeAnalyticsOAuthTests(unittest.TestCase):
         self.assertEqual(calls, ["youtube", "youtube_analytics", "tiktok"])
         self.assertEqual(len(captured.records), 1)
         self.assertIn("youtube_metrics_collection_failed", captured.output[0])
+
+    def test_collection_cycle_runs_independent_providers_concurrently(self):
+        all_started = threading.Event()
+        started = []
+        lock = threading.Lock()
+
+        def provider(name):
+            with lock:
+                started.append(name)
+                if len(started) == 2:
+                    all_started.set()
+            self.assertTrue(
+                all_started.wait(timeout=3),
+                "provider execution was serialized instead of concurrent",
+            )
+
+        metrics_collector.run_collection_cycle([
+            ("youtube", lambda: provider("youtube")),
+            ("tiktok", lambda: provider("tiktok")),
+        ])
+
+        self.assertCountEqual(started, ["youtube", "tiktok"])
+
+    def test_collection_cycle_waits_for_all_providers_before_returning(self):
+        completed = []
+
+        def slow_provider():
+            time.sleep(0.05)
+            completed.append("slow")
+
+        def fast_provider():
+            completed.append("fast")
+
+        metrics_collector.run_collection_cycle([
+            ("slow", slow_provider),
+            ("fast", fast_provider),
+        ])
+
+        self.assertCountEqual(completed, ["slow", "fast"])
 
     def test_collection_cycle_does_not_swallow_process_control_exceptions(self):
         def stop_process():
