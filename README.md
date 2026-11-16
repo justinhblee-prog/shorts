@@ -62,3 +62,8 @@ This runs Python bytecode compilation, unittest discovery, and (when Node.js is 
 - Forecasts are estimates, not actual earnings.
 - Missing source metrics remain missing; no fabricated views, RPM, trend volume or revenue.
 - Real AI generation, OAuth, YouTube upload, and real financial reconciliation require external credentials and validation.
+
+
+### TikTok operator workflow
+
+The review workspace includes a TikTok connection action, creator capability display, private-only publishing action, status refresh/reconciliation controls, and a metrics panel. Posting requires a human-approved job, an unchanged approved media fingerprint, a connected TikTok account, a creator-info lookup, explicit operator consent, and `SELF_ONLY` privacy. The approved queue remains visible until both platform publication records are complete. OAuth and live account checks require the operator's TikTok developer credentials and account consent.

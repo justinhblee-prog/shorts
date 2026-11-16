@@ -927,3 +927,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Verify staged media fingerprint and upload only a private immutable snapshot; enforce media format/duration constraints and block ambiguous retries pending reconciliation.
 - Add TikTok owned-video metrics collection using a separate lease and isolate provider failures from YouTube collection.
 - Add protected API endpoints and regression tests. GitHub Actions run [43781739033](https://github.com/justinhblee-prog/shorts/actions/runs/43781739033) passed **317 backend tests** and `scripts/validate.sh`. PR #87 was squash-merged into `main` as `43b8c0048e117af3864908e23f50dcf2b3443c9f`. Frontend controls and live TikTok developer-app/account audit remain separate tasks.
+
+
+### BUILD-00028 — TikTok operator controls in the review workspace (2026-11-16)
+
+- Extend the approved queue with TikTok publication state so a video remains visible until both YouTube and TikTok are complete.
+- Add TikTok OAuth connection/status, creator-info and private publishing controls to the review workspace.
+- Require explicit consent, SELF_ONLY privacy, and separate brand-content/own-brand declarations; prevent selecting both commercial categories simultaneously.
+- Add publication status refresh, operator reconciliation, and owned-video metrics display.
+- The UI stages media before posting and stops for re-review if staging changes the approved fingerprint. CI validation pending. Real OAuth/developer-app/account testing remains external.
