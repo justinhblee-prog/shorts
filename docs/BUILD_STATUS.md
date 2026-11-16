@@ -1469,4 +1469,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Fail closed on missing, mismatched or non-pending queue records; no partial production-only decision is allowed.
 - Reopen an approved production and queue atomically when media staging changes the artifact fingerprint, with a dedicated audit event and a mandatory fresh human approval.
 - Add regression coverage for all three decision types and queue-state mismatch rollback.
-- CI validation pending.
+- GitHub Actions run [43818974683](https://github.com/justinhblee-prog/shorts/actions/runs/43818974683) passed the complete `scripts/validate.sh` workflow, including 529 backend tests. The end-to-end lifecycle also verifies that changing the staged media fingerprint after approval atomically reopens both production and queue for a fresh human decision.
