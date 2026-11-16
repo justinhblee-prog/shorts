@@ -1089,3 +1089,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - X-Forwarded-For is ignored unless the immediate peer is in `NEXUS_TRUSTED_PROXY_CIDRS`; proxy chains are parsed right-to-left and untrusted prefixes are ignored.
 - Validation pending.
 
+
+
+## BUILD-00130 — authenticated encryption for complete SQLite and media backups
+
+- Added streaming AES-256-GCM encryption for complete `.tar.gz` backup archives, not only the SQLite file.
+- Encryption keys are URL-safe base64 values decoding to exactly 32 bytes and are read from `NEXUS_BACKUP_ENCRYPTION_KEY`; they are never accepted as command-line arguments or written into archive metadata.
+- Encrypted archives use the `.tar.gz.enc` suffix and a versioned header. Restore authenticates the complete ciphertext before extracting any files; wrong keys, tampering and truncation fail before live data is touched.
+- `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` refuses plaintext backup creation and restore. With the default false setting, legacy plaintext archives remain readable.
+- Pre-restore backups inherit the active encryption key; retention handles encrypted and plaintext archives together. Archive files are restricted to owner-only permissions on POSIX systems.
+- Preflight reports invalid/missing keys and whether encryption is mandatory. CI validation pending.
+- Losing the key makes encrypted backups unrecoverable. Keep it in a secret manager/off-host secure location separate from backup storage; no key is committed.
