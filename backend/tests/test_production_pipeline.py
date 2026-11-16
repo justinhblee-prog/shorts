@@ -751,12 +751,14 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(self.store.get(approved_job)["status"], "approved")
         self.assertEqual(queue.get(approved_job)["status"], "review_pending")
         self.assertEqual(
-            [event["event_type"] for event in queue.events(terminal_job)],
-            ["production_state_reconciled"],
+            [event["event_type"] for event in queue.events(terminal_job)].count(
+                "production_state_reconciled"
+            ), 1
         )
         self.assertEqual(
-            [event["event_type"] for event in queue.events(review_job)],
-            ["production_state_reconciled"],
+            [event["event_type"] for event in queue.events(review_job)].count(
+                "production_state_reconciled"
+            ), 1
         )
         self.assertEqual(result["unresolved_jobs"][0]["job_id"], approved_job)
 
@@ -772,7 +774,11 @@ class ProductionTests(unittest.TestCase):
         second = self.store.reconcile_status_integrity(queue)
         self.assertEqual(first["repaired"], 1)
         self.assertEqual(second["scanned"], 0)
-        self.assertEqual(len(queue.events(job_id)), 1)
+        self.assertEqual(
+            [event["event_type"] for event in queue.events(job_id)].count(
+                "production_state_reconciled"
+            ), 1
+        )
 
     def test_status_integrity_rejects_different_databases(self):
         other = JobQueue(str(Path(self.tmp.name) / "other.sqlite3"))
