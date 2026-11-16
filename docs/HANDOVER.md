@@ -888,4 +888,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - Added TikTok connection/status, creator capability display, explicit private publish action, publication status refresh, uncertain-result reconciliation and metrics panel to the existing approval workspace.
 - The approved queue now remains visible until both YouTube and TikTok have reached terminal completion. A new media fingerprint after approval returns the job to re-review and blocks posting.
-- CI pending. Real TikTok OAuth and account validation require the user's developer-app credentials and explicit account consent.
+- GitHub Actions run [43782071923](https://github.com/justinhblee-prog/shorts/actions/runs/43782071923) passed **317 backend tests** and `scripts/validate.sh`; PR #89 was squash-merged into `main` as `2ea68c4314f11c23fdcaafd31f648adc5d4c1fef`. Real TikTok OAuth and account validation require the user's developer-app credentials and explicit account consent.
