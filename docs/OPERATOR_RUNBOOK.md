@@ -274,3 +274,17 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 - Added regression coverage for competing owners, expiry/takeover, stale-owner fencing, invalid lease rejection and successful dispatch under a valid lease.
 - GitHub Actions run [43670844206](https://github.com/justinhblee-prog/shorts/actions/runs/43670844206) passed **156 tests** on commit `851551896e1bc1b0416427d3a4d6f5964f05862c`. Python compilation, frontend JavaScript syntax/DOM ID checks and Docker Compose YAML parsing also passed.
 - Calendar/DST recurrence rules and multi-host database deployment remain outside the current SQLite baseline.
+
+
+### Integration preflight interpretation
+
+- Provider URLs are required for script, voice and rendering. Provider bearer tokens are optional and should be configured only when the selected vendor requires them.
+- The dashboard distinguishes required missing values from optional token omissions.
+- YouTube and TikTok configuration readiness are reported independently. TikTok OAuth readiness is separate from the legacy static-token fallback.
+- A green configuration result is not a live connectivity or account-authorization test. Complete a real provider generation and private platform test only after credentials, consent, policy review and cost limits are confirmed.
+
+
+### BUILD-00031 — readiness preflight correction
+
+- GitHub Actions run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930) passed **326 backend tests** and the full validation script.
+- The check validates configuration logic and frontend syntax only; perform real provider, OAuth, media and platform checks separately before operating.

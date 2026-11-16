@@ -904,3 +904,20 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added platform selection to the production form and recurring schedule form. The chosen platform is persisted as `platforms:[youtube|tiktok]` in the schedule payload and survives outbox/queue dispatch.
 - Scheduled jobs therefore retain the intended platform through generation and policy preflight rather than silently defaulting to YouTube.
 - GitHub Actions run [43783409343](https://github.com/justinhblee-prog/shorts/actions/runs/43783409343) passed **322 backend tests** and `scripts/validate.sh`; PR #93 was squash-merged into `main` as `cd5f8c4f1c1e780732457450ae2f215d4ef13950`.
+
+
+## BUILD-00031 — accurate provider and platform integration preflight
+
+- `backend/preflight.py` now requires provider endpoint URLs but treats provider bearer tokens as optional, matching the provider adapter contract.
+- The preflight response exposes TikTok OAuth readiness and static-token fallback separately; it also reports YouTube/TikTok production readiness independently.
+- The frontend displays optional missing settings separately and never labels them as required blockers.
+- The compatibility field `capabilities.end_to_end_configured` remains YouTube-oriented; use `platforms.youtube` and `platforms.tiktok` for platform-specific configuration status.
+- The readiness report is configuration-only. It does not prove remote service connectivity, OAuth scopes, creator capability, upload success or revenue.
+
+
+### BUILD-00031 validation record
+
+- GitHub Actions PR run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930) completed successfully.
+- `sh scripts/validate.sh` passed; the backend suite reported **326 tests, OK**.
+- Frontend JavaScript syntax/DOM validation and Compose YAML validation are included in the validation script.
+- No live AI provider, OAuth, YouTube/TikTok account, media rendering/upload or revenue validation is claimed.

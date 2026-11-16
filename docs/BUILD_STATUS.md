@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Updated:** 2026-11-15
+**Updated:** 2026-11-16
 
 ## Business objective
 
@@ -822,7 +822,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Similarity is a reviewer warning, not an automatic rejection. Topic overlap/common phrasing can cause false positives; substantial paraphrasing can evade detection.
 - This is not a copyright check, plagiarism verdict, reused-content policy determination, or guarantee of monetization eligibility.
 - No generated script is automatically published; human review and approval remain required.
-- Validation pending on this branch.
+- GitHub Actions PR run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930) passed **326 backend tests**; `scripts/validate.sh` completed successfully.
 
 
 ### BUILD-00017 — independent narration transcription and script alignment (2026-11-15)
@@ -953,3 +953,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Persist selected platform as the production brief's `platforms` list through the schedule outbox and queue dispatch, so scheduled TikTok jobs receive TikTok policy preflight and TikTok publishing eligibility.
 - Display the platform on each scheduled job and add regression tests for schedule payload persistence and API model validation.
 - GitHub Actions run [43783409343](https://github.com/justinhblee-prog/shorts/actions/runs/43783409343) passed **322 backend tests** and `scripts/validate.sh`. PR #93 was squash-merged into `main` as `cd5f8c4f1c1e780732457450ae2f215d4ef13950`.
+
+
+### BUILD-00031 — accurate provider and platform integration preflight (2026-11-16)
+
+- Treat script, voice and renderer bearer tokens as optional settings; provider URLs remain required. Optional omissions no longer make AI generation appear unconfigured.
+- Report TikTok Login Kit OAuth configuration separately from the optional static access-token fallback.
+- Expose platform-specific configuration readiness for YouTube Shorts and TikTok while keeping metrics readiness and live connectivity separate.
+- Preserve the existing `end_to_end_configured` field as the YouTube-oriented compatibility summary.
+- Add regression tests for optional provider tokens, TikTok OAuth readiness, static-token fallback, secret redaction and fail-closed empty configuration.
+- Configuration checks do not verify live provider compatibility, OAuth scopes, creator permissions, platform connectivity or publishing.
+- Validation pending on this branch.
