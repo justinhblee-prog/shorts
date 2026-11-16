@@ -747,10 +747,12 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(saved["state"],"not_executed_confirmed")
         with self.store.db() as connection:
             event=connection.execute(
-                "SELECT event_type,details_json FROM job_events WHERE job_id=?",
+                """SELECT operator_id,evidence_reference,note,resolution
+                   FROM provider_attempt_reconciliation_events WHERE job_id=?""",
                 ("job-provider-reconcile",)).fetchone()
-        self.assertEqual(event["event_type"],"provider_attempt_reconciled")
-        self.assertIn("provider-console-case-123",event["details_json"])
+        self.assertEqual(event["operator_id"],"admin-1")
+        self.assertEqual(event["evidence_reference"],"provider-console-case-123")
+        self.assertEqual(event["resolution"],"not_executed_confirmed")
         with self.assertRaisesRegex(ValueError,"only an ambiguous"):
             self.store.confirm_provider_attempt_not_executed(
                 "job-provider-reconcile",attempt["id"],"admin-1","case-123","duplicate")
