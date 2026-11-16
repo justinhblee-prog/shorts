@@ -431,3 +431,12 @@ GitHub Actions run [43794456586](https://github.com/justinhblee-prog/shorts/acti
 ### BUILD-00133 validation checkpoint
 
 GitHub Actions run [43794744350](https://github.com/justinhblee-prog/shorts/actions/runs/43794744350) passed **436 backend tests** and the complete validation script. This does not prove a live channel token is present or that a production Analytics report has been collected.
+
+
+### BUILD-00134 — monitoring YouTube Analytics collection
+
+- Open **운영 관제 · 수익 분석 → 성과 분석** and review the **YouTube Analytics 자동 수집 상태** panel.
+- `succeeded` means the last scheduled cycle completed without per-video failures; `partial` means some reports were collected and some videos failed; `failed` means the batch did not complete successfully; `running` indicates a batch is in progress or a process stopped before writing its final state.
+- Compare published videos, with-snapshot, without-snapshot and stale/missing counts. The coverage is based on uploaded video IDs and does not imply a metric value for videos whose report is unavailable.
+- Use `docker compose logs -f metrics-collector` for detailed exception classes. The API stores only a bounded error summary, not OAuth tokens or response bodies.
+- A successful cycle with zero due videos is a successful scheduler cycle, not proof that a new Analytics report was fetched.
