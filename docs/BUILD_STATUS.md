@@ -95,6 +95,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Add regression tests proving provider response bodies and bearer-like values are absent from exceptions and API responses.
 - Automated validation is pending.
 
+## BUILD-00195 — verify lease renewal during active provider execution
+
+- Add an integration-style worker regression that keeps provider execution active until a real heartbeat callback is observed.
+- Verify the active pipeline receives the exact lost-lease stop event and that a successful heartbeat permits the normal review-pending handoff.
+- Confirm the worker always stops and joins its heartbeat thread after execution.
+- This validates the local supervised worker path; it does not claim external API clients automatically renew leases.
+- Automated validation is pending.
+
 ## BUILD-00001 — durable queue and Worker Lease
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.
