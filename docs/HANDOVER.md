@@ -913,3 +913,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The frontend displays optional missing settings separately and never labels them as required blockers.
 - The compatibility field `capabilities.end_to_end_configured` remains YouTube-oriented; use `platforms.youtube` and `platforms.tiktok` for platform-specific configuration status.
 - The readiness report is configuration-only. It does not prove remote service connectivity, OAuth scopes, creator capability, upload success or revenue.
+
+
+### BUILD-00031 validation record
+
+- GitHub Actions PR run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930) completed successfully.
+- `sh scripts/validate.sh` passed; the backend suite reported **326 tests, OK**.
+- Frontend JavaScript syntax/DOM validation and Compose YAML validation are included in the validation script.
+- No live AI provider, OAuth, YouTube/TikTok account, media rendering/upload or revenue validation is claimed.
