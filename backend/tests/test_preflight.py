@@ -1,3 +1,4 @@
+import base64
 import os
 import tempfile
 import unittest
@@ -6,6 +7,38 @@ from preflight import build_preflight
 
 
 class PreflightTests(unittest.TestCase):
+    def test_backup_encryption_is_optional_but_reported_when_not_required(self):
+        result = build_preflight({})
+        self.assertFalse(result["checks"]["backup_encryption"]["configured"])
+        self.assertTrue(result["checks"]["backup_encryption"]["optional"])
+        self.assertIn(
+            "NEXUS_BACKUP_ENCRYPTION_KEY",
+            result["checks"]["backup_encryption"]["optional_missing"],
+        )
+        self.assertNotIn("NEXUS_BACKUP_ENCRYPTION_KEY", result["missing"])
+
+    def test_backup_encryption_required_without_key_blocks_preflight(self):
+        result = build_preflight({"NEXUS_BACKUP_ENCRYPTION_REQUIRED": "true"})
+        self.assertFalse(result["checks"]["backup_encryption"]["configured"])
+        self.assertFalse(result["checks"]["backup_encryption"]["optional"])
+        self.assertIn("NEXUS_BACKUP_ENCRYPTION_KEY", result["missing"])
+
+    def test_backup_encryption_accepts_only_urlsafe_base64_32_byte_key(self):
+        key = base64.urlsafe_b64encode(b"x" * 32).decode("ascii")
+        result = build_preflight({
+            "NEXUS_BACKUP_ENCRYPTION_KEY": key,
+            "NEXUS_BACKUP_ENCRYPTION_REQUIRED": "true",
+        })
+        self.assertTrue(result["checks"]["backup_encryption"]["configured"])
+        self.assertNotIn("NEXUS_BACKUP_ENCRYPTION_KEY", result["missing"])
+        invalid = build_preflight({
+            "NEXUS_BACKUP_ENCRYPTION_KEY": "short-invalid-key",
+        })
+        self.assertIn(
+            "NEXUS_BACKUP_ENCRYPTION_KEY (must be URL-safe base64 for 32 bytes)",
+            invalid["missing"],
+        )
+
     def test_empty_environment_fails_closed_without_exposing_secrets(self):
         result = build_preflight({})
         self.assertFalse(result["capabilities"]["end_to_end_configured"])
