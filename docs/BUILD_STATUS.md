@@ -1380,4 +1380,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Display the next retry timestamp and failure count for each visible outbox record.
 - Add an authenticated, confirmation-gated manual retry action for dead-letter records; the backend remains authoritative and rejects retries for inactive schedules.
 - Add frontend contract tests and update the operator runbook.
-- CI validation pending.
+- GitHub Actions run [43813399491](https://github.com/justinhblee-prog/shorts/actions/runs/43813399491) passed the complete `scripts/validate.sh` workflow, including 507 backend tests.
