@@ -23,7 +23,7 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
         "operator_auth": {
             "configured": legacy_review_token or reviewer_credentials,
             "missing": [] if legacy_review_token or reviewer_credentials else [
-                "NEXUS_REVIEW_TOKEN or NEXUS_REVIEW_CREDENTIALS_JSON"
+                "NEXUS_REVIEW_TOKEN", "NEXUS_REVIEW_CREDENTIALS_JSON"
             ],
             "optional_missing": [],
         },
