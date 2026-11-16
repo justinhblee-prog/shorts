@@ -126,12 +126,7 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertTrue(lost_lease.is_set())
 
 
-if __name__ == "__main__":
-    unittest.main()
-
     def test_sigterm_without_generation_still_requests_local_stop(self):
-        import threading
-
         class Queue:
             def __init__(self):
                 self.pauses = []
@@ -144,4 +139,9 @@ if __name__ == "__main__":
         request_worker_shutdown(queue, stopping, "job-3", lost_lease, 15)
         self.assertTrue(stopping.is_set())
         self.assertTrue(lost_lease.is_set())
-        self.assertEqual(queue.pauses, [(queue.pauses[0][0], "job-3", None, None)])
+        self.assertEqual(len(queue.pauses), 1)
+        self.assertEqual(queue.pauses[0][1:], ("job-3", None, None))
+
+
+if __name__ == "__main__":
+    unittest.main()
