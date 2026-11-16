@@ -1200,3 +1200,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Preserve valid average view percentages above 100%.
 - Add regression tests; ranking adjustment remains disabled.
 - GitHub Actions run [43803213470](https://github.com/justinhblee-prog/shorts/actions/runs/43803213470) passed the complete `scripts/validate.sh` workflow on the corrected code/test commit.
+
+
+## BUILD-00148 — recommendation exposure ingress validation
+
+- Harden exposure recording against malformed recommendation rows and nested trend/brand objects.
+- Reject boolean, non-finite, negative and overflowing recommendation scores before SQLite persistence.
+- Bound and validate brand identifiers/names; recursively normalize score/cohort metadata to JSON-safe values.
+- Add regression tests for malformed payloads and invalid ranking evidence.
+- GitHub Actions run [43803752778](https://github.com/justinhblee-prog/shorts/actions/runs/43803752778) passed the complete `scripts/validate.sh` workflow on the code/test commit; documentation-only commits followed.
+- Ranking score adjustment remains disabled; no live provider validation is claimed.
