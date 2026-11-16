@@ -332,11 +332,12 @@ def rank_trend_candidates(trends, brands, competitor_store=None, limit=30, now=N
     for brand in brands:
         if not brand.get("active", True):
             continue
-        config = brand.get("config") or {}
-        brand_tokens = _tokens(" ".join([
-            brand.get("name", ""), config.get("positioning", ""),
-            config.get("vertical", ""), config.get("audience", "")
-        ]))
+        raw_config = brand.get("config")
+        config = raw_config if isinstance(raw_config, dict) else {}
+        brand_tokens = _tokens(" ".join(str(value or "") for value in (
+            brand.get("name"), config.get("positioning"),
+            config.get("vertical"), config.get("audience")
+        )))
         brand_rows.append((brand, config, brand_tokens))
 
     regions_needed = {str(trend.get("region") or "").upper() for trend in trends}
