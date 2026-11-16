@@ -645,6 +645,60 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(self.store.next_provider_attempt_number("job-provider-journal","rendering"),2)
         self.assertEqual(self.store.get("job-provider-journal")["artifacts"],[])
 
+    def test_pipeline_recovers_persisted_script_response_without_duplicate_provider_call(self):
+        self.store.create("job-script-recovery",self.brief)
+        key=self.store.begin_provider_attempt("job-script-recovery","script",1)
+        self.store.finish_provider_attempt(
+            "job-script-recovery","script",1,key,
+            {"script":"Recovered script text with a useful opening and takeaway.",
+             "provider":"fixture","request_id":"script-remote-42"})
+        script=FakeProvider(AssertionError("script provider must not be called again"))
+        voice=FakeProvider({"audio_url":"https://media.example/recovered.mp3"})
+        render=FakeProvider({"video_url":"https://media.example/recovered.mp4"})
+        result=ProductionPipeline(self.store,script,voice,render).execute(
+            "job-script-recovery",self.brief)
+        self.assertEqual(result["status"],"rendered")
+        self.assertEqual(script.calls,[])
+        self.assertEqual(len(voice.calls),1)
+        self.assertEqual(len(render.calls),1)
+        attempts=self.store.provider_attempts("job-script-recovery")
+        script_attempt=next(item for item in attempts if item["stage"]=="script")
+        self.assertEqual(script_attempt["state"],"adopted")
+        artifact=next(item for item in result["artifacts"] if item["stage"]=="script")
+        self.assertIn("Recovered script text",artifact["metadata"]["script"])
+
+    def test_pipeline_recovers_persisted_render_response_without_duplicate_render_call(self):
+        self.store.create("job-render-recovery",self.brief)
+        self.store.artifact("job-render-recovery","script","text",None,{
+            "script":"Recovered script text with a useful opening and takeaway.",
+            "provider_quality_metadata":{},"policy_preflight":{}})
+        self.store.artifact("job-render-recovery","voice_generation","audio",
+            "https://media.example/recovered.mp3",{"voice":"en-US"})
+        key=self.store.begin_provider_attempt("job-render-recovery","rendering",1)
+        self.store.finish_provider_attempt(
+            "job-render-recovery","rendering",1,key,
+            {"video_url":"https://media.example/recovered.mp4","duration_seconds":28})
+        script=FakeProvider(AssertionError("existing script artifact should be used"))
+        voice=FakeProvider(AssertionError("existing voice artifact should be used"))
+        render=FakeProvider(AssertionError("render provider must not be called again"))
+        # The pipeline's current orchestration still requests upstream stages; seed
+        # their durable response journals so each stage resumes without external calls.
+        for stage,response in (
+            ("script",{"script":"Recovered script text with a useful opening and takeaway."}),
+            ("voice_generation",{"audio_url":"https://media.example/recovered.mp3"}),
+        ):
+            key=self.store.begin_provider_attempt("job-render-recovery",stage,1)
+            self.store.finish_provider_attempt(
+                "job-render-recovery",stage,1,key,response)
+        result=ProductionPipeline(self.store,script,voice,render).execute(
+            "job-render-recovery",self.brief)
+        self.assertEqual(result["status"],"rendered")
+        self.assertEqual(script.calls,[])
+        self.assertEqual(voice.calls,[])
+        self.assertEqual(render.calls,[])
+        self.assertTrue(all(item["state"]=="adopted"
+                            for item in self.store.provider_attempts("job-render-recovery")))
+
     def test_provider_transport_error_is_recorded_as_unknown_not_retried(self):
         self.store.create("job-provider-unknown",self.brief)
         key=self.store.begin_provider_attempt("job-provider-unknown","voice_generation",1)
