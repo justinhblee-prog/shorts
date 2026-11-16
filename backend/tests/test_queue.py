@@ -108,6 +108,25 @@ class QueueTests(unittest.TestCase):
   self.assertIn("external outcome",row["error"])
   with self.assertRaises(LeaseConflict):
    self.q.finish(job["id"],"worker-running",claim["lease_token"])
+  ambiguous=self.q.ambiguous_production_jobs()
+  self.assertEqual(len(ambiguous),1)
+  self.assertEqual(ambiguous[0]["id"],job["id"])
+  with self.assertRaisesRegex(ValueError,"evidence_reference"):
+   self.q.reconcile_production_retry(job["id"],"operator-1","","checked")
+  reconciled=self.q.reconcile_production_retry(
+   job["id"],"operator-1","provider-console:request-456",
+   "Provider console confirms the request was not executed")
+  self.assertEqual(reconciled["status"],"failed_retriable")
+  self.assertEqual(reconciled["error_code"],"operator_reconciled_no_side_effect")
+  self.assertTrue(self.q.is_paused())
+  with self.q.db() as c:
+   run=c.execute("SELECT status,current_stage FROM production_runs WHERE job_id=?",
+                 (job["id"],)).fetchone()
+  self.assertEqual(tuple(run),("queued","operator_reconciled_retry_authorized"))
+  audit=self.q.production_reconciliation_events(job["id"])
+  self.assertEqual(len(audit),1)
+  self.assertEqual(audit[0]["previous_status"],"cancelled")
+  self.assertEqual(audit[0]["resulting_status"],"failed_retriable")
 
  def test_cancel_rejects_production_after_review_handoff(self):
   job=self.q.enqueue("short_video_production",{"topic":"review"})
