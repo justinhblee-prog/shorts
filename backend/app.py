@@ -302,6 +302,14 @@ def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
     if result is None: raise HTTPException(404,"Production job not found")
     return result
 
+@app.get("/api/production/integrity-report")
+def production_integrity_report(limit:int=50,x_review_token:str|None=Header(default=None)):
+    require_review_permission(x_review_token,"production.read")
+    try:
+        return production_store.integrity_report(queue,limit=limit)
+    except ValueError as e:
+        raise HTTPException(409,str(e))
+
 @app.get("/api/production/jobs/{job_id}/provider-attempts")
 def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"production.read")

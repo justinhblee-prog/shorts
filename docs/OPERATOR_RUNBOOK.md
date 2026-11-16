@@ -630,3 +630,14 @@ The worker now runs a bounded production/queue state-integrity scan before claim
 - A durable queue `review_pending` handoff is mirrored only when the production row is still `rendered`.
 
 Each repair appends a `production_state_reconciled` queue event. Approval and upload mismatches are never auto-promoted or guessed. If any mismatch remains unresolved, the worker persists a global pause and does not claim more work. An operator must inspect both ledgers and evidence, reconcile explicitly, and resume through the existing audited resume action.
+
+
+## BUILD-00179 — Operator production integrity report
+
+Use the authenticated read-only endpoint `GET /api/production/integrity-report?limit=50` with an operator token that grants `production.read`. The limit is clamped to 1–200. Each item shows the production and queue states, timestamps, queue error context, a classification, a recommended next action, and up to ten recent audit events. Event details are allowlisted; provider response bodies and arbitrary event payloads are not returned.
+
+- `approval_or_upload_boundary`: inspect the human review decision and platform publication evidence. Never promote a state based only on the other ledger.
+- `ambiguous_external_outcome`: only use `POST /api/production/jobs/{job_id}/reconcile-retry` after evidence proves no external side effect occurred. The global pause remains in place.
+- Other mismatches: inspect both ledgers and the audit history; do not retry or resume based on the report alone.
+
+This endpoint is strictly read-only. It does not reconcile records, resume workers, approve content, upload media, or publish to YouTube/TikTok. Queue resume remains a separate explicit audited operator action after all affected work is reviewed.
