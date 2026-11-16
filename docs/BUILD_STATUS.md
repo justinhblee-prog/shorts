@@ -1884,3 +1884,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Extended superseded-attempt status fencing to include `SEND_TO_USER_INBOX`. Although this is not a published-feed completion, it still delivers content to the creator's inbox and must not be treated as a safe no-side-effect failure.
 - A late inbox-delivery result from an older attempt is preserved in that attempt's audit trail and moves a retryable current attempt to `reconciliation_required`, preventing duplicate delivery.
 - Added regression coverage for late inbox delivery after a newer attempt failed preflight. Backend deterministic CI only; no live TikTok API verification.
+
+## BUILD-00231 — Verify YouTube late success after a newer upload preserves both video IDs
+- Added a regression where attempt A is explicitly reconciled as not uploaded, attempt B completes, and then A's delayed success response arrives.
+- The current row retains attempt B's canonical video ID and attempt identity, while attempt A's late video ID is retained only in A's audit event.
+- The job transitions to `late_success_review_required` and another retry remains blocked until operator resolution, preventing a duplicate upload.
+- Backend deterministic CI only; no live YouTube API verification.

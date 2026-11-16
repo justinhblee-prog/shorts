@@ -237,6 +237,28 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(event["attempt_id"],first["attempt_id"])
         self.assertEqual(event["video_id"],"old-attempt-video")
 
+    def test_late_old_youtube_success_after_new_upload_preserves_both_video_ids(self):
+        first=self.uploads.begin("job-1","First attempt","")
+        self.uploads.mark_reconciliation_required(
+            "job-1","first request timed out",first["attempt_id"]
+        )
+        self.uploads.reconcile("job-1","not_uploaded",note="Verified no upload")
+        second=self.uploads.begin("job-1","Second attempt","")
+        self.uploads.finish("job-1","current-attempt-video",second["attempt_id"])
+        with self.assertRaisesRegex(YouTubeUploadError,"Late YouTube success"):
+            self.uploads.finish("job-1","late-old-attempt-video",first["attempt_id"])
+        result=self.uploads.get("job-1")
+        self.assertEqual(result["attempt_id"],second["attempt_id"])
+        self.assertEqual(result["status"],"late_success_review_required")
+        # The canonical row keeps the confirmed current-attempt video ID.
+        self.assertEqual(result["video_id"],"current-attempt-video")
+        event=result["events"][-1]
+        self.assertEqual(event["event_type"],"late_remote_success")
+        self.assertEqual(event["attempt_id"],first["attempt_id"])
+        self.assertEqual(event["video_id"],"late-old-attempt-video")
+        with self.assertRaisesRegex(YouTubeUploadError,"blocked"):
+            self.uploads.begin("job-1","Third attempt","")
+
     def test_operator_can_keep_current_video_when_stale_duplicate_arrives(self):
         first=self.uploads.begin("job-1","First attempt","")
         self.uploads.mark_reconciliation_required(
