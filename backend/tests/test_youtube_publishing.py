@@ -21,7 +21,9 @@ class FakeRequest:
 
 
 class FakeVideos:
+    def __init__(self): self.insert_calls=0
     def insert(self,**kwargs):
+        self.insert_calls+=1
         self.body=kwargs["body"]
         self.media=kwargs["media_body"]
         return FakeRequest({"id":"yt-video-123"})
@@ -808,6 +810,34 @@ class YouTubePublishingTests(unittest.TestCase):
             self.publisher.upload_approved("job-1","/missing/video.mp4",
                                            self.review,"Title")
 
+
+    def test_concurrent_approved_uploads_issue_only_one_remote_insert(self):
+        gate=threading.Event()
+        def publish(index):
+            gate.wait()
+            try:
+                return self.publisher.upload_approved(
+                    "job-1",self.media,self.review,f"Concurrent title {index}"
+                )
+            except YouTubeUploadError:
+                return None
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures=[pool.submit(publish,index) for index in range(8)]
+            gate.set()
+            results=[future.result() for future in futures]
+        successes=[result for result in results if result is not None]
+        self.assertGreaterEqual(len(successes),1)
+        self.assertEqual({result["attempt_id"] for result in successes},
+                         {self.uploads.get("job-1")["attempt_id"]})
+        self.assertTrue(all(result["status"]=="uploaded" for result in successes))
+        self.assertEqual(self.service._videos.insert_calls,1)
+        current=self.uploads.get("job-1")
+        self.assertEqual(current["status"],"uploaded")
+        self.assertEqual(current["privacy_status"],"private")
+        self.assertEqual(current["video_id"],"yt-video-123")
+        starts=[event for event in current["events"]
+                if event["event_type"]=="upload_attempt_started"]
+        self.assertEqual(len(starts),1)
 
 if __name__=="__main__":
     unittest.main()
