@@ -53,6 +53,8 @@ Open `http://localhost:8502/`. The API, worker and scheduler use the same persis
 7. In **승인 완료 · 비공개 업로드**, explicitly choose **비공개 업로드**. The YouTube API request sets `privacyStatus=private`.
 8. Confirm the returned YouTube video ID and inspect the upload record.
 
+Review decisions are committed together with the durable production queue transition. Approval moves both records to `approved`; rejection moves both to `rejected`; a revision request moves both to `revision_requested`. Each transition emits a `review_decision` queue event and retains the immutable reviewer decision/artifact snapshot. If the queue row is missing, belongs to another job type, or is not `review_pending`, the decision fails closed and neither record changes.
+
 The UI does not provide a public-publish action. Human approval is mandatory.
 
 ## 4. Artifact staging security
