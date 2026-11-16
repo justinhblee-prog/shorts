@@ -513,3 +513,8 @@ Both values must be decimal integer strings. The poll interval must not exceed o
 ### BUILD-00163 — schedule controls and outbox limits
 
 Internal schedule-store callers must pass a real boolean to activate/deactivate a schedule. Outbox listing limits are integers from 1–500 for pending items and 1–100 for status summaries; dispatch batch limits are integers from 1–100. The scheduler validates its lease TTL before processing, even when there are no due schedules or pending outbox rows. Invalid values raise a clear `ValueError` rather than being coerced or clamped.
+
+
+### BUILD-00164 — scheduled dispatch retry behavior
+
+When the durable job queue rejects a scheduled outbox item, the scheduler keeps the item pending and records the error. Automatic retries use exponential backoff: 30 seconds after the first failure, then 60, 120, 240 seconds and so on, capped at one hour. Deferred items remain visible in the outbox status screen but are not sent again until `next_attempt_at`. A successful idempotent enqueue clears the retry timestamp. Existing outbox rows are migrated with a null retry timestamp and remain immediately eligible.
