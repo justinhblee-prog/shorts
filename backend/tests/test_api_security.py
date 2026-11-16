@@ -77,6 +77,25 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertIn("x_review_token", refresh.endpoint.__annotations__)
         self.assertIn("x_review_token", report.endpoint.__annotations__)
 
+    def test_youtube_oauth_start_status_and_disconnect_routes_are_registered_and_protected(self):
+        routes = {
+            (getattr(route, "path", ""), tuple(sorted(getattr(route, "methods", []) or []))): route
+            for route in app.routes
+        }
+        for path, method in (
+            ("/api/youtube/oauth/start", "GET"),
+            ("/api/youtube/oauth/status", "GET"),
+            ("/api/youtube/oauth/disconnect", "POST"),
+        ):
+            route = routes.get((path, (method,)))
+            self.assertIsNotNone(route, path)
+            self.assertIn("x_review_token", route.endpoint.__annotations__)
+        callback = routes.get(("/api/youtube/oauth/callback", ("GET",)))
+        self.assertIsNotNone(callback)
+        # OAuth redirect callback is public by design; the one-time state and
+        # secure HttpOnly cookie protect it instead of the dashboard token.
+        self.assertNotIn("x_review_token", callback.endpoint.__annotations__)
+
     def test_late_upload_resolution_route_is_registered_and_token_protected(self):
         route = next((r for r in app.routes
                       if getattr(r,"path",None)=="/api/youtube/uploads/{job_id}/resolve-late-result"),None)
