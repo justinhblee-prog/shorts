@@ -426,3 +426,8 @@ GitHub Actions run [43794456586](https://github.com/justinhblee-prog/shorts/acti
 - `YOUTUBE_ANALYTICS_LEASE_SECONDS` controls the renewable collector lease (default 900 seconds). The collector renews the lease during long batches and refuses to resurrect an expired lease.
 - Check `docker compose logs -f metrics-collector` for `youtube_analytics_collection_completed` or `youtube_analytics_collection_failed`. A successful scheduler cycle with zero due videos is not evidence that Analytics reports were retrieved.
 - Confirm actual collection by checking the per-video Analytics timestamp and report status in the dashboard/API. OAuth scopes and channel eligibility can still make individual reports unavailable.
+
+
+### BUILD-00133 validation checkpoint
+
+GitHub Actions run [43794744350](https://github.com/justinhblee-prog/shorts/actions/runs/43794744350) passed **436 backend tests** and the complete validation script. This does not prove a live channel token is present or that a production Analytics report has been collected.
