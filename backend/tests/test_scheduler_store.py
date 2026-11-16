@@ -215,6 +215,61 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(status["pending_retries"], 0)
         self.assertEqual(status["items"][0]["status"], "dispatched")
 
+
+    def test_outbox_moves_to_dead_letter_after_ten_failed_attempts(self):
+        now = datetime.now(timezone.utc)
+        self.schedules.create("annual", 31536000,
+            {"brand": "Brain Glitch", "region": "US", "language": "English", "topic": "Test"},
+            start_at=(now - timedelta(minutes=5)).isoformat())
+        class FailingQueue:
+            def is_paused(self):
+                return False
+            def enqueue(self, *args, **kwargs):
+                raise RuntimeError("permanent payload or queue failure")
+        for attempt in range(10):
+            self.schedules.dispatch_due(FailingQueue(),
+                now=now + timedelta(seconds=3600 * attempt))
+        status = self.schedules.outbox_status()
+        self.assertEqual(status["counts"].get("dead_letter"), 1)
+        self.assertEqual(status["pending_retries"], 0)
+        row = status["items"][0]
+        self.assertEqual(row["status"], "dead_letter")
+        self.assertEqual(row["attempts"], 10)
+        self.assertIsNone(row["next_attempt_at"])
+        self.assertIn("RuntimeError", row["last_error"])
+        # A dead-letter row is excluded from automatic retry polling.
+        self.assertEqual(self.schedules.pending_dispatches(), [])
+
+    def test_dead_letter_can_be_manually_retried_and_dispatched_idempotently(self):
+        now = datetime.now(timezone.utc)
+        self.schedules.create("annual", 31536000,
+            {"brand": "Brain Glitch", "region": "US", "language": "English", "topic": "Test"},
+            start_at=(now - timedelta(minutes=5)).isoformat())
+        class FailingQueue:
+            def is_paused(self):
+                return False
+            def enqueue(self, *args, **kwargs):
+                raise RuntimeError("queue unavailable")
+        for attempt in range(10):
+            self.schedules.dispatch_due(FailingQueue(),
+                now=now + timedelta(seconds=3600 * attempt))
+        row = self.schedules.outbox_status()["items"][0]
+        retried = self.schedules.retry_dead_letter(row["id"])
+        self.assertEqual(retried["status"], "pending")
+        self.assertEqual(retried["attempts"], 0)
+        self.assertIsNone(retried["next_attempt_at"])
+        self.assertIsNone(self.schedules.retry_dead_letter(row["id"]))
+        result = self.schedules.dispatch_due(self.queue, now=now + timedelta(hours=11))
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(self.schedules.outbox_status()["counts"].get("dispatched"), 1)
+
+    def test_retry_dead_letter_requires_existing_dead_letter_id(self):
+        for invalid in ("", None, 42):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "outbox_id"):
+                    self.schedules.retry_dead_letter(invalid)
+        self.assertIsNone(self.schedules.retry_dead_letter("missing"))
+
     def test_naive_now_is_rejected(self):
         with self.assertRaises(ValueError):
             self.schedules.dispatch_due(self.queue, now=datetime(2026, 1, 1))

@@ -1345,3 +1345,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Clear retry timestamps after successful idempotent queue acceptance.
 - Add regression tests for retry timing, exponential growth/cap, and compatibility with existing pending outbox rows.
 - GitHub Actions run [43811943929](https://github.com/justinhblee-prog/shorts/actions/runs/43811943929) passed the complete `scripts/validate.sh` workflow, including 500 backend tests.
+
+
+## BUILD-00165 — scheduler outbox dead-letter handling
+
+- Stop automatic retries after 10 consecutive queue-dispatch failures and move the item to `dead_letter` instead of retrying forever.
+- Keep dead-letter items visible in the existing outbox status endpoint with attempt count and last error.
+- Add an authenticated operator endpoint to explicitly retry a dead-letter item; reset retry state but preserve its original idempotency key.
+- Add regression coverage for the retry ceiling, manual recovery, missing IDs and idempotent dispatch.
+- GitHub Actions run [43812423780](https://github.com/justinhblee-prog/shorts/actions/runs/43812423780) passed the complete `scripts/validate.sh` workflow, including 503 backend tests.
