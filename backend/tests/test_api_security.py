@@ -88,6 +88,74 @@ class ApiSecurityTests(unittest.TestCase):
             item["tiktok_events"][0]["error"], app_module.review_store.SAFE_ERROR_NOTICE
         )
 
+    def test_queue_read_endpoints_redact_worker_and_provider_diagnostics(self):
+        job = {
+            "id": "job-safe", "status": "failed_terminal",
+            "error_message": "Authorization: Bearer queue-job-secret",
+            "payload": {"topic": "Safe topic"},
+        }
+        events = [
+            {"event_type": "worker_pause", "details": {
+                "reason": "Provider response leaked bearer queue-event-secret",
+            }},
+            {"event_type": "failed", "details": {
+                "error_message": "queue-event-error-secret",
+            }},
+        ]
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+        ):
+            safe_job = app_module.get_job("job-safe", x_review_token="review-token")
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.queue, "get", return_value=job),
+            mock.patch.object(app_module.queue, "events", return_value=events),
+        ):
+            safe_events = app_module.get_events("job-safe", x_review_token="review-token")
+        serialized = json.dumps({"job": safe_job, "events": safe_events})
+        for secret in (
+            "queue-job-secret", "queue-event-secret", "queue-event-error-secret",
+        ):
+            self.assertNotIn(secret, serialized)
+        self.assertEqual(
+            safe_job["error_message"], app_module.review_store.SAFE_ERROR_NOTICE
+        )
+        self.assertEqual(
+            safe_events["events"][0]["details"]["reason"],
+            app_module.review_store.SAFE_ERROR_NOTICE,
+        )
+        self.assertEqual(
+            safe_events["events"][1]["details"]["error_message"],
+            app_module.review_store.SAFE_ERROR_NOTICE,
+        )
+
+    def test_queue_control_read_redacts_system_pause_reason_but_preserves_operator_note(self):
+        control = {"paused": True, "pause_reason": "Provider failed with Bearer control-secret",
+                   "paused_job_id": "job-safe"}
+        events = [
+            {"event_type": "paused", "actor": "system",
+             "reason": "Provider failed with Bearer event-secret"},
+            {"event_type": "paused", "actor": "operator-1",
+             "reason": "Maintenance window"},
+        ]
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.queue, "worker_control", return_value=control),
+            mock.patch.object(app_module.queue, "worker_control_events", return_value=events),
+        ):
+            result = app_module.queue_control(x_review_token="review-token")
+        serialized = json.dumps(result)
+        self.assertNotIn("control-secret", serialized)
+        self.assertNotIn("event-secret", serialized)
+        self.assertEqual(
+            result["control"]["pause_reason"], app_module.review_store.SAFE_ERROR_NOTICE
+        )
+        self.assertEqual(
+            result["events"][0]["reason"], app_module.review_store.SAFE_ERROR_NOTICE
+        )
+        self.assertEqual(result["events"][1]["reason"], "Maintenance window")
+
     def test_production_detail_redacts_raw_error_and_nested_provider_secrets(self):
         record = {
             "job_id": "job-safe",

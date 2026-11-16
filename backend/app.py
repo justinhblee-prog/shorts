@@ -1192,19 +1192,22 @@ def stats(x_review_token:str|None=Header(default=None)):
 @app.get("/api/queue/control")
 def queue_control(x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"queue.read")
-    return {"control":queue.worker_control(),"events":queue.worker_control_events(30)}
+    return {
+        "control":review_store.sanitize_worker_control(queue.worker_control()),
+        "events":review_store.sanitize_worker_control_events(queue.worker_control_events(30)),
+    }
 
 @app.get("/api/production/reconciliation")
 def list_production_reconciliation(limit:int=100,x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"queue.read")
-    return {"jobs":queue.ambiguous_production_jobs(limit)}
+    return {"jobs":review_store._sanitize_review_value(queue.ambiguous_production_jobs(limit))}
 
 @app.get("/api/production/jobs/{job_id}/reconciliation")
 def get_production_reconciliation(job_id:str,x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"production.read")
     try:
         queue.get(job_id)
-        return {"events":queue.production_reconciliation_events(job_id)}
+        return {"events":review_store._sanitize_review_value(queue.production_reconciliation_events(job_id))}
     except JobNotFound:
         raise HTTPException(404,"Job not found")
 
@@ -1217,8 +1220,11 @@ def reconcile_production_retry(job_id:str,body:ProductionReconciliationAction,
     try:
         job=queue.reconcile_production_retry(
             job_id,body.operator_id,body.evidence_reference,body.note)
-        return {"job":job,"production_paused":queue.is_paused(),
-                "events":queue.production_reconciliation_events(job_id)}
+        return {
+            "job":review_store.sanitize_production_record(job),
+            "production_paused":queue.is_paused(),
+            "events":review_store._sanitize_review_value(queue.production_reconciliation_events(job_id)),
+        }
     except JobNotFound:
         raise HTTPException(404,"Production job not found")
     except ValueError as e:
@@ -1232,7 +1238,10 @@ def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=N
     if not operator_id or not note:
         raise HTTPException(422,"operator_id and note must not be blank")
     control=queue.pause(note,actor=operator_id)
-    return {"control":control,"events":queue.worker_control_events(30)}
+    return {
+        "control":review_store.sanitize_worker_control(control),
+        "events":review_store.sanitize_worker_control_events(queue.worker_control_events(30)),
+    }
 
 @app.post("/api/queue/resume")
 def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
@@ -1241,7 +1250,10 @@ def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=
         raise HTTPException(422,"operator_id and note must not be blank")
     try:
         control=queue.resume(actor=body.operator_id.strip(),note=body.note.strip())
-        return {"control":control,"events":queue.worker_control_events(30)}
+        return {
+            "control":review_store.sanitize_worker_control(control),
+            "events":review_store.sanitize_worker_control_events(queue.worker_control_events(30)),
+        }
     except ValueError as e:
         raise HTTPException(409,str(e))
 
@@ -1291,12 +1303,12 @@ def workers(x_review_token:str|None=Header(default=None)):
 @app.get("/api/jobs/{jid}")
 def get_job(jid:str,x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"production.read")
-    try: return queue.get(jid)
+    try: return review_store.sanitize_production_record(queue.get(jid))
     except JobNotFound: raise HTTPException(404,"Job not found")
 @app.get("/api/jobs/{jid}/events")
 def get_events(jid:str,x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"production.read")
-    try: queue.get(jid); return {"events":queue.events(jid)}
+    try: queue.get(jid); return {"events":review_store.sanitize_queue_events(queue.events(jid))}
     except JobNotFound: raise HTTPException(404,"Job not found")
 
 

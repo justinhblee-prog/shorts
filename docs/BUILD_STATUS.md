@@ -78,6 +78,15 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Add API regression tests for both platform detail routes and the combined approved-review payload.
 - Automated validation is pending.
 
+## BUILD-00193 — redact queue and worker diagnostic responses
+
+- Sanitize queue job error messages and worker-pause event details returned by queue read APIs.
+- Sanitize worker-control pause reasons and system-generated pause/resume audit messages while preserving operator-authored maintenance notes.
+- Apply safe response projections to production reconciliation reads and retry reconciliation results.
+- Preserve raw diagnostic context in durable server-side records for protected investigation.
+- Add regression tests for job, event, and worker-control response redaction.
+- Automated validation is pending.
+
 ## BUILD-00001 — durable queue and Worker Lease
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.

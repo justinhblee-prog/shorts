@@ -66,6 +66,42 @@ class ReviewStore:
             safe["error"] = cls.SAFE_ERROR_NOTICE
         return safe
 
+    @classmethod
+    def sanitize_worker_control(cls, control):
+        safe = cls._sanitize_review_value(control)
+        if isinstance(safe, dict) and safe.get("pause_reason"):
+            safe["pause_reason"] = cls.SAFE_ERROR_NOTICE
+        return safe
+
+    @classmethod
+    def sanitize_worker_control_events(cls, events):
+        safe = cls._sanitize_review_value(events)
+        if not isinstance(safe, list):
+            return safe
+        for event in safe:
+            if not isinstance(event, dict):
+                continue
+            reason = event.get("reason")
+            if reason and (
+                event.get("actor") == "system"
+                or "Previous pause:" in str(reason)
+            ):
+                event["reason"] = cls.SAFE_ERROR_NOTICE
+        return safe
+
+    @classmethod
+    def sanitize_queue_events(cls, events):
+        safe = cls._sanitize_review_value(events)
+        if not isinstance(safe, list):
+            return safe
+        for event in safe:
+            if not isinstance(event, dict) or event.get("event_type") != "worker_pause":
+                continue
+            details = event.get("details")
+            if isinstance(details, dict) and details.get("reason"):
+                details["reason"] = cls.SAFE_ERROR_NOTICE
+        return safe
+
     def __init__(self, db_path="data/nexus.sqlite3"):
         self.db_path = str(db_path)
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
