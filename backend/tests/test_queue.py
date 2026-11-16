@@ -217,4 +217,49 @@ class QueueTests(unittest.TestCase):
      JobQueue(Path(self.tmp.name)/"invalid.db", invalid)
   self.assertEqual(self.q.lease_seconds, 10)
 
+
+ def test_expired_lease_recovery_paths_share_terminal_and_audit_semantics(self):
+  for path in ("claim","recover"):
+   with self.subTest(path=path):
+    job=self.q.enqueue("render",{"path":path},max_attempts=1)
+    claimed=self.q.claim("worker-"+path)
+    with self.q.db() as c:
+     c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(job["id"],))
+    if path=="claim":
+     self.q.claim("worker-recovery",job_type="other")
+    else:
+     result=self.q.recover()
+     self.assertEqual(result,{"requeued":0,"terminal":1})
+    resolved=self.q.get(job["id"])
+    self.assertEqual(resolved["status"],"failed_terminal")
+    self.assertEqual(resolved["error_code"],"lease_expired")
+    event=self.q.events(job["id"])[-1]
+    self.assertEqual(event["event_type"],"lease_expired")
+    self.assertEqual(event["details"]["resolution"],"attempts_exhausted")
+    with self.assertRaises(LeaseConflict):
+     self.q.finish(job["id"],"worker-"+path,claimed["lease_token"])
+
+ def test_expired_production_recovery_updates_run_and_requires_manual_reconciliation(self):
+  job=self.q.enqueue("short_video_production",{"topic":"uncertain"})
+  with self.q.db() as c:
+   c.execute("""CREATE TABLE production_runs(
+    job_id TEXT PRIMARY KEY,status TEXT,current_stage TEXT,error TEXT,updated_at TEXT)""")
+   c.execute("INSERT INTO production_runs VALUES(?,?,?,?,?)",
+             (job["id"],"rendering","rendering",None,"now"))
+  self.q.claim("worker-production")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",(job["id"],))
+  result=self.q.recover()
+  self.assertEqual(result,{"requeued":0,"terminal":1})
+  resolved=self.q.get(job["id"])
+  self.assertEqual(resolved["status"],"failed_terminal")
+  self.assertEqual(resolved["error_code"],"production_lease_expired_ambiguous")
+  event=self.q.events(job["id"])[-1]
+  self.assertEqual(event["event_type"],"lease_expired")
+  self.assertEqual(event["details"]["resolution"],"manual_reconciliation_required")
+  with self.q.db() as c:
+   run=c.execute("SELECT status,current_stage FROM production_runs WHERE job_id=?",(job["id"],)).fetchone()
+  self.assertEqual(tuple(run),("failed_terminal","lease_expired_ambiguous"))
+  self.assertTrue(self.q.is_paused())
+
 if __name__=="__main__": unittest.main()
