@@ -667,3 +667,10 @@ The report is bounded (maximum 200 records per call) and read-only. It does not 
 The integrity report's `unresolved` and `orphaned` fields are aggregate counts across the full matching tables, not just the displayed sample. `scanned` is the number of detail rows returned, `has_more` indicates that the sample is truncated, and `counts` breaks the totals into state mismatches, queue-only rows, and production-only rows.
 
 Detail rows remain capped at 200. Orphan rows are prioritized in the sample so the worker's bounded safety check sees orphan records before ordinary status mismatches. The dashboard labels the total separately from the displayed detail count; a truncated report is not a complete item listing.
+
+
+## BUILD-00184 — Paginated integrity report
+
+The integrity endpoint accepts `limit` (1–200) and `offset` (0–1,000,000). Aggregate counts always describe the full matching set; `scanned` describes only the current page. When `has_more` is true, `next_offset` identifies the next page. The Operations panel appends pages with **다음 50건 더 보기** while retaining orphan-first ordering.
+
+Refresh the diagnostic report to restart from the first page after new events or state changes. Pagination is read-only and does not change lifecycle state.

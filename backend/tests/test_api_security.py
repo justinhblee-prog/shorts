@@ -489,13 +489,13 @@ class ApiSecurityTests(unittest.TestCase):
             ) as report:
                 self.assertEqual(
                     app_module.production_integrity_report(
-                        limit=13, x_review_token=reviewer_token
+                        limit=13, offset=17, x_review_token=reviewer_token
                     ), expected
                 )
-                report.assert_called_once_with(app_module.queue, limit=13)
+                report.assert_called_once_with(app_module.queue, limit=13, offset=17)
                 with self.assertRaises(HTTPException) as denied:
                     app_module.production_integrity_report(
-                        limit=13, x_review_token=analyst_token
+                        limit=13, offset=17, x_review_token=analyst_token
                     )
                 self.assertEqual(denied.exception.status_code, 403)
                 report.assert_called_once()

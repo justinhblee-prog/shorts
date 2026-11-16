@@ -715,6 +715,32 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(queue.get(job_id)["status"],"queued")
 
 
+
+    def test_integrity_report_paginates_without_duplicate_or_missing_records(self):
+        queue = JobQueue(self.store.db_path)
+        created = []
+        for index in range(3):
+            job = queue.enqueue(
+                "short_video_production", {"brand": "", "region": "US",
+                                           "language": "en", "topic": ""},
+                channel_name=f"page-{index}"
+            )
+            created.append(job["id"])
+        first = self.store.integrity_report(queue, limit=2, offset=0)
+        second = self.store.integrity_report(queue, limit=2, offset=2)
+        first_ids = [item["job_id"] for item in first["items"]]
+        second_ids = [item["job_id"] for item in second["items"]]
+        self.assertEqual(first["offset"], 0)
+        self.assertEqual(first["next_offset"], 2)
+        self.assertTrue(first["has_more"])
+        self.assertEqual(second["offset"], 2)
+        self.assertIsNone(second["next_offset"])
+        self.assertFalse(second["has_more"])
+        self.assertEqual(len(first_ids), 2)
+        self.assertEqual(len(second_ids), 1)
+        self.assertEqual(len(set(first_ids + second_ids)), 3)
+        self.assertEqual(set(first_ids + second_ids), set(created))
+
     def test_integrity_report_detects_both_orphan_record_directions_without_mutation(self):
         queue = JobQueue(self.store.db_path)
         queue_only = queue.enqueue(

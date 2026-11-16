@@ -303,10 +303,10 @@ def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
     return result
 
 @app.get("/api/production/integrity-report")
-def production_integrity_report(limit:int=50,x_review_token:str|None=Header(default=None)):
+def production_integrity_report(limit:int=50,offset:int=0,x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"production.read")
     try:
-        return production_store.integrity_report(queue,limit=limit)
+        return production_store.integrity_report(queue,limit=limit,offset=offset)
     except ValueError as e:
         raise HTTPException(409,str(e))
 

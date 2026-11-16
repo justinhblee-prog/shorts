@@ -524,11 +524,12 @@ class ProductionStore:
             "unresolved": len(unresolved), "unresolved_jobs": unresolved,
         }
 
-    def integrity_report(self, queue, limit=50):
+    def integrity_report(self, queue, limit=50, offset=0):
         """Return a read-only, bounded explanation of production/queue state mismatches."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
             raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
         bounded = max(1, min(int(limit), 200))
+        page_offset = max(0, min(int(offset), 1000000))
         items = []
         with self.db() as c:
             mismatch_total = c.execute("""
@@ -593,8 +594,8 @@ class ProductionStore:
                     ON j.id=r.job_id AND j.job_type='short_video_production'
                   WHERE j.id IS NULL
                 )
-                ORDER BY CASE WHEN record_kind='state_mismatch' THEN 1 ELSE 0 END,                         sort_updated_at DESC,job_id LIMIT ?
-            """, (bounded,)).fetchall()
+                ORDER BY CASE WHEN record_kind='state_mismatch' THEN 1 ELSE 0 END,                         sort_updated_at DESC,job_id LIMIT ? OFFSET ?
+            """, (bounded, page_offset)).fetchall()
             for row in rows:
                 item = dict(row)
                 production_status = item["production_status"]
@@ -702,9 +703,11 @@ class ProductionStore:
         return {
             "scanned": len(items),
             "limit": bounded,
+            "offset": page_offset,
             "unresolved": unresolved,
             "orphaned": orphaned,
-            "has_more": unresolved > len(items),
+            "has_more": page_offset + len(items) < unresolved,
+            "next_offset": page_offset + len(items) if page_offset + len(items) < unresolved else None,
             "counts": {
                 "state_mismatch": mismatch_total,
                 "queue_without_production": queue_orphan_total,
