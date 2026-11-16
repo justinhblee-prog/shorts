@@ -187,8 +187,8 @@
       $("youtubeConnectionStatus").textContent=connected
         ? "OAuth 승인·토큰 저장됨 · 실계정 API 확인 전 · "+mode+scopeLabel
         : "연결 필요 · YouTube 업로드와 Analytics 권한 승인 필요";
-      const managed=data.mode==="encrypted_oauth";
-      $("youtubeConnect").textContent=managed?"YouTube OAuth 연결됨":(connected?"암호화 OAuth로 전환":"YouTube 계정 연결");
+      const managed=data.mode==="encrypted_oauth"&&connected;
+      $("youtubeConnect").textContent=managed?"YouTube OAuth 연결됨":(data.mode==="encrypted_oauth"?"YouTube 권한 재승인":(connected?"암호화 OAuth로 전환":"YouTube 계정 연결"));
       $("youtubeConnect").disabled=managed;
       $("youtubeDisconnect").disabled=!managed||!!data.static_fallback_configured;
     }catch(err){
