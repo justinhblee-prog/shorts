@@ -207,13 +207,17 @@ class JobQueue:
 
     @staticmethod
     def _assert_worker_generation(c, worker_id, generation_token):
-        if generation_token is None:
-            return
         row = c.execute(
             "SELECT generation_token,status FROM worker_registry WHERE worker_id=?",
             (worker_id,),
         ).fetchone()
-        if (row is None or row["generation_token"] != generation_token
+        # Preserve the unregistered legacy/test path, but once a worker ID is
+        # registered every process-originated mutation must prove its generation.
+        if row is None:
+            if generation_token is not None:
+                raise LeaseConflict("Worker process generation is no longer current")
+            return
+        if (generation_token is None or row["generation_token"] != generation_token
                 or row["status"] != "online"):
             raise LeaseConflict("Worker process generation is no longer current")
 
@@ -482,10 +486,10 @@ class JobQueue:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             n=stamp(now())
-            if generation_token is not None:
-                if not worker_id:
-                    raise ValueError("worker_id required with generation_token")
+            if worker_id is not None:
                 self._assert_worker_generation(c, worker_id, generation_token)
+            elif generation_token is not None:
+                raise ValueError("worker_id required with generation_token")
             self._pause_production_in_transaction(c, reason, job_id, n, actor)
             c.commit()
             return self.worker_control()
