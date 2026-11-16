@@ -6,7 +6,10 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from recommendation_evaluation import RecommendationEvaluationStore, _spearman
+from recommendation_evaluation import (
+    RecommendationEvaluationStore, _finite_nonnegative, _retention_at,
+    _retention_points, _spearman,
+)
 
 
 class RecommendationEvaluationTests(unittest.TestCase):
@@ -402,6 +405,73 @@ class RecommendationEvaluationTests(unittest.TestCase):
             self.assertEqual(analytics[metric]["eligible_run_count"], 5)
             self.assertEqual(analytics[metric]["holdout_run_count"], 2)
             self.assertFalse(analytics[metric]["score_adjustment_enabled"])
+        self.assertFalse(result["ranking_score_adjustment_enabled"])
+
+    def test_analytics_numeric_validation_rejects_booleans_and_nonfinite_values(self):
+        for value in (True, False, float("nan"), float("inf"), float("-inf"), -0.01, "12"):
+            with self.subTest(value=value):
+                self.assertIsNone(_finite_nonnegative(value))
+        self.assertEqual(_finite_nonnegative(0), 0.0)
+        self.assertEqual(_finite_nonnegative(12.5), 12.5)
+
+    def test_retention_curve_requires_normalized_finite_non_boolean_coordinates(self):
+        curve = [
+            {"elapsed_video_time_ratio": True, "audience_watch_ratio": 0.8},
+            {"elapsed_video_time_ratio": 0.25, "audience_watch_ratio": False},
+            {"elapsed_video_time_ratio": float("nan"), "audience_watch_ratio": 0.7},
+            {"elapsed_video_time_ratio": 0.5, "audience_watch_ratio": 1.01},
+            {"elapsed_video_time_ratio": -0.1, "audience_watch_ratio": 0.7},
+            {"elapsed_video_time_ratio": 0.25, "audience_watch_ratio": 0.8},
+            {"elapsed_video_time_ratio": 0.5, "audience_watch_ratio": 0.6},
+        ]
+        points = _retention_points(curve)
+        self.assertEqual(len(points), 2)
+        self.assertEqual(_retention_at(curve, 0.25), 0.8)
+        self.assertEqual(_retention_at(curve, 0.5), 0.6)
+
+    def test_invalid_analytics_only_outcomes_do_not_count_as_measured(self):
+        exposure = self.store.record_run(
+            "US", [self.item(91, 88.0)], "2026-11-01T00:00:00+00:00"
+        )
+        self.store.link_production(
+            "trend-91", "future-leak", "invalid-metrics-job",
+            run_id=exposure["run_id"],
+        )
+        result = self.store.evaluate({"videos": [{
+            "job_id": "invalid-metrics-job",
+            "measurement_status": "insufficient_snapshots",
+            "views_per_hour": True,
+            "engaged_view_share": False,
+            "average_view_percentage": float("nan"),
+            "average_view_duration_seconds": float("inf"),
+            "audience_retention_curve": [
+                {"elapsed_video_time_ratio": True, "audience_watch_ratio": 0.9},
+                {"elapsed_video_time_ratio": 0.5, "audience_watch_ratio": 1.2},
+            ],
+        }]})
+        self.assertEqual(result["status"], "insufficient_data")
+        self.assertEqual(result["analytics_measured_outcome_count"], 0)
+        self.assertEqual(result["any_metric_measured_outcome_count"], 0)
+        self.assertEqual(result["unmeasured_selected_count"], 1)
+
+    def test_valid_average_view_percentage_above_100_is_preserved(self):
+        exposure = self.store.record_run(
+            "US", [self.item(92, 88.0)], "2026-11-01T00:00:00+00:00"
+        )
+        self.store.link_production(
+            "trend-92", "future-leak", "valid-high-retention-job",
+            run_id=exposure["run_id"],
+        )
+        result = self.store.evaluate({"videos": [{
+            "job_id": "valid-high-retention-job",
+            "measurement_status": "insufficient_snapshots",
+            "average_view_percentage": 125.0,
+            "audience_retention_curve": [
+                {"elapsed_video_time_ratio": 0.5, "audience_watch_ratio": 0.75},
+            ],
+        }]})
+        self.assertEqual(result["analytics_measured_outcome_count"], 1)
+        self.assertEqual(result["any_metric_measured_outcome_count"], 1)
         self.assertFalse(result["ranking_score_adjustment_enabled"])
 
     def test_spearman_handles_ties_and_constant_values(self):
