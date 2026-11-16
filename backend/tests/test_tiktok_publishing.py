@@ -1,8 +1,9 @@
 import json
 import hashlib
 import os
-import tempfile
+import tempfile, threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from production_pipeline import ProductionStore
@@ -149,6 +150,30 @@ class TikTokPublishingTests(unittest.TestCase):
                 require_current_approval=True,
             )
         self.assertIsNone(self.store.get("job-1"))
+
+    def test_concurrent_tiktok_reservations_allow_only_one_attempt(self):
+        gate=threading.Event()
+        def reserve(index):
+            gate.wait()
+            try:
+                return self.store.begin(
+                    "job-1",f"Concurrent title {index}",True,f"operator-{index}",
+                    f"concurrent-attempt-{index}",False,False
+                )["attempt_id"]
+            except TikTokPublishError:
+                return None
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures=[pool.submit(reserve,index) for index in range(8)]
+            gate.set()
+            results=[future.result() for future in futures]
+        winners=[attempt for attempt in results if attempt is not None]
+        self.assertEqual(len(winners),1)
+        current=self.store.get("job-1")
+        self.assertEqual(current["attempt_id"],winners[0])
+        self.assertEqual(current["status"],"initializing")
+        starts=[event for event in current["events"] if event["event_type"]=="operator_consent_recorded"]
+        self.assertEqual(len(starts),1)
+        self.assertEqual(current["privacy_level"],"SELF_ONLY")
 
     def test_tiktok_upload_attempt_records_active_policy_version_and_check_date(self):
         record=self.store.begin(
