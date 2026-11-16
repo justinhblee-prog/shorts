@@ -649,3 +649,34 @@ if __name__ == "__main__":
             result["holdout_end"], (base + timedelta(days=9)).isoformat()
         )
         self.assertEqual(result["holdout_score_views_spearman"], -1.0)
+
+
+    def test_pooled_holdout_orders_mixed_timezone_offsets_by_absolute_time(self):
+        videos = []
+        base = datetime(2026, 11, 1, tzinfo=timezone.utc)
+        for index in range(10):
+            exposure_at = (base + timedelta(days=index)).isoformat()
+            offset = timezone(timedelta(hours=5 if index % 2 else -4))
+            selected_at = (base + timedelta(days=index)).astimezone(offset).isoformat()
+            exposure = self.store.record_run(
+                "US", [self.item(100 + index, 60 + index)], exposure_at
+            )
+            self.store.link_production(
+                f"trend-{100 + index}", "future-leak", f"offset-job-{index}",
+                selected_at, run_id=exposure["run_id"],
+            )
+            videos.append({
+                "job_id": f"offset-job-{index}",
+                "measurement_status": "measured",
+                "views_per_hour": 100 + index * 10,
+            })
+
+        result = self.store.evaluate({"videos": videos})
+        self.assertEqual(
+            datetime.fromisoformat(result["holdout_start"]),
+            base + timedelta(days=5),
+        )
+        self.assertEqual(
+            datetime.fromisoformat(result["holdout_end"]),
+            base + timedelta(days=9),
+        )
