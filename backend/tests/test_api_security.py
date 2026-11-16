@@ -810,6 +810,107 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertNotIn("response_json", result["attempts"][0])
         self.assertNotIn("provider_request_id", result["attempts"][0])
 
+
+    def test_platform_reconciliation_rejects_operator_id_spoofing(self):
+        from app import (
+            YouTubeUploadReconciliation, YouTubeLateSuccessResolution,
+            TikTokPublicationReconciliation,
+            reconcile_youtube_upload, resolve_late_youtube_upload,
+            reconcile_tiktok_publication,
+        )
+        cases = [
+            (
+                reconcile_youtube_upload,
+                YouTubeUploadReconciliation(
+                    outcome="not_uploaded", confirmed=True,
+                    note="Checked channel", operator_id="forged-operator",
+                ),
+                "youtube_upload_store", "reconcile",
+            ),
+            (
+                resolve_late_youtube_upload,
+                YouTubeLateSuccessResolution(
+                    operator_id="forged-operator", video_id="late-video",
+                    note="Verified late completion",
+                ),
+                "youtube_upload_store", "resolve_late_success",
+            ),
+            (
+                reconcile_tiktok_publication,
+                TikTokPublicationReconciliation(
+                    outcome="not_published", confirmed=True,
+                    note="Checked creator account", operator_id="forged-operator",
+                ),
+                "tiktok_publish_store", "reconcile",
+            ),
+        ]
+        for endpoint, body, store_name, method_name in cases:
+            with self.subTest(endpoint=endpoint.__name__):
+                with (
+                    mock.patch.object(
+                        app_module, "require_review_permission",
+                        return_value="authenticated-operator",
+                    ) as authorize,
+                    mock.patch.object(
+                        getattr(app_module, store_name), method_name
+                    ) as mutation,
+                ):
+                    with self.assertRaises(HTTPException) as caught:
+                        endpoint("job-1", body, x_review_token="valid-review-token")
+                self.assertEqual(caught.exception.status_code, 403)
+                authorize.assert_called_once_with(
+                    "valid-review-token", "publish.reconcile"
+                )
+                mutation.assert_not_called()
+
+    def test_platform_reconciliation_accepts_authenticated_operator_identity(self):
+        from app import (
+            YouTubeUploadReconciliation, TikTokPublicationReconciliation,
+            reconcile_youtube_upload, reconcile_tiktok_publication,
+        )
+        youtube_body = YouTubeUploadReconciliation(
+            outcome="not_uploaded", confirmed=True,
+            note="Verified no matching private upload", operator_id="operator-7",
+        )
+        tiktok_body = TikTokPublicationReconciliation(
+            outcome="not_published", confirmed=True,
+            note="Verified no matching creator post", operator_id="operator-7",
+        )
+        with (
+            mock.patch.object(
+                app_module, "require_review_permission", return_value="operator-7"
+            ) as authorize,
+            mock.patch.object(
+                app_module.youtube_upload_store, "reconcile",
+                return_value={"status": "failed"},
+            ) as youtube_reconcile,
+            mock.patch.object(
+                app_module.tiktok_publish_store, "reconcile",
+                return_value={"status": "failed"},
+            ) as tiktok_reconcile,
+        ):
+            self.assertEqual(
+                reconcile_youtube_upload(
+                    "job-youtube", youtube_body, x_review_token="review-token"
+                ),
+                {"status": "failed"},
+            )
+            self.assertEqual(
+                reconcile_tiktok_publication(
+                    "job-tiktok", tiktok_body, x_review_token="review-token"
+                ),
+                {"status": "failed"},
+            )
+        self.assertEqual(authorize.call_count, 2)
+        youtube_reconcile.assert_called_once_with(
+            "job-youtube", "not_uploaded", None,
+            "Verified no matching private upload", "operator-7",
+        )
+        tiktok_reconcile.assert_called_once_with(
+            "job-tiktok", "not_published", "operator-7",
+            "Verified no matching creator post", video_id=None, confirmed=True,
+        )
+
 if __name__ == "__main__":
     unittest.main()
 
