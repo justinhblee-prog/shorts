@@ -116,6 +116,45 @@ class WorkerFailClosedTests(unittest.TestCase):
         self.assertIsNone(worker.active_job_id)
         self.assertIsNone(worker.active_lost_lease_event)
 
+    def test_sigterm_between_claim_commit_and_active_job_registration_skips_provider(self):
+        job = {
+            "id": "job-claim-signal-race",
+            "payload": {"topic": "test"},
+            "lease_token": "lease-claim-race",
+        }
+        worker.WORKER_GENERATION_TOKEN = "generation-claim-race"
+
+        def claim_then_signal(*args, **kwargs):
+            # This is the precise window after the queue transaction committed
+            # but before run_once publishes active_job_id to the signal handler.
+            worker.handle_shutdown_signal(15, None)
+            return job
+
+        with (
+            mock.patch.object(worker, "ensure_worker_registered"),
+            mock.patch.object(worker.queue, "is_paused", side_effect=[False, True]),
+            mock.patch.object(worker.store, "reconcile_missing_runs"),
+            mock.patch.object(worker.store, "reconcile_status_integrity",
+                              return_value={"unresolved": 0, "repaired": 0,
+                                            "unresolved_jobs": []}),
+            mock.patch.object(worker.store, "integrity_report",
+                              return_value={"orphaned": 0, "items": []}),
+            mock.patch.object(worker.queue, "claim", side_effect=claim_then_signal),
+            mock.patch.object(worker.queue, "pause") as pause,
+            mock.patch.object(worker.pipeline, "execute") as execute,
+        ):
+            self.assertTrue(worker.run_once())
+
+        execute.assert_not_called()
+        pause.assert_called_once()
+        # The signal arrived before active_job_id was published; the global
+        # pause still terminalizes all running production jobs transactionally.
+        self.assertIsNone(pause.call_args.args[1])
+        self.assertTrue(worker.stopping.is_set())
+        self.assertIsNone(worker.active_job_id)
+        self.assertIsNone(worker.active_lost_lease_event)
+        worker.WORKER_GENERATION_TOKEN = None
+
     def test_provider_error_stops_worker_after_recording_job_failure(self):
         job = {"id": "job-1", "payload": {"topic": "test"}, "lease_token": "token-1"}
         with (
