@@ -2,7 +2,7 @@ import json
 import hashlib
 import os
 import sqlite3
-import tempfile
+import tempfile, threading
 import unittest
 from pathlib import Path
 
@@ -120,6 +120,26 @@ class YouTubePublishingTests(unittest.TestCase):
         self.publisher=YouTubePublisher(self.uploads,self.service)
 
     def tearDown(self): self.tmp.cleanup()
+
+    def test_concurrent_upload_reservations_allow_only_one_attempt(self):
+        gate=threading.Event()
+        def reserve(title):
+            gate.wait()
+            try:
+                return self.uploads.begin("job-1",title,"Description")["attempt_id"]
+            except YouTubeUploadError:
+                return None
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures=[pool.submit(reserve,f"Title {index}") for index in range(8)]
+            gate.set()
+            results=[future.result() for future in futures]
+        winners=[attempt for attempt in results if attempt is not None]
+        self.assertEqual(len(winners),1)
+        current=self.uploads.get("job-1")
+        self.assertEqual(current["attempt_id"],winners[0])
+        self.assertEqual(current["status"],"uploading")
+        starts=[event for event in current["events"] if event["event_type"]=="upload_attempt_started"]
+        self.assertEqual(len(starts),1)
 
     def test_late_upload_completion_cannot_override_reconciled_not_uploaded(self):
         first_attempt=self.uploads.begin("job-1", "Title", "Description")
