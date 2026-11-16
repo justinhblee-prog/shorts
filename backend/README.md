@@ -462,3 +462,6 @@ BUILD-00032 automated validation: GitHub Actions run [43785987107](https://githu
 ## BUILD-00033 — retention-aware recommendation evaluation
 
 Recommendation evaluation now reports separate within-exposure chronological holdouts for YouTube average view percentage, average view duration and audience-watch ratios at the 25%, 50% and 75% video-time points. Analytics-only observations can contribute even when public counter snapshots are insufficient; the legacy views/hour diagnostic remains separate. Topic-matched historical context displays these metrics without changing recommendation scores. At least five eligible exposure runs and three selected/measured candidates per comparable cohort are required; outcomes remain observational and selection-biased.
+
+
+BUILD-00033 automated validation: GitHub Actions run [43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302) passed **338 backend tests** and `scripts/validate.sh`. This verifies stored/mock metric evaluation only; it does not establish causal lift or live account coverage.

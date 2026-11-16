@@ -86,3 +86,6 @@ BUILD-00032 YouTube Analytics integration passed **336 backend tests** in GitHub
 
 
 Recommendation analysis now exposes topic-matched YouTube watch-quality evidence and separate holdout diagnostics for average view percentage, average view duration and audience-retention checkpoints. These metrics are not blended into views/hour or used to change ranking scores; only future evidence-backed controlled evaluation can justify that.
+
+
+BUILD-00033 added retention-aware topic context and independent holdout diagnostics for average view percentage, average view duration and 25/50/75% audience-watch checkpoints. CI passed **338 backend tests** in [run 43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302). Recommendation ranking remains unchanged pending real data and controlled evaluation.

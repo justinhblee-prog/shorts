@@ -950,3 +950,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Comparable evaluation requires known platform, brand, region, publication-age, duration and format; minimum five eligible exposure runs and three measured selected candidates per cohort.
 - Dashboard surfaces topic-level watch-quality context and metric-specific holdout coverage. Recommendation scores remain unchanged until evidence quality and a future controlled evaluation justify a separate decision.
 - Validation pending.
+
+
+### BUILD-00033 validation record
+
+- GitHub Actions PR run [43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302) completed successfully.
+- `sh scripts/validate.sh` passed; the backend suite reported **338 tests, OK**.
+- Frontend JavaScript syntax/DOM-ID checks, Python compilation and Compose YAML parsing also passed.
+- Validation uses stored/mock Analytics outcomes; no live channel authorization, actual retention coverage or recommendation lift is claimed.
