@@ -564,4 +564,40 @@ class QueueTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,"not awaiting"):
    self.q.reconcile_production_retry(production["id"],"operator","evidence","note")
 
+
+ def test_concurrent_operator_reconciliation_authorizes_only_one_retry(self):
+  job=self.q.enqueue("short_video_production",{"topic":"concurrent-ambiguous"},max_attempts=1)
+  with self.q.db() as c:
+   c.execute("""CREATE TABLE production_runs(
+    job_id TEXT PRIMARY KEY,status TEXT,current_stage TEXT,error TEXT,updated_at TEXT)""")
+   c.execute("INSERT INTO production_runs VALUES(?,?,?,?,?)",
+             (job["id"],"failed_terminal","lease_expired_ambiguous","uncertain","now"))
+  self.q.claim("worker-lost")
+  with self.q.db() as c:
+   c.execute("UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+             (job["id"],))
+  self.q.recover()
+  barrier=__import__("threading").Barrier(2)
+  def reconcile(operator):
+   barrier.wait()
+   try:
+    result=self.q.reconcile_production_retry(
+     job["id"],operator,"provider-console:confirmed-not-run",
+     "Provider confirms no request was executed")
+    return ("success",result["status"])
+   except ValueError as exc:
+    return ("rejected",str(exc))
+  with ThreadPoolExecutor(max_workers=2) as pool:
+   outcomes=list(pool.map(reconcile,("operator-a","operator-b")))
+  self.assertEqual(sum(1 for outcome in outcomes if outcome[0]=="success"),1)
+  self.assertEqual(sum(1 for outcome in outcomes if outcome[0]=="rejected"),1)
+  self.assertEqual(self.q.get(job["id"])["status"],"failed_retriable")
+  self.assertTrue(self.q.is_paused())
+  events=self.q.production_reconciliation_events(job["id"])
+  self.assertEqual(len(events),1)
+  self.assertIn(events[0]["operator_id"],("operator-a","operator-b"))
+  audit=[event for event in self.q.events(job["id"])
+         if event["event_type"]=="operator_reconciliation"]
+  self.assertEqual(len(audit),1)
+
 if __name__=="__main__": unittest.main()
