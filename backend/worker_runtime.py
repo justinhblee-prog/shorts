@@ -32,7 +32,8 @@ def heartbeat_interval(lease_seconds, configured_seconds=10):
 
 
 
-def request_worker_shutdown(queue, stopping, active_job_id, lost_lease_event, signum):
+def request_worker_shutdown(queue, stopping, active_job_id, lost_lease_event, signum,
+                            worker_id=None, generation_token=None):
     """Fence active production work on process termination; always request local stop."""
     stopping.set()
     if lost_lease_event is not None:
@@ -42,6 +43,8 @@ def request_worker_shutdown(queue, stopping, active_job_id, lost_lease_event, si
             queue.pause(
                 f"Worker received signal {signum} during production; provider outcome may be ambiguous",
                 active_job_id,
+                worker_id=worker_id,
+                generation_token=generation_token,
             )
         except Exception:
             # Local stop is still signalled. The durable queue/lease check remains
