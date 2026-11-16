@@ -59,6 +59,11 @@ class TikTokOAuthStore:
               id INTEGER PRIMARY KEY CHECK(id=1), owner_id TEXT NOT NULL,
               lease_token TEXT NOT NULL, expires_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS tiktok_oauth_disconnect_lease(
+              id INTEGER PRIMARY KEY CHECK(id=1), operation_id TEXT NOT NULL,
+              access_token_fingerprint TEXT NOT NULL, expires_at TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
             """)
 
     @contextmanager
@@ -106,6 +111,12 @@ class TikTokOAuthStore:
     def save_tokens(self, values, refresh_lease=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            active_disconnect = c.execute(
+                "SELECT 1 FROM tiktok_oauth_disconnect_lease WHERE id=1 AND expires_at>?",
+                (_stamp(_now()),),
+            ).fetchone()
+            if active_disconnect:
+                return False
             if refresh_lease is not None:
                 owner_id, lease_token = refresh_lease
                 lease = c.execute("""
@@ -140,6 +151,60 @@ class TikTokOAuthStore:
             row = c.execute("SELECT * FROM tiktok_oauth_tokens WHERE id=1").fetchone()
             return dict(row) if row else None
 
+    def begin_disconnect(self, operation_id, access_token_fingerprint):
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            c.execute(
+                "DELETE FROM tiktok_oauth_disconnect_lease WHERE id=1 AND expires_at<=?",
+                (_stamp(_now()),),
+            )
+            if c.execute(
+                "SELECT 1 FROM tiktok_oauth_disconnect_lease WHERE id=1 AND expires_at>?",
+                (_stamp(_now()),),
+            ).fetchone():
+                return False
+            row = c.execute(
+                "SELECT access_token_encrypted FROM tiktok_oauth_tokens WHERE id=1"
+            ).fetchone()
+            if row is None or row["access_token_encrypted"] != access_token_fingerprint:
+                return False
+            if c.execute(
+                "SELECT 1 FROM tiktok_oauth_refresh_lease WHERE id=1 AND expires_at>?",
+                (_stamp(_now()),),
+            ).fetchone():
+                return False
+            now = _now()
+            c.execute("""
+              INSERT INTO tiktok_oauth_disconnect_lease
+                (id,operation_id,access_token_fingerprint,expires_at,created_at)
+              VALUES(1,?,?,?,?)
+            """, (operation_id, access_token_fingerprint,
+                  _stamp(now + timedelta(seconds=45)), _stamp(now)))
+            return True
+
+    def finish_disconnect(self, operation_id, success):
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            lease = c.execute(
+                "SELECT operation_id,access_token_fingerprint,expires_at "
+                "FROM tiktok_oauth_disconnect_lease WHERE id=1"
+            ).fetchone()
+            if (lease is None or lease["operation_id"] != operation_id
+                    or lease["expires_at"] <= _stamp(_now())):
+                return False
+            if success:
+                current = c.execute(
+                    "SELECT access_token_encrypted FROM tiktok_oauth_tokens WHERE id=1"
+                ).fetchone()
+                if (current is None or current["access_token_encrypted"]
+                        != lease["access_token_fingerprint"]):
+                    return False
+                c.execute("DELETE FROM tiktok_oauth_tokens WHERE id=1")
+                c.execute("DELETE FROM tiktok_oauth_refresh_lease WHERE id=1")
+            c.execute("DELETE FROM tiktok_oauth_disconnect_lease WHERE id=1 AND operation_id=?",
+                      (operation_id,))
+            return True
+
     def clear_tokens(self):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
@@ -165,6 +230,11 @@ class TikTokOAuthStore:
         now = _now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if c.execute(
+                "SELECT 1 FROM tiktok_oauth_disconnect_lease WHERE id=1 AND expires_at>?",
+                (_stamp(now),),
+            ).fetchone():
+                return None
             row = c.execute("SELECT * FROM tiktok_oauth_refresh_lease WHERE id=1").fetchone()
             if row and row["expires_at"] > _stamp(now) and row["owner_id"] != owner_id:
                 return None
@@ -286,9 +356,12 @@ class TikTokOAuthManager:
         }
         saved = self.store.save_tokens(values, refresh_lease=refresh_lease)
         if not saved:
-            raise TikTokOAuthError(
+            message = (
                 "TikTok refresh lease was lost before token persistence; refusing stale token overwrite"
+                if refresh_lease is not None else
+                "TikTok token persistence was fenced by a concurrent token operation; retry authorization"
             )
+            raise TikTokOAuthError(message)
         return values
 
     def exchange_code(self, code, state):
@@ -386,29 +459,50 @@ class TikTokOAuthManager:
         row = self.store.token_record()
         if not row:
             return {"connected": False, "status": "disconnected"}
+        # Resolve any required refresh before taking the disconnect fence.
+        # The DB fence then verifies the exact encrypted access token snapshot.
         access_token = self.get_access_token()
-        body = urllib.parse.urlencode({
-            "client_key": self.client_key,
-            "client_secret": self.client_secret,
-            "token": access_token,
-        }).encode("utf-8")
-        status, raw = self.transport(
-            REVOKE_URL,
-            {"Content-Type": "application/x-www-form-urlencoded",
-             "Accept": "application/json", "Cache-Control": "no-cache"},
-            body, 30,
-        )
-        data = {}
-        if raw:
-            try:
-                data = json.loads(raw.decode("utf-8"))
-            except (ValueError, UnicodeDecodeError) as exc:
-                raise TikTokOAuthError("TikTok revoke endpoint returned invalid JSON") from exc
-        if status < 200 or status >= 300 or data.get("error"):
-            code = data.get("error") or "http_" + str(status)
-            raise TikTokOAuthError("TikTok token revocation failed: " + str(code))
-        self.store.clear_tokens()
-        return {"connected": False, "status": "disconnected"}
+        snapshot = self.store.token_record()
+        if not snapshot:
+            return {"connected": False, "status": "disconnected"}
+        operation_id = str(uuid.uuid4())
+        try:
+            snapshot_access_token = self.cipher.decrypt(
+                snapshot["access_token_encrypted"].encode()
+            ).decode()
+        except InvalidToken as exc:
+            raise TikTokOAuthError("Stored TikTok access token cannot be decrypted") from exc
+        if snapshot_access_token != access_token:
+            raise TikTokOAuthError("TikTok connection changed during disconnect preparation; retry")
+        if not self.store.begin_disconnect(operation_id, snapshot["access_token_encrypted"]):
+            raise TikTokOAuthError("TikTok connection changed or another token operation is in progress; retry")
+        try:
+            body = urllib.parse.urlencode({
+                "client_key": self.client_key,
+                "client_secret": self.client_secret,
+                "token": access_token,
+            }).encode("utf-8")
+            status, raw = self.transport(
+                REVOKE_URL,
+                {"Content-Type": "application/x-www-form-urlencoded",
+                 "Accept": "application/json", "Cache-Control": "no-cache"},
+                body, 30,
+            )
+            data = {}
+            if raw:
+                try:
+                    data = json.loads(raw.decode("utf-8"))
+                except (ValueError, UnicodeDecodeError) as exc:
+                    raise TikTokOAuthError("TikTok revoke endpoint returned invalid JSON") from exc
+            if status < 200 or status >= 300 or data.get("error"):
+                code = data.get("error") or "http_" + str(status)
+                raise TikTokOAuthError("TikTok token revocation failed: " + str(code))
+            if not self.store.finish_disconnect(operation_id, success=True):
+                raise TikTokOAuthError("TikTok disconnect ownership was lost; local tokens were preserved")
+            return {"connected": False, "status": "disconnected"}
+        except Exception:
+            self.store.finish_disconnect(operation_id, success=False)
+            raise
 
     def status(self):
         result = self.store.status()
