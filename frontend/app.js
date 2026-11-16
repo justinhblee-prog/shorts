@@ -419,7 +419,7 @@
     }).join(""):'<div class="empty-state">'+(count?"현재 표시할 불일치 항목이 없습니다. 조회 한도를 확인하세요.":"제작 원장과 작업 큐의 상태 불일치가 발견되지 않았습니다.")+'</div>';
     $("integrityList").innerHTML=append?$("integrityList").innerHTML+rendered:rendered;
     integrityNextOffset=report.next_offset;
-    $("integrityMore").hidden=!report.has_more;
+    $("integrityMore").style.display=report.has_more?"inline-flex":"none";
   }
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
