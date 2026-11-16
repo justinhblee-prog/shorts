@@ -135,7 +135,10 @@ class EndToEndLifecycleTests(unittest.TestCase):
                             "likeness_authorized": True},
                  "synthetic_media_status": "ai_generated",
                  "platforms": ["youtube", "tiktok"],
-                 "platform_disclosures": {"tiktok_ai_generated_content": True}}
+                 "platform_disclosures": {
+                    "tiktok_ai_generated_content": True,
+                    "youtube_altered_content": True,
+                 }}
         # Exercise the real persisted scheduler outbox and leader fencing,
         # then let the worker's startup reconciliation restore the production
         # row created by scheduled queue dispatch.
