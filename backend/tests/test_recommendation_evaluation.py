@@ -716,3 +716,19 @@ if __name__ == "__main__":
         )
         self.assertEqual(same_instant["run_id"], exposure["run_id"])
         self.assertTrue(same_instant["deduplicated"])
+
+
+    def test_exposure_deduplication_handles_legacy_offset_timestamps(self):
+        exposure = self.store.record_run(
+            "US", [self.item(153, 82.5)], "2026-11-01T09:00:00+09:00"
+        )
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE recommendation_runs SET generated_at=? WHERE id=?",
+                ("2026-11-01T09:00:00+09:00", exposure["run_id"]),
+            )
+        repeated = self.store.record_run(
+            "US", [self.item(153, 82.5)], "2026-11-01T00:00:30Z"
+        )
+        self.assertEqual(repeated["run_id"], exposure["run_id"])
+        self.assertTrue(repeated["deduplicated"])
