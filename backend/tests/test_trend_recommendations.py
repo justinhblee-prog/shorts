@@ -467,6 +467,18 @@ class TrendRecommendationTests(unittest.TestCase):
                 self.assertEqual(historical["evidence_status"], "no_data")
                 self.assertEqual(result["score_breakdown"]["brand_fit"], 40.0)
 
+        for invalid_container in ("not-a-dictionary", None, []):
+            with self.subTest(performance_by_brand=invalid_container):
+                safe = rank_trend_candidates(
+                    [trend], [brand], now=now,
+                    performance_by_brand=invalid_container,
+                )
+                self.assertEqual(len(safe), 1)
+                self.assertEqual(
+                    safe[0]["best_brand"]["historical_performance"]["evidence_status"],
+                    "no_data",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
