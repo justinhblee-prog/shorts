@@ -1119,3 +1119,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Comparative observations require at least three videos. Smaller groups remain `limited` / `insufficient_sample`; they do not produce above/below-median recommendations.
 - All analytics observations are descriptive and have `ranking_score_adjustment: 0`; no ranking changes or causal claims are made. Use controlled experiments and held-out data before any ranking integration.
 - CI validation pending.
+
+
+### BUILD-00132 validation record
+
+- GitHub Actions PR run [43794456586](https://github.com/justinhblee-prog/shorts/actions/runs/43794456586) completed successfully.
+- The full validation script passed with **431 backend tests**; frontend JavaScript syntax/DOM checks and Compose YAML validation are part of the script.
+- This validates deterministic logic only. Real channel Analytics access, populated production cohorts and held-out ranking impact still require live account data and subsequent evaluation.
