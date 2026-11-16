@@ -2147,3 +2147,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Pass that same timestamp to the job-event audit writer instead of sampling the clock a second time.
 - Add a deterministic regression checking all three records (job, reconciliation ledger, job event) share the same timestamp.
 - GitHub Actions validation pending; deterministic SQLite coverage only.
+
+
+## BUILD-00287 — Align cancellation audit timestamps
+- Reuse the timestamp captured after the SQLite write lock for the cancellation job event instead of sampling the clock independently.
+- Keep the job state transition and its audit event on the same serialized decision time.
+- Add a deterministic regression with a controlled clock that advances after the transition timestamp is captured.
+- GitHub Actions validation pending; no live production provider validation is claimed.
