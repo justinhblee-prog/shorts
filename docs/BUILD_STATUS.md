@@ -1276,3 +1276,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression tests for mixed malformed/valid records and malformed batch containers.
 - GitHub Actions validation: pending.
 - Recommendation ranking score adjustment remains disabled; no live feed/provider validation is claimed.
+
+
+## BUILD-00156 — malformed brand profile isolation
+
+- Normalize brand configuration to a dictionary before reading profile fields and stringify optional profile text safely, preventing malformed stored profiles from aborting trend ranking.
+- Preserve valid brand profiles in the same batch and keep malformed config fields from creating accidental matches.
+- Add regression coverage mixing malformed config containers and non-string profile values with a valid brand.
+- GitHub Actions validation: pending.
+- Recommendation ranking score adjustment remains disabled; no live provider validation is claimed.
