@@ -14,7 +14,7 @@ from production_pipeline import ProviderError
 
 class ApiSecurityTests(unittest.TestCase):
     def test_all_operational_routes_require_review_token(self):
-        public = {"/api/health", "/api/brands", "/api/brands/{slug}"}
+        public = {"/api/health", "/api/brands", "/api/brands/{slug}", "/api/tiktok/oauth/callback"}
         unprotected = []
         for route in app.routes:
             path = getattr(route, "path", "")
@@ -33,6 +33,21 @@ class ApiSecurityTests(unittest.TestCase):
             policy_flags={"tiktok_prohibited_aigc_minor_likeness": True},
         )
         self.assertTrue(body.policy_flags["tiktok_prohibited_aigc_minor_likeness"])
+
+    def test_tiktok_operational_routes_are_registered_and_token_protected(self):
+        protected_paths = {
+            "/api/tiktok/oauth/start", "/api/tiktok/oauth/status",
+            "/api/tiktok/oauth/disconnect", "/api/tiktok/creator-info",
+            "/api/tiktok/publish/{job_id}", "/api/tiktok/publications/{job_id}",
+            "/api/tiktok/publications/{job_id}/reconcile",
+            "/api/tiktok/publications/{job_id}/refresh-status", "/api/tiktok/metrics",
+        }
+        routes={getattr(route,"path",""):route for route in app.routes}
+        for path in protected_paths:
+            with self.subTest(path=path):
+                self.assertIn(path,routes)
+                self.assertIn("x_review_token",routes[path].endpoint.__annotations__)
+        self.assertIn("request",routes["/api/tiktok/oauth/callback"].endpoint.__annotations__)
 
     def test_late_upload_resolution_route_is_registered_and_token_protected(self):
         route = next((r for r in app.routes

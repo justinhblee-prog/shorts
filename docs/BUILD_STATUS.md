@@ -918,3 +918,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add explicit non-overridable TikTok flags for AI-generated likenesses of minors, private adults without permission, fake authoritative/crisis content, and false public-figure endorsements.
 - Expose `policy_flags` in the human policy-evidence API and allow the review store to merge/persist these declarations.
 - Add regression tests for the policy engine, API model and review-store evidence update. GitHub Actions run [43780970297](https://github.com/justinhblee-prog/shorts/actions/runs/43780970297) passed **255 backend tests** and `scripts/validate.sh`. PR #85 was squash-merged into `main` as `8c5b67313072a4b3f1f2599c9c6e982f11886ab4`.
+
+
+### BUILD-00027 — TikTok private-only publishing backend (2026-11-16)
+
+- Add encrypted TikTok Login Kit OAuth with one-time state, token encryption/rotation, refresh lease and redacted callback access logs.
+- Add TikTok Direct Post private-only publisher. Require latest human approval, exact artifact snapshot, current policy version/date, TikTok AIGC disclosure, explicit operator consent, explicit branded-content toggles, creator-info lookup and available SELF_ONLY privacy level.
+- Verify staged media fingerprint and upload only a private immutable snapshot; enforce media format/duration constraints and block ambiguous retries pending reconciliation.
+- Add TikTok owned-video metrics collection using a separate lease and isolate provider failures from YouTube collection.
+- Add protected API endpoints and regression tests. CI validation pending. Frontend controls and live TikTok developer-app/account audit remain separate tasks.

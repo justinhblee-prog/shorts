@@ -1,7 +1,9 @@
 import os
+import logging
+import secrets
 from typing import Any, Literal
-from fastapi import FastAPI, HTTPException, Header
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Header, Request, Response
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -14,6 +16,9 @@ from production_pipeline import ProductionStore, ProductionPipeline, submit_prod
 from brand_operations import BrandStore, BrandNotFound
 from review_workflow import ReviewStore, ReviewNotFound, ReviewConflict, valid_review_token
 from youtube_publishing import YouTubeUploadStore, YouTubePublisher, YouTubeUploadError
+from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError
+from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager, TikTokOAuthError
+from tiktok_metrics import TikTokMetricsStore
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
@@ -22,6 +27,26 @@ from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
+class TikTokOAuthAccessLogRedaction(logging.Filter):
+    """Prevent OAuth authorization codes and state values entering access logs."""
+    def filter(self, record):
+        args=record.args
+        if isinstance(args,tuple) and len(args)>=3:
+            path=args[2]
+            if isinstance(path,str) and path.startswith("/api/tiktok/oauth/callback"):
+                sanitized=list(args)
+                sanitized[2]="/api/tiktok/oauth/callback?[REDACTED]"
+                record.args=tuple(sanitized)
+        return True
+
+
+oauth_log_filter=TikTokOAuthAccessLogRedaction()
+uvicorn_access_logger=logging.getLogger("uvicorn.access")
+uvicorn_access_logger.addFilter(oauth_log_filter)
+for access_handler in uvicorn_access_logger.handlers:
+    access_handler.addFilter(oauth_log_filter)
+
+
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
 trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 trend_ingestor=TrendIngestor(trend_store)
@@ -34,6 +59,11 @@ brand_store=BrandStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 review_store=ReviewStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_upload_store=YouTubeUploadStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 youtube_publisher=YouTubePublisher(youtube_upload_store)
+tiktok_publish_store=TikTokPublishStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+tiktok_oauth_store=TikTokOAuthStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+tiktok_oauth_manager=TikTokOAuthManager(tiktok_oauth_store)
+tiktok_metrics_store=TikTokMetricsStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+tiktok_publisher=TikTokPublisher(tiktok_publish_store,token_provider=tiktok_oauth_manager.get_access_token)
 ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
@@ -95,6 +125,24 @@ class YouTubeUploadRequest(BaseModel):
     description:str=Field(default="",max_length=5000)
     tags:list[str]=Field(default_factory=list,max_length=30)
     category_id:str=Field(default="22",min_length=1,max_length=4)
+
+
+class TikTokPublishRequest(BaseModel):
+    media_path:str=Field(min_length=1,max_length=2000)
+    title:str=Field(min_length=1,max_length=2200)
+    operator_id:str=Field(min_length=1,max_length=128)
+    privacy_level:Literal["SELF_ONLY"]
+    explicit_consent:bool
+    brand_content_toggle:bool
+    brand_organic_toggle:bool
+
+
+class TikTokPublicationReconciliation(BaseModel):
+    outcome:Literal["published","not_published"]
+    confirmed:bool
+    video_id:str|None=Field(default=None,min_length=1,max_length=128)
+    note:str=Field(min_length=1,max_length=2000)
+    operator_id:str=Field(min_length=1,max_length=128)
 
 
 class YouTubeUploadReconciliation(BaseModel):
@@ -470,6 +518,120 @@ def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=
     except YouTubeUploadError as e:
         raise HTTPException(502,str(e))
 
+
+
+@app.get("/api/tiktok/oauth/start")
+def start_tiktok_oauth(response:Response,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        result=tiktok_oauth_manager.start_authorization()
+        response.set_cookie("tiktok_oauth_state",result["state"],max_age=600,
+            httponly=True,secure=True,samesite="lax",path="/api/tiktok/oauth/callback")
+        result.pop("state",None)
+        return result
+    except TikTokOAuthError as e:
+        raise HTTPException(503,str(e))
+
+
+@app.get("/api/tiktok/oauth/callback")
+def tiktok_oauth_callback(request:Request,code:str|None=None,state:str|None=None,
+                          error:str|None=None,error_description:str|None=None):
+    cookie_state=request.cookies.get("tiktok_oauth_state")
+    if error or not state or not cookie_state or not secrets.compare_digest(cookie_state,state):
+        redirect=RedirectResponse(url="/?tiktok_oauth=denied" if error else "/?tiktok_oauth=error",status_code=303)
+        redirect.delete_cookie("tiktok_oauth_state",path="/api/tiktok/oauth/callback")
+        return redirect
+    try:
+        tiktok_oauth_manager.exchange_code(code,state)
+        redirect=RedirectResponse(url="/?tiktok_oauth=connected",status_code=303)
+    except TikTokOAuthError:
+        redirect=RedirectResponse(url="/?tiktok_oauth=error",status_code=303)
+    redirect.delete_cookie("tiktok_oauth_state",path="/api/tiktok/oauth/callback")
+    return redirect
+
+
+@app.get("/api/tiktok/oauth/status")
+def tiktok_oauth_status(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    result=tiktok_oauth_manager.status()
+    if not result.get("connected") and os.getenv("TIKTOK_ACCESS_TOKEN"):
+        result={"connected":True,"status":"static_token_configured","mode":"static_env"}
+    return result
+
+
+@app.post("/api/tiktok/oauth/disconnect")
+def disconnect_tiktok_oauth(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    if os.getenv("TIKTOK_ACCESS_TOKEN"):
+        raise HTTPException(409,"Static TIKTOK_ACCESS_TOKEN is configured; remove it from the runtime before disconnecting OAuth.")
+    try:
+        return tiktok_oauth_manager.disconnect()
+    except TikTokOAuthError as e:
+        raise HTTPException(502,str(e))
+
+
+@app.get("/api/tiktok/creator-info")
+def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_publisher.creator_info()
+    except TikTokPublishError as e:
+        raise HTTPException(502,str(e))
+
+
+@app.post("/api/tiktok/publish/{job_id}",status_code=201)
+def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
+                         x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    staged_path=require_canonical_staged_media(job_id,body.media_path)
+    try:
+        return tiktok_publisher.publish_private_approved(
+            job_id,staged_path,review_store,body.title,body.operator_id,
+            explicit_consent=body.explicit_consent,privacy_level=body.privacy_level,
+            brand_content_toggle=body.brand_content_toggle,
+            brand_organic_toggle=body.brand_organic_toggle)
+    except ReviewNotFound:
+        raise HTTPException(404,"Production job not found")
+    except TikTokPublishError as e:
+        raise HTTPException(409,str(e))
+
+
+@app.get("/api/tiktok/publications/{job_id}")
+def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    result=tiktok_publish_store.get(job_id)
+    if result is None:
+        raise HTTPException(404,"TikTok publication record not found")
+    return result
+
+
+@app.post("/api/tiktok/publications/{job_id}/reconcile")
+def reconcile_tiktok_publication(job_id:str,body:TikTokPublicationReconciliation,
+                                 x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_publish_store.reconcile(job_id,body.outcome,body.operator_id,
+            body.note,video_id=body.video_id,confirmed=body.confirmed)
+    except TikTokPublishError as e:
+        raise HTTPException(409,str(e))
+
+
+@app.post("/api/tiktok/publications/{job_id}/refresh-status")
+def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    try:
+        return tiktok_publisher.refresh_status(job_id)
+    except TikTokPublishError as e:
+        raise HTTPException(409,str(e))
+
+
+@app.get("/api/tiktok/metrics")
+def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
+    require_review_access(x_review_token)
+    bounded=max(1,min(limit,200))
+    items=tiktok_metrics_store.recent_metrics(tiktok_publish_store,bounded)
+    return {"items":items,"count":len(items),"limit":bounded,
+            "source":"TikTok Display API v2","read_only":True,"ranking_score_adjustment":0}
 
 
 @app.post("/api/finance/ledger",status_code=201)
