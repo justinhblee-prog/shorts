@@ -697,7 +697,7 @@ class ProductionTests(unittest.TestCase):
         bad["width"],bad["height"]=1080,1920
         bad["audio_track_present"]=False
         with self.assertRaisesRegex(ValueError,"failed required"):
-            self.store.adopt_recovered_render("job-adopt-block",attempt["id"],staged,bad)
+            self.store.adopt_recovered_render(job_id,attempt["id"],staged,bad)
         self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],
                          "response_received")
         self.assertEqual(self.store.get(job_id)["artifacts"],[])
