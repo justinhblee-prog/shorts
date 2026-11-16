@@ -844,3 +844,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Stamp the same values into the immutable `upload_attempt_started` event so the audit trail preserves the exact local policy ruleset used.
 - Additive SQLite migrations extend existing upload and event tables without rewriting historical records; legacy rows retain null policy stamps.
 - CI validation pending on this branch.
+
+
+### BUILD-00023 — enforce policy check-date freshness at upload (2026-11-16)
+
+- Require both the current script policy preflight and the latest human-approved script snapshot to match the active `POLICY_VERSION` and `POLICY_CHECKED_ON` before an upload attempt is initialized.
+- Reject missing or stale check dates before any remote YouTube API call; audit stamps cannot represent stale or missing evidence as current.
+- Regression coverage targets stale current evidence and stale approval snapshots.
+- Validation pending on this branch; verify CI before merging.

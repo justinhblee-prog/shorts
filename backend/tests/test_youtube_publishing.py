@@ -267,6 +267,42 @@ class YouTubePublishingTests(unittest.TestCase):
             self.uploads.begin("job-1", "Title", "Description")
         self.assertIsNone(self.uploads.get("job-1"))
 
+    def test_upload_rejects_stale_current_policy_checked_on_date(self):
+        with self.uploads.db() as connection:
+            row = connection.execute(
+                "SELECT id,metadata_json FROM production_artifacts "
+                "WHERE job_id='job-1' AND stage='script'"
+            ).fetchone()
+            metadata = json.loads(row["metadata_json"])
+            metadata["policy_preflight"]["policy_checked_on"] = "1900-01-01"
+            connection.execute(
+                "UPDATE production_artifacts SET metadata_json=? WHERE id=?",
+                (json.dumps(metadata), row["id"]),
+            )
+        with self.assertRaisesRegex(YouTubeUploadError, "rules changed"):
+            self.uploads.begin("job-1", "Title", "Description")
+        self.assertIsNone(self.uploads.get("job-1"))
+
+    def test_upload_rejects_stale_approved_policy_checked_on_date(self):
+        with self.uploads.db() as connection:
+            row = connection.execute(
+                "SELECT id,artifact_snapshot_json FROM review_decisions "
+                "WHERE job_id='job-1' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            snapshot = json.loads(row["artifact_snapshot_json"])
+            approved_script = next(
+                item for item in snapshot
+                if item.get("stage") == "script" and item.get("artifact_type") == "text"
+            )
+            approved_script["metadata"]["policy_preflight"]["policy_checked_on"] = "1900-01-01"
+            connection.execute(
+                "UPDATE review_decisions SET artifact_snapshot_json=? WHERE id=?",
+                (json.dumps(snapshot), row["id"]),
+            )
+        with self.assertRaisesRegex(YouTubeUploadError, "rules changed"):
+            self.uploads.begin("job-1", "Title", "Description")
+        self.assertIsNone(self.uploads.get("job-1"))
+
     def test_upload_requires_approval(self):
         self.prod.create("job-2",{"brand":"Brain Glitch","region":"US",
                                   "language":"English","topic":"Focus"})

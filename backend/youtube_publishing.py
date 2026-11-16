@@ -134,8 +134,10 @@ class YouTubeUploadStore:
             )
             if (not isinstance(current_policy,dict)
                     or current_policy.get("policy_version")!=POLICY_VERSION
+                    or current_policy.get("policy_checked_on")!=POLICY_CHECKED_ON
                     or not isinstance(approved_policy,dict)
-                    or approved_policy.get("policy_version")!=POLICY_VERSION):
+                    or approved_policy.get("policy_version")!=POLICY_VERSION
+                    or approved_policy.get("policy_checked_on")!=POLICY_CHECKED_ON):
                 raise YouTubeUploadError(
                     "Platform policy rules changed or were not recorded after human approval; "
                     "refresh policy evidence and obtain a new human approval before upload"
