@@ -116,11 +116,21 @@ class PreflightTests(unittest.TestCase):
         )
 
     def test_legacy_single_token_mode_keeps_role_map_optional(self):
-        result = build_preflight({"NEXUS_REVIEW_TOKEN": "legacy-secret-value"})
+        result = build_preflight({
+            "NEXUS_REVIEW_TOKEN": "legacy-secret-value-with-at-least-32-characters"
+        })
         self.assertTrue(result["checks"]["operator_auth"]["configured"])
         self.assertTrue(result["checks"]["operator_rbac"]["configured"])
         self.assertTrue(result["checks"]["operator_rbac"]["optional"])
         self.assertNotIn("NEXUS_REVIEW_ROLE_MAP_JSON", result["missing"])
+
+    def test_weak_legacy_token_does_not_satisfy_auth_preflight(self):
+        result = build_preflight({"NEXUS_REVIEW_TOKEN": "short-secret"})
+        self.assertFalse(result["checks"]["operator_auth"]["configured"])
+        self.assertIn(
+            "NEXUS_REVIEW_TOKEN (must be 32-512 printable ASCII characters)",
+            result["checks"]["operator_auth"]["missing"],
+        )
 
     def test_youtube_oauth_redirect_and_encryption_are_optional_preflight_settings(self):
         result = build_preflight({})
