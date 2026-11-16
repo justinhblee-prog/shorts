@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from production_pipeline import ProductionStore
+from queue_store import JobQueue
 from review_workflow import ReviewStore
 from policy_engine import evaluate_content_policy, POLICY_VERSION, POLICY_CHECKED_ON
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError, CHUNK_SIZE, _NoRedirectHandler
@@ -50,6 +51,7 @@ class TikTokPublishingTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = os.path.join(self.tmp.name, "db.sqlite3")
+        self.queue = JobQueue(self.db)
         self.prod = ProductionStore(self.db)
         self.review = ReviewStore(self.db)
         self.store = TikTokPublishStore(self.db)
@@ -57,6 +59,17 @@ class TikTokPublishingTests(unittest.TestCase):
             "brand": "Test", "region": "US", "language": "en", "topic": "Test"
         })
         self.prod.stage("job-1", "rendered", "review_pending")
+        with self.queue.db() as connection:
+            timestamp="2026-11-16T00:00:00+00:00"
+            connection.execute("""
+                INSERT INTO pipeline_jobs
+                  (id,job_type,payload_json,status,priority,attempt,max_attempts,
+                   available_at,created_at,updated_at)
+                VALUES(?,?,?,'review_pending',100,0,3,?,?,?)
+            """, ("job-1","short_video_production",
+                  json.dumps({"brand":"Test","region":"US",
+                              "language":"en","topic":"Test"}),
+                  timestamp,timestamp,timestamp))
         self.media = os.path.join(self.tmp.name, "video.mp4")
         media_bytes=b"test-video-bytes"
         Path(self.media).write_bytes(media_bytes)
