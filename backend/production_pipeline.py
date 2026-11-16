@@ -840,8 +840,12 @@ class ProductionPipeline:
                                     + ", ".join(policy_report.get("blocking_reasons", [])),
                                     retryable=False)
             saved=self.store.get(job_id) or {}
+            recovery_stage=str(saved.get("current_stage") or "")
+            resume_recovered=recovery_stage in (
+                "recovered_script_adopted","recovered_voice_generation_adopted")
             saved_script=next((item for item in saved.get("artifacts",[])
-                if item["stage"]=="script" and item["artifact_type"]=="text"),None)
+                if resume_recovered and item["stage"]=="script"
+                and item["artifact_type"]=="text"),None)
             if saved_script is not None:
                 metadata=saved_script.get("metadata") or {}
                 script_text=metadata.get("script")
@@ -902,8 +906,11 @@ class ProductionPipeline:
                     script_request_key)
                 self._check_stop(stop_event)
             saved=self.store.get(job_id) or {}
+            resume_recovered=str(saved.get("current_stage") or "") in (
+                "recovered_script_adopted","recovered_voice_generation_adopted")
             saved_voice=next((item for item in saved.get("artifacts",[])
-                if item["stage"]=="voice_generation" and item["artifact_type"]=="audio"),None)
+                if resume_recovered and item["stage"]=="voice_generation"
+                and item["artifact_type"]=="audio"),None)
             if saved_voice is not None:
                 audio_url=saved_voice.get("artifact_url")
                 voice={"audio_url":audio_url,**(saved_voice.get("metadata") or {})}
