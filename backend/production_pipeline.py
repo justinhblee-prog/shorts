@@ -524,6 +524,120 @@ class ProductionStore:
             "unresolved": len(unresolved), "unresolved_jobs": unresolved,
         }
 
+    def integrity_report(self, queue, limit=50):
+        """Return a read-only, bounded explanation of production/queue state mismatches."""
+        if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
+            raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
+        bounded = max(1, min(int(limit), 200))
+        items = []
+        with self.db() as c:
+            rows = c.execute("""
+                SELECT r.job_id,r.status AS production_status,r.current_stage,
+                       r.created_at AS production_created_at,
+                       r.updated_at AS production_updated_at,
+                       j.status AS queue_status,j.job_type,j.error_code,j.error_message,
+                       j.attempt,j.max_attempts,j.created_at AS queue_created_at,
+                       j.updated_at AS queue_updated_at
+                FROM production_runs r
+                JOIN pipeline_jobs j ON j.id=r.job_id
+                WHERE j.job_type='short_video_production'
+                  AND r.status<>j.status
+                  AND (r.status IN ('rendered','review_pending','approved','uploaded',
+                                    'cancelled','failed_terminal')
+                       OR j.status IN ('review_pending','approved','uploaded',
+                                       'cancelled','failed_terminal'))
+                ORDER BY j.updated_at DESC,j.id LIMIT ?
+            """, (bounded,)).fetchall()
+            for row in rows:
+                item = dict(row)
+                production_status = item["production_status"]
+                queue_status = item["queue_status"]
+                if "approved" in (production_status, queue_status) or "uploaded" in (
+                    production_status, queue_status
+                ):
+                    item["classification"] = "approval_or_upload_boundary"
+                    item["reason"] = (
+                        "Approval/upload state differs between ledgers; automatic promotion "
+                        "is prohibited because it could bypass human approval or duplicate publication."
+                    )
+                    item["recommended_action"] = (
+                        "Inspect the review decision, publication record, and platform evidence. "
+                        "Do not change either state until the external outcome is established."
+                    )
+                elif queue_status == "failed_terminal" and item["error_code"] in (
+                    "production_lease_expired_ambiguous",
+                    "cancelled_external_outcome_ambiguous",
+                ):
+                    item["classification"] = "ambiguous_external_outcome"
+                    item["reason"] = (
+                        "A provider request may have completed despite a lost worker response; "
+                        "retrying without evidence could duplicate an external side effect."
+                    )
+                    item["recommended_action"] = (
+                        "Use the existing reconcile-retry action only after evidence confirms "
+                        "that no external side effect occurred; keep the global queue paused."
+                    )
+                elif queue_status in ("cancelled", "failed_terminal"):
+                    item["classification"] = "terminal_state_mismatch"
+                    item["reason"] = (
+                        "The queue has a terminal state that is not mirrored in the production ledger."
+                    )
+                    item["recommended_action"] = (
+                        "Inspect the queue event history and production artifacts; do not retry "
+                        "unless the external outcome is known."
+                    )
+                elif queue_status == "review_pending" and production_status == "rendered":
+                    item["classification"] = "review_handoff_mismatch"
+                    item["reason"] = (
+                        "The durable queue review handoff is not reflected in the production ledger."
+                    )
+                    item["recommended_action"] = (
+                        "Run the bounded integrity reconciliation, then verify both ledgers "
+                        "before human review."
+                    )
+                else:
+                    item["classification"] = "unclassified_lifecycle_mismatch"
+                    item["reason"] = (
+                        "No deterministic safe reconciliation rule applies to this lifecycle pair."
+                    )
+                    item["recommended_action"] = (
+                        "Keep production paused and escalate for manual ledger and audit review."
+                    )
+                history = c.execute("""
+                    SELECT event_type,from_status,to_status,worker_id,details_json,created_at
+                    FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT 10
+                """, (item["job_id"],)).fetchall()
+                safe_details = []
+                for event in reversed(history):
+                    try:
+                        details = json.loads(event["details_json"] or "{}")
+                    except (TypeError, ValueError):
+                        details = {}
+                    allowed = {
+                        key: details[key] for key in (
+                            "source", "outcome", "operator_id", "evidence_reference",
+                            "reason", "queue_status", "previous_production_status",
+                            "retry_attempt_ceiling",
+                        ) if key in details
+                    }
+                    safe_details.append({
+                        "event_type": event["event_type"],
+                        "from_status": event["from_status"],
+                        "to_status": event["to_status"],
+                        "worker_id": event["worker_id"],
+                        "details": allowed,
+                        "created_at": event["created_at"],
+                    })
+                item["audit_history"] = safe_details
+                items.append(item)
+        return {
+            "scanned": len(items),
+            "limit": bounded,
+            "unresolved": len(items),
+            "items": items,
+            "worker_control": queue.worker_control(),
+        }
+
     def reconcile_missing_runs(self, queue, job_ids=None, limit=200):
         """Restore production rows if a process crashed between queue enqueue and record creation."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():

@@ -714,6 +714,61 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(self.store.get(job_id)["artifacts"],[])
         self.assertEqual(queue.get(job_id)["status"],"queued")
 
+    def test_integrity_report_explains_mismatch_without_mutating_either_ledger(self):
+        queue = JobQueue(self.store.db_path)
+        job_id = submit_production(queue, self.store, self.brief)["job"]["id"]
+        with queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                (job_id,)
+            )
+            connection.execute(
+                "UPDATE production_runs SET status='approved',current_stage='review' WHERE job_id=?",
+                (job_id,)
+            )
+            connection.execute("""
+                INSERT INTO job_events
+                  (job_id,event_type,from_status,to_status,worker_id,details_json,created_at)
+                VALUES(?,'operator_reconciliation','failed_terminal','failed_retriable',
+                       NULL,?,?)
+            """, (job_id, '{"outcome":"confirmed_no_external_side_effect",'
+                          '"operator_id":"review-operator",'
+                          '"evidence_reference":"ticket-123","secret":"must-not-leak"}',
+                  "2026-11-16T00:00:00+00:00"))
+
+        report = self.store.integrity_report(queue)
+        self.assertEqual(report["scanned"], 1)
+        item = report["items"][0]
+        self.assertEqual(item["job_id"], job_id)
+        self.assertEqual(item["classification"], "approval_or_upload_boundary")
+        self.assertIn("automatic promotion is prohibited", item["reason"])
+        reconciliation = next(event for event in item["audit_history"]
+                               if event["event_type"] == "operator_reconciliation")
+        self.assertEqual(reconciliation["details"]["operator_id"], "review-operator")
+        self.assertNotIn("secret", str(item["audit_history"]))
+        self.assertEqual(self.store.get(job_id)["status"], "approved")
+        self.assertEqual(queue.get(job_id)["status"], "review_pending")
+        self.assertFalse(report["worker_control"]["paused"])
+
+    def test_integrity_report_is_bounded_and_requires_shared_database(self):
+        queue = JobQueue(self.store.db_path)
+        first = submit_production(queue, self.store, self.brief)["job"]["id"]
+        second = submit_production(queue, self.store, {**self.brief, "topic": "Second"})["job"]["id"]
+        with queue.db() as connection:
+            for job_id in (first, second):
+                connection.execute(
+                    "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?", (job_id,)
+                )
+                connection.execute(
+                    "UPDATE production_runs SET status='approved' WHERE job_id=?", (job_id,)
+                )
+        report = self.store.integrity_report(queue, limit=1)
+        self.assertEqual(report["limit"], 1)
+        self.assertEqual(report["scanned"], 1)
+        other = JobQueue(str(Path(self.tmp.name) / "other.sqlite3"))
+        with self.assertRaisesRegex(ValueError, "same SQLite database"):
+            self.store.integrity_report(other)
+
     def test_status_integrity_repairs_only_safe_terminal_and_review_handoffs(self):
         queue = JobQueue(self.store.db_path)
         terminal_job = submit_production(queue, self.store, self.brief)["job"]["id"]

@@ -1484,3 +1484,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Never guess or auto-promote approval/upload states. Any unresolved mismatch pauses the worker before another provider job can be claimed and requires operator investigation.
 - Regression tests cover safe repair, unresolved approval mismatch, idempotency, and shared-database enforcement.
 - GitHub Actions runs [43821783189](https://github.com/justinhblee-prog/shorts/actions/runs/43821783189) and [43821793079](https://github.com/justinhblee-prog/shorts/actions/runs/43821793079) passed the complete `scripts/validate.sh` workflow, including 533 backend tests each. Earlier failing runs exposed fixture assertions that omitted the pre-existing enqueue audit event; assertions were corrected to verify exactly one reconciliation event without discarding the enqueue event.
+
+
+## BUILD-00179 — operator production integrity report
+
+- Add a read-only, bounded `GET /api/production/integrity-report` endpoint protected by the existing `production.read` operator permission.
+- Report mismatched production/queue states with both ledger timestamps, queue error context, bounded audit history, a classification, and a safe next action.
+- Redact unapproved event-detail fields from the report; never expose provider response payloads or arbitrary event JSON.
+- Explicitly flag approval/upload boundaries and ambiguous external outcomes. The report never repairs state, authorizes retry, resumes workers, or publishes content.
+- Reuse the existing evidence-backed `/api/production/jobs/{job_id}/reconcile-retry` and separate audited queue-resume workflows rather than introducing a competing state override.
+- Regression tests verify read-only behavior, audit-detail filtering, bounded results, and same-database enforcement.
