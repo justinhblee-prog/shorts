@@ -69,6 +69,11 @@ class TikTokPublishStore:
             );
             CREATE INDEX IF NOT EXISTS idx_tiktok_publication_events_job
               ON tiktok_publication_events(job_id,id);
+            CREATE TABLE IF NOT EXISTS tiktok_status_poll_leases(
+              job_id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL,
+              lease_token TEXT NOT NULL, lease_expires_at TEXT NOT NULL,
+              acquired_at TEXT NOT NULL
+            );
             CREATE TRIGGER IF NOT EXISTS tiktok_publication_events_no_update
               BEFORE UPDATE ON tiktok_publication_events
               BEGIN SELECT RAISE(ABORT,'TikTok publication audit events are immutable'); END;
@@ -497,6 +502,53 @@ class TikTokPublishStore:
             c.commit()
             return True
 
+    def acquire_status_poll_lease(self, job_id, attempt_id, lease_seconds=45):
+        """Acquire one cross-process lease for a scheduled TikTok status poll."""
+        seconds = max(5, min(int(lease_seconds), 120))
+        token = uuid.uuid4().hex
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            publication = c.execute(
+                "SELECT attempt_id,status FROM tiktok_publications WHERE job_id=?",
+                (job_id,),
+            ).fetchone()
+            if (publication is None or publication["attempt_id"] != attempt_id
+                    or publication["status"] not in (
+                        "uploading", "processing", "reconciliation_required"
+                    )):
+                return None
+            now = datetime.now(timezone.utc)
+            now_text = now.isoformat()
+            expires = (now + __import__("datetime").timedelta(seconds=seconds)).isoformat()
+            current = c.execute(
+                "SELECT attempt_id,lease_expires_at FROM tiktok_status_poll_leases "
+                "WHERE job_id=?",
+                (job_id,),
+            ).fetchone()
+            if current is not None and current["lease_expires_at"] > now_text:
+                return None
+            c.execute("""
+              INSERT INTO tiktok_status_poll_leases
+                (job_id,attempt_id,lease_token,lease_expires_at,acquired_at)
+              VALUES(?,?,?,?,?)
+              ON CONFLICT(job_id) DO UPDATE SET
+                attempt_id=excluded.attempt_id,
+                lease_token=excluded.lease_token,
+                lease_expires_at=excluded.lease_expires_at,
+                acquired_at=excluded.acquired_at
+            """, (job_id, attempt_id, token, expires, now_text))
+            return token
+
+    def release_status_poll_lease(self, job_id, attempt_id, lease_token):
+        """Release only the exact lease owner; stale pollers cannot release a takeover."""
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            deleted = c.execute("""
+              DELETE FROM tiktok_status_poll_leases
+              WHERE job_id=? AND attempt_id=? AND lease_token=?
+            """, (job_id, attempt_id, lease_token))
+            return deleted.rowcount == 1
+
     def due_status_job_ids(self, limit=5, min_age_seconds=60):
         minimum_age = max(0, int(min_age_seconds))
         with self.db() as c:
@@ -522,8 +574,13 @@ class TikTokPublishStore:
               LEFT JOIN failure_counts AS failures
                 ON failures.job_id=p.job_id
                AND failures.attempt_id=p.attempt_id
+              LEFT JOIN tiktok_status_poll_leases AS poll_lease
+                ON poll_lease.job_id=p.job_id
+               AND poll_lease.attempt_id=p.attempt_id
               WHERE p.publish_id IS NOT NULL
                 AND p.status IN ('uploading','processing','reconciliation_required')
+                AND (poll_lease.job_id IS NULL
+                     OR julianday(poll_lease.lease_expires_at) <= julianday('now'))
                 AND julianday(p.updated_at) <= julianday('now') - (
                   MAX(?, CASE
                     WHEN COALESCE(failures.failures,0)=0 THEN 0
