@@ -9,6 +9,7 @@ class ApiRbacCoverageTests(unittest.TestCase):
         "/api/brands/{slug}",
         "/api/health",
         "/api/tiktok/oauth/callback",
+        "/api/youtube/oauth/callback",
     }
 
     def test_every_non_public_api_route_has_an_explicit_role_guard(self):
