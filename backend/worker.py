@@ -43,6 +43,11 @@ def handle_shutdown_signal(signum, frame):
 def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
     interval = HEARTBEAT_SECONDS if interval is None else max(0, interval)
     while not heartbeat_stop.wait(interval):
+        # SIGTERM marks the lease uncertain and sets the lost-lease event.
+        # Do not keep extending a lease after shutdown has been requested;
+        # allow the queue's expiry/recovery path to resolve the ambiguous job.
+        if lost_lease.is_set() or stopping.is_set():
+            return
         try:
             queue.heartbeat(job_id, WORKER_ID, token, WORKER_GENERATION_TOKEN)
         except LeaseConflict as exc:
