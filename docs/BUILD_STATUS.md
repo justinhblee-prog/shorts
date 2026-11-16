@@ -1290,3 +1290,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Validate missing IDs and reject overlap between collected and missing IDs before opening the write transaction.
 - Add regression tests that inject a retry-table write failure and verify that no snapshot is partially committed, plus a successful mixed-result collector test.
 - Provider/account behavior remains unverified against a live TikTok account.
+- GitHub Actions run [43808905182](https://github.com/justinhblee-prog/shorts/actions/runs/43808905182) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
