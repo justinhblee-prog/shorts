@@ -177,6 +177,40 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(minimum["interval_seconds"], 3600)
         self.assertEqual(maximum["interval_seconds"], 31536000)
 
+
+    def test_schedule_activation_requires_a_real_boolean(self):
+        item = self.schedule(datetime.now(timezone.utc) + timedelta(hours=1))
+        for invalid in (0, 1, "false", "true", None, [], {}):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "active must be a boolean"):
+                    self.schedules.set_active(item["id"], invalid)
+        self.assertFalse(self.schedules.set_active(item["id"], False)["active"])
+        self.assertTrue(self.schedules.set_active(item["id"], True)["active"])
+
+    def test_scheduler_store_limits_reject_coercion_and_out_of_range_values(self):
+        for method, maximum in (
+            (self.schedules.pending_dispatches, 500),
+            (self.schedules.outbox_status, 100),
+        ):
+            for invalid in (True, False, 1.5, "10", 0, -1, maximum + 1):
+                with self.subTest(method=method.__name__, invalid=invalid):
+                    with self.assertRaisesRegex(ValueError, "limit must be an integer"):
+                        method(invalid)
+            result = method(1)
+            self.assertEqual(result, [] if method == self.schedules.pending_dispatches else {
+                "counts": {}, "items": [], "pending_retries": 0
+            })
+        for invalid in (True, False, 1.5, "10", 0, -1, 101):
+            with self.subTest(dispatch_limit=invalid):
+                with self.assertRaisesRegex(ValueError, "limit must be an integer"):
+                    self.schedules.dispatch_due(self.queue, limit=invalid)
+
+    def test_dispatch_rejects_invalid_lease_duration_even_when_nothing_is_due(self):
+        for invalid in (True, False, 1.5, "90", 0, -1, 3601):
+            with self.subTest(lease_seconds=invalid):
+                with self.assertRaisesRegex(ValueError, "lease_seconds"):
+                    self.schedules.dispatch_due(self.queue, lease_seconds=invalid)
+
     def test_scheduler_lease_duration_is_strict_and_bounded(self):
         for invalid in (True, False, 1.5, "90", 0, -1, 3601, 10**9):
             with self.subTest(invalid=invalid):
