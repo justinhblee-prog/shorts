@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import tempfile
 import unittest
 from datetime import date
@@ -113,6 +114,33 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(result["retention_status"], "no_data")
         self.assertFalse(self.store.get("video-3")["views"])
 
+
+
+    def test_existing_analytics_table_is_migrated_for_engaged_view_columns(self):
+        legacy_db = os.path.join(self.tmp.name, "legacy.sqlite3")
+        with sqlite3.connect(legacy_db) as connection:
+            connection.execute("""
+                CREATE TABLE youtube_analytics_snapshots(
+                  video_id TEXT PRIMARY KEY,start_date TEXT NOT NULL,end_date TEXT NOT NULL,
+                  views REAL,estimated_minutes_watched REAL,average_view_duration REAL,
+                  average_view_percentage REAL,retention_json TEXT NOT NULL DEFAULT '[]',
+                  analytics_status TEXT NOT NULL,retention_status TEXT NOT NULL,
+                  retention_error TEXT,collected_at TEXT NOT NULL
+                )
+            """)
+        migrated = YouTubeAnalyticsStore(legacy_db)
+        with migrated.db() as connection:
+            columns = {
+                row["name"] for row in connection.execute(
+                    "PRAGMA table_info(youtube_analytics_snapshots)"
+                ).fetchall()
+            }
+        self.assertIn("engaged_views", columns)
+        self.assertIn("engaged_view_share", columns)
+        migrated.save("migrated-video", "2026-11-01", "2026-11-14", {
+            "views": 100, "engagedViews": 45,
+        }, [])
+        self.assertEqual(migrated.get("migrated-video")["engaged_view_share"], 0.45)
 
     def test_recent_upload_is_pending_not_a_zero_metrics_report(self):
         from youtube_publishing import YouTubeUploadStore
