@@ -75,8 +75,12 @@ def ensure_worker_registered():
 
 
 def run_once():
+    # A stopped process must never register a fresh generation as a side effect
+    # of a late/manual run_once() call. Keep shutdown terminal for this process.
+    if stopping.is_set():
+        return False
     ensure_worker_registered()
-    if stopping.is_set() or queue.is_paused():
+    if queue.is_paused():
         return False
     # Recovery failures escape: no claim may occur while state is uncertain.
     store.reconcile_missing_runs(
