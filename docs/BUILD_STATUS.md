@@ -1987,3 +1987,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - OAuth token refresh or client construction can block long enough for the lease to expire or be replaced; the prior pre-initialization assertion left a window in which a stale collector could still issue a quota-consuming request.
 - Add batch and manual regressions that replace the lease during service initialization and verify no YouTube list request is sent.
 - Deterministic local SQLite/fake-service CI only; no live YouTube OAuth or API validation is claimed.
+
+
+## BUILD-00265 — Fence YouTube Analytics provider calls by collector lease
+- Add an explicit live-lease assertion after OAuth/service initialization and immediately before each Analytics API request.
+- Revalidate between watch-time and retention requests so a collector that loses ownership cannot issue the second request.
+- Propagate lease-loss exceptions out of the batch loop rather than continuing to initialize clients or request later videos under stale ownership.
+- Add regressions for takeover during OAuth initialization, lease loss between report requests, and batch termination.
+- Validation is pending CI; tests use local SQLite and fake report services. No live YouTube OAuth/API verification is claimed.
