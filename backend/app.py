@@ -327,6 +327,27 @@ def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(d
     } for item in attempts]
     return {"job_id":job_id,"attempts":safe_attempts}
 
+@app.post("/api/production/jobs/{job_id}/adopt-recovered-provider-result")
+def adopt_recovered_production_provider_result(job_id:str,body:ProviderResultAdoptionAction,
+                                                x_review_token:str|None=Header(default=None)):
+    require_review_permission(x_review_token,"media.manage")
+    production=production_store.get(job_id)
+    if production is None:
+        raise HTTPException(404,"Production job not found")
+    attempt=next((item for item in production_store.provider_attempts(job_id)
+                  if item["id"]==body.provider_attempt_id),None)
+    if attempt is None or attempt["stage"] not in ("script","voice_generation"):
+        raise HTTPException(404,"Recoverable script or voice attempt not found")
+    if attempt["state"]!="response_received" or not attempt.get("response_json"):
+        raise HTTPException(409,"Provider response is not available for adoption")
+    try:
+        result=production_store.adopt_recovered_provider_artifact(
+            job_id,body.provider_attempt_id)
+        return {"adoption":result,"human_review_required":True,
+                "publishing_enabled":False,"resume_required":True}
+    except (ValueError,KeyError) as exc:
+        raise HTTPException(409,str(exc))
+
 @app.post("/api/production/jobs/{job_id}/adopt-recovered-render")
 def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionAction,
                                       x_review_token:str|None=Header(default=None)):
