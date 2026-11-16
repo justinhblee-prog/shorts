@@ -417,7 +417,7 @@ class JobQueue:
             try:
                 last_seen = datetime.fromisoformat(row["last_seen_at"])
                 age = max(0, int((observed_at - last_seen).total_seconds()))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 # A malformed registry timestamp is never treated as healthy.
                 age = threshold + 1
             row["heartbeat_age_seconds"] = age
