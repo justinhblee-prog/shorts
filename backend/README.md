@@ -437,3 +437,8 @@ The TikTok integration uses TikTok Login Kit OAuth with encrypted token storage 
 TikTok metrics collection uses the official Display API for IDs recorded by the creator's own publication history. It does not scrape third-party videos or infer retention/engagement metrics unavailable through that API. Set `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`, and a persistent `TIKTOK_TOKEN_ENCRYPTION_KEY`; enable the Content Posting API and required scopes in the TikTok developer console. Unaudited clients are limited to private visibility by TikTok. The current backend does not automatically enable public posting.
 
 Backend endpoints include OAuth start/callback/status/disconnect, creator-info, private publish, publication status/reconciliation, and TikTok metrics. Frontend operator controls and real developer-app/account validation are tracked separately.
+
+
+### BUILD-00027 validation
+
+GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43781739033 passed **317 backend tests** and `scripts/validate.sh`. PR #87 was squash-merged into `main` as `43b8c0048e117af3864908e23f50dcf2b3443c9f`. The backend integration is CI-verified; no live TikTok creator account post or metrics fetch was performed.
