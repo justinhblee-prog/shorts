@@ -118,8 +118,8 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(self.q.get(job["id"])["status"],"review_pending")
 
  def test_graceful_worker_shutdown_is_persisted_as_offline_not_stale(self):
-  self.q.register_worker("worker-clean","host-a")
-  self.assertTrue(self.q.mark_worker_offline("worker-clean"))
+  registration=self.q.register_worker("worker-clean","host-a")
+  self.assertTrue(self.q.mark_worker_offline("worker-clean",registration["generation_token"]))
   self.assertEqual(self.q.workers()[0]["status"],"offline")
   self.assertFalse(self.q.mark_worker_offline("missing-worker"))
 
@@ -137,8 +137,8 @@ class QueueTests(unittest.TestCase):
   self.assertGreater(stale["heartbeat_age_seconds"],30)
 
  def test_explicitly_offline_worker_is_not_reported_as_stale(self):
-  self.q.register_worker("worker-clean","host-a")
-  self.q.mark_worker_offline("worker-clean")
+  registration=self.q.register_worker("worker-clean","host-a")
+  self.q.mark_worker_offline("worker-clean",registration["generation_token"])
   with self.q.db() as c:
    c.execute("UPDATE worker_registry SET last_seen_at='2000-01-01T00:00:00+00:00' WHERE worker_id='worker-clean'")
   worker=self.q.workers(stale_after_seconds=30)[0]
