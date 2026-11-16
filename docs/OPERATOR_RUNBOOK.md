@@ -455,3 +455,8 @@ YouTube Analytics malformed report payloads are rejected before metrics are save
 ### BUILD-00135 validation checkpoint
 
 GitHub Actions run [43795614217](https://github.com/justinhblee-prog/shorts/actions/runs/43795614217) passed **446 backend tests** and the complete validation script. This verifies parser and transaction behavior using test fixtures, not live YouTube/TikTok API responses.
+
+
+### BUILD-00136 — external media link behavior
+
+Renderer video links and narration previews appear only when their artifact URLs are absolute HTTPS URLs without embedded credentials. If a URL is malformed or uses another scheme, the dashboard hides the link/preview. This does not replace backend host allowlisting, DNS checks, TLS validation or media-byte inspection.
