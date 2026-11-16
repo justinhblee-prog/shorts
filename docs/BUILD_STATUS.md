@@ -80,7 +80,9 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - SQLite persistence and API: POST `/api/opportunities/score`; GET `/api/opportunities`.
 - Unit tests committed; runtime validation pending.
 
-- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.\n\n## Validation — current truth
+- Added `backend/worker.py`: long-running worker claims only short-video jobs, renews its lease during provider work, and finalizes successful jobs at the human review gate. Queue claim now supports job-type filtering. Artifact writes are retry-safe by stage.
+
+## Validation — current truth
 
 - Latest verified GitHub Actions run: [43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302), which passed **338 backend tests** and the complete `scripts/validate.sh` command on the BUILD-00033 implementation.
 - CI executed Python 3.11 tests on a GitHub-hosted runner. Provider/API tests use controlled test doubles where credentials or external services are required; this verifies application logic, not live provider success.
@@ -98,7 +100,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Missing provider configuration, missing script text, missing audio URL or missing video URL fails closed. No fake generation outputs are returned.
 - A successful render ends at `review_pending`; no public publishing action is included.
 - Mock-provider contract tests are committed in `backend/tests/test_production_pipeline.py`.
-- **Not validated:** test execution, real provider API compatibility, real audio/video generation, media playback, render quality, or end-to-end production. GitHub Actions runner initialization remains unresolved.
+- **CI validated:** the current repository suite runs successfully in GitHub Actions. **Not validated:** real provider API compatibility, real audio/video generation, media playback, render quality, or end-to-end production.
 
 
 ## BUILD-00006 — ten-brand operations
