@@ -651,6 +651,37 @@ class ProductionTests(unittest.TestCase):
         next_key=self.store.begin_provider_attempt("job-provider-unadopted","script",2)
         self.assertTrue(next_key)
 
+    def test_script_retry_does_not_delete_artifacts_while_any_provider_attempt_is_unresolved(self):
+        self.store.create("job-provider-reset-fence",self.brief)
+        self.store.artifact("job-provider-reset-fence","script","text",None,
+                            {"script":"previous durable script"})
+        key=self.store.begin_provider_attempt(
+            "job-provider-reset-fence","voice_generation",1)
+        self.store.finish_provider_attempt(
+            "job-provider-reset-fence","voice_generation",1,key,
+            {"audio_url":"https://media.example/voice.mp3"})
+        with self.assertRaisesRegex(ProviderError,"Cannot reset production artifacts"):
+            self.store.stage("job-provider-reset-fence","script")
+        saved=self.store.get("job-provider-reset-fence")["artifacts"]
+        self.assertEqual(len(saved),1)
+        self.assertEqual(saved[0]["stage"],"script")
+        self.assertEqual(saved[0]["metadata"]["script"],"previous durable script")
+        self.assertEqual(
+            self.store.provider_attempts("job-provider-reset-fence")[0]["state"],
+            "response_received")
+
+    def test_script_retry_can_reset_artifacts_after_provider_attempt_is_adopted(self):
+        self.store.create("job-provider-reset-safe",self.brief)
+        self.store.artifact("job-provider-reset-safe","script","text",None,
+                            {"script":"old script"})
+        key=self.store.begin_provider_attempt("job-provider-reset-safe","script",1)
+        self.store.finish_provider_attempt(
+            "job-provider-reset-safe","script",1,key,{"script":"new script"})
+        self.store.mark_provider_attempt_adopted(
+            "job-provider-reset-safe","script",1,key)
+        self.store.stage("job-provider-reset-safe","script")
+        self.assertEqual(self.store.get("job-provider-reset-safe")["artifacts"],[])
+
     def test_provider_response_rejects_oversized_or_non_object_payload(self):
         self.store.create("job-provider-bounds",self.brief)
         key=self.store.begin_provider_attempt("job-provider-bounds","script",1)
