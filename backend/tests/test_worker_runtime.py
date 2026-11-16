@@ -57,28 +57,21 @@ class WorkerRuntimeTests(unittest.TestCase):
     def test_configured_heartbeat_is_respected_below_lease_cap(self):
         self.assertEqual(heartbeat_interval(300, 15), 15)
 
-    def test_sigterm_signals_local_stop_and_pauses_active_production(self):
+    def test_sigterm_signals_local_stop_without_database_io(self):
         import threading
 
         class Queue:
-            def __init__(self):
-                self.pauses = []
-            def pause(self, reason, job_id, worker_id=None, generation_token=None):
-                self.pauses.append((reason, job_id, worker_id, generation_token))
+            def pause(self, *args, **kwargs):
+                raise AssertionError("signal handler must not perform database I/O")
 
-        queue = Queue()
         stopping = threading.Event()
         lost_lease = threading.Event()
         request_worker_shutdown(
-            queue, stopping, "job-1", lost_lease, 15,
+            Queue(), stopping, "job-1", lost_lease, 15,
             worker_id="worker-a", generation_token="generation-a",
         )
         self.assertTrue(stopping.is_set())
         self.assertTrue(lost_lease.is_set())
-        self.assertEqual(len(queue.pauses), 1)
-        self.assertEqual(queue.pauses[0][1], "job-1")
-        self.assertEqual(queue.pauses[0][2:], ("worker-a", "generation-a"))
-        self.assertIn("signal 15", queue.pauses[0][0])
 
     def test_stale_worker_sigterm_cannot_pause_replacement_generation(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -97,6 +90,8 @@ class WorkerRuntimeTests(unittest.TestCase):
 
             self.assertTrue(stopping.is_set())
             self.assertTrue(lost_lease.is_set())
+            # Signal handling is local-only; deferred pause attempts must still
+            # be fenced when the old process resumes normal execution.
             self.assertFalse(queue.is_paused())
             self.assertEqual(
                 queue.workers()[0]["generation_token"],
@@ -109,12 +104,12 @@ class WorkerRuntimeTests(unittest.TestCase):
                     generation_token=old["generation_token"],
                 )
 
-    def test_sigterm_still_stops_locally_if_pause_persistence_fails(self):
+    def test_sigterm_local_stop_does_not_depend_on_database_availability(self):
         import threading
 
         class BrokenQueue:
-            def pause(self, reason, job_id, worker_id=None, generation_token=None):
-                raise OSError("database unavailable")
+            def pause(self, *args, **kwargs):
+                raise AssertionError("database must not be accessed by signal handler")
 
         stopping = threading.Event()
         lost_lease = threading.Event()
@@ -139,8 +134,7 @@ class WorkerRuntimeTests(unittest.TestCase):
         request_worker_shutdown(queue, stopping, "job-3", lost_lease, 15)
         self.assertTrue(stopping.is_set())
         self.assertTrue(lost_lease.is_set())
-        self.assertEqual(len(queue.pauses), 1)
-        self.assertEqual(queue.pauses[0][1:], ("job-3", None, None))
+        self.assertEqual(queue.pauses, [])
 
 
 if __name__ == "__main__":
