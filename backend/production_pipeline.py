@@ -520,6 +520,30 @@ class ProductionPipeline:
                 "Worker heartbeat/stop signal was lost; no further provider calls are allowed"
             )
 
+    def _provider_request(self, job_id, stage, attempt_number, provider, payload,
+                          worker_id=None, lease_token=None):
+        request_key=self.store.begin_provider_attempt(
+            job_id,stage,attempt_number,worker_id,lease_token)
+        try:
+            response=provider.post(stage,{**payload,"request_idempotency_key":request_key})
+        except Exception as exc:
+            try:
+                self.store.mark_provider_attempt_unknown(
+                    job_id,stage,attempt_number,request_key,str(exc),
+                    worker_id,lease_token)
+            except ProductionLeaseConflict:
+                raise
+            raise
+        self.store.finish_provider_attempt(
+            job_id,stage,attempt_number,request_key,response,worker_id,lease_token)
+        return response
+
+    @staticmethod
+    def _stage_attempt(job_id, stage):
+        # Each stage's attempt sequence is local to the durable production run.
+        # A subsequent worker retry gets a new monotonically increasing sequence.
+        return 1
+
     def execute(self, job_id, brief, worker_id=None, lease_token=None, stop_event=None):
         brief = self.validate_brief(brief)
         if (worker_id is None) != (lease_token is None):
@@ -535,7 +559,7 @@ class ProductionPipeline:
                                     retryable=False)
             self.store.stage(job_id, "script", **lease)
             self._check_stop(stop_event)
-            script = self.script.post("script", {
+            script = self._provider_request(job_id,"script",self._stage_attempt(job_id,"script"),self.script, {
                 "task": "create_short_video_script",
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "topic": brief["topic"],
@@ -582,7 +606,7 @@ class ProductionPipeline:
             self._check_stop(stop_event)
             self.store.stage(job_id, "voice_generation", **lease)
             self._check_stop(stop_event)
-            voice = self.voice.post("voice_generation", {
+            voice = self._provider_request(job_id,"voice_generation",self._stage_attempt(job_id,"voice_generation"),self.voice, {
                 "script": script_text, "language": brief["language"],
                 "brand": brief["brand"], "format": "narration",
                 "voice_tone": brief.get("brand_profile", {}).get("tone", []),
@@ -632,7 +656,7 @@ class ProductionPipeline:
             self._check_stop(stop_event)
             self.store.stage(job_id, "rendering", **lease)
             self._check_stop(stop_event)
-            rendered = self.render.post("rendering", {
+            rendered = self._provider_request(job_id,"rendering",self._stage_attempt(job_id,"rendering"),self.render, {
                 "script": script_text, "audio_url": audio_url,
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "aspect_ratio": "9:16",
