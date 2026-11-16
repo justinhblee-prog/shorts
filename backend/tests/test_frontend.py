@@ -102,6 +102,13 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("기존 실행 식별자는 유지됩니다", app_js)
         self.assertIn("격리된 예약 실행을 다시 대기열에 넣으시겠습니까?", app_js)
 
+    def test_review_cards_disclose_recovered_provider_artifact_provenance(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("recovered_from_provider_attempt", app_js)
+        self.assertIn("recoveryFingerprint.sha256", app_js)
+        self.assertIn("외부 AI 생성 결과 복구", app_js)
+        self.assertIn("사람의 최종 검수 및 별도 승인 전에는 게시할 수 없습니다", app_js)
+
     def test_external_media_urls_require_https_without_embedded_credentials(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertIn("function safeExternalMediaUrl(value)", app_js)

@@ -604,3 +604,8 @@ Use this only when the provider execution ledger contains a `rendering` attempt 
 The result is **not approved or published**. A human must inspect the actual video, rights, claims, captions, audio, platform disclosures and brand fit before normal review approval and publication.
 
 If allowlisting, malware scanning, media inspection or required metadata is unavailable, do not bypass the gate. Fix the configuration or leave the provider response preserved for later investigation. The recovery endpoint does not support arbitrary URLs supplied by the operator; it only uses the URL in the stored provider response.
+
+
+### Review workspace provenance for recovered provider results — BUILD-00176
+
+The pending-review card labels any video artifact carrying `recovered_from_provider_attempt`. It displays the provider attempt ID, staged file SHA-256, byte size and staged filename, plus an explicit notice that the recovered output is not approved or publishable until a human reviewer completes the normal review and separate approval process. Use the hash when comparing the staged file with the recovery record; do not treat provenance display as a rights, factuality or platform-policy certification.

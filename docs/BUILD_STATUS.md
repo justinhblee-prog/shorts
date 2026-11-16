@@ -1450,3 +1450,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Block duplicate adoption, active worker jobs and replacement of approved/uploaded/published outputs.
 - Human review and explicit publication approval remain mandatory; no automatic approval or posting.
 - GitHub Actions run [43817903769](https://github.com/justinhblee-prog/shorts/actions/runs/43817903769) passed the complete `scripts/validate.sh` workflow, including 525 backend tests. The recovered-output path also rebuilds a fresh quality report from the stored script/voice metadata and byte-level media inspection before queueing review.
+
+
+## BUILD-00176 — recovered output provenance in review workspace
+
+- Show a distinct recovered-provider-result notice in the pending-review card.
+- Display provider attempt ID, staged media filename, SHA-256 and byte size from the recovered artifact metadata.
+- Explicitly state that recovery and automated file inspection do not constitute human approval or permission to publish.
+- Add frontend regression coverage for provenance and review-boundary messaging.
+- GitHub Actions run [43818084149](https://github.com/justinhblee-prog/shorts/actions/runs/43818084149) passed the complete `scripts/validate.sh` workflow, including 526 backend tests.
