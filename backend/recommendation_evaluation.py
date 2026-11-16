@@ -192,6 +192,64 @@ def _metric_holdout(diagnostics):
     return result
 
 
+def _metric_holdout_by_cohort(diagnostics_by_cohort):
+    """Require the same outcome cohort to recur across chronological holdout runs."""
+    cohort_results = []
+    for cohort_key, diagnostics in diagnostics_by_cohort.items():
+        result = _metric_holdout(diagnostics)
+        if result["status"] != "holdout_available":
+            continue
+        cohort_results.append({
+            "cohort": list(cohort_key),
+            "eligible_run_count": result["eligible_run_count"],
+            "pre_holdout_run_count": result["pre_holdout_run_count"],
+            "holdout_run_count": result["holdout_run_count"],
+            "holdout_median_score_spearman": result["holdout_median_score_spearman"],
+            "holdout_median_rank_spearman": result["holdout_median_rank_spearman"],
+            "holdout_positive_score_association_share": result["holdout_positive_score_association_share"],
+            "holdout_start": result["holdout_start"],
+            "holdout_end": result["holdout_end"],
+        })
+    eligible_run_count = max(
+        (item["eligible_run_count"] for item in cohort_results), default=0
+    )
+    if not cohort_results:
+        return {
+            "status": "insufficient_stable_cohort_coverage",
+            "eligible_run_count": eligible_run_count,
+            "eligible_cohort_count": 0,
+            "minimum_runs": 5,
+            "minimum_selected_measured_per_cohort": 3,
+            "pre_holdout_run_count": 0,
+            "holdout_run_count": 0,
+            "holdout_median_score_spearman": None,
+            "holdout_median_rank_spearman": None,
+            "holdout_positive_score_association_share": None,
+            "score_adjustment_enabled": False,
+            "cohort_results": [],
+        }
+    return {
+        "status": "holdout_available",
+        "eligible_run_count": eligible_run_count,
+        "eligible_cohort_count": len(cohort_results),
+        "minimum_runs": 5,
+        "minimum_selected_measured_per_cohort": 3,
+        "pre_holdout_run_count": min(item["pre_holdout_run_count"] for item in cohort_results),
+        "holdout_run_count": min(item["holdout_run_count"] for item in cohort_results),
+        "holdout_median_score_spearman": round(statistics.median(
+            item["holdout_median_score_spearman"] for item in cohort_results
+        ), 4),
+        "holdout_median_rank_spearman": round(statistics.median(
+            item["holdout_median_rank_spearman"] for item in cohort_results
+        ), 4),
+        "holdout_positive_score_association_share": round(statistics.median(
+            item["holdout_positive_score_association_share"] for item in cohort_results
+        ), 4),
+        "score_adjustment_enabled": False,
+        "cohort_results": cohort_results,
+    }
+
+
 class RecommendationEvaluationStore:
     def __init__(self, db_path="data/nexus.sqlite3"):
         self.db_path = str(db_path)
@@ -498,14 +556,13 @@ class RecommendationEvaluationStore:
             grouped.setdefault(run_id, {}).setdefault(cohort_key, []).append(item)
         run_diagnostics = []
         eligible_cohort_count = 0
-        analytics_run_diagnostics = {name: [] for name in analytics_metric_names}
+        analytics_run_diagnostics = {name: {} for name in analytics_metric_names}
         for run_id, cohorts in grouped.items():
             cohort_score_rhos = []
             cohort_rank_rhos = []
             cohort_sample_count = 0
             metric_run = {
-                name: {"score": [], "rank": [], "samples": 0}
-                for name in analytics_metric_names
+                name: {} for name in analytics_metric_names
             }
             for cohort_items in cohorts.values():
                 view_items = [
@@ -526,6 +583,14 @@ class RecommendationEvaluationStore:
                         cohort_rank_rhos.append(rank_rho)
                         cohort_sample_count += len(view_items)
                         eligible_cohort_count += 1
+                cohort_key = (
+                    cohort_items[0].get("platform"),
+                    cohort_items[0].get("outcome_brand"),
+                    cohort_items[0].get("outcome_region"),
+                    cohort_items[0].get("publication_age_bucket"),
+                    cohort_items[0].get("duration_bucket"),
+                    cohort_items[0].get("format"),
+                )
                 for metric_name in analytics_metric_names:
                     metric_items = [
                         item for item in cohort_items
@@ -544,9 +609,11 @@ class RecommendationEvaluationStore:
                         [item[metric_name] for item in metric_items],
                     )
                     if score_rho is not None and rank_rho is not None:
-                        metric_run[metric_name]["score"].append(score_rho)
-                        metric_run[metric_name]["rank"].append(rank_rho)
-                        metric_run[metric_name]["samples"] += len(metric_items)
+                        metric_run[metric_name][cohort_key] = {
+                            "score": score_rho,
+                            "rank": rank_rho,
+                            "samples": len(metric_items),
+                        }
             generated_at = next(iter(cohorts.values()))[0]["run_generated_at"]
             if cohort_score_rhos:
                 run_diagnostics.append({
@@ -561,21 +628,19 @@ class RecommendationEvaluationStore:
                         statistics.median(cohort_rank_rhos), 4
                     ),
                 })
-            for metric_name, values in metric_run.items():
-                if values["score"]:
-                    analytics_run_diagnostics[metric_name].append({
+            for metric_name, cohort_values in metric_run.items():
+                for cohort_key, values in cohort_values.items():
+                    analytics_run_diagnostics[metric_name].setdefault(
+                        cohort_key, []
+                    ).append({
                         "generated_at": generated_at,
-                        "median_score_spearman": round(
-                            statistics.median(values["score"]), 4
-                        ),
-                        "median_rank_spearman": round(
-                            statistics.median(values["rank"]), 4
-                        ),
+                        "median_score_spearman": round(values["score"], 4),
+                        "median_rank_spearman": round(values["rank"], 4),
                         "selected_measured_count": values["samples"],
                     })
         analytics_validation = {
-            metric_name: _metric_holdout(diagnostics)
-            for metric_name, diagnostics in analytics_run_diagnostics.items()
+            metric_name: _metric_holdout_by_cohort(diagnostics_by_cohort)
+            for metric_name, diagnostics_by_cohort in analytics_run_diagnostics.items()
         }
         run_diagnostics.sort(key=lambda item: item["generated_at"])
         within_run = {
