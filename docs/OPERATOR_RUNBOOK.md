@@ -523,3 +523,8 @@ When the durable job queue rejects a scheduled outbox item, the scheduler keeps 
 ### BUILD-00165 — dead-letter scheduler outbox recovery
 
 Outbox entries are retried with exponential backoff for up to 10 failed attempts. After the tenth failure, the entry moves to `dead_letter`, stops automatic retries, and remains visible through `GET /api/schedules/outbox`. An authorized operator with `schedules.manage` permission can explicitly retry an entry using `POST /api/schedules/outbox/{outbox_id}/retry`. Manual retry resets the attempt counter and retry timestamp but preserves the original schedule occurrence and idempotency key, preventing duplicate queue jobs if an earlier enqueue succeeded before a process failure.
+
+
+### BUILD-00166 — interpreting scheduler outbox status
+
+`GET /api/schedules/outbox` reports total counts by state plus two distinct pending counters: `pending_ready` means eligible for dispatch now, while `pending_retries` means deferred until a future retry timestamp. Dead-letter entries are ordered first in the limited item list so operators can see records requiring manual action. All status timestamps are evaluated in UTC; test callers may supply an aware clock.
