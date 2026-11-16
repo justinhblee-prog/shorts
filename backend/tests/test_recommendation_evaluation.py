@@ -74,7 +74,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertIsNone(json.loads(rows[1]["cohort_context_json"])["bad"])
 
     def test_record_run_rejects_invalid_timestamp_and_region_before_writing(self):
-        for timestamp in ("not-a-date", [], "2026-99-99T00:00:00Z"):
+        for timestamp in ("not-a-date", "", [], "2026-99-99T00:00:00Z"):
             with self.subTest(timestamp=timestamp):
                 with self.assertRaisesRegex(ValueError, "generated_at"):
                     self.store.record_run("US", [], timestamp)
