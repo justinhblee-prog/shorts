@@ -444,6 +444,86 @@ class ProductionStore:
                     "provider_attempt_id":attempt_id,"status":"review_pending",
                     "sha256":digest,"size_bytes":size,"media_path":media_path}
 
+    def reconcile_status_integrity(self, queue, limit=200):
+        """Detect split-brain lifecycle states and repair only unambiguous queue outcomes.
+
+        Queue cancellation/terminal failure and the durable review handoff are
+        authoritative only for their narrowly defined crash windows. Approval
+        and upload mismatches are never guessed or auto-promoted.
+        """
+        if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
+            raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
+        repaired = []
+        unresolved = []
+        terminal = ("cancelled", "failed_terminal")
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            rows = c.execute("""
+                SELECT r.job_id,r.status AS production_status,r.current_stage,
+                       j.status AS queue_status,j.job_type,j.error_message
+                FROM production_runs r
+                JOIN pipeline_jobs j ON j.id=r.job_id
+                WHERE j.job_type='short_video_production'
+                  AND r.status<>j.status
+                  AND (r.status IN ('rendered','review_pending','approved','uploaded',
+                                    'cancelled','failed_terminal')
+                       OR j.status IN ('review_pending','approved','uploaded',
+                                       'cancelled','failed_terminal'))
+                ORDER BY j.updated_at LIMIT ?
+            """, (max(1, min(int(limit), 500)),)).fetchall()
+            for row in rows:
+                job_id = row["job_id"]
+                before = row["production_status"]
+                after = row["queue_status"]
+                timestamp = utc_now()
+                if after in terminal and before not in ("approved", "uploaded"):
+                    updated = c.execute("""
+                        UPDATE production_runs
+                        SET status=?,current_stage=?,error=?,updated_at=?
+                        WHERE job_id=? AND status=?
+                    """, (after, after, row["error_message"], timestamp, job_id, before))
+                    if updated.rowcount == 1:
+                        details = {"source": "queue_terminal_state",
+                                   "queue_status": after, "previous_production_status": before}
+                        c.execute("""
+                            INSERT INTO job_events
+                              (job_id,event_type,from_status,to_status,worker_id,
+                               details_json,created_at)
+                            VALUES(?,'production_state_reconciled',?,?,NULL,?,?)
+                        """, (job_id, before, after,
+                              json.dumps(details, ensure_ascii=False), timestamp))
+                        repaired.append({"job_id": job_id, "from": before, "to": after})
+                        continue
+                elif after == "review_pending" and before == "rendered":
+                    updated = c.execute("""
+                        UPDATE production_runs
+                        SET status='review_pending',current_stage='review_pending',
+                            error=NULL,updated_at=?
+                        WHERE job_id=? AND status='rendered'
+                    """, (timestamp, job_id))
+                    if updated.rowcount == 1:
+                        details = {"source": "durable_queue_review_handoff",
+                                   "previous_production_status": before}
+                        c.execute("""
+                            INSERT INTO job_events
+                              (job_id,event_type,from_status,to_status,worker_id,
+                               details_json,created_at)
+                            VALUES(?,'production_state_reconciled','rendered',
+                                   'review_pending',NULL,?,?)
+                        """, (job_id, json.dumps(details, ensure_ascii=False), timestamp))
+                        repaired.append({"job_id": job_id, "from": before, "to": after})
+                        continue
+                unresolved.append({
+                    "job_id": job_id, "production_status": before,
+                    "queue_status": after,
+                    "reason": "No safe automatic reconciliation rule; operator investigation required",
+                })
+        return {
+            "scanned": len(repaired) + len(unresolved),
+            "repaired": len(repaired), "repaired_jobs": repaired,
+            "unresolved": len(unresolved), "unresolved_jobs": unresolved,
+        }
+
     def reconcile_missing_runs(self, queue, job_ids=None, limit=200):
         """Restore production rows if a process crashed between queue enqueue and record creation."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():

@@ -621,3 +621,12 @@ The pending-review card labels any video artifact carrying `recovered_from_provi
 
 
 - If media staging or any other artifact change requires another review, the production review transition reopens an approved queue row to `review_pending` and records `review_reopened`. Confirm both ledgers are pending before taking the fresh approval; do not reuse the prior approval snapshot.
+
+
+## BUILD-00178 — Production lifecycle integrity and recovery
+
+The worker now runs a bounded production/queue state-integrity scan before claiming another job. Safe automatic repairs are deliberately narrow:
+- Queue `cancelled` or `failed_terminal` is mirrored into a non-approved/non-uploaded production row.
+- A durable queue `review_pending` handoff is mirrored only when the production row is still `rendered`.
+
+Each repair appends a `production_state_reconciled` queue event. Approval and upload mismatches are never auto-promoted or guessed. If any mismatch remains unresolved, the worker persists a global pause and does not claim more work. An operator must inspect both ledgers and evidence, reconcile explicitly, and resume through the existing audited resume action.
