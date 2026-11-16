@@ -958,3 +958,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - `sh scripts/validate.sh` passed; the backend suite reported **338 tests, OK**.
 - Frontend JavaScript syntax/DOM-ID checks, Python compilation and Compose YAML parsing also passed.
 - Validation uses stored/mock Analytics outcomes; no live channel authorization, actual retention coverage or recommendation lift is claimed.
+
+## Current verified project checkpoint — 2026-11-16
+
+- Main includes BUILD-00031 through BUILD-00033.
+- Latest CI run [43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302) passed **338 backend tests** and `scripts/validate.sh`.
+- BUILD-00032 added YouTube Analytics API v2 watch-time/retention collection; BUILD-00033 added topic context and separate chronological holdouts for average view percentage, average view duration and audience-watch ratios.
+- Recommendation score adjustments remain disabled.
+- External blockers: real provider credentials, OAuth re-consent if required scopes are absent, live AI generation/rendering, real YouTube/TikTok account checks, revenue reconciliation and production deployment/backup verification.
