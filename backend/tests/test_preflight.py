@@ -108,10 +108,8 @@ class PreflightTests(unittest.TestCase):
         self.assertTrue(result["checks"]["operator_auth"]["configured"])
         self.assertNotIn("NEXUS_REVIEW_TOKEN", result["missing"])
         self.assertFalse(result["checks"]["operator_rbac"]["configured"])
-        self.assertIn(
-            "NEXUS_REVIEW_ROLE_MAP_JSON",
-            result["checks"]["operator_rbac"]["optional_missing"],
-        )
+        self.assertFalse(result["checks"]["operator_rbac"]["optional"])
+        self.assertIn("NEXUS_REVIEW_ROLE_MAP_JSON", result["missing"])
 
     def test_youtube_oauth_redirect_and_encryption_are_optional_preflight_settings(self):
         result = build_preflight({})
