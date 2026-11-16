@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 from tiktok_publishing import TikTokPublishStore
 from tiktok_metrics import TikTokMetricsStore, TikTokMetricsCollector, TikTokMetricsError
-from metrics_collector import run_tiktok_once
+from metrics_collector import run_tiktok_once, CollectorLeaseLost
 
 
 class TikTokMetricsTests(unittest.TestCase):
@@ -332,6 +332,61 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertEqual(fake.states[-1][1]["error"], "TikTokMetricsError")
         self.assertTrue(fake.released)
 
+
+    def test_periodic_tiktok_runner_discards_results_after_lease_loss(self):
+        class FakeStore:
+            def __init__(self):
+                self.states = []
+                self.released = False
+                self.renew_results = iter([True, False])
+            def acquire_lease(self, owner_id, lease_seconds=300):
+                return "lease-token"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return next(self.renew_results)
+            def release_lease(self, owner_id, token):
+                self.released = True
+            def record_collection(self, status, **kwargs):
+                self.states.append((status, kwargs))
+        class FakeCollector:
+            def refresh_due_metrics(self, **kwargs):
+                return {"requested": 1, "collected": 1, "missing": [],
+                        "source": "TikTok Display API v2"}
+
+        fake = FakeStore()
+        with self.assertRaises(CollectorLeaseLost):
+            run_tiktok_once(
+                store=fake, collector=FakeCollector(),
+                publication_store=self.publications, token_manager=object(),
+            )
+        self.assertEqual([state for state, _ in fake.states], ["running"])
+        self.assertTrue(fake.released)
+
+    def test_periodic_tiktok_runner_does_not_record_failure_after_lease_loss(self):
+        class FakeStore:
+            def __init__(self):
+                self.states = []
+                self.released = False
+                self.renew_results = iter([True, False])
+            def acquire_lease(self, owner_id, lease_seconds=300):
+                return "lease-token"
+            def renew_lease(self, owner_id, token, lease_seconds=300):
+                return next(self.renew_results)
+            def release_lease(self, owner_id, token):
+                self.released = True
+            def record_collection(self, status, **kwargs):
+                self.states.append((status, kwargs))
+        class FakeCollector:
+            def refresh_due_metrics(self, **kwargs):
+                raise TikTokMetricsError("provider unavailable")
+
+        fake = FakeStore()
+        with self.assertRaises(CollectorLeaseLost):
+            run_tiktok_once(
+                store=fake, collector=FakeCollector(),
+                publication_store=self.publications, token_manager=object(),
+            )
+        self.assertEqual([state for state, _ in fake.states], ["running"])
+        self.assertTrue(fake.released)
 
     def test_metrics_coverage_and_collection_include_publications_beyond_recent_200(self):
         for index in range(2, 206):
