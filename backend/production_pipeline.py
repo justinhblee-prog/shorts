@@ -18,6 +18,10 @@ from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
 from script_originality import build_script_originality_report
 from speech_alignment import build_speech_alignment_report, build_caption_alignment_report
+from provider_endpoint import provider_endpoint_error
+
+
+MAX_PROVIDER_RESPONSE_BYTES = 2 * 1024 * 1024
 
 
 class ProviderError(RuntimeError):
@@ -46,24 +50,47 @@ class JsonProvider:
         self.url = (url or "").strip()
         self.token = token
         self.timeout = timeout
-        self.transport = transport or self._request
+        self.transport = transport if transport is not None else self._request
 
     @staticmethod
     def _request(url, headers, body, timeout):
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+
+        class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, response_headers, newurl):
+                # Never forward bearer credentials to a redirected host.
+                return None
+
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                return response.status, response.read()
+            opener = urllib.request.build_opener(NoRedirectHandler)
+            with opener.open(req, timeout=timeout) as response:
+                raw = response.read(MAX_PROVIDER_RESPONSE_BYTES + 1)
+                if len(raw) > MAX_PROVIDER_RESPONSE_BYTES:
+                    raise ProviderError(
+                        "provider", "Provider response exceeded the 2 MiB limit",
+                        retryable=False,
+                    )
+                return response.status, raw
         except urllib.error.HTTPError as exc:
-            detail = exc.read(1000).decode("utf-8", "replace")
-            raise ProviderError("provider", f"Provider HTTP {exc.code}: {detail}",
-                                retryable=exc.code >= 500 or exc.code == 429)
+            # Provider error bodies may echo credentials or signed URLs.
+            status = exc.code
+            exc.close()
+            raise ProviderError(
+                "provider", f"Provider HTTP {status}",
+                retryable=status >= 500 or status == 429,
+            )
         except (urllib.error.URLError, TimeoutError) as exc:
-            raise ProviderError("provider", f"Provider connection failed: {type(exc).__name__}")
+            raise ProviderError(
+                "provider", f"Provider connection failed: {type(exc).__name__}"
+            )
 
     def post(self, stage, payload):
-        if not self.url:
-            raise ProviderError(stage, f"{stage} provider URL is not configured", retryable=False)
+        endpoint_error = provider_endpoint_error(self.url)
+        if endpoint_error:
+            raise ProviderError(
+                stage, f"{stage} provider endpoint is invalid: {endpoint_error}",
+                retryable=False,
+            )
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
@@ -71,6 +98,12 @@ class JsonProvider:
             status, raw = self.transport(
                 self.url, headers, json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                 self.timeout)
+            if not isinstance(raw, (bytes, bytearray)):
+                raise ProviderError(stage, "Provider response must be binary JSON", False)
+            if len(raw) > MAX_PROVIDER_RESPONSE_BYTES:
+                raise ProviderError(
+                    stage, "Provider response exceeded the 2 MiB limit", False
+                )
             if status < 200 or status >= 300:
                 raise ProviderError(stage, f"{stage} provider returned HTTP {status}",
                                     retryable=status >= 500 or status == 429)
