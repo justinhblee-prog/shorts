@@ -288,3 +288,10 @@ docker compose exec worker python -c "from queue_store import JobQueue; print(Jo
 
 - GitHub Actions run [43784004930](https://github.com/justinhblee-prog/shorts/actions/runs/43784004930) passed **326 backend tests** and the full validation script.
 - The check validates configuration logic and frontend syntax only; perform real provider, OAuth, media and platform checks separately before operating.
+
+## Latest verified code validation — 2026-11-16
+
+- BUILD-00033 CI run [43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302): **338 backend tests passed**, with Python compilation, frontend JavaScript syntax/DOM-ID checks and Compose YAML parsing.
+- This verifies repository code under controlled tests. It does not replace live credentials, provider calls, platform OAuth consent, actual rendering/upload, production deployment or revenue reconciliation.
+- Before enabling production posting, verify YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, a refresh token with youtube.readonly and youtube.upload, YOUTUBE_DATA_API_KEY, provider endpoints and any required bearer tokens. For TikTok, complete developer-app review, OAuth redirect and requested scopes, creator-info verification and private-only publishing checks.
+- Run a private/test upload and confirm that the resulting platform video ID is collected by both the Data API and Analytics API; do not change privacy to public until policy and human approval checks pass.
