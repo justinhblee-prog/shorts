@@ -2084,3 +2084,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add a SQLite-backed positive-path test for SIGTERM from the currently registered worker generation while it owns a production job.
 - Assert local stop/lost-lease signals, durable global pause, terminalization with lease revocation, worker-pause audit event, and rejection of a late completion attempt.
 - GitHub Actions validation for PR #283 is pending. This is deterministic SQLite coverage, not live multi-process deployment or provider API validation.
+
+
+## BUILD-00279 — Reconcile ambiguous production cancellations
+- Include production jobs cancelled while a provider request may be in flight in the ambiguous-production operator queue.
+- Permit retry authorization only from the exact cancelled/ambiguous state, requiring operator evidence and note; transition the queue and production run to retry-authorized state while retaining the global pause and immutable audit trail.
+- Regression covers discovery, missing-evidence rejection, authorized retry, production-run state, and audit provenance. GitHub Actions validation is pending; no live provider-console or production API verification is claimed.
