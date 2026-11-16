@@ -2161,3 +2161,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Prevent event helper clock reads from drifting away from the state transition that the event describes.
 - Add deterministic controlled-clock coverage for finish and fail transitions.
 - GitHub Actions validation pending; deterministic SQLite tests only, no live distributed-worker validation is claimed.
+
+
+## Release readiness inventory — 2026-11-17
+
+See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based remaining-work plan, phase exit criteria, and launch checklist.
+
+- The current repository does not define a finite total engineering acceptance backlog; therefore no honest overall project completion percentage can yet be calculated from BUILD numbers or open PR counts.
+- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by the successful GitHub Actions workflow on PR #293 head `aa789fb3d7b759e54c5fea596c32d752f183126d`. The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
+- Launch-gate progress: **1/8 (12.5%)**. This is not an overall product completion percentage.
+- PRs #288–#293 remain open Draft PRs in a stacked chain and are unmerged. Preserve the no-merge/no-main-push constraint.
+- Next engineering item: BUILD-00289 — move enqueue timestamp capture after SQLite `BEGIN IMMEDIATE` and persist that same timestamp to the enqueue audit event.
+- CI and deterministic SQLite coverage must remain separate from live external-service and production validation.
