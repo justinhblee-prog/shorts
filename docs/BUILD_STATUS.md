@@ -1528,3 +1528,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Prioritize orphan records in the returned sample so the worker's bounded fail-closed check cannot overlook them behind newer state mismatches.
 - Update the Operations panel to distinguish total unresolved records from the number of displayed details.
 - Extend tests to verify aggregate counts and orphan prioritization under a restrictive sample limit.
+
+
+## BUILD-00184 — paginated integrity details
+
+- Add a bounded offset parameter to the integrity report while preserving aggregate counts and orphan-first ordering.
+- Return page offset and next offset so operators can inspect all matching details without increasing per-request row limits.
+- Add a dashboard **다음 50건 더 보기** control that appends the next page without discarding the current page.
+- Add regression coverage for complete, non-overlapping pagination.
