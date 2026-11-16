@@ -68,6 +68,14 @@ def permissions_for(operator_id: str, *, role_map_json: str | None = None) -> fr
     if not isinstance(raw, str):
         raise OperatorRoleConfigurationError("NEXUS_REVIEW_ROLE_MAP_JSON must be a JSON string")
     if not raw.strip():
+        # Legacy shared-token deployments retain compatibility during migration.
+        # Per-operator credentials must never silently grant every role when
+        # the administrator has not supplied an explicit least-privilege map.
+        credentials_raw = os.getenv("NEXUS_REVIEW_CREDENTIALS_JSON", "")
+        if credentials_raw.strip():
+            raise OperatorRoleConfigurationError(
+                "NEXUS_REVIEW_ROLE_MAP_JSON is required with per-operator credentials"
+            )
         return frozenset({"*"})
     role_map = _load_role_map(raw)
     roles = role_map.get(operator_id)
