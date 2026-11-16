@@ -836,4 +836,15 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(audit["created_at"],decision.isoformat())
   self.assertEqual(result["updated_at"],decision.isoformat())
 
+ def test_cancel_job_audit_uses_serialized_transition_timestamp(self):
+  job=self.q.enqueue("short_video_production",{"topic":"cancel-audit-timestamp"})
+  decision=datetime(2033,4,5,6,7,8,tzinfo=timezone.utc)
+  later=decision+timedelta(seconds=17)
+  with patch.object(queue_store,"now",side_effect=[decision,later]):
+   result=self.q.cancel(job["id"],"operator requested cancellation")
+  event=[item for item in self.q.events(job["id"])
+         if item["event_type"]=="cancelled"][-1]
+  self.assertEqual(result["updated_at"],decision.isoformat())
+  self.assertEqual(event["created_at"],decision.isoformat())
+
 if __name__=="__main__": unittest.main()
