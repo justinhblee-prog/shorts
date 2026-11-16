@@ -14,7 +14,7 @@ services:
       - nexus_data:/app/data
       - clamav_db:${NEXUS_CLAMAV_DATABASE_DIR:-/var/lib/clamav}:ro
     healthcheck:
-      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8502/api/health',timeout=3)"]
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8502/api/ready',timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
