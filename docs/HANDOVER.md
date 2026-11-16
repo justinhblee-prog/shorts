@@ -1070,3 +1070,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Preserves empty media directories. Backup creation and restore enforce matching database/media size limits and total archive entry limits.
 - Automated tests cover traversal and malformed-manifest rejection without modifying live data.
 - Restore must be run offline: stop API, worker, scheduler, metrics collector and backup service, then run the explicit-confirmation restore command. Do not restore while application writers are active.
+
+
+### BUILD-00038 hardening validation record
+
+- GitHub Actions PR run [43789858034](https://github.com/justinhblee-prog/shorts/actions/runs/43789858034) passed **365 backend tests** and the full `scripts/validate.sh` command.
+- Regression tests verify malformed manifest and traversal-path rejection without modifying live data, plus preservation of empty media directories.
+- No live Compose deployment, scheduled backup observation, off-host replication or production restore drill is claimed.
