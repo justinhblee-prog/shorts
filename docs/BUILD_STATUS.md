@@ -1218,4 +1218,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Reject malformed container values and oversized labels before constructing evaluation cohort keys.
 - Prevent unhashable provider metadata from crashing recommendation evaluation.
 - Add regression coverage for malformed, oversized and whitespace-padded dimensions.
+- GitHub Actions run [43804517687](https://github.com/justinhblee-prog/shorts/actions/runs/43804517687) passed the complete `scripts/validate.sh` workflow on the code/test commit; documentation-only commits followed.
 - Ranking score adjustment remains disabled; live provider validation is not claimed.
