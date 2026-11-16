@@ -135,6 +135,13 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14):
         _sqlite_snapshot(db_path, db_snapshot)
         _copy_media(media_dir, media_snapshot)
         inventory = _media_inventory(media_snapshot)
+        if len(inventory) > MAX_ARCHIVE_MEMBERS - 2:
+            raise BackupRestoreError("Media backup contains too many files")
+        media_bytes = sum(item["size"] for item in inventory)
+        if media_bytes > MAX_MEDIA_BYTES:
+            raise BackupRestoreError("Media backup exceeds the supported size")
+        if db_snapshot.stat().st_size > MAX_DATABASE_BYTES:
+            raise BackupRestoreError("SQLite backup exceeds the supported size")
         manifest = {
             "format_version": FORMAT_VERSION,
             "created_at": _now().isoformat(),
@@ -298,7 +305,7 @@ def _extract_and_verify(archive_path, destination):
                 shutil.copyfileobj(stream, output)
 
     database = destination / DATABASE_NAME
-    if _sha256(database) != manifest.get("database_sha256"):
+    if _sha256(database) != manifest.get("database_sha256", "").lower():
         raise BackupRestoreError("Backup database checksum mismatch")
     with sqlite3.connect(str(database), timeout=30) as connection:
         result = connection.execute("PRAGMA integrity_check").fetchone()
@@ -309,7 +316,7 @@ def _extract_and_verify(archive_path, destination):
         path = destination / MEDIA_ROOT / Path(*relative.parts)
         if not path.is_file() or path.stat().st_size != item["size"]:
             raise BackupRestoreError("Backup media file is missing or has the wrong size")
-        if _sha256(path) != item["sha256"]:
+        if _sha256(path) != item["sha256"].lower():
             raise BackupRestoreError("Backup media checksum mismatch")
     return manifest
 
