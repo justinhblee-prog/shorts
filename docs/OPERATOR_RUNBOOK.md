@@ -543,3 +543,14 @@ The schedule operations panel distinguishes pending work ready to dispatch from 
 ### BUILD-00169 — liveness and readiness probes
 
 `GET /api/health` reports only that the API process is responding. `GET /api/ready` additionally verifies that the durable queue and scheduler stores can serve core reads and returns HTTP 503 when storage is unavailable. Docker Compose uses readiness for its API healthcheck, so worker, scheduler, metrics collector and backup startup gates wait for usable shared storage rather than merely an open HTTP process. The probe does not claim that external AI providers, OAuth accounts, workers or publishing APIs are live.
+
+
+### Worker runtime limits
+
+The production worker validates these settings before opening its queue:
+
+- `NEXUS_LEASE_SECONDS`: integer 30–3600 (default 300).
+- `NEXUS_IDLE_SECONDS`: integer 1–300 (default 3).
+- `NEXUS_HEARTBEAT_SECONDS`: integer 5–3600 (default 10); the effective heartbeat is capped at one-third of the lease.
+
+Values must be unsigned decimal strings with no whitespace, signs, decimals or exponent notation. Invalid values stop worker startup instead of being silently coerced or clamped. Keep the heartbeat interval comfortably below the lease to allow transient database delays.
