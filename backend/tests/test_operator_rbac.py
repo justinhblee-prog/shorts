@@ -58,6 +58,17 @@ class OperatorRoleTests(unittest.TestCase):
         self.assertTrue(has_permission("operator", "queue.read", role_map_json=roles))
         self.assertFalse(has_permission("operator", "review.read", role_map_json=roles))
 
+    def test_provider_outcome_reconciliation_is_not_granted_to_operational_roles(self):
+        roles=json.dumps({
+            "admin":["admin"],"operator":["operator"],
+            "producer":["producer"],"worker":["worker"],
+        })
+        self.assertTrue(has_permission(
+            "admin","production.provider_reconcile",role_map_json=roles))
+        for operator in ("operator","producer","worker"):
+            self.assertFalse(has_permission(
+                operator,"production.provider_reconcile",role_map_json=roles))
+
     def test_worker_and_opportunity_roles_are_separated(self):
         roles = json.dumps({
             "worker-service": ["worker"],
