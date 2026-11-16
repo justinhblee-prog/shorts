@@ -70,6 +70,19 @@ class OperatorRoleTests(unittest.TestCase):
         self.assertFalse(has_permission("analyst", "review.decide", role_map_json=roles))
         self.assertFalse(has_permission("producer", "publish.execute", role_map_json=roles))
 
+
+    def test_individual_credentials_require_an_explicit_role_map(self):
+        with mock.patch.dict(
+            "os.environ",
+            {"NEXUS_REVIEW_CREDENTIALS_JSON": '{"alice":"' + ("a" * 48) + '"}',
+             "NEXUS_REVIEW_ROLE_MAP_JSON": ""},
+            clear=True,
+        ):
+            with self.assertRaisesRegex(
+                OperatorRoleConfigurationError, "required when per-operator credentials"
+            ):
+                has_permission("alice", "review.read")
+
     def test_admin_role_grants_wildcard(self):
         self.assertTrue(has_permission("root", "any.future.permission",
                                        role_map_json=json.dumps({"root": ["admin"]})))
