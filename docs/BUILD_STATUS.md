@@ -1173,3 +1173,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Refresh the top-level validation checkpoint to the latest verified BUILD-00140 CI run.
 - Replace the stale 408-test summary with the current 466-test result and link to the exact GitHub Actions run.
 - Keep all live-provider, account, deployment and revenue limitations explicit.
+
+
+## BUILD-00145 — strict recommendation evidence metric validation
+
+- Reject booleans, non-finite values and invalid numeric inputs before exposing topic-matched historical performance context.
+- Require engaged-view share and audience-retention ratios to remain within 0–1; preserve valid average view percentages above 100%.
+- Reject boolean competitor view counts and malformed interaction-rate metrics.
+- Add regression coverage for malformed topic evidence and competitor counters.
+- Draft PR [#139](https://github.com/justinhblee-prog/shorts/pull/139) is open; GitHub Actions validation is pending.
