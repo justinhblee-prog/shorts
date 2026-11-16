@@ -344,7 +344,7 @@ class YouTubePublishingTests(unittest.TestCase):
         Path(other).write_bytes(Path(self.media).read_bytes())
         with self.assertRaisesRegex(YouTubeUploadError, "does not match"):
             self.publisher.upload_approved("job-1",other,self.review,"Title")
-        self.assertEqual(self.service._videos.insert_calls,0)
+        self.assertFalse(hasattr(self.service._videos,"body"))
         self.assertIsNone(self.uploads.get("job-1"))
 
     def test_upload_requires_approval(self):
