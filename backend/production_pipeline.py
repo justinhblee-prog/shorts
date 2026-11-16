@@ -111,6 +111,12 @@ class ProductionStore:
             CREATE INDEX IF NOT EXISTS idx_provider_attempt_state
               ON provider_execution_attempts(state,started_at);
             """)
+            columns = {row[1] for row in c.execute(
+                "PRAGMA table_info(provider_execution_attempts)").fetchall()}
+            if "adopted_at" not in columns:
+                c.execute("ALTER TABLE provider_execution_attempts ADD COLUMN adopted_at TEXT")
+            if "adopted_artifact_sha256" not in columns:
+                c.execute("ALTER TABLE provider_execution_attempts ADD COLUMN adopted_artifact_sha256 TEXT")
     
     @contextmanager
     def db(self):
@@ -258,6 +264,81 @@ class ProductionStore:
                 FROM provider_execution_attempts WHERE job_id=?""" + where +
                 " ORDER BY started_at,id",(job_id,)).fetchall()
             return [dict(row) for row in rows]
+
+    def adopt_recovered_render(self, job_id, attempt_id, staged, inspection):
+        """Atomically adopt one recovered provider render after byte-level verification."""
+        if not isinstance(staged,dict) or not isinstance(inspection,dict):
+            raise ValueError("staged media and inspection reports are required")
+        if inspection.get("status") != "inspected":
+            raise ValueError("media inspection did not complete")
+        try:
+            width=int(inspection.get("width") or 0)
+            height=int(inspection.get("height") or 0)
+            duration=float(inspection.get("duration_seconds") or 0)
+        except (TypeError,ValueError,OverflowError) as exc:
+            raise ValueError("media inspection metadata is invalid") from exc
+        if (width <= 0 or height <= 0 or duration <= 0 or duration > 180
+                or inspection.get("audio_track_present") is not True
+                or abs((width/height)-(9.0/16.0)) > 0.04):
+            raise ValueError("recovered media failed required duration, audio or vertical-format checks")
+        media_path=str(staged.get("media_path") or "")
+        digest=str(staged.get("sha256") or "")
+        size=int(staged.get("size_bytes") or 0)
+        if (not media_path or Path(media_path).name != media_path
+                or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest)
+                or size <= 0):
+            raise ValueError("staged media fingerprint is invalid")
+        timestamp=utc_now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            attempt=c.execute("""SELECT * FROM provider_execution_attempts
+                WHERE id=? AND job_id=? AND stage='rendering'""",
+                (attempt_id,job_id)).fetchone()
+            if attempt is None:
+                raise KeyError("provider render attempt not found")
+            if attempt["state"] != "response_received" or not attempt["response_json"]:
+                raise ValueError("provider render response is not available for adoption")
+            try:
+                response=json.loads(attempt["response_json"])
+            except (TypeError,ValueError) as exc:
+                raise ValueError("stored provider response is invalid") from exc
+            video_url=response.get("video_url") if isinstance(response,dict) else None
+            if not isinstance(video_url,str) or not video_url.startswith("https://"):
+                raise ValueError("stored provider response has no HTTPS video URL")
+            existing=c.execute("""SELECT id FROM production_artifacts
+                WHERE job_id=? AND stage='rendering'""",(job_id,)).fetchone()
+            if existing:
+                raise ValueError("render artifact already exists; duplicate adoption blocked")
+            run=c.execute("SELECT status FROM production_runs WHERE job_id=?",
+                          (job_id,)).fetchone()
+            if run is None:
+                raise KeyError(job_id)
+            if run["status"] in ("approved","uploaded","published"):
+                raise ValueError("published production output cannot be replaced by recovery")
+            metadata={
+                "recovered_from_provider_attempt":attempt_id,
+                "provider_request_id":attempt["provider_request_id"],
+                "media_staging":staged,
+                "media_inspection":inspection,
+                "recovery_verified_at":timestamp,
+            }
+            artifact_id=str(uuid.uuid4())
+            c.execute("""INSERT INTO production_artifacts
+                (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
+                VALUES(?,?,'rendering','video',?,?,?)""",
+                (artifact_id,job_id,video_url,json.dumps(metadata,ensure_ascii=False),timestamp))
+            updated=c.execute("""UPDATE provider_execution_attempts
+                SET state='adopted',adopted_at=?,adopted_artifact_sha256=?
+                WHERE id=? AND state='response_received'""",
+                (timestamp,digest,attempt_id))
+            if updated.rowcount != 1:
+                raise ValueError("provider attempt was adopted concurrently")
+            c.execute("""UPDATE production_runs SET status='review_pending',
+                current_stage='recovered_render_adopted',error=NULL,updated_at=?
+                WHERE job_id=?""",(timestamp,job_id))
+            return {"job_id":job_id,"artifact_id":artifact_id,
+                    "provider_attempt_id":attempt_id,"status":"review_pending",
+                    "sha256":digest,"size_bytes":size,"media_path":media_path}
 
     def reconcile_missing_runs(self, queue, job_ids=None, limit=200):
         """Restore production rows if a process crashed between queue enqueue and record creation."""
