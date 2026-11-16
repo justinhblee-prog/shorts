@@ -202,11 +202,13 @@ def run_once():
 def main():
     signal.signal(signal.SIGTERM, handle_shutdown_signal)
     print(f"worker_started id={WORKER_ID} lease_seconds={LEASE_SECONDS} heartbeat_seconds={HEARTBEAT_SECONDS}")
+    generation_token = None
     try:
+        # One registration per process incarnation. Re-registering in the
+        # polling loop would rotate the fencing token and invalidate shutdown.
+        registration = queue.register_worker(WORKER_ID, socket.gethostname())
+        generation_token = registration["generation_token"]
         while True:
-            # Keep idle and paused workers visible; job heartbeats alone only
-            # refresh registry timestamps while a production lease is running.
-            queue.register_worker(WORKER_ID, socket.gethostname())
             if stopping.is_set():
                 return
             if queue.is_paused():
@@ -226,7 +228,8 @@ def main():
         raise
     finally:
         try:
-            queue.mark_worker_offline(WORKER_ID)
+            if generation_token is not None:
+                queue.mark_worker_offline(WORKER_ID, generation_token)
         except Exception as exc:
             # Preserve the original worker failure if shutdown bookkeeping fails.
             print(f"worker_offline_record_failed error={type(exc).__name__}")
