@@ -1077,6 +1077,11 @@ class ProductionTests(unittest.TestCase):
         current = queue.register_worker("reconciler", "host-a")
         self.assertNotEqual(old["generation_token"], current["generation_token"])
 
+        # A legacy caller that omits identity must not bypass fencing once
+        # any process is registered as online.
+        with self.assertRaises(ProductionLeaseConflict):
+            self.store.reconcile_status_integrity(queue)
+
         stale_calls = (
             lambda: self.store.reconcile_missing_runs(
                 queue, worker_id="reconciler",
