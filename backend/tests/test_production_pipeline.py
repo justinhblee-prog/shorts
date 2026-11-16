@@ -740,7 +740,10 @@ class ProductionTests(unittest.TestCase):
         self.assertIsNone(production_item["queue_status"])
         self.assertEqual(queue.get(queue_only["id"])["status"], "queued")
         self.assertIsNone(self.store.get(queue_only["id"]))
-        self.assertIsNone(queue.get(production_only_id))
+        with queue.db() as connection:
+            self.assertIsNone(connection.execute(
+                "SELECT id FROM pipeline_jobs WHERE id=?", (production_only_id,)
+            ).fetchone())
         self.assertEqual(self.store.get(production_only_id)["status"], "queued")
 
     def test_integrity_report_orphan_scan_respects_bound(self):
