@@ -1974,3 +1974,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Eight simultaneous reservation attempts must produce exactly one durable attempt and one start/consent audit record; all competing requests are rejected without replacing the winning attempt.
 - Confirms TikTok reservation remains SELF_ONLY.
 - Deterministic SQLite transaction tests only; no live platform API or account validation is claimed.
+
+## BUILD-00246 — TikTok pre-remote failure audit integrity
+- Pre-remote initialization failures now update the exact attempt and append an immutable audit event in one SQLite write transaction.
+- Stale attempts cannot mutate the current publication or append misleading failure events.
+- Regression coverage includes current-attempt audit and stale-attempt fencing.
+- Local SQLite/provider-mock validation only; no live TikTok account test is claimed.
