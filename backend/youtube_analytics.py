@@ -220,7 +220,10 @@ class YouTubeAnalyticsCollector:
     def _service(self):
         if self.service is not None:
             return self.service
-        refresh = self.token_provider() if self.token_provider else os.getenv("YOUTUBE_REFRESH_TOKEN")
+        try:
+            refresh = self.token_provider() if self.token_provider else os.getenv("YOUTUBE_REFRESH_TOKEN")
+        except Exception as exc:
+            raise RuntimeError("YouTube refresh-token retrieval failed: " + type(exc).__name__) from exc
         client_id = os.getenv("YOUTUBE_CLIENT_ID")
         client_secret = os.getenv("YOUTUBE_CLIENT_SECRET")
         if not all((refresh, client_id, client_secret)):
