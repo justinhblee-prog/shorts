@@ -83,6 +83,13 @@ class ApiRateLimitTests(unittest.TestCase):
         self.assertIn(b"retry-after", second_headers)
         self.assertEqual(len(calls), 1)
 
+
+    def test_youtube_oauth_start_and_callback_use_auth_rate_limit(self):
+        middleware = ApiRateLimitMiddleware(lambda *args: None, self.store)
+        self.assertEqual(middleware._policy("GET", "/api/youtube/oauth/start"), "auth")
+        self.assertEqual(middleware._policy("GET", "/api/youtube/oauth/callback"), "auth")
+        self.assertEqual(middleware._policy("POST", "/api/youtube/oauth/verify"), "publish")
+
     def test_health_get_is_not_rate_limited(self):
         async def inner(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
