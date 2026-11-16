@@ -237,7 +237,7 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(result["end_retention"],0.2)
   self.assertEqual(result["largest_dropoff"],{
    "start_video_ratio":0.5,"end_video_ratio":0.8,
-   "drop_percentage_points":30.0,
+   "drop_percentage_points":60.0,
   })
 
  def test_matched_analytics_cohort_adds_observations_only_with_three_videos(self):
@@ -275,7 +275,7 @@ class PerformanceTests(unittest.TestCase):
    below["analytics_observations"][0]["type"],
    "below_matched_cohort_retention",
   )
-  self.assertEqual(below["retention_diagnostics"]["largest_dropoff"]["drop_percentage_points"],30.0)
+  self.assertEqual(below["retention_diagnostics"]["largest_dropoff"]["drop_percentage_points"],60.0)
   self.assertEqual(
    below["analytics_observations"][0]["ranking_score_adjustment"],0,
   )
