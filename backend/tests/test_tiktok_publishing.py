@@ -1112,5 +1112,35 @@ class TikTokPublishingTests(unittest.TestCase):
                 )
 
 
+    def test_concurrent_approved_publishers_send_only_one_remote_init(self):
+        gate=threading.Event()
+        def publish(index):
+            gate.wait()
+            try:
+                return self.publisher.publish_private_approved(
+                    "job-1",self.media,self.review,f"Concurrent caption {index}",
+                    f"operator-{index}",explicit_consent=True,
+                    brand_content_toggle=False,brand_organic_toggle=False,
+                    privacy_level="SELF_ONLY",
+                )
+            except TikTokPublishError:
+                return None
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures=[pool.submit(publish,index) for index in range(8)]
+            gate.set()
+            results=[future.result() for future in futures]
+        winners=[result for result in results if result is not None]
+        self.assertEqual(len(winners),1)
+        init_calls=[call for call in self.transport.calls
+                    if call[0].endswith("/v2/post/publish/video/init/")]
+        self.assertEqual(len(init_calls),1)
+        current=self.store.get("job-1")
+        self.assertEqual(current["status"],"uploading")
+        self.assertEqual(current["privacy_level"],"SELF_ONLY")
+        self.assertEqual(current["attempt_id"],winners[0]["attempt_id"])
+        consents=[event for event in current["events"]
+                  if event["event_type"]=="operator_consent_recorded"]
+        self.assertEqual(len(consents),1)
+
 if __name__ == "__main__":
     unittest.main()

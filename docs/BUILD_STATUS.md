@@ -1974,3 +1974,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Eight simultaneous reservation attempts must produce exactly one durable attempt and one start/consent audit record; all competing requests are rejected without replacing the winning attempt.
 - Confirms TikTok reservation remains SELF_ONLY.
 - Deterministic SQLite transaction tests only; no live platform API or account validation is claimed.
+
+
+## BUILD-00245 — Verify end-to-end concurrent TikTok publish exclusion
+- Added an eight-caller publisher-level regression that races explicitly consented SELF_ONLY publish requests.
+- Asserts exactly one request reaches TikTok's remote publish-init endpoint, one attempt/consent audit is retained, and the resulting publication remains SELF_ONLY.
+- This exercises current approval checks, media fingerprint verification, operator consent, and the remote-init boundary together.
+- Mocked provider transport and local SQLite only; no live TikTok account/API validation is claimed.
