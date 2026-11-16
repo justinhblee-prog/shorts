@@ -25,6 +25,10 @@ class ScheduledYouTubeAnalyticsOAuthTests(unittest.TestCase):
             store, token_provider=token_manager.get_refresh_token
         )
         collector.refresh_due_metrics.assert_called_once()
+        self.assertEqual(
+            [call.args[0] for call in store.record_collection.call_args_list],
+            ["running", "succeeded"],
+        )
         store.release_lease.assert_called_once_with(metrics_collector.OWNER_ID)
         self.assertEqual(result["collected"], 1)
 
@@ -57,6 +61,10 @@ class ScheduledYouTubeAnalyticsOAuthTests(unittest.TestCase):
                 store=store, collector=collector
             )
 
+        self.assertEqual(
+            [call.args[0] for call in store.record_collection.call_args_list],
+            ["running", "failed"],
+        )
         store.release_lease.assert_called_once_with(metrics_collector.OWNER_ID)
 
 
