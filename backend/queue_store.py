@@ -205,22 +205,36 @@ class JobQueue:
         return {"requeued": requeued, "terminal": terminal,
                 "production_expired": production_expired}
 
-    def claim(self,worker_id,hostname=None,job_type=None):
+    @staticmethod
+    def _assert_worker_generation(c, worker_id, generation_token):
+        if generation_token is None:
+            return
+        row = c.execute(
+            "SELECT generation_token,status FROM worker_registry WHERE worker_id=?",
+            (worker_id,),
+        ).fetchone()
+        if (row is None or row["generation_token"] != generation_token
+                or row["status"] != "online"):
+            raise LeaseConflict("Worker process generation is no longer current")
+
+    def claim(self,worker_id,hostname=None,job_type=None,generation_token=None):
         if not worker_id.strip(): raise ValueError("worker_id required")
         token=str(uuid.uuid4())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds))
+            self._assert_worker_generation(c, worker_id, generation_token)
             control=c.execute("SELECT paused FROM worker_control WHERE id=1").fetchone()
             production_paused=bool(control and control["paused"])
             if production_paused and job_type == "short_video_production":
                 c.commit()
                 return None
+            registry_generation = generation_token or str(uuid.uuid4())
             c.execute("""INSERT INTO worker_registry(
               worker_id,hostname,last_seen_at,status,generation_token)
               VALUES(?,?,?,'online',?) ON CONFLICT(worker_id)
               DO UPDATE SET hostname=excluded.hostname,last_seen_at=excluded.last_seen_at,
-              status='online'""",(worker_id,hostname,n,str(uuid.uuid4())))
+              status='online'""",(worker_id,hostname,n,registry_generation))
             expiry_result = self._recover_expired_leases_in_transaction(c, n)
             production_expired = expiry_result["production_expired"]
             if production_expired:
@@ -257,28 +271,33 @@ class JobQueue:
         if row["status"]!="running" or row["worker_id"]!=worker or row["lease_token"]!=token or not row["lease_expires_at"] or row["lease_expires_at"]<=n:
             raise LeaseConflict("Lease expired or no longer owned by this worker")
 
-    def heartbeat(self,jid,worker,token):
+    def heartbeat(self,jid,worker,token,generation_token=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds))
+            self._assert_worker_generation(c, worker, generation_token)
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); self.assert_lease(row,worker,token,n)
             c.execute("UPDATE pipeline_jobs SET lease_expires_at=?,updated_at=? WHERE id=?",(expiry,n,jid))
             c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",(n,worker))
             self.event(c,jid,"heartbeat","running","running",worker,{"lease_expires_at":expiry})
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
-    def finish(self,jid,worker,token,result=None):
+    def finish(self,jid,worker,token,result=None,generation_token=None):
         with self.db() as c:
-            c.execute("BEGIN IMMEDIATE"); n=stamp(now()); row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            c.execute("BEGIN IMMEDIATE"); n=stamp(now())
+            self._assert_worker_generation(c, worker, generation_token)
+            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             self.assert_lease(row,worker,token,n)
             c.execute("""UPDATE pipeline_jobs SET status='review_pending',worker_id=NULL,lease_token=NULL,
               lease_expires_at=NULL,completed_at=?,updated_at=? WHERE id=?""",(n,n,jid))
             self.event(c,jid,"completed","running","review_pending",worker,{"result":result or {}})
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
-    def fail(self,jid,worker,token,error_code,error_message,retryable=True):
+    def fail(self,jid,worker,token,error_code,error_message,retryable=True,generation_token=None):
         with self.db() as c:
-            c.execute("BEGIN IMMEDIATE"); n=stamp(now()); row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            c.execute("BEGIN IMMEDIATE"); n=stamp(now())
+            self._assert_worker_generation(c, worker, generation_token)
+            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             self.assert_lease(row,worker,token,n)
             retry=bool(retryable and row["attempt"]<row["max_attempts"]); status="failed_retriable" if retry else "failed_terminal"
             c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,

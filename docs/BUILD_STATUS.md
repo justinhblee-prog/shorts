@@ -1937,3 +1937,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Removed per-poll registration, which would otherwise rotate the token repeatedly and make process-scoped fencing meaningless.
 - Shutdown now supplies the retained token; stale process shutdown is rejected by the registry compare-and-set.
 - CI validates repository tests; no real multi-process production deployment is claimed.
+
+
+## BUILD-00239 — Fence queue lease operations by worker generation
+- Added generation checks inside the same SQLite write transaction for claim, heartbeat, finish, and fail.
+- The worker runtime passes its process-scoped generation token through each lease operation.
+- Queue claim preserves the registered generation instead of replacing it with a fresh token.
+- Added regression coverage proving a replaced process cannot claim work, heartbeat, finish, or fail a lease owned under its old generation.
+- CI remains the deterministic validation boundary; no live multi-process production test is claimed.

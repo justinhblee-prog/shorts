@@ -30,6 +30,7 @@ pipeline = ProductionPipeline(store)
 stopping = threading.Event()
 active_job_id = None
 active_lost_lease_event = None
+WORKER_GENERATION_TOKEN = None
 
 
 def handle_shutdown_signal(signum, frame):
@@ -42,7 +43,7 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
     interval = HEARTBEAT_SECONDS if interval is None else max(0, interval)
     while not heartbeat_stop.wait(interval):
         try:
-            queue.heartbeat(job_id, WORKER_ID, token)
+            queue.heartbeat(job_id, WORKER_ID, token, WORKER_GENERATION_TOKEN)
         except LeaseConflict as exc:
             lost_lease.set()
             stopping.set()
@@ -104,7 +105,7 @@ def run_once():
             f"repaired={integrity['repaired']}; worker_paused"
         )
         return False
-    job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production")
+    job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production", generation_token=WORKER_GENERATION_TOKEN)
     if job is None:
         return False
     lost_lease = threading.Event()
@@ -130,7 +131,8 @@ def run_once():
             raise LeaseConflict("Worker lease was lost while generating media")
         queue.finish(job["id"], WORKER_ID, job["lease_token"],
                      {"production_status": "review_pending",
-                      "artifact_count": len(result["artifacts"])})
+                      "artifact_count": len(result["artifacts"])},
+                     generation_token=WORKER_GENERATION_TOKEN)
         store.reconcile_review_pending(queue)
         print(f"review_pending job={job['id']}")
     except KeyboardInterrupt:
@@ -143,14 +145,14 @@ def run_once():
         except Exception:
             try:
                 queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                           "worker_interrupted_ambiguous", reason, False)
+                           "worker_interrupted_ambiguous", reason, False, generation_token=WORKER_GENERATION_TOKEN)
             except LeaseConflict:
                 pass
         raise
     except PolicyBlocked as exc:
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "policy_blocked", str(exc), False)
+                       "policy_blocked", str(exc), False, generation_token=WORKER_GENERATION_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         print(f"policy_blocked job={job['id']} stage={exc.stage}")
@@ -158,7 +160,7 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "provider_" + exc.stage, str(exc), exc.retryable)
+                       "provider_" + exc.stage, str(exc), exc.retryable, generation_token=WORKER_GENERATION_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
@@ -170,7 +172,7 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "worker_interrupted_ambiguous", str(exc), False)
+                       "worker_interrupted_ambiguous", str(exc), False, generation_token=WORKER_GENERATION_TOKEN)
         except LeaseConflict:
             pass
         try:
@@ -182,7 +184,7 @@ def run_once():
         stopping.set()
         try:
             queue.fail(job["id"], WORKER_ID, job["lease_token"],
-                       "worker_error", str(exc), False)
+                       "worker_error", str(exc), False, generation_token=WORKER_GENERATION_TOKEN)
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
@@ -208,6 +210,8 @@ def main():
         # polling loop would rotate the fencing token and invalidate shutdown.
         registration = queue.register_worker(WORKER_ID, socket.gethostname())
         generation_token = registration["generation_token"]
+        global WORKER_GENERATION_TOKEN
+        WORKER_GENERATION_TOKEN = generation_token
         while True:
             if stopping.is_set():
                 return
@@ -230,6 +234,7 @@ def main():
         try:
             if generation_token is not None:
                 queue.mark_worker_offline(WORKER_ID, generation_token)
+            WORKER_GENERATION_TOKEN = None
         except Exception as exc:
             # Preserve the original worker failure if shutdown bookkeeping fails.
             print(f"worker_offline_record_failed error={type(exc).__name__}")
