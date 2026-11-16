@@ -3,6 +3,7 @@ import tempfile
 import unittest
 import urllib.error
 from pathlib import Path
+import json
 
 from production_pipeline import (
     JsonProvider, ProductionPipeline, ProductionStore, ProductionLeaseConflict, ProviderAttemptConflict, ProviderError,
@@ -1212,6 +1213,31 @@ class ProductionTests(unittest.TestCase):
             )
         return queue, job["id"], request_key, claimed["lease_token"]
 
+    def test_fresh_script_stage_preserves_artifacts_when_provider_outcome_unresolved(self):
+        queue, job_id, request_key, lease_token = self._create_claimed_production_job()
+        self.store.artifact(
+            job_id, "script", "text", None, {"script": "last known-good script"}
+        )
+
+        with self.assertRaises(ProductionLeaseConflict):
+            self.store.stage(
+                job_id, "script", worker_id="worker-old", lease_token=lease_token
+            )
+
+        with self.store.db() as connection:
+            artifact = connection.execute(
+                "SELECT metadata_json FROM production_artifacts "
+                "WHERE job_id=? AND stage='script'",
+                (job_id,),
+            ).fetchone()
+        self.assertIsNotNone(artifact)
+        self.assertEqual(
+            json.loads(artifact["metadata_json"])["script"],
+            "last known-good script",
+        )
+        attempt = self.store.provider_attempts(job_id)[0]
+        self.assertEqual(attempt["state"], "request_started")
+
     def test_replaced_process_generation_cannot_write_provider_or_artifact_state(self):
         queue = JobQueue(self.store.db_path)
         job = queue.enqueue("short_video_production", self.brief)
@@ -1252,6 +1278,50 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(
             queue.get(job["id"])["lease_token"], claimed["lease_token"]
         )
+
+    def test_late_provider_response_is_journaled_after_worker_generation_replacement(self):
+        queue = JobQueue(self.store.db_path)
+        job = queue.enqueue("short_video_production", self.brief)
+        self.store.create(job["id"], self.brief)
+        old = queue.register_worker("worker-late", "host-a")
+        claimed = queue.claim(
+            "worker-late", job_type="short_video_production",
+            generation_token=old["generation_token"],
+        )
+
+        class ReplacedDuringRequest:
+            def post(inner_self, stage, payload):
+                inner_self.replacement = queue.register_worker("worker-late", "host-a")
+                return {"script": "late but durable", "request_id": "provider-req-1"}
+
+        provider = ReplacedDuringRequest()
+        pipeline = ProductionPipeline(
+            self.store, provider, FakeProvider({}), FakeProvider({})
+        )
+        with self.assertRaises(ProductionLeaseConflict):
+            pipeline._provider_request(
+                job["id"], "script", 1, provider, {"task": "script"},
+                "worker-late", claimed["lease_token"], old["generation_token"],
+            )
+
+        attempt = self.store.provider_attempts(job["id"])[0]
+        self.assertEqual(attempt["state"], "response_received")
+        self.assertEqual(json.loads(attempt["response_json"])["script"], "late but durable")
+        self.assertEqual(
+            queue.get(job["id"])["lease_token"], claimed["lease_token"]
+        )
+        with self.store.db() as conn:
+            artifact_count = conn.execute(
+                "SELECT COUNT(*) AS count FROM production_artifacts WHERE job_id=?",
+                (job["id"],),
+            ).fetchone()["count"]
+        self.assertEqual(artifact_count, 0)
+
+        # The queue's existing expiry policy pauses production rather than
+        # automatically replaying an ambiguous provider job. The durable response
+        # remains available for the existing operator/current-worker recovery path.
+        recovered = self.store.recover_provider_response(job["id"], "script")
+        self.assertEqual(recovered["script"], "late but durable")
 
     def test_stale_worker_cannot_finalize_provider_response_after_lease_replacement(self):
         queue, job_id, request_key, old_token = self._create_claimed_production_job()

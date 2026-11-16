@@ -43,6 +43,36 @@ class WorkerFailClosedTests(unittest.TestCase):
         self.assertTrue(worker.stopping.is_set())
 
 
+    def test_heartbeat_stops_renewing_lease_after_shutdown_signal(self):
+        lost_lease = worker.threading.Event()
+        heartbeat_stop = worker.threading.Event()
+        lost_lease.set()
+        with mock.patch.object(worker.queue, "heartbeat") as heartbeat:
+            worker.heartbeat_loop(
+                "job-shutdown-heartbeat", "lease-shutdown-heartbeat",
+                lost_lease, heartbeat_stop, interval=0,
+            )
+        heartbeat.assert_not_called()
+
+    def test_shutdown_during_reconciliation_does_not_claim_new_work(self):
+        def stop_during_reconciliation(*args, **kwargs):
+            worker.stopping.set()
+            return {"unresolved": 0, "repaired": 0, "unresolved_jobs": []}
+
+        with (
+            mock.patch.object(worker, "ensure_worker_registered"),
+            mock.patch.object(worker.queue, "is_paused", return_value=False),
+            mock.patch.object(worker.store, "reconcile_missing_runs"),
+            mock.patch.object(worker.store, "reconcile_status_integrity",
+                              side_effect=stop_during_reconciliation),
+            mock.patch.object(worker.store, "integrity_report",
+                              return_value={"orphaned": 0, "items": []}),
+            mock.patch.object(worker.queue, "claim") as claim,
+        ):
+            self.assertFalse(worker.run_once())
+
+        claim.assert_not_called()
+
     def test_orphaned_lifecycle_record_pauses_before_claiming_work(self):
         report = {
             "orphaned": 1,
@@ -115,6 +145,105 @@ class WorkerFailClosedTests(unittest.TestCase):
         )
         self.assertIsNone(worker.active_job_id)
         self.assertIsNone(worker.active_lost_lease_event)
+
+
+    def test_run_once_after_stop_does_not_register_a_new_worker_generation(self):
+        previous_generation = worker.WORKER_GENERATION_TOKEN
+        worker.WORKER_GENERATION_TOKEN = None
+        worker.stopping.set()
+        try:
+            with mock.patch.object(worker.queue, "register_worker") as register:
+                self.assertFalse(worker.run_once())
+            register.assert_not_called()
+        finally:
+            worker.WORKER_GENERATION_TOKEN = previous_generation
+
+    def test_sigterm_between_claim_commit_and_active_job_registration_skips_provider(self):
+        job = {
+            "id": "job-claim-signal-race",
+            "payload": {"topic": "test"},
+            "lease_token": "lease-claim-race",
+        }
+        worker.WORKER_GENERATION_TOKEN = "generation-claim-race"
+
+        def claim_then_signal(*args, **kwargs):
+            # This is the precise window after the queue transaction committed
+            # but before run_once publishes active_job_id to the signal handler.
+            worker.handle_shutdown_signal(15, None)
+            return job
+
+        with (
+            mock.patch.object(worker, "ensure_worker_registered"),
+            mock.patch.object(worker.queue, "is_paused", side_effect=[False, False]),
+            mock.patch.object(worker.store, "reconcile_missing_runs"),
+            mock.patch.object(worker.store, "reconcile_status_integrity",
+                              return_value={"unresolved": 0, "repaired": 0,
+                                            "unresolved_jobs": []}),
+            mock.patch.object(worker.store, "integrity_report",
+                              return_value={"orphaned": 0, "items": []}),
+            mock.patch.object(worker.queue, "claim", side_effect=claim_then_signal),
+            mock.patch.object(worker.queue, "pause") as pause,
+            mock.patch.object(worker.pipeline, "execute") as execute,
+        ):
+            self.assertTrue(worker.run_once())
+
+        execute.assert_not_called()
+        pause.assert_called_once()
+        # The signal arrived before active_job_id was published, so run_once
+        # persists the pause with the just-claimed job ID before returning.
+        self.assertEqual(pause.call_args.args[1], "job-claim-signal-race")
+        self.assertTrue(worker.stopping.is_set())
+        self.assertIsNone(worker.active_job_id)
+        self.assertIsNone(worker.active_lost_lease_event)
+        worker.WORKER_GENERATION_TOKEN = None
+
+
+    def test_sigterm_inside_claim_write_transaction_defers_pause_until_unlock(self):
+        job = {
+            "id": "job-claim-open-transaction",
+            "payload": {"topic": "test"},
+            "lease_token": "lease-open-transaction",
+        }
+        worker.WORKER_GENERATION_TOKEN = "generation-open-transaction"
+        pause_calls = []
+
+        def claim_while_holding_write_lock(*args, **kwargs):
+            with worker.queue.db() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                worker.handle_shutdown_signal(15, None)
+                # The signal handler must return while this transaction still
+                # owns the SQLite writer lock; persistence happens after unwind.
+                self.assertTrue(worker.stopping.is_set())
+                self.assertEqual(pause_calls, [])
+            return job
+
+        def persist_pause(*args, **kwargs):
+            pause_calls.append(args)
+            return {"paused": 1}
+
+        with (
+            mock.patch.object(worker, "ensure_worker_registered"),
+            mock.patch.object(worker.queue, "is_paused", side_effect=[False, False]),
+            mock.patch.object(worker.store, "reconcile_missing_runs"),
+            mock.patch.object(worker.store, "reconcile_status_integrity",
+                              return_value={"unresolved": 0, "repaired": 0,
+                                            "unresolved_jobs": []}),
+            mock.patch.object(worker.store, "integrity_report",
+                              return_value={"orphaned": 0, "items": []}),
+            mock.patch.object(worker.queue, "claim",
+                              side_effect=claim_while_holding_write_lock),
+            mock.patch.object(worker.queue, "pause", side_effect=persist_pause) as pause,
+            mock.patch.object(worker.pipeline, "execute") as execute,
+        ):
+            self.assertTrue(worker.run_once())
+
+        execute.assert_not_called()
+        pause.assert_called_once()
+        self.assertEqual(pause_calls[0][1], "job-claim-open-transaction")
+        self.assertTrue(worker.stopping.is_set())
+        self.assertIsNone(worker.active_job_id)
+        self.assertIsNone(worker.active_lost_lease_event)
+        worker.WORKER_GENERATION_TOKEN = None
 
     def test_provider_error_stops_worker_after_recording_job_failure(self):
         job = {"id": "job-1", "payload": {"topic": "test"}, "lease_token": "token-1"}

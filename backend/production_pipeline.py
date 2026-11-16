@@ -233,9 +233,26 @@ class ProductionStore:
                 c.execute("BEGIN IMMEDIATE")
                 self._assert_worker_lease(c, job_id, worker_id, lease_token, generation_token)
             if stage == "script" and status == "running":
-                # A fresh attempt invalidates every artifact from the previous attempt.
-                # Keep this in the same transaction as the fenced stage transition.
-                c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
+                # Never destroy the last known-good artifacts while an external
+                # provider request may still have completed or returned late.
+                unresolved = c.execute("""
+                    SELECT stage,state FROM provider_execution_attempts
+                    WHERE job_id=?
+                      AND state IN ('request_started','outcome_unknown')
+                    ORDER BY stage,attempt_number LIMIT 1
+                """, (job_id,)).fetchone()
+                if unresolved is not None:
+                    raise ProductionLeaseConflict(
+                        "Ambiguous provider outcome must be reconciled before starting a fresh run"
+                    )
+                recoverable = c.execute("""
+                    SELECT 1 FROM provider_execution_attempts
+                    WHERE job_id=? AND state='response_received' LIMIT 1
+                """, (job_id,)).fetchone()
+                # A durable response_received result is recoverable, not ambiguous.
+                # Preserve prior artifacts until that response has been adopted.
+                if recoverable is None:
+                    c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
             timestamp = utc_now()
             updated=c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
                          WHERE job_id=?""", (stage, status, error, timestamp, job_id))
@@ -396,6 +413,34 @@ class ProductionStore:
                  safe_response,timestamp,job_id,stage,attempt_number,request_key))
             if updated.rowcount != 1:
                 raise ValueError("provider attempt is missing or no longer recoverable")
+        return True
+
+    def record_late_provider_response(self, job_id, stage, attempt_number, request_key, response):
+        """Journal a late provider reply without granting the stale worker production-state authority.
+
+        This deliberately does not assert or renew a worker lease: it can only persist
+        the response against the exact pre-existing attempt/idempotency key. It cannot
+        change queue, job, artifact, or production-run state.
+        """
+        if not isinstance(response, dict):
+            raise ValueError("provider response must be an object")
+        safe_response=json.dumps(response,ensure_ascii=False)
+        if len(safe_response.encode("utf-8")) > 2_000_000:
+            raise ValueError("provider response exceeds 2 MB recovery limit")
+        timestamp=utc_now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            updated=c.execute("""UPDATE provider_execution_attempts
+                SET state='response_received',provider_request_id=?,
+                    response_json=?,completed_at=?,error=NULL
+                WHERE job_id=? AND stage=? AND attempt_number=?
+                  AND idempotency_key=? AND state IN ('request_started','outcome_unknown')""",
+                (str(response.get("request_id") or response.get("job_id") or "")[:500] or None,
+                 safe_response,timestamp,job_id,stage,attempt_number,request_key))
+            if updated.rowcount != 1:
+                raise ProviderAttemptConflict(
+                    "Late provider response does not match an unresolved attempt"
+                )
         return True
 
     def mark_provider_attempt_adopted(self, job_id, stage, attempt_number,
@@ -1235,8 +1280,17 @@ class ProductionPipeline:
             except ProductionLeaseConflict:
                 raise
             raise
-        self.store.finish_provider_attempt(
-            job_id,stage,attempt_number,request_key,response,worker_id,lease_token,generation_token)
+        try:
+            self.store.finish_provider_attempt(
+                job_id,stage,attempt_number,request_key,response,
+                worker_id,lease_token,generation_token)
+        except ProductionLeaseConflict:
+            # The external side effect may have succeeded after this worker lost its
+            # lease. Preserve only the response journal; never let this worker adopt
+            # artifacts or mutate queue/production state.
+            self.store.record_late_provider_response(
+                job_id,stage,attempt_number,request_key,response)
+            raise
         return response
 
     def execute(self, job_id, brief, worker_id=None, lease_token=None, stop_event=None,

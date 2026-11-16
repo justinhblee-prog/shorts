@@ -43,6 +43,11 @@ def handle_shutdown_signal(signum, frame):
 def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
     interval = HEARTBEAT_SECONDS if interval is None else max(0, interval)
     while not heartbeat_stop.wait(interval):
+        # SIGTERM marks the lease uncertain and sets the lost-lease event.
+        # Do not keep extending a lease after shutdown has been requested;
+        # allow the queue's expiry/recovery path to resolve the ambiguous job.
+        if lost_lease.is_set() or stopping.is_set():
+            return
         try:
             queue.heartbeat(job_id, WORKER_ID, token, WORKER_GENERATION_TOKEN)
         except LeaseConflict as exc:
@@ -75,6 +80,10 @@ def ensure_worker_registered():
 
 
 def run_once():
+    # A stopped process must never register a fresh generation as a side effect
+    # of a late/manual run_once() call. Keep shutdown terminal for this process.
+    if stopping.is_set():
+        return False
     ensure_worker_registered()
     if queue.is_paused():
         return False
@@ -120,18 +129,36 @@ def run_once():
             f"repaired={integrity['repaired']}; worker_paused"
         )
         return False
+    # A shutdown may arrive while reconciliation is running. Do not claim a
+    # fresh job after the process has been asked to stop.
+    if stopping.is_set():
+        return False
     job = queue.claim(WORKER_ID, socket.gethostname(), job_type="short_video_production", generation_token=WORKER_GENERATION_TOKEN)
     if job is None:
         return False
     lost_lease = threading.Event()
     heartbeat_stop = threading.Event()
     global active_job_id, active_lost_lease_event
+    # Publish the claimed job to the signal handler immediately. A SIGTERM can
+    # arrive after claim() commits but before the heartbeat thread is started.
     active_job_id = job["id"]
     active_lost_lease_event = lost_lease
     heartbeat = threading.Thread(
         target=heartbeat_loop, args=(job["id"], job["lease_token"], lost_lease, heartbeat_stop),
         daemon=True)
     try:
+        # If shutdown raced with claim(), do not start any provider work. The
+        # signal handler may already have paused/terminalized this running job;
+        # only persist a second pause if that first attempt did not stick.
+        if stopping.is_set() or lost_lease.is_set():
+            if not queue.is_paused():
+                queue.pause(
+                    "Worker shutdown requested immediately after job claim; "
+                    "provider execution was not started",
+                    job["id"], worker_id=WORKER_ID,
+                    generation_token=WORKER_GENERATION_TOKEN,
+                )
+            return True
         heartbeat.start()
         # Close the enqueue/worker race: repair a missing production row after claim.
         # Start the heartbeat first so SIGTERM or lease loss during reconciliation
@@ -140,8 +167,8 @@ def run_once():
             queue, job_ids=[job["id"]], worker_id=WORKER_ID,
             generation_token=WORKER_GENERATION_TOKEN,
         )
-        if lost_lease.is_set():
-            raise LeaseConflict("Worker lease was lost before provider execution")
+        if stopping.is_set() or lost_lease.is_set():
+            raise LeaseConflict("Worker shutdown or lease loss occurred before provider execution")
         result = pipeline.execute(job["id"], job["payload"],
                                   worker_id=WORKER_ID, lease_token=job["lease_token"],
                                   stop_event=lost_lease,

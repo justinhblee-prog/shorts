@@ -34,19 +34,14 @@ def heartbeat_interval(lease_seconds, configured_seconds=10):
 
 def request_worker_shutdown(queue, stopping, active_job_id, lost_lease_event, signum,
                             worker_id=None, generation_token=None):
-    """Fence active production work on process termination; always request local stop."""
+    """Request local stop only; the worker loop persists pauses outside signal context.
+
+    Python signal handlers run on the main thread and may interrupt queue.claim()
+    while it owns a SQLite write transaction. Performing another DB write here
+    can block on the transaction that cannot resume until this handler returns.
+    run_once() observes these events and persists the pause after the transaction
+    unwinds, or after provider execution has stopped.
+    """
     stopping.set()
     if lost_lease_event is not None:
         lost_lease_event.set()
-    if active_job_id:
-        try:
-            queue.pause(
-                f"Worker received signal {signum} during production; provider outcome may be ambiguous",
-                active_job_id,
-                worker_id=worker_id,
-                generation_token=generation_token,
-            )
-        except Exception:
-            # Local stop is still signalled. The durable queue/lease check remains
-            # the final safety boundary if the database is temporarily unavailable.
-            pass
