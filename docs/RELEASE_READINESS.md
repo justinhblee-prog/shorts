@@ -85,3 +85,9 @@ These are additional readiness constraints documented by the project, not comple
 - Do not mark an item complete from source inspection alone when its exit criterion requires deployed or external evidence.
 - Keep every PR Draft and unmerged; use a stacked branch chain. Never push directly to main.
 - Update this file and `docs/BUILD_STATUS.md` when a gate changes state or a new material blocker is discovered.
+
+
+### Engineering checkpoint — BUILD-00290
+- Active work: append-only audit history for queue events and worker-control events.
+- Verification requirement: reject UPDATE and DELETE for both tables in SQLite regression tests; retain append behavior.
+- This database-local control does not provide protection against privileged schema/file modification.
