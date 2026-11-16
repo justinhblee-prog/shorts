@@ -336,6 +336,46 @@ class QueueTests(unittest.TestCase):
    lock_context.__exit__(None,None,None)
    queue_store.now=original_now
 
+ def test_cancel_captures_timestamp_after_waiting_for_write_lock(self):
+  base=datetime(2030,1,1,tzinfo=timezone.utc)
+  clock={"value":base}
+  original_now=queue_store.now
+  queue_store.now=lambda:clock["value"]
+  job=self.q.enqueue("render",{"topic":"cancel-lock-clock"})
+  lock_context=self.q.db()
+  lock_connection=lock_context.__enter__()
+  thread_result={}
+  started=Event()
+  try:
+   lock_connection.execute("BEGIN IMMEDIATE")
+   def cancel():
+    started.set()
+    try:
+     thread_result["result"]=self.q.cancel(job["id"],"operator stop")
+    except Exception as exc:
+     thread_result["error"]=exc
+   thread=Thread(target=cancel)
+   thread.start()
+   self.assertTrue(started.wait(1))
+   time.sleep(0.05)
+   clock["value"]=base+timedelta(seconds=11)
+   lock_connection.commit()
+   thread.join(2)
+   self.assertFalse(thread.is_alive())
+   self.assertNotIn("error",thread_result)
+   persisted=self.q.get(job["id"])
+   expected=queue_store.stamp(base+timedelta(seconds=11))
+   self.assertEqual(persisted["updated_at"],expected)
+   cancelled_events=[event for event in self.q.events(job["id"])
+                     if event["event_type"]=="cancelled"]
+   self.assertEqual(len(cancelled_events),1)
+   self.assertEqual(cancelled_events[0]["created_at"],expected)
+  finally:
+   if lock_connection.in_transaction:
+    lock_connection.rollback()
+   lock_context.__exit__(None,None,None)
+   queue_store.now=original_now
+
  def test_retry_state_and_event_log(self):
   j=self.q.enqueue("research",{}); a=self.q.claim("worker-a")
   failed=self.q.fail(j["id"],"worker-a",a["lease_token"],"network","temporary",True)
