@@ -269,6 +269,11 @@ class TikTokPublishingTests(unittest.TestCase):
             {"creator_username":"creator","creator_nickname":"Creator"},
         )
         self.store.mark_uncertain("job-1",first_attempt,"old attempt timed out")
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_publications SET updated_at=? WHERE job_id=?",
+                ("2026-01-01T00:00:00+00:00","job-1"),
+            )
         self.store.reconcile(
             "job-1","not_published","reviewer","Verified no post existed",
             confirmed=True,
