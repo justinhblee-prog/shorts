@@ -351,6 +351,33 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(current["generation_token"],second["generation_token"])
   self.assertTrue(self.q.mark_worker_offline("reused-worker",second["generation_token"]))
   self.assertEqual(self.q.workers()[0]["status"],"offline")
+ def test_restart_with_active_production_lease_pauses_instead_of_waiting_for_expiry(self):
+  old=self.q.register_worker("production-restart","host-a")
+  job=self.q.enqueue("short_video_production",{"topic":"ambiguous-restart"})
+  claimed=self.q.claim("production-restart","host-a",generation_token=old["generation_token"])
+  replacement=self.q.register_worker("production-restart","host-a")
+  self.assertNotEqual(old["generation_token"],replacement["generation_token"])
+  self.assertTrue(self.q.is_paused())
+  recovered=self.q.get(job["id"])
+  self.assertEqual(recovered["status"],"failed_terminal")
+  self.assertEqual(recovered["error_code"],"worker_paused")
+  self.assertIsNone(recovered["lease_token"])
+  with self.assertRaises(LeaseConflict):
+   self.q.heartbeat(job["id"],"production-restart",claimed["lease_token"],
+                    old["generation_token"])
+  events=[event for event in self.q.events(job["id"])
+          if event["event_type"]=="worker_pause"]
+  self.assertEqual(len(events),1)
+  self.assertIn("restarted",events[0]["details"]["reason"])
+
+ def test_idle_worker_restart_does_not_pause_production_queue(self):
+  old=self.q.register_worker("idle-restart","host-a")
+  job=self.q.enqueue("short_video_production",{"topic":"still-queued"})
+  replacement=self.q.register_worker("idle-restart","host-a")
+  self.assertNotEqual(old["generation_token"],replacement["generation_token"])
+  self.assertFalse(self.q.is_paused())
+  self.assertEqual(self.q.get(job["id"])["status"],"queued")
+
  def test_claim_and_lease_mutations_are_fenced_by_worker_generation(self):
   first=self.q.register_worker("generation-worker","host-a")
   job=self.q.enqueue("render",{"generation":"test"})
