@@ -1803,3 +1803,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - If a concurrent status poll has already advanced the same attempt to `processing` or another state, the timeout is ignored and no stale uncertainty audit event is appended.
 - Added a regression where a late transport timeout arrives after TikTok has confirmed processing.
 - Deterministic local database validation only; no live TikTok API verification is implied.
+
+## BUILD-00218 — Verify superseded YouTube uncertainty remains fail-closed
+- A late failure from a superseded upload attempt can still represent an unresolved remote outcome; the job remains blocked for operator reconciliation rather than allowing a potentially duplicate retry.
+- The current row retains the newer attempt identity while the uncertainty audit event retains the superseded attempt identity.
+- Extended the regression to assert both identities remain distinct and correctly recorded.
+- Deterministic local database validation only; no live YouTube API verification is implied.

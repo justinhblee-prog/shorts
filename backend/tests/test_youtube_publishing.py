@@ -188,7 +188,9 @@ class YouTubePublishingTests(unittest.TestCase):
         )
         result=self.uploads.get("job-1")
         self.assertEqual(result["status"],"reconciliation_required")
+        self.assertEqual(result["attempt_id"],second["attempt_id"])
         self.assertEqual(result["events"][-1]["event_type"],"superseded_attempt_uncertain")
+        self.assertEqual(result["events"][-1]["attempt_id"],first["attempt_id"])
         with self.assertRaises(YouTubeUploadError):
             self.uploads.begin("job-1","Third attempt","")
 
