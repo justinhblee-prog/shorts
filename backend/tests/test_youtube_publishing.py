@@ -186,7 +186,7 @@ class YouTubePublishingTests(unittest.TestCase):
               VALUES(?,?,'late_remote_success','informational','old-attempt-video',
                      'system:upload_worker','Old attempt remote video observed',
                      'uploading','late_success_review_required',?)""",
-              ("job-1",first["attempt_id"],_now()))
+              ("job-1",first["attempt_id"],"2026-01-01T00:00:00+00:00"))
         self.uploads.mark_reconciliation_required(
             "job-1","old worker reported a delayed failure",first["attempt_id"]
         )
