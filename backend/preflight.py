@@ -175,6 +175,12 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
             )
         if not scan_timeout_valid:
             scan_missing.append("NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS (must be a positive integer)")
+        try:
+            max_media_bytes = int(source.get("NEXUS_MAX_MEDIA_BYTES", str(256 * 1024 * 1024)))
+        except (TypeError, ValueError):
+            max_media_bytes = 0
+        if max_media_bytes < 1 or max_media_bytes > 2 * 1024 * 1024 * 1024:
+            scan_missing.append("NEXUS_MAX_MEDIA_BYTES (ClamAV supports up to 2 GiB)")
     checks["media_malware_scan"] = {
         "configured": media_scan_enabled and not scan_missing,
         "missing": scan_missing,
