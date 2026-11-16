@@ -609,6 +609,73 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(voice.calls, [])
         self.assertEqual(render.calls, [])
 
+    def test_recovered_script_response_is_adopted_and_job_requeued(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        key=self.store.begin_provider_attempt(job_id,"script",1)
+        self.store.finish_provider_attempt(job_id,"script",1,key,{
+            "script":"A recovered script with a clear hook, useful explanation and takeaway.",
+            "provider":"test-script","factual_claims_verified":True})
+        attempt=self.store.provider_attempts(job_id)[0]
+        result=self.store.adopt_recovered_provider_artifact(job_id,attempt["id"])
+        saved=self.store.get(job_id)
+        self.assertEqual(result["status"],"queued")
+        self.assertEqual(saved["status"],"queued")
+        self.assertEqual(saved["artifacts"][0]["stage"],"script")
+        self.assertEqual(saved["artifacts"][0]["metadata"]["script"],
+            "A recovered script with a clear hook, useful explanation and takeaway.")
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"adopted")
+        self.assertEqual(queue.get(job_id)["status"],"queued")
+
+    def test_recovered_voice_response_requires_script_and_requeues_job(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        self.store.artifact(job_id,"script","text",None,{"script":
+            "A sufficiently detailed recovered script with context and a useful takeaway.",
+            "provider_quality_metadata":{},"policy_preflight":{"status":"review_required"}})
+        key=self.store.begin_provider_attempt(job_id,"voice_generation",1)
+        self.store.finish_provider_attempt(job_id,"voice_generation",1,key,{
+            "audio_url":"https://media.example/recovered.mp3","voice":"en-US"})
+        attempt=self.store.provider_attempts(job_id)[0]
+        result=self.store.adopt_recovered_provider_artifact(job_id,attempt["id"])
+        saved=self.store.get(job_id)
+        self.assertEqual(result["stage"],"voice_generation")
+        self.assertEqual(saved["status"],"queued")
+        voice=next(item for item in saved["artifacts"] if item["stage"]=="voice_generation")
+        self.assertEqual(voice["artifact_url"],"https://media.example/recovered.mp3")
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"adopted")
+
+    def test_recovered_voice_response_without_script_is_rejected(self):
+        queue=JobQueue(self.store.db_path)
+        job_id=queue.enqueue("short_video_production",self.brief)["id"]
+        self.store.create(job_id,self.brief)
+        key=self.store.begin_provider_attempt(job_id,"voice_generation",1)
+        self.store.finish_provider_attempt(job_id,"voice_generation",1,key,
+            {"audio_url":"https://media.example/recovered.mp3"})
+        attempt=self.store.provider_attempts(job_id)[0]
+        with self.assertRaisesRegex(ValueError,"requires an adopted script"):
+            self.store.adopt_recovered_provider_artifact(job_id,attempt["id"])
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],"response_received")
+
+    def test_pipeline_resumes_adopted_script_and_voice_without_provider_calls(self):
+        self.store.create("job-resume-adopted",self.brief)
+        self.store.artifact("job-resume-adopted","script","text",None,{"script":
+            "A sufficiently detailed recovered script with context and a useful takeaway.",
+            "provider_quality_metadata":{},"policy_preflight":{"status":"review_required"}})
+        self.store.artifact("job-resume-adopted","voice_generation","audio",
+            "https://media.example/recovered.mp3",{"voice":"en-US"})
+        script=FakeProvider({"script":"must not be called"})
+        voice=FakeProvider({"audio_url":"https://media.example/new.mp3"})
+        render=FakeProvider({"video_url":"https://media.example/video.mp4","duration_seconds":30})
+        result=ProductionPipeline(self.store,script,voice,render).execute(
+            "job-resume-adopted",self.brief)
+        self.assertEqual(result["status"],"rendered")
+        self.assertEqual(script.calls,[])
+        self.assertEqual(voice.calls,[])
+        self.assertEqual(len(render.calls),1)
+
     def test_provider_response_is_durable_before_artifact_adoption(self):
         self.store.create("job-provider-journal",self.brief)
         number=self.store.next_provider_attempt_number("job-provider-journal","rendering")
