@@ -111,6 +111,42 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(result["retention_status"], "no_data")
         self.assertFalse(self.store.get("video-3")["views"])
 
+
+    def test_recent_upload_is_pending_not_a_zero_metrics_report(self):
+        from youtube_publishing import YouTubeUploadStore
+        uploads = YouTubeUploadStore(self.db)
+        with uploads.db() as connection:
+            connection.execute(
+                "INSERT INTO youtube_uploads(job_id,video_id,status,title,description,uploaded_at,updated_at) "
+                "VALUES('recent-job','recent-video','uploaded','title','','2026-11-15T12:00:00+00:00','2026-11-15T12:00:00+00:00')"
+            )
+        reports = FakeReports()
+        collector = YouTubeAnalyticsCollector(
+            self.store, service=FakeService(reports),
+            today=lambda: date(2026, 11, 16),
+        )
+        result = collector.collect_video("recent-video")
+        self.assertEqual(result["analytics_status"], "pending_availability")
+        self.assertFalse(result["live_connectivity_verified"])
+        self.assertEqual(reports.calls, [])
+        self.assertIsNone(self.store.get("recent-video")["views"])
+
+    def test_relative_retention_performance_preserves_negative_values(self):
+        reports = FakeReports(retention={
+            "columnHeaders": [
+                {"name": "elapsedVideoTimeRatio"},
+                {"name": "audienceWatchRatio"},
+                {"name": "relativeRetentionPerformance"},
+            ],
+            "rows": [[0.5, 0.2, -0.35]],
+        })
+        collector = YouTubeAnalyticsCollector(self.store, service=FakeService(reports))
+        collector.collect_video("negative-retention", "2026-11-01", "2026-11-14")
+        saved = self.store.get("negative-retention")
+        self.assertEqual(
+            saved["retention_curve"][0]["relative_retention_performance"], -0.35
+        )
+
     def test_rejects_invalid_video_ids_and_date_ranges(self):
         collector = YouTubeAnalyticsCollector(self.store, service=FakeService(FakeReports()))
         with self.assertRaises(ValueError):
