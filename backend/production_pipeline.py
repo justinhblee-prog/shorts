@@ -4,6 +4,7 @@ External providers must return real artifact references. This module never fabri
 scripts, audio, videos, durations, or provider success.
 """
 import json
+import math
 import os
 import sqlite3
 import urllib.error
