@@ -107,9 +107,10 @@ class JobQueue:
 
     def enqueue(self,job_type,payload,channel_name=None,priority=100,max_attempts=3,idempotency_key=None):
         if not job_type.strip(): raise ValueError("job_type required")
-        n=stamp(now()); jid=str(uuid.uuid4())
+        jid=str(uuid.uuid4())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            n=stamp(now())
             if idempotency_key:
                 old=c.execute("SELECT * FROM pipeline_jobs WHERE idempotency_key=?",(idempotency_key,)).fetchone()
                 if old:
@@ -130,7 +131,7 @@ class JobQueue:
             c.execute("""INSERT INTO pipeline_jobs(id,job_type,channel_name,payload_json,status,priority,max_attempts,available_at,idempotency_key,created_at,updated_at)
               VALUES(?,?,?,?, 'queued',?,?,?,?,?,?)""",
               (jid,job_type,channel_name,json.dumps(payload,ensure_ascii=False),int(priority),max(1,int(max_attempts)),n,idempotency_key,n,n))
-            self.event(c,jid,"enqueued",None,"queued",None)
+            self.event(c,jid,"enqueued",None,"queued",None,created_at=n)
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit()
             return self.decode(row)
 
