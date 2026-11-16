@@ -238,7 +238,7 @@ class RecommendationEvaluationStore:
             region = _normalized_dimension(region, 120)
             if region is None:
                 raise ValueError("region must be a non-empty string of at most 120 characters")
-        timestamp = _normalized_timestamp(generated_at or _now(), "generated_at")
+        timestamp = _normalized_timestamp(_now() if generated_at is None else generated_at, "generated_at")
         run_id = str(uuid.uuid4())
         rows = []
         for rank, item in enumerate(items if isinstance(items, list) else [], start=1):
@@ -356,7 +356,7 @@ class RecommendationEvaluationStore:
         job_id = _normalized_dimension(job_id, 160)
         if trend_id is None or brand_slug is None or job_id is None:
             return {"linked": False, "reason": "invalid_production_identity"}
-        timestamp = _normalized_timestamp(selected_at or _now(), "selected_at")
+        timestamp = _normalized_timestamp(_now() if selected_at is None else selected_at, "selected_at")
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute("""SELECT c.id FROM recommendation_candidates c
