@@ -1362,4 +1362,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Calculate `pending_retries` only for pending rows whose retry timestamp is still in the future; expose `pending_ready` separately.
 - Prioritize dead-letter records in the bounded operator status list so actionable failures are not hidden behind routine pending rows.
 - Add deterministic clock-based tests for before/after retry eligibility and timezone validation.
-- CI validation pending.
+- GitHub Actions run [43812695326](https://github.com/justinhblee-prog/shorts/actions/runs/43812695326) passed the complete `scripts/validate.sh` workflow, including 505 backend tests.
