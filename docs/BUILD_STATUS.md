@@ -1839,3 +1839,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The event query already retrieves the latest non-null provider identifiers independently, so the audit row now persists all of them consistently in both terminal and nonterminal branches.
 - Regression asserts the publish ID and operator identity survive a later diagnostic row with null provider identifiers.
 - Backend deterministic CI only; no live TikTok API verification.
+
+## BUILD-00224 — Retain attempt-specific YouTube video IDs in superseded worker audit events
+- Superseded YouTube worker errors now look up the latest non-null video ID belonging to that exact attempt and retain it in informational audit events after a newer attempt has already uploaded.
+- The canonical current upload row remains unchanged; the audit event records the old attempt's own remote video identifier.
+- Added regression coverage for a late superseded worker error after a newer upload has completed.
+- Backend deterministic CI only; no live YouTube API verification.
