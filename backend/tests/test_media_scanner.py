@@ -26,6 +26,10 @@ class ClamAVScannerTests(unittest.TestCase):
         self.assertIn("--database=/var/lib/clamav", calls[0][0])
         self.assertIn("--no-summary", calls[0][0])
         self.assertIn("--infected", calls[0][0])
+        self.assertIn("--alert-exceeds-max=yes", calls[0][0])
+        self.assertIn("--max-filesize=12345", calls[0][0])
+        self.assertIn("--max-scansize=12345", calls[0][0])
+        self.assertIn("--max-scantime=7000", calls[0][0])
         self.assertNotIn("shell", calls[0][1])
 
     def test_infected_exit_is_rejected(self):
@@ -50,6 +54,20 @@ class ClamAVScannerTests(unittest.TestCase):
             raise FileNotFoundError("clamscan")
         with self.assertRaisesRegex(MediaScanError, "could not be started"):
             ClamAVScanner(runner=missing).scan(self.path)
+
+    def test_scanner_limits_exceeded_is_not_treated_as_clean(self):
+        def runner(*args, **kwargs):
+            return SimpleNamespace(
+                returncode=1, stdout="Heuristics.Limits.Exceeded FOUND", stderr=""
+            )
+        scanner = ClamAVScanner(runner=runner)
+        with tempfile.NamedTemporaryFile() as handle:
+            with self.assertRaisesRegex(MediaScanError, "incomplete"):
+                scanner.scan(handle.name)
+
+    def test_media_limit_above_clamav_supported_max_is_rejected(self):
+        with self.assertRaises(ValueError):
+            ClamAVScanner(max_bytes=2 * 1024 * 1024 * 1024 + 1)
 
     def test_invalid_timeout_is_rejected(self):
         with self.assertRaises(ValueError):
