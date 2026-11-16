@@ -538,3 +538,8 @@ Manual dead-letter recovery is permitted only while the parent schedule is activ
 ### BUILD-00168 — scheduler outbox dashboard
 
 The schedule operations panel distinguishes pending work ready to dispatch from entries deferred by backoff and dead-letter entries requiring operator action. Dead-letter rows expose a manual retry action after confirmation. The API requires the existing `schedules.manage` permission, and the store rejects retry if the parent schedule is inactive; reactivate the schedule before retrying. The outbox item retains its original idempotency key.
+
+
+### BUILD-00169 — liveness and readiness probes
+
+`GET /api/health` reports only that the API process is responding. `GET /api/ready` additionally verifies that the durable queue and scheduler stores can serve core reads and returns HTTP 503 when storage is unavailable. Docker Compose uses readiness for its API healthcheck, so worker, scheduler, metrics collector and backup startup gates wait for usable shared storage rather than merely an open HTTP process. The probe does not claim that external AI providers, OAuth accounts, workers or publishing APIs are live.
