@@ -1280,3 +1280,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Apply bounded exponential retry delay (six-hour base, capped at seven days); clear the retry state as soon as a valid snapshot is saved.
 - Add regression tests proving the next batch advances to older videos and successful collection clears the defer state.
 - This handles provider omissions only; no live TikTok account validation or inference about why a video is absent is claimed.
+- GitHub Actions run [43808258956](https://github.com/justinhblee-prog/shorts/actions/runs/43808258956) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
