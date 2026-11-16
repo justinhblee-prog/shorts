@@ -84,10 +84,10 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 ## Validation — current truth
 
-- Latest verified GitHub Actions run: [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031), which passed **362 backend tests** and the complete `scripts/validate.sh` command on the BUILD-00038 implementation.
+- Latest verified BUILD-00038 hardening run: [43789858034](https://github.com/justinhblee-prog/shorts/actions/runs/43789858034), which passed **365 backend tests** and the complete `scripts/validate.sh` command.
 - CI executed Python 3.11 tests on a GitHub-hosted runner. Provider/API tests use controlled test doubles where credentials or external services are required; this verifies application logic, not live provider success.
 - The validation script also checks Python compilation, frontend JavaScript syntax/DOM IDs and Docker Compose YAML parsing.
-- Recent verified milestones: BUILD-00031 — 326 tests; BUILD-00032 — 336 tests; BUILD-00033 — 338 tests; BUILD-00034 — 339 tests; BUILD-00036 — 352 tests; BUILD-00037 — 356 tests; BUILD-00038 — 362 tests.
+- Recent verified milestones: BUILD-00031 — 326 tests; BUILD-00032 — 336 tests; BUILD-00033 — 338 tests; BUILD-00034 — 339 tests; BUILD-00036 — 352 tests; BUILD-00037 — 356 tests; BUILD-00038 initial backup implementation — 362 tests; BUILD-00038 restore hardening — 365 tests.
 - Not yet verified in a deployed environment: live AI provider generation, actual media rendering/staging, YouTube/TikTok OAuth and account permissions, real uploads, analytics coverage, revenue reconciliation, production worker/scheduler recovery, PostgreSQL migration, backups and restore.
 - No real earnings, monetization eligibility, platform-policy approval or complete unattended business cycle is claimed.
 - Production public publishing remains gated by explicit human approval.
@@ -992,9 +992,6 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Display a per-video sparkline plus the 25%, 50% and 75% audience-watch-ratio checkpoints.
 - Label checkpoint values as ratios (x), not percentages, because the absolute audience-watch ratio can exceed 1 when viewers replay a segment.
 - Preserve unavailable/empty retention as an explicit no-data state; no curve is synthesized.
-- Restore validation rejects traversal paths, malformed manifests, duplicate entries, links/special files and oversized archives before live data is replaced; empty media directories are preserved.
-- Regression tests cover malformed manifests, traversal attempts and empty directories. Initial CI exposed and fixed a test-fixture directory-removal ordering error; final validation pending.
-
 
 ### BUILD-00036 — encrypted YouTube OAuth account connection (2026-11-16)
 
@@ -1035,12 +1032,16 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add a Compose backup service that runs immediately and repeats daily, retaining 14 days by default in a separate named volume.
 - Add guarded restore requiring explicit `--confirm-restore`, validates archive paths/checksums/SQLite integrity before changing live data, and creates a pre-restore backup.
 - Restore stages new DB/media beside their destinations and rolls back filesystem replacements on failure.
+- Harden restore with archive-entry, manifest, database and media size caps; validate manifest structure, checksums, path uniqueness and exact file inventory before extraction.
+- Reject traversal paths, backslashes, NULs, links, special files, duplicate archive paths and unexpected control-file paths. Preserve empty media directories.
 - Backups contain the database and media only; environment secrets/encryption keys are not included. The backup volume is not off-site and must be copied to independent storage.
-- Validation pending.
+- Restore must be run offline after stopping API, worker, scheduler, metrics collector and backup service.
+- Final hardening CI [43789858034](https://github.com/justinhblee-prog/shorts/actions/runs/43789858034) passed **365 backend tests** and `scripts/validate.sh`.
 
 
 ### BUILD-00038 validation record
 
-- GitHub Actions PR run [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031) passed **362 backend tests** and `scripts/validate.sh`.
+- GitHub Actions PR run [43789308031](https://github.com/justinhblee-prog/shorts/actions/runs/43789308031) passed **362 backend tests** for the initial backup implementation.
+- After restore hardening, GitHub Actions PR run [43789858034](https://github.com/justinhblee-prog/shorts/actions/runs/43789858034) passed **365 backend tests** and `scripts/validate.sh`.
 - Tests verify SQLite online backup, media manifest/checksums, restore confirmation, pre-restore backup, rollback-safe replacement and symlink/path rejection.
 - Compose YAML validation passed. The scheduled backup service has not been deployed or observed in a running environment.
