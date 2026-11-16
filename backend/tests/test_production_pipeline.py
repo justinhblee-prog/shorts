@@ -647,6 +647,55 @@ class ProductionTests(unittest.TestCase):
             self.store.finish_provider_attempt(
                 "job-provider-bounds","script",1,key,{"data":"x"*(2*1024*1024)})
 
+    def test_verified_provider_render_is_adopted_once_and_requires_human_review(self):
+        self.store.create("job-adopt-render",self.brief)
+        key=self.store.begin_provider_attempt("job-adopt-render","rendering",1)
+        self.store.finish_provider_attempt(
+            "job-adopt-render","rendering",1,key,
+            {"request_id":"render-verified-77",
+             "video_url":"https://cdn.example.test/output.mp4"})
+        staged={"media_path":"abc123.mp4","size_bytes":4096,
+                "sha256":"a"*64,"content_type":"video/mp4"}
+        inspection={"status":"inspected","duration_seconds":32.5,
+                    "width":1080,"height":1920,"audio_track_present":True,
+                    "inspection_method":"ffprobe_file_bytes"}
+        attempt=self.store.provider_attempts("job-adopt-render")[0]
+        result=self.store.adopt_recovered_render(
+            "job-adopt-render",attempt["id"],staged,inspection)
+        self.assertEqual(result["status"],"review_pending")
+        production=self.store.get("job-adopt-render")
+        self.assertEqual(production["status"],"review_pending")
+        self.assertEqual(production["current_stage"],"recovered_render_adopted")
+        self.assertEqual(len(production["artifacts"]),1)
+        artifact=production["artifacts"][0]
+        self.assertEqual(artifact["artifact_url"],"https://cdn.example.test/output.mp4")
+        self.assertEqual(artifact["metadata"]["media_staging"]["sha256"],"a"*64)
+        self.assertEqual(self.store.provider_attempts("job-adopt-render")[0]["state"],"adopted")
+        with self.assertRaisesRegex(ValueError,"not available"):
+            self.store.adopt_recovered_render(
+                "job-adopt-render",attempt["id"],staged,inspection)
+
+    def test_provider_render_adoption_rejects_unverified_or_nonvertical_media(self):
+        self.store.create("job-adopt-block",self.brief)
+        key=self.store.begin_provider_attempt("job-adopt-block","rendering",1)
+        self.store.finish_provider_attempt(
+            "job-adopt-block","rendering",1,key,
+            {"video_url":"https://cdn.example.test/output.mp4"})
+        attempt=self.store.provider_attempts("job-adopt-block")[0]
+        staged={"media_path":"abc123.mp4","size_bytes":4096,
+                "sha256":"b"*64,"content_type":"video/mp4"}
+        bad={"status":"inspected","duration_seconds":32.5,
+             "width":1920,"height":1080,"audio_track_present":True}
+        with self.assertRaisesRegex(ValueError,"failed required"):
+            self.store.adopt_recovered_render("job-adopt-block",attempt["id"],staged,bad)
+        bad["width"],bad["height"]=1080,1920
+        bad["audio_track_present"]=False
+        with self.assertRaisesRegex(ValueError,"failed required"):
+            self.store.adopt_recovered_render("job-adopt-block",attempt["id"],staged,bad)
+        self.assertEqual(self.store.provider_attempts("job-adopt-block")[0]["state"],
+                         "response_received")
+        self.assertEqual(self.store.get("job-adopt-block")["artifacts"],[])
+
     def test_invalid_brief_rejected(self):
         with self.assertRaises(ValueError):
             ProductionPipeline.validate_brief({"brand": "x", "region": "US",
