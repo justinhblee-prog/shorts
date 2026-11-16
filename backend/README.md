@@ -598,3 +598,8 @@ The review and approved-content workspaces accept external renderer media URLs o
 ### BUILD-00137 — cancellation and worker lifecycle
 
 Production jobs can be cancelled only before review handoff. A running production cancellation is treated as externally ambiguous: the queue and production record are updated atomically, the worker lease is revoked and the production queue is paused pending manual provider reconciliation. Graceful worker shutdown persists `offline`; heartbeat staleness remains the recovery mechanism for abrupt process termination.
+
+
+### BUILD-00138 — metrics collector lease ownership
+
+The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewable, token-fenced leases. Snapshot and collection-state writes verify the active owner/token in the same SQLite transaction, so results arriving after lease replacement or expiry are rejected. The heartbeat is checked before and after provider work. Configure `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds) for YouTube Data API/TikTok and `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds) for Analytics. Restart the metrics-collector service after deploying the SQLite lease-token migration.
