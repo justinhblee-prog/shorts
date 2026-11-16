@@ -65,7 +65,17 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
             return
 
 
+def ensure_worker_registered():
+    """Register one process incarnation for direct and main-loop invocations."""
+    global WORKER_GENERATION_TOKEN
+    if WORKER_GENERATION_TOKEN is None:
+        registration = queue.register_worker(WORKER_ID, socket.gethostname())
+        WORKER_GENERATION_TOKEN = registration["generation_token"]
+    return WORKER_GENERATION_TOKEN
+
+
 def run_once():
+    ensure_worker_registered()
     if queue.is_paused():
         return False
     # Recovery failures escape: no claim may occur while state is uncertain.
