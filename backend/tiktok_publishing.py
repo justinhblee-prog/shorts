@@ -390,6 +390,23 @@ class TikTokPublishStore:
                   message[:1000], stamp, row["policy_version"]))
             return True
 
+    def list_metrics_eligible(self, limit=None):
+        """Return published video identities without loading full audit histories."""
+        query = """
+            SELECT job_id,video_id,status,privacy_level,updated_at
+            FROM tiktok_publications
+            WHERE status='publish_complete' AND video_id IS NOT NULL
+            ORDER BY updated_at DESC,job_id
+        """
+        params = ()
+        if limit is not None:
+            bounded = max(1, min(int(limit), 200))
+            query += " LIMIT ?"
+            params = (bounded,)
+        with self.db() as c:
+            rows = c.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
+
     def list_recent(self, limit=100):
         """Return bounded TikTok publication records with immutable event histories."""
         limit = max(1, min(int(limit), 200))
