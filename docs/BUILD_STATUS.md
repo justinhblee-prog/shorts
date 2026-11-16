@@ -1299,3 +1299,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Preserve the existing 30-second minimum while preventing floats, strings, booleans, non-positive values, and arbitrarily long leases from being silently coerced.
 - Add regression coverage for invalid inputs, minimum-duration behavior, and renew-time validation.
 - GitHub Actions run [43809118955](https://github.com/justinhblee-prog/shorts/actions/runs/43809118955) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
+
+
+## BUILD-00159 — bound worker queue and scheduler lease TTL
+
+- Apply strict lease-duration validation to the durable worker queue and scheduler leader lease.
+- Accept only non-boolean integers from 1 to 3600 seconds; preserve the existing minimum TTLs (10 seconds for worker jobs, 15 seconds for scheduler leadership).
+- Reject floats, strings, booleans, non-positive values, and unbounded TTLs before worker or scheduler state is initialized or renewed.
+- Add regression coverage for constructor validation and scheduler acquire/renew validation.
