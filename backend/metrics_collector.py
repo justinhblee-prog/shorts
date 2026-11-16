@@ -7,6 +7,7 @@ This collects Data API counters only; it does not claim audience-retention analy
 import logging
 import os
 import socket
+import threading
 import time
 import uuid
 
@@ -15,6 +16,7 @@ from tiktok_publishing import TikTokPublishStore
 from tiktok_oauth import TikTokOAuthStore, TikTokOAuthManager
 from tiktok_metrics import TikTokMetricsStore, TikTokMetricsCollector
 from youtube_analytics import YouTubeAnalyticsStore, YouTubeAnalyticsCollector
+from youtube_oauth import YouTubeOAuthStore, YouTubeOAuthManager
 
 DB = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
 INTERVAL = max(300, int(os.getenv("NEXUS_METRICS_COLLECTION_INTERVAL_SECONDS", "21600")))
@@ -52,13 +54,45 @@ def run_once(store=None, publisher=None):
 
 
 
-def run_youtube_analytics_once(store=None, collector=None):
+def run_youtube_analytics_once(store=None, collector=None, token_manager=None):
     store = store or YouTubeAnalyticsStore(DB)
-    collector = collector or YouTubeAnalyticsCollector(store)
-    token = store.acquire_lease(OWNER_ID, lease_seconds=300)
+    if collector is None:
+        # Use the same encrypted OAuth token store as the API/manual refresh
+        # path. The legacy YOUTUBE_REFRESH_TOKEN environment fallback is not
+        # required when the operator has completed OAuth in the dashboard.
+        token_manager = token_manager or YouTubeOAuthManager(YouTubeOAuthStore(DB))
+        collector = YouTubeAnalyticsCollector(
+            store, token_provider=token_manager.get_refresh_token
+        )
+
+    lease_seconds = max(30, int(os.getenv("YOUTUBE_ANALYTICS_LEASE_SECONDS", "900")))
+    token = store.acquire_lease(OWNER_ID, lease_seconds=lease_seconds)
     if token is None:
         logger.info("youtube_analytics_collection_skipped reason=another_collector_holds_lease")
         return {"skipped": True, "requested": 0, "collected": 0, "failed": []}
+
+    heartbeat_stop = threading.Event()
+    lease_lost = threading.Event()
+    heartbeat_interval = max(5, lease_seconds // 3)
+
+    def renew_lease_loop():
+        while not heartbeat_stop.wait(heartbeat_interval):
+            try:
+                if not store.renew_lease(OWNER_ID, lease_seconds=lease_seconds):
+                    lease_lost.set()
+                    logger.error("youtube_analytics_collection_lease_lost")
+                    return
+            except Exception:
+                lease_lost.set()
+                logger.exception("youtube_analytics_collection_lease_renewal_failed")
+                return
+
+    heartbeat = threading.Thread(
+        target=renew_lease_loop,
+        name="youtube-analytics-lease-heartbeat",
+        daemon=True,
+    )
+    heartbeat.start()
     try:
         result = collector.refresh_due_metrics(
             limit=min(20, BATCH_SIZE),
@@ -66,12 +100,18 @@ def run_youtube_analytics_once(store=None, collector=None):
                 "YOUTUBE_ANALYTICS_MIN_AGE_SECONDS", "86400"
             ))),
         )
+        if lease_lost.is_set():
+            raise RuntimeError(
+                "YouTube Analytics collector lost its lease; batch outcome requires inspection"
+            )
         logger.info(
             "youtube_analytics_collection_completed requested=%s collected=%s failed=%s",
             result["requested"], result["collected"], len(result["failed"]),
         )
         return result
     finally:
+        heartbeat_stop.set()
+        heartbeat.join(timeout=5)
         store.release_lease(OWNER_ID)
 
 

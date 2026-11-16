@@ -202,6 +202,20 @@ class YouTubeAnalyticsStore:
             """, (owner_id, now + max(30, int(lease_seconds)), _now()))
         return owner_id
 
+    def renew_lease(self, owner_id, lease_seconds=300):
+        """Extend only a still-live lease held by this owner; never resurrect expiry."""
+        now = datetime.now(timezone.utc).timestamp()
+        with self.db() as connection:
+            updated = connection.execute(
+                """
+                UPDATE youtube_analytics_collector_lease
+                SET lease_until=?,updated_at=?
+                WHERE id=1 AND owner_id=? AND lease_until>?
+                """,
+                (now + max(30, int(lease_seconds)), _now(), owner_id, now),
+            )
+        return updated.rowcount == 1
+
     def release_lease(self, owner_id):
         with self.db() as connection:
             connection.execute(

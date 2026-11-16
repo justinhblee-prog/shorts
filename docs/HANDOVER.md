@@ -1126,3 +1126,19 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions PR run [43794456586](https://github.com/justinhblee-prog/shorts/actions/runs/43794456586) completed successfully.
 - The full validation script passed with **431 backend tests**; frontend JavaScript syntax/DOM checks and Compose YAML validation are part of the script.
 - This validates deterministic logic only. Real channel Analytics access, populated production cohorts and held-out ranking impact still require live account data and subsequent evaluation.
+
+
+## BUILD-00133 — scheduled YouTube Analytics collector
+
+- The background `metrics_collector.py` uses `YouTubeOAuthManager(YouTubeOAuthStore(DB)).get_refresh_token`, matching the API path's encrypted token storage. The legacy plaintext environment token is only a compatibility fallback inside the collector.
+- Long Analytics batches renew their SQLite lease every third of the configured lease period. Renewal requires the same owner and a lease that has not already expired.
+- `YOUTUBE_ANALYTICS_LEASE_SECONDS` defaults to 900 seconds.
+- CI validation pending.
+
+
+### BUILD-00133 validation record
+
+- GitHub Actions PR run [43794744350](https://github.com/justinhblee-prog/shorts/actions/runs/43794744350) completed successfully.
+- The complete validation script passed with **436 backend tests**.
+- Tests verify encrypted OAuth manager wiring, injected-collector behavior, lease release on provider failure, lease renewal by the active owner and refusal to resurrect an expired lease.
+- This is code-level verification. A live encrypted OAuth token, authorized channel and real Analytics report collection still require deployment validation.

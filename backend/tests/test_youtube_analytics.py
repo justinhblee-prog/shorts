@@ -202,6 +202,24 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.store.save("video-1", "2026-11-01", "2026-11-14", {}, [])
         self.assertEqual(self.store.due_video_ids(limit=10, min_age_seconds=86400), [])
 
+
+    def test_lease_renewal_extends_only_the_live_owner_lease(self):
+        self.assertEqual(self.store.acquire_lease("worker-a", 300), "worker-a")
+        self.assertTrue(self.store.renew_lease("worker-a", 600))
+        self.assertIsNone(self.store.acquire_lease("worker-b", 300))
+        self.store.release_lease("worker-a")
+        self.assertEqual(self.store.acquire_lease("worker-b", 300), "worker-b")
+        self.assertFalse(self.store.renew_lease("worker-a", 600))
+
+    def test_expired_lease_cannot_be_resurrected_by_old_owner(self):
+        self.assertEqual(self.store.acquire_lease("worker-a", 300), "worker-a")
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE youtube_analytics_collector_lease SET lease_until=0 WHERE id=1"
+            )
+        self.assertFalse(self.store.renew_lease("worker-a", 300))
+        self.assertEqual(self.store.acquire_lease("worker-b", 300), "worker-b")
+
     def test_lease_prevents_overlapping_collectors(self):
         self.assertEqual(self.store.acquire_lease("worker-a", 300), "worker-a")
         self.assertIsNone(self.store.acquire_lease("worker-b", 300))

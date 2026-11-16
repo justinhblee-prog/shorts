@@ -573,3 +573,8 @@ BUILD-00131 validation: GitHub Actions run [43792634688](https://github.com/just
 ### YouTube retention and matched analytics comparisons
 
 `GET /api/performance/insights?platform=youtube` exposes stored YouTube Analytics watch-time and retention data. Video rows include `retention_diagnostics` (early/end retention and largest adjacent observed drop-off). `analytics_cohorts` compare average view percentage, average view duration and engaged-view share only across matched brand, region, publication-age bucket, render-duration bucket, format and exact normalized topic signature. Comparative observations require at least three videos; smaller cohorts remain limited. These are descriptive signals only and do not alter ranking scores or establish causality.
+
+
+### Scheduled YouTube Analytics collection
+
+The periodic `metrics-collector` service uses the encrypted YouTube OAuth token store shared with the API. Complete YouTube OAuth in the dashboard; a plaintext `YOUTUBE_REFRESH_TOKEN` environment variable is not required for scheduled Analytics collection when encrypted OAuth credentials are present. The collector processes due uploaded videos at the configured `YOUTUBE_ANALYTICS_MIN_AGE_SECONDS` cadence and renews its SQLite lease during long batches (`YOUTUBE_ANALYTICS_LEASE_SECONDS`, default 900). A missing token or provider failure is recorded as a per-video collection failure; no metrics are fabricated.
