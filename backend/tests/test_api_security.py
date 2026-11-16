@@ -332,6 +332,31 @@ class ApiSecurityTests(unittest.TestCase):
                 draft_production_from_trend("trend-kr", body, x_review_token="test-token")
         self.assertEqual(unsupported.exception.status_code, 422)
 
+    def test_provider_attempt_status_redacts_response_payload_and_idempotency_key(self):
+        from app import get_production_provider_attempts
+        stored=[{
+            "id":"attempt-1","job_id":"job-1","stage":"rendering",
+            "attempt_number":2,"idempotency_key":"private-idempotency-key",
+            "state":"response_received","provider_request_id":"provider-job-9",
+            "response_json":'{"video_url":"https://signed.example/private-token"}',
+            "error":None,"started_at":"2026-11-17T00:00:00Z",
+            "completed_at":"2026-11-17T00:01:00Z",
+        }]
+        with (
+            mock.patch("app.require_review_permission") as permission,
+            mock.patch.object(app_module.production_store,"get",return_value={"job_id":"job-1"}),
+            mock.patch.object(app_module.production_store,"provider_attempts",return_value=stored),
+        ):
+            result=get_production_provider_attempts("job-1",x_review_token="test-token")
+        permission.assert_called_once_with("test-token","production.read")
+        attempt=result["attempts"][0]
+        self.assertTrue(attempt["has_recoverable_response"])
+        self.assertEqual(attempt["provider_request_id"],"provider-job-9")
+        self.assertNotIn("response_json",attempt)
+        self.assertNotIn("idempotency_key",attempt)
+        self.assertNotIn("signed.example",str(result))
+        self.assertNotIn("private-idempotency-key",str(result))
+
     def test_api_production_execution_passes_worker_lease_and_reconciles_handoff(self):
         job = {"id": "job-1", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
