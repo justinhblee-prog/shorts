@@ -1206,3 +1206,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions PR run [43796187131](https://github.com/justinhblee-prog/shorts/actions/runs/43796187131) completed successfully.
 - The full validation script passed with **451 backend tests**, including atomic production cancellation, ambiguous in-flight cancellation, review-handoff protection and worker-offline state.
 - This validates local SQLite state transitions; actual provider-side cancellation and deployed worker shutdown remain operational checks.
+
+
+## BUILD-00138 — token-fenced metrics collector leases
+
+- `metrics_collector.LeaseHeartbeat` renews leases every bounded interval and raises `CollectorLeaseLost` when ownership cannot be confirmed.
+- YouTube Data API, YouTube Analytics and TikTok metrics stores now require the current owner/token pair for scheduled snapshot and collection-state writes.
+- Lease tokens fence the write path, not just the batch start/end. Late provider responses from a replaced collector are rejected inside the write transaction.
+- `NEXUS_METRICS_LEASE_SECONDS` defaults to 300 seconds for YouTube Data API and TikTok; `YOUTUBE_ANALYTICS_LEASE_SECONDS` defaults to 900 seconds.
+- Database initialization adds token columns to existing YouTube lease tables. Restart the metrics-collector service after deploying the migration.
+- CI validation pending.
