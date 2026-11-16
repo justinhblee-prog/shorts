@@ -333,6 +333,8 @@ class YouTubeAnalyticsStore:
             raise RuntimeError("YouTube Analytics lease lost; stale write rejected")
 
     def acquire_lease(self, owner_id, lease_seconds=300, now=None):
+        if not isinstance(owner_id, str) or not owner_id.strip() or len(owner_id) > 200:
+            raise ValueError("A valid YouTube Analytics collector owner ID is required")
         now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
         token = uuid.uuid4().hex
         with self.db() as connection:
