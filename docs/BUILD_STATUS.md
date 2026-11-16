@@ -1427,4 +1427,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Authorize exactly one additional attempt without resetting historical attempt counts; keep the global production pause in place until a separate explicit resume action.
 - Add append-only reconciliation audit records protected against UPDATE/DELETE and synchronize the production run state atomically with the queue transition.
 - If provider history shows generation completed, the retry action is not applicable; result adoption remains a separate follow-up and no provider result is fabricated.
-- CI validation pending.
+- GitHub Actions run [43816436787](https://github.com/justinhblee-prog/shorts/actions/runs/43816436787) passed the complete `scripts/validate.sh` workflow, including 520 backend tests. The earlier run exposed an optional-schema assumption in the reconciliation listing query; the query was narrowed to durable queue columns and the full suite passed on the corrected commit.
