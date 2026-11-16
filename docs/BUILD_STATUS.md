@@ -1249,3 +1249,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Parse timestamps for absolute ordering in pooled and within-run holdouts; add regression coverage for reversed exposure/selection chronology and mixed timezone offsets.
 - GitHub Actions runs [43806060109](https://github.com/justinhblee-prog/shorts/actions/runs/43806060109) and [43806062228](https://github.com/justinhblee-prog/shorts/actions/runs/43806062228) passed the complete `scripts/validate.sh` workflow on the final source and regression-test commits; documentation-only updates followed.
 - Ranking score adjustment remains disabled; no live provider validation is claimed.
+
+
+## BUILD-00153 — bounded symmetric recommendation exposure deduplication
+
+- Restrict duplicate exposure detection to a symmetric ±60-second window; previously the lower-bound-only query could collapse a new earlier exposure against a much later record.
+- Canonicalize accepted ISO-8601 timestamps to UTC before persistence so SQL timestamp-window comparisons remain chronologically sortable across input offsets.
+- Add regression tests for future-dated false deduplication, the exact one-minute boundary, and equivalent timestamps expressed with different offsets.
+- GitHub Actions validation: pending.
+- Ranking score adjustment remains disabled; no live provider validation is claimed.
