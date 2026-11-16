@@ -121,4 +121,4 @@ BUILD-00039 adds per-operator credentials, least-privilege role guards, authenti
 BUILD-00130 adds optional AES-256-GCM encryption for the complete SQLite + media backup archive; production can set `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` to refuse plaintext backups and restores. The encryption key must be stored separately from backup files.
 
 
-BUILD-00131 adds an optional ClamAV gate before staged renderer media is published. Enable `NEXUS_MEDIA_SCAN_ENABLED=true` and start the `media-scan` Compose profile to maintain persistent signatures; the gate fails closed if the scanner or signature database is unavailable.
+BUILD-00131 adds an optional ClamAV gate before staged renderer media is published. Enable `NEXUS_MEDIA_SCAN_ENABLED=true` and start the `media-scan` Compose profile to maintain persistent signatures; the gate fails closed if the scanner or signature database is unavailable. Scanner size limits are aligned to `NEXUS_MAX_MEDIA_BYTES`, over-limit results are treated as failures, and the external process timeout—not ClamAV's skip-and-assume-clean scan timer—enforces the deadline.
