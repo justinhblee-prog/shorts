@@ -548,6 +548,12 @@ class TikTokPublishStore:
             """, (job_id, attempt_id, token, expires, now_text))
             return token
 
+    def status_poll_lease_is_current(self, job_id, attempt_id, lease_token):
+        with self.db() as c:
+            return self._status_poll_lease_is_current(
+                c, job_id, attempt_id, lease_token
+            )
+
     def release_status_poll_lease(self, job_id, attempt_id, lease_token):
         """Release only the exact lease owner; stale pollers cannot release a takeover."""
         with self.db() as c:
@@ -1116,6 +1122,12 @@ class TikTokPublisher:
             raise TikTokPublishError("TikTok publication record not found")
         if not record.get("publish_id"):
             raise TikTokPublishError("TikTok publish ID is not available for status lookup")
+        if not self.store.status_poll_lease_is_current(
+            job_id, record["attempt_id"], poll_lease_token
+        ):
+            raise TikTokPublishError(
+                "TikTok status poll lease expired or was replaced before remote lookup"
+            )
         response = self._call(
             API_ROOT + "/v2/post/publish/status/fetch/",
             payload={"publish_id": record["publish_id"]},
