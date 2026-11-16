@@ -144,9 +144,13 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
         "optional": not backup_required,
     }
 
-    media_scan_enabled = str(
-        source.get("NEXUS_MEDIA_SCAN_ENABLED", "false")
-    ).strip().lower() in {"1", "true", "yes", "on"}
+    media_scan_value = str(source.get("NEXUS_MEDIA_SCAN_ENABLED", "false")).strip().lower()
+    media_scan_valid = media_scan_value in {
+        "0", "1", "false", "true", "no", "yes", "off", "on", ""
+    }
+    media_scan_enabled = (
+        media_scan_value in {"1", "true", "yes", "on"} or not media_scan_valid
+    )
     scanner_path = str(source.get("NEXUS_CLAMSCAN_PATH", "clamscan")).strip()
     database_dir = Path(
         source.get("NEXUS_CLAMAV_DATABASE_DIR", "/var/lib/clamav")
@@ -158,6 +162,8 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
     except (TypeError, ValueError):
         scan_timeout_valid = False
     scan_missing = []
+    if not media_scan_valid:
+        scan_missing.append("NEXUS_MEDIA_SCAN_ENABLED (must be true or false)")
     if media_scan_enabled:
         if not scanner_path or not shutil.which(scanner_path):
             scan_missing.append("ClamAV clamscan executable (NEXUS_CLAMSCAN_PATH)")
