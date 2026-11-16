@@ -1189,4 +1189,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Enforce 0–1 bounds for elapsed-video and audience-watch ratios again at the SQLite persistence boundary, including direct store callers that bypass provider parsing.
 - Preserve valid average view percentages above 100% and retain the existing relative-retention handling.
 - Add regression tests for invalid direct-save metrics and malformed retention coordinates.
-- Draft PR [#137](https://github.com/justinhblee-prog/shorts/pull/137) is open; CI validation is pending.
+- GitHub Actions runs [43800058859](https://github.com/justinhblee-prog/shorts/actions/runs/43800058859) and [43800173862](https://github.com/justinhblee-prog/shorts/actions/runs/43800173862) passed the complete `scripts/validate.sh` workflow.
