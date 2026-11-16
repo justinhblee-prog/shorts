@@ -119,6 +119,35 @@ class TikTokPublishingTests(unittest.TestCase):
             )
         return attempt_id
 
+    def test_begin_rechecks_current_approval_and_queue_state_atomically(self):
+        # Simulate a reviewer reopening the job after publisher preflight but
+        # before the attempt reservation transaction starts.
+        self.prod.stage("job-1", "review", "review_pending")
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                ("job-1",),
+            )
+        with self.assertRaisesRegex(TikTokPublishError, "approval is no longer current"):
+            self.store.begin(
+                "job-1", "Approved caption", True, "operator-1",
+                "stale-approval-attempt", False, False,
+            )
+        self.assertIsNone(self.store.get("job-1"))
+
+    def test_begin_rejects_queue_state_that_is_not_approved(self):
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                ("job-1",),
+            )
+        with self.assertRaisesRegex(TikTokPublishError, "approval is no longer current"):
+            self.store.begin(
+                "job-1", "Approved caption", True, "operator-1",
+                "queue-state-mismatch-attempt", False, False,
+            )
+        self.assertIsNone(self.store.get("job-1"))
+
     def test_tiktok_upload_attempt_records_active_policy_version_and_check_date(self):
         record=self.store.begin(
             "job-1","Approved caption",True,"operator-1","audit-attempt",
