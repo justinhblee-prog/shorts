@@ -33,6 +33,21 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(job["idempotency_key"],
                          "schedule:" + item["id"] + ":" + item["next_run_at"])
 
+    def test_scheduled_tiktok_platform_is_preserved_in_dispatched_job(self):
+        now=datetime.now(timezone.utc)
+        item=self.schedules.create(
+            "TikTok daily",3600,
+            {"brand":"Brain Glitch","region":"US","language":"English",
+             "topic":"Test","platforms":["tiktok"]},
+            start_at=(now-timedelta(minutes=5)).isoformat(),
+        )
+        result=self.schedules.dispatch_due(self.queue,now=now)
+        self.assertEqual(result["count"],1)
+        job=self.queue.claim("tiktok-worker","localhost",job_type="short_video_production")
+        self.assertIsNotNone(job)
+        self.assertEqual(job["payload"]["platforms"],["tiktok"])
+        self.assertEqual(job["payload"]["topic"],"Test")
+
     def test_pending_outbox_is_replayed_idempotently(self):
         now = datetime.now(timezone.utc)
         item = self.schedule(now - timedelta(minutes=5))
