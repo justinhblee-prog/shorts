@@ -1980,3 +1980,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Preserve attempt fencing and write the failure audit only when the active attempt transitions from uploading to failed.
 - Regression verifies one failure audit and that a delayed stale failure cannot downgrade a newer uploading attempt.
 - Deterministic local SQLite validation only; no live YouTube API test is claimed.
+
+
+## BUILD-00264 — Revalidate YouTube metrics lease after OAuth initialization
+- Move the final metrics-collector lease assertion to after service/OAuth initialization and immediately before the outbound YouTube Data API request, for both batch polling and manual refresh.
+- OAuth token refresh or client construction can block long enough for the lease to expire or be replaced; the prior pre-initialization assertion left a window in which a stale collector could still issue a quota-consuming request.
+- Add batch and manual regressions that replace the lease during service initialization and verify no YouTube list request is sent.
+- Deterministic local SQLite/fake-service CI only; no live YouTube OAuth or API validation is claimed.

@@ -803,8 +803,11 @@ class YouTubePublisher:
         video_ids = self.store.due_metric_video_ids(limit, min_age_seconds)
         if not video_ids:
             return {"requested": 0, "collected": 0, "missing": [], "source": "YouTube Data API v3"}
-        self.store.assert_metrics_collector_lease(lease_owner, lease_token)
         service = self._service()
+        # OAuth/token initialization can block long enough for this lease to
+        # expire or be replaced. Fence the outbound request at the last
+        # possible point, not before service construction.
+        self.store.assert_metrics_collector_lease(lease_owner, lease_token)
         response = service.videos().list(
             part="statistics,status", id=",".join(video_ids), maxResults=len(video_ids)
         ).execute()
@@ -843,8 +846,11 @@ class YouTubePublisher:
         elif not lease_owner or not lease_token:
             raise ValueError("Both metrics collector lease owner and token are required")
         try:
-            self.store.assert_metrics_collector_lease(lease_owner, lease_token)
             service = self._service()
+            # OAuth/token initialization can block long enough for this lease
+            # to expire or be replaced. Revalidate immediately before the
+            # outbound request.
+            self.store.assert_metrics_collector_lease(lease_owner, lease_token)
             response = service.videos().list(
                 part="statistics,status", id=video_id
             ).execute()
