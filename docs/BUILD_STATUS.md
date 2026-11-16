@@ -2090,3 +2090,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Include production jobs cancelled while a provider request may be in flight in the ambiguous-production operator queue.
 - Permit retry authorization only from the exact cancelled/ambiguous state, requiring operator evidence and note; transition the queue and production run to retry-authorized state while retaining the global pause and immutable audit trail.
 - Regression covers discovery, missing-evidence rejection, authorized retry, production-run state, and audit provenance. GitHub Actions validation is pending; no live provider-console or production API verification is claimed.
+
+
+## BUILD-00280 — Capture cancellation timestamps after acquiring the queue write lock
+- Move cancellation timestamp capture inside the SQLite `BEGIN IMMEDIATE` transaction, after the write lock is acquired.
+- Prevent lock contention from causing a cancellation's persisted `updated_at` and audit-event timestamp to predate the actual serialized state transition.
+- Add a deterministic lock-contention regression that advances the controlled clock while cancellation waits for the write lock and checks both the job timestamp and cancellation event timestamp.
+- Validation is pending GitHub Actions. This is local SQLite concurrency coverage only; no production database or provider validation is claimed.
