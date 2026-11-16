@@ -10,6 +10,14 @@ Automate a profitable short-form video operation: global topic discovery → evi
 
 Business success is measured by verified net revenue, ROI, content throughput, and operating cost. Forecasts remain estimates. Public publishing requires explicit human approval.
 
+## Recommendation system — validation and learning boundary
+
+- Current editorial score is 100 points: freshness (0–40), editorial brand fit (0–40), source-provenance completeness (0–10), and topic distinctiveness (0–10).
+- Historical brand/region/topic performance, YouTube Analytics retention, and comparable cohorts are displayed as separate evidence; they do not currently alter ranking.
+- The portal explicitly captures recommendation exposures through the snapshot endpoint. Only selected recommendations linked to production jobs can later contribute measured outcomes, so the resulting dataset is observational and selection-biased.
+- Chronological holdout diagnostics require a minimum of five eligible recommendation runs for metric-level checks and at least ten distinct selected/measured outcomes for the outcome-level holdout. Per-cohort coverage is also checked.
+- Automatic score adjustment remains disabled until real production data demonstrates stable improvement across holdouts. No ranking uplift or platform-algorithm advantage is claimed from mocked tests.
+
 ## Brand portfolio
 
 1. Brain Glitch — neuroscience and psychology
@@ -27,7 +35,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 | ID | Scope | State |
 |---|---|---|
-| BUILD-00001 | Durable queue and Worker Lease | Source implemented; execution validation blocked |
+| BUILD-00001 | Durable queue and Worker Lease | CI lease/heartbeat regressions passed; production runtime verification pending |
 | BUILD-00002 | Global trend ingestion | Provider/API/tests implemented; live and runtime validation pending |
 | BUILD-00003 | Competitor/channel intelligence | Provider/API/tests implemented; API-key and runtime validation pending |
 | BUILD-00004 | Profitability scoring and prioritization | Scenario calculator/API/tests implemented; runtime validation pending |
@@ -45,14 +53,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - The read-only integrity endpoint enforces a page size of 1–200, offset of 0–1,000,000, and cursor length of at most 512 characters at the HTTP boundary.
 - Cursor pagination cannot be combined with a non-zero offset; malformed cursors return HTTP 422 while storage configuration conflicts remain HTTP 409.
 - The endpoint remains read-only and retains the existing production-read permission requirement.
-- Automated validation is pending.
+- CI passed twice: runs 43832590556 and 43832598683; 549 backend tests in each run. The API boundary regression suite is included.
 
 ## BUILD-00189 — provider-attempt diagnostic redaction
 
 - The provider-attempt read endpoint now returns operational metadata only; raw provider response JSON, signed artifact URLs, idempotency keys, provider request IDs, and raw transport errors are withheld.
 - The endpoint reports whether a response/error exists and uses a fixed instruction to inspect protected server logs.
 - Durable provider response data remains available to the server-side recovery/adoption flow; this change does not disable recovery.
-- Automated validation is pending.
+- CI passed twice: runs 43832807638 and 43832847968; 550 backend tests in each run, including provider diagnostic redaction.
 
 ## BUILD-00190 — fence provider-attempt finalization by active worker lease
 
@@ -60,7 +68,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Perform lease validation and attempt-state transition inside the same `BEGIN IMMEDIATE` transaction, preventing a stale worker from finalizing an attempt after its lease was replaced.
 - Preserve the unresolved `request_started` record after a stale worker is rejected; reconcile the ambiguous external outcome rather than trusting a former lease holder.
 - Add regression tests for stale response and stale transport-error finalization.
-- Automated validation is pending.
+- CI passed: run 43833372844 (550 tests) and run 43833380845 (552 tests, including both stale-worker regressions).
 
 ## BUILD-00191 — redact provider diagnostics from review payloads
 
@@ -68,7 +76,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Recursively remove provider credentials, idempotency/request identifiers, signed URL fields, response bodies, and raw transport errors from artifact metadata while retaining review-critical script, policy, and quality fields.
 - Apply the same safe projection to pending and approved review payloads so legacy records are protected at read time without destroying server-side recovery data.
 - Add regression coverage for nested provider secrets and raw errors in pending and approved review responses.
-- Automated validation is pending.
+- CI passed: run 43833989205 (553 tests) and run 43834132229 (554 tests, including production-detail and generic token redaction regressions).
 
 ## BUILD-00192 — redact platform publishing diagnostics
 
@@ -76,7 +84,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Sanitize platform error fields and immutable event payloads in the approved-review list while preserving statuses, reconciliation flags, video IDs, and operator-visible audit context.
 - Keep raw diagnostic details in protected server-side storage; never return bearer-like provider error text through routine publishing reads.
 - Add API regression tests for both platform detail routes and the combined approved-review payload.
-- Automated validation is pending.
+- CI passed: run 43834493668 (554 tests) and run 43834500529 (556 tests, including YouTube/TikTok publication redaction regressions).
 
 ## BUILD-00193 — redact queue and worker diagnostic responses
 
@@ -85,7 +93,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Apply safe response projections to production reconciliation reads and retry reconciliation results.
 - Preserve raw diagnostic context in durable server-side records for protected investigation.
 - Add regression tests for job, event, and worker-control response redaction.
-- Automated validation is pending.
+- CI passed: run 43834848565 (556 tests) and run 43834852097 (558 tests, including queue/job/event and worker-control redaction regressions).
 
 ## BUILD-00194 — sanitize provider failure responses
 
@@ -93,7 +101,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Return a fixed, stage-aware API error message from production execution instead of exposing provider exception text to the caller.
 - Preserve detailed failure context in protected server-side records for operator investigation.
 - Add regression tests proving provider response bodies and bearer-like values are absent from exceptions and API responses.
-- Automated validation is pending.
+- CI passed: run 43835160754 and run 43835170439; 559 backend tests in each run, including provider HTTP body and API response redaction.
 
 ## BUILD-00195 — verify lease renewal during active provider execution
 
@@ -101,7 +109,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Verify the active pipeline receives the exact lost-lease stop event and that a successful heartbeat permits the normal review-pending handoff.
 - Confirm the worker always stops and joins its heartbeat thread after execution.
 - This validates the local supervised worker path; it does not claim external API clients automatically renew leases.
-- Automated validation is pending.
+- CI passed: run 43835489554; 560 backend tests, including the active-provider heartbeat regression.
 
 ## BUILD-00196 — keep deterministic policy blocks job-scoped
 
@@ -109,7 +117,7 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Terminalize only the blocked job with a dedicated `policy_blocked` error code and HTTP 422 response.
 - Do not pause the shared production queue for a deterministic content-policy preflight block; unrelated eligible jobs remain runnable.
 - Add an API regression proving the job is failed and the global worker pause is not invoked.
-- Automated validation is pending.
+- CI passed: run 43835765458 (560 tests) and run 43835771230 (561 tests, including the API policy-block isolation regression).
 
 ## BUILD-00001 — durable queue and Worker Lease
 
