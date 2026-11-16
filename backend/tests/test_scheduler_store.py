@@ -165,6 +165,18 @@ class SchedulerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.schedules.dispatch_due(self.queue, now=datetime(2026, 1, 1))
 
+
+    def test_schedule_interval_rejects_coercion_and_out_of_range_values(self):
+        payload = {"brand": "B", "region": "US", "language": "English", "topic": "x"}
+        for invalid in (True, False, 3600.5, "3600", 3599, 31536001, 10**12):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "interval_seconds|schedule interval"):
+                    self.schedules.create("invalid", invalid, payload)
+        minimum = self.schedules.create("minimum", 3600, payload)
+        maximum = self.schedules.create("maximum", 31536000, payload)
+        self.assertEqual(minimum["interval_seconds"], 3600)
+        self.assertEqual(maximum["interval_seconds"], 31536000)
+
     def test_scheduler_lease_duration_is_strict_and_bounded(self):
         for invalid in (True, False, 1.5, "90", 0, -1, 3601, 10**9):
             with self.subTest(invalid=invalid):

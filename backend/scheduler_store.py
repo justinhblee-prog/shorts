@@ -70,9 +70,13 @@ class ScheduleStore:
     def create(self, name, interval_seconds, payload, start_at=None):
         if not name.strip():
             raise ValueError("schedule name is required")
-        interval = int(interval_seconds)
+        if isinstance(interval_seconds, bool) or not isinstance(interval_seconds, int):
+            raise ValueError("interval_seconds must be an integer")
+        interval = interval_seconds
         if interval < 3600:
             raise ValueError("minimum schedule interval is one hour")
+        if interval > 31536000:
+            raise ValueError("maximum schedule interval is 365 days")
         now = datetime.now(timezone.utc)
         start = _dt(start_at) if start_at else now
         if start.tzinfo is None:

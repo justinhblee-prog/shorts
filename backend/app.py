@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Header, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt
 from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflict
 from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
@@ -203,7 +203,7 @@ class LedgerEntry(BaseModel):
 
 class ScheduleInput(BaseModel):
     name:str=Field(min_length=1,max_length=120)
-    interval_seconds:int=Field(ge=3600,le=31536000)
+    interval_seconds:StrictInt=Field(ge=3600,le=31536000)
     brand:str=Field(min_length=1,max_length=100)
     region:str=Field(min_length=2,max_length=8)
     language:str=Field(min_length=2,max_length=40)

@@ -1308,3 +1308,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Reject floats, strings, booleans, non-positive values, and unbounded TTLs before worker or scheduler state is initialized or renewed.
 - Add regression coverage for constructor validation and scheduler acquire/renew validation.
 - GitHub Actions run [43809336911](https://github.com/justinhblee-prog/shorts/actions/runs/43809336911) passed the complete `scripts/validate.sh` workflow on the final code/test commit.
+
+
+## BUILD-00161 — strict production schedule interval validation
+
+- Reject boolean, float and string interval values at both the API model and SQLite store boundary; no implicit integer coercion.
+- Enforce the same 1-hour minimum and 365-day maximum in the persistence layer as the API contract.
+- Add regression tests for invalid types, lower/upper bounds and valid boundary values.
+- This protects direct/internal ScheduleStore callers as well as HTTP clients; it does not alter the supported scheduling cadence.
+- CI validation pending.

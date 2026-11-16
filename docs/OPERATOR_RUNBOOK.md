@@ -490,3 +490,11 @@ GitHub Actions run [43796187131](https://github.com/justinhblee-prog/shorts/acti
 ### BUILD-00138 validation checkpoint
 
 GitHub Actions run [43797131269](https://github.com/justinhblee-prog/shorts/actions/runs/43797131269) passed **462 backend tests** and the complete validation script. After deployment, restart the collector service and verify token-column migrations before enabling multiple collector instances.
+
+
+## 8. Production schedule interval limits
+
+- Schedule creation accepts whole-number intervals from **3,600 seconds (1 hour) through 31,536,000 seconds (365 days)**.
+- The API rejects booleans, fractional values and numeric strings instead of silently converting them to integers. The persistence layer independently enforces the same contract for internal callers.
+- To inspect schedules, use **운영 관제 · 수익 분석 → 예약·작업 현황** and review each schedule's next-run timestamp and active state. Deactivating a schedule cancels undispatched outbox entries; reactivating it does not replay those cancelled occurrences.
+- The scheduler is an interval scheduler, not a sub-minute polling service. It does not support one-minute recurring schedules.
