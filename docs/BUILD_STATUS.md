@@ -1873,3 +1873,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - When an old worker reports an uncertain result while a newer attempt is actively uploading, the audit event now retains the latest non-null video ID belonging to the old attempt.
 - The newer attempt's canonical video_id remains untouched; missing old IDs remain null rather than borrowing the new attempt's value.
 - Added regression coverage and updated BUILD_STATUS. Backend deterministic CI only; no live YouTube API verification.
+
+## BUILD-00229 — Verify safe late TikTok failure statuses do not block a newer attempt
+- Added regression coverage for a delayed FAILED status from a superseded attempt.
+- The old failure is appended to the old attempt's audit trail with its publish ID and original consent operator; the active new attempt remains initializing and its identity/video fields remain unchanged.
+- This distinguishes a provider-confirmed old failure from late PROCESSING/PUBLISH_COMPLETE outcomes, which correctly require reconciliation and block retry.
+- Backend deterministic CI only; no live TikTok API verification.
