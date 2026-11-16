@@ -154,7 +154,14 @@ class TikTokOAuthStore:
     def begin_disconnect(self, operation_id, access_token_fingerprint):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if c.execute("SELECT 1 FROM tiktok_oauth_disconnect_lease WHERE id=1").fetchone():
+            c.execute(
+                "DELETE FROM tiktok_oauth_disconnect_lease WHERE id=1 AND expires_at<=?",
+                (_stamp(_now()),),
+            )
+            if c.execute(
+                "SELECT 1 FROM tiktok_oauth_disconnect_lease WHERE id=1 AND expires_at>?",
+                (_stamp(_now()),),
+            ).fetchone():
                 return False
             row = c.execute(
                 "SELECT access_token_encrypted FROM tiktok_oauth_tokens WHERE id=1"
@@ -179,11 +186,19 @@ class TikTokOAuthStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             lease = c.execute(
-                "SELECT operation_id FROM tiktok_oauth_disconnect_lease WHERE id=1"
+                "SELECT operation_id,access_token_fingerprint,expires_at "
+                "FROM tiktok_oauth_disconnect_lease WHERE id=1"
             ).fetchone()
-            if lease is None or lease["operation_id"] != operation_id:
+            if (lease is None or lease["operation_id"] != operation_id
+                    or lease["expires_at"] <= _stamp(_now())):
                 return False
             if success:
+                current = c.execute(
+                    "SELECT access_token_encrypted FROM tiktok_oauth_tokens WHERE id=1"
+                ).fetchone()
+                if (current is None or current["access_token_encrypted"]
+                        != lease["access_token_fingerprint"]):
+                    return False
                 c.execute("DELETE FROM tiktok_oauth_tokens WHERE id=1")
                 c.execute("DELETE FROM tiktok_oauth_refresh_lease WHERE id=1")
             c.execute("DELETE FROM tiktok_oauth_disconnect_lease WHERE id=1 AND operation_id=?",
@@ -342,7 +357,7 @@ class TikTokOAuthManager:
         saved = self.store.save_tokens(values, refresh_lease=refresh_lease)
         if not saved:
             raise TikTokOAuthError(
-                "TikTok refresh lease was lost before token persistence; refusing stale token overwrite"
+                "TikTok token persistence was fenced by a concurrent token operation; retry authorization"
             )
         return values
 
