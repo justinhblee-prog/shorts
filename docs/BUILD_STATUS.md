@@ -2046,4 +2046,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - A heartbeat may be blocked inside SQLite's configured 30-second busy timeout; clearing the active job context or proceeding to another claim while it is still alive can let a stale heartbeat race with subsequent worker lifecycle actions.
 - Wait for the heartbeat thread to exit before clearing active-job state.
 - Add a regression that blocks the heartbeat database call and asserts cleanup joins without a timeout.
-- GitHub Actions validation pending. Unit tests use a controlled thread and mocked provider execution; no live production worker/database deployment validation is claimed.
+- GitHub Actions [run #3500](https://github.com/justinhblee-prog/shorts/actions/runs/43916192844) succeeded on commit `7c647861481854ed91216dac9d9b69c4ce1d89ba`; `scripts/validate.sh` passed. Unit tests use a controlled thread and mocked provider execution; no live production worker/database deployment validation is claimed.
