@@ -14,6 +14,16 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.db = os.path.join(self.tmp.name, "review.sqlite3")
         self.production = ProductionStore(self.db)
         self.queue = JobQueue(self.db)
+        with self.queue.db() as conn:
+            timestamp = "2026-01-01T00:00:00+00:00"
+            conn.execute("""INSERT INTO pipeline_jobs
+                (id,job_type,payload_json,status,priority,attempt,max_attempts,
+                 available_at,created_at,updated_at,completed_at)
+                VALUES('job-1','short_video_production','{}','review_pending',
+                       100,1,3,?,?,?,?)""",
+                (timestamp,timestamp,timestamp,timestamp))
+            self.queue.event(conn,"job-1","completed","running","review_pending",
+                             "test-worker",{})
         self.review = ReviewStore(self.db)
         self.production.create("job-1", {
             "brand": "Brain Glitch", "region": "US",
@@ -183,6 +193,9 @@ class ReviewWorkflowTests(unittest.TestCase):
     def test_approval_is_explicit_and_audited_with_snapshot(self):
         result = self.review.decide("job-1", "approved", "operator-1", "Looks good")
         self.assertEqual(result["production"]["status"], "approved")
+        self.assertEqual(self.queue.get("job-1")["status"], "approved")
+        self.assertEqual(self.queue.events("job-1")[-1]["event_type"], "review_decision")
+        self.assertEqual(self.queue.events("job-1")[-1]["to_status"], "approved")
         self.assertEqual(result["decision"]["reviewer_id"], "operator-1")
         self.assertEqual(result["decision"]["artifact_snapshot"][0]["artifact_url"],
                          "https://media.example/video.mp4")
@@ -203,12 +216,33 @@ class ReviewWorkflowTests(unittest.TestCase):
         result = self.review.decide("job-1", "revision_requested",
                                     "operator-1", "Captions are inaccurate")
         self.assertEqual(result["production"]["status"], "revision_requested")
+        self.assertEqual(self.queue.get("job-1")["status"], "revision_requested")
+        self.assertEqual(self.queue.events("job-1")[-1]["to_status"], "revision_requested")
 
     def test_second_decision_cannot_overwrite_first(self):
         self.review.decide("job-1", "approved", "operator-1")
         with self.assertRaises(ReviewConflict):
             self.review.decide("job-1", "rejected", "operator-2", "Changed mind")
         self.assertEqual(len(self.review.history("job-1")), 1)
+
+    def test_rejection_updates_queue_and_preserves_reason(self):
+        result = self.review.decide("job-1", "rejected", "operator-1",
+                                    "Rights evidence is insufficient")
+        self.assertEqual(result["production"]["status"], "rejected")
+        job = self.queue.get("job-1")
+        self.assertEqual(job["status"], "rejected")
+        self.assertEqual(job["error_code"], "review_rejected")
+        self.assertEqual(job["error_message"], "Rights evidence is insufficient")
+        self.assertEqual(self.queue.events("job-1")[-1]["event_type"], "review_decision")
+
+    def test_review_decision_fails_closed_when_queue_state_is_not_pending(self):
+        with self.queue.db() as conn:
+            conn.execute("UPDATE pipeline_jobs SET status='queued' WHERE id='job-1'")
+        with self.assertRaisesRegex(ReviewConflict, "Queue job is not in review_pending"):
+            self.review.decide("job-1", "approved", "operator-1", "Looks good")
+        self.assertEqual(self.production.get("job-1")["status"], "review_pending")
+        self.assertEqual(self.queue.get("job-1")["status"], "queued")
+        self.assertEqual(self.review.history("job-1"), [])
 
     def test_unknown_job(self):
         with self.assertRaises(ReviewNotFound):
