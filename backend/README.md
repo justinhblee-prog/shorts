@@ -454,3 +454,6 @@ GitHub Actions run https://github.com/justinhblee-prog/shorts/actions/runs/43781
 - No recommendation score changes are enabled. Sparse samples, missing data and ineligible reports remain explicit; actual channel OAuth/API access and live account data must be validated in deployment.
 - OAuth must have the currently documented `youtube.readonly` permission for `reports.query`. A refresh token that was not granted the required scope needs a fresh operator consent flow; changing the requested scope in code does not upgrade an existing token.
 - Automated validation pending on this branch.
+
+
+BUILD-00032 automated validation: GitHub Actions run [43785987107](https://github.com/justinhblee-prog/shorts/actions/runs/43785987107) passed **336 backend tests** and `scripts/validate.sh`. This is mocked API-contract and local integration validation, not a live YouTube channel authorization or Analytics-data verification.
