@@ -386,6 +386,75 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.record_collection("unknown")
 
+    def test_collector_rechecks_lease_after_oauth_initialization_before_provider_call(self):
+        token = self.store.acquire_lease("worker-old", 300)
+        reports = FakeReports()
+
+        class LeaseReplacingCollector(YouTubeAnalyticsCollector):
+            def _service(inner_self):
+                with inner_self.store.db() as connection:
+                    connection.execute(
+                        "UPDATE youtube_analytics_collector_lease SET token='replacement' WHERE id=1"
+                    )
+                return FakeService(reports)
+
+        collector = LeaseReplacingCollector(self.store, today=lambda: date(2026, 11, 17))
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            collector.collect_video(
+                "video-stale", start_date="2026-11-01", end_date="2026-11-14",
+                lease_owner="worker-old", lease_token=token,
+            )
+        self.assertEqual(reports.calls, [])
+
+    def test_collector_stops_batch_after_lease_loss_instead_of_continuing(self):
+        token = self.store.acquire_lease("worker-old", 300)
+        reports = FakeReports()
+
+        class LeaseReplacingCollector(YouTubeAnalyticsCollector):
+            def _service(inner_self):
+                with inner_self.store.db() as connection:
+                    connection.execute(
+                        "UPDATE youtube_analytics_collector_lease SET token='replacement' WHERE id=1"
+                    )
+                return FakeService(reports)
+
+        self.store.due_video_ids = lambda limit, min_age_seconds: ["video-one", "video-two"]
+        collector = LeaseReplacingCollector(
+            self.store, today=lambda: date(2026, 11, 17)
+        )
+        self.store.upload_date = lambda video_id: "2026-01-01T00:00:00+00:00"
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            collector.refresh_due_metrics(
+                lease_owner="worker-old", lease_token=token,
+            )
+        self.assertEqual(reports.calls, [])
+
+    def test_collector_rechecks_lease_before_retention_request(self):
+        token = self.store.acquire_lease("worker-old", 300)
+        reports = FakeReports()
+
+        class ReplacingReports(FakeReports):
+            def query(inner_self, **kwargs):
+                result = super().query(**kwargs)
+                if "dimensions" not in kwargs:
+                    with self.store.db() as connection:
+                        connection.execute(
+                            "UPDATE youtube_analytics_collector_lease SET token='replacement' WHERE id=1"
+                        )
+                return result
+
+        replacing_reports = ReplacingReports()
+        collector = YouTubeAnalyticsCollector(
+            self.store, service=FakeService(replacing_reports),
+            today=lambda: date(2026, 11, 17),
+        )
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            collector.collect_video(
+                "video-stale", start_date="2026-11-01", end_date="2026-11-14",
+                lease_owner="worker-old", lease_token=token,
+            )
+        self.assertEqual(len(replacing_reports.calls), 1)
+
     def test_lease_prevents_overlapping_collectors(self):
         token = self.store.acquire_lease("worker-a", 300)
         self.assertTrue(token)

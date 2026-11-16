@@ -42,6 +42,10 @@ def _as_number(value, allow_negative=False):
         return None
 
 
+class YouTubeAnalyticsLeaseLost(RuntimeError):
+    """Raised when an Analytics collector no longer owns its lease."""
+
+
 class YouTubeAnalyticsStore:
     def __init__(self, db_path="data/nexus.sqlite3"):
         self.db_path = str(db_path)
@@ -322,6 +326,10 @@ class YouTubeAnalyticsStore:
             result["retention_curve"] = []
         return result
 
+    def assert_lease(self, owner_id, token):
+        with self.db() as connection:
+            self._assert_lease(connection, owner_id, token)
+
     @staticmethod
     def _assert_lease(connection, owner_id, token):
         if owner_id is None and token is None:
@@ -335,7 +343,7 @@ class YouTubeAnalyticsStore:
             row is None or row["owner_id"] != owner_id or row["token"] != token
             or float(row["lease_until"]) <= datetime.now(timezone.utc).timestamp()
         ):
-            raise RuntimeError("YouTube Analytics lease lost; stale write rejected")
+            raise YouTubeAnalyticsLeaseLost("YouTube Analytics lease lost; stale write rejected")
 
     def acquire_lease(self, owner_id, lease_seconds=300, now=None):
         if not isinstance(owner_id, str) or not owner_id.strip() or len(owner_id) > 200:
@@ -582,6 +590,10 @@ class YouTubeAnalyticsCollector:
                 "live_connectivity_verified": False,
             }
         service = self._service()
+        # OAuth refresh/client initialization may block while the collector
+        # lease expires or is replaced. Revalidate immediately before each
+        # quota-consuming Analytics request.
+        self.store.assert_lease(lease_owner, lease_token)
         report = service.reports().query(
             ids="channel==MINE",
             startDate=start.isoformat(),
@@ -597,6 +609,7 @@ class YouTubeAnalyticsCollector:
         retention_error = None
         retention = []
         try:
+            self.store.assert_lease(lease_owner, lease_token)
             retention_report = service.reports().query(
                 ids="channel==MINE",
                 startDate=start.isoformat(),
@@ -608,6 +621,8 @@ class YouTubeAnalyticsCollector:
             ).execute()
             retention = self._parse_retention_response(retention_report)
             retention_status = "available" if retention else "no_data"
+        except YouTubeAnalyticsLeaseLost:
+            raise
         except Exception as exc:
             # Keep watch-time metrics usable when a video is not eligible for
             # audience-retention reporting or the API denies that report.
@@ -652,6 +667,11 @@ class YouTubeAnalyticsCollector:
                 results.append(self.collect_video(
                     video_id, lease_owner=lease_owner, lease_token=lease_token
                 ))
+            except YouTubeAnalyticsLeaseLost:
+                # Lease loss invalidates the whole batch. Do not keep
+                # initializing OAuth or issuing provider requests for later
+                # videos from this stale collector.
+                raise
             except Exception as exc:
                 failures.append({"video_id": video_id, "error": type(exc).__name__})
         return {
