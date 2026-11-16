@@ -1,6 +1,8 @@
 import os,tempfile,unittest
 from production_pipeline import ProductionStore
 from youtube_publishing import YouTubeUploadStore
+from tiktok_publishing import TikTokPublishStore
+from tiktok_metrics import TikTokMetricsStore
 from review_workflow import ReviewStore
 from ledger import LedgerStore
 from performance_insights import PerformanceAnalyzer
@@ -27,6 +29,38 @@ class PerformanceTests(unittest.TestCase):
   self.l.record({"brand":brand,"region":"US","entry_type":kind,"amount":amount,
    "currency":currency,"source_type":"operator_receipt","source_reference":ref,
    "occurred_at":"2026-11-15T00:00:00+00:00"})
+ def test_tiktok_performance_uses_tiktok_owned_video_snapshots_only(self):
+  job="tt-1"
+  self.p.create(job,{"brand":"Brain Glitch","region":"US","language":"English","topic":"Sleep"})
+  self.p.stage(job,"rendered","review_pending")
+  self.p.artifact(job,"rendering","video","https://media.example/tt.mp4",
+                  {"duration_seconds":25,"aspect_ratio":"9:16"})
+  store=TikTokPublishStore(self.db)
+  attempt=store.begin(job,"Sleep tip",False,"operator-1","attempt-tt",False,False)
+  store.set_initialized(job,attempt["attempt_id"],"publish-tt",{"creator_nickname":"test"})
+  store.mark_status(job,attempt["attempt_id"],"PUBLISH_COMPLETE",["tt-video-1"])
+  metrics=TikTokMetricsStore(self.db)
+  metrics.save_snapshot(job,{"id":"tt-video-1","view_count":100,"like_count":10,
+                             "comment_count":2,"share_count":1})
+  metrics.save_snapshot(job,{"id":"tt-video-1","view_count":700,"like_count":40,
+                             "comment_count":8,"share_count":5})
+  with metrics.db() as connection:
+   ids=[row["id"] for row in connection.execute(
+    "SELECT id FROM tiktok_video_metric_snapshots WHERE video_id='tt-video-1' ORDER BY id"
+   )]
+   connection.execute("UPDATE tiktok_video_metric_snapshots SET collected_at=? WHERE id=?",
+    ("2026-11-15T00:00:00+00:00",ids[0]))
+   connection.execute("UPDATE tiktok_video_metric_snapshots SET collected_at=? WHERE id=?",
+    ("2026-11-15T06:00:00+00:00",ids[1]))
+  result=PerformanceAnalyzer(self.db).analyze(platform="tiktok")
+  self.assertEqual(result["platform"],"tiktok")
+  self.assertEqual(len(result["videos"]),1)
+  self.assertEqual(result["videos"][0]["video_id"],"tt-video-1")
+  self.assertEqual(result["videos"][0]["views_per_hour"],100.0)
+  self.assertEqual(result["videos"][0]["interaction_delta"],40)
+  self.assertEqual(result["videos"][0]["interactions_per_1000_view_delta"],66.67)
+  self.assertEqual(result["metric_boundary"]["ranking_score_adjustment"],0)
+
  def test_insufficient_snapshots_not_misrepresented_as_growth(self):
   self.video("j1","Brain Glitch","US","Sleep","vid1")
   r=PerformanceAnalyzer(self.db).analyze()
