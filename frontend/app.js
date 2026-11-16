@@ -402,10 +402,22 @@
       (w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status==="stale"?"응답 지연":x.status==="offline"?"오프라인":"온라인")+'</b><small>'+esc(x.hostname||"")+' · 마지막 응답 '+esc(x.last_seen_at||"")+' · 경과 '+esc(Number(x.heartbeat_age_seconds||0))+'초 / 기준 '+esc(Number(x.stale_after_seconds||0))+'초</small></div>').join("")+
       '<h4>운영 중지·재개 감사 기록</h4>'+(events||'<div class="empty-state">아직 제어 이력이 없습니다.</div>');
   }
+  async function loadIntegrityReport(){
+    const report=await api("/api/production/integrity-report?limit=50");
+    const paused=!!report.worker_control?.paused,count=Number(report.unresolved||0);
+    $("integritySummary").innerHTML='<div class="integrity-status '+(count?"integrity-warning":"integrity-clear")+'"><b>'+count.toLocaleString()+'건 불일치</b><span>조회 '+Number(report.scanned||0).toLocaleString()+'건 · '+(paused?"작업 큐 중지":"작업 큐 정상")+'</span></div>';
+    const labels={approval_or_upload_boundary:"승인·업로드 경계",ambiguous_external_outcome:"외부 실행 결과 불명확",terminal_state_mismatch:"종료 상태 불일치",review_handoff_mismatch:"검수 인계 불일치",unclassified_lifecycle_mismatch:"분류되지 않은 상태 불일치"};
+    const items=Array.isArray(report.items)?report.items:[];
+    $("integrityList").innerHTML=items.length?items.map(item=>{
+      const history=Array.isArray(item.audit_history)?item.audit_history:[];
+      const audit=history.map(event=>'<div class="integrity-audit"><b>'+esc(event.event_type)+' · '+esc(event.from_status||"—")+' → '+esc(event.to_status||"—")+'</b><small>'+esc(event.created_at||"")+(event.worker_id?' · worker '+esc(event.worker_id):"")+'</small></div>').join("");
+      return '<article class="integrity-item"><div class="integrity-item-head"><b>'+esc(labels[item.classification]||item.classification||"상태 불일치")+'</b><code>'+esc(item.job_id)+'</code></div><div class="integrity-ledgers"><div><small>제작 원장</small><strong>'+esc(item.production_status)+'</strong><time>'+esc(item.production_updated_at||"")+'</time></div><div><small>작업 큐</small><strong>'+esc(item.queue_status)+'</strong><time>'+esc(item.queue_updated_at||"")+'</time></div></div><p>'+esc(item.reason||"원인 정보 없음")+'</p><p class="integrity-next"><b>권장 조치</b> '+esc(item.recommended_action||"운영자 확인 필요")+'</p>'+(item.error_code||item.error_message?'<small class="integrity-error">큐 오류: '+esc(item.error_code||"")+' '+esc(item.error_message||"")+'</small>':"")+(audit?'<details><summary>최근 감사 이력 '+history.length+'건</summary>'+audit+'</details>':'')+'<small class="integrity-boundary">진단 전용 · 자동 복구·재시도·승인·게시 없음</small></article>';
+    }).join(""):'<div class="empty-state">'+(count?"현재 표시할 불일치 항목이 없습니다. 조회 한도를 확인하세요.":"제작 원장과 작업 큐의 상태 불일치가 발견되지 않았습니다.")+'</div>';
+  }
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -503,6 +515,7 @@
     finally{button.disabled=false;}
   });
   $("loadSchedules").addEventListener("click",()=>loadSchedules().catch(e=>toast(e.message)));
+  $("loadIntegrity").addEventListener("click",()=>loadIntegrityReport().catch(e=>toast(e.message)));
   $("loadInsights").addEventListener("click",()=>loadInsights().catch(e=>toast(e.message)));
   $("insightList").addEventListener("click",async e=>{
     const button=e.target.closest("button[data-youtube-analytics-refresh]");
