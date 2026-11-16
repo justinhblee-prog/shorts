@@ -64,7 +64,7 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                     {"name": "audienceWatchRatio"},
                     {"name": "relativeRetentionPerformance"},
                 ],
-                "rows": [[0.01, 1.0, 0.8], [0.5, 0.42, 1.1], [1.0, 0.1, 0.7]],
+                "rows": [[0.5, 0.42, 1.1], [0.01, 1.0, 0.8], [1.0, 0.1, 0.7]],
             },
         )
         collector = YouTubeAnalyticsCollector(
@@ -82,6 +82,7 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(saved["views"], 1000)
         self.assertEqual(saved["engaged_views"], 620)
         self.assertEqual(saved["engaged_view_share"], 0.62)
+        self.assertEqual(saved["retention_curve"][0]["elapsed_video_time_ratio"], 0.01)
         self.assertEqual(saved["retention_curve"][1]["audience_watch_ratio"], 0.42)
         self.assertEqual(reports.calls[0]["ids"], "channel==MINE")
         self.assertEqual(reports.calls[0]["filters"], "video==video-1")
