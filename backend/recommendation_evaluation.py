@@ -252,7 +252,9 @@ class RecommendationEvaluationStore:
             if not isinstance(trend_id, (str, int)) or isinstance(trend_id, bool):
                 continue
             trend_id = str(trend_id).strip()
-            if not trend_id:
+            # Keep the persisted identifier compatible with the production-link
+            # boundary, which accepts at most 160 characters.
+            if not trend_id or len(trend_id) > 160:
                 continue
             recommendation_score = _finite_nonnegative(
                 item.get("recommendation_score", 0)
