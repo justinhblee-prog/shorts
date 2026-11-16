@@ -493,9 +493,14 @@ class JobQueue:
             terminal = expiry_result["terminal"]
             production_expired = expiry_result["production_expired"]
             if production_expired:
+                # The global pause also terminalizes every other in-flight
+                # production job, not only the lease(s) that expired above.
+                still_running = c.execute("""SELECT COUNT(*) FROM pipeline_jobs
+                    WHERE status='running' AND job_type='short_video_production'""").fetchone()[0]
                 self._pause_production_in_transaction(c,
                     "Production worker lease expired; provider result may be ambiguous",
                     production_expired[0], n)
+                terminal += still_running
             c.commit()
         return {"requeued":recovered,"terminal":terminal}
 
