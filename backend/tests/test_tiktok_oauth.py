@@ -212,6 +212,67 @@ class TikTokOAuthTests(unittest.TestCase):
         with self.assertRaisesRegex(TikTokOAuthError, "video.list scope"):
             self.manager.get_access_token(required_scope="video.list")
 
+    def test_two_independent_managers_share_one_cross_process_refresh(self):
+        import threading
+        import time
+        from concurrent.futures import ThreadPoolExecutor
+
+        self.manager._save_token_response({
+            "access_token": "access-expired",
+            "refresh_token": "refresh-before-race",
+            "open_id": "creator-123",
+            "scope": "user.info.basic,video.publish,video.list",
+            "token_type": "Bearer",
+            "expires_in": 7200,
+            "refresh_expires_in": 15552000,
+        })
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_oauth_tokens SET access_expires_at=? WHERE id=1",
+                ((datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat(),),
+            )
+
+        calls = []
+        calls_lock = threading.Lock()
+        def refresh_transport(url, headers, body, timeout):
+            with calls_lock:
+                calls.append((url, body))
+            time.sleep(0.5)
+            return 200, json.dumps({
+                "access_token": "access-after-race",
+                "refresh_token": "refresh-after-race",
+                "open_id": "creator-123",
+                "scope": "user.info.basic,video.publish,video.list",
+                "token_type": "Bearer",
+                "expires_in": 7200,
+                "refresh_expires_in": 15552000,
+            }).encode("utf-8")
+
+        first = TikTokOAuthManager(
+            self.store, "client-key", "client-secret",
+            "https://example.test/api/tiktok/oauth/callback",
+            self.key, refresh_transport,
+        )
+        second_store = TikTokOAuthStore(self.db)
+        second = TikTokOAuthManager(
+            second_store, "client-key", "client-secret",
+            "https://example.test/api/tiktok/oauth/callback",
+            self.key, refresh_transport,
+        )
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(manager.get_access_token)
+                       for manager in (first, second)]
+            results = [future.result(timeout=8) for future in futures]
+
+        self.assertEqual(results, ["access-after-race", "access-after-race"])
+        self.assertEqual(len(calls), 1)
+        stored = self.store.token_record()
+        cipher = Fernet(self.key)
+        self.assertEqual(
+            cipher.decrypt(stored["refresh_token_encrypted"].encode()).decode(),
+            "refresh-after-race",
+        )
+
     def test_refresh_lease_fences_concurrent_processes(self):
         first = self.store.acquire_refresh_lease("process-a", 60)
         second = self.store.acquire_refresh_lease("process-b", 60)
