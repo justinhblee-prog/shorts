@@ -215,7 +215,7 @@ class BackupRestoreTests(unittest.TestCase):
             "NEXUS_BACKUP_ENCRYPTION_KEY": "",
             "NEXUS_BACKUP_ENCRYPTION_REQUIRED": "true",
         }):
-            with self.assertRaisesRegex(BackupRestoreError, "key is missing"):
+            with self.assertRaisesRegex(BackupRestoreError, "KEY is missing"):
                 create_backup(self.db, self.media, self.backups)
 
         plain = create_backup(self.db, self.media, self.backups, encryption_key=None)["backup_path"]
