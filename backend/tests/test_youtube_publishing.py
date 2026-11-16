@@ -809,5 +809,24 @@ class YouTubePublishingTests(unittest.TestCase):
                                            self.review,"Title")
 
 
+    def test_fail_is_fenced_to_active_attempt_and_audits_once(self):
+        first=self.uploads.begin("job-1","First attempt","")
+        self.assertTrue(self.uploads.touch_upload("job-1",first["attempt_id"]))
+        self.uploads.fail("job-1","remote not started",first["attempt_id"])
+        failed=self.uploads.get("job-1")
+        self.assertEqual(failed["status"],"failed")
+        failures=[event for event in failed["events"]
+                  if event["event_type"]=="upload_preflight_failed"]
+        self.assertEqual(len(failures),1)
+        self.assertEqual(failures[0]["attempt_id"],first["attempt_id"])
+        second=self.uploads.begin("job-1","Second attempt","")
+        self.assertTrue(self.uploads.touch_upload("job-1",second["attempt_id"]))
+        before=self.uploads.get("job-1")
+        self.uploads.fail("job-1","late failure from old attempt",first["attempt_id"])
+        after=self.uploads.get("job-1")
+        self.assertEqual(after["attempt_id"],second["attempt_id"])
+        self.assertEqual(after["status"],"uploading")
+        self.assertEqual(after["events"],before["events"])
+
 if __name__=="__main__":
     unittest.main()

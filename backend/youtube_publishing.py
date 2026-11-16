@@ -265,6 +265,9 @@ class YouTubeUploadStore:
 
     def fail(self,job_id,error,attempt_id=None):
         with self.db() as c:
+            # Serialize failure finalization with finish/reconciliation and
+            # capture the timestamp only after the SQLite write lock is held.
+            c.execute("BEGIN IMMEDIATE")
             now=_now()
             updated=c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
                          WHERE job_id=? AND status='uploading' AND attempt_id=?""",
