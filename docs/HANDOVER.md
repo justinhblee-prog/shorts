@@ -1142,3 +1142,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The complete validation script passed with **436 backend tests**.
 - Tests verify encrypted OAuth manager wiring, injected-collector behavior, lease release on provider failure, lease renewal by the active owner and refusal to resurrect an expired lease.
 - This is code-level verification. A live encrypted OAuth token, authorized channel and real Analytics report collection still require deployment validation.
+
+
+## BUILD-00134 — YouTube Analytics collection observability
+
+- `YouTubeAnalyticsStore` persists the latest collection cycle state and reports uploaded-video coverage.
+- `metrics_collector.run_youtube_analytics_once` writes running/succeeded/partial/failed transitions and releases its lease even when status persistence or provider work fails.
+- The API endpoint `GET /api/youtube/analytics/collection-status` is protected by `analytics.read`.
+- The dashboard performance panel shows collection state, last batch counts, uploaded-video coverage and latest report timestamp.
+- CI validation pending.
