@@ -300,7 +300,7 @@ def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"production.read")
     result=production_store.get(job_id)
     if result is None: raise HTTPException(404,"Production job not found")
-    return result
+    return review_store.sanitize_production_record(result)
 
 @app.get("/api/production/integrity-report")
 def production_integrity_report(

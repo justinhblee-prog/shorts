@@ -62,6 +62,14 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 - Add regression tests for stale response and stale transport-error finalization.
 - Automated validation is pending.
 
+## BUILD-00191 — redact provider diagnostics from review payloads
+
+- Redact raw production-run errors returned by the authenticated production detail and review endpoints.
+- Recursively remove provider credentials, idempotency/request identifiers, signed URL fields, response bodies, and raw transport errors from artifact metadata while retaining review-critical script, policy, and quality fields.
+- Apply the same safe projection to pending and approved review payloads so legacy records are protected at read time without destroying server-side recovery data.
+- Add regression coverage for nested provider secrets and raw errors in pending and approved review responses.
+- Automated validation is pending.
+
 ## BUILD-00001 — durable queue and Worker Lease
 
 - SQLite durable queue with WAL, foreign keys, busy timeout and safe connection cleanup.

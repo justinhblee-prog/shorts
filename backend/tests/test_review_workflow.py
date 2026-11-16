@@ -32,6 +32,47 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(pending[0]["artifacts"][0]["artifact_url"],
                          "https://media.example/video.mp4")
 
+    def test_review_payloads_redact_provider_errors_and_nested_secrets(self):
+        secret_error = "Authorization: Bearer provider-secret-value"
+        self.production.stage("job-1", "review", "review_pending", error=secret_error)
+        self.production.artifact("job-1", "script", "text", None, {
+            "script": "Safe script text",
+            "provider": "test-provider",
+            "access_token": "provider-access-secret",
+            "provider_token": "provider-generic-token-secret",
+            "nested": {
+                "authorization": "Bearer nested-secret",
+                "signed_url": "https://cdn.example/video?sig=signed-secret",
+                "provider_request_id": "private-request-id",
+                "error": "raw-provider-error",
+                "safe_metric": 0.97,
+            },
+        })
+
+        pending = self.review.list_pending()[0]
+        serialized_pending = str(pending)
+        for secret in (
+            "provider-secret-value", "provider-access-secret", "provider-generic-token-secret", "nested-secret",
+            "signed-secret", "private-request-id", "raw-provider-error",
+        ):
+            self.assertNotIn(secret, serialized_pending)
+        self.assertEqual(pending["error"], ReviewStore.SAFE_ERROR_NOTICE)
+        script = next(item for item in pending["artifacts"] if item["stage"] == "script")
+        self.assertEqual(script["metadata"]["script"], "Safe script text")
+        self.assertEqual(script["metadata"]["nested"]["safe_metric"], 0.97)
+        self.assertEqual(script["metadata"]["nested"]["error"], ReviewStore.SAFE_ERROR_NOTICE)
+
+        self.review.decide("job-1", "approved", "operator-1", "Reviewed")
+        approved = self.review.list_approved()[0]
+        serialized_approved = str(approved)
+        for secret in (
+            "provider-secret-value", "provider-access-secret", "nested-secret",
+            "signed-secret", "private-request-id", "raw-provider-error",
+        ):
+            self.assertNotIn(secret, serialized_approved)
+        # Approval clears the operational error; no raw diagnostic is returned.
+        self.assertIsNone(approved["error"])
+
     def test_pending_review_exposes_frozen_brand_guidance_from_job_payload(self):
         queue = JobQueue(self.db)
         job = queue.enqueue("short_video_production", {

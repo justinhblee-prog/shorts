@@ -25,6 +25,46 @@ def _now():
 
 class ReviewStore:
     DECISIONS = {"approved", "rejected", "revision_requested"}
+    SAFE_ERROR_NOTICE = "상세 오류는 보호된 서버 로그에서 확인하세요."
+    SENSITIVE_REVIEW_KEYS = {
+        "access_token", "refresh_token", "authorization", "api_key",
+        "idempotency_key", "request_id", "provider_request_id",
+        "response_json", "response_body", "signed_url", "signature",
+        "password", "secret", "headers",
+    }
+
+    @classmethod
+    def _sanitize_review_value(cls, value):
+        """Remove provider credentials and raw transport diagnostics from review JSON."""
+        if isinstance(value, dict):
+            safe = {}
+            for key, item in value.items():
+                normalized = str(key).strip().lower().replace("-", "_")
+                if (normalized in cls.SENSITIVE_REVIEW_KEYS
+                        or normalized.endswith("_token")
+                        or normalized.endswith("_api_key")
+                        or normalized.endswith("_secret")):
+                    continue
+                if normalized in ("error", "error_message", "raw_error"):
+                    safe[key] = cls.SAFE_ERROR_NOTICE if item else None
+                else:
+                    safe[key] = cls._sanitize_review_value(item)
+            return safe
+        if isinstance(value, list):
+            return [cls._sanitize_review_value(item) for item in value]
+        if isinstance(value, tuple):
+            return [cls._sanitize_review_value(item) for item in value]
+        return value
+
+    @classmethod
+    def sanitize_production_record(cls, run):
+        """Return a safe copy for authenticated production/review API responses."""
+        if not isinstance(run, dict):
+            return run
+        safe = cls._sanitize_review_value(run)
+        if safe.get("error"):
+            safe["error"] = cls.SAFE_ERROR_NOTICE
+        return safe
 
     def __init__(self, db_path="data/nexus.sqlite3"):
         self.db_path = str(db_path)
@@ -96,7 +136,7 @@ class ReviewStore:
         run["artifacts"] = [{
             "stage": x["stage"], "artifact_type": x["artifact_type"],
             "artifact_url": x["artifact_url"],
-            "metadata": json.loads(x["metadata_json"]),
+            "metadata": ReviewStore._sanitize_review_value(json.loads(x["metadata_json"])),
             "created_at": x["created_at"]
         } for x in rows]
         return run
@@ -139,7 +179,7 @@ class ReviewStore:
             except (TypeError, ValueError):
                 profile = None
         run["brand_profile"] = profile
-        return run
+        return ReviewStore.sanitize_production_record(run)
 
     def update_policy_evidence(self, job_id, reviewer_id, declarations):
         """Persist explicit operator attestations and recompute the policy report."""
