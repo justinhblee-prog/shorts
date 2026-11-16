@@ -1136,14 +1136,12 @@ class TikTokPublisher:
                 result = self.refresh_status(job_id, poll_lease_token=poll_lease)
                 updated.append({"job_id": job_id, "status": result["status"]})
             except TikTokPublishError as exc:
-                self.store.record_status_poll_error(
+                recorded = self.store.record_status_poll_error(
                     job_id, attempt_id, str(exc),
                     expected_status=record["status"],
                     poll_lease_token=poll_lease,
                 )
-                if self.store._status_poll_lease_is_current_for_token(
-                    job_id, attempt_id, poll_lease
-                ):
+                if recorded:
                     errors.append({"job_id": job_id, "error": str(exc)})
             finally:
                 self.store.release_status_poll_lease(
