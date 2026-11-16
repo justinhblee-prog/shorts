@@ -107,3 +107,6 @@ YouTube OAuth now has an explicit live verification action that checks the selec
 
 
 BUILD-00037 adds a protected live verification action for YouTube Data API and Analytics API access. The implementation passed **356 backend tests** in [run 43788723765](https://github.com/justinhblee-prog/shorts/actions/runs/43788723765); actual channel verification still requires operator OAuth consent and execution.
+
+
+Compose now includes an automated daily SQLite + media backup service with checksums, integrity validation, retention and an explicitly confirmed restore command. Backups are stored in a separate Docker volume and must be replicated off-host for disaster recovery; secrets are never included.
