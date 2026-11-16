@@ -1439,3 +1439,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add authenticated `GET /api/production/jobs/{job_id}/provider-attempts` for operator recovery and bounded response storage.
 - The provider idempotency key is advisory unless a vendor contract confirms support. Automated result adoption is intentionally not included; recovered outputs still require provider verification, allowlisted media staging, quality checks and human review.
 - CI validation pending.
+
+
+## BUILD-00175 — verified adoption of recovered provider renders
+
+- Add operator-only adoption endpoint for a stored rendering response; arbitrary caller-supplied URLs are not accepted.
+- Download through the existing HTTPS host allowlist, DNS/IP validation, redirect rejection, bounded staging and optional malware scanning.
+- Inspect actual staged bytes with ffprobe; reject missing inspection, non-vertical output, absent audio, invalid duration or oversized/invalid staged fingerprints.
+- Atomically insert the recovered video artifact, mark the provider attempt adopted, update production and queue jobs to `review_pending`, and record a queue audit event.
+- Block duplicate adoption, active worker jobs and replacement of approved/uploaded/published outputs.
+- Human review and explicit publication approval remain mandatory; no automatic approval or posting.
+- CI validation pending.
