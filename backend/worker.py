@@ -144,7 +144,8 @@ def run_once():
             raise LeaseConflict("Worker lease was lost before provider execution")
         result = pipeline.execute(job["id"], job["payload"],
                                   worker_id=WORKER_ID, lease_token=job["lease_token"],
-                                  stop_event=lost_lease)
+                                  stop_event=lost_lease,
+                                  generation_token=WORKER_GENERATION_TOKEN)
         if lost_lease.is_set():
             raise LeaseConflict("Worker lease was lost while generating media")
         queue.finish(job["id"], WORKER_ID, job["lease_token"],

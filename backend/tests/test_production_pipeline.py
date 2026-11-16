@@ -1212,6 +1212,47 @@ class ProductionTests(unittest.TestCase):
             )
         return queue, job["id"], request_key, claimed["lease_token"]
 
+    def test_replaced_process_generation_cannot_write_provider_or_artifact_state(self):
+        queue = JobQueue(self.store.db_path)
+        job = queue.enqueue("short_video_production", self.brief)
+        self.store.create(job["id"], self.brief)
+        old = queue.register_worker("worker-generation", "host-a")
+        claimed = queue.claim(
+            "worker-generation", job_type="short_video_production",
+            generation_token=old["generation_token"],
+        )
+        request_key = self.store.begin_provider_attempt(
+            job["id"], "rendering", 1,
+            worker_id="worker-generation", lease_token=claimed["lease_token"],
+            generation_token=old["generation_token"],
+        )
+
+        replacement = queue.register_worker("worker-generation", "host-a")
+        self.assertNotEqual(
+            old["generation_token"], replacement["generation_token"]
+        )
+
+        with self.assertRaises(ProductionLeaseConflict):
+            self.store.finish_provider_attempt(
+                job["id"], "rendering", 1, request_key,
+                {"video_url": "https://cdn.example.test/late.mp4"},
+                worker_id="worker-generation", lease_token=claimed["lease_token"],
+                generation_token=old["generation_token"],
+            )
+        with self.assertRaises(ProductionLeaseConflict):
+            self.store.artifact(
+                job["id"], "rendering", "video",
+                "https://cdn.example.test/stale.mp4", {},
+                worker_id="worker-generation", lease_token=claimed["lease_token"],
+                generation_token=old["generation_token"],
+            )
+        attempt = self.store.provider_attempts(job["id"])[0]
+        self.assertEqual(attempt["state"], "request_started")
+        self.assertIsNone(attempt["response_json"])
+        self.assertEqual(
+            queue.get(job["id"])["lease_token"], claimed["lease_token"]
+        )
+
     def test_stale_worker_cannot_finalize_provider_response_after_lease_replacement(self):
         queue, job_id, request_key, old_token = self._create_claimed_production_job()
         with self.assertRaises(ProductionLeaseConflict):

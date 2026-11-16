@@ -156,7 +156,7 @@ class ProductionStore:
                brief["topic"], utc_now(), utc_now()))
 
     @staticmethod
-    def _assert_worker_lease(c, job_id, worker_id, lease_token):
+    def _assert_worker_lease(c, job_id, worker_id, lease_token, generation_token=None):
         if not worker_id or not lease_token:
             raise ProductionLeaseConflict("Worker ID and fencing token are required")
         row = c.execute("""SELECT status,worker_id,lease_token,lease_expires_at
@@ -169,6 +169,18 @@ class ProductionStore:
                 or row["lease_expires_at"] <= now):
             raise ProductionLeaseConflict(
                 "Worker lease expired or was replaced; stale production write rejected"
+            )
+        registry = c.execute(
+            "SELECT status,generation_token FROM worker_registry WHERE worker_id=?",
+            (worker_id,),
+        ).fetchone()
+        if registry is None:
+            if generation_token is not None:
+                raise ProductionLeaseConflict("Worker process generation is no longer registered")
+        elif (registry["status"] != "online"
+              or registry["generation_token"] != generation_token):
+            raise ProductionLeaseConflict(
+                "Worker process generation was replaced; stale production write rejected"
             )
 
     @staticmethod
@@ -215,11 +227,11 @@ class ProductionStore:
         ProductionStore._assert_worker_generation(c, worker_id, generation_token)
 
     def stage(self, job_id, stage, status="running", error=None,
-              worker_id=None, lease_token=None):
+              worker_id=None, lease_token=None, generation_token=None):
         with self.db() as c:
-            if worker_id is not None or lease_token is not None:
+            if worker_id is not None or lease_token is not None or generation_token is not None:
                 c.execute("BEGIN IMMEDIATE")
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, generation_token)
             if stage == "script" and status == "running":
                 # A fresh attempt invalidates every artifact from the previous attempt.
                 # Keep this in the same transaction as the fenced stage transition.
@@ -277,7 +289,7 @@ class ProductionStore:
                             )
 
     def artifact(self, job_id, stage, artifact_type, url, metadata,
-                 worker_id=None, lease_token=None):
+                 worker_id=None, lease_token=None, generation_token=None):
         if artifact_type in ("audio", "video") and (
             not isinstance(url, str) or not url.startswith(("https://", "http://"))
         ):
@@ -285,9 +297,9 @@ class ProductionStore:
         if url is not None and not isinstance(url, str):
             raise ValueError("artifact URL must be a string or null")
         with self.db() as c:
-            if worker_id is not None or lease_token is not None:
+            if worker_id is not None or lease_token is not None or generation_token is not None:
                 c.execute("BEGIN IMMEDIATE")
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, generation_token)
             c.execute("""INSERT INTO production_artifacts
               (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
               VALUES(?,?,?,?,?,?,?)
@@ -315,11 +327,11 @@ class ProductionStore:
             return int(row["attempt_number"]) if row is not None else None
 
     def recover_provider_response(self, job_id, stage,
-                                  worker_id=None, lease_token=None):
+                                  worker_id=None, lease_token=None, generation_token=None):
         """Return a durable, unadopted provider response without making a new call."""
         with self.db() as c:
-            if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            if worker_id is not None or lease_token is not None or generation_token is not None:
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, generation_token)
             row=c.execute("""SELECT response_json FROM provider_execution_attempts
                 WHERE job_id=? AND stage=? AND state='response_received'
                 ORDER BY attempt_number LIMIT 1""",(job_id,stage)).fetchone()
@@ -338,15 +350,15 @@ class ProductionStore:
             return response
 
     def begin_provider_attempt(self, job_id, stage, attempt_number,
-                               worker_id=None, lease_token=None):
+                               worker_id=None, lease_token=None, generation_token=None):
         """Persist the provider request identity before any external side effect."""
         attempt_number = max(1, int(attempt_number))
         request_key = str(uuid.uuid4())
         timestamp = utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            if worker_id is not None or lease_token is not None or generation_token is not None:
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, generation_token)
             unresolved=c.execute("""SELECT attempt_number,state
                 FROM provider_execution_attempts
                 WHERE job_id=? AND stage=?
@@ -363,7 +375,7 @@ class ProductionStore:
         return request_key
 
     def finish_provider_attempt(self, job_id, stage, attempt_number, request_key,
-                                response, worker_id=None, lease_token=None):
+                                response, worker_id=None, lease_token=None, generation_token=None):
         """Persist the provider response before downstream artifact writes."""
         if not isinstance(response,dict):
             raise ValueError("provider response must be an object")
@@ -373,8 +385,8 @@ class ProductionStore:
         timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            if worker_id is not None or lease_token is not None or generation_token is not None:
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, generation_token)
             updated=c.execute("""UPDATE provider_execution_attempts
                 SET state='response_received',provider_request_id=?,
                     response_json=?,completed_at=?,error=NULL
@@ -387,13 +399,13 @@ class ProductionStore:
         return True
 
     def mark_provider_attempt_adopted(self, job_id, stage, attempt_number,
-                                      worker_id=None, lease_token=None):
+                                      worker_id=None, lease_token=None, generation_token=None):
         """Mark a durable provider response consumed after its artifact is persisted."""
         timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            if worker_id is not None or lease_token is not None or generation_token is not None:
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, generation_token)
             updated=c.execute("""UPDATE provider_execution_attempts
                 SET state='adopted',adopted_at=?,completed_at=COALESCE(completed_at,?)
                 WHERE job_id=? AND stage=? AND attempt_number=?
@@ -404,13 +416,13 @@ class ProductionStore:
         return True
 
     def mark_provider_attempt_unknown(self, job_id, stage, attempt_number,
-                                      request_key, error, worker_id=None, lease_token=None):
+                                      request_key, error, worker_id=None, lease_token=None, generation_token=None):
         """A transport error cannot prove that the provider did not execute the request."""
         timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            if worker_id is not None or lease_token is not None or generation_token is not None:
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, generation_token)
             updated=c.execute("""UPDATE provider_execution_attempts
                 SET state='outcome_unknown',error=?,completed_at=?
                 WHERE job_id=? AND stage=? AND attempt_number=?
@@ -1206,32 +1218,34 @@ class ProductionPipeline:
             )
 
     def _provider_request(self, job_id, stage, attempt_number, provider, payload,
-                          worker_id=None, lease_token=None):
+                          worker_id=None, lease_token=None, generation_token=None):
         recovered=self.store.recover_provider_response(
-            job_id,stage,worker_id,lease_token)
+            job_id,stage,worker_id,lease_token,generation_token)
         if recovered is not None:
             return recovered
         request_key=self.store.begin_provider_attempt(
-            job_id,stage,attempt_number,worker_id,lease_token)
+            job_id,stage,attempt_number,worker_id,lease_token,generation_token)
         try:
             response=provider.post(stage,{**payload,"request_idempotency_key":request_key})
         except Exception as exc:
             try:
                 self.store.mark_provider_attempt_unknown(
                     job_id,stage,attempt_number,request_key,str(exc),
-                    worker_id,lease_token)
+                    worker_id,lease_token,generation_token)
             except ProductionLeaseConflict:
                 raise
             raise
         self.store.finish_provider_attempt(
-            job_id,stage,attempt_number,request_key,response,worker_id,lease_token)
+            job_id,stage,attempt_number,request_key,response,worker_id,lease_token,generation_token)
         return response
 
-    def execute(self, job_id, brief, worker_id=None, lease_token=None, stop_event=None):
+    def execute(self, job_id, brief, worker_id=None, lease_token=None, stop_event=None,
+                generation_token=None):
         brief = self.validate_brief(brief)
         if (worker_id is None) != (lease_token is None):
             raise ValueError("worker_id and lease_token must be supplied together")
-        lease = {"worker_id": worker_id, "lease_token": lease_token}
+        lease = {"worker_id": worker_id, "lease_token": lease_token,
+                 "generation_token": generation_token}
         policy_report = brief.get("policy_report") or evaluate_content_policy(brief)
         try:
             self._check_stop(stop_event)
