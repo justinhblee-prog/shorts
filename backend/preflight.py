@@ -37,6 +37,13 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
         "youtube_data_api": _group(source, ["YOUTUBE_DATA_API_KEY"]),
     }
 
+    youtube_oauth = _group(
+        source, [], ["YOUTUBE_REDIRECT_URI", "YOUTUBE_TOKEN_ENCRYPTION_KEY"]
+    )
+    youtube_oauth["configured"] = not youtube_oauth["optional_missing"]
+    youtube_oauth["optional"] = True
+    checks["youtube_oauth"] = youtube_oauth
+
     refresh_configured = (
         bool(str(source.get("YOUTUBE_REFRESH_TOKEN", "")).strip())
         if youtube_refresh_token_configured is None
@@ -112,6 +119,7 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
             "ai_generation_configured": generation,
             "artifact_staging_configured": staging,
             "youtube_upload_configured": youtube_upload,
+            "youtube_oauth_configured": checks["youtube_oauth"]["configured"],
             "youtube_metrics_configured": youtube_metrics,
             "tiktok_oauth_configured": tiktok_oauth,
             "tiktok_publish_configured": tiktok_publish,
