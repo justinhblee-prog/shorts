@@ -1417,4 +1417,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Apply identical retry-ceiling, terminal-state, lease-fencing and audit-event semantics regardless of which recovery path discovers the expiry.
 - Keep ambiguous short-video production outcomes terminal, update the associated production run, and pause production pending explicit operator reconciliation; never replay a potentially completed provider request automatically.
 - Add regression coverage for path parity, exhausted attempts, production-run synchronization, audit details and stale-worker fencing.
-- CI validation is pending for this draft change.
+- GitHub Actions run [43815743528](https://github.com/justinhblee-prog/shorts/actions/runs/43815743528) passed the complete `scripts/validate.sh` workflow, including 518 backend tests.
