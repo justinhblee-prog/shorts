@@ -180,6 +180,7 @@ class TrendRecommendationTests(unittest.TestCase):
                 "topic": "AI robotics explained for beginners",
                 "measurement_status": "insufficient_snapshots",
                 "views_per_hour": None,
+                "engaged_view_share": retention,
                 "average_view_percentage": percentage,
                 "average_view_duration_seconds": duration,
                 "audience_retention_curve": [
@@ -199,6 +200,8 @@ class TrendRecommendationTests(unittest.TestCase):
         context = result["best_brand"]["topic_performance"]
         self.assertEqual(context["matched_video_count"], 3)
         self.assertEqual(context["view_velocity_sample_count"], 0)
+        self.assertEqual(context["engaged_view_share_sample_count"], 3)
+        self.assertEqual(context["median_engaged_view_share"], 0.7)
         self.assertEqual(context["average_view_percentage_sample_count"], 3)
         self.assertEqual(context["median_average_view_percentage"], 70.0)
         self.assertEqual(context["median_average_view_duration_seconds"], 16.0)
