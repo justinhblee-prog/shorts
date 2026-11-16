@@ -893,3 +893,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Reject missing or stale check dates before any remote YouTube API call; do not stamp incomplete policy evidence into upload audit records.
 - Add regression tests for stale current evidence and stale approval snapshots.
 - GitHub Actions PR run [43779365868](https://github.com/justinhblee-prog/shorts/actions/runs/43779365868) passed: **247 backend tests** and `scripts/validate.sh` completed successfully. PR #80 was squash-merged into `main` as `5dba9163a20e8fbc4e68bca260c962f944500b0a`. The CI run executed on the PR head before the squash merge; the merge commit itself has no separate CI run recorded.
+
+
+### BUILD-00024 — invalidate approval when production artifacts change (2026-11-16)
+
+- Before initializing a YouTube upload, compare the complete latest human-approved artifact snapshot with the current ordered production artifact set.
+- Compare stage, artifact type, artifact URL and parsed metadata; reject additions, removals, reorderings, malformed metadata or modifications after approval.
+- Keep policy version/date freshness checks as an additional independent gate.
+- Add regression tests for post-approval artifact modification and artifact addition. Validation pending on this branch.
