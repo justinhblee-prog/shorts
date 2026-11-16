@@ -320,3 +320,14 @@ The OAuth callback is protected by a one-time state stored as a hash and a Secur
 ### BUILD-00036 validation checkpoint
 
 The encrypted YouTube OAuth flow passed **352 backend tests** in [GitHub Actions run 43788265493](https://github.com/justinhblee-prog/shorts/actions/runs/43788265493). Before using it in production, configure the exact Google Cloud redirect URI and Fernet encryption key, complete a real consent flow, verify stored scopes, and perform a private test upload. CI does not prove live account access.
+
+
+### BUILD-00037 — verify the connected YouTube account
+
+1. Complete the encrypted YouTube OAuth connection.
+2. Authenticate to the dashboard and choose **실계정 연결 테스트**.
+3. Confirm the returned channel title/ID is the intended channel and both Data API and Analytics API checks are green.
+4. If Data API succeeds but Analytics fails, review the granted read-only scopes and reconnect with consent; do not treat the account as fully Analytics-ready.
+5. Perform a private test upload and confirm its platform ID and Analytics report are collected before enabling public publishing.
+
+The verification endpoint is protected by the dashboard review token. It never returns access or refresh tokens. Stored OAuth approval and live API verification are distinct states.
