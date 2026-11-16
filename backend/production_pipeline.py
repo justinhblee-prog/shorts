@@ -531,6 +531,27 @@ class ProductionStore:
         bounded = max(1, min(int(limit), 200))
         items = []
         with self.db() as c:
+            mismatch_total = c.execute("""
+                SELECT COUNT(*) FROM production_runs r
+                JOIN pipeline_jobs j ON j.id=r.job_id
+                WHERE j.job_type='short_video_production'
+                  AND r.status<>j.status
+                  AND (r.status IN ('rendered','review_pending','approved','uploaded',
+                                    'cancelled','failed_terminal')
+                       OR j.status IN ('review_pending','approved','uploaded',
+                                       'cancelled','failed_terminal'))
+            """).fetchone()[0]
+            queue_orphan_total = c.execute("""
+                SELECT COUNT(*) FROM pipeline_jobs j
+                LEFT JOIN production_runs r ON r.job_id=j.id
+                WHERE j.job_type='short_video_production' AND r.job_id IS NULL
+            """).fetchone()[0]
+            production_orphan_total = c.execute("""
+                SELECT COUNT(*) FROM production_runs r
+                LEFT JOIN pipeline_jobs j
+                  ON j.id=r.job_id AND j.job_type='short_video_production'
+                WHERE j.id IS NULL
+            """).fetchone()[0]
             rows = c.execute("""
                 SELECT * FROM (
                   SELECT 'state_mismatch' AS record_kind,
@@ -572,7 +593,7 @@ class ProductionStore:
                     ON j.id=r.job_id AND j.job_type='short_video_production'
                   WHERE j.id IS NULL
                 )
-                ORDER BY sort_updated_at DESC,job_id LIMIT ?
+                ORDER BY CASE WHEN record_kind='state_mismatch' THEN 1 ELSE 0 END,                         sort_updated_at DESC,job_id LIMIT ?
             """, (bounded,)).fetchall()
             for row in rows:
                 item = dict(row)
@@ -676,16 +697,19 @@ class ProductionStore:
                     })
                 item["audit_history"] = safe_details
                 items.append(item)
-        orphaned = sum(
-            item["record_kind"] in (
-                "queue_without_production", "production_without_queue"
-            ) for item in items
-        )
+        orphaned = queue_orphan_total + production_orphan_total
+        unresolved = mismatch_total + orphaned
         return {
             "scanned": len(items),
             "limit": bounded,
-            "unresolved": len(items),
+            "unresolved": unresolved,
             "orphaned": orphaned,
+            "has_more": unresolved > len(items),
+            "counts": {
+                "state_mismatch": mismatch_total,
+                "queue_without_production": queue_orphan_total,
+                "production_without_queue": production_orphan_total,
+            },
             "items": items,
             "worker_control": queue.worker_control(),
         }
