@@ -568,3 +568,8 @@ BUILD-00130 automated validation: GitHub Actions run [43791757173](https://githu
 - CI uses fake scanner results; it does not prove live ClamAV signatures, a deployed updater or malware detection on production media.
 
 BUILD-00131 validation: GitHub Actions run [43792634688](https://github.com/justinhblee-prog/shorts/actions/runs/43792634688) passed **427 backend tests** and `scripts/validate.sh`. This does not validate live signature downloads or real malware samples.
+
+
+### YouTube retention and matched analytics comparisons
+
+`GET /api/performance/insights?platform=youtube` exposes stored YouTube Analytics watch-time and retention data. Video rows include `retention_diagnostics` (early/end retention and largest adjacent observed drop-off). `analytics_cohorts` compare average view percentage, average view duration and engaged-view share only across matched brand, region, publication-age bucket, render-duration bucket, format and exact normalized topic signature. Comparative observations require at least three videos; smaller cohorts remain limited. These are descriptive signals only and do not alter ranking scores or establish causality.
