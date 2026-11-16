@@ -41,8 +41,9 @@ class QueueTests(unittest.TestCase):
   operations = ("heartbeat", "finish", "fail")
   for operation in operations:
    with self.subTest(operation=operation):
-    job=self.q.enqueue("render",{"operation":operation})
-    claimed=self.q.claim("worker-expired-"+operation)
+    job_type="render_"+operation
+    job=self.q.enqueue(job_type,{"operation":operation})
+    claimed=self.q.claim("worker-expired-"+operation,job_type=job_type)
     with self.q.db() as c:
      c.execute(
       "UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
