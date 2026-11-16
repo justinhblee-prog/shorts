@@ -54,6 +54,25 @@ class WorkerFailClosedTests(unittest.TestCase):
             )
         heartbeat.assert_not_called()
 
+    def test_shutdown_during_reconciliation_does_not_claim_new_work(self):
+        def stop_during_reconciliation(*args, **kwargs):
+            worker.stopping.set()
+            return {"unresolved": 0, "repaired": 0, "unresolved_jobs": []}
+
+        with (
+            mock.patch.object(worker, "ensure_worker_registered"),
+            mock.patch.object(worker.queue, "is_paused", return_value=False),
+            mock.patch.object(worker.store, "reconcile_missing_runs"),
+            mock.patch.object(worker.store, "reconcile_status_integrity",
+                              side_effect=stop_during_reconciliation),
+            mock.patch.object(worker.store, "integrity_report",
+                              return_value={"orphaned": 0, "items": []}),
+            mock.patch.object(worker.queue, "claim") as claim,
+        ):
+            self.assertFalse(worker.run_once())
+
+        claim.assert_not_called()
+
     def test_orphaned_lifecycle_record_pauses_before_claiming_work(self):
         report = {
             "orphaned": 1,
