@@ -4,6 +4,7 @@ Stores channel-authorized watch-time and audience-retention reports separately
 from public YouTube Data API counter snapshots.
 """
 import json
+import math
 import os
 import sqlite3
 import uuid
@@ -19,6 +20,8 @@ def _now():
 def _as_number(value, allow_negative=False):
     try:
         number = float(value)
+        if not math.isfinite(number):
+            return None
         return number if allow_negative or number >= 0 else None
     except (TypeError, ValueError):
         return None
