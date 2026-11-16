@@ -2066,3 +2066,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added a synchronized two-thread SQLite regression for two operators attempting to reconcile the same ambiguous production job concurrently.
 - Verified exactly one reconciliation succeeds, one is rejected after the state transition, exactly one immutable reconciliation/audit event is recorded, and the global production pause remains active.
 - GitHub Actions checks succeeded on commit `7661fba934e9889f515b181c6b7ef956bb28c8f6`. This is deterministic local concurrency coverage; no live provider or multi-host production validation is claimed.
+
+
+## BUILD-00276 — Fence stale worker shutdown writes
+- Pass the active worker ID and process-generation token from the SIGTERM handler into the durable queue pause operation.
+- Reject shutdown pause writes from an obsolete worker incarnation after a replacement process registers, while always signaling local stop and lease-loss events.
+- GitHub Actions checks for PR #281 both succeeded on commit `3000e30c18889d726adc439bf906aa704bc1470e`. This validates deterministic unit/CI coverage only; no live multi-process deployment validation is claimed.
