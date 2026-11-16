@@ -237,10 +237,22 @@ class TikTokPublishStore:
             # A slower concurrent poll must never downgrade a terminal outcome.
             if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
                 return dict(row)
-            c.execute("""
+            updated = c.execute("""
               UPDATE tiktok_publications SET status=?,video_id=COALESCE(?,video_id),
-                fail_reason=?,updated_at=? WHERE job_id=?
-            """, (normalized, video_id, fail_reason, _now(), job_id))
+                fail_reason=?,updated_at=? WHERE job_id=? AND attempt_id=?
+                AND status NOT IN ('publish_complete','failed','send_to_inbox')
+            """, (normalized, video_id, fail_reason, _now(), job_id, attempt_id))
+            if updated.rowcount != 1:
+                current = c.execute(
+                    "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
+                ).fetchone()
+                if current and current["attempt_id"] == attempt_id and current["status"] in (
+                    "publish_complete", "failed", "send_to_inbox"
+                ):
+                    return dict(current)
+                raise TikTokPublishError(
+                    "TikTok publication state changed during status refresh"
+                )
             c.execute("""
               INSERT INTO tiktok_publication_events
                 (job_id,attempt_id,event_type,outcome,publish_id,video_id,

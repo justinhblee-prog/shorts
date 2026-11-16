@@ -605,6 +605,32 @@ class TikTokPublishingTests(unittest.TestCase):
         self.assertEqual(result["status"], "publish_complete")
         self.assertEqual(result["video_id"], "123456789")
 
+    def test_status_refresh_compare_and_set_rejects_suppressed_state_write(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        before = self.store.get("job-1")
+        attempt_id = before["attempt_id"]
+        with self.store.db() as connection:
+            connection.execute("""
+                CREATE TRIGGER suppress_tiktok_status_update
+                BEFORE UPDATE ON tiktok_publications
+                WHEN NEW.status='processing'
+                BEGIN SELECT RAISE(IGNORE); END
+            """)
+        with self.assertRaisesRegex(TikTokPublishError, "state changed during status refresh"):
+            self.store.mark_status(
+                "job-1", attempt_id, "PROCESSING_UPLOAD", [], None
+            )
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], before["status"])
+        self.assertEqual(after["attempt_id"], attempt_id)
+        self.assertFalse(any(
+            event["event_type"] == "status_refreshed"
+            for event in after["events"]
+        ))
+
     def test_late_processing_status_cannot_downgrade_published_result(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
