@@ -2060,3 +2060,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Verify a further retry remains blocked until an operator explicitly confirms the prior request was not executed with supporting evidence.
 - After that reconciliation, verify a new attempt is permitted with a distinct idempotency key and incremented attempt number.
 - GitHub Actions checks for PR #279 both succeeded on commit `443bb057c65b63427f73ad7dbc14b5319daef5f9`; deterministic local SQLite/concurrency tests only. No live provider API validation is claimed.
+
+
+## BUILD-00275 — Serialize concurrent operator reconciliation
+- Added a synchronized two-thread SQLite regression for two operators attempting to reconcile the same ambiguous production job concurrently.
+- Verified exactly one reconciliation succeeds, one is rejected after the state transition, exactly one immutable reconciliation/audit event is recorded, and the global production pause remains active.
+- GitHub Actions checks succeeded on commit `7661fba934e9889f515b181c6b7ef956bb28c8f6`. This is deterministic local concurrency coverage; no live provider or multi-host production validation is claimed.
