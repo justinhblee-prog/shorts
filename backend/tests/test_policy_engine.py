@@ -55,6 +55,17 @@ class PolicyEngineTests(unittest.TestCase):
         self.assertEqual(report["status"], "blocked")
         self.assertIn("rights.visuals_cleared", report["blocking_reasons"])
 
+    def test_policy_report_preserves_disclosure_inputs_for_platform_publishers(self):
+        report=evaluate_content_policy({
+            "platforms":["tiktok"],
+            "synthetic_media_status":"ai_generated",
+            "platform_disclosures":{"tiktok_ai_generated_content":True},
+            "policy_flags":{"tiktok_false_public_figure_endorsement":False},
+        })
+        self.assertEqual(report["synthetic_media_status"],"ai_generated")
+        self.assertEqual(report["platform_disclosures"]["tiktok_ai_generated_content"],True)
+        self.assertEqual(report["policy_flags"]["tiktok_false_public_figure_endorsement"],False)
+
     def test_realistic_ai_requires_each_selected_platform_disclosure(self):
         report = evaluate_content_policy({
             "platforms": ["youtube", "tiktok"],
