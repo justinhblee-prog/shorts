@@ -28,6 +28,10 @@ class ProviderError(RuntimeError):
         self.retryable = retryable
 
 
+class ProviderAttemptConflict(RuntimeError):
+    """A previous provider side effect has not been safely reconciled."""
+
+
 class ProductionLeaseConflict(RuntimeError):
     """Raised when a stale worker attempts to mutate production state."""
 
@@ -252,6 +256,36 @@ class ProductionStore:
                 (job_id,stage)).fetchone()
             return int(row["next_attempt"])
 
+    def recoverable_provider_attempt_number(self, job_id, stage):
+        with self.db() as c:
+            row=c.execute("""SELECT attempt_number FROM provider_execution_attempts
+                WHERE job_id=? AND stage=? AND state='response_received'
+                ORDER BY attempt_number LIMIT 1""",(job_id,stage)).fetchone()
+            return int(row["attempt_number"]) if row is not None else None
+
+    def recover_provider_response(self, job_id, stage,
+                                  worker_id=None, lease_token=None):
+        """Return a durable, unadopted provider response without making a new call."""
+        with self.db() as c:
+            if worker_id is not None or lease_token is not None:
+                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            row=c.execute("""SELECT response_json FROM provider_execution_attempts
+                WHERE job_id=? AND stage=? AND state='response_received'
+                ORDER BY attempt_number LIMIT 1""",(job_id,stage)).fetchone()
+            if row is None:
+                return None
+            try:
+                response=json.loads(row["response_json"])
+            except (TypeError,ValueError) as exc:
+                raise ProviderAttemptConflict(
+                    "Persisted provider response is invalid; operator reconciliation required"
+                ) from exc
+            if not isinstance(response,dict):
+                raise ProviderAttemptConflict(
+                    "Persisted provider response is invalid; operator reconciliation required"
+                )
+            return response
+
     def begin_provider_attempt(self, job_id, stage, attempt_number,
                                worker_id=None, lease_token=None):
         """Persist the provider request identity before any external side effect."""
@@ -262,6 +296,15 @@ class ProductionStore:
             c.execute("BEGIN IMMEDIATE")
             if worker_id is not None or lease_token is not None:
                 self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            unresolved=c.execute("""SELECT attempt_number,state
+                FROM provider_execution_attempts
+                WHERE job_id=? AND stage=?
+                  AND state IN ('request_started','outcome_unknown','response_received')
+                ORDER BY attempt_number LIMIT 1""",(job_id,stage)).fetchone()
+            if unresolved is not None:
+                raise ProviderAttemptConflict(
+                    "Provider attempt has an unresolved external outcome; reconcile it before retrying"
+                )
             c.execute("""INSERT INTO provider_execution_attempts
                 (id,job_id,stage,attempt_number,idempotency_key,state,started_at)
                 VALUES(?,?,?,?,?,'request_started',?)""",
@@ -290,6 +333,23 @@ class ProductionStore:
                  safe_response,timestamp,job_id,stage,attempt_number,request_key))
             if updated.rowcount != 1:
                 raise ValueError("provider attempt is missing or no longer recoverable")
+        return True
+
+    def mark_provider_attempt_adopted(self, job_id, stage, attempt_number,
+                                      worker_id=None, lease_token=None):
+        """Mark a durable provider response consumed after its artifact is persisted."""
+        timestamp=utc_now()
+        with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            if worker_id is not None or lease_token is not None:
+                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+            updated=c.execute("""UPDATE provider_execution_attempts
+                SET state='adopted',adopted_at=?,completed_at=COALESCE(completed_at,?)
+                WHERE job_id=? AND stage=? AND attempt_number=?
+                  AND state='response_received'""",
+                (timestamp,timestamp,job_id,stage,attempt_number))
+            if updated.rowcount != 1:
+                raise ValueError("provider response is missing or already consumed")
         return True
 
     def mark_provider_attempt_unknown(self, job_id, stage, attempt_number,
@@ -1051,6 +1111,10 @@ class ProductionPipeline:
 
     def _provider_request(self, job_id, stage, attempt_number, provider, payload,
                           worker_id=None, lease_token=None):
+        recovered=self.store.recover_provider_response(
+            job_id,stage,worker_id,lease_token)
+        if recovered is not None:
+            return recovered
         request_key=self.store.begin_provider_attempt(
             job_id,stage,attempt_number,worker_id,lease_token)
         try:
@@ -1082,7 +1146,9 @@ class ProductionPipeline:
                                     retryable=False)
             self.store.stage(job_id, "script", **lease)
             self._check_stop(stop_event)
-            script = self._provider_request(job_id,"script",self.store.next_provider_attempt_number(job_id,"script"),self.script, {
+            script_attempt_number=(self.store.recoverable_provider_attempt_number(job_id,"script")
+                or self.store.next_provider_attempt_number(job_id,"script"))
+            script = self._provider_request(job_id,"script",script_attempt_number,self.script, {
                 "task": "create_short_video_script",
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "topic": brief["topic"],
@@ -1123,13 +1189,17 @@ class ProductionPipeline:
                                  "provider_quality_metadata": script_metadata,
                                  "policy_preflight": policy_report},
                                 **lease)
+            self.store.mark_provider_attempt_adopted(
+                job_id,"script",script_attempt_number,**lease)
             self.store.artifact(job_id, "originality_check", "report", None,
                                 originality_report, **lease)
 
             self._check_stop(stop_event)
             self.store.stage(job_id, "voice_generation", **lease)
             self._check_stop(stop_event)
-            voice = self._provider_request(job_id,"voice_generation",self.store.next_provider_attempt_number(job_id,"voice_generation"),self.voice, {
+            voice_attempt_number=(self.store.recoverable_provider_attempt_number(job_id,"voice_generation")
+                or self.store.next_provider_attempt_number(job_id,"voice_generation"))
+            voice = self._provider_request(job_id,"voice_generation",voice_attempt_number,self.voice, {
                 "script": script_text, "language": brief["language"],
                 "brand": brief["brand"], "format": "narration",
                 "voice_tone": brief.get("brand_profile", {}).get("tone", []),
@@ -1142,6 +1212,8 @@ class ProductionPipeline:
             self.store.artifact(job_id, "voice_generation", "audio", audio_url,
                                 {k: v for k, v in voice.items() if k != "audio_url"},
                                 **lease)
+            self.store.mark_provider_attempt_adopted(
+                job_id,"voice_generation",voice_attempt_number,**lease)
 
             speech_report = None
             transcript_text = None
@@ -1179,7 +1251,9 @@ class ProductionPipeline:
             self._check_stop(stop_event)
             self.store.stage(job_id, "rendering", **lease)
             self._check_stop(stop_event)
-            rendered = self._provider_request(job_id,"rendering",self.store.next_provider_attempt_number(job_id,"rendering"),self.render, {
+            render_attempt_number=(self.store.recoverable_provider_attempt_number(job_id,"rendering")
+                or self.store.next_provider_attempt_number(job_id,"rendering"))
+            rendered = self._provider_request(job_id,"rendering",render_attempt_number,self.render, {
                 "script": script_text, "audio_url": audio_url,
                 "brand": brief["brand"], "region": brief["region"],
                 "language": brief["language"], "aspect_ratio": "9:16",
@@ -1235,6 +1309,8 @@ class ProductionPipeline:
                     ) from exc
             self.store.artifact(job_id, "rendering", "video", video_url,
                                 render_metadata, **lease)
+            self.store.mark_provider_attempt_adopted(
+                job_id,"rendering",render_attempt_number,**lease)
             quality_report = evaluate_production_quality(
                 script_text, script_metadata,
                 {k: v for k, v in voice.items() if k != "audio_url"},

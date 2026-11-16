@@ -1689,3 +1689,19 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Exercise worker-startup reconciliation that restores the production ledger row from the scheduled queue job before claim.
 - Continue through provider generation, human review, staged-media reapproval, private YouTube upload, and finance-ledger recording.
 - All external AI/CDN/YouTube behavior remains explicitly mocked; this is an integration contract test, not live-service validation.
+
+
+## BUILD-00204 — block retries while provider outcomes are unresolved
+
+- Make provider attempt reservation reject a new attempt when the same job/stage has a prior `request_started`, `outcome_unknown`, or `response_received` attempt.
+- Keep the check inside the same immediate SQLite transaction as attempt reservation, preventing concurrent retry races.
+- Add regression coverage for process-crash-in-flight, ambiguous transport timeout, and durable response-not-yet-adopted states.
+- This deliberately fails closed rather than risking duplicate paid AI/provider side effects; recovery or operator reconciliation must happen before retry.
+
+
+### BUILD-00204 recovery follow-up
+
+- Pipeline resume now reads a durable `response_received` provider journal before reserving a new attempt.
+- Script, voice, and render stages can reuse the exact persisted response after a process interruption; normal artifact persistence then marks that attempt `adopted`.
+- This avoids a second paid external request when the provider response was saved but local artifact adoption had not completed.
+- `request_started` and `outcome_unknown` remain fail-closed; they still require explicit reconciliation because the provider outcome cannot be inferred safely.
