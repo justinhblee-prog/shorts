@@ -984,4 +984,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Require at least five eligible recommendation exposure runs and three selected/measured candidates per comparable cohort for each metric-specific holdout.
 - Display topic-matched watch-quality evidence and metric-specific holdout coverage in the dashboard.
 - No recommendation score adjustments are enabled; these are observational diagnostics over selected production only and do not establish causal lift.
-- Validation pending on this branch.
+- GitHub Actions PR run [43786466302](https://github.com/justinhblee-prog/shorts/actions/runs/43786466302) passed **338 backend tests** and `scripts/validate.sh`.
