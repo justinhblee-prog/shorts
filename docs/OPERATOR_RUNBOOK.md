@@ -686,3 +686,8 @@ A cursor is a continuation position, not a frozen database snapshot: newly creat
 ## BUILD-00186 — Batched audit history lookup
 
 Integrity report pages now fetch audit history for all displayed job IDs in one query and use a per-job rank to return at most the 10 newest events per record. The response still presents those events chronologically and retains the existing details allowlist. This avoids issuing one extra SQL query per displayed row while keeping the result bounded by the page size and per-job event cap.
+
+
+## BUILD-00187 — Diagnostic error redaction
+
+The production integrity report intentionally withholds raw queue error text. Provider HTTP response bodies and exception details can contain credentials, signed URLs, or customer data. The report returns the controlled error code and a fixed message directing authorized operators to protected server logs; raw error text remains stored for restricted diagnostics and is not copied into this read-only report.

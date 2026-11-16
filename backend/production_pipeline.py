@@ -574,7 +574,10 @@ class ProductionStore:
                          r.job_id,r.status AS production_status,r.current_stage,
                          r.created_at AS production_created_at,
                          r.updated_at AS production_updated_at,
-                         j.status AS queue_status,j.job_type,j.error_code,j.error_message,
+                         j.status AS queue_status,j.job_type,j.error_code,
+                         CASE WHEN j.error_message IS NOT NULL AND j.error_message<>''
+                              THEN '상세 오류는 보호된 서버 로그에서 확인하세요.'
+                              ELSE NULL END AS error_message,
                          j.attempt,j.max_attempts,j.created_at AS queue_created_at,
                          j.updated_at AS queue_updated_at
                   FROM production_runs r
@@ -589,7 +592,10 @@ class ProductionStore:
                   SELECT 'queue_without_production' AS record_kind,0 AS sort_group,
                          j.id AS job_id,NULL AS production_status,NULL AS current_stage,
                          NULL AS production_created_at,NULL AS production_updated_at,
-                         j.status AS queue_status,j.job_type,j.error_code,j.error_message,
+                         j.status AS queue_status,j.job_type,j.error_code,
+                         CASE WHEN j.error_message IS NOT NULL AND j.error_message<>''
+                              THEN '상세 오류는 보호된 서버 로그에서 확인하세요.'
+                              ELSE NULL END AS error_message,
                          j.attempt,j.max_attempts,j.created_at AS queue_created_at,
                          j.updated_at AS queue_updated_at
                   FROM pipeline_jobs j
