@@ -125,5 +125,42 @@ class WorkerRuntimeTests(unittest.TestCase):
             )
 
 
+    def test_current_generation_sigterm_pauses_and_terminalizes_active_production(self):
+        import tempfile
+        import threading
+        from queue_store import JobQueue, LeaseConflict
+
+        with tempfile.TemporaryDirectory() as directory:
+            queue = JobQueue(str(Path(directory) / "queue.sqlite3"))
+            registration = queue.register_worker("active-worker", "host-a")
+            job = queue.enqueue("short_video_production", {"topic": "shutdown"})
+            claimed = queue.claim(
+                "active-worker", "host-a",
+                job_type="short_video_production",
+                generation_token=registration["generation_token"],
+            )
+            self.assertEqual(claimed["id"], job["id"])
+
+            stopping = threading.Event()
+            lost_lease = threading.Event()
+            request_worker_shutdown(
+                queue, stopping, job["id"], lost_lease, 15,
+                worker_id="active-worker",
+                generation_token=registration["generation_token"],
+            )
+
+            self.assertTrue(stopping.is_set())
+            self.assertTrue(lost_lease.is_set())
+            self.assertTrue(queue.is_paused())
+            terminal = queue.get(job["id"])
+            self.assertEqual(terminal["status"], "failed_terminal")
+            self.assertEqual(terminal["error_code"], "worker_paused")
+            self.assertIsNone(terminal["lease_token"])
+            self.assertEqual(queue.events(job["id"])[-1]["event_type"], "worker_pause")
+            with self.assertRaises(LeaseConflict):
+                queue.finish(job["id"], "active-worker", claimed["lease_token"],
+                             generation_token=registration["generation_token"])
+
+
 if __name__ == "__main__":
     unittest.main()
