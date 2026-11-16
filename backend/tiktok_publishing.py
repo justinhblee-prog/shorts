@@ -98,55 +98,57 @@ class TikTokPublishStore:
         finally:
             c.close()
 
-    def begin(self, job_id, title, is_aigc, operator_id, attempt_id, brand_content_toggle, brand_organic_toggle, policy_checked_on=POLICY_CHECKED_ON):
+    def begin(self, job_id, title, is_aigc, operator_id, attempt_id, brand_content_toggle, brand_organic_toggle, policy_checked_on=POLICY_CHECKED_ON, require_current_approval=False):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            # Revalidate the approval in the same write transaction that
-            # reserves the TikTok attempt. Publisher preflight happens before
-            # network preparation and can race with a reviewer reopening a job.
-            review_table = c.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='review_decisions'"
-            ).fetchone()
-            production_table = c.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
-            ).fetchone()
-            queue_table = c.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
-            ).fetchone()
-            if not review_table or not production_table or not queue_table:
-                raise TikTokPublishError(
-                    "Current approved production and queue state is required before TikTok publish"
+            if require_current_approval:
+                # Revalidate the approval in the same write transaction that
+                # reserves the TikTok attempt. Publisher preflight happens before
+                # network preparation and can race with a reviewer reopening a job.
+                review_table = c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='review_decisions'"
+                ).fetchone()
+                production_table = c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+                ).fetchone()
+                queue_table = c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
+                ).fetchone()
+                if not review_table or not production_table or not queue_table:
+                    raise TikTokPublishError(
+                        "Current approved production and queue state is required before TikTok publish"
+                    )
+                latest = c.execute(
+                    "SELECT decision,artifact_snapshot_json FROM review_decisions "
+                    "WHERE job_id=? ORDER BY id DESC LIMIT 1", (job_id,)
+                ).fetchone()
+                production = c.execute(
+                    "SELECT status FROM production_runs WHERE job_id=?", (job_id,)
+                ).fetchone()
+                queued = c.execute(
+                    "SELECT job_type,status FROM pipeline_jobs WHERE id=?", (job_id,)
+                ).fetchone()
+                if (latest is None or latest["decision"] != "approved"
+                        or production is None or production["status"] != "approved"
+                        or queued is None or queued["job_type"] != "short_video_production"
+                        or queued["status"] != "approved"):
+                    raise TikTokPublishError(
+                        "Latest human approval is no longer current; return to review before TikTok publish"
+                    )
+                try:
+                    approval_snapshot = json.loads(latest["artifact_snapshot_json"] or "[]")
+                except (TypeError, ValueError):
+                    raise TikTokPublishError(
+                        "Approved artifact snapshot is invalid; return to review before TikTok publish"
+                    ) from None
+                snapshot_matches, snapshot_error = approval_snapshot_matches_current_artifacts(
+                    c, job_id, approval_snapshot
                 )
-            latest = c.execute(
-                "SELECT decision,artifact_snapshot_json FROM review_decisions "
-                "WHERE job_id=? ORDER BY id DESC LIMIT 1", (job_id,)
-            ).fetchone()
-            production = c.execute(
-                "SELECT status FROM production_runs WHERE job_id=?", (job_id,)
-            ).fetchone()
-            queued = c.execute(
-                "SELECT job_type,status FROM pipeline_jobs WHERE id=?", (job_id,)
-            ).fetchone()
-            if (latest is None or latest["decision"] != "approved"
-                    or production is None or production["status"] != "approved"
-                    or queued is None or queued["job_type"] != "short_video_production"
-                    or queued["status"] != "approved"):
-                raise TikTokPublishError(
-                    "Latest human approval is no longer current; return to review before TikTok publish"
-                )
-            try:
-                approval_snapshot = json.loads(latest["artifact_snapshot_json"] or "[]")
-            except (TypeError, ValueError):
-                raise TikTokPublishError(
-                    "Approved artifact snapshot is invalid; return to review before TikTok publish"
-                ) from None
-            snapshot_matches, snapshot_error = approval_snapshot_matches_current_artifacts(
-                c, job_id, approval_snapshot
-            )
-            if not snapshot_matches:
-                raise TikTokPublishError(
-                    snapshot_error or "Production artifacts changed after approval; return to review"
-                )
+                if not snapshot_matches:
+                    raise TikTokPublishError(
+                        snapshot_error or "Production artifacts changed after approval; return to review"
+                    )
+    
             row = c.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
@@ -760,6 +762,7 @@ class TikTokPublisher:
             begun = self.store.begin(
                 job_id, title, disclosure["is_aigc"], operator_id.strip(), attempt_id,
                 brand_content_toggle, brand_organic_toggle, POLICY_CHECKED_ON,
+                require_current_approval=True,
             )
         except Exception:
             try:
