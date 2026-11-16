@@ -1173,3 +1173,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Refresh the top-level validation checkpoint to the latest verified BUILD-00140 CI run.
 - Replace the stale 408-test summary with the current 466-test result and link to the exact GitHub Actions run.
 - Keep all live-provider, account, deployment and revenue limitations explicit.
+
+
+## BUILD-00142 — strict recommendation analytics outcome validation
+
+- Normalize performance metrics before classifying selected production outcomes as measured; reject booleans, non-numeric values, non-finite values and negative values.
+- Validate YouTube audience-retention curve coordinates as finite normalized ratios in the inclusive 0–1 range; malformed points do not count as evidence.
+- Preserve valid average view percentage values above 100%, which can occur when viewers replay content.
+- Add regression coverage for invalid-only outcomes, malformed retention coordinates and valid average view percentage above 100%.
+- GitHub Actions PR run [43799823287](https://github.com/justinhblee-prog/shorts/actions/runs/43799823287) passed the complete `scripts/validate.sh` workflow.
+- Draft PR [#136](https://github.com/justinhblee-prog/shorts/pull/136) remains open and unmerged pending review; existing PR #36 is untouched.
+- This change does not alter ranking scores, production approval, publishing, or live-provider behavior.
