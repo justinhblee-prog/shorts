@@ -48,7 +48,7 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
             lost_lease.set()
             stopping.set()
             try:
-                queue.pause(f"heartbeat lease conflict: {exc}", job_id)
+                queue.pause(f"heartbeat lease conflict: {exc}", job_id, worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN)
             except Exception:
                 pass
             return
@@ -58,7 +58,7 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
             lost_lease.set()
             stopping.set()
             try:
-                queue.pause(f"heartbeat failure: {type(exc).__name__}: {exc}", job_id)
+                queue.pause(f"heartbeat failure: {type(exc).__name__}: {exc}", job_id, worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN)
             except Exception:
                 pass
             return
@@ -88,7 +88,7 @@ def run_once():
             "Orphaned production lifecycle records require operator investigation: "
             + json.dumps(orphaned_items[:10], ensure_ascii=False)
         )
-        queue.pause(reason)
+        queue.pause(reason, worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN)
         print(
             f"production_orphan_integrity_blocked orphaned={orphan_report['orphaned']}; "
             "worker_paused"
@@ -141,7 +141,7 @@ def run_once():
         try:
             # Pause first so the current running job and production record are
             # terminalized atomically before its lease can be released.
-            queue.pause(reason, job["id"])
+            queue.pause(reason, job["id"], worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN)
         except Exception:
             try:
                 queue.fail(job["id"], WORKER_ID, job["lease_token"],
@@ -164,7 +164,7 @@ def run_once():
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
-            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"])
+            queue.pause(f"provider failure at {exc.stage}: {exc}", job["id"], worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN)
         except Exception:
             pass
         print(f"provider_failure job={job['id']} stage={exc.stage} retryable={exc.retryable}")
@@ -176,7 +176,7 @@ def run_once():
         except LeaseConflict:
             pass
         try:
-            queue.pause(f"lease/production conflict: {exc}", job["id"])
+            queue.pause(f"lease/production conflict: {exc}", job["id"], worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN)
         except Exception:
             pass
         print(f"lease_lost job={job['id']}; worker_paused")
@@ -188,7 +188,7 @@ def run_once():
         except LeaseConflict:
             print(f"lease_lost job={job['id']}")
         try:
-            queue.pause(f"fatal worker error: {type(exc).__name__}: {exc}", job["id"])
+            queue.pause(f"fatal worker error: {type(exc).__name__}: {exc}", job["id"], worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN)
         except Exception:
             pass
         print(f"worker_failure job={job['id']} error={type(exc).__name__}")
@@ -225,7 +225,7 @@ def main():
     except Exception as exc:
         stopping.set()
         try:
-            queue.pause(f"fatal worker startup/reconciliation error: {type(exc).__name__}: {exc}")
+            queue.pause(f"fatal worker startup/reconciliation error: {type(exc).__name__}: {exc}", worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN)
         except Exception:
             pass
         print(f"worker_fatal error={type(exc).__name__}; worker_paused")
