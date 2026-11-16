@@ -99,7 +99,7 @@ class JobQueue:
         """Append an audit event using the enclosing transition's timestamp when supplied."""
         c.execute("INSERT INTO job_events(job_id,event_type,from_status,to_status,worker_id,details_json,created_at) VALUES(?,?,?,?,?,?,?)",
           (jid,kind,before,after,worker,json.dumps(details or {},ensure_ascii=False),
-           stamp(created_at) if created_at is not None else stamp(now())))
+           created_at if created_at is not None else stamp(now())))
 
     def decode(self,row):
         if row is None: return None
