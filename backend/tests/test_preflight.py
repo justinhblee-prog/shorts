@@ -100,6 +100,19 @@ class PreflightTests(unittest.TestCase):
 
 
 
+
+    def test_per_operator_credentials_satisfy_auth_preflight_without_legacy_token(self):
+        result = build_preflight({
+            "NEXUS_REVIEW_CREDENTIALS_JSON": '{"alice":"' + ("a" * 48) + '"}',
+        })
+        self.assertTrue(result["checks"]["operator_auth"]["configured"])
+        self.assertNotIn("NEXUS_REVIEW_TOKEN", result["missing"])
+        self.assertFalse(result["checks"]["operator_rbac"]["configured"])
+        self.assertIn(
+            "NEXUS_REVIEW_ROLE_MAP_JSON",
+            result["checks"]["operator_rbac"]["optional_missing"],
+        )
+
     def test_youtube_oauth_redirect_and_encryption_are_optional_preflight_settings(self):
         result = build_preflight({})
         self.assertFalse(result["checks"]["youtube_oauth"]["configured"])
