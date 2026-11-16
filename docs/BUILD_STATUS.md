@@ -1180,4 +1180,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Ignore boolean retention coordinates so Python booleans cannot masquerade as normalized 0/1 ratios.
 - Reject non-finite and overflowing duration inputs; NaN no longer falls through to the longest-duration bucket.
 - Add regression tests for boolean coordinates, numeric overflow, NaN and infinities.
-- Draft PR [#138](https://github.com/justinhblee-prog/shorts/pull/138) is open; GitHub Actions validation is pending.
+- GitHub Actions runs [43800173862](https://github.com/justinhblee-prog/shorts/actions/runs/43800173862) and [43800184872](https://github.com/justinhblee-prog/shorts/actions/runs/43800184872) passed the complete `scripts/validate.sh` workflow.
