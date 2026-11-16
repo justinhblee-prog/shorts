@@ -41,8 +41,7 @@ class ReviewStore:
             for key, item in value.items():
                 normalized = str(key).strip().lower().replace("-", "_")
                 if (normalized in cls.SENSITIVE_REVIEW_KEYS
-                        or normalized.endswith("_access_token")
-                        or normalized.endswith("_refresh_token")
+                        or normalized.endswith("_token")
                         or normalized.endswith("_api_key")
                         or normalized.endswith("_secret")):
                     continue
