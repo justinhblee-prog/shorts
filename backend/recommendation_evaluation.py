@@ -47,19 +47,60 @@ def _spearman(left, right):
     return round(sum(a * b for a, b in zip(dx, dy)) / denom, 4)
 
 
+def _finite_nonnegative(value):
+    """Normalize a finite nonnegative numeric metric, excluding booleans."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) and number >= 0 else None
+
+
+def _normalized_ratio(value):
+    number = _finite_nonnegative(value)
+    return number if number is not None and number <= 1 else None
+
+
+def _normalized_outcome(item):
+    """Copy only validated analytics fields into an evaluation-safe outcome."""
+    if not isinstance(item, dict):
+        return None
+    normalized = dict(item)
+    normalized["views_per_hour"] = _finite_nonnegative(item.get("views_per_hour"))
+    normalized["engaged_view_share"] = _normalized_ratio(item.get("engaged_view_share"))
+    normalized["average_view_percentage"] = _finite_nonnegative(
+        item.get("average_view_percentage")
+    )
+    normalized["average_view_duration_seconds"] = _finite_nonnegative(
+        item.get("average_view_duration_seconds")
+    )
+    curve = []
+    for point in item.get("audience_retention_curve", []):
+        if not isinstance(point, dict):
+            continue
+        elapsed = _normalized_ratio(point.get("elapsed_video_time_ratio"))
+        audience = _normalized_ratio(point.get("audience_watch_ratio"))
+        if elapsed is not None and audience is not None:
+            curve.append({
+                "elapsed_video_time_ratio": elapsed,
+                "audience_watch_ratio": audience,
+            })
+    normalized["audience_retention_curve"] = curve
+    return normalized
+
+
 def _retention_at(curve, target):
-    """Return the nearest source-reported audienceWatchRatio to a video-time ratio."""
+    """Return nearest valid source-reported audience ratio at a video-time ratio."""
     candidates = []
     for point in curve if isinstance(curve, list) else []:
         if not isinstance(point, dict):
             continue
-        ratio = point.get("elapsed_video_time_ratio")
-        value = point.get("audience_watch_ratio")
-        if not isinstance(ratio, (int, float)) or not isinstance(value, (int, float)):
-            continue
-        if not math.isfinite(float(ratio)) or not math.isfinite(float(value)) or value < 0:
-            continue
-        candidates.append((abs(float(ratio) - target), float(value)))
+        ratio = _normalized_ratio(point.get("elapsed_video_time_ratio"))
+        value = _normalized_ratio(point.get("audience_watch_ratio"))
+        if ratio is not None and value is not None:
+            candidates.append((abs(ratio - target), value))
     if not candidates:
         return None
     return min(candidates, key=lambda item: item[0])[1]
@@ -267,22 +308,27 @@ class RecommendationEvaluationStore:
         if platform not in ("youtube", "tiktok"):
             raise ValueError("platform must be youtube or tiktok")
         measured = {}
-        for item in performance.get("videos", []):
-            if item.get("platform", "youtube") != platform or not item.get("job_id"):
+        performance_rows = performance.get("videos", []) if isinstance(performance, dict) else []
+        for raw_item in performance_rows if isinstance(performance_rows, list) else []:
+            item = _normalized_outcome(raw_item)
+            if item is None or item.get("platform", "youtube") != platform:
                 continue
-            views = item.get("views_per_hour")
+            job_id = item.get("job_id")
+            if not isinstance(job_id, str) or not job_id.strip():
+                continue
             has_views = (
                 item.get("measurement_status") == "measured"
-                and isinstance(views, (int, float)) and math.isfinite(float(views))
-                and views >= 0
+                and item["views_per_hour"] is not None
             )
             has_analytics = any(
-                isinstance(item.get(key), (int, float))
-                and math.isfinite(float(item[key])) and item[key] >= 0
-                for key in ("engaged_view_share", "average_view_percentage", "average_view_duration_seconds")
-            ) or bool(item.get("audience_retention_curve"))
+                item.get(key) is not None
+                for key in (
+                    "engaged_view_share", "average_view_percentage",
+                    "average_view_duration_seconds",
+                )
+            ) or bool(item["audience_retention_curve"])
             if has_views or has_analytics:
-                measured[str(item["job_id"])] = item
+                measured[job_id] = item
         with self.db() as c:
             rows = c.execute("""SELECT c.run_id,r.generated_at AS run_generated_at,r.platform,
                 c.selected_job_id,c.selected_at,c.created_at,
