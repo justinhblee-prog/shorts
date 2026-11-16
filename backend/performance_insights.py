@@ -591,6 +591,9 @@ class PerformanceAnalyzer:
         for video in video_results:
             if video.get("analytics_status") != "available":
                 continue
+            # Unknown age/duration buckets are not a defensible matched cohort.
+            if video.get("publication_age_bucket") == "unknown" or video.get("duration_bucket") == "unknown":
+                continue
             if not any(isinstance(video.get(field), (int, float)) for field in (
                 "average_view_percentage", "average_view_duration_seconds",
                 "engaged_view_share",
@@ -662,7 +665,7 @@ class PerformanceAnalyzer:
                 percentage_comparison = comparisons["average_view_percentage"]
                 if percentage_comparison["status"] == "comparable":
                     difference = percentage_comparison["difference_from_median"]
-                    if difference < 0:
+                    if difference is not None and difference < 0:
                         video.setdefault("analytics_observations", []).append({
                             "type": "below_matched_cohort_retention",
                             "basis": "observed_average_view_percentage_below_cohort_median",
@@ -670,7 +673,7 @@ class PerformanceAnalyzer:
                             "action": "Review the opening hook and pacing against matched videos; test one controlled edit",
                             "ranking_score_adjustment": 0,
                         })
-                    elif difference > 0:
+                    elif difference is not None and difference > 0:
                         video.setdefault("analytics_observations", []).append({
                             "type": "above_matched_cohort_retention",
                             "basis": "observed_average_view_percentage_above_cohort_median",
