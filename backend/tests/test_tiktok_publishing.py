@@ -1055,6 +1055,36 @@ class TikTokPublishingTests(unittest.TestCase):
             self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"]
         )
 
+    def test_expired_poll_lease_stops_before_remote_status_request(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        attempt_id = self.store.get("job-1")["attempt_id"]
+        stale_token = self.store.acquire_status_poll_lease(
+            "job-1", attempt_id, lease_seconds=45
+        )
+        self.assertIsNotNone(stale_token)
+        with self.store.db() as connection:
+            connection.execute("""
+                UPDATE tiktok_status_poll_leases
+                SET lease_expires_at='2000-01-01T00:00:00+00:00'
+                WHERE job_id='job-1' AND lease_token=?
+            """, (stale_token,))
+        original_call = self.publisher._call
+        def unexpected_remote_call(*args, **kwargs):
+            self.fail("stale poller must not call TikTok status API")
+        self.publisher._call = unexpected_remote_call
+        try:
+            with self.assertRaisesRegex(
+                TikTokPublishError, "lease expired or was replaced before remote lookup"
+            ):
+                self.publisher.refresh_status(
+                    "job-1", poll_lease_token=stale_token
+                )
+        finally:
+            self.publisher._call = original_call
+
     def test_expired_poll_result_cannot_overwrite_publication_state_after_takeover(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
