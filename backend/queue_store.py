@@ -160,11 +160,11 @@ class JobQueue:
             code = ("production_lease_expired_ambiguous" if ambiguous else "lease_expired")
             message = ("Production lease expired; external provider outcome is ambiguous"
                        if ambiguous else "Worker lease expired")
-            c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,
+            updated = c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,
                 lease_expires_at=NULL,available_at=?,updated_at=?,error_code=?,error_message=?
                 WHERE id=? AND status='running' AND lease_expires_at<=?""",
                 (target, timestamp, timestamp, code, message, row["id"], timestamp))
-            if c.rowcount != 1:
+            if updated.rowcount != 1:
                 continue
             self.event(c, row["id"], "lease_expired", "running", target, None,
                        {"attempt": row["attempt"], "ambiguous_external_work": ambiguous,
