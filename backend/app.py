@@ -839,6 +839,19 @@ def schedule_outbox(x_review_token:str|None=Header(default=None)):
     return schedule_store.outbox_status()
 
 
+
+@app.post("/api/schedules/outbox/{outbox_id}/retry")
+def retry_schedule_outbox(outbox_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_permission(x_review_token,"schedules.manage")
+    try:
+        result=schedule_store.retry_dead_letter(outbox_id)
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    if result is None:
+        raise HTTPException(404,"Dead-letter outbox item not found")
+    return result
+
+
 @app.put("/api/schedules/{schedule_id}/activation")
 def activate_schedule(schedule_id:str,active:bool,
                       x_review_token:str|None=Header(default=None)):
