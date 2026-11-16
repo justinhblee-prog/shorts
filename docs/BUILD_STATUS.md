@@ -1980,4 +1980,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Added an eight-caller publisher-level regression that races fully approved upload requests, not only low-level reservation calls.
 - Asserts exactly one request reaches the YouTube remote insert adapter, one private upload is finalized, and only one attempt-start audit event exists.
 - This exercises media fingerprint verification, current approval reservation, and the remote-call boundary together.
+- The race exposed a real gap: a caller that acquired the reservation after another caller had already finished could receive the canonical uploaded row and still issue another remote insert. The publisher now returns that confirmed record instead of starting another upload.
 - Mocked provider adapter and local SQLite only; no live YouTube account/API validation is claimed.
