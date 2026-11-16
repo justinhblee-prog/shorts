@@ -1750,3 +1750,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Define retry authorization as a separate operator action after affirmative non-execution evidence, current approval/artifact revalidation, and platform-specific privacy/consent checks.
 - Record the validation boundary: deterministic CI doubles do not establish live OAuth, account permission, actual upload, or production recovery readiness.
 - Documentation-only change; no new runtime behavior or test result is claimed.
+
+
+## BUILD-00210 — bind platform reconciliation identity to authenticated operator
+
+- Bind YouTube upload reconciliation, YouTube late-success resolution, and TikTok publication reconciliation to the authenticated principal returned by the `publish.reconcile` permission check.
+- Reject request-body operator IDs that differ from the authenticated principal before mutating publication state or writing reconciliation audit events.
+- Add API-level regressions for spoofed operator identities and for matching authenticated identities on both platform reconciliation endpoints.
+- This prevents an authorized reviewer from attributing a platform reconciliation audit event to an arbitrary operator ID.
+- GitHub Actions validation was triggered for the initial implementation commit; confirm the final branch-head run before treating this change as validated.
