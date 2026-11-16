@@ -120,9 +120,6 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertNotIn("esc(video.artifact_url)", app_js)
         self.assertNotIn("esc(audioArtifact.artifact_url)", app_js)
 
-if __name__ == "__main__":
-    unittest.main()
-
     def test_integrity_report_is_visible_as_read_only_operator_diagnostic(self):
         frontend = ROOT / "frontend"
         app_js = (frontend / "app.js").read_text(encoding="utf-8")
