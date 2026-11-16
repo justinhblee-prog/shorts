@@ -192,6 +192,43 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(saved["retention_error"], "PermissionError")
         self.assertEqual(saved["retention_curve"], [])
 
+    def test_expired_lease_stops_analytics_polling_before_provider_calls(self):
+        reports = FakeReports()
+        collector = YouTubeAnalyticsCollector(
+            self.store, service=FakeService(reports),
+        )
+        old_token = self.store.acquire_lease("collector-old", lease_seconds=30)
+        self.assertIsNotNone(old_token)
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE youtube_analytics_collector_lease SET lease_until=? WHERE id=1",
+                (date.today().toordinal() - 1,),
+            )
+        new_token = self.store.acquire_lease("collector-new", lease_seconds=300)
+        self.assertIsNotNone(new_token)
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            collector.collect_video(
+                "video-stale", "2026-11-01", "2026-11-14",
+                lease_owner="collector-old", lease_token=old_token,
+            )
+        self.assertEqual(reports.calls, [])
+
+    def test_lease_loss_aborts_batch_instead_of_continuing_provider_calls(self):
+        class LeaseLossCollector(YouTubeAnalyticsCollector):
+            def __init__(self, store):
+                super().__init__(store, service=FakeService(FakeReports()))
+                self.calls = []
+
+            def collect_video(self, video_id, **kwargs):
+                self.calls.append(video_id)
+                raise RuntimeError("YouTube Analytics lease lost; stale write rejected")
+
+        collector = LeaseLossCollector(self.store)
+        self.store.due_video_ids = lambda limit, min_age_seconds: ["video-1", "video-2"]
+        with self.assertRaisesRegex(RuntimeError, "lease lost; stale write rejected"):
+            collector.refresh_due_metrics(lease_owner="old", lease_token="stale")
+        self.assertEqual(collector.calls, ["video-1"])
+
     def test_no_data_is_not_reported_as_live_metrics(self):
         reports = FakeReports()
         collector = YouTubeAnalyticsCollector(self.store, service=FakeService(reports))
