@@ -157,7 +157,7 @@ class JobQueue:
         have completed before its worker lost the lease. Caller owns the
         BEGIN IMMEDIATE transaction and pauses production after this helper.
         """
-        rows = c.execute("""SELECT id,job_type,attempt,max_attempts
+        rows = c.execute("""SELECT id,job_type,attempt,max_attempts,worker_id
             FROM pipeline_jobs
             WHERE status='running' AND lease_expires_at IS NOT NULL
               AND lease_expires_at<=?
@@ -180,8 +180,9 @@ class JobQueue:
                 (target, timestamp, timestamp, code, message, row["id"], timestamp))
             if updated.rowcount != 1:
                 continue
-            self.event(c, row["id"], "lease_expired", "running", target, None,
-                       {"attempt": row["attempt"], "ambiguous_external_work": ambiguous,
+            self.event(c, row["id"], "lease_expired", "running", target, row["worker_id"],
+                       {"attempt": row["attempt"], "expired_worker_id": row["worker_id"],
+                        "ambiguous_external_work": ambiguous,
                         "resolution": "manual_reconciliation_required" if ambiguous else
                                      ("retry_available" if target == "queued" else "attempts_exhausted")})
             if ambiguous:

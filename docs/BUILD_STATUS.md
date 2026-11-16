@@ -1890,3 +1890,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The current row retains attempt B's canonical video ID and attempt identity, while attempt A's late video ID is retained only in A's audit event.
 - The job transitions to `late_success_review_required` and another retry remains blocked until operator resolution, preventing a duplicate upload.
 - Backend deterministic CI only; no live YouTube API verification.
+
+## BUILD-00232 — Preserve expired lease owner in recovery audit
+- Expired-lease recovery previously cleared `worker_id` from the queue row and wrote a `lease_expired` event with a null worker, losing which worker owned the expired lease.
+- Recovery now snapshots the owner before clearing the lease and records it as the event actor and `expired_worker_id` detail. Lease tokens are intentionally not written to audit logs.
+- Added assertions for ordinary retryable/exhausted jobs and ambiguous production leases across both claim-triggered and periodic recovery paths.
+- Backend deterministic CI only; no external provider validation.
