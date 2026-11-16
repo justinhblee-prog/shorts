@@ -51,8 +51,6 @@ class ScheduleStore:
             );
             CREATE INDEX IF NOT EXISTS idx_schedule_outbox_pending
               ON schedule_dispatch_outbox(status,created_at);
-            CREATE INDEX IF NOT EXISTS idx_schedule_outbox_retry
-              ON schedule_dispatch_outbox(status,next_attempt_at,created_at);
             CREATE TABLE IF NOT EXISTS scheduler_leader_lease(
               id INTEGER PRIMARY KEY CHECK(id=1), owner_id TEXT NOT NULL,
               lease_token TEXT NOT NULL, expires_at TEXT NOT NULL,
