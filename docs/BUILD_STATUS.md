@@ -1230,3 +1230,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add regression coverage for malformed timestamp, region and identity payloads.
 - GitHub Actions run [43805417830](https://github.com/justinhblee-prog/shorts/actions/runs/43805417830) passed `scripts/validate.sh` after the timestamp-defaulting regression fix.
 - Ranking score adjustment remains disabled; no live provider validation is claimed.
+
+
+## BUILD-00151 — malformed retention-curve payload isolation
+
+- Treat audience-retention curve data as optional structured input; only iterate list payloads.
+- Ignore malformed `null`, scalar and object` curve containers instead of allowing a provider payload to raise `TypeError` during recommendation evaluation.
+- Preserve independently valid views and Analytics metrics when the retention curve is malformed.
+- Add regression coverage for null, numeric, string and mapping curve payloads.
+- GitHub Actions validation: pending.
+- Ranking score adjustment remains disabled; no live provider validation is claimed.
