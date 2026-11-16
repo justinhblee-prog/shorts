@@ -17,6 +17,19 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+MAX_ANALYTICS_RESPONSE_ROWS = 200
+MAX_ANALYTICS_COLUMN_HEADERS = 64
+MAX_ANALYTICS_VIDEO_ID_CHARS = 256
+METRICS_QUERY_FIELDS = {
+    "views", "engagedViews", "estimatedMinutesWatched",
+    "averageViewDuration", "averageViewPercentage",
+}
+RETENTION_QUERY_FIELDS = {
+    "elapsedVideoTimeRatio", "audienceWatchRatio",
+    "relativeRetentionPerformance",
+}
+
+
 def _as_number(value, allow_negative=False):
     try:
         number = float(value)
@@ -368,12 +381,103 @@ class YouTubeAnalyticsCollector:
 
     @staticmethod
     def _row_map(response):
-        headers = [item.get("name") for item in response.get("columnHeaders", [])]
-        rows = response.get("rows") or []
-        return dict(zip(headers, rows[0])) if rows else {}
+        if not isinstance(response, dict):
+            raise RuntimeError("YouTube Analytics response is malformed")
+        headers = response.get("columnHeaders")
+        rows = response.get("rows", [])
+        if (
+            not isinstance(headers, list)
+            or not 1 <= len(headers) <= MAX_ANALYTICS_COLUMN_HEADERS
+            or not isinstance(rows, list)
+            or len(rows) > MAX_ANALYTICS_RESPONSE_ROWS
+        ):
+            raise RuntimeError("YouTube Analytics response omitted valid headers or rows")
+        names = []
+        for header in headers:
+            if not isinstance(header, dict):
+                raise RuntimeError("YouTube Analytics response columns are invalid")
+            name = header.get("name")
+            if (
+                not isinstance(name, str) or not name or len(name) > 64
+                or not name.isascii() or not name[0].isalpha()
+                or not name.replace("_", "").isalnum()
+                or name not in METRICS_QUERY_FIELDS
+            ):
+                raise RuntimeError("YouTube Analytics response columns are invalid")
+            names.append(name)
+        if len(names) != len(set(names)) or not METRICS_QUERY_FIELDS.issubset(set(names)):
+            raise RuntimeError("YouTube Analytics response omitted requested metrics")
+        if len(rows) > 1:
+            raise RuntimeError("YouTube Analytics response exceeded the single-video row limit")
+        if not rows:
+            return {}
+        row = rows[0]
+        if not isinstance(row, list) or len(row) != len(names):
+            raise RuntimeError("YouTube Analytics response row shape is invalid")
+        parsed = dict(zip(names, row))
+        for key, value in parsed.items():
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise RuntimeError("YouTube Analytics metric is not numeric: " + key)
+            if _as_number(value) is None:
+                raise RuntimeError("YouTube Analytics metric is outside the valid range: " + key)
+        return parsed
+
+    @staticmethod
+    def _parse_retention_response(response):
+        if not isinstance(response, dict):
+            raise RuntimeError("YouTube retention response is malformed")
+        headers = response.get("columnHeaders")
+        rows = response.get("rows", [])
+        if (
+            not isinstance(headers, list)
+            or not 1 <= len(headers) <= MAX_ANALYTICS_COLUMN_HEADERS
+            or not isinstance(rows, list)
+            or len(rows) > MAX_ANALYTICS_RESPONSE_ROWS
+        ):
+            raise RuntimeError("YouTube retention response omitted valid headers or rows")
+        names = []
+        for header in headers:
+            if not isinstance(header, dict):
+                raise RuntimeError("YouTube retention response columns are invalid")
+            name = header.get("name")
+            if (
+                not isinstance(name, str) or name not in RETENTION_QUERY_FIELDS
+                or len(name) > 64
+            ):
+                raise RuntimeError("YouTube retention response columns are invalid")
+            names.append(name)
+        if len(names) != len(set(names)) or not RETENTION_QUERY_FIELDS.issubset(set(names)):
+            raise RuntimeError("YouTube retention response omitted requested metrics")
+        parsed = []
+        for row in rows:
+            if not isinstance(row, list) or len(row) != len(names):
+                raise RuntimeError("YouTube retention response row shape is invalid")
+            point = dict(zip(names, row))
+            elapsed = point.get("elapsedVideoTimeRatio")
+            audience = point.get("audienceWatchRatio")
+            relative = point.get("relativeRetentionPerformance")
+            for key, value in point.items():
+                if value is None:
+                    continue
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise RuntimeError("YouTube retention metric is not numeric: " + key)
+                if _as_number(value, allow_negative=(key == "relativeRetentionPerformance")) is None:
+                    raise RuntimeError("YouTube retention metric is outside the valid range: " + key)
+            if elapsed is not None and not 0 <= float(elapsed) <= 1:
+                raise RuntimeError("YouTube elapsed video ratio is outside the valid range")
+            if audience is not None and not 0 <= float(audience) <= 1:
+                raise RuntimeError("YouTube audience watch ratio is outside the valid range")
+            parsed.append(point)
+        return parsed
 
     def collect_video(self, video_id, start_date=None, end_date=None):
-        if not isinstance(video_id, str) or not video_id.strip() or len(video_id) > 128:
+        if (
+            not isinstance(video_id, str) or not video_id.strip()
+            or len(video_id) > MAX_ANALYTICS_VIDEO_ID_CHARS
+            or any(ord(character) < 32 for character in video_id)
+        ):
             raise ValueError("A valid YouTube video ID is required")
         end = end_date or (self.today() - timedelta(days=2))
         # Explicit report ranges do not need local publication metadata.
@@ -443,9 +547,7 @@ class YouTubeAnalyticsCollector:
                 filters="video==" + video_id,
                 maxResults=200,
             ).execute()
-            headers = [item.get("name") for item in retention_report.get("columnHeaders", [])]
-            retention = [dict(zip(headers, row))
-                         for row in retention_report.get("rows", [])]
+            retention = self._parse_retention_response(retention_report)
             retention_status = "available" if retention else "no_data"
         except Exception as exc:
             # Keep watch-time metrics usable when a video is not eligible for
