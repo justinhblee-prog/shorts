@@ -892,4 +892,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Require both the current script policy preflight and the latest human-approved script snapshot to match the active `POLICY_VERSION` and `POLICY_CHECKED_ON` before an upload attempt is initialized.
 - Reject missing or stale check dates before any remote YouTube API call; do not stamp incomplete policy evidence into upload audit records.
 - Add regression tests for stale current evidence and stale approval snapshots.
-- Validation pending on this branch; do not treat the task as complete until GitHub Actions passes.
+- GitHub Actions PR run [43779365868](https://github.com/justinhblee-prog/shorts/actions/runs/43779365868) passed: **247 backend tests** and `scripts/validate.sh` completed successfully. PR #80 was squash-merged into `main` as `5dba9163a20e8fbc4e68bca260c962f944500b0a`. The CI run executed on the PR head before the squash merge; the merge commit itself has no separate CI run recorded.
