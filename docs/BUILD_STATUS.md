@@ -1238,5 +1238,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Ignore malformed `null`, scalar and object` curve containers instead of allowing a provider payload to raise `TypeError` during recommendation evaluation.
 - Preserve independently valid views and Analytics metrics when the retention curve is malformed.
 - Add regression coverage for null, numeric, string and mapping curve payloads.
-- GitHub Actions validation: pending.
+- GitHub Actions runs [43805844306](https://github.com/justinhblee-prog/shorts/actions/runs/43805844306) and [43805847271](https://github.com/justinhblee-prog/shorts/actions/runs/43805847271) passed the complete `scripts/validate.sh` workflow on the source and regression-test commits; documentation-only updates followed.
 - Ranking score adjustment remains disabled; no live provider validation is claimed.
