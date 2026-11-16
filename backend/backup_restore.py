@@ -16,6 +16,11 @@ MANIFEST_NAME = "manifest.json"
 DATABASE_NAME = "database.sqlite3"
 MEDIA_ROOT = "media"
 FORMAT_VERSION = 1
+MAX_ARCHIVE_MEMBERS = 100_000
+MAX_MANIFEST_BYTES = 16 * 1024 * 1024
+MAX_DATABASE_BYTES = 8 * 1024 * 1024 * 1024
+MAX_MEDIA_BYTES = 200 * 1024 * 1024 * 1024
+MAX_ARCHIVE_BYTES = MAX_MANIFEST_BYTES + MAX_DATABASE_BYTES + MAX_MEDIA_BYTES
 
 
 class BackupRestoreError(RuntimeError):
@@ -130,6 +135,14 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14):
         _sqlite_snapshot(db_path, db_snapshot)
         _copy_media(media_dir, media_snapshot)
         inventory = _media_inventory(media_snapshot)
+        media_entry_count = sum(1 for _ in media_snapshot.rglob("*"))
+        if media_entry_count > MAX_ARCHIVE_MEMBERS - 2:
+            raise BackupRestoreError("Media backup contains too many entries")
+        media_bytes = sum(item["size"] for item in inventory)
+        if media_bytes > MAX_MEDIA_BYTES:
+            raise BackupRestoreError("Media backup exceeds the supported size")
+        if db_snapshot.stat().st_size > MAX_DATABASE_BYTES:
+            raise BackupRestoreError("SQLite backup exceeds the supported size")
         manifest = {
             "format_version": FORMAT_VERSION,
             "created_at": _now().isoformat(),
@@ -161,12 +174,60 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14):
 
 
 def _validate_member_name(name):
+    if not isinstance(name, str) or not name or "\\" in name or "\x00" in name:
+        raise BackupRestoreError("Archive contains an invalid path")
     pure = PurePosixPath(name)
-    if pure.is_absolute() or ".." in pure.parts or not pure.parts:
+    if pure.is_absolute() or ".." in pure.parts or "." in pure.parts or not pure.parts:
         raise BackupRestoreError("Archive contains an unsafe path")
     if pure.parts[0] not in {MANIFEST_NAME, DATABASE_NAME, MEDIA_ROOT}:
         raise BackupRestoreError("Archive contains an unexpected path")
+    if pure.parts[0] in {MANIFEST_NAME, DATABASE_NAME} and len(pure.parts) != 1:
+        raise BackupRestoreError("Archive contains a nested control-file path")
     return pure
+
+
+def _validate_manifest(manifest):
+    if not isinstance(manifest, dict):
+        raise BackupRestoreError("Backup manifest must be a JSON object")
+    if manifest.get("format_version") != FORMAT_VERSION:
+        raise BackupRestoreError("Unsupported backup format version")
+    database_hash = manifest.get("database_sha256")
+    if not isinstance(database_hash, str) or len(database_hash) != 64 or any(
+        character not in "0123456789abcdef" for character in database_hash.lower()
+    ):
+        raise BackupRestoreError("Backup manifest database checksum is invalid")
+    entries = manifest.get("media_files")
+    if not isinstance(entries, list):
+        raise BackupRestoreError("Backup manifest media_files must be a list")
+    if len(entries) > MAX_ARCHIVE_MEMBERS:
+        raise BackupRestoreError("Backup manifest contains too many media files")
+    seen = set()
+    total_size = 0
+    for item in entries:
+        if not isinstance(item, dict):
+            raise BackupRestoreError("Backup manifest contains an invalid media entry")
+        relative = item.get("path")
+        size = item.get("size")
+        digest = item.get("sha256")
+        if not isinstance(relative, str) or len(relative) > 1024:
+            raise BackupRestoreError("Backup manifest contains an invalid media path")
+        pure = _validate_member_name(MEDIA_ROOT + "/" + relative)
+        if len(pure.parts) < 2:
+            raise BackupRestoreError("Backup manifest contains an empty media path")
+        normalized = PurePosixPath(*pure.parts[1:]).as_posix()
+        if normalized in seen:
+            raise BackupRestoreError("Backup manifest contains duplicate media paths")
+        seen.add(normalized)
+        if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+            raise BackupRestoreError("Backup manifest contains an invalid media size")
+        if not isinstance(digest, str) or len(digest) != 64 or any(
+            character not in "0123456789abcdef" for character in digest.lower()
+        ):
+            raise BackupRestoreError("Backup manifest contains an invalid media checksum")
+        total_size += size
+        if total_size > MAX_MEDIA_BYTES:
+            raise BackupRestoreError("Backup media exceeds the supported restore size")
+    return entries, total_size
 
 
 def _extract_and_verify(archive_path, destination):
@@ -178,30 +239,62 @@ def _extract_and_verify(archive_path, destination):
         raise BackupRestoreError("Backup archive cannot be opened") from exc
     with archive:
         members = archive.getmembers()
+        if len(members) > MAX_ARCHIVE_MEMBERS:
+            raise BackupRestoreError("Backup archive contains too many entries")
         file_members = {}
+        directory_names = set()
+        total_size = 0
         for member in members:
             pure = _validate_member_name(member.name)
             if member.issym() or member.islnk() or member.isdev() or member.isfifo():
                 raise BackupRestoreError("Archive contains a link or special file")
             if not (member.isfile() or member.isdir()):
                 raise BackupRestoreError("Archive contains an unsupported member")
+            if member.name in file_members or member.name.rstrip("/") in directory_names:
+                raise BackupRestoreError("Backup archive contains duplicate paths")
             if member.isfile():
-                if member.name in file_members:
-                    raise BackupRestoreError("Archive contains duplicate file paths")
+                if member.size < 0:
+                    raise BackupRestoreError("Backup archive contains an invalid file size")
+                if member.name == MANIFEST_NAME and member.size > MAX_MANIFEST_BYTES:
+                    raise BackupRestoreError("Backup manifest exceeds the supported size")
+                if member.name == DATABASE_NAME and member.size > MAX_DATABASE_BYTES:
+                    raise BackupRestoreError("Backup database exceeds the supported size")
+                total_size += member.size
+                if total_size > MAX_ARCHIVE_BYTES:
+                    raise BackupRestoreError("Backup archive exceeds the supported uncompressed size")
                 file_members[member.name] = member
+            else:
+                if pure.parts[0] != MEDIA_ROOT:
+                    raise BackupRestoreError("Backup archive contains an unexpected directory")
+                directory_names.add(member.name.rstrip("/"))
+
         if MANIFEST_NAME not in file_members or DATABASE_NAME not in file_members:
             raise BackupRestoreError("Backup archive is missing its manifest or database")
         manifest_stream = archive.extractfile(file_members[MANIFEST_NAME])
-        manifest = json.loads(manifest_stream.read().decode("utf-8"))
-        if manifest.get("format_version") != FORMAT_VERSION:
-            raise BackupRestoreError("Unsupported backup format version")
-        expected_media = {
-            MEDIA_ROOT + "/" + str(item.get("path"))
-            for item in manifest.get("media_files", [])
-        }
+        try:
+            manifest = json.loads(manifest_stream.read(MAX_MANIFEST_BYTES + 1).decode("utf-8"))
+        except (AttributeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise BackupRestoreError("Backup manifest is not valid UTF-8 JSON") from exc
+        entries, manifest_media_size = _validate_manifest(manifest)
+        if manifest_media_size > MAX_MEDIA_BYTES:
+            raise BackupRestoreError("Backup media exceeds the supported restore size")
+        if file_members[DATABASE_NAME].size > MAX_DATABASE_BYTES:
+            raise BackupRestoreError("Backup database exceeds the supported restore size")
+        expected_media = {MEDIA_ROOT + "/" + str(item["path"]) for item in entries}
         expected_files = {MANIFEST_NAME, DATABASE_NAME} | expected_media
         if set(file_members) != expected_files:
             raise BackupRestoreError("Backup archive contents do not match the manifest")
+        expected_directories = {MEDIA_ROOT}
+        for name in expected_media:
+            parts = PurePosixPath(name).parts
+            for index in range(1, len(parts)):
+                expected_directories.add("/".join(parts[:index]))
+        if not expected_directories.issubset(directory_names):
+            raise BackupRestoreError("Backup archive is missing required media directories")
+        for name in sorted(directory_names, key=lambda value: (value.count("/"), value)):
+            target = destination.joinpath(*PurePosixPath(name).parts)
+            target.mkdir(parents=True, exist_ok=True)
+
         for name, member in file_members.items():
             pure = _validate_member_name(name)
             target = destination.joinpath(*pure.parts)
@@ -211,21 +304,20 @@ def _extract_and_verify(archive_path, destination):
                 raise BackupRestoreError("Archive file cannot be read")
             with stream, open(target, "wb") as output:
                 shutil.copyfileobj(stream, output)
+
     database = destination / DATABASE_NAME
-    if _sha256(database) != manifest.get("database_sha256"):
+    if _sha256(database) != manifest.get("database_sha256", "").lower():
         raise BackupRestoreError("Backup database checksum mismatch")
     with sqlite3.connect(str(database), timeout=30) as connection:
         result = connection.execute("PRAGMA integrity_check").fetchone()
         if not result or result[0] != "ok":
             raise BackupRestoreError("Backup database failed integrity_check")
-    for item in manifest.get("media_files", []):
-        relative = PurePosixPath(str(item.get("path", "")))
-        if relative.is_absolute() or ".." in relative.parts or not relative.parts:
-            raise BackupRestoreError("Manifest contains an unsafe media path")
+    for item in entries:
+        relative = PurePosixPath(item["path"])
         path = destination / MEDIA_ROOT / Path(*relative.parts)
-        if not path.is_file() or path.stat().st_size != item.get("size"):
+        if not path.is_file() or path.stat().st_size != item["size"]:
             raise BackupRestoreError("Backup media file is missing or has the wrong size")
-        if _sha256(path) != item.get("sha256"):
+        if _sha256(path) != item["sha256"].lower():
             raise BackupRestoreError("Backup media checksum mismatch")
     return manifest
 
