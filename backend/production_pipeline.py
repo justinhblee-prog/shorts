@@ -272,9 +272,16 @@ class ProductionStore:
         if inspection.get("status") != "inspected":
             raise ValueError("media inspection did not complete")
         try:
-            width=int(inspection.get("width") or 0)
-            height=int(inspection.get("height") or 0)
-            duration=float(inspection.get("duration_seconds") or 0)
+            raw_width=inspection.get("width")
+            raw_height=inspection.get("height")
+            raw_duration=inspection.get("duration_seconds")
+            if isinstance(raw_width,bool) or isinstance(raw_height,bool) or isinstance(raw_duration,bool):
+                raise ValueError("boolean media measurements are invalid")
+            width=int(raw_width or 0)
+            height=int(raw_height or 0)
+            duration=float(raw_duration or 0)
+            if not math.isfinite(duration):
+                raise ValueError("media duration must be finite")
         except (TypeError,ValueError,OverflowError) as exc:
             raise ValueError("media inspection metadata is invalid") from exc
         if (width <= 0 or height <= 0 or duration <= 0 or duration > 180
@@ -283,7 +290,10 @@ class ProductionStore:
             raise ValueError("recovered media failed required duration, audio or vertical-format checks")
         media_path=str(staged.get("media_path") or "")
         digest=str(staged.get("sha256") or "")
-        size=int(staged.get("size_bytes") or 0)
+        raw_size=staged.get("size_bytes")
+        if isinstance(raw_size,bool):
+            raise ValueError("staged media size must be an integer, not a boolean")
+        size=int(raw_size or 0)
         if (not media_path or Path(media_path).name != media_path
                 or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest)
                 or size <= 0):
