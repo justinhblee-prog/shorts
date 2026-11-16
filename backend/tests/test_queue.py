@@ -45,6 +45,22 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(job["updated_at"],decision.isoformat())
   self.assertEqual(event["created_at"],decision.isoformat())
 
+  def test_queue_and_worker_control_audit_events_are_append_only(self):
+   job=self.q.enqueue("render",{"topic":"immutable-audit"})
+   with self.q.db() as c:
+    event_id=c.execute("SELECT id FROM job_events WHERE job_id=? AND event_type='enqueued'",(job["id"],)).fetchone()["id"]
+    with self.assertRaisesRegex(Exception,"job events are immutable"):
+     c.execute("UPDATE job_events SET event_type='tampered' WHERE id=?",(event_id,))
+    with self.assertRaisesRegex(Exception,"job events are immutable"):
+     c.execute("DELETE FROM job_events WHERE id=?",(event_id,))
+   self.q.pause("audit immutability test")
+   with self.q.db() as c:
+    event_id=c.execute("SELECT id FROM worker_control_events WHERE event_type='paused' ORDER BY id DESC LIMIT 1").fetchone()["id"]
+    with self.assertRaisesRegex(Exception,"worker control events are immutable"):
+     c.execute("UPDATE worker_control_events SET reason='tampered' WHERE id=?",(event_id,))
+    with self.assertRaisesRegex(Exception,"worker control events are immutable"):
+     c.execute("DELETE FROM worker_control_events WHERE id=?",(event_id,))
+
  def test_idempotency(self):
   a=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
   b=self.q.enqueue("script",{"topic":"x"},idempotency_key="once")
