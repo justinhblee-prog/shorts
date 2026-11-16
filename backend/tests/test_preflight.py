@@ -108,6 +108,34 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(result["checks"]["media_malware_scan"]["configured"])
         self.assertTrue(any("signature database" in item for item in result["missing"]))
 
+    def test_provider_endpoints_require_https_and_reject_embedded_credentials(self):
+        result = build_preflight({
+            "SCRIPT_PROVIDER_URL": "http://script.example.test/generate",
+            "VOICE_PROVIDER_URL": "https://user:password@voice.example.test/generate",
+            "RENDER_PROVIDER_URL": "https://render.example.test/generate",
+        })
+        self.assertFalse(result["checks"]["script_generation"]["configured"])
+        self.assertIn(
+            "SCRIPT_PROVIDER_URL (provider URL must use HTTPS)",
+            result["checks"]["script_generation"]["missing"],
+        )
+        self.assertFalse(result["checks"]["voice_generation"]["configured"])
+        self.assertIn(
+            "VOICE_PROVIDER_URL (provider URL must not contain embedded credentials)",
+            result["checks"]["voice_generation"]["missing"],
+        )
+        self.assertTrue(result["checks"]["video_rendering"]["configured"])
+
+    def test_optional_transcription_endpoint_is_validated_when_present(self):
+        result = build_preflight({
+            "TRANSCRIPTION_PROVIDER_URL": "http://transcriber.example.test/api"
+        })
+        self.assertFalse(result["checks"]["transcription_provider"]["configured"])
+        self.assertIn(
+            "TRANSCRIPTION_PROVIDER_URL (provider URL must use HTTPS)",
+            result["missing"],
+        )
+
     def test_empty_environment_fails_closed_without_exposing_secrets(self):
         result = build_preflight({})
         self.assertFalse(result["capabilities"]["end_to_end_configured"])
