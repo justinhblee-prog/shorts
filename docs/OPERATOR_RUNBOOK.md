@@ -554,3 +554,8 @@ The production worker validates these settings before opening its queue:
 - `NEXUS_HEARTBEAT_SECONDS`: integer 5–3600 (default 10); the effective heartbeat is capped at one-third of the lease.
 
 Values must be unsigned decimal strings with no whitespace, signs, decimals or exponent notation. Invalid values stop worker startup instead of being silently coerced or clamped. Keep the heartbeat interval comfortably below the lease to allow transient database delays.
+
+
+### Worker heartbeat monitoring
+
+The authenticated `GET /api/workers` operations view reports each worker's heartbeat age and the stale threshold used for classification. `online` means the last heartbeat is within the threshold; `stale` means an expected heartbeat has stopped arriving; `offline` is reserved for a worker that completed its graceful shutdown bookkeeping. A stale worker is not automatically restarted by this view. Investigate the host/process and the associated job lease before taking recovery action. Production work with an ambiguous external-provider outcome must not be blindly replayed.

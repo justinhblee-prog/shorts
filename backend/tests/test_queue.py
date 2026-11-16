@@ -95,6 +95,28 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(self.q.workers()[0]["status"],"offline")
   self.assertFalse(self.q.mark_worker_offline("missing-worker"))
 
+
+ def test_worker_registry_reports_heartbeat_age_and_stale_status(self):
+  self.q.register_worker("worker-live","host-live")
+  live=self.q.workers(stale_after_seconds=30)[0]
+  self.assertEqual(live["status"],"online")
+  self.assertGreaterEqual(live["heartbeat_age_seconds"],0)
+  self.assertEqual(live["stale_after_seconds"],30)
+  with self.q.db() as c:
+   c.execute("UPDATE worker_registry SET last_seen_at='2000-01-01T00:00:00+00:00' WHERE worker_id='worker-live'")
+  stale=self.q.workers(stale_after_seconds=30)[0]
+  self.assertEqual(stale["status"],"stale")
+  self.assertGreater(stale["heartbeat_age_seconds"],30)
+
+ def test_explicitly_offline_worker_is_not_reported_as_stale(self):
+  self.q.register_worker("worker-clean","host-a")
+  self.q.mark_worker_offline("worker-clean")
+  with self.q.db() as c:
+   c.execute("UPDATE worker_registry SET last_seen_at='2000-01-01T00:00:00+00:00' WHERE worker_id='worker-clean'")
+  worker=self.q.workers(stale_after_seconds=30)[0]
+  self.assertEqual(worker["status"],"offline")
+  self.assertGreater(worker["heartbeat_age_seconds"],30)
+
  def test_recover_expired_lease(self):
   j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
   with self.q.db() as c:
@@ -163,14 +185,14 @@ class QueueTests(unittest.TestCase):
    self.q.resume(actor="admin-7",note="")
   self.q.resume(actor="admin-7",note="Reviewed queue and provider state")
   self.assertEqual(self.q.worker_control_events()[0]["event_type"],"resumed")
- def test_idle_worker_presence_refresh_and_stale_offline_detection(self):
+ def test_idle_worker_presence_refresh_and_stale_detection(self):
   first=self.q.register_worker("idle-worker","host-a")
   self.assertEqual(first["status"],"online")
   self.assertEqual(self.q.workers(stale_after_seconds=30)[0]["status"],"online")
   with self.q.db() as c:
    c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",
              ("2000-01-01T00:00:00+00:00","idle-worker"))
-  self.assertEqual(self.q.workers(stale_after_seconds=30)[0]["status"],"offline")
+  self.assertEqual(self.q.workers(stale_after_seconds=30)[0]["status"],"stale")
   self.q.register_worker("idle-worker","host-a")
   self.assertEqual(self.q.workers(stale_after_seconds=30)[0]["status"],"online")
  def test_worker_pause_persists_until_explicit_resume(self):

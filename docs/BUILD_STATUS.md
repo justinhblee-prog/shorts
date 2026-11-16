@@ -84,10 +84,10 @@ Business success is measured by verified net revenue, ROI, content throughput, a
 
 ## Validation — current truth
 
-- Latest verified candidate CI run: [43814172390](https://github.com/justinhblee-prog/shorts/actions/runs/43814172390), which passed **514 backend tests** and the complete `scripts/validate.sh` command for BUILD-00170.
+- Latest verified candidate CI run: [43814901569](https://github.com/justinhblee-prog/shorts/actions/runs/43814901569), which passed **516 backend tests** and the complete `scripts/validate.sh` command for BUILD-00171.
 - CI executed Python 3.11 tests on a GitHub-hosted runner. Provider/API tests use controlled test doubles where credentials or external services are required; this verifies application logic, not live provider success.
 - The validation script also checks Python compilation, frontend JavaScript syntax/DOM IDs and Docker Compose YAML parsing.
-- Recent verified milestones: BUILD-00164 scheduler outbox retry backoff — 500 tests; BUILD-00167 inactive-schedule dead-letter protection — 506 tests; BUILD-00168 scheduler outbox dashboard recovery — 507 tests; BUILD-00169 database readiness probe — 510 tests; BUILD-00170 strict worker runtime configuration — 514 tests.
+- Recent verified milestones: BUILD-00164 scheduler outbox retry backoff — 500 tests; BUILD-00167 inactive-schedule dead-letter protection — 506 tests; BUILD-00168 scheduler outbox dashboard recovery — 507 tests; BUILD-00169 database readiness probe — 510 tests; BUILD-00170 strict worker runtime configuration — 514 tests; BUILD-00171 worker heartbeat observability — 516 tests.
 - Not yet verified in a deployed environment: live AI provider generation, actual media rendering/staging, YouTube/TikTok OAuth and account permissions, real uploads, analytics coverage, revenue reconciliation, production worker/scheduler recovery, PostgreSQL migration, backups and restore.
 - No real earnings, monetization eligibility, platform-policy approval or complete unattended business cycle is claimed.
 - Production public publishing remains gated by explicit human approval.
@@ -1400,3 +1400,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Cap effective heartbeat to one-third of the lease.
 - Add pure configuration regression tests and operator documentation.
 - GitHub Actions run [43814172390](https://github.com/justinhblee-prog/shorts/actions/runs/43814172390) passed the complete `scripts/validate.sh` workflow, including 514 backend tests.
+
+
+## BUILD-00171 — worker heartbeat observability
+
+- Worker registry API now returns `heartbeat_age_seconds` and `stale_after_seconds` for each worker.
+- Distinguish a stale online worker from a worker that explicitly completed graceful shutdown (`offline`). Malformed heartbeat timestamps fail closed as stale.
+- Operations dashboard shows worker state, last heartbeat age and stale threshold.
+- Added regression tests for stale classification and preservation of explicit offline state.
+- GitHub Actions run [43814901569](https://github.com/justinhblee-prog/shorts/actions/runs/43814901569) passed the complete `scripts/validate.sh` workflow, including 516 backend tests.
