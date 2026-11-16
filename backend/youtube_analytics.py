@@ -56,6 +56,19 @@ class YouTubeAnalyticsStore:
               updated_at TEXT NOT NULL
             );
             """)
+            columns = {
+                row["name"] for row in connection.execute(
+                    "PRAGMA table_info(youtube_analytics_snapshots)"
+                ).fetchall()
+            }
+            if "engaged_views" not in columns:
+                connection.execute(
+                    "ALTER TABLE youtube_analytics_snapshots ADD COLUMN engaged_views REAL"
+                )
+            if "engaged_view_share" not in columns:
+                connection.execute(
+                    "ALTER TABLE youtube_analytics_snapshots ADD COLUMN engaged_view_share REAL"
+                )
 
     @contextmanager
     def db(self):
@@ -100,10 +113,17 @@ class YouTubeAnalyticsStore:
              retention_error=None):
         values = {
             "views": _as_number(metrics.get("views")),
+            "engaged_views": _as_number(metrics.get("engagedViews")),
             "estimated_minutes_watched": _as_number(metrics.get("estimatedMinutesWatched")),
             "average_view_duration": _as_number(metrics.get("averageViewDuration")),
             "average_view_percentage": _as_number(metrics.get("averageViewPercentage")),
         }
+        values["engaged_view_share"] = (
+            values["engaged_views"] / values["views"]
+            if values["engaged_views"] is not None
+            and values["views"] is not None and values["views"] > 0
+            else None
+        )
         safe_curve = []
         for point in retention if isinstance(retention, list) else []:
             if not isinstance(point, dict):
@@ -123,13 +143,15 @@ class YouTubeAnalyticsStore:
         with self.db() as connection:
             connection.execute("""
                 INSERT INTO youtube_analytics_snapshots(
-                  video_id,start_date,end_date,views,estimated_minutes_watched,
-                  average_view_duration,average_view_percentage,retention_json,
-                  analytics_status,retention_status,retention_error,collected_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                  video_id,start_date,end_date,views,engaged_views,engaged_view_share,
+                  estimated_minutes_watched,average_view_duration,average_view_percentage,
+                  retention_json,analytics_status,retention_status,retention_error,collected_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(video_id) DO UPDATE SET
                   start_date=excluded.start_date,end_date=excluded.end_date,
                   views=excluded.views,
+                  engaged_views=excluded.engaged_views,
+                  engaged_view_share=excluded.engaged_view_share,
                   estimated_minutes_watched=excluded.estimated_minutes_watched,
                   average_view_duration=excluded.average_view_duration,
                   average_view_percentage=excluded.average_view_percentage,
@@ -140,6 +162,7 @@ class YouTubeAnalyticsStore:
                   collected_at=excluded.collected_at
             """, (
                 video_id, start_date, end_date, values["views"],
+                values["engaged_views"], values["engaged_view_share"],
                 values["estimated_minutes_watched"], values["average_view_duration"],
                 values["average_view_percentage"], json.dumps(safe_curve, separators=(",", ":")),
                 analytics_status, retention_status, retention_error, _now(),
@@ -262,7 +285,8 @@ class YouTubeAnalyticsCollector:
                 "analytics_status": "pending_availability",
                 "retention_status": "pending_availability",
                 "metrics": {
-                    "views": None, "estimated_minutes_watched": None,
+                    "views": None, "engaged_views": None, "engaged_view_share": None,
+                    "estimated_minutes_watched": None,
                     "average_view_duration_seconds": None,
                     "average_view_percentage": None,
                 },
@@ -316,6 +340,13 @@ class YouTubeAnalyticsCollector:
             "retention_status": retention_status,
             "metrics": {
                 "views": metrics.get("views"),
+                "engaged_views": metrics.get("engagedViews"),
+                "engaged_view_share": (
+                    _as_number(metrics.get("engagedViews")) / _as_number(metrics.get("views"))
+                    if _as_number(metrics.get("engagedViews")) is not None
+                    and _as_number(metrics.get("views")) not in (None, 0)
+                    else None
+                ),
                 "estimated_minutes_watched": metrics.get("estimatedMinutesWatched"),
                 "average_view_duration_seconds": metrics.get("averageViewDuration"),
                 "average_view_percentage": metrics.get("averageViewPercentage"),
