@@ -91,6 +91,17 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                         "rows": [[1, invalid, 3, 4, 5]],
                     })
 
+    def test_metrics_parser_checks_returned_video_id_when_present(self):
+        headers = [{"name": name} for name in (
+            "video", "views", "engagedViews", "estimatedMinutesWatched",
+            "averageViewDuration", "averageViewPercentage",
+        )]
+        with self.assertRaisesRegex(RuntimeError, "unexpected video ID"):
+            YouTubeAnalyticsCollector._row_map({
+                "columnHeaders": headers,
+                "rows": [["different-video", 1, 1, 1.0, 1.0, 100.0]],
+            }, expected_video_id="requested-video")
+
     def test_metrics_parser_rejects_more_than_one_row(self):
         headers = [{"name": name} for name in (
             "views", "engagedViews", "estimatedMinutesWatched",
