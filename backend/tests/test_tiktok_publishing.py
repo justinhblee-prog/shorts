@@ -215,11 +215,12 @@ class TikTokPublishingTests(unittest.TestCase):
                   (job_id,attempt_id,event_type,outcome,publish_id,video_id,
                    operator_id,note,created_at,policy_version)
                 VALUES(?,?,'diagnostic_without_provider_ids','informational',
-                       NULL,NULL,NULL,?,?,?)
+                       NULL,NULL,?,?,?,?)
                 """,
                 (
-                    "job-1", first_attempt, "Non-provider diagnostic",
-                    "2026-01-01T00:00:00+00:00", POLICY_VERSION,
+                    "job-1", first_attempt, "operator-1",
+                    "Non-provider diagnostic", "2026-01-01T00:00:00+00:00",
+                    POLICY_VERSION,
                 ),
             )
         second = self.store.begin(
