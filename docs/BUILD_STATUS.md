@@ -1354,3 +1354,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Add an authenticated operator endpoint to explicitly retry a dead-letter item; reset retry state but preserve its original idempotency key.
 - Add regression coverage for the retry ceiling, manual recovery, missing IDs and idempotent dispatch.
 - GitHub Actions run [43812423780](https://github.com/justinhblee-prog/shorts/actions/runs/43812423780) passed the complete `scripts/validate.sh` workflow, including 503 backend tests.
+
+
+## BUILD-00166 — accurate scheduler outbox readiness status
+
+- Correct the outbox status contract: distinguish pending entries ready for dispatch from entries deferred by retry backoff.
+- Calculate `pending_retries` only for pending rows whose retry timestamp is still in the future; expose `pending_ready` separately.
+- Prioritize dead-letter records in the bounded operator status list so actionable failures are not hidden behind routine pending rows.
+- Add deterministic clock-based tests for before/after retry eligibility and timezone validation.
+- CI validation pending.
