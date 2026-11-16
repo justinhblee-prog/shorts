@@ -7,10 +7,10 @@ import uuid
 
 from queue_store import JobQueue
 from scheduler_store import ScheduleStore
+from scheduler_runtime_config import load_scheduler_config
 
 DB = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
-INTERVAL = max(5, int(os.getenv("NEXUS_SCHEDULER_POLL_SECONDS", "30")))
-LEASE_SECONDS = max(15, int(os.getenv("NEXUS_SCHEDULER_LEASE_SECONDS", "90")))
+INTERVAL, LEASE_SECONDS = load_scheduler_config(os.environ)
 OWNER_ID = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4()}"
 queue = JobQueue(DB)
 schedules = ScheduleStore(DB)
