@@ -408,7 +408,7 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertFalse(result["ranking_score_adjustment_enabled"])
 
     def test_analytics_numeric_validation_rejects_booleans_and_nonfinite_values(self):
-        for value in (True, False, float("nan"), float("inf"), float("-inf"), -0.01, "12"):
+        for value in (True, False, float("nan"), float("inf"), float("-inf"), -0.01, "12", 10 ** 10000):
             with self.subTest(value=value):
                 self.assertIsNone(_finite_nonnegative(value))
         self.assertEqual(_finite_nonnegative(0), 0.0)
