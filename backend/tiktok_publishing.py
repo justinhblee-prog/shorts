@@ -277,14 +277,20 @@ class TikTokPublishStore:
             ).fetchone()
             if row and row["attempt_id"] != attempt_id:
                 now = _now()
+                prior_event = c.execute("""
+                  SELECT publish_id,operator_id FROM tiktok_publication_events
+                  WHERE job_id=? AND attempt_id=? ORDER BY id DESC LIMIT 1
+                """, (job_id, attempt_id)).fetchone()
+                prior_publish_id = prior_event["publish_id"] if prior_event else None
+                prior_operator_id = prior_event["operator_id"] if prior_event else row["operator_id"]
                 if row["status"] in ("publish_complete", "failed", "send_to_inbox"):
                     c.execute("""
                       INSERT INTO tiktok_publication_events
                         (job_id,attempt_id,event_type,outcome,publish_id,video_id,
                          operator_id,note,created_at,policy_version)
                       VALUES(?,?,'superseded_attempt_uncertain','informational',?,?,?,?,?,?)
-                    """, (job_id, attempt_id, row["publish_id"], row["video_id"],
-                          row["operator_id"], message[:1000], now, row["policy_version"]))
+                    """, (job_id, attempt_id, prior_publish_id, row["video_id"],
+                          prior_operator_id, message[:1000], now, row["policy_version"]))
                     return
                 updated = c.execute("""
                   UPDATE tiktok_publications SET status='reconciliation_required',
@@ -298,7 +304,7 @@ class TikTokPublishStore:
                     (job_id,attempt_id,event_type,outcome,publish_id,operator_id,
                      note,created_at,policy_version)
                   VALUES(?,?,'superseded_attempt_uncertain','unknown',?,?,?,?,?)
-                """, (job_id, attempt_id, row["publish_id"], row["operator_id"],
+                """, (job_id, attempt_id, prior_publish_id, prior_operator_id,
                       message[:1000], now, row["policy_version"]))
                 return
             if row and row["attempt_id"] == attempt_id:
