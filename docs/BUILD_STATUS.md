@@ -1125,3 +1125,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Opened media links use both `noopener` and `noreferrer`.
 - Add frontend regression tests for review video, approved video and audio preview paths.
 - GitHub Actions PR run [43795822579](https://github.com/justinhblee-prog/shorts/actions/runs/43795822579) passed **447 backend tests** and the complete `scripts/validate.sh` command.
+
+
+## BUILD-00137 — lifecycle-safe production cancellation and worker shutdown (2026-11-16)
+
+- Restrict production cancellation to pre-review states and reject cancellation after review handoff or approval/upload.
+- Update queue and production-run state in one SQLite transaction so a cancelled job cannot be reconciled back into review.
+- Treat cancellation during a running provider request as externally ambiguous, revoke the worker lease, and pause production until manual reconciliation.
+- Persist graceful worker shutdown as `offline`; stale-heartbeat detection remains the fallback for hard crashes.
+- Add tests for queued/running/review-pending cancellation, production-state consistency and offline worker registration.
+- Validation pending.
