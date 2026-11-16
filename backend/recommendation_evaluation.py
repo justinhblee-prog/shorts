@@ -82,7 +82,7 @@ def _normalized_timestamp(value, field_name):
         raise ValueError(f"{field_name} must be a valid ISO-8601 timestamp") from None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.isoformat()
+    return parsed.astimezone(timezone.utc).isoformat()
 
 
 
@@ -312,13 +312,14 @@ class RecommendationEvaluationStore:
         if generated.tzinfo is None:
             generated = generated.replace(tzinfo=timezone.utc)
         cutoff = (generated - timedelta(seconds=60)).isoformat()
+        dedup_upper = (generated + timedelta(seconds=60)).isoformat()
         retention_cutoff = (generated - timedelta(days=180)).isoformat()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             previous = c.execute("""SELECT id,candidate_count FROM recommendation_runs
-                WHERE region IS ? AND signature=? AND generated_at>=? AND platform=?
+                WHERE region IS ? AND signature=? AND generated_at BETWEEN ? AND ? AND platform=?
                 ORDER BY generated_at DESC LIMIT 1""",
-                (region, signature, cutoff, platform)).fetchone()
+                (region, signature, cutoff, dedup_upper, platform)).fetchone()
             if previous:
                 return {
                     "run_id": previous["id"],
