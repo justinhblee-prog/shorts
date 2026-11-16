@@ -1156,3 +1156,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Return an explicit attribution result to the dashboard when a recommendation selection is linked or cannot be linked.
 - Add regression tests for two refreshes of the same recommendation, exact older-run selection, missing/stale run IDs and cross-platform isolation.
 - GitHub Actions PR run [43798545897](https://github.com/justinhblee-prog/shorts/actions/runs/43798545897) passed **464 backend tests** and the complete `scripts/validate.sh` command. The code and validation-record documentation are merged in PR #131.
+
+
+## BUILD-00140 — capture all selectable brand candidates in recommendation exposures (2026-11-16)
+
+- Persist every brand option displayed by the recommendation dashboard, rather than only the top-ranked `best_brand`.
+- Store candidate-specific brand fit and comparable-cohort context alongside the trend-level recommendation rank and score.
+- Keep legacy recommendation payloads compatible by falling back to `best_brand` when `brand_candidates` is absent or empty.
+- Include all recorded brand options in the exposure signature so changing the selectable alternatives creates a distinct exposure instead of being incorrectly deduplicated.
+- Add regression tests for selecting a non-default brand and for exposure signature changes when alternate brands change.
+- Validation pending on this branch.
