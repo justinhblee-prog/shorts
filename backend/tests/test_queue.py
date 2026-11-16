@@ -36,6 +36,30 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(new["id"],j["id"])
   with self.assertRaises(LeaseConflict):
    self.q.finish(j["id"],"worker-old",old["lease_token"])
+
+ def test_expired_lease_rejects_heartbeat_finish_and_fail_without_reclaim(self):
+  operations = ("heartbeat", "finish", "fail")
+  for operation in operations:
+   with self.subTest(operation=operation):
+    job=self.q.enqueue("render",{"operation":operation})
+    claimed=self.q.claim("worker-expired-"+operation)
+    with self.q.db() as c:
+     c.execute(
+      "UPDATE pipeline_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+      (job["id"],),
+     )
+    with self.assertRaises(LeaseConflict):
+     if operation=="heartbeat":
+      self.q.heartbeat(job["id"],"worker-expired-"+operation,claimed["lease_token"])
+     elif operation=="finish":
+      self.q.finish(job["id"],"worker-expired-"+operation,claimed["lease_token"])
+     else:
+      self.q.fail(job["id"],"worker-expired-"+operation,claimed["lease_token"],
+                  "late_failure","must not be recorded",True)
+    persisted=self.q.get(job["id"])
+    self.assertEqual(persisted["status"],"running")
+    self.assertEqual(persisted["worker_id"],"worker-expired-"+operation)
+    self.assertEqual(persisted["lease_token"],claimed["lease_token"])
  def test_cancel_revokes_worker_lease(self):
   j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
   cancelled=self.q.cancel(j["id"],"operator stop")
