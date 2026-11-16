@@ -1334,7 +1334,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Validate outbox query and dispatch limits as non-boolean integers within explicit bounds rather than silently coercing or clamping values.
 - Validate dispatch lease TTL before any database work, including empty/no-due batches, so invalid configuration cannot pass unnoticed on an idle scheduler.
 - Add direct-store regression tests for all control boundaries.
-- CI validation pending.
+- GitHub Actions run [43811901298](https://github.com/justinhblee-prog/shorts/actions/runs/43811901298) passed the complete `scripts/validate.sh` workflow, including 500 backend tests.
 
 
 ## BUILD-00164 — durable scheduler outbox retry backoff
