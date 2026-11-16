@@ -1093,6 +1093,8 @@ class TikTokPublisher:
             record = self.store.get(job_id)
             if record is None:
                 raise TikTokPublishError("TikTok publication record not found")
+            if record["status"] in ("publish_complete", "failed", "send_to_inbox"):
+                return record
             owned_token = self.store.acquire_status_poll_lease(
                 job_id, record["attempt_id"], lease_seconds=45,
             )
