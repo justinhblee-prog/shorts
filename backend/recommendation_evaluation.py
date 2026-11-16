@@ -22,7 +22,10 @@ def _finite_nonnegative(value):
     """Return a finite nonnegative metric, excluding bool (a Python int subtype)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    number = float(value)
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
     if not math.isfinite(number) or number < 0:
         return None
     return number
