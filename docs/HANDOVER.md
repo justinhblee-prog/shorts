@@ -932,3 +932,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The basic user-activity report uses the `video==VIDEO_ID` filter without a `video` dimension; the retention report uses `elapsedVideoTimeRatio` as its required dimension.
 - Current OAuth helper requests `youtube.readonly`; the existing refresh token must actually have that granted scope. Re-consent is required if it does not.
 - No live API response, real account permission, actual retention coverage or ranking-score lift is claimed until deployment verification and holdout evaluation.
+
+
+### BUILD-00032 validation record
+
+- GitHub Actions PR run [43785987107](https://github.com/justinhblee-prog/shorts/actions/runs/43785987107) completed successfully.
+- `sh scripts/validate.sh` passed; the backend suite reported **336 tests, OK**.
+- The CI run included Python compilation, Compose YAML parsing, frontend JavaScript syntax/DOM-ID checks and the full backend unit suite.
+- No live channel OAuth, YouTube Analytics API request, eligible video retention response, actual upload or recommendation-score lift is claimed.

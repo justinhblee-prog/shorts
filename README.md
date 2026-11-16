@@ -80,3 +80,6 @@ Manual production requests and recurring schedules let the operator select YouTu
 
 
 YouTube Shorts performance insights now support authenticated YouTube Analytics reports for average view duration, average view percentage and per-video audience-retention curves. These are separate from public Data API counter snapshots and remain unavailable until the configured channel refresh token has the required Analytics permission and the API returns eligible data. Metrics are shown as evidence only; recommendation ranking is not automatically changed.
+
+
+BUILD-00032 YouTube Analytics integration passed **336 backend tests** in GitHub Actions run [43785987107](https://github.com/justinhblee-prog/shorts/actions/runs/43785987107). Live channel consent, real Analytics responses and eligible retention curves remain deployment checks.
