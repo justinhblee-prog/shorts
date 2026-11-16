@@ -79,6 +79,51 @@ class RecommendationEvaluationTests(unittest.TestCase):
         )
         self.assertEqual(exposure["recorded_candidates"], 0)
 
+    def test_evaluate_ignores_unhashable_and_oversized_cohort_dimensions(self):
+        exposure = self.store.record_run(
+            "US", [self.item(96, 82.5)], "2026-11-01T00:00:00+00:00"
+        )
+        self.store.link_production(
+            "trend-96", "future-leak", "job-malformed-cohort",
+            "2026-11-01T01:00:00+00:00", run_id=exposure["run_id"],
+        )
+        result = self.store.evaluate({"videos": [{
+            "job_id": "job-malformed-cohort",
+            "platform": "youtube",
+            "measurement_status": "measured",
+            "views_per_hour": 120,
+            "brand": {"unexpected": "mapping"},
+            "region": ["US"],
+            "publication_age_bucket": {"days": 1},
+            "duration_bucket": ["short"],
+            "format": "x" * 121,
+        }]})
+        self.assertEqual(result["selected_production_count"], 1)
+        self.assertEqual(result["measured_outcome_count"], 1)
+        self.assertEqual(result["any_metric_measured_outcome_count"], 1)
+        self.assertEqual(result["within_run_validation"]["eligible_run_count"], 0)
+
+    def test_evaluate_trims_valid_cohort_dimensions_and_job_ids(self):
+        exposure = self.store.record_run(
+            "US", [self.item(97, 82.5)], "2026-11-01T00:00:00+00:00"
+        )
+        self.store.link_production(
+            "trend-97", "future-leak", "job-trimmed",
+            "2026-11-01T01:00:00+00:00", run_id=exposure["run_id"],
+        )
+        result = self.store.evaluate({"videos": [{
+            "job_id": " job-trimmed ",
+            "platform": " youtube ",
+            "measurement_status": "measured",
+            "views_per_hour": 120,
+            "brand": " Future Leak ",
+            "region": " US ",
+            "publication_age_bucket": " 1-7d ",
+            "duration_bucket": " 30-60s ",
+            "format": " vertical ",
+        }]})
+        self.assertEqual(result["measured_outcome_count"], 1)
+
     def test_identical_api_result_is_deduplicated_within_one_minute(self):
         first = self.store.record_run(
             "US", [self.item(1, 82.5)], "2026-11-01T00:00:00+00:00"

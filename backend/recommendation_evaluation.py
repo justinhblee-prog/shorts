@@ -63,6 +63,16 @@ def _normalized_ratio(value):
     return number if number is not None and number <= 1 else None
 
 
+def _normalized_dimension(value, max_length=120):
+    """Accept bounded scalar labels only; malformed containers cannot become cohort keys."""
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or len(value) > max_length:
+        return None
+    return value
+
+
 def _json_safe(value):
     """Return JSON-safe metadata, replacing unsupported/non-finite leaves with null."""
     if value is None or isinstance(value, (str, bool, int)):
@@ -85,6 +95,12 @@ def _normalized_outcome(item):
     if not isinstance(item, dict):
         return None
     normalized = dict(item)
+    normalized["job_id"] = _normalized_dimension(item.get("job_id"), 160)
+    normalized["platform"] = _normalized_dimension(item.get("platform", "youtube"), 20)
+    for field in (
+        "brand", "region", "publication_age_bucket", "duration_bucket", "format"
+    ):
+        normalized[field] = _normalized_dimension(item.get(field))
     normalized["views_per_hour"] = _finite_nonnegative(item.get("views_per_hour"))
     normalized["engaged_view_share"] = _normalized_ratio(item.get("engaged_view_share"))
     normalized["average_view_percentage"] = _finite_nonnegative(
