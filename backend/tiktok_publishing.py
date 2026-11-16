@@ -248,7 +248,9 @@ class TikTokPublishStore:
                        AND operator_id IS NOT NULL ORDER BY id ASC LIMIT 1) AS operator_id
                 """, (job_id, attempt_id, job_id, attempt_id)).fetchone()
                 stamp = _now()
-                blocking = normalized in ("publish_complete", "processing")
+                # Inbox delivery is also a remote side effect; a late result must
+                # block retry just like a public/private publication completion.
+                blocking = normalized in ("publish_complete", "processing", "send_to_inbox")
                 previous = row["status"]
                 if blocking and previous not in ("publish_complete", "send_to_inbox"):
                     c.execute("""
