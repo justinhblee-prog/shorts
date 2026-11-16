@@ -63,6 +63,23 @@ def _normalized_ratio(value):
     return number if number is not None and number <= 1 else None
 
 
+def _json_safe(value):
+    """Return JSON-safe metadata, replacing unsupported/non-finite leaves with null."""
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {
+            str(key): _json_safe(item)
+            for key, item in value.items()
+            if isinstance(key, (str, int, float, bool))
+        }
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return None
+
+
 def _normalized_outcome(item):
     """Copy only validated analytics fields into an evaluation-safe outcome."""
     if not isinstance(item, dict):
@@ -192,16 +209,26 @@ class RecommendationEvaluationStore:
         timestamp = generated_at or _now()
         run_id = str(uuid.uuid4())
         rows = []
-        for rank, item in enumerate(items or [], start=1):
-            trend = item.get("trend") or {}
-            best = item.get("best_brand") or {}
-            trend_id = str(trend.get("id") or "")
+        for rank, item in enumerate(items if isinstance(items, list) else [], start=1):
+            if not isinstance(item, dict):
+                continue
+            trend = item.get("trend")
+            trend = trend if isinstance(trend, dict) else {}
+            best = item.get("best_brand")
+            best = best if isinstance(best, dict) else {}
+            trend_id = trend.get("id")
+            if not isinstance(trend_id, (str, int)) or isinstance(trend_id, bool):
+                continue
+            trend_id = str(trend_id).strip()
             if not trend_id:
                 continue
+            recommendation_score = _finite_nonnegative(
+                item.get("recommendation_score", 0)
+            )
+            if recommendation_score is None:
+                continue
 
-            # The dashboard offers every brand candidate, not only best_brand.
-            # Capture each selectable option so a later selection can be linked
-            # to the exact exposure without inventing an unrecorded candidate.
+            # Capture only well-formed selectable options and keep metadata JSON-safe.
             offered = item.get("brand_candidates")
             candidates = offered if isinstance(offered, list) else []
             if not candidates:
@@ -210,26 +237,30 @@ class RecommendationEvaluationStore:
             for candidate in candidates[:10]:
                 if not isinstance(candidate, dict):
                     continue
-                brand_slug = str(candidate.get("brand") or "").strip()
-                brand_name = str(candidate.get("brand_name") or "").strip()
-                if not brand_slug or not brand_name or brand_slug in seen_brands:
+                brand = candidate.get("brand")
+                name = candidate.get("brand_name")
+                if not isinstance(brand, str) or not isinstance(name, str):
+                    continue
+                brand_slug, brand_name = brand.strip(), name.strip()
+                if (not brand_slug or not brand_name or len(brand_slug) > 160
+                        or len(brand_name) > 200 or brand_slug in seen_brands):
                     continue
                 seen_brands.add(brand_slug)
                 score_breakdown = item.get("score_breakdown")
-                score_breakdown = dict(score_breakdown) if isinstance(score_breakdown, dict) else {}
-                if candidate.get("fit_score") is not None:
-                    score_breakdown["selected_brand_fit"] = candidate.get("fit_score")
+                score_breakdown = _json_safe(score_breakdown) if isinstance(score_breakdown, dict) else {}
+                fit_score = _finite_nonnegative(candidate.get("fit_score"))
+                if fit_score is not None:
+                    score_breakdown["selected_brand_fit"] = fit_score
                 cohort_context = candidate.get("comparable_cohort_performance")
-                if not isinstance(cohort_context, dict):
-                    cohort_context = {}
+                cohort_context = _json_safe(cohort_context) if isinstance(cohort_context, dict) else {}
                 rows.append((
                     str(uuid.uuid4()), run_id, trend_id,
                     str(trend.get("title") or "")[:500],
-                    str(trend.get("region") or ""),
+                    str(trend.get("region") or "")[:120],
                     brand_slug, brand_name, rank,
-                    float(item.get("recommendation_score") or 0),
-                    json.dumps(score_breakdown, ensure_ascii=False, sort_keys=True),
-                    json.dumps(cohort_context, ensure_ascii=False, sort_keys=True),
+                    recommendation_score,
+                    json.dumps(score_breakdown, ensure_ascii=False, sort_keys=True, allow_nan=False),
+                    json.dumps(cohort_context, ensure_ascii=False, sort_keys=True, allow_nan=False),
                     timestamp,
                 ))
         signature_payload = [
