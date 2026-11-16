@@ -449,6 +449,7 @@ class TrendRecommendationTests(unittest.TestCase):
             "slug": "future-leak", "name": "Future Leak", "active": True,
             "config": {"positioning": "AI technology", "regions": ["US"]},
         }
+        baseline = rank_trend_candidates([trend], [brand], now=now)[0]
         for aggregate in (None, "invalid", {
             "measured_videos": "five",
             "rate_sample_count": True,
@@ -465,7 +466,7 @@ class TrendRecommendationTests(unittest.TestCase):
                 self.assertEqual(historical["rate_sample_count"], 0)
                 self.assertEqual(historical["interaction_rate_sample_count"], 0)
                 self.assertEqual(historical["evidence_status"], "no_data")
-                self.assertEqual(result["score_breakdown"]["brand_fit"], 40.0)
+                self.assertEqual(result["recommendation_score"], baseline["recommendation_score"])
 
         for invalid_container in ("not-a-dictionary", None, []):
             with self.subTest(performance_by_brand=invalid_container):
