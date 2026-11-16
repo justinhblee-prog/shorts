@@ -360,6 +360,11 @@ class TikTokPublishingTests(unittest.TestCase):
 
     def test_unapproved_or_stale_policy_is_rejected(self):
         self.prod.stage("job-1", "rendered", "review_pending")
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                ("job-1",),
+            )
         self.review.decide("job-1", "revision_requested", "reviewer-2",
                            comment="Please correct the disclosure metadata.")
         with self.assertRaisesRegex(TikTokPublishError, "latest human review"):
