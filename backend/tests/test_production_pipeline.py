@@ -865,6 +865,27 @@ class ProductionTests(unittest.TestCase):
             [f"diagnostic_history_{index}" for index in range(2, 12)]
         )
 
+
+    def test_integrity_report_withholds_raw_provider_error_text(self):
+        queue = JobQueue(self.store.db_path)
+        job_id = submit_production(queue, self.store, self.brief)["job"]["id"]
+        secret_detail = "Authorization: Bearer provider-secret-do-not-expose"
+        with queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending',error_code='provider_render',"
+                "error_message=? WHERE id=?",
+                (secret_detail, job_id)
+            )
+        report = self.store.integrity_report(queue)
+        item = next(entry for entry in report["items"] if entry["job_id"] == job_id)
+        self.assertEqual(item["error_code"], "provider_render")
+        self.assertEqual(
+            item["error_message"],
+            "상세 오류는 보호된 서버 로그에서 확인하세요."
+        )
+        self.assertNotIn(secret_detail, str(report))
+        self.assertNotIn("provider-secret-do-not-expose", str(report))
+
     def test_integrity_report_explains_mismatch_without_mutating_either_ledger(self):
         queue = JobQueue(self.store.db_path)
         job_id = submit_production(queue, self.store, self.brief)["job"]["id"]

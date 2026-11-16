@@ -1551,3 +1551,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Use a per-job window rank to retain only the 10 newest events for each displayed record.
 - Preserve chronological presentation and the existing safe-field allowlist.
 - Add regression coverage for the per-job 10-event cap and ordering.
+
+
+## BUILD-00187 — redact raw queue error details
+
+- Stop exposing raw provider/worker error text through the production integrity report.
+- Preserve the controlled error code and return a fixed instruction to inspect protected server logs.
+- Add a regression test using a bearer-token-like secret in the stored error message.
