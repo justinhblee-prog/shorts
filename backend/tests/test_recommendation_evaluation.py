@@ -617,6 +617,31 @@ class RecommendationEvaluationTests(unittest.TestCase):
         self.assertEqual(result["unmeasured_selected_count"], 2)
         self.assertFalse(result["ranking_score_adjustment_enabled"])
 
+    def test_evaluate_excludes_duplicate_performance_rows_for_same_job(self):
+        exposure = self.store.record_run(
+            "US", [self.item(101, 90), self.item(102, 85)],
+            "2026-11-01T00:00:00Z"
+        )
+        self.store.link_production(
+            "trend-101", "future-leak", "job-duplicate",
+            run_id=exposure["run_id"]
+        )
+        self.store.link_production(
+            "trend-102", "future-leak", "job-unique",
+            run_id=exposure["run_id"]
+        )
+        result = self.store.evaluate({"videos": [
+            {"job_id": "job-duplicate", "platform": "youtube",
+             "measurement_status": "measured", "views_per_hour": 100},
+            {"job_id": "job-duplicate", "platform": "youtube",
+             "measurement_status": "measured", "views_per_hour": 900},
+            {"job_id": "job-unique", "platform": "youtube",
+             "measurement_status": "measured", "views_per_hour": 200},
+        ]})
+        self.assertEqual(result["selected_production_count"], 2)
+        self.assertEqual(result["measured_outcome_count"], 1)
+        self.assertEqual(result["unmeasured_selected_count"], 1)
+
     def test_spearman_handles_ties_and_constant_values(self):
         self.assertEqual(_spearman([1, 2, 3], [10, 20, 30]), 1.0)
         self.assertIsNone(_spearman([1, 1, 1], [10, 20, 30]))
