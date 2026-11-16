@@ -74,8 +74,6 @@ def run_youtube_analytics_once(store=None, collector=None, token_manager=None):
     heartbeat_stop = threading.Event()
     lease_lost = threading.Event()
     heartbeat_interval = max(5, lease_seconds // 3)
-    store.record_collection("running")
-
     def renew_lease_loop():
         while not heartbeat_stop.wait(heartbeat_interval):
             try:
@@ -95,6 +93,7 @@ def run_youtube_analytics_once(store=None, collector=None, token_manager=None):
     )
     heartbeat.start()
     try:
+        store.record_collection("running")
         result = collector.refresh_due_metrics(
             limit=min(20, BATCH_SIZE),
             min_age_seconds=max(300, int(os.getenv(
