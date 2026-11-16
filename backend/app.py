@@ -474,6 +474,7 @@ def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
     pending=[]
     for item in items:
         upload=youtube_upload_store.get(item["job_id"])
+        upload=review_store.sanitize_production_record(upload) if upload else None
         item["upload_status"]=upload["status"] if upload else "not_uploaded"
         item["upload_video_id"]=upload.get("video_id") if upload else None
         item["upload_events"]=upload.get("events",[]) if upload else []
@@ -481,6 +482,7 @@ def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
             upload and upload.get("reconciliation_required")
         )
         tiktok=tiktok_publish_store.get(item["job_id"])
+        tiktok=review_store.sanitize_production_record(tiktok) if tiktok else None
         item["tiktok_status"]=tiktok["status"] if tiktok else "not_published"
         item["tiktok_video_id"]=tiktok.get("video_id") if tiktok else None
         item["tiktok_publish_id"]=tiktok.get("publish_id") if tiktok else None
@@ -628,7 +630,7 @@ def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
     result=youtube_upload_store.get(job_id)
     if result is None:
         raise HTTPException(404,"YouTube upload record not found")
-    return result
+    return review_store.sanitize_production_record(result)
 
 
 @app.post("/api/youtube/uploads/{job_id}/reconcile")
@@ -840,7 +842,7 @@ def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=Non
     result=tiktok_publish_store.get(job_id)
     if result is None:
         raise HTTPException(404,"TikTok publication record not found")
-    return result
+    return review_store.sanitize_production_record(result)
 
 
 @app.post("/api/tiktok/publications/{job_id}/reconcile")
