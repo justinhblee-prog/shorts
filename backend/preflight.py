@@ -15,18 +15,35 @@ def _group(source, required, optional=()):
     }
 
 
+def _valid_operator_token(value):
+    return (
+        isinstance(value, str)
+        and 32 <= len(value) <= 512
+        and value == value.strip()
+        and value.isascii()
+        and all(32 <= ord(character) <= 126 for character in value)
+    )
+
+
 def build_preflight(env=None, youtube_refresh_token_configured=None):
     source = os.environ if env is None else env
-    legacy_review_token = bool(str(source.get("NEXUS_REVIEW_TOKEN", "")).strip())
+    legacy_value = str(source.get("NEXUS_REVIEW_TOKEN", ""))
+    legacy_present = bool(legacy_value.strip())
+    legacy_review_token = _valid_operator_token(legacy_value)
     reviewer_credentials = bool(str(source.get("NEXUS_REVIEW_CREDENTIALS_JSON", "")).strip())
     role_map_configured = bool(str(source.get("NEXUS_REVIEW_ROLE_MAP_JSON", "")).strip())
     role_map_required = reviewer_credentials
     checks = {
         "operator_auth": {
             "configured": legacy_review_token or reviewer_credentials,
-            "missing": [] if legacy_review_token or reviewer_credentials else [
-                "NEXUS_REVIEW_TOKEN", "NEXUS_REVIEW_CREDENTIALS_JSON"
-            ],
+            "missing": (
+                [] if legacy_review_token or reviewer_credentials
+                else [
+                    "NEXUS_REVIEW_TOKEN (must be 32-512 printable ASCII characters)"
+                    if legacy_present else "NEXUS_REVIEW_TOKEN",
+                    "NEXUS_REVIEW_CREDENTIALS_JSON",
+                ]
+            ),
             "optional_missing": [],
         },
         "operator_rbac": {
