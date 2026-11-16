@@ -65,12 +65,26 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
             return
 
 
+def ensure_worker_registered():
+    """Register one process incarnation for direct and main-loop invocations."""
+    global WORKER_GENERATION_TOKEN
+    if WORKER_GENERATION_TOKEN is None:
+        registration = queue.register_worker(WORKER_ID, socket.gethostname())
+        WORKER_GENERATION_TOKEN = registration["generation_token"]
+    return WORKER_GENERATION_TOKEN
+
+
 def run_once():
+    ensure_worker_registered()
     if queue.is_paused():
         return False
     # Recovery failures escape: no claim may occur while state is uncertain.
-    store.reconcile_missing_runs(queue)
-    integrity = store.reconcile_status_integrity(queue)
+    store.reconcile_missing_runs(
+        queue, worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN
+    )
+    integrity = store.reconcile_status_integrity(
+        queue, worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN
+    )
     orphan_report = store.integrity_report(queue, limit=200)
     if orphan_report.get("orphaned", 0):
         orphaned_items = [
@@ -122,7 +136,10 @@ def run_once():
         # Close the enqueue/worker race: repair a missing production row after claim.
         # Start the heartbeat first so SIGTERM or lease loss during reconciliation
         # is still fenced before any external provider request begins.
-        store.reconcile_missing_runs(queue, job_ids=[job["id"]])
+        store.reconcile_missing_runs(
+            queue, job_ids=[job["id"]], worker_id=WORKER_ID,
+            generation_token=WORKER_GENERATION_TOKEN,
+        )
         if lost_lease.is_set():
             raise LeaseConflict("Worker lease was lost before provider execution")
         result = pipeline.execute(job["id"], job["payload"],
@@ -134,7 +151,9 @@ def run_once():
                      {"production_status": "review_pending",
                       "artifact_count": len(result["artifacts"])},
                      generation_token=WORKER_GENERATION_TOKEN)
-        store.reconcile_review_pending(queue)
+        store.reconcile_review_pending(
+            queue, worker_id=WORKER_ID, generation_token=WORKER_GENERATION_TOKEN
+        )
         print(f"review_pending job={job['id']}")
     except KeyboardInterrupt:
         stopping.set()

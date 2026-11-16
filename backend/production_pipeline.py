@@ -171,6 +171,49 @@ class ProductionStore:
                 "Worker lease expired or was replaced; stale production write rejected"
             )
 
+    @staticmethod
+    def _assert_worker_generation(c, worker_id, generation_token):
+        if not worker_id or not generation_token:
+            raise ProductionLeaseConflict(
+                "Worker ID and process generation token are required for reconciliation writes"
+            )
+        row = c.execute(
+            "SELECT generation_token,status FROM worker_registry WHERE worker_id=?",
+            (worker_id,),
+        ).fetchone()
+        if (row is None or row["status"] != "online"
+                or row["generation_token"] != generation_token):
+            raise ProductionLeaseConflict(
+                "Worker process generation was replaced; stale reconciliation write rejected"
+            )
+
+    @staticmethod
+    def _assert_reconciliation_authority(c, worker_id, generation_token):
+        if generation_token is None:
+            if worker_id is not None:
+                registered = c.execute(
+                    "SELECT status,generation_token FROM worker_registry WHERE worker_id=?",
+                    (worker_id,),
+                ).fetchone()
+                # Legacy workers and test harnesses have no process token.
+                # They remain compatible only while the registry itself has
+                # no generation token; a modern worker cannot omit its proof.
+                if registered is not None and registered["generation_token"] is not None:
+                    raise ProductionLeaseConflict(
+                        "Worker process generation proof is required for reconciliation"
+                    )
+                return
+            modern_worker = c.execute(
+                "SELECT 1 FROM worker_registry WHERE status='online' "
+                "AND generation_token IS NOT NULL LIMIT 1"
+            ).fetchone()
+            if modern_worker is not None:
+                raise ProductionLeaseConflict(
+                    "Worker generation proof is required while a modern worker is online"
+                )
+            return
+        ProductionStore._assert_worker_generation(c, worker_id, generation_token)
+
     def stage(self, job_id, stage, status="running", error=None,
               worker_id=None, lease_token=None):
         with self.db() as c:
@@ -559,7 +602,7 @@ class ProductionStore:
                     "provider_attempt_id":attempt_id,"status":"review_pending",
                     "sha256":digest,"size_bytes":size,"media_path":media_path}
 
-    def reconcile_status_integrity(self, queue, limit=200):
+    def reconcile_status_integrity(self, queue, limit=200, worker_id=None, generation_token=None):
         """Detect split-brain lifecycle states and repair only unambiguous queue outcomes.
 
         Queue cancellation/terminal failure and the durable review handoff are
@@ -573,6 +616,7 @@ class ProductionStore:
         terminal = ("cancelled", "failed_terminal")
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            self._assert_reconciliation_authority(c, worker_id, generation_token)
             rows = c.execute("""
                 SELECT r.job_id,r.status AS production_status,r.current_stage,
                        j.status AS queue_status,j.job_type,j.error_message
@@ -894,7 +938,7 @@ class ProductionStore:
             "worker_control": queue.worker_control(),
         }
 
-    def reconcile_missing_runs(self, queue, job_ids=None, limit=200):
+    def reconcile_missing_runs(self, queue, job_ids=None, limit=200, worker_id=None, generation_token=None):
         """Restore production rows if a process crashed between queue enqueue and record creation."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
             raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
@@ -902,6 +946,7 @@ class ProductionStore:
         invalid = []
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            self._assert_reconciliation_authority(c, worker_id, generation_token)
             params = []
             where = """j.job_type='short_video_production'
                 AND j.status IN ('queued','failed_retriable','running')
@@ -932,13 +977,14 @@ class ProductionStore:
                     restored.append(row["id"])
         return {"restored": len(restored), "job_ids": restored, "invalid": invalid}
 
-    def reconcile_terminal_jobs(self, queue, limit=200):
+    def reconcile_terminal_jobs(self, queue, limit=200, worker_id=None, generation_token=None):
         """Mirror durable queue cancellation/terminal failure into production status."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
             raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
         changed = []
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            self._assert_reconciliation_authority(c, worker_id, generation_token)
             rows = c.execute("""SELECT r.job_id,j.status,j.error_message
                 FROM production_runs r JOIN pipeline_jobs j ON j.id=r.job_id
                 WHERE j.job_type='short_video_production'
@@ -956,13 +1002,14 @@ class ProductionStore:
                     changed.append(row["job_id"])
         return {"updated": len(changed), "job_ids": changed}
 
-    def reconcile_review_pending(self, queue, limit=100):
+    def reconcile_review_pending(self, queue, limit=100, worker_id=None, generation_token=None):
         """Atomically repair only queue jobs durably completed into review_pending."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
             raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
         repaired = []
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            self._assert_reconciliation_authority(c, worker_id, generation_token)
             rows = c.execute("""SELECT r.job_id FROM production_runs r
                 JOIN pipeline_jobs j ON j.id=r.job_id
                 WHERE r.status='rendered'
