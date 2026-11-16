@@ -1224,3 +1224,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The complete validation script passed with **462 backend tests**.
 - Tests cover all three collectors, token renewal/expiry, stale snapshot/state write rejection, failure cleanup and heartbeat loss.
 - The run validates SQLite/test-double behavior; live concurrent workers and real provider latency remain deployment checks.
+
+
+## BUILD-00139 — exact recommendation exposure attribution
+
+- Recommendation snapshot responses already return `evaluation_run_id`; the dashboard now preserves that ID on each recommendation action and sends it with the production draft request.
+- `TrendProductionDraft.recommendation_run_id` is optional for backward compatibility. Only recommendation-originated actions send it; ordinary trend drafts are not incorrectly attributed to a recommendation exposure.
+- `RecommendationEvaluationStore.link_production` now requires an exact run ID and matches run + trend + brand + platform. Missing or stale IDs fail closed and never fall back to the latest exposure.
+- Production draft responses include `recommendation_attribution` so operators can see whether the selected exposure was linked.
+- This is an attribution-integrity fix; it does not alter recommendation scores or enable automatic score adjustment.
