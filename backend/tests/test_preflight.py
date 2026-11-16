@@ -19,7 +19,7 @@ class PreflightTests(unittest.TestCase):
     def test_provider_bearer_tokens_are_optional(self):
         with tempfile.TemporaryDirectory() as media_dir:
             env = {
-                "NEXUS_REVIEW_TOKEN": "operator-secret",
+                "NEXUS_REVIEW_TOKEN": "operator-secret-with-at-least-32-characters",
                 "NEXUS_MEDIA_DIR": media_dir,
                 "SCRIPT_PROVIDER_URL": "https://script.example.test",
                 "VOICE_PROVIDER_URL": "https://voice.example.test",
@@ -42,13 +42,13 @@ class PreflightTests(unittest.TestCase):
             result["checks"]["script_generation"]["optional_missing"],
         )
         self.assertNotIn("SCRIPT_PROVIDER_TOKEN", result["missing"])
-        for secret in ("operator-secret", "youtube-secret", "youtube-refresh"):
+        for secret in ("operator-secret-with-at-least-32-characters", "youtube-secret", "youtube-refresh"):
             self.assertNotIn(secret, str(result))
 
     def test_tiktok_oauth_configuration_is_reported_separately(self):
         with tempfile.TemporaryDirectory() as media_dir:
             env = {
-                "NEXUS_REVIEW_TOKEN": "operator-secret",
+                "NEXUS_REVIEW_TOKEN": "operator-secret-with-at-least-32-characters",
                 "NEXUS_MEDIA_DIR": media_dir,
                 "SCRIPT_PROVIDER_URL": "https://script.example.test",
                 "VOICE_PROVIDER_URL": "https://voice.example.test",
@@ -78,7 +78,7 @@ class PreflightTests(unittest.TestCase):
     def test_static_tiktok_token_is_a_nonblocking_oauth_fallback(self):
         with tempfile.TemporaryDirectory() as media_dir:
             env = {
-                "NEXUS_REVIEW_TOKEN": "operator-secret",
+                "NEXUS_REVIEW_TOKEN": "operator-secret-with-at-least-32-characters",
                 "NEXUS_MEDIA_DIR": media_dir,
                 "SCRIPT_PROVIDER_URL": "https://script.example.test",
                 "VOICE_PROVIDER_URL": "https://voice.example.test",
@@ -100,6 +100,38 @@ class PreflightTests(unittest.TestCase):
 
 
 
+
+    def test_per_operator_credentials_satisfy_auth_preflight_without_legacy_token(self):
+        result = build_preflight({
+            "NEXUS_REVIEW_CREDENTIALS_JSON": '{"alice":"' + ("a" * 48) + '"}',
+        })
+        self.assertTrue(result["checks"]["operator_auth"]["configured"])
+        self.assertNotIn("NEXUS_REVIEW_TOKEN", result["missing"])
+        self.assertFalse(result["checks"]["operator_rbac"]["configured"])
+        self.assertFalse(result["checks"]["operator_rbac"]["optional"])
+        self.assertIn("NEXUS_REVIEW_ROLE_MAP_JSON", result["missing"])
+        self.assertIn(
+            "NEXUS_REVIEW_ROLE_MAP_JSON",
+            result["checks"]["operator_rbac"]["missing"],
+        )
+
+    def test_legacy_single_token_mode_keeps_role_map_optional(self):
+        result = build_preflight({
+            "NEXUS_REVIEW_TOKEN": "legacy-secret-value-with-at-least-32-characters"
+        })
+        self.assertTrue(result["checks"]["operator_auth"]["configured"])
+        self.assertTrue(result["checks"]["operator_rbac"]["configured"])
+        self.assertTrue(result["checks"]["operator_rbac"]["optional"])
+        self.assertNotIn("NEXUS_REVIEW_ROLE_MAP_JSON", result["missing"])
+
+    def test_weak_legacy_token_does_not_satisfy_auth_preflight(self):
+        result = build_preflight({"NEXUS_REVIEW_TOKEN": "short-secret"})
+        self.assertFalse(result["checks"]["operator_auth"]["configured"])
+        self.assertIn(
+            "NEXUS_REVIEW_TOKEN (must be 32-512 printable ASCII characters)",
+            result["checks"]["operator_auth"]["missing"],
+        )
+
     def test_youtube_oauth_redirect_and_encryption_are_optional_preflight_settings(self):
         result = build_preflight({})
         self.assertFalse(result["checks"]["youtube_oauth"]["configured"])
@@ -113,7 +145,7 @@ class PreflightTests(unittest.TestCase):
 
     def test_encrypted_youtube_oauth_token_satisfies_refresh_token_preflight(self):
         env = {
-            "NEXUS_REVIEW_TOKEN": "operator-secret",
+            "NEXUS_REVIEW_TOKEN": "operator-secret-with-at-least-32-characters",
             "YOUTUBE_CLIENT_ID": "client-id",
             "YOUTUBE_CLIENT_SECRET": "client-secret",
             "YOUTUBE_DATA_API_KEY": "data-api-key",
@@ -143,6 +175,7 @@ class PreflightTests(unittest.TestCase):
                     "TIKTOK_TOKEN_ENCRYPTION_KEY",
                 ]
             }
+            env["NEXUS_REVIEW_TOKEN"] = "valid-legacy-token-with-at-least-32-characters"
             env["NEXUS_MEDIA_DIR"] = media_dir
             result = build_preflight(env)
 

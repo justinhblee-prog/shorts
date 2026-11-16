@@ -15,10 +15,49 @@ def _group(source, required, optional=()):
     }
 
 
+def _valid_operator_token(value):
+    return (
+        isinstance(value, str)
+        and 32 <= len(value) <= 512
+        and value == value.strip()
+        and value.isascii()
+        and all(32 <= ord(character) <= 126 for character in value)
+    )
+
+
 def build_preflight(env=None, youtube_refresh_token_configured=None):
     source = os.environ if env is None else env
+    legacy_value = str(source.get("NEXUS_REVIEW_TOKEN", ""))
+    legacy_present = bool(legacy_value.strip())
+    legacy_review_token = _valid_operator_token(legacy_value)
+    reviewer_credentials = bool(str(source.get("NEXUS_REVIEW_CREDENTIALS_JSON", "")).strip())
+    role_map_configured = bool(str(source.get("NEXUS_REVIEW_ROLE_MAP_JSON", "")).strip())
+    role_map_required = reviewer_credentials
     checks = {
-        "operator_auth": _group(source, ["NEXUS_REVIEW_TOKEN"]),
+        "operator_auth": {
+            "configured": legacy_review_token or reviewer_credentials,
+            "missing": (
+                [] if legacy_review_token or reviewer_credentials
+                else [
+                    "NEXUS_REVIEW_TOKEN (must be 32-512 printable ASCII characters)"
+                    if legacy_present else "NEXUS_REVIEW_TOKEN",
+                    "NEXUS_REVIEW_CREDENTIALS_JSON",
+                ]
+            ),
+            "optional_missing": [],
+        },
+        "operator_rbac": {
+            "configured": role_map_configured or not role_map_required,
+            "missing": (
+                [] if role_map_configured or not role_map_required
+                else ["NEXUS_REVIEW_ROLE_MAP_JSON"]
+            ),
+            "optional_missing": (
+                [] if role_map_configured or role_map_required
+                else ["NEXUS_REVIEW_ROLE_MAP_JSON"]
+            ),
+            "optional": not role_map_required,
+        },
         # Provider bearer tokens are optional: endpoint adapters support
         # unauthenticated providers as well as bearer-authenticated providers.
         "script_generation": _group(
@@ -116,6 +155,7 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
         "checks": checks,
         "capabilities": {
             "protected_operations": operation,
+            "operator_rbac_configured": checks["operator_rbac"]["configured"],
             "ai_generation_configured": generation,
             "artifact_staging_configured": staging,
             "youtube_upload_configured": youtube_upload,

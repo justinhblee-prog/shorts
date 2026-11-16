@@ -1,0 +1,54 @@
+import json
+import unittest
+from reviewer_auth import ReviewCredentialConfigurationError, resolve_review_principal
+
+class ReviewerAuthTests(unittest.TestCase):
+    def test_individual_tokens_resolve_to_configured_identity(self):
+        credentials = json.dumps({"alice": "a" * 48, "review-team-2": "b" * 48})
+        self.assertEqual(resolve_review_principal("a" * 48, credentials_json=credentials), "alice")
+        self.assertEqual(resolve_review_principal("b" * 48, credentials_json=credentials), "review-team-2")
+
+    def test_invalid_token_does_not_authenticate(self):
+        credentials = json.dumps({"alice": "a" * 48})
+        self.assertIsNone(resolve_review_principal("wrong-token", credentials_json=credentials))
+        self.assertIsNone(resolve_review_principal(None, credentials_json=credentials))
+
+    def test_individual_credentials_disable_legacy_shared_token_fallback(self):
+        credentials = json.dumps({"alice": "a" * 48})
+        self.assertIsNone(resolve_review_principal("legacy-shared-token-with-at-least-32-characters", credentials_json=credentials, legacy_token="legacy-shared-token-with-at-least-32-characters"))
+
+    def test_legacy_shared_token_has_fixed_non_spoofable_identity(self):
+        self.assertEqual(resolve_review_principal("legacy-shared-token-with-at-least-32-characters", credentials_json="", legacy_token="legacy-shared-token-with-at-least-32-characters"), "legacy-operator")
+        self.assertIsNone(resolve_review_principal("wrong", credentials_json="", legacy_token="legacy-shared-token-with-at-least-32-characters"))
+
+    def test_malformed_or_weak_credentials_fail_configuration_closed(self):
+        values = ["not-json", "[]", "{}", json.dumps({"alice": "short"}), json.dumps({"alice": "a" * 40, "bob": "a" * 40})]
+        for raw in values:
+            with self.subTest(raw=raw):
+                with self.assertRaises(ReviewCredentialConfigurationError):
+                    resolve_review_principal("a" * 48, credentials_json=raw)
+
+    def test_weak_legacy_token_configuration_fails_closed(self):
+        with self.assertRaises(ReviewCredentialConfigurationError):
+            resolve_review_principal(
+                "short", credentials_json="", legacy_token="short"
+            )
+
+    def test_reviewer_identity_is_validated(self):
+        values = [json.dumps({"": "a" * 40}), json.dumps({"x" * 129: "a" * 40})]
+        for raw in values:
+            with self.subTest(raw=raw):
+                with self.assertRaises(ReviewCredentialConfigurationError):
+                    resolve_review_principal("a" * 40, credentials_json=raw)
+
+    def test_env_example_uses_real_line_breaks_for_reviewer_credentials(self):
+        from pathlib import Path
+        example = Path(__file__).resolve().parents[2] / ".env.example"
+        content = example.read_text(encoding="utf-8")
+        self.assertNotIn("\\n", content)
+        self.assertIn("NEXUS_REVIEW_CREDENTIALS_JSON=", content)
+        self.assertIn("NEXUS_TRUSTED_PROXY_CIDRS=", content)
+
+
+if __name__ == "__main__":
+    unittest.main()

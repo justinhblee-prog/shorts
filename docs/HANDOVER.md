@@ -949,7 +949,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Analytics-only outcomes can be evaluated even when public counter snapshots are insufficient; they are not fabricated as views/hour.
 - Comparable evaluation requires known platform, brand, region, publication-age, duration and format; minimum five eligible exposure runs and three measured selected candidates per cohort.
 - Dashboard surfaces topic-level watch-quality context and metric-specific holdout coverage. Recommendation scores remain unchanged until evidence quality and a future controlled evaluation justify a separate decision.
-- Validation pending.
+- GitHub Actions run [43790865052](https://github.com/justinhblee-prog/shorts/actions/runs/43790865052) passed **400 backend tests** and the full `scripts/validate.sh` command. No live reverse-proxy or production multi-operator deployment test is claimed.
 
 
 ### BUILD-00033 validation record
@@ -1077,3 +1077,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - GitHub Actions PR run [43789858034](https://github.com/justinhblee-prog/shorts/actions/runs/43789858034) passed **365 backend tests** and the full `scripts/validate.sh` command.
 - Regression tests verify malformed manifest and traversal-path rejection without modifying live data, plus preservation of empty media directories.
 - No live Compose deployment, scheduled backup observation, off-host replication or production restore drill is claimed.
+
+
+## BUILD-00039 — operator authentication, RBAC and API rate limits
+
+- New modules: `backend/reviewer_auth.py`, `backend/operator_rbac.py`, `backend/api_rate_limit.py`.
+- `NEXUS_REVIEW_CREDENTIALS_JSON` maps unique reviewer/operator IDs to 32–512 character tokens. When set, it fully replaces the legacy `NEXUS_REVIEW_TOKEN`; the legacy token maps to fixed identity `legacy-operator`.
+- `NEXUS_REVIEW_ROLE_MAP_JSON` assigns explicit roles: admin, producer, reviewer, publisher, analyst, operator, finance or worker. If per-operator credentials are enabled and the role map is omitted, role-protected requests fail closed. Wildcard compatibility is retained only for the legacy single-token migration mode.
+- All protected API routes now call an explicit permission guard. Review evidence and approve/reject/revision records use the authenticated operator ID, not a body-supplied reviewer ID.
+- Persistent SQLite rate-limit buckets enforce per-minute auth/publish/control/review/production/default limits and emit standard rate-limit headers.
+- X-Forwarded-For is ignored unless the immediate peer is in `NEXUS_TRUSTED_PROXY_CIDRS`; proxy chains are parsed right-to-left and untrusted prefixes are ignored.
+- Validation pending.
+
