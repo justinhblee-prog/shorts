@@ -343,6 +343,7 @@ class TikTokPublishingTests(unittest.TestCase):
         )
         self.assertEqual(result["attempt_id"],"new-poll-attempt-failed")
         self.assertEqual(result["status"],"reconciliation_required")
+        result=self.store.get("job-1")
         self.assertEqual(result["events"][-1]["attempt_id"],first_attempt)
 
     def test_tiktok_reconciliation_published_records_verified_video_id(self):
