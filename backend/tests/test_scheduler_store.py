@@ -164,5 +164,17 @@ class SchedulerTests(unittest.TestCase):
     def test_naive_now_is_rejected(self):
         with self.assertRaises(ValueError):
             self.schedules.dispatch_due(self.queue, now=datetime(2026, 1, 1))
+
+    def test_scheduler_lease_duration_is_strict_and_bounded(self):
+        for invalid in (True, False, 1.5, "90", 0, -1, 3601, 10**9):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "lease_seconds"):
+                    self.schedules.acquire_scheduler_lease("invalid", invalid)
+        token = self.schedules.acquire_scheduler_lease("scheduler-min", 1)
+        self.assertIsNotNone(token)
+        self.assertTrue(self.schedules.renew_scheduler_lease("scheduler-min", token, 3600))
+        with self.assertRaisesRegex(ValueError, "lease_seconds"):
+            self.schedules.renew_scheduler_lease("scheduler-min", token, True)
+
 if __name__ == "__main__":
     unittest.main()

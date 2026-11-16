@@ -15,6 +15,12 @@ def _stamp(value):
     return value.astimezone(timezone.utc).isoformat()
 
 
+def _lease_seconds(value, minimum):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1 or value > 3600:
+        raise ValueError("lease_seconds must be an integer from 1 to 3600")
+    return max(minimum, value)
+
+
 class ScheduleStore:
     def __init__(self, db_path="data/nexus.sqlite3"):
         self.db_path = str(db_path)
@@ -141,7 +147,7 @@ class ScheduleStore:
         """Acquire or renew the singleton scheduler lease; return its fencing token."""
         if not owner_id or not str(owner_id).strip():
             raise ValueError("scheduler owner_id is required")
-        ttl = max(15, int(lease_seconds))
+        ttl = _lease_seconds(lease_seconds, 15)
         current = now or datetime.now(timezone.utc)
         if current.tzinfo is None:
             raise ValueError("now must be timezone-aware")
@@ -164,7 +170,7 @@ class ScheduleStore:
             return token
 
     def renew_scheduler_lease(self, owner_id, lease_token, lease_seconds=90, now=None):
-        ttl = max(15, int(lease_seconds))
+        ttl = _lease_seconds(lease_seconds, 15)
         current = now or datetime.now(timezone.utc)
         if current.tzinfo is None:
             raise ValueError("now must be timezone-aware")

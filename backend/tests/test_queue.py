@@ -187,4 +187,12 @@ class QueueTests(unittest.TestCase):
   self.assertEqual([e["event_type"] for e in events[:2]],["resumed","paused"])
   self.assertEqual(events[0]["actor"],"operator-1")
   self.assertIn("Checked provider history",events[0]["reason"])
+
+ def test_lease_duration_rejects_ambiguous_or_unbounded_values(self):
+  for invalid in (True, False, 1.5, "60", 0, -1, 3601, 10**9):
+   with self.subTest(invalid=invalid):
+    with self.assertRaisesRegex(ValueError, "lease_seconds"):
+     JobQueue(Path(self.tmp.name)/"invalid.db", invalid)
+  self.assertEqual(self.q.lease_seconds, 10)
+
 if __name__=="__main__": unittest.main()
