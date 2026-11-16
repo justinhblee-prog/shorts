@@ -1821,3 +1821,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Superseded-attempt uncertainty now retrieves the latest non-null publish ID, video ID, and operator ID independently instead of relying on the newest event row to contain all metadata.
 - Added a regression with a later diagnostic event containing null provider identifiers, verifying the earlier publish ID remains attached to the delayed uncertainty event.
 - Deterministic local database validation only; no live TikTok API verification is implied.
+
+## BUILD-00221 — Audit superseded YouTube worker errors during late-success review
+- A delayed worker failure received while a job is already in `late_success_review_required` is now retained as an informational audit event instead of being silently discarded.
+- The event distinguishes a current-attempt post-confirmation error from a superseded-attempt uncertainty and preserves the existing late-success review state, current attempt ID, and recorded video ID.
+- Added a regression covering late remote success followed by a delayed worker error from the superseded attempt.
+- Deterministic SQLite validation only; no live YouTube API verification is implied.
