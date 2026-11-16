@@ -1054,5 +1054,5 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Ignore caller-supplied reviewer IDs for policy evidence and review decisions; persist the authenticated token identity instead.
 - Add atomic SQLite fixed-window rate limits by client identity and request class, with response headers and 429 retry information.
 - Trust X-Forwarded-For only when the immediate peer belongs to an explicitly configured trusted proxy CIDR; default is no trusted proxies.
-- Validation pending on current-mainline integration.
+- GitHub Actions run [43790865052](https://github.com/justinhblee-prog/shorts/actions/runs/43790865052) passed **400 backend tests** and `scripts/validate.sh`.
 
