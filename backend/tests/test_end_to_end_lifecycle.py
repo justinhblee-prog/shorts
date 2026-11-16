@@ -256,6 +256,29 @@ class EndToEndLifecycleTests(unittest.TestCase):
         self.assertTrue(tiktok_body["post_info"]["is_aigc"])
         self.assertEqual(tiktok_transport.calls[-1][3], "PUT")
 
+        # Poll the authoritative creator status to a terminal publication result,
+        # then prove a repeated operator action returns the durable result without
+        # issuing another initialization or media-upload request.
+        tiktok_transport.responses.append((200, {
+            "data": {
+                "status": "PUBLISH_COMPLETE",
+                "publicaly_available_post_id": ["private-tiktok-video-001"],
+            },
+            "error": {"code": "ok"},
+        }))
+        confirmed_tiktok = tiktok.refresh_status(job_id)
+        self.assertEqual(confirmed_tiktok["status"], "publish_complete")
+        self.assertEqual(confirmed_tiktok["video_id"], "private-tiktok-video-001")
+        tiktok_calls_after_confirmation = len(tiktok_transport.calls)
+        repeated_tiktok = tiktok.publish_private_approved(
+            job_id, staged["media_path"], self.review,
+            "Sleep and Memory: One Useful Fact", "integration-operator",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        self.assertEqual(repeated_tiktok["status"], "publish_complete")
+        self.assertEqual(repeated_tiktok["video_id"], "private-tiktok-video-001")
+        self.assertEqual(len(tiktok_transport.calls), tiktok_calls_after_confirmation)
+
         revenue = self.ledger.record({
             "job_id": job_id, "brand": brief["brand"], "region": brief["region"],
             "entry_type": "youtube_ads", "amount": 1.25, "currency": "USD",
