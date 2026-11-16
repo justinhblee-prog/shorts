@@ -329,7 +329,7 @@ class SchedulerTests(unittest.TestCase):
                         method(invalid)
             result = method(1)
             self.assertEqual(result, [] if method == self.schedules.pending_dispatches else {
-                "counts": {}, "items": [], "pending_retries": 0
+                "counts": {}, "items": [], "pending_retries": 0, "pending_ready": 0
             })
         for invalid in (True, False, 1.5, "10", 0, -1, 101):
             with self.subTest(dispatch_limit=invalid):
