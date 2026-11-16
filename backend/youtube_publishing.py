@@ -123,13 +123,6 @@ class YouTubeUploadStore:
                 raise YouTubeUploadError(
                     "Saved policy evidence or approval snapshot is invalid; return to review"
                 )
-            artifacts_match, integrity_reason = approval_snapshot_matches_current_artifacts(
-                c, job_id, approval_snapshot
-            )
-            if not artifacts_match:
-                raise YouTubeUploadError(
-                    integrity_reason or "Production artifacts changed after human approval; return to review"
-                )
             approved_script=next((
                 item for item in approval_snapshot
                 if isinstance(item,dict) and item.get("stage")=="script"
@@ -155,6 +148,14 @@ class YouTubeUploadStore:
                 raise YouTubeUploadError(
                     "Current platform policy evidence still contains blocking requirements; "
                     "return to human review before upload"
+                )
+
+            artifacts_match, integrity_reason = approval_snapshot_matches_current_artifacts(
+                c, job_id, approval_snapshot
+            )
+            if not artifacts_match:
+                raise YouTubeUploadError(
+                    integrity_reason or "Production artifacts changed after human approval; return to review"
                 )
             row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
             if row and row["status"]=="uploaded":
