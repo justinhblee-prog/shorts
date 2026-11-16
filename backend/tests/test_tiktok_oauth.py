@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import tempfile
@@ -157,7 +158,7 @@ class TikTokOAuthTests(unittest.TestCase):
         auth = self.manager.start_authorization()
         state = parse_qs(urlparse(auth["authorization_url"]).query)["state"][0]
         expected_epoch = self.store.consume_state(
-            __import__("hashlib").sha256(state.encode()).hexdigest()
+            hashlib.sha256(state.encode()).hexdigest()
         )
         self.assertEqual(expected_epoch, 0)
         self.manager._save_token_response({
