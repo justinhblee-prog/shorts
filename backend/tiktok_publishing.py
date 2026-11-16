@@ -520,12 +520,14 @@ class TikTokPublishStore:
             now = datetime.now(timezone.utc)
             now_text = now.isoformat()
             expires = (now + timedelta(seconds=seconds)).isoformat()
-            current = c.execute(
-                "SELECT attempt_id,lease_expires_at FROM tiktok_status_poll_leases "
-                "WHERE job_id=?",
-                (job_id,),
-            ).fetchone()
-            if current is not None and current["lease_expires_at"] > now_text:
+            current = c.execute("""
+                SELECT attempt_id,
+                       CASE WHEN julianday(lease_expires_at) > julianday(?)
+                            THEN 1 ELSE 0 END AS is_active
+                FROM tiktok_status_poll_leases WHERE job_id=?
+            """, (now_text, job_id)).fetchone()
+            if (current is not None and current["attempt_id"] == attempt_id
+                    and current["is_active"]):
                 return None
             c.execute("""
               INSERT INTO tiktok_status_poll_leases
