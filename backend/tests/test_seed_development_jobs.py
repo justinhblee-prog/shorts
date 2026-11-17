@@ -17,6 +17,7 @@ class SeedDevelopmentJobsTests(unittest.TestCase):
     def test_seed_is_idempotent_and_preserves_existing_progress(self):
         first = seed_development_jobs(self.store)
         self.assertEqual(len(first), 4)
+        initial_dependency_events = len(self.store.events("DEV-ORCH-009"))
         claimed = self.store.claim_ready("seed-test-worker")
         self.assertEqual(claimed["id"], "DEV-ORCH-005")
         second = seed_development_jobs(self.store)
@@ -25,6 +26,7 @@ class SeedDevelopmentJobsTests(unittest.TestCase):
         self.assertEqual(self.store.get("DEV-ORCH-005")["worker_id"], "seed-test-worker")
         self.assertEqual(self.store.get("DEV-ORCH-009")["status"], "blocked")
         self.assertEqual(self.store.get("DEV-ORCH-010")["status"], "blocked")
+        self.assertEqual(len(self.store.events("DEV-ORCH-009")), initial_dependency_events)
 
     def test_dependency_chain_unlocks_only_after_all_prerequisites_complete(self):
         seed_development_jobs(self.store)
