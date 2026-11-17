@@ -47,6 +47,14 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_review_decision_and_policy_evidence_audits_are_append_only(self):
+        # Simulate a database created before these protections existed; startup
+        # must install the triggers without rewriting or discarding old rows.
+        with self.review.db() as connection:
+            connection.execute("DROP TRIGGER review_decisions_no_update")
+            connection.execute("DROP TRIGGER review_decisions_no_delete")
+            connection.execute("DROP TRIGGER policy_evidence_events_no_update")
+            connection.execute("DROP TRIGGER policy_evidence_events_no_delete")
+        self.review = ReviewStore(self.db)
         with self.review.db() as connection:
             connection.execute("""
                 INSERT INTO review_decisions
