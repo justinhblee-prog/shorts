@@ -1067,6 +1067,44 @@ class ProductionTests(unittest.TestCase):
 
 
 
+    def test_script_voice_and_render_artifact_adoption_is_atomic(self):
+        cases = (
+            ("script", "text", None, {"script": "Durable script text"}),
+            ("voice_generation", "audio", "https://cdn.example.test/voice.mp3",
+             {"duration_seconds": 24}),
+            ("rendering", "video", "https://cdn.example.test/render.mp4",
+             {"duration_seconds": 24}),
+        )
+        for index, (stage, artifact_type, url, metadata) in enumerate(cases):
+            with self.subTest(stage=stage):
+                job_id = f"job-atomic-adoption-{index}"
+                self.store.create(job_id, self.brief)
+                key = self.store.begin_provider_attempt(job_id, stage, 1)
+                self.store.finish_provider_attempt(
+                    job_id, stage, 1, key, {"request_id": f"request-{index}"}
+                )
+
+                # A missing attempt must roll back the artifact write.
+                with self.assertRaisesRegex(ValueError, "missing or already consumed"):
+                    self.store.artifact(
+                        job_id, stage, artifact_type, url, metadata,
+                        provider_attempt=(stage, 99),
+                    )
+                self.assertEqual(self.store.get(job_id)["artifacts"], [])
+                self.assertEqual(
+                    self.store.provider_attempts(job_id)[0]["state"],
+                    "response_received",
+                )
+
+                self.store.artifact(
+                    job_id, stage, artifact_type, url, metadata,
+                    provider_attempt=(stage, 1),
+                )
+                self.assertEqual(len(self.store.get(job_id)["artifacts"]), 1)
+                self.assertEqual(
+                    self.store.provider_attempts(job_id)[0]["state"], "adopted"
+                )
+
     def test_integrity_report_paginates_without_duplicate_or_missing_records(self):
         queue = JobQueue(self.store.db_path)
         created = []
