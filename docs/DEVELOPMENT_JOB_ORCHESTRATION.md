@@ -102,6 +102,7 @@ The current Draft PR #321 contains the following prototype components:
 - Automated Draft PR publication reuses the stable `automation/nexus-development-cycle` branch so scheduled runs update the same review surface instead of creating a new PR branch every cycle.
 - `backend/app.py` and `frontend/app.js`: authenticated read-only development-job API and live status/event panel; lease tokens and raw error details are redacted. `backend/tests/test_development_job_api_security.py` covers the access-control and redaction contract.
 - The monitor summary now reports active and expired lease counts, latest update time, and the most recent successful validation reference; the UI exposes these alongside the job list.
+- `development_workers` persists runner presence, hostname, active job, last-seen heartbeat, and clean shutdown state. The authenticated `/api/development/workers` endpoint and monitor distinguish online from stale/offline workers.
 
 The new runner and workflow are code-level implementations, not proof of autonomous operation. CI on hosted Linux validates the Python code and fixtures; it does not validate the Windows self-hosted runner, Ollama availability, real model edits, GitHub token permissions, or scheduled execution from `main`.
 
