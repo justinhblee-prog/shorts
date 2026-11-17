@@ -2303,3 +2303,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Move TikTok refresh-lease acquisition time sampling inside its write transaction.
 - Add lock-contention regressions for OAuth state creation/consumption and TikTok refresh-lease acquisition.
 - GitHub Actions run #43993408489 passed on latest PR #308 head `5f379a6cc9c85baacde235f7279c75ccea7a9785`. Deterministic SQLite/controlled-clock coverage only; live Google/TikTok OAuth provider validation is not claimed.
+
+
+
+## BUILD-00303 — make review decision and policy evidence audit records append-only
+- Add SQLite UPDATE/DELETE rejection triggers to `review_decisions` and `policy_evidence_events`.
+- Preserve ordinary INSERT behavior so review decisions and policy attestations continue to append.
+- Add regression coverage proving mutation and deletion fail with `sqlite3.IntegrityError` and both records remain present.
+- Scope limitation: this is application/database-trigger protection against accidental mutation, not tamper-proof storage against privileged schema or database-file modification.
+- Validation: pending exact-head GitHub Actions.
