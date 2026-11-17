@@ -596,11 +596,9 @@ class QueueTests(unittest.TestCase):
   self.assertFalse(resumed["paused"])
   self.assertEqual(self.q.get(first["id"])["status"],"failed_retriable")
   self.assertEqual(self.q.get(second["id"])["status"],"failed_retriable")
-  self.assertEqual(
-   [event["event_type"] for event in self.q.worker_control_events()[:3]],
-   ["resumed","paused"] if len(self.q.worker_control_events())==2
-   else [event["event_type"] for event in self.q.worker_control_events()[:3]]
-  )
+  control_events=self.q.worker_control_events()
+  self.assertEqual([event["event_type"] for event in control_events[:2]],
+                   ["resumed","paused"])
 
  def test_operator_pause_and_resume_are_audited(self):
   self.q.pause("operator requested stop",actor="admin-7")
