@@ -18,24 +18,26 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 
 ## Current checkpoint
 
-- Latest completed engineering item: BUILD-00291 — append-only queue and worker-control audit events.
-- PR #297: https://github.com/justinhblee-prog/shorts/pull/297 (BUILD-00291 CI verified)
-- Current PR #297 head: `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a`.
-- GitHub Actions Backend tests run #43984822638 for that exact head: success.
-- PRs #288–#295 and #297 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve Draft status and do not merge or push to main.
-- Completed next item: BUILD-00289 — capture enqueue transition timestamp after acquiring SQLite's immediate write lock and reuse it for the enqueue audit event. Its exact PR head passed GitHub Actions.\n- Active work item: BUILD-00290 — capture production-run creation time after acquiring SQLite's immediate write lock and reuse one timestamp for both created_at and updated_at.
+- Latest completed engineering item in the current stacked chain: BUILD-00294 — serialize scheduled dispatch reservation and scheduler fencing validation under the SQLite write lock.
+- PR #298 (BUILD-00292): https://github.com/justinhblee-prog/shorts/pull/298 — exact head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`, GitHub Actions passed.
+- PR #299 (BUILD-00293): https://github.com/justinhblee-prog/shorts/pull/299 — exact head `724d4f78425577debc74a7990cf4d34133162390`, GitHub Actions passed.
+- PR #300 (BUILD-00294): https://github.com/justinhblee-prog/shorts/pull/300 — exact head `2184c13ac56854075145ce9ad39572cc1ff6004f`, GitHub Actions run #43990440580 passed.
+- PRs #298–#300 are open Draft PRs, stacked in dependency order, and remain unmerged. Earlier PRs #288–#295 and #297 remain Draft/unmerged; PR #296 is closed as a superseded duplicate. Preserve Draft status and do not merge or push to main.
+- The scheduler regressions are deterministic SQLite lock-contention tests. They do not establish multi-host scheduler safety or deployed runtime readiness.
 
 ## Phase 1 — Engineering closure (rolling)
 
 **Exit criteria:** each code change has a focused regression, full CI validation on the exact PR head, updated BUILD ledger, and explicit limits on what was not tested.
 
 Current ordered work:
-1. BUILD-00289: enqueue job/event timestamp consistency under SQLite lock contention — CI passed on PR #294 head.\n2. BUILD-00290: production-run creation timestamp consistency under SQLite lock contention.
-3. Audit every remaining queue, worker registry, scheduler/outbox, production-run, review, upload and reconciliation transition for timestamp sampling before lock acquisition or independently sampled audit times.
-4. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records across the same subsystems.
-5. Reconcile API authorization and diagnostic redaction with UI actions; identify any shared-token/claimed-identity limitations before multi-user deployment.
-6. Audit frontend workflows and accessibility/error/loading states; add browser-level checks where the deployment environment permits.
-7. Re-run full repository validation after the audit queue is exhausted; fix all regressions and publish a verified test inventory.
+1. BUILD-00292: schedule activation timestamp after SQLite write-lock acquisition — CI passed on exact PR #298 head.
+2. BUILD-00293: scheduler lease acquire/renew timestamps after SQLite write-lock acquisition — CI passed on exact PR #299 head.
+3. BUILD-00294: due-dispatch timestamp and scheduler fencing lease validation in the reservation transaction — CI passed on exact PR #300 head.
+4. Continue the timestamp/atomicity audit across queue, worker registry, production-run, review, upload and reconciliation transitions.
+5. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records.
+6. Reconcile API authorization and diagnostic redaction with UI actions; identify shared-token/claimed-identity limitations before multi-user deployment.
+7. Audit dashboard workflows, accessibility, loading/error states and add browser-level checks where a runnable browser environment is available.
+8. Re-run full repository validation after the rolling audit queue is exhausted; fix regressions and publish a verified test inventory.
 
 This is a rolling audit, not a claim that exactly six BUILD items remain. Add newly discovered defects in dependency order.
 
