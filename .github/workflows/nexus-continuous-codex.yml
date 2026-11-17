@@ -124,6 +124,13 @@ jobs:
           & $uv tool run --python 3.11 --from aider-chat aider --version
           if ($LASTEXITCODE -ne 0) { throw "Aider smoke test failed." }
 
+      - name: Exclude Aider session metadata from product changes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exclude = Join-Path $env:GITHUB_WORKSPACE ".git/info/exclude"
+          Add-Content -Path $exclude -Value "`n.aider*
+.aider/"
       - name: Run one bounded local-model development iteration
         shell: powershell
         env:
@@ -137,8 +144,26 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Aider exited with code $LASTEXITCODE"
           }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw "git diff --check failed." }
+
+      - name: Detect meaningful changes
+        id: changes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $changed = git status --porcelain
+          if ($LASTEXITCODE -ne 0) { throw "Could not inspect worktree changes." }
+          if (-not $changed) {
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "has_changes=false"
+            Write-Host "No product changes were produced; Draft PR creation will be skipped."
+          } else {
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "has_changes=true"
+            $changed | Out-Host
+          }
 
       - name: Create a Draft PR for review
+        if: steps.changes.outputs.has_changes == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
