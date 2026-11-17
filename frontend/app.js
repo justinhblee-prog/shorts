@@ -326,6 +326,18 @@
     const counts=outbox.counts||{};
     const dispatches=(outbox.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.schedule_id)+'</b><small>'+esc(x.scheduled_for)+' · 실패 '+Number(x.attempts||0)+'회'+(x.next_attempt_at?' · 다음 재시도 '+esc(x.next_attempt_at):'')+(x.last_error?' · '+esc(x.last_error):'')+'</small>'+(x.status==="dead_letter"?'<button class="button button-secondary button-small" type="button" data-schedule-outbox-retry="'+esc(x.id)+'">수동 재시도</button>':'')+'</div>').join("");
     $("scheduleList").innerHTML='<div class="notice">즉시 실행 가능 '+Number(outbox.pending_ready||0)+' · 재시도 대기 '+Number(outbox.pending_retries||0)+' · 격리 '+Number(counts.dead_letter||0)+' · 전달 완료 '+Number(counts.dispatched||0)+'</div>'+schedules+'<h4>예약 실행 복구 로그</h4>'+(dispatches||'<div class="empty-state">예약 실행 이력이 없습니다.</div>');
+    const calendar=document.getElementById("cyberCalendarGrid");
+    if(calendar){
+      const now=new Date();const monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
+      const days=Array.from({length:7},(_,offset)=>{const date=new Date(monday);date.setDate(monday.getDate()+offset);return date;});
+      const valid=(data.items||[]).map(item=>({...item,nextDate:new Date(item.next_run_at)})).filter(item=>!Number.isNaN(item.nextDate.getTime()));
+      calendar.innerHTML=days.map(date=>{
+        const items=valid.filter(item=>item.nextDate.getFullYear()===date.getFullYear()&&item.nextDate.getMonth()===date.getMonth()&&item.nextDate.getDate()===date.getDate());
+        const today=date.toDateString()===now.toDateString();
+        const entries=items.map(item=>'<article class="cyber-calendar-event"><time>'+esc(item.nextDate.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"}))+'</time><b>'+esc(item.name)+'</b><small>'+esc(item.payload?.brand||"")+' · '+esc((item.payload?.platforms||["youtube"])[0])+'</small></article>').join("");
+        return '<section class="cyber-calendar-day'+(today?' is-today':'')+'"><header>'+esc(date.toLocaleDateString(undefined,{weekday:"short",day:"numeric"}))+'</header>'+(entries||'<div class="cyber-calendar-empty">—</div>')+'</section>';
+      }).join("");
+    }
   }
   async function loadOpportunities(){
     const data=await api("/api/opportunities?limit=20");
