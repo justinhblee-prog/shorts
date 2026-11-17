@@ -36,7 +36,7 @@ jobs:
               direction: "desc",
             });
             const candidates = response.data
-              .filter((pr) => !pr.merged_at && pr.head.repo?.full_name === `${owner}/${repo}`)
+              .filter((pr) => !pr.merged_at && pr.head.repo?.full_name === `${owner}/${repo}` && pr.head.ref.startsWith("build/"))
               .sort((a, b) => b.number - a.number);
             const base = candidates[0]?.head.ref ?? context.payload.repository?.default_branch ?? "main";
             core.setOutput("base_branch", base);
