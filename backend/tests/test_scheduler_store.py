@@ -582,6 +582,58 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(outbox["next_attempt_at"], "2026-11-17T12:05:30+00:00")
         self.assertIn("RuntimeError", outbox["last_error"])
 
+    def test_dispatch_failure_after_scheduler_lease_takeover_does_not_mutate_outbox(self):
+        due = datetime.now(timezone.utc) - timedelta(minutes=5)
+        item = self.schedule(due)
+        token = self.schedules.acquire_scheduler_lease("worker-a")
+        queue_call_started = threading.Event()
+        allow_queue_failure = threading.Event()
+        observed = {}
+
+        class BlockingFailureQueue:
+            @staticmethod
+            def is_paused():
+                return False
+
+            @staticmethod
+            def enqueue(*args, **kwargs):
+                queue_call_started.set()
+                if not allow_queue_failure.wait(5):
+                    raise TimeoutError("test did not release queue failure")
+                raise RuntimeError("temporary queue outage")
+
+        def dispatch():
+            try:
+                observed["result"] = self.schedules.dispatch_due(
+                    BlockingFailureQueue(), lease_owner="worker-a", lease_token=token
+                )
+            except BaseException as exc:
+                observed["error"] = exc
+
+        thread = threading.Thread(target=dispatch)
+        thread.start()
+        self.assertTrue(queue_call_started.wait(2), "queue call did not start")
+        with self.schedules.db() as blocker:
+            blocker.execute("BEGIN IMMEDIATE")
+            blocker.execute("""UPDATE scheduler_leader_lease
+                SET owner_id='worker-b',lease_token='replacement-token',
+                    expires_at='2099-01-01T00:00:00+00:00'
+                WHERE id=1""")
+            allow_queue_failure.set()
+            blocker.commit()
+        thread.join(5)
+        self.assertFalse(thread.is_alive(), "stale scheduler failure handling did not finish")
+        self.assertNotIn("error", observed, repr(observed.get("error")))
+        self.assertTrue(observed["result"]["lease_lost"])
+        with self.schedules.db() as connection:
+            outbox = connection.execute(
+                "SELECT status,attempts,next_attempt_at FROM schedule_dispatch_outbox WHERE schedule_id=?",
+                (item["id"],),
+            ).fetchone()
+        self.assertEqual(outbox["status"], "pending")
+        self.assertEqual(outbox["attempts"], 0)
+        self.assertIsNone(outbox["next_attempt_at"])
+
     def test_outbox_status_rejects_naive_clock(self):
         with self.assertRaisesRegex(ValueError, "timezone-aware"):
             self.schedules.outbox_status(now=datetime(2026, 1, 1))
