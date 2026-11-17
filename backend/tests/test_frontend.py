@@ -84,6 +84,19 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('id="opportunityList"', html)
         self.assertIn("경쟁 조정", app_js)
 
+    def test_analytics_history_renders_real_snapshot_trend_chart_safely(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        css = (frontend / "styles.css").read_text(encoding="utf-8")
+        self.assertIn("analytics-trend-chart", app_js)
+        self.assertIn("Date.parse(item.collected_at)", app_js)
+        self.assertIn("Number.isFinite(point.value)", app_js)
+        self.assertIn("group.points.length>=2", app_js)
+        self.assertIn("YouTube와 TikTok의 조회수 집계 기준은 다를 수", app_js)
+        self.assertIn(".analytics-trend-chart", css)
+        self.assertIn('id="analyticsHistory"', html)
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
