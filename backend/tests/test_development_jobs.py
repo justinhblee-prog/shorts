@@ -191,6 +191,28 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertTrue(summary["latest_updated_at"])
 
 
+    def test_worker_presence_lifecycle_and_summary(self):
+        worker = self.store.touch_worker("runner-a", hostname="WINNER", current_job_id="DEV-1")
+        self.assertEqual(worker["status"], "online")
+        self.assertEqual(worker["hostname"], "WINNER")
+        self.assertEqual(worker["current_job_id"], "DEV-1")
+        listed = self.store.list_workers()
+        self.assertEqual(len(listed), 1)
+        self.assertTrue(listed[0]["is_online"])
+        self.assertEqual(self.store.summary()["online_workers"], 1)
+        self.assertTrue(self.store.stop_worker("runner-a"))
+        stopped = self.store.get_worker("runner-a")
+        self.assertEqual(stopped["status"], "offline")
+        self.assertIsNone(stopped["current_job_id"])
+        self.assertEqual(self.store.summary()["online_workers"], 0)
+
+    def test_worker_presence_rejects_invalid_identity(self):
+        with self.assertRaises(ValueError):
+            self.store.touch_worker("")
+        with self.assertRaises(ValueError):
+            self.store.list_workers(online_within_seconds=0)
+
+
 
 if __name__ == "__main__":
     unittest.main()
