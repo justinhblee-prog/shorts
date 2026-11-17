@@ -81,3 +81,8 @@ The generated policy report is stored with the script artifact and included in t
 ## Validation
 
 Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonation flags, unknown/denied rights, platform-specific realistic-AI disclosure, selected-platform scoping, high-impact claim evidence, news source requirements, invalid flag rejection, and non-overridable approval blockers. CI results must be recorded after this branch's workflow completes.
+
+
+## YouTube
+
+- The private upload adapter maps the human-approved `policy_preflight.synthetic_media_status` to YouTube `status.containsSyntheticMedia`. Unknown declarations, missing YouTube targeting, or missing explicit altered-content acknowledgement for AI-generated/realistically altered media fail closed before the remote upload request. This is an upload metadata control, not a substitute for reviewing the actual media.
