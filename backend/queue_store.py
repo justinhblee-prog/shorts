@@ -470,11 +470,21 @@ class JobQueue:
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
             ).fetchone()
             if has_runs:
-                c.execute("""UPDATE production_runs SET status='queued',
-                    current_stage='operator_reconciled_retry_authorized',
-                    error=?,updated_at=? WHERE job_id=?
-                    AND status NOT IN ('approved','uploaded')""",
-                    (("Operator authorized one retry: " + note)[:2000], timestamp, job_id))
+                production_run = c.execute(
+                    "SELECT status FROM production_runs WHERE job_id=?", (job_id,)
+                ).fetchone()
+                if production_run and production_run["status"] in ("approved", "uploaded"):
+                    raise ValueError(
+                        "Production run is already approved or uploaded; retry cannot be authorized"
+                    )
+                if production_run:
+                    run_updated = c.execute("""UPDATE production_runs SET status='queued',
+                        current_stage='operator_reconciled_retry_authorized',
+                        error=?,updated_at=? WHERE job_id=? AND status=?""",
+                        (("Operator authorized one retry: " + note)[:2000],
+                         timestamp, job_id, production_run["status"]))
+                    if run_updated.rowcount != 1:
+                        raise ValueError("Production run state changed during reconciliation")
             c.execute("""INSERT INTO production_reconciliation_events
                 (job_id,outcome,operator_id,evidence_reference,note,
                  previous_status,resulting_status,created_at)
