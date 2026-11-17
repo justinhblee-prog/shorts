@@ -27,7 +27,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertIsNone(self.store.claim_ready("worker-b"))
 
     def test_dependency_blocks_until_parent_completed(self):
-        parent = self.store.create("Parent")
+        parent = self.store.create("Parent", scope=["backend/module.py"])
         child = self.store.create("Child")
         self.store.add_dependency(child["id"], parent["id"])
         self.assertEqual(self.store.get(child["id"])["status"], "blocked")
@@ -63,7 +63,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
     def test_completion_requires_evidence_and_valid_fence(self):
-        job = self.store.create("Completion")
+        job = self.store.create("Completion", scope=["backend/file.py"])
         claim = self.store.claim_ready("worker-a")
         with self.assertRaisesRegex(ValueError, "validation evidence"):
             self.store.complete(job["id"], "worker-a", claim["lease_token"],
