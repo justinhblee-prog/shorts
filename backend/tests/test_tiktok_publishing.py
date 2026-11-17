@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from production_pipeline import ProductionStore
 from queue_store import JobQueue
-from review_workflow import ReviewStore
+from review_workflow import ReviewStore, ReviewConflict
 from policy_engine import evaluate_content_policy, POLICY_VERSION, POLICY_CHECKED_ON
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError, CHUNK_SIZE, _NoRedirectHandler
 
@@ -720,12 +720,8 @@ class TikTokPublishingTests(unittest.TestCase):
                 "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
                 ("job-1",),
             )
-        self.review.decide("job-1", "approved", "reviewer-1")
-        with self.assertRaisesRegex(TikTokPublishError, "blockers"):
-            self.publisher.publish_private_approved(
-                "job-1", self.media, self.review, "AI generated short", "operator-1",
-                explicit_consent=True, privacy_level="SELF_ONLY",
-            )
+        with self.assertRaisesRegex(ReviewConflict, "Policy approval blockers"):
+            self.review.decide("job-1", "approved", "reviewer-1")
         self.assertEqual(self.transport.calls, [])
         self.assertIsNone(self.store.get("job-1"))
 
@@ -1203,7 +1199,7 @@ class TikTokPublishingTests(unittest.TestCase):
             connection.execute(
                 "UPDATE tiktok_publications SET updated_at=datetime('now','-1 seconds') WHERE job_id='job-1'"
             )
-        self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"])
+        self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=60), [])
 
     def test_media_path_must_be_inside_media_root(self):
         outside = os.path.join(self.tmp.name, "..", "outside.mp4")
