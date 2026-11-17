@@ -136,7 +136,8 @@ These are additional readiness constraints documented by the project, not comple
 
 
 
-### Engineering checkpoint — BUILD-00303
-- Active work: make review decisions and policy evidence attestations append-only at the SQLite application boundary.
-- Scope: reject UPDATE and DELETE on `review_decisions` and `policy_evidence_events`; preserve inserts and validate both tables with regression tests.
-- Required evidence: exact-head CI; this protection does not defend against privileged schema/database-file modification.
+### BUILD-00303 — verified
+- Add SQLite triggers that reject UPDATE and DELETE on `review_decisions` and `policy_evidence_events`; ordinary INSERT operations remain supported.
+- Regression coverage verifies all four mutation/deletion attempts raise `sqlite3.IntegrityError` and both audit rows remain present.
+- GitHub Actions run #43995020465 passed on implementation head `daa75c737b9d5b5b63b12b110dd65bdeb60ccfd0` (668 backend tests); exact docs-inclusive PR head validation is tracked separately.
+- Limitation: SQLite triggers prevent accidental/application-level mutation, not privileged schema or database-file modification.
