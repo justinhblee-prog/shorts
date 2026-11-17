@@ -1388,6 +1388,16 @@ def development_job_summary(x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"operations.read")
     return development_job_store.summary()
 
+@app.get("/api/development/workers")
+def list_development_workers(
+    limit:int=Query(default=50,ge=1,le=200),
+    x_review_token:str|None=Header(default=None),
+):
+    require_review_permission(x_review_token,"operations.read")
+    workers=development_job_store.list_workers()
+    return {"workers":workers[:limit],"summary":development_job_store.summary()}
+
+
 
 @app.get("/api/development/jobs")
 def list_development_jobs(
