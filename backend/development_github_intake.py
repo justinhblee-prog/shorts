@@ -246,3 +246,35 @@ class GitHubReadOnlyClient:
             if isinstance(runs, list):
                 return runs
         return []
+
+def sync_github_backlog(
+    store: Any,
+    client: Any,
+    owner: str,
+    repository: str,
+    approved_scopes: dict[str, list[str]] | None = None,
+) -> dict[str, Any]:
+    """Collect a read-only snapshot and import only issues with explicit scope approval.
+
+    approved_scopes maps a stable source_ref (github:issue:owner/repo#N) to
+    repository-relative paths. No default scope is inferred from issue text.
+    """
+    snapshot = read_github_snapshot(client, owner, repository)
+    normalized = normalize_snapshot(snapshot)
+    approved_scopes = approved_scopes or {}
+    imported = sync_labeled_issues(
+        store,
+        snapshot["issues"],
+        scope_resolver=lambda candidate: approved_scopes.get(candidate["source_ref"], []),
+    )
+    return {
+        "import": imported,
+        "pull_requests": normalized["pull_requests"],
+        "workflow_runs": normalized["workflow_runs"],
+        "candidate_count": len(normalized["job_candidates"]),
+        "snapshot_counts": {
+            "issues": len(snapshot["issues"]),
+            "pull_requests": len(snapshot["pull_requests"]),
+            "workflow_runs": len(snapshot["workflow_runs"]),
+        },
+    }
