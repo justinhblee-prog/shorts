@@ -1272,17 +1272,23 @@ class ProductionPipeline:
             if self.transcription is not None:
                 self._check_stop(stop_event)
                 self.store.stage(job_id, "speech_alignment", **lease)
-                transcript_result = self.transcription.post("speech_alignment", {
-                    "task": "transcribe_audio",
-                    "audio_url": audio_url,
-                    "language": brief["language"],
-                    "response_format": "json",
-                    "instructions": (
-                        "Transcribe only the supplied audio faithfully. Do not correct, "
-                        "rewrite, summarize, or infer words that are not audible. Return "
-                        "the transcript in the original spoken language."
-                    ),
-                })
+                transcription_attempt_number=(
+                    self.store.recoverable_provider_attempt_number(job_id,"speech_alignment")
+                    or self.store.next_provider_attempt_number(job_id,"speech_alignment")
+                )
+                transcript_result = self._provider_request(
+                    job_id,"speech_alignment",transcription_attempt_number,self.transcription,{
+                        "task": "transcribe_audio",
+                        "audio_url": audio_url,
+                        "language": brief["language"],
+                        "response_format": "json",
+                        "instructions": (
+                            "Transcribe only the supplied audio faithfully. Do not correct, "
+                            "rewrite, summarize, or infer words that are not audible. Return "
+                            "the transcript in the original spoken language."
+                        ),
+                    }, **lease
+                )
                 self._check_stop(stop_event)
                 transcript_text = transcript_result.get("transcript")
                 if not isinstance(transcript_text, str) or not transcript_text.strip():
@@ -1299,6 +1305,8 @@ class ProductionPipeline:
                     job_id, "speech_alignment", "report", None,
                     {**speech_report, "transcript": transcript_text}, **lease
                 )
+                self.store.mark_provider_attempt_adopted(
+                    job_id,"speech_alignment",transcription_attempt_number,**lease)
 
             self._check_stop(stop_event)
             self.store.stage(job_id, "rendering", **lease)
