@@ -236,7 +236,7 @@ class ProductionStore:
                             )
 
     def artifact(self, job_id, stage, artifact_type, url, metadata,
-                 worker_id=None, lease_token=None):
+                 worker_id=None, lease_token=None, provider_attempt=None):
         if artifact_type in ("audio", "video") and (
             not isinstance(url, str) or not url.startswith(("https://", "http://"))
         ):
@@ -258,6 +258,18 @@ class ProductionStore:
                 created_at=excluded.created_at""",
               (str(uuid.uuid4()), job_id, stage, artifact_type, url,
                json.dumps(metadata, ensure_ascii=False), timestamp))
+            if provider_attempt is not None:
+                if (not isinstance(provider_attempt, tuple) or len(provider_attempt) != 2
+                        or provider_attempt[0] != stage):
+                    raise ValueError("provider attempt must identify the artifact stage")
+                attempt_stage, attempt_number = provider_attempt
+                adopted = c.execute("""UPDATE provider_execution_attempts
+                    SET state='adopted',adopted_at=?,completed_at=COALESCE(completed_at,?)
+                    WHERE job_id=? AND stage=? AND attempt_number=?
+                      AND state='response_received'""",
+                    (timestamp,timestamp,job_id,attempt_stage,int(attempt_number)))
+                if adopted.rowcount != 1:
+                    raise ValueError("provider response is missing or already consumed")
 
 
     def next_provider_attempt_number(self, job_id, stage):
@@ -1303,10 +1315,10 @@ class ProductionPipeline:
                 speech_report["language"] = brief["language"]
                 self.store.artifact(
                     job_id, "speech_alignment", "report", None,
-                    {**speech_report, "transcript": transcript_text}, **lease
+                    {**speech_report, "transcript": transcript_text},
+                    provider_attempt=("speech_alignment", transcription_attempt_number),
+                    **lease
                 )
-                self.store.mark_provider_attempt_adopted(
-                    job_id,"speech_alignment",transcription_attempt_number,**lease)
 
             self._check_stop(stop_event)
             self.store.stage(job_id, "rendering", **lease)

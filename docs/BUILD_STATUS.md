@@ -2346,3 +2346,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Mark the transcription attempt adopted only after the speech-alignment artifact is persisted under the active worker lease.
 - Extend tests to assert the transcription idempotency key and adopted response journal, and to recover a durable transcription response without calling the provider again.
 - This is deterministic local SQLite/test coverage. Actual transcription-provider idempotency semantics depend on provider support for the supplied request key and require deployed integration verification.
+
+
+## BUILD-00308 — atomically adopt provider responses with their artifacts
+- Audit found a crash window after the transcription artifact write but before the provider attempt was marked adopted. Those were two separate SQLite transactions, so a crash could leave a durable artifact paired with a still-recoverable `response_received` attempt.
+- Extend `ProductionStore.artifact` with an optional provider-attempt adoption argument. When supplied, artifact upsert and the `response_received` → `adopted` transition now execute under the same `BEGIN IMMEDIATE` transaction and the same worker-lease fencing check.
+- Route speech-alignment artifact adoption through this atomic operation. If the attempt transition cannot be applied, the artifact write rolls back; if the artifact write fails, the attempt remains recoverable.
+- Add regressions for successful atomic adoption and rollback when the provider attempt cannot be adopted.
+- Validation is pending exact-head CI. This is SQLite transaction coverage, not deployed multi-process or external-provider validation.

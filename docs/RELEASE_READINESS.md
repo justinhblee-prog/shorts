@@ -170,3 +170,10 @@ These are additional readiness constraints documented by the project, not comple
 - A recovered `response_received` transcription attempt is reused rather than sending a duplicate transcription request after restart.
 - Tests cover successful journal adoption and crash recovery without a duplicate provider call.
 - Provider-side idempotency behavior is not proven by local fixtures; verify the configured transcription service's key semantics and timeout/replay behavior in the deployed environment before production sign-off.
+
+
+### BUILD-00308 — atomic provider response adoption
+- Speech-alignment artifact persistence and provider-attempt adoption now share one SQLite write transaction and one worker-lease fencing decision.
+- Regression tests cover successful paired commit and rollback of the artifact when the provider-attempt transition is invalid.
+- This closes the local database crash window between the two writes. It does not make remote provider execution transactional and does not replace provider-side idempotency verification or deployed worker validation.
+- Exact documentation-inclusive PR-head CI validation is pending.
