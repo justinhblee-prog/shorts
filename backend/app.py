@@ -2,6 +2,7 @@ import os
 import logging
 import secrets
 from typing import Any, Literal
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException, Header, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -976,6 +977,44 @@ def publishing_analytics_status(x_review_token:str|None=Header(default=None)):
     return {
         "youtube":{key:youtube[key] for key in safe_fields if key in youtube},
         "tiktok":{key:tiktok[key] for key in safe_fields if key in tiktok},
+    }
+
+
+@app.get("/api/publishing/analytics-history")
+def publishing_analytics_history(
+    platform:str="all",video_id:str|None=None,days:int=30,limit:int=200,
+    x_review_token:str|None=Header(default=None),
+):
+    """Return stored, read-only metric snapshots for trend comparison."""
+    require_review_permission(x_review_token,"analytics.read")
+    if platform not in {"all","youtube","tiktok"}:
+        raise HTTPException(422,"platform must be all, youtube, or tiktok")
+    if video_id is not None and (
+        not video_id.strip() or len(video_id)>256
+        or any(ord(char)<32 for char in video_id)
+    ):
+        raise HTTPException(422,"video_id is invalid")
+    bounded_days=max(1,min(days,365))
+    bounded_limit=max(1,min(limit,500))
+    cutoff=(datetime.now(timezone.utc)-timedelta(days=bounded_days)).isoformat()
+    result={}
+    if platform in {"all","youtube"}:
+        rows=youtube_analytics_store.history(video_id=video_id,limit=bounded_limit)
+        result["youtube"]=[
+            row for row in rows if row.get("collected_at") and row["collected_at"]>=cutoff
+        ]
+    if platform in {"all","tiktok"}:
+        rows=tiktok_metrics_store.history(
+            tiktok_publish_store,video_id=video_id,limit=bounded_limit
+        )
+        result["tiktok"]=[
+            row for row in rows if row.get("collected_at") and row["collected_at"]>=cutoff
+        ]
+    return {
+        "platform":platform,"video_id":video_id,"days":bounded_days,
+        "items":result,
+        "counts":{key:len(value) for key,value in result.items()},
+        "read_only":True,
     }
 
 
