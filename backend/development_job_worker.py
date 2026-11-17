@@ -4,6 +4,7 @@ The executor is injected by the trusted runner; this module never executes
 arbitrary commands from a job record.
 """
 import threading
+import time
 
 from development_jobs import DevelopmentJobConflict
 
@@ -95,3 +96,22 @@ class DevelopmentJobWorker:
             status = self.run_once()
             if status is None:
                 self._stop.wait(self.poll_seconds)
+
+
+    def run_until_idle(self, idle_seconds=60):
+        """Process ready jobs until no work arrives for the configured idle window."""
+        if isinstance(idle_seconds, bool) or not isinstance(idle_seconds, (int, float)) or idle_seconds < 1:
+            raise ValueError("idle_seconds must be at least one second")
+        last_activity = time.monotonic()
+        processed = 0
+        outcomes = {}
+        while not self._stop.is_set() and time.monotonic() - last_activity < idle_seconds:
+            status = self.run_once()
+            if status is None:
+                remaining = idle_seconds - (time.monotonic() - last_activity)
+                self._stop.wait(min(self.poll_seconds, max(0.05, remaining)))
+                continue
+            processed += 1
+            outcomes[status] = outcomes.get(status, 0) + 1
+            last_activity = time.monotonic()
+        return {"processed": processed, "outcomes": outcomes, "summary": self.store.summary()}
