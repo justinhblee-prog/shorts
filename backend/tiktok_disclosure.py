@@ -18,7 +18,7 @@ def build_tiktok_disclosure(synthetic_media_status):
         "ai_generated": True,
         "realistic_alteration": True,
     }
-    if synthetic_media_status not in mapping:
+    if not isinstance(synthetic_media_status, str) or synthetic_media_status not in mapping:
         raise TikTokDisclosureError(
             "TikTok AI-generated-content status is unknown; classify the media before posting"
         )
