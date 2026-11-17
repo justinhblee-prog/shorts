@@ -8,7 +8,6 @@ import os
 import signal
 import socket
 import threading
-import uuid
 
 from production_pipeline import (ProductionPipeline, ProductionStore,
                                  ProductionLeaseConflict, ProviderError, PolicyBlocked)
