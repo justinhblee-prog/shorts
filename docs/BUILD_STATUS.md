@@ -2311,4 +2311,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve ordinary INSERT behavior so review decisions and policy attestations continue to append.
 - Add regression coverage proving mutation and deletion fail with `sqlite3.IntegrityError` and both records remain present.
 - Scope limitation: this is application/database-trigger protection against accidental mutation, not tamper-proof storage against privileged schema or database-file modification.
-- Validation: pending exact-head GitHub Actions.
+- GitHub Actions run #43995020465 passed on implementation head `daa75c737b9d5b5b63b12b110dd65bdeb60ccfd0` (668 backend tests). The later documentation-only checkpoint will receive its own exact-head CI run.
