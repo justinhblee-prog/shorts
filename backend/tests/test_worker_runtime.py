@@ -4,10 +4,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from worker_runtime import (heartbeat_interval, parse_worker_runtime_config,
-                            request_worker_shutdown)
+                            request_worker_shutdown, resolve_worker_id)
 
 
 class WorkerRuntimeTests(unittest.TestCase):
+
+
+    def test_default_worker_identity_is_stable_for_host_restarts(self):
+        first = resolve_worker_id(None, "worker-host-01")
+        restarted = resolve_worker_id("", "worker-host-01")
+        self.assertEqual(first, "nexus-production-worker-host-01")
+        self.assertEqual(restarted, first)
+
+    def test_explicit_worker_identity_overrides_hostname(self):
+        self.assertEqual(resolve_worker_id("  production-shard-2  ", "host-a"),
+                         "production-shard-2")
+
+    def test_worker_identity_requires_stable_fallback(self):
+        with self.assertRaisesRegex(ValueError, "stable hostname"):
+            resolve_worker_id(None, "  ")
 
     def test_worker_runtime_config_defaults(self):
         self.assertEqual(parse_worker_runtime_config(), (300, 3, 10))
