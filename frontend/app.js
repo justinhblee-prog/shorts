@@ -463,7 +463,7 @@
     $("developmentJobMetrics").innerHTML=metrics.map(([label,value])=>'<div class="development-job-metric"><small>'+esc(label)+'</small><strong>'+Number(value).toLocaleString()+'</strong></div>').join("");
     const jobs=data.jobs||[];
     const workers=workerData.workers||[];
-    const workerLabel=workers.length?workers.map(worker=>worker.worker_id+" "+(worker.is_online?"온라인":"오프라인")+(worker.current_job_id?" · "+worker.current_job_id:"")).join(" / "):"등록된 Worker 없음";
+    const workerLabel=workers.length?workers.map(worker=>worker.worker_id+(worker.hostname?" @ "+worker.hostname:"")+" "+(worker.is_online?"온라인":"오프라인")+(worker.current_job_id?" · "+worker.current_job_id:"")).join(" / "):"등록된 Worker 없음";
     const health=$("developmentJobHealth");
     if(health){health.textContent="Worker: "+workerLabel+" · 최근 갱신: "+(summary.latest_updated_at||"기록 없음")+" · 최근 성공 검증: "+(summary.latest_validation_ref||"아직 없음");}
     $("developmentJobCount").textContent=jobs.length+" JOBS";
