@@ -1,7 +1,9 @@
-name: NEXUS STUDIO PRO continuous Codex iteration
+name: NEXUS STUDIO PRO local-model iteration
 
 on:
   workflow_dispatch:
+  # Scheduled events run only from the default branch. This remains a Draft proposal
+  # until the repository owner explicitly chooses an activation path.
   schedule:
     - cron: "0 */2 * * *"
 
@@ -10,7 +12,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: nexus-studio-pro-codex-iteration
+  group: nexus-studio-pro-local-agent
   cancel-in-progress: false
 
 jobs:
@@ -21,34 +23,33 @@ jobs:
     outputs:
       base_branch: ${{ steps.select.outputs.base_branch }}
     steps:
-      - name: Select newest open development PR as the next base
+      - name: Select newest open build branch
         id: select
         uses: actions/github-script@v7
         with:
           script: |
             const { owner, repo } = context.repo;
             const response = await github.rest.pulls.list({
-              owner,
-              repo,
-              state: "open",
-              per_page: 100,
-              sort: "created",
-              direction: "desc",
+              owner, repo, state: "open", per_page: 100,
+              sort: "created", direction: "desc",
             });
             const candidates = response.data
-              .filter((pr) => !pr.merged_at && pr.head.repo?.full_name === `${owner}/${repo}` && pr.head.ref.startsWith("build/"))
+              .filter((pr) => !pr.merged_at &&
+                pr.head.repo?.full_name === `${owner}/${repo}` &&
+                pr.head.ref.startsWith("build/"))
               .sort((a, b) => b.number - a.number);
-            const base = candidates[0]?.head.ref ?? context.payload.repository?.default_branch ?? "main";
+            const base = candidates[0]?.head.ref ??
+              context.payload.repository?.default_branch ?? "main";
             core.setOutput("base_branch", base);
-            core.info(`Next iteration base: ${base}`);
 
   develop:
     needs: select-base
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Requires a repository-owned runner with Ollama and the model already installed.
+    # No paid model API or OPENAI_API_KEY is used.
+    runs-on: [self-hosted, nexus-local-ai]
+    timeout-minutes: 90
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
       - name: Check out latest development branch
         uses: actions/checkout@v5
@@ -57,33 +58,27 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install project validation dependencies
+      - name: Verify local Ollama model is available
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
-
-      - name: Require the Codex API credential
-        env:
-          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          if [ -z "$CODEX_API_KEY" ]; then
-            echo "::error::Add OPENAI_API_KEY in GitHub Actions secrets before enabling autonomous Codex iterations."
+          ollama list
+          ollama list | grep -q 'qwen2.5-coder:7b' || {
+            echo "::error::Install qwen2.5-coder:7b in local Ollama before running this workflow."
             exit 1
-          fi
+          }
 
-      - name: Run one bounded development iteration
-        id: codex
-        uses: openai/codex-action@v1
-        with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          permission-profile: ":workspace"
-          prompt-file: .github/codex/NEXUS_CONTINUOUS_AGENT.md
-          output-file: /tmp/nexus-codex-summary.md
+      - name: Install local coding agent
+        shell: bash
+        run: |
+          python -m pip install --user aider-chat
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run one bounded local-model development iteration
+        shell: bash
+        env:
+          OLLAMA_API_BASE: http://127.0.0.1:11434
+        run: |
+          aider             --model ollama_chat/qwen2.5-coder:7b             --yes-always             --no-auto-commits             --message-file .github/codex/NEXUS_CONTINUOUS_AGENT.md
 
       - name: Create a Draft PR for verified changes
         uses: peter-evans/create-pull-request@v7
@@ -93,15 +88,13 @@ jobs:
           branch: automation/nexus-agent-${{ github.run_id }}
           delete-branch: false
           draft: true
-          title: "AUTO: NEXUS STUDIO PRO iteration ${{ github.run_number }}"
-          commit-message: "chore: autonomous NEXUS STUDIO PRO iteration"
+          title: "AUTO: NEXUS STUDIO PRO local iteration ${{ github.run_number }}"
+          commit-message: "chore: local-model NEXUS STUDIO PRO iteration"
           body: |
-            ## Automated development iteration
-
-            - Base branch: ${{ needs.select-base.outputs.base_branch }}
-            - Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            - This PR is created as Draft and must never be merged automatically.
-            - The Codex task prompt requires a bounded implementation, tests, and documentation updates.
-            - Live provider, OAuth, publishing, deployment, and production-runtime validation are not implied by CI.
-
-            Review the changed files and CI evidence before any human decision.
+            ## Automated local-model development iteration
+            - Base: ${{ needs.select-base.outputs.base_branch }}
+            - Model: Ollama qwen2.5-coder:7b running on a repository-owned self-hosted runner.
+            - No paid AI API or OPENAI_API_KEY is used.
+            - Tests and documentation are required by the agent instructions.
+            - This PR is Draft and must never be merged automatically.
+            - Live provider, OAuth, publishing, deployment, and production validation are not implied.
