@@ -58,6 +58,21 @@ jobs:
           python -m pip install -r backend/requirements.txt
           if ($LASTEXITCODE -ne 0) { throw "Backend dependency installation failed." }
 
+      - name: Install and verify local Aider CLI
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m pip install --user aider-chat
+          if ($LASTEXITCODE -ne 0) { throw "Aider installation failed." }
+          $userScripts = python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
+          if (-not (Test-Path (Join-Path $userScripts "aider.exe"))) {
+            throw "Aider executable was not installed in the user scripts directory."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $userScripts
+          $env:PATH = "$userScripts;$env:PATH"
+          aider --version
+          if ($LASTEXITCODE -ne 0) { throw "Aider CLI verification failed." }
+
       - name: Execute one dependency-aware development cycle
         shell: powershell
         env:
