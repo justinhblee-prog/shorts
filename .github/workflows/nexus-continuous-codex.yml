@@ -37,8 +37,7 @@ jobs:
                 pr.head.repo?.full_name === `${owner}/${repo}` &&
                 // Never use this bootstrap PR as its own development base.
                 pr.head.ref !== "build/build-00312-continuous-agent-bootstrap" &&
-                (pr.head.ref.startsWith("build/") ||
-                 pr.head.ref.startsWith("automation/nexus-agent-")))
+                pr.head.ref.startsWith("build/"))
               .sort((a, b) => b.number - a.number);
             const base = candidates[0]?.head.ref ??
               context.payload.repository?.default_branch ?? "main";
