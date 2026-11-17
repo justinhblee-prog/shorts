@@ -111,19 +111,21 @@ class YouTubeAnalyticsStore:
                 connection.execute(
                     "ALTER TABLE youtube_analytics_snapshots ADD COLUMN engaged_view_share REAL"
                 )
-            INSERT INTO youtube_analytics_history(
-              video_id,start_date,end_date,views,engaged_views,engaged_view_share,
-              estimated_minutes_watched,average_view_duration,average_view_percentage,
-              analytics_status,retention_status,collected_at
-            )
-            SELECT s.video_id,s.start_date,s.end_date,s.views,s.engaged_views,
-              s.engaged_view_share,s.estimated_minutes_watched,s.average_view_duration,
-              s.average_view_percentage,s.analytics_status,s.retention_status,s.collected_at
-            FROM youtube_analytics_snapshots s
-            WHERE NOT EXISTS (
-              SELECT 1 FROM youtube_analytics_history h
-              WHERE h.video_id=s.video_id AND h.collected_at=s.collected_at
-            );
+            connection.execute("""
+                INSERT INTO youtube_analytics_history(
+                  video_id,start_date,end_date,views,engaged_views,engaged_view_share,
+                  estimated_minutes_watched,average_view_duration,average_view_percentage,
+                  analytics_status,retention_status,collected_at
+                )
+                SELECT s.video_id,s.start_date,s.end_date,s.views,s.engaged_views,
+                  s.engaged_view_share,s.estimated_minutes_watched,s.average_view_duration,
+                  s.average_view_percentage,s.analytics_status,s.retention_status,s.collected_at
+                FROM youtube_analytics_snapshots s
+                WHERE NOT EXISTS (
+                  SELECT 1 FROM youtube_analytics_history h
+                  WHERE h.video_id=s.video_id AND h.collected_at=s.collected_at
+                )
+            """)
             lease_columns = {
                 row["name"] for row in connection.execute(
                     "PRAGMA table_info(youtube_analytics_collector_lease)"
