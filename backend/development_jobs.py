@@ -568,4 +568,5 @@ class DevelopmentJobStore:
                     "expired_leases": lease_counts["expired"] or 0,
                     "latest_updated_at": latest["updated_at"] if latest else None,
                     "latest_validation_ref": latest_validation["validation_ref"] if latest_validation else None,
-                    "online_workers": worker_counts["online"] or 0,\n                    "known_workers": worker_counts["total"] or 0}
+                    "online_workers": worker_counts["online"] or 0,
+                    "known_workers": worker_counts["total"] or 0}
