@@ -1,0 +1,64 @@
+import json
+import unittest
+from unittest import mock
+
+import app as app_module
+
+
+class DevelopmentJobApiSecurityTests(unittest.TestCase):
+    def test_list_endpoint_requires_operations_read_and_redacts_lease_and_error(self):
+        job = {
+            "id": "DEV-ORCH-001", "title": "Registry", "status": "running",
+            "lease_token": "private-lease-token", "worker_id": "runner-a",
+            "result_summary": "provider error bearer private-result-secret",
+            "scope": ["backend/development_jobs.py"], "attempts": 1,
+            "max_attempts": 3,
+        }
+        with (
+            mock.patch.object(app_module, "require_review_permission") as auth,
+            mock.patch.object(app_module.development_job_store, "list", return_value=[job]),
+            mock.patch.object(app_module.development_job_store, "summary",
+                              return_value={"total": 1, "by_status": {"running": 1}}),
+        ):
+            result = app_module.list_development_jobs(x_review_token="monitor-token")
+        auth.assert_called_once_with("monitor-token", "operations.read")
+        serialized = json.dumps(result)
+        self.assertNotIn("private-lease-token", serialized)
+        self.assertNotIn("private-result-secret", serialized)
+        self.assertEqual(result["jobs"][0]["worker_id"], "runner-a")
+        self.assertEqual(result["jobs"][0]["scope"], ["backend/development_jobs.py"])
+
+    def test_event_endpoint_omits_raw_error_details(self):
+        events = [{
+            "event_type": "failed", "from_status": "running", "to_status": "retry_wait",
+            "actor": "runner-a", "created_at": "2026-11-17T10:00:00+00:00",
+            "details": {"error": "Bearer event-private-secret", "retryable": True},
+            "details_json": "{\"error\":\"Bearer event-private-secret\"}",
+        }]
+        with (
+            mock.patch.object(app_module, "require_review_permission") as auth,
+            mock.patch.object(app_module.development_job_store, "events", return_value=events),
+        ):
+            result = app_module.development_job_events(
+                "DEV-ORCH-001", x_review_token="monitor-token"
+            )
+        auth.assert_called_once_with("monitor-token", "operations.read")
+        serialized = json.dumps(result)
+        self.assertNotIn("event-private-secret", serialized)
+        self.assertEqual(result["events"][0]["details"], {"retryable": True})
+
+    def test_detail_endpoint_redacts_worker_lease_token(self):
+        job = {"id": "DEV-ORCH-001", "status": "leased", "lease_token": "detail-secret"}
+        with (
+            mock.patch.object(app_module, "require_review_permission") as auth,
+            mock.patch.object(app_module.development_job_store, "get", return_value=job),
+        ):
+            result = app_module.get_development_job(
+                "DEV-ORCH-001", x_review_token="monitor-token"
+            )
+        auth.assert_called_once_with("monitor-token", "operations.read")
+        self.assertNotIn("detail-secret", json.dumps(result))
+
+
+if __name__ == "__main__":
+    unittest.main()
