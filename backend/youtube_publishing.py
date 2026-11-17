@@ -644,6 +644,39 @@ class YouTubePublisher:
         except Exception as exc:
             raise YouTubeUploadError("YouTube OAuth initialization failed: "+type(exc).__name__) from exc
 
+    @staticmethod
+    def _youtube_contains_synthetic_media(policy_report):
+        """Translate the approved policy attestation into YouTube's upload field."""
+        if not isinstance(policy_report, dict):
+            raise YouTubeUploadError(
+                "Approved YouTube synthetic-media disclosure evidence is missing"
+            )
+        platforms = policy_report.get("platforms")
+        if not isinstance(platforms, list) or "youtube" not in platforms:
+            raise YouTubeUploadError(
+                "The approved policy review does not include YouTube as a target platform"
+            )
+        status = policy_report.get("synthetic_media_status")
+        required = {
+            "none": False,
+            "ai_assisted_nonrealistic": False,
+            "ai_generated": True,
+            "realistic_alteration": True,
+        }
+        if status not in required:
+            raise YouTubeUploadError(
+                "Synthetic-media status is unknown or unsupported; return to human review"
+            )
+        contains = required[status]
+        disclosures = policy_report.get("platform_disclosures")
+        if not isinstance(disclosures, dict):
+            disclosures = {}
+        if contains and disclosures.get("youtube_altered_content") is not True:
+            raise YouTubeUploadError(
+                "YouTube altered/synthetic-media disclosure is not acknowledged in the approved review"
+            )
+        return contains
+
     def upload_approved(self,job_id,media_path,review_store,title,description="",tags=None,
                         category_id="22"):
         history=review_store.history(job_id)
@@ -676,6 +709,19 @@ class YouTubePublisher:
         if size>max_bytes:
             raise YouTubeUploadError("Rendered video exceeds NEXUS_MAX_MEDIA_BYTES")
         approved_artifacts=history[-1].get("artifact_snapshot") or []
+        approved_script=next((
+            item for item in approved_artifacts
+            if isinstance(item,dict) and item.get("stage")=="script"
+            and item.get("artifact_type")=="text"
+        ),None)
+        approved_script_metadata=(
+            approved_script.get("metadata") if isinstance(approved_script,dict) else None
+        )
+        approved_policy=(
+            approved_script_metadata.get("policy_preflight")
+            if isinstance(approved_script_metadata,dict) else None
+        )
+        contains_synthetic_media=self._youtube_contains_synthetic_media(approved_policy)
         approved_video=next((
             item for item in approved_artifacts
             if isinstance(item,dict) and item.get("stage")=="rendering"
@@ -715,7 +761,8 @@ class YouTubePublisher:
             body={
                 "snippet":{"title":title,"description":description,
                            "tags":list(tags or []),"categoryId":str(category_id)},
-                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False}
+                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False,
+                         "containsSyntheticMedia":contains_synthetic_media}
             }
             request=service.videos().insert(
                 part="snippet,status",body=body,
