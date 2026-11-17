@@ -2329,3 +2329,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Document the explicit stable-ID requirement for container/orchestrator environments where hostnames change between restarts.
 - Add deterministic tests for same-host restart stability, explicit override precedence, and missing fallback rejection.
 - GitHub Actions runs #44015403212 and #44015410742 passed on implementation head `2a787581317cf4372f4dcf936ba56bec1079f199` (672 backend tests).
+
+
+## BUILD-00306 — require complete ambiguous-outcome reconciliation before resume
+- Found that the operator resume operation only required a non-empty note; it could clear the global production pause while other production jobs still carried unresolved ambiguous provider outcomes.
+- Harden `JobQueue.resume` to count unresolved production jobs (expired lease, pause while provider work was active, or cancellation during provider execution) inside the same `BEGIN IMMEDIATE` transaction and reject resume until every such job has an audited reconciliation decision.
+- A retry authorization still does not resume the queue; after all ambiguous outcomes have been investigated and individually reconciled, the operator must perform the separate audited resume action.
+- Add regression coverage with two simultaneous ambiguous jobs: reconcile one, verify resume remains blocked and pause persists, reconcile the second, then verify resume succeeds.
+- This is a local SQLite transaction/test guarantee. Provider-console evidence remains operator-supplied and is not independently validated; deployed multi-process/provider behavior remains pending integrated environment verification.
