@@ -50,7 +50,7 @@ Current ordered work:
 10. BUILD-00301: YouTube upload reservation, finalization, touch and reconciliation timestamps after SQLite write-lock acquisition — CI passed on PR #307.
 11. BUILD-00302: OAuth state creation/consumption and TikTok refresh-lease timestamps after SQLite write-lock acquisition — CI passed on PR #308.
 12. Continue the timestamp/atomicity audit across queue, worker registry, production-run, review, upload and reconciliation transitions.
-13. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records.
+13. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records — rolling; BUILD-00303 and BUILD-00304 address append-only review evidence and late-completion retry safety.
 14. Reconcile API authorization and diagnostic redaction with UI actions; identify shared-token/claimed-identity limitations before multi-user deployment.
 15. Audit dashboard workflows, accessibility, loading/error states and add browser-level checks where a runnable browser environment is available.
 16. Re-run full repository validation after the rolling audit queue is exhausted; fix regressions and publish a verified test inventory.
@@ -141,3 +141,11 @@ These are additional readiness constraints documented by the project, not comple
 - Regression coverage verifies all four mutation/deletion attempts raise `sqlite3.IntegrityError` and both audit rows remain present.
 - GitHub Actions run #43995020465 passed on implementation head `daa75c737b9d5b5b63b12b110dd65bdeb60ccfd0` (668 backend tests); exact docs-inclusive PR head validation is tracked separately.
 - Limitation: SQLite triggers prevent accidental/application-level mutation, not privileged schema or database-file modification.
+
+
+### BUILD-00304 — verified scope pending CI
+- Retry reconciliation now refuses to authorize a retry if the authoritative production run is already `approved` or `uploaded`; queue and production-run transitions remain in the same SQLite transaction.
+- Existing behavior for jobs whose production run has not yet been created is preserved.
+- Regression covers a late upload completion discovered after an ambiguous cancellation and asserts no queue retry or reconciliation audit is committed.
+- PR #309 (BUILD-00303): https://github.com/justinhblee-prog/shorts/pull/309 — exact head `ac96e68e4b661bcd638f0075d81732022720edd9`, GitHub Actions run #43995170924 passed (rerun attempt 2).
+- BUILD-00304 exact-head CI is pending.
