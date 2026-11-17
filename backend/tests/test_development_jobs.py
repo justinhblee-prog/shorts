@@ -89,6 +89,42 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                 connection.execute("UPDATE development_job_events SET actor='tampered' WHERE id=?",
                                    (event_id,))
 
+    def test_retry_wait_is_reclaimed_and_non_retryable_failure_quarantines(self):
+        job = self.store.create("Retry", max_attempts=3)
+        first = self.store.claim_ready("worker-a")
+        waiting = self.store.fail(job["id"], "worker-a", first["lease_token"],
+                                  "temporary provider error", retry_delay_seconds=0)
+        self.assertEqual(waiting["status"], "retry_wait")
+        second = self.store.claim_ready("worker-b")
+        self.assertEqual(second["id"], job["id"])
+        self.assertEqual(second["attempts"], 2)
+        quarantined = self.store.fail(job["id"], "worker-b", second["lease_token"],
+                                      "permanent validation error", retryable=False)
+        self.assertEqual(quarantined["status"], "quarantined")
+        self.assertIsNone(self.store.claim_ready("worker-c"))
+
+    def test_attempt_limit_quarantines_job(self):
+        job = self.store.create("One attempt only", max_attempts=1)
+        claim = self.store.claim_ready("worker-a")
+        result = self.store.fail(job["id"], "worker-a", claim["lease_token"], "failed")
+        self.assertEqual(result["status"], "quarantined")
+
+    def test_expired_lease_is_reclaimed_and_old_worker_is_fenced(self):
+        job = self.store.create("Lease recovery")
+        first = self.store.claim_ready("worker-a")
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE development_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+                (job["id"],),
+            )
+        second = self.store.claim_ready("worker-b")
+        self.assertEqual(second["id"], job["id"])
+        self.assertNotEqual(first["lease_token"], second["lease_token"])
+        with self.assertRaises(DevelopmentJobConflict):
+            self.store.complete(job["id"], "worker-a", first["lease_token"],
+                                ["backend/file.py"], True, "ci://run/stale")
+        self.assertEqual(self.store.get(job["id"])["worker_id"], "worker-b")
+
     def test_parallel_workers_claim_distinct_jobs(self):
         from concurrent.futures import ThreadPoolExecutor
         jobs = [self.store.create("Job " + str(i)) for i in range(4)]
