@@ -1,0 +1,330 @@
+"""Durable engineering-job registry, dependency scheduler, and evidence gate.
+
+This store is intentionally separate from JobQueue/ScheduleStore, which operate
+short-video production work rather than repository development work.
+"""
+import json
+import sqlite3
+import uuid
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+
+TERMINAL = {"completed", "cancelled"}
+ACTIVE = {"leased", "running"}
+
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _stamp(value):
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def _parse(value):
+    return datetime.fromisoformat(value)
+
+
+class DevelopmentJobError(Exception):
+    pass
+
+
+class DevelopmentJobNotFound(DevelopmentJobError):
+    pass
+
+
+class DevelopmentJobConflict(DevelopmentJobError):
+    pass
+
+
+class DevelopmentJobStore:
+    """SQLite-backed DAG with fenced worker leases and evidence-based completion."""
+
+    def __init__(self, db_path="data/nexus.sqlite3", lease_seconds=300):
+        if isinstance(lease_seconds, bool) or not isinstance(lease_seconds, int) or not 10 <= lease_seconds <= 3600:
+            raise ValueError("lease_seconds must be an integer from 10 to 3600")
+        self.db_path = str(db_path)
+        self.lease_seconds = lease_seconds
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        with self.db() as connection:
+            connection.executescript("""
+            CREATE TABLE IF NOT EXISTS development_jobs(
+              id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+              status TEXT NOT NULL DEFAULT 'blocked', priority INTEGER NOT NULL DEFAULT 100,
+              scope_json TEXT NOT NULL DEFAULT '[]', acceptance_json TEXT NOT NULL DEFAULT '[]',
+              max_attempts INTEGER NOT NULL DEFAULT 3, attempts INTEGER NOT NULL DEFAULT 0,
+              worker_id TEXT, lease_token TEXT, lease_expires_at TEXT,
+              source_ref TEXT, changed_files_json TEXT, tests_passed INTEGER,
+              validation_ref TEXT, result_summary TEXT,
+              created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+              started_at TEXT, completed_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_development_jobs_ready
+              ON development_jobs(status,priority,created_at);
+            CREATE TABLE IF NOT EXISTS development_job_dependencies(
+              job_id TEXT NOT NULL REFERENCES development_jobs(id),
+              depends_on_id TEXT NOT NULL REFERENCES development_jobs(id),
+              created_at TEXT NOT NULL,
+              PRIMARY KEY(job_id,depends_on_id),
+              CHECK(job_id <> depends_on_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_dev_job_dependencies_parent
+              ON development_job_dependencies(depends_on_id,job_id);
+            CREATE TABLE IF NOT EXISTS development_job_events(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              job_id TEXT NOT NULL REFERENCES development_jobs(id),
+              event_type TEXT NOT NULL, from_status TEXT, to_status TEXT,
+              actor TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}',
+              created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_dev_job_events_job
+              ON development_job_events(job_id,id);
+            CREATE TRIGGER IF NOT EXISTS development_job_events_no_update
+              BEFORE UPDATE ON development_job_events
+              BEGIN SELECT RAISE(ABORT,'development job events are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS development_job_events_no_delete
+              BEFORE DELETE ON development_job_events
+              BEGIN SELECT RAISE(ABORT,'development job events are immutable'); END;
+            """)
+
+    @contextmanager
+    def db(self):
+        connection = sqlite3.connect(self.db_path, timeout=30, isolation_level=None)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("PRAGMA busy_timeout=30000")
+        try:
+            yield connection
+        except Exception:
+            if connection.in_transaction:
+                connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _decode(row):
+        if row is None:
+            return None
+        result = dict(row)
+        for column, target in (("scope_json", "scope"), ("acceptance_json", "acceptance"),
+                               ("changed_files_json", "changed_files")):
+            raw = result.pop(column, None)
+            result[target] = json.loads(raw) if raw is not None else None
+        result["tests_passed"] = (None if result.get("tests_passed") is None
+                                  else bool(result["tests_passed"]))
+        return result
+
+    @staticmethod
+    def _event(connection, job_id, kind, before, after, actor, details, timestamp):
+        connection.execute(
+            """INSERT INTO development_job_events
+               (job_id,event_type,from_status,to_status,actor,details_json,created_at)
+               VALUES(?,?,?,?,?,?,?)""",
+            (job_id, kind, before, after, actor[:128],
+             json.dumps(details or {}, ensure_ascii=False), timestamp),
+        )
+
+    def create(self, title, description="", priority=100, scope=None, acceptance=None,
+               max_attempts=3, source_ref=None):
+        if not isinstance(title, str) or not title.strip() or len(title) > 240:
+            raise ValueError("title must contain 1 to 240 characters")
+        if isinstance(priority, bool) or not isinstance(priority, int):
+            raise ValueError("priority must be an integer")
+        if isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or not 1 <= max_attempts <= 10:
+            raise ValueError("max_attempts must be an integer from 1 to 10")
+        scope = scope or []
+        acceptance = acceptance or []
+        if not isinstance(scope, list) or not all(isinstance(x, str) and x.strip() for x in scope):
+            raise ValueError("scope must be a list of non-empty strings")
+        if not isinstance(acceptance, list) or not all(isinstance(x, str) and x.strip() for x in acceptance):
+            raise ValueError("acceptance must be a list of non-empty strings")
+        if source_ref is not None and (not isinstance(source_ref, str) or len(source_ref) > 500):
+            raise ValueError("source_ref must be a string of at most 500 characters")
+        job_id = str(uuid.uuid4())
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            timestamp = _stamp(_now())
+            connection.execute(
+                """INSERT INTO development_jobs
+                   (id,title,description,status,priority,scope_json,acceptance_json,
+                    max_attempts,source_ref,created_at,updated_at)
+                   VALUES(?,?,?,'ready',?,?,?,?,?,?,?)""",
+                (job_id, title.strip(), str(description)[:8000], priority,
+                 json.dumps(scope), json.dumps(acceptance), max_attempts,
+                 source_ref, timestamp, timestamp),
+            )
+            self._event(connection, job_id, "created", None, "ready", "system",
+                        {"source_ref": source_ref}, timestamp)
+            row = connection.execute("SELECT * FROM development_jobs WHERE id=?", (job_id,)).fetchone()
+            connection.commit()
+            return self._decode(row)
+
+    def add_dependency(self, job_id, depends_on_id):
+        if not job_id or not depends_on_id or job_id == depends_on_id:
+            raise ValueError("a job cannot depend on itself")
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                "SELECT id FROM development_jobs WHERE id IN (?,?)", (job_id, depends_on_id)
+            ).fetchall()
+            if len(rows) != 2:
+                raise DevelopmentJobNotFound("job or dependency not found")
+            # Adding job -> parent is invalid if parent already depends (transitively) on job.
+            cycle = connection.execute(
+                """WITH RECURSIVE ancestors(id) AS (
+                     SELECT depends_on_id FROM development_job_dependencies WHERE job_id=?
+                     UNION
+                     SELECT d.depends_on_id FROM development_job_dependencies d
+                     JOIN ancestors a ON d.job_id=a.id
+                   ) SELECT 1 FROM ancestors WHERE id=? LIMIT 1""",
+                (depends_on_id, job_id),
+            ).fetchone()
+            if cycle:
+                raise DevelopmentJobConflict("dependency would create a cycle")
+            timestamp = _stamp(_now())
+            connection.execute(
+                """INSERT OR IGNORE INTO development_job_dependencies
+                   (job_id,depends_on_id,created_at) VALUES(?,?,?)""",
+                (job_id, depends_on_id, timestamp),
+            )
+            row = connection.execute("SELECT status FROM development_jobs WHERE id=?", (job_id,)).fetchone()
+            connection.execute(
+                "UPDATE development_jobs SET status='blocked',updated_at=? WHERE id=? AND status='ready'",
+                (timestamp, job_id),
+            )
+            self._event(connection, job_id, "dependency_added", row["status"], "blocked",
+                        "system", {"depends_on": depends_on_id}, timestamp)
+            connection.commit()
+        return self.get(job_id)
+
+    def get(self, job_id):
+        with self.db() as connection:
+            row = connection.execute("SELECT * FROM development_jobs WHERE id=?", (job_id,)).fetchone()
+            if row is None:
+                return None
+            result = self._decode(row)
+            result["dependencies"] = [r["depends_on_id"] for r in connection.execute(
+                "SELECT depends_on_id FROM development_job_dependencies WHERE job_id=? ORDER BY depends_on_id",
+                (job_id,),
+            )]
+            return result
+
+    def list(self, statuses=None, limit=100):
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
+            raise ValueError("limit must be an integer from 1 to 500")
+        with self.db() as connection:
+            if statuses:
+                values = tuple(statuses)
+                marks = ",".join("?" for _ in values)
+                rows = connection.execute(
+                    f"SELECT * FROM development_jobs WHERE status IN ({marks}) ORDER BY priority,created_at LIMIT ?",
+                    (*values, limit),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT * FROM development_jobs ORDER BY priority,created_at LIMIT ?", (limit,)
+                ).fetchall()
+            return [self._decode(row) for row in rows]
+
+    def claim_ready(self, worker_id):
+        if not isinstance(worker_id, str) or not worker_id.strip() or len(worker_id) > 128:
+            raise ValueError("worker_id must contain 1 to 128 characters")
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            timestamp_dt = _now()
+            timestamp = _stamp(timestamp_dt)
+            # Expired leases are returned to ready only after the old fencing token is revoked.
+            expired = connection.execute(
+                """SELECT id,status FROM development_jobs
+                   WHERE status IN ('leased','running') AND lease_expires_at<=?""", (timestamp,)
+            ).fetchall()
+            for item in expired:
+                connection.execute(
+                    """UPDATE development_jobs SET status='ready',worker_id=NULL,lease_token=NULL,
+                       lease_expires_at=NULL,updated_at=? WHERE id=?""", (timestamp, item["id"])
+                )
+                self._event(connection, item["id"], "lease_expired", item["status"], "ready",
+                            "system", {}, timestamp)
+            # Unblock jobs only when every prerequisite has completed.
+            connection.execute(
+                """UPDATE development_jobs SET status='ready',updated_at=?
+                   WHERE status='blocked' AND NOT EXISTS (
+                     SELECT 1 FROM development_job_dependencies d
+                     JOIN development_jobs parent ON parent.id=d.depends_on_id
+                     WHERE d.job_id=development_jobs.id AND parent.status<>'completed'
+                   )""", (timestamp,)
+            )
+            row = connection.execute(
+                """SELECT * FROM development_jobs
+                   WHERE status='ready' AND attempts<max_attempts
+                   ORDER BY priority,created_at LIMIT 1"""
+            ).fetchone()
+            if row is None:
+                connection.commit()
+                return None
+            token = str(uuid.uuid4())
+            expires = _stamp(timestamp_dt + timedelta(seconds=self.lease_seconds))
+            connection.execute(
+                """UPDATE development_jobs SET status='leased',attempts=attempts+1,
+                   worker_id=?,lease_token=?,lease_expires_at=?,started_at=COALESCE(started_at,?),
+                   updated_at=? WHERE id=? AND status='ready'""",
+                (worker_id.strip(), token, expires, timestamp, timestamp, row["id"]),
+            )
+            self._event(connection, row["id"], "claimed", "ready", "leased", worker_id,
+                        {"lease_expires_at": expires}, timestamp)
+            claimed = connection.execute("SELECT * FROM development_jobs WHERE id=?", (row["id"],)).fetchone()
+            connection.commit()
+            return self._decode(claimed)
+
+    def heartbeat(self, job_id, worker_id, lease_token):
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            timestamp_dt = _now()
+            timestamp = _stamp(timestamp_dt)
+            expires = _stamp(timestamp_dt + timedelta(seconds=self.lease_seconds))
+            cur = connection.execute(
+                """UPDATE development_jobs SET status='running',lease_expires_at=?,updated_at=?
+                   WHERE id=? AND worker_id=? AND lease_token=? AND status IN ('leased','running')
+                     AND lease_expires_at>?""",
+                (expires, timestamp, job_id, worker_id, lease_token, timestamp),
+            )
+            if not cur.rowcount:
+                raise DevelopmentJobConflict("development job lease is missing, expired, or fenced")
+            self._event(connection, job_id, "heartbeat", "leased/running", "running",
+                        worker_id, {"lease_expires_at": expires}, timestamp)
+            connection.commit()
+            return self.get(job_id)
+
+    def complete(self, job_id, worker_id, lease_token, changed_files, tests_passed,
+                 validation_ref, result_summary=""):
+        if not isinstance(changed_files, list) or not changed_files or not all(
+            isinstance(path, str) and path.strip() for path in changed_files
+        ):
+            raise ValueError("completion requires at least one meaningful changed file")
+        if tests_passed is not True:
+            raise ValueError("completion requires tests_passed=True")
+        if not isinstance(validation_ref, str) or not validation_ref.strip() or len(validation_ref) > 1000:
+            raise ValueError("completion requires a validation evidence reference")
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            timestamp = _stamp(_now())
+            cur = connection.execute(
+                """UPDATE development_jobs SET status='completed',worker_id=NULL,lease_token=NULL,
+                   lease_expires_at=NULL,changed_files_json=?,tests_passed=1,validation_ref=?,
+                   result_summary=?,completed_at=?,updated_at=?
+                   WHERE id=? AND worker_id=? AND lease_token=? AND status IN ('leased','running')
+                     AND lease_expires_at>?""",
+                (json.dumps(sorted(set(changed_files))), validation_ref.strip(),
+                 str(result_summary)[:4000], timestamp, timestamp,
+                 job_id, worker_id, lease_token, timestamp),
+            )
+            if not cur.rowcount:
+                raise DevelopmentJobConflict("completion rejected: lease is missing, expired, or fenced")
+            self._event(connection, job_id, "completed", "leased/running", "completed",
+                        worker_id, {"changed_files": sorted(set(changed_files)),
+                                    "validation_ref": validation_ref.strip()}, timestamp)
+            connection.commit()
+        return self.get(job_id)
