@@ -293,7 +293,7 @@ class SchedulerTests(unittest.TestCase):
             @staticmethod
             def now(tz=None):
                 sampled_time.set()
-                return datetime(2026, 11, 17, 13, 0, tzinfo=timezone.utc)
+                return datetime(2026, 11, 17, 12, 0, 30, tzinfo=timezone.utc)
 
         def renew():
             operation_started.set()
@@ -317,8 +317,8 @@ class SchedulerTests(unittest.TestCase):
             row = connection.execute(
                 "SELECT updated_at,expires_at FROM scheduler_leader_lease WHERE id=1"
             ).fetchone()
-        self.assertEqual(row["updated_at"], "2026-11-17T13:00:00+00:00")
-        self.assertEqual(row["expires_at"], "2026-11-17T13:01:30+00:00")
+        self.assertEqual(row["updated_at"], "2026-11-17T12:00:30+00:00")
+        self.assertEqual(row["expires_at"], "2026-11-17T12:02:00+00:00")
 
     def test_outbox_status_reports_pending_and_dispatched_counts(self):
         now = datetime.now(timezone.utc)
