@@ -284,6 +284,17 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(transcription.calls[0][1]["audio_url"],
                          "https://media.example/audio.mp3")
         self.assertIn("Do not correct", transcription.calls[0][1]["instructions"])
+        self.assertTrue(transcription.calls[0][1]["request_idempotency_key"])
+        attempts=self.store.provider_attempts("job-asr")
+        transcription_attempt=next(
+            item for item in attempts if item["stage"]=="speech_alignment"
+        )
+        self.assertEqual(transcription_attempt["state"],"adopted")
+        self.assertEqual(transcription_attempt["attempt_number"],1)
+        self.assertEqual(
+            json.loads(transcription_attempt["response_json"])["transcript"],
+            script_text,
+        )
 
     def test_pipeline_flags_audio_script_mismatch_for_human_review(self):
         script_text = (
