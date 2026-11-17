@@ -50,3 +50,18 @@ def request_worker_shutdown(queue, stopping, active_job_id, lost_lease_event, si
             # Local stop is still signalled. The durable queue/lease check remains
             # the final safety boundary if the database is temporarily unavailable.
             pass
+
+
+def resolve_worker_id(configured=None, hostname=None):
+    """Use a restart-stable host identity unless an operator supplies a stable ID.
+
+    A random per-process default defeats generation fencing: after a restart,
+    the new process would register a different worker row and could not revoke
+    the previous process incarnation's authority.
+    """
+    if configured is not None and str(configured).strip():
+        return str(configured).strip()
+    host = str(hostname or "").strip()
+    if not host:
+        raise ValueError("NEXUS_WORKER_ID or a stable hostname is required")
+    return "nexus-production-" + host
