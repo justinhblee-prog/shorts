@@ -6,7 +6,7 @@ then lets the fenced worker process eligible jobs.
 """
 from __future__ import annotations
 
-import time
+import threading
 from typing import Any
 
 from development_job_worker import DevelopmentJobWorker
@@ -41,10 +41,10 @@ class DevelopmentBacklogService:
         self.approved_scopes = approved_scopes or {}
         self.poll_seconds = poll_seconds
         self.idle_seconds = idle_seconds
-        self._stopped = False
+        self._stop_event = threading.Event()
 
     def stop(self):
-        self._stopped = True
+        self._stop_event.set()
 
     def run_cycle(self) -> dict[str, Any]:
         intake = sync_github_backlog(
@@ -61,9 +61,9 @@ class DevelopmentBacklogService:
         """Run sync/worker cycles until stop() is requested."""
         cycles = 0
         last_result = None
-        while not self._stopped:
+        while not self._stop_event.is_set():
             last_result = self.run_cycle()
             cycles += 1
-            if not self._stopped:
-                time.sleep(self.poll_seconds)
+            if not self._stop_event.is_set():
+                self._stop_event.wait(self.poll_seconds)
         return {"cycles": cycles, "last_result": last_result}
