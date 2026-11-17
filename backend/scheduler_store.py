@@ -356,13 +356,27 @@ class ScheduleStore:
                 dispatched.append({"schedule_id": item["schedule_id"], "job": job,
                                     "scheduled_for": item["scheduled_for"]})
             except Exception as exc:
-                # Back off transient queue failures to avoid a tight retry loop.
-                # attempts=0 receives 30s; exponential growth is capped at 1h.
+                # Back off from the actual serialized failure time, not the
+                # dispatch-loop start time. A slow provider/queue call must not
+                # make the retry deadline stale before it is persisted.
                 delay = min(30 * (2 ** min(int(item["attempts"]), 7)), 3600)
-                retry_at = _stamp(current + timedelta(seconds=delay))
                 next_attempt = int(item["attempts"]) + 1
                 next_status = "dead_letter" if next_attempt >= 10 else "pending"
                 with self.db() as c:
+                    c.execute("BEGIN IMMEDIATE")
+                    failed_at = now if now is not None else datetime.now(timezone.utc)
+                    if failed_at.tzinfo is None:
+                        raise ValueError("now must be timezone-aware")
+                    failed_at_s = _stamp(failed_at)
+                    if lease_owner is not None:
+                        lease = c.execute("""SELECT 1 FROM scheduler_leader_lease
+                            WHERE id=1 AND owner_id=? AND lease_token=? AND expires_at>?""",
+                            (str(lease_owner), lease_token, failed_at_s)).fetchone()
+                        if not lease:
+                            c.rollback()
+                            return {"dispatched": dispatched, "count": len(dispatched),
+                                    "pending": len(self.pending_dispatches()), "lease_lost": True}
+                    retry_at = _stamp(failed_at + timedelta(seconds=delay))
                     c.execute("""UPDATE schedule_dispatch_outbox
                         SET attempts=?,last_error=?,next_attempt_at=?,status=?
                         WHERE id=? AND status='pending'""",
