@@ -139,3 +139,14 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('진단 전용 · 자동 복구·재시도·승인·게시 없음', app_js)
         self.assertIn('.integrity-item', css)
         self.assertIn('loadIntegrityReport()', app_js)
+
+    def test_cyber_magic_theme_is_loaded_after_base_styles(self):
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        css = (ROOT / "frontend" / "cyber-magic.css").read_text(encoding="utf-8")
+        self.assertIn('/assets/cyber-magic.css', html)
+        self.assertLess(html.index('/assets/styles.css'), html.index('/assets/cyber-magic.css'))
+        self.assertIn('Workspace navigation', html)
+        self.assertIn('AI Content Studio', html)
+        self.assertIn('Approvals &amp; Publishing', html)
+        self.assertIn('position:fixed', css)
+        self.assertIn('prefers-reduced-motion', css)
