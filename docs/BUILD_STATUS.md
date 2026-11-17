@@ -2168,7 +2168,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based remaining-work plan, phase exit criteria, and launch checklist.
 
 - The current repository does not define a finite total engineering acceptance backlog; therefore no honest overall project completion percentage can yet be calculated from BUILD numbers or open PR counts.
-- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #308 head `220737ee5383531164001befdf938a717411a6f7` (run #43993153247). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
+- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #308 head `f765763bddf4867189543c1d1b0a46509d0c6bbf` (run #43993257064). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
 - Launch-gate progress: **1/8 (12.5%)**. This is not an overall product completion percentage.
 - PRs #288–#295 and #297–#308 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve the no-merge/no-main-push constraint.
 - BUILD-00289 (PR #294), BUILD-00290 (PR #295), and BUILD-00291 (PR #297) have successful exact-head GitHub Actions validation.
@@ -2182,7 +2182,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - BUILD-00299 (PR #305) passed CI on latest docs-inclusive head `705e897582d0592174719bc4bcff66051c4cc58d` (run #43992365077).
 - BUILD-00300 (PR #306) passed CI on latest docs-inclusive head `d0e37b075d2efa46d0a0366642f75ce824238d7d` (run #43992684188; 664 backend tests).
 - BUILD-00301 (PR #307) passed CI on latest docs-inclusive head `001237c0cbb20b885557dec3ad2e1ec7c412cb58` (run #43992985705).
-- BUILD-00302 (PR #308) is under CI validation on code head `220737ee5383531164001befdf938a717411a6f7` (run #43993153247).
+- BUILD-00302 (PR #308) passed CI on latest head `f765763bddf4867189543c1d1b0a46509d0c6bbf` (run #43993257064).
 - CI and deterministic SQLite coverage must remain separate from live external-service and production validation.
 
 
@@ -2296,3 +2296,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Move TikTok refresh-lease acquisition time sampling inside its write transaction.
 - Add lock-contention regressions for OAuth state creation/consumption and TikTok refresh-lease acquisition.
 - GitHub Actions is running on PR #308 code head `220737ee5383531164001befdf938a717411a6f7`; deterministic SQLite/controlled-clock coverage only. Live Google/TikTok OAuth provider validation is not claimed.
+
+
+## BUILD-00302 — serialize OAuth state and refresh lease clocks
+- Move YouTube and TikTok OAuth state creation/consumption clock reads inside SQLite's `BEGIN IMMEDIATE` write transactions.
+- Move TikTok refresh-lease acquisition time sampling inside its write transaction.
+- Add lock-contention regressions for OAuth state creation/consumption and TikTok refresh-lease acquisition.
+- GitHub Actions run #43993257064 passed on latest PR #308 head `f765763bddf4867189543c1d1b0a46509d0c6bbf`. Deterministic SQLite/controlled-clock coverage only; live Google/TikTok OAuth provider validation is not claimed.
