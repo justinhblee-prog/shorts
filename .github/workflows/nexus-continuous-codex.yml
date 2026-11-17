@@ -104,28 +104,32 @@ jobs:
             throw "Install qwen2.5-coder:7b with: ollama pull qwen2.5-coder:7b"
           }
 
-      - name: Set up supported Python runtime
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - name: Install local coding agent
+      - name: Install local coding agent with isolated Python 3.11
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          python --version
-          if ($LASTEXITCODE -ne 0) {
-            throw "Python 3 is required on the self-hosted runner."
+          python -m pip install --user --upgrade uv
+          if ($LASTEXITCODE -ne 0) { throw "Failed to install uv." }
+          $userScripts = Join-Path ([Environment]::GetFolderPath("UserProfile")) "AppData\\Roaming\\Python\\Python313\\Scripts"
+          $pythonBase = python -c "import site; print(site.USER_BASE)"
+          $userScripts = Join-Path $pythonBase "Scripts"
+          if (Test-Path $userScripts) { Add-Content -Path $env:GITHUB_PATH -Value $userScripts }
+          $uvCommand = Get-Command uv -ErrorAction SilentlyContinue
+          if (-not $uvCommand) {
+            $uvExe = Join-Path $pythonBase "Scripts\\uv.exe"
+            if (Test-Path $uvExe) { $uvCommand = Get-Item $uvExe }
           }
-          python -m pip install --user --upgrade aider-chat
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to install aider-chat."
-          }
-          $scriptsPath = Join-Path (python -c "import site; print(site.USER_BASE)") "Scripts"
-          if (-not (Test-Path $scriptsPath)) {
-            throw "Python user Scripts directory was not found: $scriptsPath"
-          }
-          Add-Content -Path $env:GITHUB_PATH -Value $scriptsPath
+          if (-not $uvCommand) { throw "uv executable was not found after installation." }
+          $uv = $uvCommand.Source
+          & $uv python install 3.11 --install-dir "C:\\nexus-python"
+          if ($LASTEXITCODE -ne 0) { throw "uv could not install Python 3.11." }
+          & $uv tool install --python 3.11 aider-chat
+          if ($LASTEXITCODE -ne 0) { throw "uv could not install aider-chat." }
+          $toolBin = & $uv tool dir --bin
+          if ($LASTEXITCODE -ne 0 -or -not $toolBin) { throw "Could not locate uv tool executables." }
+          Add-Content -Path $env:GITHUB_PATH -Value $toolBin
+          & $uv tool run --python 3.11 --from aider-chat aider --version
+          if ($LASTEXITCODE -ne 0) { throw "Aider smoke test failed." }
 
       - name: Run one bounded local-model development iteration
         shell: powershell
