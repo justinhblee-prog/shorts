@@ -354,16 +354,48 @@ class DevelopmentJobStore:
             raise ValueError("completion requires tests_passed=True")
         if not isinstance(validation_ref, str) or not validation_ref.strip() or len(validation_ref) > 1000:
             raise ValueError("completion requires a validation evidence reference")
+        normalized_files = []
+        for raw_path in changed_files:
+            if not isinstance(raw_path, str) or not raw_path.strip():
+                raise ValueError("changed_files contains an invalid path")
+            path = raw_path.strip()
+            if "\\" in path or path.startswith("/") or any(part in ("", ".", "..") for part in path.split("/")):
+                raise ValueError("changed_files contains an unsafe or non-normalized path")
+            normalized_files.append(path)
+        if len(normalized_files) != len(set(normalized_files)):
+            raise ValueError("changed_files must not contain duplicates")
+
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
             timestamp = _stamp(_now())
+            current = connection.execute(
+                """SELECT scope_json FROM development_jobs
+                   WHERE id=? AND worker_id=? AND lease_token=?
+                     AND status IN ('leased','running') AND lease_expires_at>?""",
+                (job_id, worker_id, lease_token, timestamp),
+            ).fetchone()
+            if current is None:
+                raise DevelopmentJobConflict("completion rejected: lease is missing, expired, or fenced")
+            scope = json.loads(current["scope_json"] or "[]")
+            if not scope:
+                raise ValueError("completion requires a declared file scope")
+            outside_scope = [
+                path for path in normalized_files
+                if not any(
+                    path == item.rstrip("/")
+                    or (not Path(item).suffix and path.startswith(item.rstrip("/") + "/"))
+                    for item in scope
+                )
+            ]
+            if outside_scope:
+                raise ValueError("changed_files contains paths outside the declared scope")
             cur = connection.execute(
                 """UPDATE development_jobs SET status='completed',worker_id=NULL,lease_token=NULL,
                    lease_expires_at=NULL,changed_files_json=?,tests_passed=1,validation_ref=?,
                    result_summary=?,completed_at=?,updated_at=?
                    WHERE id=? AND worker_id=? AND lease_token=? AND status IN ('leased','running')
                      AND lease_expires_at>?""",
-                (json.dumps(sorted(set(changed_files))), validation_ref.strip(),
+                (json.dumps(sorted(normalized_files)), validation_ref.strip(),
                  str(result_summary)[:4000], timestamp, timestamp,
                  job_id, worker_id, lease_token, timestamp),
             )
