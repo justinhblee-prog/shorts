@@ -2,8 +2,7 @@ name: NEXUS STUDIO PRO local-model iteration
 
 on:
   workflow_dispatch:
-  # Scheduled events run only from the default branch. This remains a Draft proposal
-  # until the repository owner explicitly chooses an activation path.
+  # Scheduled events run only from the default branch.
   schedule:
     - cron: "0 */2 * * *"
 
@@ -23,7 +22,7 @@ jobs:
     outputs:
       base_branch: ${{ steps.select.outputs.base_branch }}
     steps:
-      - name: Select newest open build branch
+      - name: Select newest open development branch
         id: select
         uses: actions/github-script@v7
         with:
@@ -36,7 +35,8 @@ jobs:
             const candidates = response.data
               .filter((pr) => !pr.merged_at &&
                 pr.head.repo?.full_name === `${owner}/${repo}` &&
-                pr.head.ref.startsWith("build/"))
+                (pr.head.ref.startsWith("build/") ||
+                 pr.head.ref.startsWith("automation/nexus-agent-")))
               .sort((a, b) => b.number - a.number);
             const base = candidates[0]?.head.ref ??
               context.payload.repository?.default_branch ?? "main";
@@ -44,7 +44,7 @@ jobs:
 
   develop:
     needs: select-base
-    # Requires a repository-owned runner with Ollama and the model already installed.
+    # Requires a repository-owned Windows runner with Ollama and the model installed.
     # No paid model API or OPENAI_API_KEY is used.
     runs-on: [self-hosted, nexus-local-ai]
     timeout-minutes: 90
@@ -60,28 +60,54 @@ jobs:
           persist-credentials: false
 
       - name: Verify local Ollama model is available
-        shell: bash
+        shell: pwsh
         run: |
-          ollama list
-          ollama list | grep -q 'qwen2.5-coder:7b' || {
-            echo "::error::Install qwen2.5-coder:7b in local Ollama before running this workflow."
-            exit 1
+          $ErrorActionPreference = "Stop"
+          if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
+            throw "Ollama was not found on PATH. Start/install Ollama on the runner host."
+          }
+          $models = ollama list
+          $models | Out-Host
+          if ($LASTEXITCODE -ne 0) {
+            throw "ollama list failed with exit code $LASTEXITCODE"
+          }
+          if (-not ($models | Select-String -SimpleMatch "qwen2.5-coder:7b")) {
+            throw "Install qwen2.5-coder:7b with: ollama pull qwen2.5-coder:7b"
           }
 
       - name: Install local coding agent
-        shell: bash
+        shell: pwsh
         run: |
-          python -m pip install --user aider-chat
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          $ErrorActionPreference = "Stop"
+          python --version
+          if ($LASTEXITCODE -ne 0) {
+            throw "Python 3 is required on the self-hosted runner."
+          }
+          python -m pip install --user --upgrade aider-chat
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to install aider-chat."
+          }
+          $scriptsPath = Join-Path (python -c "import site; print(site.USER_BASE)") "Scripts"
+          if (-not (Test-Path $scriptsPath)) {
+            throw "Python user Scripts directory was not found: $scriptsPath"
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $scriptsPath
 
       - name: Run one bounded local-model development iteration
-        shell: bash
+        shell: pwsh
         env:
           OLLAMA_API_BASE: http://127.0.0.1:11434
         run: |
-          aider             --model ollama_chat/qwen2.5-coder:7b             --yes-always             --no-auto-commits             --message-file .github/codex/NEXUS_CONTINUOUS_AGENT.md
+          $ErrorActionPreference = "Stop"
+          if (-not (Get-Command aider -ErrorAction SilentlyContinue)) {
+            throw "Aider is not on PATH after installation."
+          }
+          aider --model ollama_chat/qwen2.5-coder:7b --yes-always --no-auto-commits --message-file .github/codex/NEXUS_CONTINUOUS_AGENT.md
+          if ($LASTEXITCODE -ne 0) {
+            throw "Aider exited with code $LASTEXITCODE"
+          }
 
-      - name: Create a Draft PR for verified changes
+      - name: Create a Draft PR for review
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
