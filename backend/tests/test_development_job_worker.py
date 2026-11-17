@@ -55,5 +55,25 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
             DevelopmentJobWorker(self.store, "worker-a", None)
 
 
+    def test_run_once_registers_worker_and_clears_current_job(self):
+        job = self.store.create("Worker presence", scope=["backend/example.py"])
+        worker = DevelopmentJobWorker(
+            self.store, "runner-a",
+            lambda _: {"changed_files": ["backend/example.py"], "tests_passed": True,
+                       "validation_ref": "ci://run/44"},
+        )
+        self.assertEqual(worker.run_once(), "completed")
+        presence = self.store.get_worker("runner-a")
+        self.assertEqual(presence["status"], "online")
+        self.assertIsNone(presence["current_job_id"])
+        self.assertEqual(self.store.summary()["online_workers"], 1)
+
+    def test_run_until_idle_marks_worker_offline_on_exit(self):
+        worker = DevelopmentJobWorker(self.store, "runner-idle", lambda _: {})
+        result = worker.run_until_idle(idle_seconds=1)
+        self.assertEqual(result["processed"], 0)
+        self.assertEqual(self.store.get_worker("runner-idle")["status"], "offline")
+
+
 if __name__ == "__main__":
     unittest.main()
