@@ -1,6 +1,11 @@
 name: NEXUS STUDIO PRO local-model iteration
 
 on:
+  # Bootstrap-only push trigger lets the first run start before this file is
+  # adopted into the default branch. Remove after the first verified run.
+  push:
+    branches:
+      - build/build-00312-continuous-agent-bootstrap
   workflow_dispatch:
   # Scheduled events run only from the default branch.
   schedule:
