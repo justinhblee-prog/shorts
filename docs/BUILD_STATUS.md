@@ -2328,4 +2328,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject an empty fallback hostname rather than silently generating an unstable identity.
 - Document the explicit stable-ID requirement for container/orchestrator environments where hostnames change between restarts.
 - Add deterministic tests for same-host restart stability, explicit override precedence, and missing fallback rejection.
-- Validation pending exact-head GitHub Actions.
+- GitHub Actions runs #44015403212 and #44015410742 passed on implementation head `2a787581317cf4372f4dcf936ba56bec1079f199` (672 backend tests).
