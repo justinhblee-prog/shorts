@@ -327,6 +327,34 @@ class TikTokMetricsStore:
             """).fetchall()
         return {row["video_id"]: row["collected_at"] for row in rows}
 
+    def history(self, publication_store, video_id=None, limit=100):
+        limit=max(1,min(int(limit),500))
+        eligible=publication_store.list_metrics_eligible(limit=500)
+        allowed={item["video_id"]:item for item in eligible}
+        if video_id:
+            if video_id not in allowed:
+                return []
+            ids=[video_id]
+        else:
+            ids=list(allowed)
+        if not ids:
+            return []
+        placeholders=",".join("?" for _ in ids)
+        with self.db() as c:
+            rows=c.execute(f"""
+              SELECT * FROM tiktok_video_metric_snapshots
+              WHERE video_id IN ({placeholders})
+              ORDER BY collected_at DESC,id DESC LIMIT ?
+            """,(*ids,limit)).fetchall()
+        result=[]
+        for row in rows:
+            item=dict(row)
+            publication=allowed.get(item["video_id"],{})
+            item["publication_status"]=publication.get("status")
+            item["privacy_level"]=publication.get("privacy_level") or "SELF_ONLY"
+            result.append(item)
+        return result
+
     def recent_metrics(self, publication_store, limit=100):
         limit = max(1, min(int(limit), 200))
         eligible = publication_store.list_metrics_eligible(limit=limit)
