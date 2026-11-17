@@ -110,18 +110,12 @@ jobs:
           $ErrorActionPreference = "Stop"
           python -m pip install --user --upgrade uv
           if ($LASTEXITCODE -ne 0) { throw "Failed to install uv." }
-          $userScripts = Join-Path ([Environment]::GetFolderPath("UserProfile")) "AppData\\Roaming\\Python\\Python313\\Scripts"
           $pythonBase = python -c "import site; print(site.USER_BASE)"
           $userScripts = Join-Path $pythonBase "Scripts"
-          if (Test-Path $userScripts) { Add-Content -Path $env:GITHUB_PATH -Value $userScripts }
-          $uvCommand = Get-Command uv -ErrorAction SilentlyContinue
-          if (-not $uvCommand) {
-            $uvExe = Join-Path $pythonBase "Scripts\\uv.exe"
-            if (Test-Path $uvExe) { $uvCommand = Get-Item $uvExe }
-          }
-          if (-not $uvCommand) { throw "uv executable was not found after installation." }
-          $uv = $uvCommand.Source
-          & $uv python install 3.11 --install-dir "C:\\nexus-python"
+          $uv = Join-Path $userScripts "uv.exe"
+          if (-not (Test-Path $uv)) { throw "uv executable was not found after installation: $uv" }
+          Add-Content -Path $env:GITHUB_PATH -Value $userScripts
+          & $uv python install 3.11 --install-dir "C:\nexus-python"
           if ($LASTEXITCODE -ne 0) { throw "uv could not install Python 3.11." }
           & $uv tool install --python 3.11 aider-chat
           if ($LASTEXITCODE -ne 0) { throw "uv could not install aider-chat." }
