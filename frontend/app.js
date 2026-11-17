@@ -261,8 +261,37 @@
       const value=deltas[item.platform+":"+item.video_id+":"+item.collected_at];
       return value===undefined?"—":(value>0?"+":"")+value.toLocaleString();
     };
+    const chartGroups=Object.entries(grouped).map(([key,items])=>{
+      const metric=items[0]?.platform==="youtube"?"views":"view_count";
+      const points=items.map(item=>({time:Date.parse(item.collected_at),value:Number(item[metric])}))
+        .filter(point=>Number.isFinite(point.time)&&Number.isFinite(point.value)&&point.value>=0)
+        .sort((a,b)=>a.time-b.time);
+      return {key,platform:items[0]?.platform,videoId:items[0]?.video_id,points};
+    }).filter(group=>group.points.length>=2)
+      .sort((a,b)=>b.points.length-a.points.length).slice(0,4);
+    const allPoints=chartGroups.flatMap(group=>group.points);
+    const chartMarkup=allPoints.length
+      ? (()=>{
+        const width=720,height=220,padX=22,padY=18;
+        const minTime=Math.min(...allPoints.map(point=>point.time));
+        const maxTime=Math.max(...allPoints.map(point=>point.time));
+        const maxValue=Math.max(1,...allPoints.map(point=>point.value));
+        const x=time=>padX+(maxTime===minTime?0.5:(time-minTime)/(maxTime-minTime))*(width-padX*2);
+        const y=value=>height-padY-(value/maxValue)*(height-padY*2);
+        const lines=[0,1,2,3].map(index=>{
+          const yy=padY+index*(height-padY*2)/3;
+          return '<line class="analytics-chart-gridline" x1="'+padX+'" y1="'+yy.toFixed(1)+'" x2="'+(width-padX)+'" y2="'+yy.toFixed(1)+'"></line>';
+        }).join("");
+        const series=chartGroups.map((group,index)=>{
+          const points=group.points.map(point=>x(point.time).toFixed(1)+","+y(point.value).toFixed(1)).join(" ");
+          return '<polyline class="analytics-chart-line analytics-series-'+index+'" points="'+points+'"></polyline>';
+        }).join("");
+        const legend=chartGroups.map((group,index)=>'<span class="analytics-chart-legend-item"><i class="analytics-series-dot analytics-series-'+index+'"></i>'+esc(group.platform==="youtube"?"YouTube":"TikTok")+" · "+esc(String(group.videoId||"").slice(0,18))+'</span>').join("");
+        return '<section class="analytics-trend-panel" aria-label="영상별 조회수 추이"><div class="analytics-trend-heading"><strong>영상별 조회수 추이</strong><span>표본이 2개 이상인 영상 중 최대 4개</span></div><div class="analytics-chart-scroll"><svg class="analytics-trend-chart" viewBox="0 0 '+width+" "+height+'" role="img" aria-label="선택된 영상들의 시간에 따른 조회수 스냅샷 추이">'+lines+series+'</svg></div><div class="analytics-chart-legend">'+legend+'</div><p class="analytics-chart-note">각 선은 영상별 실제 수집 스냅샷입니다. YouTube와 TikTok의 조회수 집계 기준은 다를 수 있어 플랫폼 간 절대값 비교에는 주의가 필요합니다.</p></section>';
+      })()
+      : '<div class="analytics-chart-empty">추이 그래프를 표시하려면 동일 영상의 유효한 조회수 스냅샷이 최소 2개 필요합니다.</div>';
     $("analyticsHistory").innerHTML=rows.length
-      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개</div><div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>평균 시청 비율</th></tr></thead><tbody>'
+      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개</div>'+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>평균 시청 비율</th></tr></thead><tbody>'
       +rows.slice(0,200).map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>').join("")
       +'</tbody></table></div>'
       : '<div class="empty-state">선택한 기간에 저장된 성과 스냅샷이 없습니다. 데이터 수집이 완료된 후 다시 조회하세요.</div>';
