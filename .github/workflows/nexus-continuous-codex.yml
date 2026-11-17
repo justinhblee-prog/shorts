@@ -139,7 +139,7 @@ jobs:
           if (-not (Get-Command aider -ErrorAction SilentlyContinue)) {
             throw "Aider is not on PATH after installation."
           }
-          aider --model ollama_chat/qwen2.5-coder:7b --yes-always --no-auto-commits --no-gitignore --edit-format diff --map-tokens 512 --max-chat-history-tokens 4096 --message-file "$env:RUNNER_TEMP\NEXUS_CONTINUOUS_AGENT.md" backend/queue_store.py backend/tests/test_queue.py
+          aider --model ollama_chat/qwen2.5-coder:7b --yes-always --no-auto-commits --edit-format diff --map-tokens 512 --max-chat-history-tokens 4096 --message-file "$env:RUNNER_TEMP\NEXUS_CONTINUOUS_AGENT.md" backend/queue_store.py backend/tests/test_queue.py
           if ($LASTEXITCODE -ne 0) {
             throw "Aider exited with code $LASTEXITCODE"
           }
