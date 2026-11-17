@@ -17,9 +17,10 @@ from development_jobs import DevelopmentJobStore
 from seed_development_jobs import seed_development_jobs
 
 
-def _json_env(name, default):
+def _json_env(name, default, environ=None):
+    source = os.environ if environ is None else environ
     try:
-        value = json.loads(os.environ.get(name, default))
+        value = json.loads(source.get(name, default))
     except json.JSONDecodeError as error:
         raise ValueError(f"{name} must contain valid JSON") from error
     if not isinstance(value, dict):
@@ -38,7 +39,7 @@ def run_once(environ=None):
         raise ValueError("GITHUB_REPOSITORY must be owner/repo")
 
     # Validate configuration before opening the database or making network calls.
-    approved_scopes = _json_env("NEXUS_APPROVED_SCOPES", "{}")
+    approved_scopes = _json_env("NEXUS_APPROVED_SCOPES", "{}", env)
     db_path = env.get("NEXUS_DEVELOPMENT_DB", "data/nexus-development.sqlite3")
     store = DevelopmentJobStore(db_path)
     seeded = seed_development_jobs(store)
