@@ -2363,3 +2363,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add visible keyboard focus treatment and honor `prefers-reduced-motion` for smooth scrolling.
 - Add frontend regression assertions for accessible names, active-state semantics, observer wiring, distinct mobile icon mapping and reduced-motion handling.
 - Validation status: exact-head GitHub Actions pending. This is static/frontend regression coverage; deployed browser, assistive-technology and Windows Docker runtime checks remain unverified.
+
+
+## BUILD-00311 — atomically adopt every core AI provider artifact
+- Extend the BUILD-00308 atomic artifact/provider-attempt adoption path beyond optional speech transcription to the script, voice-generation and rendering stages.
+- Previously each of those stages committed its artifact and then marked its provider attempt adopted in a separate transaction. A crash between the writes could leave a durable artifact paired with a recoverable `response_received` attempt, creating duplicate-adoption/recovery ambiguity.
+- Persist each core-stage artifact and its provider-attempt adoption in the same `BEGIN IMMEDIATE` transaction and worker-lease fencing decision; remove the separate adoption writes.
+- Add regression coverage for script, voice and rendering adoption, including rollback when the matching attempt cannot be adopted.
+- Validation: exact final PR-head CI pending. These are local SQLite transaction tests; remote provider execution remains non-transactional and live provider idempotency is not established.
