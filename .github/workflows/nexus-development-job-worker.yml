@@ -76,7 +76,7 @@ jobs:
       - name: Execute one dependency-aware development cycle
         shell: powershell
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_WORKSPACE: ${{ github.workspace }}
           RUNNER_NAME: ${{ runner.name }}
@@ -85,6 +85,9 @@ jobs:
           NEXUS_APPROVED_SCOPES: ${{ secrets.NEXUS_APPROVED_SCOPES }}
         run: |
           $ErrorActionPreference = "Stop"
+          if (-not $env:GITHUB_TOKEN) {
+            throw "Configure NEXUS_GITHUB_READ_TOKEN as a fine-grained read-only GitHub token."
+          }
           if (-not $env:NEXUS_APPROVED_SCOPES) {
             $env:NEXUS_APPROVED_SCOPES = "{}"
           }
