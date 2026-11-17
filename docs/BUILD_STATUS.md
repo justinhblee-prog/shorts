@@ -2354,3 +2354,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Route speech-alignment artifact adoption through this atomic operation. If the attempt transition cannot be applied, the artifact write rolls back; if the artifact write fails, the attempt remains recoverable.
 - Add regressions for successful atomic adoption and rollback when the provider attempt cannot be adopted.
 - Validation is pending exact-head CI. This is SQLite transaction coverage, not deployed multi-process or external-provider validation.
+
+
+## BUILD-00310 — accessible, scroll-aware Cyber Magic workspace navigation
+
+- Correct the compact mobile sidebar: each of the five workspace destinations now has its own recognizable icon instead of repeating the same glyph, while the original link text remains available to assistive technology through explicit accessible names.
+- Track the workspace section in view with `IntersectionObserver`; synchronize the active sidebar item, `aria-current="page"`, direct hash navigation and click navigation.
+- Add visible keyboard focus treatment and honor `prefers-reduced-motion` for smooth scrolling.
+- Add frontend regression assertions for accessible names, active-state semantics, observer wiring, distinct mobile icon mapping and reduced-motion handling.
+- Validation status: exact-head GitHub Actions pending. This is static/frontend regression coverage; deployed browser, assistive-technology and Windows Docker runtime checks remain unverified.
