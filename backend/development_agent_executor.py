@@ -26,10 +26,10 @@ _SECRET_ENV_KEYS = {
 
 def _tail(value, limit=2000):
     text = (value or "").strip()
-    text = re.sub(r"(?i)bearer\\s+[A-Za-z0-9._~+/-]+=*", "Bearer [REDACTED]", text)
-    text = re.sub(r"(?i)(token|api[_-]?key|secret|password)\\s*[=:]\\s*[^\\s,;]+",
-                  r"\\1=[REDACTED]", text)
-    text = re.sub(r"\\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\\b",
+    text = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/-]+=*", "Bearer [REDACTED]", text)
+    text = re.sub(r"(?i)(token|api[_-]?key|secret|password)\s*[=:]\s*[^\s,;]+",
+                  r"\1=[REDACTED]", text)
+    text = re.sub(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b",
                   "[REDACTED]", text)
     return text[-limit:]
 
