@@ -177,3 +177,11 @@ These are additional readiness constraints documented by the project, not comple
 - Regression tests cover successful paired commit and rollback of the artifact when the provider-attempt transition is invalid.
 - This closes the local database crash window between the two writes. It does not make remote provider execution transactional and does not replace provider-side idempotency verification or deployed worker validation.
 - Exact documentation-inclusive PR-head CI validation is pending.
+
+
+### Engineering checkpoint — BUILD-00310
+- Active work: accessible, scroll-aware Cyber Magic workspace navigation.
+- The mobile sidebar now presents distinct compact icons for Dashboard, AI Content Studio, Content Planner & Intelligence, Approvals & Publishing, and Analytics & Operations; link names remain available to assistive technology.
+- Active destination state follows scroll position, click navigation and URL hash, with `aria-current="page"`; keyboard focus and reduced-motion behavior are covered by frontend regression assertions.
+- PR #316: https://github.com/justinhblee-prog/shorts/pull/316 — exact final-head CI is pending. No deployed browser or assistive-technology validation is claimed.
+- This change does not close any mandatory launch gate. Keep the launch-gate score at 1/8 until environment and external evidence is supplied.
