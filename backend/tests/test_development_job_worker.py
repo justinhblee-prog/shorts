@@ -3,7 +3,7 @@ import tempfile
 import unittest
 
 from development_jobs import DevelopmentJobStore
-from development_job_worker import DevelopmentJobWorker
+from development_job_worker import DevelopmentJobWorker, NonRetryableDevelopmentJobError
 
 
 class DevelopmentJobWorkerTests(unittest.TestCase):
@@ -41,6 +41,14 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         worker = DevelopmentJobWorker(self.store, "worker-a", broken)
         self.assertEqual(worker.run_once(), "retry_wait")
         self.assertIn("RuntimeError", self.store.get(job["id"])["result_summary"])
+
+    def test_non_retryable_worker_error_quarantines_job(self):
+        job = self.store.create("Unsafe scope", scope=["backend/example.py"])
+        def rejected(_):
+            raise NonRetryableDevelopmentJobError("scope validation failed")
+        worker = DevelopmentJobWorker(self.store, "worker-a", rejected)
+        self.assertEqual(worker.run_once(), "quarantined")
+        self.assertEqual(self.store.get(job["id"])["status"], "quarantined")
 
     def test_worker_requires_callable_executor(self):
         with self.assertRaisesRegex(ValueError, "executor"):
