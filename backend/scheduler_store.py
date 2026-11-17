@@ -266,22 +266,27 @@ class ScheduleStore:
             return row is not None
 
     def dispatch_due(self, queue, now=None, limit=20, lease_owner=None, lease_token=None, lease_seconds=90):
-        current = now or datetime.now(timezone.utc)
-        if current.tzinfo is None:
-            raise ValueError("now must be timezone-aware")
-        current_s = _stamp(current)
         limit = _bounded_limit(limit, "limit", 100)
         _lease_seconds(lease_seconds, 15)
         if (lease_owner is None) != (lease_token is None):
             raise ValueError("lease_owner and lease_token must be supplied together")
-        if lease_owner is not None and not self.scheduler_lease_is_valid(
-                lease_owner, lease_token, current):
-            return {"dispatched": [], "count": 0,
-                    "pending": len(self.pending_dispatches()), "lease_lost": True}
-        # Reserve each due occurrence and persist an outbox item atomically.
+        # Sample the implicit clock only after SQLite grants the write lock.
+        # Validate the fencing lease under the same lock as schedule reservation.
+        lease_lost = False
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            rows = c.execute("""SELECT * FROM production_schedules
+            current = now if now is not None else datetime.now(timezone.utc)
+            if current.tzinfo is None:
+                raise ValueError("now must be timezone-aware")
+            current_s = _stamp(current)
+            if lease_owner is not None:
+                lease = c.execute("""SELECT 1 FROM scheduler_leader_lease
+                    WHERE id=1 AND owner_id=? AND lease_token=? AND expires_at>?""",
+                    (str(lease_owner), lease_token, current_s)).fetchone()
+                if not lease:
+                    c.commit()
+                    lease_lost = True
+            rows = [] if lease_lost else c.execute("""SELECT * FROM production_schedules
                 WHERE active=1 AND next_run_at<=? ORDER BY next_run_at LIMIT ?""",
                 (current_s, max(1, min(int(limit), 100)))).fetchall()
             for row in rows:
@@ -299,6 +304,9 @@ class ScheduleStore:
                 c.execute("""UPDATE production_schedules SET next_run_at=?,updated_at=?
                     WHERE id=? AND next_run_at=?""",
                     (_stamp(next_due), current_s, row["id"], due))
+        if lease_lost:
+            return {"dispatched": [], "count": 0,
+                    "pending": len(self.pending_dispatches()), "lease_lost": True}
 
         # A production pause also pauses scheduled dispatch. Due occurrences are
         # already durable in the outbox, so they remain pending and replay after
