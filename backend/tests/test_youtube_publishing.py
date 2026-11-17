@@ -542,6 +542,8 @@ class YouTubePublishingTests(unittest.TestCase):
 
     def test_missing_queue_row_blocks_actual_youtube_publish_reservation(self):
         with self.queue.db() as connection:
+            # Simulate out-of-band database tampering to exercise the missing-row guard.
+            connection.execute("DROP TRIGGER job_events_no_delete")
             connection.execute("DELETE FROM pipeline_jobs WHERE id=?",("job-1",))
         with self.assertRaisesRegex(YouTubeUploadError,"queue job must remain approved"):
             self.publisher.upload_approved(
