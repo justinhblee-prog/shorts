@@ -110,8 +110,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           python -m pip install --user --upgrade uv
           if ($LASTEXITCODE -ne 0) { throw "Failed to install uv." }
-          $pythonBase = python -c "import site; print(site.USER_BASE)"
-          $userScripts = Join-Path $pythonBase "Scripts"
+          $userScripts = python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
           $uv = Join-Path $userScripts "uv.exe"
           if (-not (Test-Path $uv)) { throw "uv executable was not found after installation: $uv" }
           Add-Content -Path $env:GITHUB_PATH -Value $userScripts
