@@ -77,7 +77,7 @@ jobs:
           persist-credentials: false
 
       - name: Copy agent instructions outside the repository
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           $source = Join-Path $env:GITHUB_WORKSPACE ".agent-bootstrap/.github/codex/NEXUS_CONTINUOUS_AGENT.md"
@@ -89,7 +89,7 @@ jobs:
           Remove-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE ".agent-bootstrap") -Recurse -Force
 
       - name: Verify local Ollama model is available
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
@@ -105,7 +105,7 @@ jobs:
           }
 
       - name: Install local coding agent
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           python --version
@@ -123,7 +123,7 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $scriptsPath
 
       - name: Run one bounded local-model development iteration
-        shell: pwsh
+        shell: powershell
         env:
           OLLAMA_API_BASE: http://127.0.0.1:11434
         run: |
