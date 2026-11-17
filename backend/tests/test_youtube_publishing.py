@@ -393,15 +393,20 @@ class YouTubePublishingTests(unittest.TestCase):
     def test_upload_is_blocked_when_approval_snapshot_has_old_policy_version(self):
         with self.uploads.db() as connection:
             row = connection.execute(
-                "SELECT id,artifact_snapshot_json FROM review_decisions "
+                "SELECT job_id,decision,previous_status,reviewer_id,comment,"
+                "artifact_snapshot_json,created_at FROM review_decisions "
                 "WHERE job_id='job-1' ORDER BY id DESC LIMIT 1"
             ).fetchone()
             snapshot = json.loads(row["artifact_snapshot_json"])
             script = next(item for item in snapshot if item["stage"] == "script")
             script["metadata"]["policy_preflight"]["policy_version"] = "outdated-policy-version"
             connection.execute(
-                "UPDATE review_decisions SET artifact_snapshot_json=? WHERE id=?",
-                (json.dumps(snapshot), row["id"]),
+                """INSERT INTO review_decisions
+                   (job_id,decision,previous_status,reviewer_id,comment,
+                    artifact_snapshot_json,created_at) VALUES(?,?,?,?,?,?,?)""",
+                (row["job_id"], row["decision"], row["previous_status"],
+                 row["reviewer_id"], row["comment"], json.dumps(snapshot),
+                 row["created_at"] + "-legacy-fixture"),
             )
         with self.assertRaisesRegex(YouTubeUploadError, "rules changed"):
             self.uploads.begin("job-1", "Title", "Description")
@@ -444,7 +449,8 @@ class YouTubePublishingTests(unittest.TestCase):
     def test_upload_rejects_stale_approved_policy_checked_on_date(self):
         with self.uploads.db() as connection:
             row = connection.execute(
-                "SELECT id,artifact_snapshot_json FROM review_decisions "
+                "SELECT job_id,decision,previous_status,reviewer_id,comment,"
+                "artifact_snapshot_json,created_at FROM review_decisions "
                 "WHERE job_id='job-1' ORDER BY id DESC LIMIT 1"
             ).fetchone()
             snapshot = json.loads(row["artifact_snapshot_json"])
@@ -454,8 +460,12 @@ class YouTubePublishingTests(unittest.TestCase):
             )
             approved_script["metadata"]["policy_preflight"]["policy_checked_on"] = "1900-01-01"
             connection.execute(
-                "UPDATE review_decisions SET artifact_snapshot_json=? WHERE id=?",
-                (json.dumps(snapshot), row["id"]),
+                """INSERT INTO review_decisions
+                   (job_id,decision,previous_status,reviewer_id,comment,
+                    artifact_snapshot_json,created_at) VALUES(?,?,?,?,?,?,?)""",
+                (row["job_id"], row["decision"], row["previous_status"],
+                 row["reviewer_id"], row["comment"], json.dumps(snapshot),
+                 row["created_at"] + "-legacy-fixture"),
             )
         with self.assertRaisesRegex(YouTubeUploadError, "rules changed"):
             self.uploads.begin("job-1", "Title", "Description")
