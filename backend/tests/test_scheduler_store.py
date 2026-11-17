@@ -25,6 +25,49 @@ class SchedulerTests(unittest.TestCase):
             {"brand": "Brain Glitch", "region": "US", "language": "English",
              "topic": "Test"}, start_at=start.isoformat())
 
+    def test_schedule_create_samples_default_clock_after_write_lock(self):
+        sampled_time = threading.Event()
+        operation_started = threading.Event()
+        observed = {}
+
+        class ControlledDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                sampled_time.set()
+                return datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+
+        def create_schedule():
+            operation_started.set()
+            try:
+                observed["schedule"] = self.schedules.create(
+                    "hourly", 3600,
+                    {"brand": "Brain Glitch", "region": "US",
+                     "language": "English", "topic": "Default start"},
+                )
+            except BaseException as exc:
+                observed["error"] = exc
+
+        with self.schedules.db() as blocker:
+            blocker.execute("BEGIN IMMEDIATE")
+            with patch.object(scheduler_store_module, "datetime", ControlledDateTime):
+                thread = threading.Thread(target=create_schedule)
+                thread.start()
+                self.assertTrue(operation_started.wait(2))
+                self.assertFalse(
+                    sampled_time.wait(0.1),
+                    "schedule creation clock must not be sampled before the SQLite write lock",
+                )
+                blocker.commit()
+                thread.join(5)
+                self.assertFalse(thread.is_alive(), "schedule creation did not finish")
+
+        self.assertNotIn("error", observed, repr(observed.get("error")))
+        expected = "2026-11-17T12:00:00+00:00"
+        created = observed["schedule"]
+        self.assertEqual(created["created_at"], expected)
+        self.assertEqual(created["updated_at"], expected)
+        self.assertEqual(created["next_run_at"], expected)
+
     def test_due_occurrence_dispatches_once_and_advances_schedule(self):
         now = datetime.now(timezone.utc)
         item = self.schedule(now - timedelta(minutes=5))
