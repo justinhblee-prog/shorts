@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Updated:** 2026-11-16
+**Updated:** 2026-11-17
 
 ## Business objective
 
@@ -2168,11 +2168,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based remaining-work plan, phase exit criteria, and launch checklist.
 
 - The current repository does not define a finite total engineering acceptance backlog; therefore no honest overall project completion percentage can yet be calculated from BUILD numbers or open PR counts.
-- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #297 head `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a` (Backend tests run #43984822638). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
+- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #300 head `2184c13ac56854075145ce9ad39572cc1ff6004f` (run #43990440580). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
 - Launch-gate progress: **1/8 (12.5%)**. This is not an overall product completion percentage.
-- PRs #288–#295 and #297 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve the no-merge/no-main-push constraint.
-- BUILD-00289 (PR #294) and BUILD-00290 (PR #295) are complete with successful exact-head GitHub Actions validation.
-- BUILD-00291 (PR #297) is complete with successful Backend tests run #43984822638 on exact head `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a`.
+- PRs #288–#295 and #297–#300 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve the no-merge/no-main-push constraint.
+- BUILD-00289 (PR #294), BUILD-00290 (PR #295), and BUILD-00291 (PR #297) have successful exact-head GitHub Actions validation.
+- BUILD-00292 (PR #298) passed CI on exact head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`.
+- BUILD-00293 (PR #299) passed CI on exact head `724d4f78425577debc74a7990cf4d34133162390`.
+- BUILD-00294 (PR #300) passed CI on exact head `2184c13ac56854075145ce9ad39572cc1ff6004f` (run #43990440580).
 - CI and deterministic SQLite coverage must remain separate from live external-service and production validation.
 
 
@@ -2208,7 +2210,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 - Move the `set_active` timestamp read inside `BEGIN IMMEDIATE`, after SQLite grants the write lock.
 - Add a deterministic lock-contention regression proving no activation timestamp is sampled while waiting for the lock and that the committed row uses the post-lock timestamp.
-- Validation: pending exact-head GitHub Actions.
+- GitHub Actions passed on exact PR #298 head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`; deterministic SQLite lock-contention coverage only.
 
 
 ## BUILD-00293 — scheduler lease timestamps after SQLite write lock
@@ -2216,7 +2218,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Move implicit clock sampling in scheduler lease acquisition and renewal inside `BEGIN IMMEDIATE`.
 - Preserve explicit caller-supplied `now` semantics for deterministic scheduling and tests.
 - Add lock-contention regressions for both acquire and renew, asserting no clock read while blocked and verifying persisted expiry/update timestamps.
-- Validation: pending exact-head GitHub Actions.
+- GitHub Actions passed on exact PR #299 head `724d4f78425577debc74a7990cf4d34133162390`; deterministic SQLite lock-contention coverage only.
 
 
 ## BUILD-00294 — dispatch reservation clock after SQLite write lock
@@ -2224,4 +2226,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Move implicit `dispatch_due` clock sampling inside `BEGIN IMMEDIATE`.
 - Validate the scheduler fencing lease in the same write transaction as due-occurrence reservation, closing the pre-lock lease-check race.
 - Add a lock-contention regression that verifies the clock is not sampled while blocked and that outbox/schedule timestamps use the post-lock time.
-- Validation: pending exact-head GitHub Actions.
+- GitHub Actions run #43990440580 passed on exact PR #300 head `2184c13ac56854075145ce9ad39572cc1ff6004f`; deterministic SQLite lock-contention coverage only.
