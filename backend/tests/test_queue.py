@@ -575,6 +575,33 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(result["requeued"],0)
   self.assertEqual(self.q.get(job["id"])["status"],"failed_terminal")
   self.assertTrue(self.q.is_paused())
+ def test_resume_is_blocked_until_every_ambiguous_production_job_is_reconciled(self):
+  first=self.q.enqueue("short_video_production",{"topic":"ambiguous-first"})
+  second=self.q.enqueue("short_video_production",{"topic":"ambiguous-second"})
+  self.q.claim("worker-first",job_type="short_video_production")
+  self.q.claim("worker-second",job_type="short_video_production")
+  self.q.pause("provider outcomes require investigation")
+  self.assertEqual(len(self.q.ambiguous_production_jobs()),2)
+  self.q.reconcile_production_retry(
+   first["id"],"operator-1","provider-console:first",
+   "Provider confirms no request was accepted")
+  with self.assertRaisesRegex(ValueError,"1 production job.*ambiguous-outcome"):
+   self.q.resume(actor="operator-1",note="Reviewed first provider request")
+  self.assertTrue(self.q.is_paused())
+  self.assertEqual(self.q.get(second["id"])["status"],"failed_terminal")
+  self.q.reconcile_production_retry(
+   second["id"],"operator-1","provider-console:second",
+   "Provider confirms no request was accepted")
+  resumed=self.q.resume(actor="operator-1",note="Both provider outcomes reconciled")
+  self.assertFalse(resumed["paused"])
+  self.assertEqual(self.q.get(first["id"])["status"],"failed_retriable")
+  self.assertEqual(self.q.get(second["id"])["status"],"failed_retriable")
+  self.assertEqual(
+   [event["event_type"] for event in self.q.worker_control_events()[:3]],
+   ["resumed","paused"] if len(self.q.worker_control_events())==2
+   else [event["event_type"] for event in self.q.worker_control_events()[:3]]
+  )
+
  def test_operator_pause_and_resume_are_audited(self):
   self.q.pause("operator requested stop",actor="admin-7")
   events=self.q.worker_control_events()
