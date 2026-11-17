@@ -130,6 +130,18 @@ class ReviewStore:
             );
             CREATE INDEX IF NOT EXISTS idx_policy_evidence_job
               ON policy_evidence_events(job_id,id);
+            CREATE TRIGGER IF NOT EXISTS review_decisions_no_update
+              BEFORE UPDATE ON review_decisions
+              BEGIN SELECT RAISE(ABORT,'review decisions are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS review_decisions_no_delete
+              BEFORE DELETE ON review_decisions
+              BEGIN SELECT RAISE(ABORT,'review decisions are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS policy_evidence_events_no_update
+              BEFORE UPDATE ON policy_evidence_events
+              BEGIN SELECT RAISE(ABORT,'policy evidence events are immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS policy_evidence_events_no_delete
+              BEFORE DELETE ON policy_evidence_events
+              BEGIN SELECT RAISE(ABORT,'policy evidence events are immutable'); END;
             """)
 
     @contextmanager
