@@ -37,7 +37,7 @@ DEVELOPMENT_JOBS = (
         "title": "기본 브랜치 예약 실행 및 Draft PR 자동 발행",
         "description": "기본 브랜치에서만 스케줄이 작동하도록 워크플로를 연결하고, 실행 가능한 잡을 worker에 배정해 실제 변경이 있을 때만 Draft PR을 생성합니다.",
         "priority": 70,
-        "scope": [".github/workflows/nexus-development-job-worker.yml", "backend/run_development_agent.py", "backend/development_backlog_service.py"],
+        "scope": [".github/workflows/nexus-development-job-worker.yml", "backend/run_development_agent.py", "backend/development_backlog_service.py", "backend/tests/test_development_worker_workflow_contract.py"],
         "acceptance": [
             "scheduled workflow is present on the default branch before claiming background continuation",
             "trusted runner and local Ollama model are verified",
