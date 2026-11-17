@@ -211,9 +211,13 @@ class GitHubReadOnlyClient:
                     link = response.headers.get("Link", "")
             except (HTTPError, URLError, TimeoutError, ValueError) as error:
                 raise RuntimeError(f"GitHub read failed: {type(error).__name__}") from error
-            if not isinstance(payload, list):
+            if isinstance(payload, dict) and isinstance(payload.get("workflow_runs"), list):
+                page_items = payload["workflow_runs"]
+            elif isinstance(payload, list):
+                page_items = payload
+            else:
                 raise RuntimeError("GitHub API returned an unexpected collection")
-            results.extend(item for item in payload if isinstance(item, dict))
+            results.extend(item for item in page_items if isinstance(item, dict))
             next_url = None
             for part in link.split(","):
                 if 'rel="next"' in part:
