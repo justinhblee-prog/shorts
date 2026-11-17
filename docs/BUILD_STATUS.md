@@ -2180,7 +2180,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - BUILD-00297 (PR #303) passed CI on latest docs-inclusive head `5db4bd5ba8d307e9cd7c72aab5b3afd09dc1eedd` (run #43991573385).
 - BUILD-00298 (PR #304) passed CI on latest docs-inclusive head `29759c56e2d05f8cf1226b55101dc612776214db` (run #43992018437; 660 backend tests).
 - BUILD-00299 (PR #305) passed CI on latest docs-inclusive head `705e897582d0592174719bc4bcff66051c4cc58d` (run #43992365077).
-- BUILD-00300 (PR #306) passed CI on latest docs-inclusive head `d0e37b075d2efa46d0a0366642f75ce824238d7d` (run #43992684188; 664 backend tests).\n- BUILD-00301 (PR #307) passed CI on exact code head `0431b7598dbd751b45d555b607fc540b11d67182` (run #43992793568).
+- BUILD-00300 (PR #306) passed CI on latest docs-inclusive head `d0e37b075d2efa46d0a0366642f75ce824238d7d` (run #43992684188; 664 backend tests).
+- BUILD-00301 (PR #307) passed CI on exact code head `0431b7598dbd751b45d555b607fc540b11d67182` (run #43992793568).
 - CI and deterministic SQLite coverage must remain separate from live external-service and production validation.
 
 
