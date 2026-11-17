@@ -104,6 +104,11 @@ jobs:
             throw "Install qwen2.5-coder:7b with: ollama pull qwen2.5-coder:7b"
           }
 
+      - name: Set up supported Python runtime
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
       - name: Install local coding agent
         shell: powershell
         run: |
