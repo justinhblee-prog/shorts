@@ -18,7 +18,7 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 
 ## Current checkpoint
 
-- Latest engineering item in the current stacked chain: BUILD-00302 — serialize OAuth state and refresh-lease clocks after the SQLite write lock (CI pending).
+- Latest completed engineering item in the current stacked chain: BUILD-00302 — serialize OAuth state and refresh-lease clocks after the SQLite write lock; CI passed on PR #308.
 - PR #298 (BUILD-00292): https://github.com/justinhblee-prog/shorts/pull/298 — exact head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`, GitHub Actions passed.
 - PR #299 (BUILD-00293): https://github.com/justinhblee-prog/shorts/pull/299 — exact head `724d4f78425577debc74a7990cf4d34133162390`, GitHub Actions passed.
 - PR #300 (BUILD-00294): https://github.com/justinhblee-prog/shorts/pull/300 — latest docs-inclusive head `00a55e1ae52a102a7eddfa52d3bc65c0b58aa8db`, GitHub Actions run #43990440580 passed.
@@ -29,7 +29,7 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 - PR #305 (BUILD-00299): https://github.com/justinhblee-prog/shorts/pull/305 — latest docs-inclusive head `705e897582d0592174719bc4bcff66051c4cc58d`, GitHub Actions run #43992365077 passed.
 - PR #306 (BUILD-00300): https://github.com/justinhblee-prog/shorts/pull/306 — latest docs-inclusive head `d0e37b075d2efa46d0a0366642f75ce824238d7d`, GitHub Actions run #43992684188 passed (664 backend tests).
 - PR #307 (BUILD-00301): https://github.com/justinhblee-prog/shorts/pull/307 — latest docs-inclusive head `001237c0cbb20b885557dec3ad2e1ec7c412cb58`, GitHub Actions run #43992985705 passed.
-- PR #308 (BUILD-00302): https://github.com/justinhblee-prog/shorts/pull/308 — code head `220737ee5383531164001befdf938a717411a6f7`, GitHub Actions run #43993153247 in progress.
+- PR #308 (BUILD-00302): https://github.com/justinhblee-prog/shorts/pull/308 — latest head `f765763bddf4867189543c1d1b0a46509d0c6bbf`, GitHub Actions run #43993257064 passed.
 - PRs #298–#308 are open Draft PRs, stacked in dependency order, and remain unmerged. Earlier PRs #288–#295 and #297 remain Draft/unmerged; PR #296 is closed as a superseded duplicate. Preserve Draft status and do not merge or push to main.
 - The scheduler regressions are deterministic SQLite lock-contention tests. They do not establish multi-host scheduler safety or deployed runtime readiness.
 
@@ -48,7 +48,7 @@ Current ordered work:
 8. BUILD-00299: YouTube metrics collector acquire/renew, collection-state and snapshot timestamps after SQLite write-lock acquisition — CI passed on PR #305.
 9. BUILD-00300: TikTok publication transition, failure and audit timestamps after SQLite write-lock acquisition — CI passed on PR #306.
 10. BUILD-00301: YouTube upload reservation, finalization, touch and reconciliation timestamps after SQLite write-lock acquisition — CI passed on PR #307.
-11. BUILD-00302: OAuth state creation/consumption and TikTok refresh-lease timestamps after SQLite write-lock acquisition — CI pending on PR #308.
+11. BUILD-00302: OAuth state creation/consumption and TikTok refresh-lease timestamps after SQLite write-lock acquisition — CI passed on PR #308.
 12. Continue the timestamp/atomicity audit across queue, worker registry, production-run, review, upload and reconciliation transitions.
 13. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records.
 14. Reconcile API authorization and diagnostic redaction with UI actions; identify shared-token/claimed-identity limitations before multi-user deployment.
