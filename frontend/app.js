@@ -525,6 +525,19 @@
     }catch(err){toast(err.message);}
   });
   $("loadTikTokMetrics").addEventListener("click",()=>loadTikTokMetrics().catch(e=>toast(e.message)));
+  $("refreshTikTokDue").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    const button=$("refreshTikTokDue");
+    button.disabled=true;
+    try{
+      const result=await api("/api/tiktok/publications/refresh-due?limit=20&min_age_seconds=60",{method:"POST"});
+      const failures=Array.isArray(result.errors)?result.errors.length:0;
+      toast("TikTok 상태 갱신 완료 · 확인 "+Number(result.checked||0)+"건 · 변경 "+Number(result.updated||0)+"건 · 오류 "+failures+"건");
+      await refreshAll();
+    }catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
+
 
   $("scheduleList").addEventListener("click",async e=>{
     const button=e.target.closest("button[data-schedule-outbox-retry]");
