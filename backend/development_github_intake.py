@@ -152,8 +152,9 @@ def read_github_snapshot(client: Any, owner: str, repository: str) -> dict[str, 
     raw_issues = client.list_issues(owner, repository, state="open", per_page=100)
     raw_prs = client.list_pull_requests(owner, repository, state="open", per_page=100)
     raw_runs = client.list_workflow_runs(owner, repository, per_page=100)
+    repository_name = f"{owner}/{repository}"
     return {
-        "issues": [item for item in raw_issues if isinstance(item, dict)],
+        "issues": [dict(item, repository=repository_name) for item in raw_issues if isinstance(item, dict) and "pull_request" not in item],
         "pull_requests": [item for item in raw_prs if isinstance(item, dict)],
         "workflow_runs": [item for item in raw_runs if isinstance(item, dict)],
     }
@@ -175,3 +176,69 @@ def normalize_snapshot(snapshot: dict[str, Any]) -> dict[str, list[dict[str, Any
             if (item := summarize_workflow_run(raw)) is not None
         ],
     }
+
+    
+class GitHubReadOnlyClient:
+    """Minimal GitHub REST client exposing GET operations only."""
+    API_ROOT = "https://api.github.com"
+
+    def __init__(self, token: str, timeout: int = 15):
+        if not isinstance(token, str) or not token.strip():
+            raise ValueError("GitHub token is required")
+        if isinstance(timeout, bool) or not isinstance(timeout, int) or not 1 <= timeout <= 60:
+            raise ValueError("timeout must be between 1 and 60 seconds")
+        self._token = token.strip()
+        self._timeout = timeout
+
+    def _get_pages(self, path: str, params: str = "") -> list[dict[str, Any]]:
+        import json
+        from urllib.error import HTTPError, URLError
+        from urllib.request import Request, urlopen
+        url = f"{self.API_ROOT}{path}?{params}" if params else f"{self.API_ROOT}{path}"
+        results: list[dict[str, Any]] = []
+        while url:
+            if not url.startswith(self.API_ROOT + "/"):
+                raise ValueError("refusing non-GitHub API URL")
+            request = Request(url, headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {self._token}",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "nexus-development-backlog-sync",
+            }, method="GET")
+            try:
+                with urlopen(request, timeout=self._timeout) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                    link = response.headers.get("Link", "")
+            except (HTTPError, URLError, TimeoutError, ValueError) as error:
+                raise RuntimeError(f"GitHub read failed: {type(error).__name__}") from error
+            if not isinstance(payload, list):
+                raise RuntimeError("GitHub API returned an unexpected collection")
+            results.extend(item for item in payload if isinstance(item, dict))
+            next_url = None
+            for part in link.split(","):
+                if 'rel="next"' in part:
+                    candidate = part[part.find("<") + 1:part.find(">")]
+                    next_url = candidate if candidate.startswith(self.API_ROOT + "/") else None
+                    break
+            url = next_url
+        return results
+
+    def list_issues(self, owner: str, repository: str, state: str = "open", per_page: int = 100):
+        if state != "open" or per_page != 100:
+            raise ValueError("only bounded open-issue reads are supported")
+        return self._get_pages(f"/repos/{owner}/{repository}/issues", "state=open&per_page=100")
+
+    def list_pull_requests(self, owner: str, repository: str, state: str = "open", per_page: int = 100):
+        if state != "open" or per_page != 100:
+            raise ValueError("only bounded open-PR reads are supported")
+        return self._get_pages(f"/repos/{owner}/{repository}/pulls", "state=open&per_page=100")
+
+    def list_workflow_runs(self, owner: str, repository: str, per_page: int = 100):
+        if per_page != 100:
+            raise ValueError("only bounded workflow-run reads are supported")
+        payload = self._get_pages(f"/repos/{owner}/{repository}/actions/runs", "per_page=100")
+        for item in payload:
+            runs = item.get("workflow_runs")
+            if isinstance(runs, list):
+                return runs
+        return []
