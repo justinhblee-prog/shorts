@@ -59,7 +59,7 @@ class DevelopmentJobStore:
               source_ref TEXT, changed_files_json TEXT, tests_passed INTEGER,
               validation_ref TEXT, result_summary TEXT,
               created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-              started_at TEXT, completed_at TEXT
+              started_at TEXT, completed_at TEXT, retry_after TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_development_jobs_ready
               ON development_jobs(status,priority,created_at);
@@ -88,6 +88,9 @@ class DevelopmentJobStore:
               BEFORE DELETE ON development_job_events
               BEGIN SELECT RAISE(ABORT,'development job events are immutable'); END;
             """)
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(development_jobs)")}
+            if "retry_after" not in columns:
+                connection.execute("ALTER TABLE development_jobs ADD COLUMN retry_after TEXT")
 
     @contextmanager
     def db(self):
@@ -242,12 +245,28 @@ class DevelopmentJobStore:
                    WHERE status IN ('leased','running') AND lease_expires_at<=?""", (timestamp,)
             ).fetchall()
             for item in expired:
+                attempts = connection.execute(
+                    "SELECT attempts,max_attempts FROM development_jobs WHERE id=?", (item["id"],)
+                ).fetchone()
+                next_status = "quarantined" if attempts["attempts"] >= attempts["max_attempts"] else "ready"
                 connection.execute(
-                    """UPDATE development_jobs SET status='ready',worker_id=NULL,lease_token=NULL,
-                       lease_expires_at=NULL,updated_at=? WHERE id=?""", (timestamp, item["id"])
+                    """UPDATE development_jobs SET status=?,worker_id=NULL,lease_token=NULL,
+                       lease_expires_at=NULL,updated_at=? WHERE id=?""",
+                    (next_status, timestamp, item["id"]),
                 )
-                self._event(connection, item["id"], "lease_expired", item["status"], "ready",
-                            "system", {}, timestamp)
+                self._event(connection, item["id"], "lease_expired", item["status"], next_status,
+                            "system", {"reason": "worker lease expired"}, timestamp)
+            # Promote due retries before selecting the next ready job.
+            connection.execute(
+                """UPDATE development_jobs SET status='ready',retry_after=NULL,updated_at=?
+                   WHERE status='retry_wait' AND retry_after<=? AND attempts<max_attempts""",
+                (timestamp, timestamp),
+            )
+            connection.execute(
+                """UPDATE development_jobs SET status='quarantined',updated_at=?
+                   WHERE status='retry_wait' AND attempts>=max_attempts AND retry_after<=?""",
+                (timestamp, timestamp),
+            )
             # Unblock jobs only when every prerequisite has completed.
             connection.execute(
                 """UPDATE development_jobs SET status='ready',updated_at=?
@@ -328,3 +347,70 @@ class DevelopmentJobStore:
                                     "validation_ref": validation_ref.strip()}, timestamp)
             connection.commit()
         return self.get(job_id)
+
+
+    def fail(self, job_id, worker_id, lease_token, error, retryable=True, retry_delay_seconds=None):
+        """Record a failed attempt; retry with bounded exponential backoff or quarantine."""
+        if not isinstance(error, str) or not error.strip():
+            raise ValueError("error must be a non-empty string")
+        if not isinstance(retryable, bool):
+            raise ValueError("retryable must be a boolean")
+        if retry_delay_seconds is not None and (
+            isinstance(retry_delay_seconds, bool) or not isinstance(retry_delay_seconds, int)
+            or not 0 <= retry_delay_seconds <= 86400
+        ):
+            raise ValueError("retry_delay_seconds must be an integer from 0 to 86400")
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            now = _now()
+            timestamp = _stamp(now)
+            row = connection.execute(
+                """SELECT status,attempts,max_attempts FROM development_jobs
+                   WHERE id=? AND worker_id=? AND lease_token=? AND status IN ('leased','running')
+                     AND lease_expires_at>?""",
+                (job_id, worker_id, lease_token, timestamp),
+            ).fetchone()
+            if row is None:
+                raise DevelopmentJobConflict("failure rejected: lease is missing, expired, or fenced")
+            exhausted = row["attempts"] >= row["max_attempts"]
+            if not retryable or exhausted:
+                status, retry_after = "quarantined", None
+            else:
+                delay = retry_delay_seconds
+                if delay is None:
+                    delay = min(3600, 30 * (2 ** max(0, row["attempts"] - 1)))
+                status, retry_after = "retry_wait", _stamp(now + timedelta(seconds=delay))
+            connection.execute(
+                """UPDATE development_jobs SET status=?,worker_id=NULL,lease_token=NULL,
+                   lease_expires_at=NULL,retry_after=?,result_summary=?,updated_at=? WHERE id=?""",
+                (status, retry_after, error.strip()[:4000], timestamp, job_id),
+            )
+            self._event(connection, job_id, "failed", row["status"], status, worker_id,
+                        {"error": error.strip()[:4000], "retryable": retryable,
+                         "retry_after": retry_after}, timestamp)
+            connection.commit()
+        return self.get(job_id)
+
+    def events(self, job_id, limit=100):
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
+            raise ValueError("limit must be an integer from 1 to 500")
+        with self.db() as connection:
+            if connection.execute("SELECT 1 FROM development_jobs WHERE id=?", (job_id,)).fetchone() is None:
+                raise DevelopmentJobNotFound("job not found")
+            rows = connection.execute(
+                """SELECT * FROM development_job_events WHERE job_id=?
+                   ORDER BY id DESC LIMIT ?""", (job_id, limit)
+            ).fetchall()
+            return [dict(row) | {"details": json.loads(row["details_json"])}
+                    for row in reversed(rows)]
+
+    def summary(self):
+        with self.db() as connection:
+            counts = {row["status"]: row["count"] for row in connection.execute(
+                "SELECT status,COUNT(*) AS count FROM development_jobs GROUP BY status"
+            )}
+            return {"total": sum(counts.values()), "by_status": counts,
+                    "ready": counts.get("ready", 0), "running": counts.get("running", 0),
+                    "blocked": counts.get("blocked", 0), "retry_wait": counts.get("retry_wait", 0),
+                    "quarantined": counts.get("quarantined", 0),
+                    "completed": counts.get("completed", 0)}
