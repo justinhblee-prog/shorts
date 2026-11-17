@@ -84,6 +84,45 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(run["created_at"], decision)
         self.assertEqual(run["updated_at"], decision)
 
+    def test_provider_attempt_start_timestamp_is_sampled_after_write_lock(self):
+        job_id = "job-provider-start-lock"
+        self.store.create(job_id, self.brief)
+        decision = "2036-07-08T09:10:11+00:00"
+        clock_called = Event()
+        started = Event()
+        outcome = {}
+
+        def controlled_now():
+            clock_called.set()
+            return decision
+
+        def begin_attempt():
+            started.set()
+            try:
+                outcome["key"] = self.store.begin_provider_attempt(job_id, "rendering", 1)
+            except Exception as exc:
+                outcome["error"] = exc
+
+        with self.store.db() as holder:
+            holder.execute("BEGIN IMMEDIATE")
+            with patch("production_pipeline.utc_now", side_effect=controlled_now):
+                thread = Thread(target=begin_attempt)
+                thread.start()
+                self.assertTrue(started.wait(1))
+                time.sleep(0.1)
+                self.assertFalse(
+                    clock_called.is_set(),
+                    "provider attempt timestamp must not be sampled while waiting for the write lock",
+                )
+                holder.commit()
+                thread.join(2)
+            self.assertFalse(thread.is_alive(), "provider attempt did not finish after lock release")
+
+        self.assertNotIn("error", outcome)
+        attempt = self.store.provider_attempts(job_id)[0]
+        self.assertEqual(attempt["state"], "request_started")
+        self.assertEqual(attempt["started_at"], decision)
+
     def test_submit_is_durable_and_does_not_call_providers(self):
         queue = FakeQueue()
         result = submit_production(queue, self.store, self.brief)
