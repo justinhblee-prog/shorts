@@ -164,6 +164,27 @@
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
 
+  async function loadPublishingOverview(){
+    const data=await api("/api/publishing/overview");
+    const labels=[
+      ["youtube","YouTube Shorts","uploaded","게시 완료"],
+      ["youtube","YouTube Shorts","processing","처리 중"],
+      ["youtube","YouTube Shorts","failed","실패"],
+      ["youtube","YouTube Shorts","uncertain","결과 확인 필요"],
+      ["youtube","YouTube Shorts","pending","게시 대기"],
+      ["tiktok","TikTok","published","게시 완료"],
+      ["tiktok","TikTok","processing","처리 중"],
+      ["tiktok","TikTok","failed","실패"],
+      ["tiktok","TikTok","uncertain","결과 확인 필요"],
+      ["tiktok","TikTok","pending","게시 대기"]
+    ];
+    $("publishingOverview").innerHTML=labels.map(([key,name,status,label])=>{
+      const value=Number(data[key]?.[status]||0);
+      const warning=["failed","uncertain"].includes(status)&&value>0;
+      return '<div class="metric-card"><span>'+name+' · '+label+'</span><strong class="'+(warning?"missing-text":"")+'">'+value+'</strong></div>';
+    }).join("")+'<div class="metric-card"><span>승인 콘텐츠</span><strong>'+Number(data.total||0)+'</strong></div>';
+  }
+
   async function loadApproved(){
     const data=await api("/api/review/approved?limit=100");
     const items=data.items||[];
@@ -450,7 +471,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadPublishingOverview(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -532,6 +553,12 @@
     }catch(err){toast(err.message);}
   });
   $("loadTikTokMetrics").addEventListener("click",()=>loadTikTokMetrics().catch(e=>toast(e.message)));
+  $("refreshPublishingOverview").addEventListener("click",async()=>{
+    const button=$("refreshPublishingOverview");button.disabled=true;
+    try{await loadPublishingOverview();toast("YouTube · TikTok 게시 현황을 갱신했습니다.");}
+    catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
   $("refreshTikTokDue").addEventListener("click",async()=>{
     if(!requireToken())return;
     const button=$("refreshTikTokDue");
