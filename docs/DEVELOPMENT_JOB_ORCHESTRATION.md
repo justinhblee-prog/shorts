@@ -98,6 +98,7 @@ The current Draft PR #321 contains the following prototype components:
 - `backend/run_development_agent.py`: one-cycle runner that seeds the engineering graph and injects the local Aider/Ollama executor.
 - `backend/development_agent_executor.py`: constrained Aider executor with protected-path checks, credential-stripped child environment, scoped diff check, and repository validation.
 - `.github/workflows/nexus-development-job-worker.yml`: scheduled/manual self-hosted runner workflow and Draft PR publication step.
+- `backend/app.py` and `frontend/app.js`: authenticated read-only development-job API and live status/event panel; lease tokens and raw error details are redacted. `backend/tests/test_development_job_api_security.py` covers the access-control and redaction contract.
 
 The new runner and workflow are code-level implementations, not proof of autonomous operation. CI on hosted Linux validates the Python code and fixtures; it does not validate the Windows self-hosted runner, Ollama availability, real model edits, GitHub token permissions, or scheduled execution from `main`.
 
@@ -107,4 +108,4 @@ The new runner and workflow are code-level implementations, not proof of autonom
 2. Review and safely integrate PR #321 into the development branch chain; do not merge it without user approval.
 3. After the workflow reaches `main`, verify a manual dispatch on the trusted Windows runner before claiming the schedule is operational.
 4. Verify a real Ollama-generated scoped diff, full test result, Draft PR creation, and dependent-job advancement.
-5. Implement the truthful API/dashboard (DEV-ORCH-008) only after actual job and worker state contracts are stable.
+5. Verify the existing read-only API/dashboard against a real worker run, then extend it with heartbeat age, active lease expiry, runner availability, and the last successful validation reference.
