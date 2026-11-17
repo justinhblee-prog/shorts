@@ -162,3 +162,14 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('SCHEDULED PRODUCTION', html)
         self.assertIn('.cyber-calendar-grid', css)
         self.assertIn('실제 게시 예약과는 구분됩니다', html)
+
+    def test_cyber_magic_dashboard_approval_queue_uses_review_api_data(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        css = (frontend / "cyber-magic.css").read_text(encoding="utf-8")
+        self.assertIn('id="cyberApprovalList"', html)
+        self.assertIn('dashboardApproval.innerHTML=items.length?', app_js)
+        self.assertIn('items.slice(0,4)', app_js)
+        self.assertIn('href="#review"', app_js)
+        self.assertIn('.cyber-approval-list', css)
