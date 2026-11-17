@@ -162,4 +162,4 @@ These are additional readiness constraints documented by the project, not comple
 - `JobQueue.resume` now checks the full unresolved-ambiguous production-job count inside its write transaction and refuses to clear the global pause until every affected job has an audited reconciliation decision.
 - A single reconciled job is insufficient when another ambiguous job remains. Retry authorization remains separate from resume; all provider outcomes must be investigated before the operator resumes production.
 - Regression covers two concurrent ambiguous jobs, blocked intermediate resume, durable pause, and successful resume only after both reconciliations.
-- Pending exact-head GitHub Actions validation. This does not independently validate operator-supplied provider evidence or a deployed production environment.
+- Initial implementation head CI run #44016900395 passed (673 backend tests); the documentation-inclusive final PR head is validated separately. This does not independently validate operator-supplied provider evidence or a deployed production environment.
