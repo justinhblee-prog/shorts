@@ -26,6 +26,15 @@ class SeedDevelopmentJobsTests(unittest.TestCase):
         self.assertEqual(self.store.get("DEV-ORCH-005")["worker_id"], "seed-test-worker")
         self.assertEqual(self.store.get("DEV-ORCH-009")["status"], "blocked")
         self.assertEqual(self.store.get("DEV-ORCH-010")["status"], "blocked")
+        self.assertEqual(self.store.get("DEV-ORCH-009")["scope"], [
+            ".github/workflows/nexus-development-job-worker.yml",
+            "backend/run_development_agent.py",
+            "backend/development_backlog_service.py",
+        ])
+        self.assertEqual(self.store.get("DEV-ORCH-010")["scope"], [
+            ".github/workflows/nexus-development-job-worker.yml",
+            "backend/development_job_worker.py",
+        ])
         self.assertEqual(len(self.store.events("DEV-ORCH-009")), initial_dependency_events)
 
     def test_dependency_chain_unlocks_only_after_all_prerequisites_complete(self):
