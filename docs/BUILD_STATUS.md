@@ -2217,3 +2217,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve explicit caller-supplied `now` semantics for deterministic scheduling and tests.
 - Add lock-contention regressions for both acquire and renew, asserting no clock read while blocked and verifying persisted expiry/update timestamps.
 - Validation: pending exact-head GitHub Actions.
+
+
+## BUILD-00294 — dispatch reservation clock after SQLite write lock
+
+- Move implicit `dispatch_due` clock sampling inside `BEGIN IMMEDIATE`.
+- Validate the scheduler fencing lease in the same write transaction as due-occurrence reservation, closing the pre-lock lease-check race.
+- Add a lock-contention regression that verifies the clock is not sampled while blocked and that outbox/schedule timestamps use the post-lock time.
+- Validation: pending exact-head GitHub Actions.
