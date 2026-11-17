@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from pydantic import BaseModel, Field, StrictInt
 from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflict
+from development_jobs import DevelopmentJobStore, DevelopmentJobNotFound
 from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
 from profitability import OpportunityStore, score_opportunity, analyze_competition
@@ -100,6 +101,7 @@ ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+development_job_store=DevelopmentJobStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
 
 class Enqueue(BaseModel):
@@ -1347,6 +1349,46 @@ def get_events(jid:str,x_review_token:str|None=Header(default=None)):
     try: queue.get(jid); return {"events":review_store.sanitize_queue_events(queue.events(jid))}
     except JobNotFound: raise HTTPException(404,"Job not found")
 
+
+
+@app.get("/api/development/jobs/summary")
+def development_job_summary(x_review_token:str|None=Header(default=None)):
+    require_review_permission(x_review_token,"operations.read")
+    return development_job_store.summary()
+
+
+@app.get("/api/development/jobs")
+def list_development_jobs(
+    status:str|None=None,
+    limit:int=Query(default=100,ge=1,le=500),
+    x_review_token:str|None=Header(default=None),
+):
+    require_review_permission(x_review_token,"operations.read")
+    statuses=[item.strip() for item in status.split(",") if item.strip()] if status else None
+    return {"jobs":development_job_store.list(statuses=statuses,limit=limit),
+            "summary":development_job_store.summary()}
+
+
+@app.get("/api/development/jobs/{job_id}/events")
+def development_job_events(
+    job_id:str,
+    limit:int=Query(default=100,ge=1,le=500),
+    x_review_token:str|None=Header(default=None),
+):
+    require_review_permission(x_review_token,"operations.read")
+    try:
+        return {"events":development_job_store.events(job_id,limit)}
+    except DevelopmentJobNotFound:
+        raise HTTPException(404,"Development job not found")
+
+
+@app.get("/api/development/jobs/{job_id}")
+def get_development_job(job_id:str,x_review_token:str|None=Header(default=None)):
+    require_review_permission(x_review_token,"operations.read")
+    job=development_job_store.get(job_id)
+    if job is None:
+        raise HTTPException(404,"Development job not found")
+    return {"job":job}
 
 
 @app.get("/api/preflight")
