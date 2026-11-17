@@ -465,7 +465,11 @@
       const scope=Array.isArray(job.scope)?job.scope.join(", "):"범위 미지정";
       const worker=job.worker_id?" · "+job.worker_id:"";
       const attempts=Number(job.attempts||0)+"/"+Number(job.max_attempts||0);
-      return '<button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p></button>';
+      const lease=job.lease_expires_at?"Lease 만료 예정: "+job.lease_expires_at:"활성 Lease 없음";
+      const updated=job.updated_at?"최근 갱신: "+job.updated_at:"갱신 기록 없음";
+      const changed=Array.isArray(job.changed_files)&&job.changed_files.length?job.changed_files.join(", "):"아직 기록된 변경 파일 없음";
+      const evidence=job.validation_ref?"검증 증거: "+job.validation_ref:"검증 증거 대기";
+      return '<button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p><small>'+esc(lease)+' · '+esc(updated)+'</small><p>변경 파일: '+esc(changed)+'</p><small>'+esc(evidence)+'</small></button>';
     }).join(""):'<div class="empty-state">등록된 개발 잡이 없습니다. 현재 화면은 실제 저장소의 개발 잡 데이터만 표시합니다.</div>';
     document.querySelectorAll("[data-development-job]").forEach(item=>item.setAttribute("aria-pressed",String(item.getAttribute("data-development-job")===hostDevelopmentJobSelected)));
   }
