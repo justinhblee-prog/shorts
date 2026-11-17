@@ -2312,3 +2312,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add regression coverage proving mutation and deletion fail with `sqlite3.IntegrityError` and both records remain present.
 - Scope limitation: this is application/database-trigger protection against accidental mutation, not tamper-proof storage against privileged schema or database-file modification.
 - GitHub Actions run #43995020465 passed on implementation head `daa75c737b9d5b5b63b12b110dd65bdeb60ccfd0` (668 backend tests). The later documentation-only checkpoint will receive its own exact-head CI run.
+
+
+## BUILD-00304 — prevent retry authorization after late production completion
+- Harden `JobQueue.reconcile_production_retry`: if the production run is already `approved` or `uploaded`, reject the retry authorization rather than silently leaving that run unchanged while making its queue job retryable.
+- When a production-run row exists and is eligible, require the same transaction to update exactly that row before recording reconciliation events.
+- Preserve the existing supported case where the production_runs table or the individual run row does not yet exist.
+- Add a regression simulating a late authoritative upload completion after an ambiguous queue cancellation; verify the queue remains cancelled, the production run remains uploaded, the global pause remains, and no retry audit is written.
+- Validation: pending exact-head GitHub Actions.
