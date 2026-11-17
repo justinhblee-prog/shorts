@@ -108,7 +108,7 @@ def initialize_development_job_registry():
     seed_development_jobs(development_job_store)
 
 
-app.add_event_handler("startup", initialize_development_job_registry)
+app.router.on_startup.append(initialize_development_job_registry)
 media_stager=MediaStager()
 
 class Enqueue(BaseModel):
