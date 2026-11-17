@@ -78,9 +78,9 @@ class TikTokOAuthStore:
             c.close()
 
     def create_state(self, state_hash, ttl_seconds=600):
-        now = _now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            now = _now()
             c.execute("DELETE FROM tiktok_oauth_states WHERE expires_at<? OR used_at IS NOT NULL",
                       (_stamp(now),))
             c.execute(
@@ -89,9 +89,9 @@ class TikTokOAuthStore:
             )
 
     def consume_state(self, state_hash):
-        now = _stamp(_now())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            now = _stamp(_now())
             row = c.execute(
                 "SELECT * FROM tiktok_oauth_states WHERE state_hash=?", (state_hash,)
             ).fetchone()
@@ -153,9 +153,9 @@ class TikTokOAuthStore:
         }
 
     def acquire_refresh_lease(self, owner_id, lease_seconds=60):
-        now = _now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            now = _now()
             row = c.execute("SELECT * FROM tiktok_oauth_refresh_lease WHERE id=1").fetchone()
             if row and row["expires_at"] > _stamp(now) and row["owner_id"] != owner_id:
                 return None

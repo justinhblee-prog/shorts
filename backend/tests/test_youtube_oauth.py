@@ -3,7 +3,9 @@ import os
 import sqlite3
 import tempfile
 import unittest
-from datetime import date
+import threading
+from datetime import date, datetime, timezone, timedelta
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 from cryptography.fernet import Fernet
@@ -92,6 +94,66 @@ class YouTubeOAuthTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_oauth_state_create_and_consume_clocks_wait_for_write_lock(self):
+        decision = datetime(2036, 7, 8, 9, 10, 17, tzinfo=timezone.utc)
+
+        def assert_clock_waits(operation, expected_message):
+            clock_called = threading.Event()
+            started = threading.Event()
+            outcome = {}
+
+            def controlled_now():
+                clock_called.set()
+                return decision
+
+            def run():
+                started.set()
+                try:
+                    outcome["result"] = operation()
+                except Exception as exc:
+                    outcome["error"] = exc
+
+            with self.store.db() as holder:
+                holder.execute("BEGIN IMMEDIATE")
+                with patch("youtube_oauth._now", side_effect=controlled_now):
+                    thread = threading.Thread(target=run)
+                    thread.start()
+                    self.assertTrue(started.wait(1))
+                    self.assertFalse(clock_called.wait(0.1), expected_message)
+                    holder.commit()
+                    thread.join(2)
+                self.assertFalse(thread.is_alive(), "OAuth state transition did not finish")
+            self.assertNotIn("error", outcome)
+            return outcome.get("result")
+
+        state_hash = "state-hash-lock-clock"
+        assert_clock_waits(
+            lambda: self.store.create_state(state_hash, 600),
+            "YouTube OAuth state creation clock sampled before write lock",
+        )
+        with self.store.db() as connection:
+            created = connection.execute(
+                "SELECT created_at,expires_at FROM youtube_oauth_states WHERE state_hash=?",
+                (state_hash,),
+            ).fetchone()
+        self.assertEqual(created["created_at"], decision.isoformat())
+        self.assertEqual(
+            created["expires_at"],
+            (decision + timedelta(seconds=600)).isoformat(),
+        )
+
+        assert_clock_waits(
+            lambda: self.store.consume_state(state_hash),
+            "YouTube OAuth state consumption clock sampled before write lock",
+        )
+        with self.store.db() as connection:
+            consumed = connection.execute(
+                "SELECT used_at FROM youtube_oauth_states WHERE state_hash=?",
+                (state_hash,),
+            ).fetchone()
+        self.assertEqual(consumed["used_at"], decision.isoformat())
+
 
     def test_authorization_url_requests_offline_access_and_required_scopes(self):
         result = self.manager.start_authorization()

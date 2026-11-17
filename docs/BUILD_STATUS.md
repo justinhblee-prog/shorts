@@ -2168,9 +2168,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based remaining-work plan, phase exit criteria, and launch checklist.
 
 - The current repository does not define a finite total engineering acceptance backlog; therefore no honest overall project completion percentage can yet be calculated from BUILD numbers or open PR counts.
-- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #307 head `0431b7598dbd751b45d555b607fc540b11d67182` (run #43992793568). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
+- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #308 head `5f379a6cc9c85baacde235f7279c75ccea7a9785` (run #43993408489). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
 - Launch-gate progress: **1/8 (12.5%)**. This is not an overall product completion percentage.
-- PRs #288–#295 and #297–#307 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve the no-merge/no-main-push constraint.
+- PRs #288–#295 and #297–#308 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve the no-merge/no-main-push constraint.
 - BUILD-00289 (PR #294), BUILD-00290 (PR #295), and BUILD-00291 (PR #297) have successful exact-head GitHub Actions validation.
 - BUILD-00292 (PR #298) passed CI on exact head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`.
 - BUILD-00293 (PR #299) passed CI on exact head `724d4f78425577debc74a7990cf4d34133162390`.
@@ -2181,7 +2181,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - BUILD-00298 (PR #304) passed CI on latest docs-inclusive head `29759c56e2d05f8cf1226b55101dc612776214db` (run #43992018437; 660 backend tests).
 - BUILD-00299 (PR #305) passed CI on latest docs-inclusive head `705e897582d0592174719bc4bcff66051c4cc58d` (run #43992365077).
 - BUILD-00300 (PR #306) passed CI on latest docs-inclusive head `d0e37b075d2efa46d0a0366642f75ce824238d7d` (run #43992684188; 664 backend tests).
-- BUILD-00301 (PR #307) passed CI on exact code head `0431b7598dbd751b45d555b607fc540b11d67182` (run #43992793568).
+- BUILD-00301 (PR #307) passed CI on latest docs-inclusive head `001237c0cbb20b885557dec3ad2e1ec7c412cb58` (run #43992985705).
+- BUILD-00302 (PR #308) passed CI on latest head `5f379a6cc9c85baacde235f7279c75ccea7a9785` (run #43993408489).
 - CI and deterministic SQLite coverage must remain separate from live external-service and production validation.
 
 
@@ -2288,3 +2289,17 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reuse one post-lock timestamp for operator reconciliation state and event records.
 - Add a lock-contention regression for upload-touch writes.
 - GitHub Actions run #43992793568 passed on exact PR #307 code head `0431b7598dbd751b45d555b607fc540b11d67182`. Deterministic SQLite coverage only; live YouTube API/deployed upload validation is not claimed.
+
+
+## BUILD-00302 — serialize OAuth state and refresh lease clocks
+- Move YouTube and TikTok OAuth state creation/consumption clock reads inside SQLite's `BEGIN IMMEDIATE` write transactions.
+- Move TikTok refresh-lease acquisition time sampling inside its write transaction.
+- Add lock-contention regressions for OAuth state creation/consumption and TikTok refresh-lease acquisition.
+- GitHub Actions is running on PR #308 code head `220737ee5383531164001befdf938a717411a6f7`; deterministic SQLite/controlled-clock coverage only. Live Google/TikTok OAuth provider validation is not claimed.
+
+
+## BUILD-00302 — serialize OAuth state and refresh lease clocks
+- Move YouTube and TikTok OAuth state creation/consumption clock reads inside SQLite's `BEGIN IMMEDIATE` write transactions.
+- Move TikTok refresh-lease acquisition time sampling inside its write transaction.
+- Add lock-contention regressions for OAuth state creation/consumption and TikTok refresh-lease acquisition.
+- GitHub Actions run #43993408489 passed on latest PR #308 head `5f379a6cc9c85baacde235f7279c75ccea7a9785`. Deterministic SQLite/controlled-clock coverage only; live Google/TikTok OAuth provider validation is not claimed.

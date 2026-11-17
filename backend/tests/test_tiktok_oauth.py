@@ -2,7 +2,9 @@ import json
 import os
 import tempfile
 import unittest
+import threading
 from datetime import datetime, timezone, timedelta
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 from cryptography.fernet import Fernet
@@ -45,6 +47,78 @@ class TikTokOAuthTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_oauth_state_and_refresh_lease_clocks_wait_for_write_lock(self):
+        decision = datetime(2036, 7, 8, 9, 10, 18, tzinfo=timezone.utc)
+
+        def assert_clock_waits(operation, expected_message):
+            clock_called = threading.Event()
+            started = threading.Event()
+            outcome = {}
+
+            def controlled_now():
+                clock_called.set()
+                return decision
+
+            def run():
+                started.set()
+                try:
+                    outcome["result"] = operation()
+                except Exception as exc:
+                    outcome["error"] = exc
+
+            with self.store.db() as holder:
+                holder.execute("BEGIN IMMEDIATE")
+                with patch("tiktok_oauth._now", side_effect=controlled_now):
+                    thread = threading.Thread(target=run)
+                    thread.start()
+                    self.assertTrue(started.wait(1))
+                    self.assertFalse(clock_called.wait(0.1), expected_message)
+                    holder.commit()
+                    thread.join(2)
+                self.assertFalse(thread.is_alive(), "TikTok OAuth transition did not finish")
+            self.assertNotIn("error", outcome)
+            return outcome.get("result")
+
+        state_hash = "state-hash-lock-clock"
+        assert_clock_waits(
+            lambda: self.store.create_state(state_hash, 600),
+            "TikTok OAuth state creation clock sampled before write lock",
+        )
+        with self.store.db() as connection:
+            created = connection.execute(
+                "SELECT created_at,expires_at FROM tiktok_oauth_states WHERE state_hash=?",
+                (state_hash,),
+            ).fetchone()
+        self.assertEqual(created["created_at"], decision.isoformat())
+        self.assertEqual(
+            created["expires_at"],
+            (decision + timedelta(seconds=600)).isoformat(),
+        )
+
+        assert_clock_waits(
+            lambda: self.store.consume_state(state_hash),
+            "TikTok OAuth state consumption clock sampled before write lock",
+        )
+        with self.store.db() as connection:
+            consumed = connection.execute(
+                "SELECT used_at FROM tiktok_oauth_states WHERE state_hash=?",
+                (state_hash,),
+            ).fetchone()
+        self.assertEqual(consumed["used_at"], decision.isoformat())
+
+        assert_clock_waits(
+            lambda: self.store.acquire_refresh_lease("refresh-worker", 60),
+            "TikTok refresh lease clock sampled before write lock",
+        )
+        with self.store.db() as connection:
+            lease = connection.execute(
+                "SELECT expires_at FROM tiktok_oauth_refresh_lease WHERE id=1"
+            ).fetchone()
+        self.assertEqual(
+            lease["expires_at"],
+            (decision + timedelta(seconds=60)).isoformat(),
+        )
 
     def test_authorization_state_is_random_hashed_and_one_time(self):
         result = self.manager.start_authorization()

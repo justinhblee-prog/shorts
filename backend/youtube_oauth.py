@@ -98,9 +98,9 @@ class YouTubeOAuthStore:
             connection.close()
 
     def create_state(self, state_hash, ttl_seconds=600):
-        now = _now()
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            now = _now()
             connection.execute(
                 "DELETE FROM youtube_oauth_states WHERE expires_at<? OR used_at IS NOT NULL",
                 (_stamp(now),),
@@ -111,9 +111,9 @@ class YouTubeOAuthStore:
             )
 
     def consume_state(self, state_hash):
-        now = _stamp(_now())
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            now = _stamp(_now())
             row = connection.execute(
                 "SELECT * FROM youtube_oauth_states WHERE state_hash=?",
                 (state_hash,),
