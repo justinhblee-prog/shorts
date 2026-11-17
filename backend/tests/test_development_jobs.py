@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import tempfile
 import unittest
 
@@ -83,7 +84,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                 "SELECT id FROM development_job_events WHERE job_id=? LIMIT 1",
                 (job["id"],),
             ).fetchone()["id"]
-            with self.assertRaisesRegex(self.store.__class__.__module__ and Exception,
+            with self.assertRaisesRegex(sqlite3.IntegrityError,
                                         "development job events are immutable"):
                 connection.execute("UPDATE development_job_events SET actor='tampered' WHERE id=?",
                                    (event_id,))
