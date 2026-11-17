@@ -833,5 +833,32 @@
   const youtubeOAuthResult=new URLSearchParams(window.location.search).get("youtube_oauth");
   if(youtubeOAuthResult==="connected")toast("YouTube OAuth 승인 및 암호화 토큰 저장 완료 · 실계정 API 검증은 별도입니다.");
   else if(youtubeOAuthResult==="error"||youtubeOAuthResult==="denied")toast("YouTube OAuth 연결이 완료되지 않았습니다. 설정과 동의 권한을 확인하세요.");
+  // Keep workspace navigation synchronized with the section currently in view.
+  const workspaceLinks=Array.from(document.querySelectorAll('.main-nav a[href^="#"]'));
+  const workspaceTargets=workspaceLinks.map(link=>{
+    const id=link.getAttribute("href").slice(1);
+    return id==="home" ? document.querySelector(".hero") : document.getElementById(id);
+  }).filter(Boolean);
+  function setActiveWorkspace(targetId){
+    workspaceLinks.forEach(link=>{
+      const active=link.getAttribute("href")==="#"+targetId;
+      if(active){link.setAttribute("aria-current","page");link.classList.add("is-active");}
+      else{link.removeAttribute("aria-current");link.classList.remove("is-active");}
+    });
+  }
+  workspaceLinks.forEach(link=>link.addEventListener("click",()=>setActiveWorkspace(link.getAttribute("href").slice(1))));
+  if("IntersectionObserver" in window){
+    const workspaceObserver=new IntersectionObserver(entries=>{
+      const visible=entries.filter(entry=>entry.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];
+      if(visible){setActiveWorkspace(visible.target.id||"home");}
+    },{rootMargin:"-18% 0px -68% 0px",threshold:[0,0.15,0.35,0.6]});
+    workspaceTargets.forEach(target=>workspaceObserver.observe(target));
+  }
+  const initialWorkspace=window.location.hash.slice(1);
+  setActiveWorkspace(workspaceLinks.some(link=>link.getAttribute("href")==="#"+initialWorkspace)?initialWorkspace:"home");
+  window.addEventListener("hashchange",()=>{
+    const id=window.location.hash.slice(1);
+    setActiveWorkspace(workspaceLinks.some(link=>link.getAttribute("href")==="#"+id)?id:"home");
+  });
   loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
 })();

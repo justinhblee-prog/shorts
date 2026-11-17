@@ -173,3 +173,18 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('items.slice(0,4)', app_js)
         self.assertIn('href="#review"', app_js)
         self.assertIn('.cyber-approval-list', css)
+
+
+    def test_cyber_magic_workspace_navigation_is_accessible_and_tracks_active_section(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        css = (frontend / "cyber-magic.css").read_text(encoding="utf-8")
+        for label in ("Dashboard", "AI Content Studio", "Content Planner and Intelligence", "Approvals and Publishing", "Analytics and Operations"):
+            self.assertIn(f'aria-label="{label}"', html)
+        self.assertIn("IntersectionObserver", app_js)
+        self.assertIn('setAttribute("aria-current","page")', app_js)
+        self.assertIn('removeAttribute("aria-current")', app_js)
+        self.assertIn(".main-nav a[aria-current=\"page\"]", css)
+        self.assertIn(".main-nav a:nth-child(5):before", css)
+        self.assertIn("prefers-reduced-motion:reduce", css)
