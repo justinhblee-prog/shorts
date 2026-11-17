@@ -81,6 +81,17 @@ class DevelopmentJobStore:
             );
             CREATE INDEX IF NOT EXISTS idx_dev_job_events_job
               ON development_job_events(job_id,id);
+            CREATE TABLE IF NOT EXISTS development_workers(
+              worker_id TEXT PRIMARY KEY,
+              hostname TEXT,
+              status TEXT NOT NULL DEFAULT 'offline',
+              current_job_id TEXT,
+              started_at TEXT NOT NULL,
+              last_seen_at TEXT NOT NULL,
+              stopped_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_development_workers_seen
+              ON development_workers(last_seen_at,status);
             CREATE TRIGGER IF NOT EXISTS development_job_events_no_update
               BEFORE UPDATE ON development_job_events
               BEGIN SELECT RAISE(ABORT,'development job events are immutable'); END;
@@ -463,6 +474,60 @@ class DevelopmentJobStore:
             return [dict(row) | {"details": json.loads(row["details_json"])}
                     for row in reversed(rows)]
 
+    def touch_worker(self, worker_id, hostname=None, current_job_id=None):
+        if not isinstance(worker_id, str) or not worker_id.strip():
+            raise ValueError("worker_id is required")
+        if hostname is not None and not isinstance(hostname, str):
+            raise ValueError("hostname must be a string")
+        if current_job_id is not None and not isinstance(current_job_id, str):
+            raise ValueError("current_job_id must be a string")
+        worker_id = worker_id.strip()
+        timestamp = _stamp(_now())
+        with self.db() as connection:
+            connection.execute(
+                """INSERT INTO development_workers
+                   (worker_id,hostname,status,current_job_id,started_at,last_seen_at,stopped_at)
+                   VALUES(?,?, 'online', ?,?,?,NULL)
+                   ON CONFLICT(worker_id) DO UPDATE SET
+                     hostname=COALESCE(excluded.hostname,development_workers.hostname),
+                     status='online',current_job_id=excluded.current_job_id,
+                     last_seen_at=excluded.last_seen_at,stopped_at=NULL""",
+                (worker_id, hostname, current_job_id, timestamp, timestamp),
+            )
+        return self.get_worker(worker_id)
+
+    def stop_worker(self, worker_id):
+        timestamp = _stamp(_now())
+        with self.db() as connection:
+            cursor = connection.execute(
+                """UPDATE development_workers SET status='offline',
+                   current_job_id=NULL,last_seen_at=?,stopped_at=? WHERE worker_id=?""",
+                (timestamp, timestamp, worker_id),
+            )
+            return cursor.rowcount > 0
+
+    def get_worker(self, worker_id):
+        with self.db() as connection:
+            row = connection.execute(
+                "SELECT * FROM development_workers WHERE worker_id=?", (worker_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_workers(self, online_within_seconds=90):
+        if isinstance(online_within_seconds, bool) or not isinstance(online_within_seconds, int) or online_within_seconds < 1:
+            raise ValueError("online_within_seconds must be a positive integer")
+        cutoff = _stamp(_now() - timedelta(seconds=online_within_seconds))
+        with self.db() as connection:
+            rows = connection.execute(
+                "SELECT * FROM development_workers ORDER BY last_seen_at DESC,worker_id"
+            ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["is_online"] = item["status"] == "online" and item["last_seen_at"] >= cutoff
+            result.append(item)
+        return result
+
     def summary(self):
         with self.db() as connection:
             counts = {row["status"]: row["count"] for row in connection.execute(
@@ -486,6 +551,14 @@ class DevelopmentJobStore:
                    WHERE status='completed' AND validation_ref IS NOT NULL
                    ORDER BY completed_at DESC,id DESC LIMIT 1"""
             ).fetchone()
+            worker_cutoff = _stamp(_now() - timedelta(seconds=90))
+            worker_counts = connection.execute(
+                """SELECT
+                     SUM(CASE WHEN status='online' AND last_seen_at>=? THEN 1 ELSE 0 END) AS online,
+                     COUNT(*) AS total
+                   FROM development_workers""",
+                (worker_cutoff,),
+            ).fetchone()
             return {"total": sum(counts.values()), "by_status": counts,
                     "ready": counts.get("ready", 0), "running": counts.get("running", 0),
                     "blocked": counts.get("blocked", 0), "retry_wait": counts.get("retry_wait", 0),
@@ -494,4 +567,4 @@ class DevelopmentJobStore:
                     "active_leases": lease_counts["active"] or 0,
                     "expired_leases": lease_counts["expired"] or 0,
                     "latest_updated_at": latest["updated_at"] if latest else None,
-                    "latest_validation_ref": latest_validation["validation_ref"] if latest_validation else None}
+                    "latest_validation_ref": latest_validation["validation_ref"] if latest_validation else None,\n                    "online_workers": worker_counts["online"] or 0,\n                    "known_workers": worker_counts["total"] or 0}
