@@ -78,5 +78,24 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["latest_validation_ref"], "ci://run/42")
 
 
+    def test_worker_presence_endpoint_requires_operations_read(self):
+        workers = [{
+            "worker_id": "runner-a", "hostname": "windows-runner",
+            "status": "online", "current_job_id": "DEV-ORCH-005",
+            "last_seen_at": "2026-11-17T10:00:00+00:00", "is_online": True,
+        }]
+        summary = {"online_workers": 1, "known_workers": 1}
+        with (
+            mock.patch.object(app_module, "require_review_permission") as auth,
+            mock.patch.object(app_module.development_job_store, "list_workers", return_value=workers),
+            mock.patch.object(app_module.development_job_store, "summary", return_value=summary),
+        ):
+            result = app_module.list_development_workers(x_review_token="monitor-token")
+        auth.assert_called_once_with("monitor-token", "operations.read")
+        self.assertEqual(result["workers"][0]["worker_id"], "runner-a")
+        self.assertTrue(result["workers"][0]["is_online"])
+        self.assertEqual(result["summary"]["online_workers"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
