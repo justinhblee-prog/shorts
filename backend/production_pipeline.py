@@ -158,12 +158,12 @@ class ProductionStore:
                brief["topic"], timestamp, timestamp))
 
     @staticmethod
-    def _assert_worker_lease(c, job_id, worker_id, lease_token):
+    def _assert_worker_lease(c, job_id, worker_id, lease_token, now_value=None):
         if not worker_id or not lease_token:
             raise ProductionLeaseConflict("Worker ID and fencing token are required")
         row = c.execute("""SELECT status,worker_id,lease_token,lease_expires_at
             FROM pipeline_jobs WHERE id=?""", (job_id,)).fetchone()
-        now = utc_now()
+        now = now_value or utc_now()
         if (row is None or row["status"] != "running"
                 or row["worker_id"] != worker_id
                 or row["lease_token"] != lease_token
@@ -176,14 +176,14 @@ class ProductionStore:
     def stage(self, job_id, stage, status="running", error=None,
               worker_id=None, lease_token=None):
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            timestamp = utc_now()
             if worker_id is not None or lease_token is not None:
-                c.execute("BEGIN IMMEDIATE")
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, timestamp)
             if stage == "script" and status == "running":
                 # A fresh attempt invalidates every artifact from the previous attempt.
                 # Keep this in the same transaction as the fenced stage transition.
                 c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
-            timestamp = utc_now()
             updated=c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
                          WHERE job_id=?""", (stage, status, error, timestamp, job_id))
             if updated.rowcount != 1:
@@ -244,9 +244,10 @@ class ProductionStore:
         if url is not None and not isinstance(url, str):
             raise ValueError("artifact URL must be a string or null")
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            timestamp = utc_now()
             if worker_id is not None or lease_token is not None:
-                c.execute("BEGIN IMMEDIATE")
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, timestamp)
             c.execute("""INSERT INTO production_artifacts
               (id,job_id,stage,artifact_type,artifact_url,metadata_json,created_at)
               VALUES(?,?,?,?,?,?,?)
@@ -256,7 +257,7 @@ class ProductionStore:
                 metadata_json=excluded.metadata_json,
                 created_at=excluded.created_at""",
               (str(uuid.uuid4()), job_id, stage, artifact_type, url,
-               json.dumps(metadata, ensure_ascii=False), utc_now()))
+               json.dumps(metadata, ensure_ascii=False), timestamp))
 
 
     def next_provider_attempt_number(self, job_id, stage):
@@ -301,11 +302,11 @@ class ProductionStore:
         """Persist the provider request identity before any external side effect."""
         attempt_number = max(1, int(attempt_number))
         request_key = str(uuid.uuid4())
-        timestamp = utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            timestamp = utc_now()
             if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, timestamp)
             unresolved=c.execute("""SELECT attempt_number,state
                 FROM provider_execution_attempts
                 WHERE job_id=? AND stage=?
@@ -329,11 +330,11 @@ class ProductionStore:
         safe_response=json.dumps(response,ensure_ascii=False)
         if len(safe_response.encode("utf-8")) > 2_000_000:
             raise ValueError("provider response exceeds 2 MB recovery limit")
-        timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            timestamp=utc_now()
             if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, timestamp)
             updated=c.execute("""UPDATE provider_execution_attempts
                 SET state='response_received',provider_request_id=?,
                     response_json=?,completed_at=?,error=NULL
@@ -348,11 +349,11 @@ class ProductionStore:
     def mark_provider_attempt_adopted(self, job_id, stage, attempt_number,
                                       worker_id=None, lease_token=None):
         """Mark a durable provider response consumed after its artifact is persisted."""
-        timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            timestamp=utc_now()
             if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, timestamp)
             updated=c.execute("""UPDATE provider_execution_attempts
                 SET state='adopted',adopted_at=?,completed_at=COALESCE(completed_at,?)
                 WHERE job_id=? AND stage=? AND attempt_number=?
@@ -365,11 +366,11 @@ class ProductionStore:
     def mark_provider_attempt_unknown(self, job_id, stage, attempt_number,
                                       request_key, error, worker_id=None, lease_token=None):
         """A transport error cannot prove that the provider did not execute the request."""
-        timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            timestamp=utc_now()
             if worker_id is not None or lease_token is not None:
-                self._assert_worker_lease(c, job_id, worker_id, lease_token)
+                self._assert_worker_lease(c, job_id, worker_id, lease_token, timestamp)
             updated=c.execute("""UPDATE provider_execution_attempts
                 SET state='outcome_unknown',error=?,completed_at=?
                 WHERE job_id=? AND stage=? AND attempt_number=?
@@ -387,9 +388,9 @@ class ProductionStore:
             raise ValueError("operator, evidence reference and note are required")
         if any(len(value)>limit for value,limit in zip(values,(128,1000,2000))):
             raise ValueError("provider reconciliation metadata exceeds its limit")
-        timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            timestamp=utc_now()
             attempt=c.execute("""SELECT stage,state FROM provider_execution_attempts
                 WHERE id=? AND job_id=?""",(attempt_id,job_id)).fetchone()
             if attempt is None:
@@ -452,9 +453,9 @@ class ProductionStore:
                 or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest)
                 or size <= 0):
             raise ValueError("staged media fingerprint is invalid")
-        timestamp=utc_now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            timestamp=utc_now()
             attempt=c.execute("""SELECT * FROM provider_execution_attempts
                 WHERE id=? AND job_id=? AND stage='rendering'""",
                 (attempt_id,job_id)).fetchone()
