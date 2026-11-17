@@ -155,4 +155,4 @@ These are additional readiness constraints documented by the project, not comple
 - Default worker IDs are now derived from the host name so a process restart on the same host rotates the existing registry generation and fences the prior process incarnation.
 - Set `NEXUS_WORKER_ID` explicitly to a stable per-worker identity when the runtime hostname is ephemeral (for example, replaceable containers); do not use a random per-process value.
 - Regression coverage: same-host restart identity stability, explicit override, and empty-host rejection.
-- Exact-head CI pending. This does not replace lease fencing or prove a distributed deployment's hostname/identity configuration.
+- GitHub Actions runs #44015403212 and #44015410742 passed on implementation head `2a787581317cf4372f4dcf936ba56bec1079f199` (672 backend tests). This does not replace lease fencing or prove a distributed deployment's hostname/identity configuration. The documentation-inclusive checkpoint is being revalidated.
