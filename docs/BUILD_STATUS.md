@@ -2168,9 +2168,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based remaining-work plan, phase exit criteria, and launch checklist.
 
 - The current repository does not define a finite total engineering acceptance backlog; therefore no honest overall project completion percentage can yet be calculated from BUILD numbers or open PR counts.
-- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #305 head `6011e49cab4b09de103eeb187f52ff0177291f0c` (run #43992153984). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
+- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #306 head `3980ce2afb996d25823e0a6532e7317b23f4e99a` (run #43992497146). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
 - Launch-gate progress: **1/8 (12.5%)**. This is not an overall product completion percentage.
-- PRs #288–#295 and #297–#305 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve the no-merge/no-main-push constraint.
+- PRs #288–#295 and #297–#306 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve the no-merge/no-main-push constraint.
 - BUILD-00289 (PR #294), BUILD-00290 (PR #295), and BUILD-00291 (PR #297) have successful exact-head GitHub Actions validation.
 - BUILD-00292 (PR #298) passed CI on exact head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`.
 - BUILD-00293 (PR #299) passed CI on exact head `724d4f78425577debc74a7990cf4d34133162390`.
@@ -2179,7 +2179,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - BUILD-00296 (PR #302) passed CI on latest docs-inclusive head `22af5871853f7f124af9c92b37bf9887d3126a3a` (run #43991125723).
 - BUILD-00297 (PR #303) passed CI on latest docs-inclusive head `5db4bd5ba8d307e9cd7c72aab5b3afd09dc1eedd` (run #43991573385).
 - BUILD-00298 (PR #304) passed CI on latest docs-inclusive head `29759c56e2d05f8cf1226b55101dc612776214db` (run #43992018437; 660 backend tests).
-- BUILD-00299 (PR #305) passed CI on code head `6011e49cab4b09de103eeb187f52ff0177291f0c` (run #43992153984); documentation follow-up validation is pending.
+- BUILD-00299 (PR #305) passed CI on latest docs-inclusive head `705e897582d0592174719bc4bcff66051c4cc58d` (run #43992365077).
+- BUILD-00300 (PR #306) passed CI on exact code head `3980ce2afb996d25823e0a6532e7317b23f4e99a` (run #43992497146; 664 backend tests).
 - CI and deterministic SQLite coverage must remain separate from live external-service and production validation.
 
 
@@ -2270,3 +2271,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Move metrics collection-state and video-snapshot timestamps inside their write transactions, always acquiring the immediate lock even without optional lease arguments.
 - Add lock-contention regressions for acquire, renew, collection-state and snapshot writes.
 - GitHub Actions run #43992153984 passed on exact PR #305 code head `6011e49cab4b09de103eeb187f52ff0177291f0c`. Deterministic SQLite coverage only; live YouTube API and deployed collector validation are not claimed.
+
+
+## BUILD-00300 — serialize TikTok publication timestamps
+- Acquire SQLite's `BEGIN IMMEDIATE` before sampling the TikTok pre-remote failure timestamp.
+- Reuse one transaction timestamp for consent/start, initialization, active status transitions and their audit events.
+- Reuse one post-lock timestamp for operator reconciliation age validation, final state and event records.
+- Add a lock-contention regression for the pre-remote failure transition.
+- GitHub Actions run #43992497146 passed on exact PR #306 code head `3980ce2afb996d25823e0a6532e7317b23f4e99a` (664 backend tests). Deterministic SQLite coverage only; live TikTok API/deployed publisher validation is not claimed.

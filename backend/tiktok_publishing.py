@@ -162,6 +162,7 @@ class TikTokPublishStore:
                     "A previous TikTok publish attempt is unresolved or already active; "
                     "refresh its status before any new attempt"
                 )
+            stamp = _now()
             c.execute("""
               INSERT INTO tiktok_publications
                 (job_id,status,privacy_level,title,is_aigc,brand_content_toggle,
@@ -178,7 +179,7 @@ class TikTokPublishStore:
                 attempt_id=excluded.attempt_id,policy_version=excluded.policy_version,
                 policy_checked_on=excluded.policy_checked_on
             """, (job_id, title, int(is_aigc), int(brand_content_toggle),
-                  int(brand_organic_toggle), operator_id, _now(), _now(),
+                  int(brand_organic_toggle), operator_id, stamp, stamp,
                   attempt_id, POLICY_VERSION, policy_checked_on))
             c.execute("""
               INSERT INTO tiktok_publication_events
@@ -187,7 +188,7 @@ class TikTokPublishStore:
               VALUES(?,?, 'operator_consent_recorded','accepted',?,?,?,?,?)
             """, (job_id, attempt_id, operator_id,
                   "Explicit consent to send this approved video to TikTok; SELF_ONLY only",
-                  _now(), POLICY_VERSION, policy_checked_on))
+                  stamp, POLICY_VERSION, policy_checked_on))
         return self.get(job_id)
 
     def set_initialized(self, job_id, attempt_id, publish_id, creator):
@@ -199,12 +200,13 @@ class TikTokPublishStore:
             ).fetchone()
             if not row or row["attempt_id"] != attempt_id or row["status"] != "initializing":
                 raise TikTokPublishError("TikTok attempt changed during initialization")
+            stamp = _now()
             c.execute("""
               UPDATE tiktok_publications SET publish_id=?,status='uploading',
                 creator_username=?,creator_nickname=?,updated_at=?
               WHERE job_id=? AND attempt_id=?
             """, (publish_id, creator.get("creator_username"),
-                  creator.get("creator_nickname"), _now(), job_id, attempt_id))
+                  creator.get("creator_nickname"), stamp, job_id, attempt_id))
             c.execute("""
               INSERT INTO tiktok_publication_events
                 (job_id,attempt_id,event_type,outcome,publish_id,operator_id,
@@ -212,7 +214,7 @@ class TikTokPublishStore:
               SELECT job_id,attempt_id,'publish_initialized','accepted',publish_id,
                      operator_id,'SELF_ONLY Direct Post initialized',?,policy_version,policy_checked_on
               FROM tiktok_publications WHERE job_id=?
-            """, (_now(), job_id))
+            """, (stamp, job_id))
 
     def mark_status(self, job_id, attempt_id, status, video_ids=None, fail_reason=None, expected_status=None):
         allowed = {
@@ -278,12 +280,13 @@ class TikTokPublishStore:
                 raise TikTokPublishError(
                     "TikTok publication state changed while the status request was in flight"
                 )
+            stamp = _now()
             updated = c.execute("""
               UPDATE tiktok_publications SET status=?,video_id=COALESCE(?,video_id),
                 fail_reason=?,updated_at=? WHERE job_id=? AND attempt_id=?
                 AND (? IS NULL OR status=?)
                 AND status NOT IN ('publish_complete','failed','send_to_inbox')
-            """, (normalized, video_id, fail_reason, _now(), job_id, attempt_id,
+            """, (normalized, video_id, fail_reason, stamp, job_id, attempt_id,
                   expected_status, expected_status))
             if updated.rowcount != 1:
                 current = c.execute(
@@ -303,7 +306,7 @@ class TikTokPublishStore:
               VALUES(?,?,?,?,?,?,?,?,?,?)
             """, (job_id, attempt_id, "status_refreshed", status,
                   row["publish_id"], video_id, row["operator_id"],
-                  fail_reason or "", _now(), row["policy_version"]))
+                  fail_reason or "", stamp, row["policy_version"]))
         return self.get(job_id)
 
     def mark_uncertain(self, job_id, attempt_id, message):
@@ -424,8 +427,10 @@ class TikTokPublishStore:
                     updated_at = updated_at.replace(tzinfo=timezone.utc)
             except (TypeError, ValueError):
                 raise TikTokPublishError("Uncertain attempt timestamp is invalid; manual database review required")
-            if (datetime.now(timezone.utc) - updated_at).total_seconds() < 900:
+            now = datetime.now(timezone.utc)
+            if (now - updated_at).total_seconds() < 900:
                 raise TikTokPublishError("Wait at least 15 minutes after the uncertain attempt before reconciliation")
+            stamp = now.isoformat()
             if outcome == "published":
                 duplicate = c.execute(
                     "SELECT job_id FROM tiktok_publications WHERE video_id=? AND job_id<>? LIMIT 1",
@@ -437,13 +442,13 @@ class TikTokPublishStore:
                 c.execute("""UPDATE tiktok_publications SET status='publish_complete',
                     video_id=?,fail_reason=NULL,error=NULL,updated_at=?
                     WHERE job_id=? AND status='reconciliation_required' AND attempt_id=?""",
-                    (video_id.strip(), _now(), job_id, row["attempt_id"]))
+                    (video_id.strip(), stamp, job_id, row["attempt_id"]))
             else:
                 resulting_status = "failed"
                 c.execute("""UPDATE tiktok_publications SET status='failed',error=?,
                     updated_at=? WHERE job_id=? AND status='reconciliation_required'
                     AND attempt_id=?""",
-                    ("Operator verified no matching TikTok post. " + note, _now(),
+                    ("Operator verified no matching TikTok post. " + note, stamp,
                      job_id, row["attempt_id"]))
             if c.execute("SELECT changes()").fetchone()[0] != 1:
                 raise TikTokPublishError("TikTok publication state changed during reconciliation")
@@ -453,7 +458,7 @@ class TikTokPublishStore:
                 VALUES(?,?,'operator_reconciliation',?,?,?,?,?,?,?)""",
                 (job_id, row["attempt_id"], outcome, row["publish_id"],
                  video_id.strip() if isinstance(video_id, str) else None,
-                 operator_id, note, _now(), row["policy_version"]))
+                 operator_id, note, stamp, row["policy_version"]))
             result = c.execute(
                 "SELECT * FROM tiktok_publications WHERE job_id=?", (job_id,)
             ).fetchone()
@@ -467,10 +472,12 @@ class TikTokPublishStore:
 
     def mark_failed_before_remote(self, job_id, attempt_id, message):
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            stamp = _now()
             c.execute("""
               UPDATE tiktok_publications SET status='failed',error=?,updated_at=?
               WHERE job_id=? AND attempt_id=? AND status='initializing'
-            """, (message[:1000], _now(), job_id, attempt_id))
+            """, (message[:1000], stamp, job_id, attempt_id))
 
     def due_status_job_ids(self, limit=5, min_age_seconds=60):
         minimum_age = max(0, int(min_age_seconds))

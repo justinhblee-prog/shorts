@@ -5,6 +5,7 @@ import tempfile, threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 from production_pipeline import ProductionStore
 from queue_store import JobQueue
@@ -119,6 +120,48 @@ class TikTokPublishingTests(unittest.TestCase):
                 ("2000-01-01T00:00:00+00:00", "job-1"),
             )
         return attempt_id
+
+    def test_mark_failed_before_remote_samples_clock_after_write_lock(self):
+        self.store.begin(
+            "job-1", "Lock contention test", True, "operator-1",
+            "attempt-before-remote-lock", False, False,
+        )
+        decision = "2036-07-08T09:10:15+00:00"
+        clock_called = threading.Event()
+        started = threading.Event()
+        outcome = {}
+
+        def controlled_now():
+            clock_called.set()
+            return decision
+
+        def fail_before_remote():
+            started.set()
+            try:
+                self.store.mark_failed_before_remote(
+                    "job-1", "attempt-before-remote-lock", "local preflight failed"
+                )
+            except Exception as exc:
+                outcome["error"] = exc
+
+        with self.store.db() as holder:
+            holder.execute("BEGIN IMMEDIATE")
+            with patch("tiktok_publishing._now", side_effect=controlled_now):
+                thread = threading.Thread(target=fail_before_remote)
+                thread.start()
+                self.assertTrue(started.wait(1))
+                self.assertFalse(
+                    clock_called.wait(0.1),
+                    "TikTok failure timestamp must not be sampled before the SQLite write lock",
+                )
+                holder.commit()
+                thread.join(2)
+            self.assertFalse(thread.is_alive(), "TikTok failure transition did not finish")
+
+        self.assertNotIn("error", outcome)
+        row = self.store.get("job-1")
+        self.assertEqual(row["status"], "failed")
+        self.assertEqual(row["updated_at"], decision)
 
     def test_begin_rechecks_current_approval_and_queue_state_atomically(self):
         # Simulate a reviewer reopening the job after publisher preflight but
