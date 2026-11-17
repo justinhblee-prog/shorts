@@ -261,6 +261,22 @@
       const value=deltas[item.platform+":"+item.video_id+":"+item.collected_at];
       return value===undefined?"—":(value>0?"+":"")+value.toLocaleString();
     };
+    const platformLatest={youtube:[],tiktok:[]};
+    Object.entries(grouped).forEach(([key,items])=>{
+      const chronological=[...items].sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||"")));
+      const latest=chronological.find(item=>{
+        const metric=item.platform==="youtube"?"views":"view_count";
+        return item[metric]!==null&&item[metric]!==undefined&&Number.isFinite(Number(item[metric]))&&Number(item[metric])>=0;
+      });
+      if(latest)platformLatest[latest.platform].push(Number(latest[latest.platform==="youtube"?"views":"view_count"]));
+    });
+    const platformSummary=["youtube","tiktok"].map(platform=>{
+      const values=platformLatest[platform];
+      const total=values.reduce((sum,value)=>sum+value,0);
+      const average=values.length?Math.round(total/values.length):null;
+      return '<article class="analytics-platform-card"><span>'+ (platform==="youtube"?"YouTube":"TikTok") +'</span><strong>'+ (values.length?total.toLocaleString():"—") +'</strong><small>영상 '+values.length+'개 · 영상당 평균 '+(average===null?"—":average.toLocaleString())+'</small></article>';
+    }).join("");
+    const platformComparison='<section class="analytics-platform-comparison"><div class="analytics-trend-heading"><strong>플랫폼별 최신 조회수 요약</strong><span>영상별 최신 스냅샷 기준</span></div><div class="analytics-platform-grid">'+platformSummary+'</div><p class="analytics-chart-note">플랫폼별 수집 영상 수와 최신 조회수 합계의 참고 지표입니다. 플랫폼별 조회수 정의·수집 범위가 다르므로 우열이나 성과 순위로 해석하지 마세요.</p></section>';
     const chartGroups=Object.entries(grouped).map(([key,items])=>{
       const metric=items[0]?.platform==="youtube"?"views":"view_count";
       const points=items.map(item=>({time:Date.parse(item.collected_at),value:Number(item[metric])}))
@@ -291,7 +307,7 @@
       })()
       : '<div class="analytics-chart-empty">추이 그래프를 표시하려면 동일 영상의 유효한 조회수 스냅샷이 최소 2개 필요합니다.</div>';
     $("analyticsHistory").innerHTML=rows.length
-      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개</div>'+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>평균 시청 비율</th></tr></thead><tbody>'
+      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개</div>'+platformComparison+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>평균 시청 비율</th></tr></thead><tbody>'
       +rows.slice(0,200).map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>').join("")
       +'</tbody></table></div>'
       : '<div class="empty-state">선택한 기간에 저장된 성과 스냅샷이 없습니다. 데이터 수집이 완료된 후 다시 조회하세요.</div>';
