@@ -18,11 +18,11 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 
 ## Current checkpoint
 
-- Latest work item: BUILD-00288, worker lifecycle audit timestamp consistency.
-- PR #293: https://github.com/justinhblee-prog/shorts/pull/293 (BUILD-00288 CI verified)
-- Current PR #293 head: `aa789fb3d7b759e54c5fea596c32d752f183126d`.
-- GitHub Actions check for that exact head: success. Workflow runs Python 3.11, installs backend requirements, and executes `sh scripts/validate.sh`.
-- PRs #288–#294 remain open Draft PRs in a stacked chain; none is merged. Preserve Draft status and do not merge or push to main.
+- Latest completed engineering item: BUILD-00291 — append-only queue and worker-control audit events.
+- PR #297: https://github.com/justinhblee-prog/shorts/pull/297 (BUILD-00291 CI verified)
+- Current PR #297 head: `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a`.
+- GitHub Actions Backend tests run #43984822638 for that exact head: success.
+- PRs #288–#295 and #297 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve Draft status and do not merge or push to main.
 - Completed next item: BUILD-00289 — capture enqueue transition timestamp after acquiring SQLite's immediate write lock and reuse it for the enqueue audit event. Its exact PR head passed GitHub Actions.\n- Active work item: BUILD-00290 — capture production-run creation time after acquiring SQLite's immediate write lock and reuse one timestamp for both created_at and updated_at.
 
 ## Phase 1 — Engineering closure (rolling)
@@ -85,3 +85,15 @@ These are additional readiness constraints documented by the project, not comple
 - Do not mark an item complete from source inspection alone when its exit criterion requires deployed or external evidence.
 - Keep every PR Draft and unmerged; use a stacked branch chain. Never push directly to main.
 - Update this file and `docs/BUILD_STATUS.md` when a gate changes state or a new material blocker is discovered.
+
+
+### Engineering checkpoint — BUILD-00291
+- Active work: append-only audit history for queue events and worker-control events.
+- Required evidence: both audit tables reject UPDATE and DELETE with SQLite integrity errors while ordinary event appends continue to work.
+- Limitation: privileged modification of the SQLite schema or database file remains outside this protection.
+
+
+### BUILD-00291 — verified
+- GitHub Actions Backend tests run #43984822638 passed on exact PR #297 head `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a`.
+- `job_events` and `worker_control_events` reject UPDATE and DELETE through SQLite triggers.
+- The protection does not prevent privileged schema or database-file modification and is not an external tamper-proof audit service.

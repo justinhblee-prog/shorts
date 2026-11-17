@@ -254,6 +254,8 @@ class ReviewWorkflowTests(unittest.TestCase):
 
     def test_review_decision_fails_closed_when_durable_queue_job_is_missing(self):
         with self.queue.db() as connection:
+            # Simulate out-of-band database tampering to exercise the missing-row guard.
+            connection.execute("DROP TRIGGER job_events_no_delete")
             connection.execute("DELETE FROM pipeline_jobs WHERE id=?", ("job-1",))
         with self.assertRaisesRegex(ReviewConflict, "Durable queue job is missing"):
             self.review.decide("job-1", "approved", "operator-1", "Reviewed")

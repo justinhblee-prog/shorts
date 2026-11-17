@@ -2168,10 +2168,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based remaining-work plan, phase exit criteria, and launch checklist.
 
 - The current repository does not define a finite total engineering acceptance backlog; therefore no honest overall project completion percentage can yet be calculated from BUILD numbers or open PR counts.
-- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by the successful GitHub Actions workflow on PR #293 head `aa789fb3d7b759e54c5fea596c32d752f183126d`. The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
+- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #297 head `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a` (Backend tests run #43984822638). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
 - Launch-gate progress: **1/8 (12.5%)**. This is not an overall product completion percentage.
-- PRs #288–#293 remain open Draft PRs in a stacked chain and are unmerged. Preserve the no-merge/no-main-push constraint.
-- Next engineering item: BUILD-00289 — move enqueue timestamp capture after SQLite `BEGIN IMMEDIATE` and persist that same timestamp to the enqueue audit event.
+- PRs #288–#295 and #297 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve the no-merge/no-main-push constraint.
+- BUILD-00289 (PR #294) and BUILD-00290 (PR #295) are complete with successful exact-head GitHub Actions validation.
+- BUILD-00291 (PR #297) is complete with successful Backend tests run #43984822638 on exact head `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a`.
 - CI and deterministic SQLite coverage must remain separate from live external-service and production validation.
 
 
@@ -2185,3 +2186,19 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Persist one identical timestamp to production_runs.created_at and updated_at instead of sampling the clock twice before the implicit write transaction.
 - Add a lock-contention regression that verifies no clock read occurs while waiting for the lock and both persisted fields use the same decision time.
 - Validation pending GitHub Actions; local SQLite regression is not live deployment validation.
+
+
+## BUILD-00291 — append-only queue and worker-control audit events
+
+- Added SQLite update/delete rejection triggers for `job_events` and `worker_control_events`.
+- Added regression coverage that checks `sqlite3.IntegrityError` for mutation and deletion attempts on both audit tables.
+- This protects against accidental/application-level mutation, not privileged schema or database-file modification.
+- GitHub Actions Backend tests run #43984822638 passed on exact PR #297 head `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a`. Local SQLite/CI only; no production tamper-proof storage is claimed.
+
+
+## BUILD-00291 — append-only queue and worker-control audit events
+- SQLite triggers reject UPDATE and DELETE operations against `job_events` and `worker_control_events`.
+- Regression tests assert SQLite integrity errors for mutation/deletion attempts against both audit tables.
+- Missing-queue-row guard tests explicitly remove the trigger before simulating out-of-band deletion; normal operation retains append-only protection.
+- GitHub Actions Backend tests run #43984822638 passed on exact PR #297 head `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a`.
+- This is database-local protection, not tamper-proof storage against privileged schema/database-file modification.
