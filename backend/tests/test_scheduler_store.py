@@ -37,6 +37,60 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(job["idempotency_key"],
                          "schedule:" + item["id"] + ":" + item["next_run_at"])
 
+    def test_dispatch_due_samples_clock_after_write_lock(self):
+        due = datetime(2026, 11, 17, 11, 0, tzinfo=timezone.utc)
+        item = self.schedule(due)
+        sampled_time = threading.Event()
+        operation_started = threading.Event()
+        observed = {}
+
+        class ControlledDateTime:
+            @staticmethod
+            def now(tz=None):
+                sampled_time.set()
+                return datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+
+        class PausedQueue:
+            @staticmethod
+            def is_paused():
+                return True
+
+        def dispatch():
+            operation_started.set()
+            observed["result"] = self.schedules.dispatch_due(PausedQueue())
+
+        with self.schedules.db() as blocker:
+            blocker.execute("BEGIN IMMEDIATE")
+            with patch.object(scheduler_store_module, "datetime", ControlledDateTime):
+                thread = threading.Thread(target=dispatch)
+                thread.start()
+                self.assertTrue(operation_started.wait(2))
+                self.assertFalse(
+                    sampled_time.wait(0.1),
+                    "dispatch clock must not be sampled before the SQLite write lock",
+                )
+                blocker.commit()
+                thread.join(5)
+                self.assertFalse(thread.is_alive(), "dispatch reservation did not finish")
+
+        self.assertEqual(observed["result"]["count"], 0)
+        self.assertTrue(observed["result"]["paused"])
+        with self.schedules.db() as connection:
+            outbox = connection.execute(
+                "SELECT created_at FROM schedule_dispatch_outbox WHERE schedule_id=?",
+                (item["id"],),
+            ).fetchone()
+            schedule = connection.execute(
+                "SELECT updated_at,next_run_at FROM production_schedules WHERE id=?",
+                (item["id"],),
+            ).fetchone()
+        self.assertEqual(outbox["created_at"], "2026-11-17T12:00:00+00:00")
+        self.assertEqual(schedule["updated_at"], "2026-11-17T12:00:00+00:00")
+        self.assertGreater(
+            datetime.fromisoformat(schedule["next_run_at"]),
+            datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc),
+        )
+
     def test_scheduled_tiktok_platform_is_preserved_in_dispatched_job(self):
         now=datetime.now(timezone.utc)
         item=self.schedules.create(
