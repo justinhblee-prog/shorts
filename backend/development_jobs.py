@@ -131,7 +131,7 @@ class DevelopmentJobStore:
         )
 
     def create(self, title, description="", priority=100, scope=None, acceptance=None,
-               max_attempts=3, source_ref=None):
+               max_attempts=3, source_ref=None, job_id=None):
         if not isinstance(title, str) or not title.strip() or len(title) > 240:
             raise ValueError("title must contain 1 to 240 characters")
         if isinstance(priority, bool) or not isinstance(priority, int):
@@ -146,7 +146,12 @@ class DevelopmentJobStore:
             raise ValueError("acceptance must be a list of non-empty strings")
         if source_ref is not None and (not isinstance(source_ref, str) or len(source_ref) > 500):
             raise ValueError("source_ref must be a string of at most 500 characters")
-        job_id = str(uuid.uuid4())
+        if job_id is None:
+            job_id = str(uuid.uuid4())
+        elif not isinstance(job_id, str) or not job_id.strip() or len(job_id) > 128:
+            raise ValueError("job_id must contain 1 to 128 characters")
+        else:
+            job_id = job_id.strip()
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
             timestamp = _stamp(_now())
