@@ -170,6 +170,27 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
 
+    def test_summary_reports_active_expired_leases_and_latest_validation(self):
+        active = self.store.create("Active lease", scope=["backend/active.py"])
+        claim = self.store.claim_ready("worker-a")
+        completed = self.store.create("Completed work", scope=["backend/done.py"])
+        done_claim = self.store.claim_ready("worker-b")
+        self.store.complete(completed["id"], "worker-b", done_claim["lease_token"],
+                            ["backend/done.py"], True, "ci://run/42")
+        expired = self.store.create("Expired lease", scope=["backend/expired.py"])
+        expired_claim = self.store.claim_ready("worker-c")
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE development_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+                (expired["id"],),
+            )
+        summary = self.store.summary()
+        self.assertEqual(summary["active_leases"], 1)
+        self.assertEqual(summary["expired_leases"], 1)
+        self.assertEqual(summary["latest_validation_ref"], "ci://run/42")
+        self.assertTrue(summary["latest_updated_at"])
+
+
 
 if __name__ == "__main__":
     unittest.main()
