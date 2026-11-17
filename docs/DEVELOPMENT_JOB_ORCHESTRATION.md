@@ -93,6 +93,7 @@ The current Draft PR #321 contains the following prototype components:
 
 - `backend/development_jobs.py`: SQLite-backed job graph, dependency checks, leases, heartbeat/fencing, append-only events, retry/quarantine, and completion evidence gate.
 - `backend/development_job_worker.py`: bounded worker lifecycle, heartbeat, retries, and idle draining.
+- `backend/tests/test_development_worker_workflow_contract.py`: regression checks for the two-hour schedule, manual dispatch, trusted runner/model, split GitHub credentials, and stable Draft PR branch.
 - `backend/development_github_intake.py`: read-only GitHub Issues/PR/Actions intake, deduplication, and explicit per-issue file-scope approval.
 - `backend/development_backlog_service.py`: sync → register → worker cycle coordinator.
 - `backend/run_development_agent.py`: one-cycle runner that seeds the engineering graph and injects the local Aider/Ollama executor.
