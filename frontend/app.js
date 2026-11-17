@@ -227,8 +227,14 @@
         ? '<small>재시도 가능 · 게시 결과 중복 여부를 확인한 후 진행하세요.</small>'
         : (tiktokStatus==="failed"?'<small>재시도 가능 여부 미확인 · 자동 재전송하지 않습니다.</small>':"");
       const tiktokIdSummary=item.tiktok_video_id?'<p>TikTok 영상 ID: '+esc(item.tiktok_video_id)+'</p>':"";
+      const ytEvents=Array.isArray(item.upload_events)?item.upload_events:[];
+      const ttEvents=Array.isArray(item.tiktok_events)?item.tiktok_events:[];
+      const latestYt=ytEvents.length?ytEvents[ytEvents.length-1]:null;
+      const latestTt=ttEvents.length?ttEvents[ttEvents.length-1]:null;
+      const eventTime=event=>event?.created_at||event?.occurred_at||event?.updated_at||"";
+      const historySummary='<div class="review-meta">YouTube 최근 변경: '+esc(eventTime(latestYt)||"기록 없음")+' · TikTok 최근 변경: '+esc(eventTime(latestTt)||"기록 없음")+'</div>';
       const statusText=status==="late_success_review_required"?"늦은 업로드 성공 · 운영자 확인 필요":(uncertain?"업로드 결과 확인 필요":(status==="uploading"?"업로드 진행 중":(status==="failed"?"이전 업로드 실패 · 재시도 가능":(status==="uploaded"?"업로드 완료":"업로드 대기"))));
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><p>'+esc(tiktokStatusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokIdSummary+tiktokFailureSummary+tiktokRetrySummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><p>'+esc(tiktokStatusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+historySummary+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokIdSummary+tiktokFailureSummary+tiktokRetrySummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
   }
   async function loadYouTubeConnection(){
