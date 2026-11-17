@@ -76,7 +76,12 @@
   }
   async function loadReviews(){
     const data=await api("/api/review/pending?limit=100");
-    const items=data.items||[];$("reviewCount").textContent=items.length+" ITEMS";
+    const items=data.items||[];
+    const dashboardApproval=document.getElementById("cyberApprovalList");
+    if(dashboardApproval){
+      dashboardApproval.innerHTML=items.length?items.slice(0,4).map(item=>'<a class="cyber-approval-item" href="#review"><span class="cyber-approval-dot"></span><span><b>'+esc(item.brand)+' · '+esc(item.topic)+'</b><small>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status||"검수 대기")+'</small></span><span class="cyber-approval-arrow">↗</span></a>').join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
+    }
+    $("reviewCount").textContent=items.length+" ITEMS";
     $("metricReview").textContent=items.length;
     $("reviewList").innerHTML=items.length?items.map(item=>{
       const artifacts=item.artifacts||[];
