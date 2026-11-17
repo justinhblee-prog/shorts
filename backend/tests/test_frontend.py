@@ -147,6 +147,6 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertLess(html.index('/assets/styles.css'), html.index('/assets/cyber-magic.css'))
         self.assertIn('Workspace navigation', html)
         self.assertIn('AI Content Studio', html)
-        self.assertIn('Approvals &amp; Publishing', html)
+        self.assertIn('Approvals & Publishing', html)
         self.assertIn('position:fixed', css)
         self.assertIn('prefers-reduced-motion', css)
