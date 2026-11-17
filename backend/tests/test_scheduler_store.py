@@ -73,8 +73,8 @@ class SchedulerTests(unittest.TestCase):
                 thread.join(5)
                 self.assertFalse(thread.is_alive(), "dispatch reservation did not finish")
 
-        self.assertEqual(observed["result"]["count"], 0)
-        self.assertTrue(observed["result"]["paused"])
+        self.assertEqual(observed["count"], 0)
+        self.assertTrue(observed["paused"])
         with self.schedules.db() as connection:
             outbox = connection.execute(
                 "SELECT created_at FROM schedule_dispatch_outbox WHERE schedule_id=?",
