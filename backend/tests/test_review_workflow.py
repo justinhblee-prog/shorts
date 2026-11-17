@@ -1,5 +1,6 @@
 import json
 import os
+import sqlite3
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -44,6 +45,37 @@ class ReviewWorkflowTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_review_decision_and_policy_evidence_audits_are_append_only(self):
+        with self.review.db() as connection:
+            connection.execute("""
+                INSERT INTO review_decisions
+                  (job_id,decision,previous_status,reviewer_id,comment,
+                   artifact_snapshot_json,created_at)
+                VALUES('job-1','approved','review_pending','operator-1','Reviewed','[]','2035-01-01T00:00:00+00:00')
+            """)
+            connection.execute("""
+                INSERT INTO policy_evidence_events
+                  (job_id,reviewer_id,declarations_json,report_json,created_at)
+                VALUES('job-1','operator-1','{}','{}','2035-01-01T00:00:00+00:00')
+            """)
+            for statement in (
+                "UPDATE review_decisions SET comment='tampered' WHERE job_id='job-1'",
+                "DELETE FROM review_decisions WHERE job_id='job-1'",
+                "UPDATE policy_evidence_events SET declarations_json='{}' WHERE job_id='job-1'",
+                "DELETE FROM policy_evidence_events WHERE job_id='job-1'",
+            ):
+                with self.subTest(statement=statement):
+                    with self.assertRaises(sqlite3.IntegrityError):
+                        connection.execute(statement)
+
+        with self.review.db() as connection:
+            self.assertEqual(connection.execute(
+                "SELECT COUNT(*) FROM review_decisions WHERE job_id='job-1'"
+            ).fetchone()[0], 1)
+            self.assertEqual(connection.execute(
+                "SELECT COUNT(*) FROM policy_evidence_events WHERE job_id='job-1'"
+            ).fetchone()[0], 1)
 
     def test_pending_queue_contains_real_artifact_reference(self):
         pending = self.review.list_pending()
