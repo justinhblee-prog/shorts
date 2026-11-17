@@ -53,3 +53,29 @@
 
 /* Read-only production/queue lifecycle integrity diagnostics. */
 .integrity-summary{margin:14px 0}.integrity-status{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid #34425d;border-radius:10px;background:#0d1628}.integrity-status b{font-size:14px}.integrity-status span{font-size:10px;color:var(--muted)}.integrity-warning{border-color:#8c5b38;background:#2a211d}.integrity-warning b{color:var(--amber)}.integrity-clear{border-color:#39706e;background:#122725}.integrity-clear b{color:var(--cyan)}.integrity-item{padding:14px 0;border-bottom:1px solid #2a3850}.integrity-item:last-child{border-bottom:0}.integrity-item-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.integrity-item-head b{font-size:12px}.integrity-item-head code{font-size:9px;overflow-wrap:anywhere}.integrity-ledgers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.integrity-ledgers>div{display:flex;flex-direction:column;gap:3px;padding:9px;border:1px solid #2c3a54;border-radius:8px;background:#0d1628}.integrity-ledgers small,.integrity-ledgers time{font-size:9px;color:var(--muted);overflow-wrap:anywhere}.integrity-ledgers strong{font-size:12px}.integrity-item p{font-size:10px;color:#b6c3d8;margin:8px 0}.integrity-item .integrity-next{padding:9px 10px;border-left:2px solid var(--amber);background:#1b2435}.integrity-error{display:block;color:var(--red);font-size:9px;overflow-wrap:anywhere}.integrity-item details{margin-top:9px;font-size:10px}.integrity-item summary{cursor:pointer;color:#a9b8d0}.integrity-audit{padding:7px 0;border-bottom:1px solid #293750}.integrity-audit b,.integrity-audit small{display:block;font-size:9px}.integrity-audit small{color:var(--muted);margin-top:3px}.integrity-boundary{display:block;color:#8494ae;font-size:9px;margin-top:10px}
+
+
+/* Engineering development-job monitor */
+.development-job-metrics{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;margin:18px 0}
+.development-job-metric{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
+.development-job-metric small{display:block;color:var(--muted);font-size:11px}
+.development-job-metric strong{display:block;font:700 26px var(--mono);margin-top:5px}
+.development-job-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:16px;align-items:start}
+.development-job-list,.development-job-events{display:grid;gap:10px;max-height:620px;overflow:auto}
+.development-job-item{border:1px solid var(--line);border-radius:12px;padding:13px;background:var(--panel2);cursor:pointer;text-align:left;color:var(--text);width:100%;font:inherit}
+.development-job-item:hover,.development-job-item[aria-pressed="true"]{border-color:var(--cyan);background:#17273a}
+.development-job-item-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.development-job-item-head b{font-size:13px}
+.development-job-item p{margin:7px 0;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.development-job-item small{color:var(--muted);font:10px var(--mono)}
+.development-job-status{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px 8px;font:10px var(--mono);white-space:nowrap}
+.development-job-status.running,.development-job-status.leased{border-color:#3b9c8c;color:var(--cyan)}
+.development-job-status.completed{border-color:#438b62;color:#9be0ad}
+.development-job-status.quarantined,.development-job-status.failed{border-color:#a85c69;color:#ff9ba7}
+.development-job-status.retry_wait{border-color:#9c7c3f;color:var(--amber)}
+.development-job-event{border-left:2px solid var(--line);padding:2px 0 12px 12px;margin-left:4px}
+.development-job-event b{display:block;font-size:12px}
+.development-job-event small{display:block;color:var(--muted);font-size:10px;margin-top:3px;overflow-wrap:anywhere}
+.development-job-empty{color:var(--muted);padding:18px;text-align:center}
+@media(max-width:1050px){.development-job-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.development-job-layout{grid-template-columns:1fr}}
+@media(max-width:560px){.development-job-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.development-job-item-head{align-items:flex-start;flex-direction:column}}

@@ -1,0 +1,113 @@
+name: NEXUS development job worker
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */2 * * *"
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: nexus-development-job-worker
+  cancel-in-progress: false
+
+jobs:
+  development-cycle:
+    # Requires the repository-owned Windows runner with Ollama and
+    # qwen2.5-coder:7b installed. Scheduled workflows run from the default branch.
+    runs-on: [self-hosted, windows, nexus-local-ai]
+    timeout-minutes: 100
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify Python, Ollama and local model
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          python --version
+          if ($LASTEXITCODE -ne 0) { throw "Python is required on the self-hosted runner." }
+          if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
+            throw "Ollama is not installed or not on PATH."
+          }
+          $models = ollama list
+          if ($LASTEXITCODE -ne 0) { throw "ollama list failed." }
+          $models | Out-Host
+          if (-not ($models | Select-String -SimpleMatch "qwen2.5-coder:7b")) {
+            throw "qwen2.5-coder:7b is not installed on the local runner."
+          }
+          $health = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -TimeoutSec 10
+          if (-not $health.models) { throw "Ollama API returned no installed models." }
+
+      - name: Install backend runtime dependencies
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m pip install -r backend/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "Backend dependency installation failed." }
+
+      - name: Install and verify local Aider CLI
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m pip install --user aider-chat
+          if ($LASTEXITCODE -ne 0) { throw "Aider installation failed." }
+          $userScripts = python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
+          if (-not (Test-Path (Join-Path $userScripts "aider.exe"))) {
+            throw "Aider executable was not installed in the user scripts directory."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $userScripts
+          $env:PATH = "$userScripts;$env:PATH"
+          aider --version
+          if ($LASTEXITCODE -ne 0) { throw "Aider CLI verification failed." }
+
+      - name: Execute one dependency-aware development cycle
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          RUNNER_NAME: ${{ runner.name }}
+          OLLAMA_API_BASE: http://127.0.0.1:11434
+          NEXUS_DEV_AGENT_MODEL: ollama_chat/qwen2.5-coder:7b
+          NEXUS_APPROVED_SCOPES: ${{ secrets.NEXUS_APPROVED_SCOPES }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not $env:GITHUB_TOKEN) {
+            throw "Configure NEXUS_GITHUB_READ_TOKEN as a fine-grained read-only GitHub token."
+          }
+          if (-not $env:NEXUS_APPROVED_SCOPES) {
+            $env:NEXUS_APPROVED_SCOPES = "{}"
+          }
+          python backend/run_development_agent.py
+          if ($LASTEXITCODE -ne 0) { throw "Development agent cycle failed." }
+
+      - name: Create Draft PR for verified changes only
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ github.event.repository.default_branch }}
+          branch: automation/nexus-development-cycle
+          delete-branch: false
+          draft: true
+          title: "AUTO: NEXUS development cycle ${{ github.run_number }}"
+          body: |
+            ## Automated local-model development cycle
+            - Worker: dependency-aware SQLite development-job scheduler
+            - Model: repository-owned Ollama runner (qwen2.5-coder:7b)
+            - Changes are produced only within an explicitly approved file scope.
+            - Repository validation must pass before a job is marked complete.
+            - This PR is Draft. No automatic merge or deployment is permitted.
+            - External provider integrations and production behavior are not implied.

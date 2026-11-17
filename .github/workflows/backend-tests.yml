@@ -6,6 +6,8 @@ on:
       - "frontend/**"
       - "scripts/**"
       - ".github/workflows/backend-tests.yml"
+      - ".github/workflows/nexus-development-job-worker.yml"
+      - ".github/workflows/nexus-continuous-codex.yml"
   pull_request:
     paths:
       - "backend/**"
@@ -22,3 +24,4 @@ jobs:
           python-version: "3.11"
       - run: pip install -r backend/requirements.txt
       - run: sh scripts/validate.sh
+      - run: node --check frontend/app.js

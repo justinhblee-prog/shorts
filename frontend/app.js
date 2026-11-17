@@ -440,10 +440,51 @@
     integrityNextCursor=report.next_cursor;
     $("integrityMore").style.display=report.has_more?"inline-flex":"none";
   }
+  const developmentStatusLabels={ready:"대기",blocked:"선행 작업 대기",leased:"할당됨",running:"실행 중",retry_wait:"재시도 대기",quarantined:"격리",completed:"완료",failed:"실패",cancelled:"취소"};
+  async function loadDevelopmentJobEvents(jobId){
+    const host=$("developmentJobEvents");
+    host.innerHTML='<div class="empty-state">작업 이력을 불러오는 중...</div>';
+    const data=await api("/api/development/jobs/"+encodeURIComponent(jobId)+"/events?limit=100");
+    const events=data.events||[];
+    host.innerHTML=events.length?events.map(event=>{
+      const transition=(event.from_status||"—")+" → "+(event.to_status??"—");
+      const details=event.details&&Object.keys(event.details).length?" · "+JSON.stringify(event.details):"";
+      return '<div class="development-job-event"><b>'+esc(event.event_type)+' · '+esc(transition)+'</b><small>'+esc(event.created_at||"")+' · '+esc(event.actor||"system")+esc(details)+'</small></div>';
+    }).join(""):'<div class="empty-state">기록된 변경 이력이 없습니다.</div>';
+  }
+  async function loadDevelopmentJobs(){
+    if(!token)return;
+    const [data,workerData]=await Promise.all([
+      api("/api/development/jobs?limit=200"),
+      api("/api/development/workers?limit=50")
+    ]);
+    const summary=data.summary||{},counts=summary.by_status||{};
+    const metrics=[["전체",summary.total||0],["실행 중",(counts.running||0)+(counts.leased||0)],["온라인 Worker",summary.online_workers||0],["등록 Worker",summary.known_workers||0],["활성 Lease",summary.active_leases||0],["만료 Lease",summary.expired_leases||0],["대기",counts.ready||0],["선행 대기",counts.blocked||0],["재시도",counts.retry_wait||0],["격리",counts.quarantined||0],["완료",counts.completed||0]];
+    $("developmentJobMetrics").innerHTML=metrics.map(([label,value])=>'<div class="development-job-metric"><small>'+esc(label)+'</small><strong>'+Number(value).toLocaleString()+'</strong></div>').join("");
+    const jobs=data.jobs||[];
+    const workers=workerData.workers||[];
+    const workerLabel=workers.length?workers.map(worker=>worker.worker_id+(worker.hostname?" @ "+worker.hostname:"")+" "+(worker.is_online?"온라인":"오프라인")+(worker.current_job_id?" · "+worker.current_job_id:"")).join(" / "):"등록된 Worker 없음";
+    const health=$("developmentJobHealth");
+    if(health){health.textContent="Worker: "+workerLabel+" · 최근 갱신: "+(summary.latest_updated_at||"기록 없음")+" · 최근 성공 검증: "+(summary.latest_validation_ref||"아직 없음");}
+    $("developmentJobCount").textContent=jobs.length+" JOBS";
+    $("developmentJobList").innerHTML=jobs.length?jobs.map(job=>{
+      const status=String(job.status||"unknown");
+      const scope=Array.isArray(job.scope)?job.scope.join(", "):"범위 미지정";
+      const worker=job.worker_id?" · "+job.worker_id:"";
+      const attempts=Number(job.attempts||0)+"/"+Number(job.max_attempts||0);
+      const lease=job.lease_expires_at?"Lease 만료 예정: "+job.lease_expires_at:"활성 Lease 없음";
+      const updated=job.updated_at?"최근 갱신: "+job.updated_at:"갱신 기록 없음";
+      const changed=Array.isArray(job.changed_files)&&job.changed_files.length?job.changed_files.join(", "):"아직 기록된 변경 파일 없음";
+      const evidence=job.validation_ref?"검증 증거: "+job.validation_ref:"검증 증거 대기";
+      return '<button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p><small>'+esc(lease)+' · '+esc(updated)+'</small><p>변경 파일: '+esc(changed)+'</p><small>'+esc(evidence)+'</small></button>';
+    }).join(""):'<div class="empty-state">등록된 개발 잡이 없습니다. 현재 화면은 실제 저장소의 개발 잡 데이터만 표시합니다.</div>';
+    document.querySelectorAll("[data-development-job]").forEach(item=>item.setAttribute("aria-pressed",String(item.getAttribute("data-development-job")===hostDevelopmentJobSelected)));
+  }
+  let hostDevelopmentJobSelected="";
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight(),loadDevelopmentJobs()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -480,6 +521,15 @@
   });
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
+  $("loadDevelopmentJobs").addEventListener("click",()=>loadDevelopmentJobs().catch(e=>toast(e.message)));
+  $("developmentJobList").addEventListener("click",async event=>{
+    const button=event.target.closest("[data-development-job]");
+    if(!button)return;
+    const jobId=button.getAttribute("data-development-job");
+    hostDevelopmentJobSelected=jobId;
+    document.querySelectorAll("[data-development-job]").forEach(item=>item.setAttribute("aria-pressed",String(item===button)));
+    try{await loadDevelopmentJobEvents(jobId);}catch(error){toast(error.message);}
+  });
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
   $("youtubeConnect").addEventListener("click",async()=>{
     if(!requireToken())return;
@@ -860,5 +910,6 @@
     const id=window.location.hash.slice(1);
     setActiveWorkspace(workspaceLinks.some(link=>link.getAttribute("href")==="#"+id)?id:"home");
   });
+  window.setInterval(()=>{if(token)loadDevelopmentJobs().catch(()=>{});},15000);
   loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
 })();

@@ -17,6 +17,7 @@
       <a href="#discovery" aria-label="Content Planner and Intelligence">▦　Content Planner & Intelligence</a>
       <a href="#review" aria-label="Approvals and Publishing">☑　Approvals & Publishing</a>
       <a href="#operations" aria-label="Analytics and Operations">⌁　Analytics & Operations</a>
+      <a href="#development" aria-label="Development job monitor">▤　Development Jobs</a>
     </nav>
     <div class="top-actions"><span id="connection" class="status-pill"><i></i> 연결 확인 중</span><button class="button button-quiet" id="refreshAll">새로고침 ↻</button></div>
   </header>
@@ -134,6 +135,28 @@
           </div>
           <div id="queueDetails" class="data-list"><div class="empty-state">인증 후 작업 현황을 불러옵니다.</div></div></article>
       </div>
+    </section>
+
+    <section class="section" id="development">
+      <div class="section-heading">
+        <div><div class="eyebrow">06 / ENGINEERING CONTROL PLANE</div><h2>개발 잡 관제</h2><p>제품 제작 대기열과 분리된 개발 작업의 실제 상태입니다. 완료·실행·대기·재시도·격리 상태는 서버 저장소에서 읽습니다.</p></div>
+        <button class="button button-outline" id="loadDevelopmentJobs" type="button">개발 현황 갱신 ↻</button>
+      </div>
+      <p id="developmentJobHealth" class="panel-description">Lease 상태와 최근 검증 증거를 불러옵니다.</p>
+      <div id="developmentJobMetrics" class="development-job-metrics">
+        <div class="empty-state">API 인증 후 개발 잡 현황을 불러옵니다.</div>
+      </div>
+      <div class="development-job-layout">
+        <article class="panel">
+          <div class="panel-title"><div><span class="panel-kicker">PERSISTENT JOB REGISTRY</span><h3>개발 작업 목록</h3></div><span id="developmentJobCount" class="tag">0 JOBS</span></div>
+          <div id="developmentJobList" class="development-job-list"><div class="empty-state">개발 잡이 등록되면 이곳에 표시됩니다.</div></div>
+        </article>
+        <article class="panel">
+          <div class="panel-title"><div><span class="panel-kicker">AUDIT TRAIL</span><h3>선택 작업의 변경 이력</h3></div></div>
+          <div id="developmentJobEvents" class="development-job-events"><div class="empty-state">작업을 선택하면 실제 상태 변경 이력이 표시됩니다.</div></div>
+        </article>
+      </div>
+      <p class="panel-description">읽기 전용 관제 화면입니다. 이 화면은 작업을 임의로 완료 처리하거나 병합하지 않습니다. Worker heartbeat와 CI 결과가 들어오면 상태가 갱신됩니다.</p>
     </section>
   </main>
 
