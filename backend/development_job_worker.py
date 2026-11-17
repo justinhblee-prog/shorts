@@ -4,9 +4,12 @@ The executor is injected by the trusted runner; this module never executes
 arbitrary commands from a job record.
 """
 import threading
-import time
 
 from development_jobs import DevelopmentJobConflict
+
+
+class NonRetryableDevelopmentJobError(Exception):
+    """An execution failure that must be quarantined rather than retried."""
 
 
 class DevelopmentJobWorker:
@@ -66,6 +69,14 @@ class DevelopmentJobWorker:
             if lease_lost.is_set():
                 return "lease_lost"
             raise
+        except NonRetryableDevelopmentJobError as error:
+            if lease_lost.is_set():
+                return "lease_lost"
+            failed = self.store.fail(
+                job["id"], self.worker_id, job["lease_token"],
+                f"{type(error).__name__}: {error}", retryable=False,
+            )
+            return failed["status"]
         except Exception as error:
             if lease_lost.is_set():
                 return "lease_lost"
