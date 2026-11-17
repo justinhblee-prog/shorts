@@ -129,8 +129,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $exclude = Join-Path $env:GITHUB_WORKSPACE ".git/info/exclude"
-          Add-Content -Path $exclude -Value "`n.aider*
-.aider/"
+          Add-Content -Path $exclude -Value @(".aider*", ".aider/")
       - name: Run one bounded local-model development iteration
         shell: powershell
         env:
