@@ -232,6 +232,19 @@ class DevelopmentJobStore:
                 ).fetchall()
             return [self._decode(row) for row in rows]
 
+    @staticmethod
+    def _scopes_conflict(left, right):
+        # Empty scope means unknown write set: serialize conservatively.
+        if not left or not right:
+            return True
+        for first in left:
+            a = first.rstrip("/")
+            for second in right:
+                b = second.rstrip("/")
+                if a == b or a.startswith(b + "/") or b.startswith(a + "/"):
+                    return True
+        return False
+
     def claim_ready(self, worker_id):
         if not isinstance(worker_id, str) or not worker_id.strip() or len(worker_id) > 128:
             raise ValueError("worker_id must contain 1 to 128 characters")
@@ -276,11 +289,19 @@ class DevelopmentJobStore:
                      WHERE d.job_id=development_jobs.id AND parent.status<>'completed'
                    )""", (timestamp,)
             )
-            row = connection.execute(
+            candidates = connection.execute(
                 """SELECT * FROM development_jobs
                    WHERE status='ready' AND attempts<max_attempts
-                   ORDER BY priority,created_at LIMIT 1"""
-            ).fetchone()
+                   ORDER BY priority,created_at"""
+            ).fetchall()
+            active_rows = connection.execute(
+                """SELECT scope_json FROM development_jobs
+                   WHERE status IN ('leased','running')"""
+            ).fetchall()
+            active_scopes = [json.loads(item["scope_json"]) for item in active_rows]
+            row = next((candidate for candidate in candidates
+                        if not any(self._scopes_conflict(json.loads(candidate["scope_json"]), active)
+                                   for active in active_scopes)), None)
             if row is None:
                 connection.commit()
                 return None
