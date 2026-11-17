@@ -178,6 +178,36 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(audit[0]["previous_status"],"cancelled")
   self.assertEqual(audit[0]["resulting_status"],"failed_retriable")
 
+ def test_reconciliation_refuses_retry_when_production_run_is_approved_or_uploaded(self):
+  job=self.q.enqueue("short_video_production",{"topic":"ambiguous"})
+  with self.q.db() as c:
+   c.execute("""CREATE TABLE production_runs(
+    job_id TEXT PRIMARY KEY,status TEXT,current_stage TEXT,error TEXT,updated_at TEXT)""")
+   c.execute("INSERT INTO production_runs VALUES(?,?,?,?,?)",
+             (job["id"],"rendering","rendering",None,"now"))
+  claim=self.q.claim("worker-ambiguous",job_type="short_video_production")
+  cancelled=self.q.cancel(job["id"],"operator stop")
+  self.assertEqual(cancelled["error_code"],"cancelled_external_outcome_ambiguous")
+  # Simulate a late authoritative completion discovered before the operator
+  # attempts to authorize a retry. The retry must not overwrite this state.
+  with self.q.db() as c:
+   c.execute("UPDATE production_runs SET status='uploaded',current_stage='uploaded' WHERE job_id=?",
+             (job["id"],))
+  with self.assertRaisesRegex(ValueError,"already approved or uploaded"):
+   self.q.reconcile_production_retry(
+    job["id"],"operator-1","provider-console:request-789",
+    "Provider confirmed the upload completed",
+   )
+  persisted=self.q.get(job["id"])
+  self.assertEqual(persisted["status"],"cancelled")
+  self.assertEqual(persisted["error_code"],"cancelled_external_outcome_ambiguous")
+  with self.q.db() as c:
+   run=c.execute("SELECT status,current_stage FROM production_runs WHERE job_id=?",
+                 (job["id"],)).fetchone()
+  self.assertEqual(tuple(run),("uploaded","uploaded"))
+  self.assertEqual(self.q.production_reconciliation_events(job["id"]),[])
+  self.assertTrue(self.q.is_paused())
+
  def test_cancel_rejects_production_after_review_handoff(self):
   job=self.q.enqueue("short_video_production",{"topic":"review"})
   claim=self.q.claim("worker-review",job_type="short_video_production")
