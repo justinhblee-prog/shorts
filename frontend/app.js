@@ -185,6 +185,47 @@
     }).join("")+'<div class="metric-card"><span>승인 콘텐츠</span><strong>'+Number(data.total||0)+'</strong></div>';
   }
 
+  async function loadPublishingAnalytics(){
+    const data=await api("/api/publishing/analytics-status");
+    const platforms=[
+      ["youtube","YouTube Shorts"],
+      ["tiktok","TikTok"]
+    ];
+    const statusLabels={
+      succeeded:"수집 성공",running:"수집 중",failed:"수집 실패",
+      not_configured:"계정 미연결",scope_missing:"권한 범위 부족",
+      not_started:"수집 전"
+    };
+    const metricLabels={
+      views:"조회수",engaged_views:"참여 조회수",
+      engaged_view_share:"참여 조회 비율",estimated_minutes_watched:"시청 시간(분)",
+      average_view_duration:"평균 시청 시간",average_view_percentage:"평균 시청 비율",
+      audience_retention_curve:"시청자 유지율 곡선",view_count:"조회수",
+      like_count:"좋아요",comment_count:"댓글",share_count:"공유"
+    };
+    const stamp=value=>value?new Date(value).toLocaleString():"기록 없음";
+    $("publishingAnalytics").innerHTML=platforms.map(([key,name])=>{
+      const item=data[key]||{};
+      const coverage=item.coverage||{};
+      const available=Array.isArray(item.available_metrics)?item.available_metrics:[];
+      const unavailable=Array.isArray(item.unavailable_metrics)?item.unavailable_metrics:[];
+      const metricNames=available.map(x=>metricLabels[x]||x);
+      const unavailableNames=unavailable.map(x=>metricLabels[x]||x);
+      const total=Number(coverage.published_videos||0);
+      const collected=Number(coverage.with_snapshot||0);
+      const missing=Number(coverage.without_snapshot??coverage.stale_or_missing??Math.max(0,total-collected));
+      const coverageText=total?collected+" / "+total+"개 영상":"대상 영상 없음";
+      const batch=item.last_batch||{};
+      return '<article class="analytics-card"><div class="analytics-card-head"><strong>'+name+'</strong><span class="analytics-status">'+esc(statusLabels[item.status]||item.status||"상태 미확인")+'</span></div>'
+        +'<div class="analytics-coverage"><b>'+esc(coverageText)+'</b><small>데이터 누락·갱신 필요 '+missing+'개</small></div>'
+        +'<div class="analytics-meta"><span>최근 수집 성공</span><b>'+esc(stamp(item.last_success_at))+'</b></div>'
+        +'<div class="analytics-meta"><span>최근 수집 시도</span><b>'+esc(stamp(item.last_attempt_at))+'</b></div>'
+        +'<div class="analytics-meta"><span>최근 배치</span><b>요청 '+Number(batch.requested||0)+' · 수집 '+Number(batch.collected||0)+'</b></div>'
+        +'<div class="analytics-metrics"><small>제공 지표</small><p>'+esc(metricNames.join(" · ")||"아직 확인된 지표 없음")+'</p>'
+        +(unavailableNames.length?'<small>미제공 지표</small><p class="missing-text">'+esc(unavailableNames.join(" · "))+'</p>':'')+'</div></article>';
+    }).join("");
+  }
+
   async function loadApproved(){
     const data=await api("/api/review/approved?limit=100");
     const items=data.items||[];
@@ -477,7 +518,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadPublishingOverview(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadPublishingOverview(),loadPublishingAnalytics(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -562,6 +603,12 @@
   $("refreshPublishingOverview").addEventListener("click",async()=>{
     const button=$("refreshPublishingOverview");button.disabled=true;
     try{await loadPublishingOverview();toast("YouTube · TikTok 게시 현황을 갱신했습니다.");}
+    catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
+  $("refreshPublishingAnalytics").addEventListener("click",async()=>{
+    const button=$("refreshPublishingAnalytics");button.disabled=true;
+    try{await loadPublishingAnalytics();toast("플랫폼별 성과 데이터 수집 현황을 갱신했습니다.");}
     catch(err){toast(err.message);}
     finally{button.disabled=false;}
   });
