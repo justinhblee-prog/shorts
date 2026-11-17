@@ -13,7 +13,7 @@ import uuid
 from production_pipeline import (ProductionPipeline, ProductionStore,
                                  ProductionLeaseConflict, ProviderError, PolicyBlocked)
 from queue_store import JobQueue, LeaseConflict
-from worker_runtime import parse_worker_runtime_config, request_worker_shutdown
+from worker_runtime import (parse_worker_runtime_config, request_worker_shutdown,\n                            resolve_worker_id)
 
 
 DB_PATH = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
@@ -22,7 +22,7 @@ LEASE_SECONDS, IDLE_SECONDS, HEARTBEAT_SECONDS = parse_worker_runtime_config(
     os.getenv("NEXUS_IDLE_SECONDS", "3"),
     os.getenv("NEXUS_HEARTBEAT_SECONDS", "10"),
 )
-WORKER_ID = os.getenv("NEXUS_WORKER_ID", "nexus-production-" + str(uuid.uuid4())[:8])
+WORKER_ID = resolve_worker_id(os.getenv("NEXUS_WORKER_ID"), socket.gethostname())
 
 queue = JobQueue(DB_PATH, LEASE_SECONDS)
 store = ProductionStore(DB_PATH)
