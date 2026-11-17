@@ -714,6 +714,12 @@ class TikTokPublishingTests(unittest.TestCase):
         self.prod.artifact("job-1", "script", "text", None, {
             "script": "Approved test script", "policy_preflight": policy
         })
+        self.prod.stage("job-1", "rendered", "review_pending")
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                ("job-1",),
+            )
         self.review.decide("job-1", "approved", "reviewer-1")
         with self.assertRaisesRegex(TikTokPublishError, "blockers"):
             self.publisher.publish_private_approved(
@@ -735,6 +741,12 @@ class TikTokPublishingTests(unittest.TestCase):
         self.prod.artifact("job-1", "script", "text", None, {
             "script": "Approved test script", "policy_preflight": policy
         })
+        self.prod.stage("job-1", "rendered", "review_pending")
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                ("job-1",),
+            )
         self.review.decide("job-1", "approved", "reviewer-1")
         self.transport.calls.clear()
         self.publisher.publish_private_approved(
