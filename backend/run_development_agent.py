@@ -37,10 +37,11 @@ def run_once(environ=None):
     if not owner or not name:
         raise ValueError("GITHUB_REPOSITORY must be owner/repo")
 
+    # Validate configuration before opening the database or making network calls.
+    approved_scopes = _json_env("NEXUS_APPROVED_SCOPES", "{}")
     db_path = env.get("NEXUS_DEVELOPMENT_DB", "data/nexus-development.sqlite3")
     store = DevelopmentJobStore(db_path)
     seeded = seed_development_jobs(store)
-    approved_scopes = _json_env("NEXUS_APPROVED_SCOPES", "{}")
     github = GitHubReadOnlyClient(token)
     executor = AiderDevelopmentExecutor(
         repo_root=env.get("GITHUB_WORKSPACE", os.getcwd()),
