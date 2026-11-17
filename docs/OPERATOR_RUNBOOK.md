@@ -691,3 +691,16 @@ Integrity report pages now fetch audit history for all displayed job IDs in one 
 ## BUILD-00187 — Diagnostic error redaction
 
 The production integrity report intentionally withholds raw queue error text. Provider HTTP response bodies and exception details can contain credentials, signed URLs, or customer data. The report returns the controlled error code and a fixed message directing authorized operators to protected server logs; raw error text remains stored for restricted diagnostics and is not copied into this read-only report.
+
+
+## BUILD-00306 — Resume gate for unresolved provider outcomes
+
+Before calling `POST /api/queue/resume`, reconcile **every** production job whose external provider outcome is ambiguous. The resume transaction counts all unresolved queue records, not only the first page returned by the diagnostic listing. If any remain, the API returns HTTP 409 and the global pause stays active.
+
+For each affected job:
+1. Inspect the provider request history, usage/billing evidence and any recovered response/artifact.
+2. If evidence confirms no external side effect, use the audited `POST /api/production/jobs/{job_id}/reconcile-retry` action with the provider evidence reference and investigation note.
+3. If the provider completed the work, do not authorize a retry. Preserve the provider result and escalate for manual result adoption/reconciliation; the resume gate intentionally remains closed until that ambiguity is resolved through a supported workflow.
+4. After all ambiguous jobs have been reconciled, submit the separate queue resume action with a new operator note.
+
+A retry authorization does not resume production. Conversely, a non-empty resume note alone is not sufficient to resume while any ambiguous job remains. The database check and pause-clear transition execute in one SQLite write transaction.
