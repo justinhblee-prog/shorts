@@ -98,6 +98,7 @@ The current Draft PR #321 contains the following prototype components:
 - `backend/run_development_agent.py`: one-cycle runner that seeds the engineering graph and injects the local Aider/Ollama executor.
 - `backend/development_agent_executor.py`: constrained Aider executor with protected-path checks, credential-stripped child environment, scoped diff check, and repository validation.
 - `.github/workflows/nexus-development-job-worker.yml`: scheduled/manual self-hosted runner workflow and Draft PR publication step.
+- Automated Draft PR publication reuses the stable `automation/nexus-development-cycle` branch so scheduled runs update the same review surface instead of creating a new PR branch every cycle.
 - `backend/app.py` and `frontend/app.js`: authenticated read-only development-job API and live status/event panel; lease tokens and raw error details are redacted. `backend/tests/test_development_job_api_security.py` covers the access-control and redaction contract.
 - The monitor summary now reports active and expired lease counts, latest update time, and the most recent successful validation reference; the UI exposes these alongside the job list.
 
