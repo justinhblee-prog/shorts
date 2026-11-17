@@ -210,13 +210,13 @@ class ScheduleStore:
         if not owner_id or not str(owner_id).strip():
             raise ValueError("scheduler owner_id is required")
         ttl = _lease_seconds(lease_seconds, 15)
-        current = now or datetime.now(timezone.utc)
-        if current.tzinfo is None:
-            raise ValueError("now must be timezone-aware")
-        current_s = _stamp(current)
-        expires = _stamp(current + timedelta(seconds=ttl))
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            current = now if now is not None else datetime.now(timezone.utc)
+            if current.tzinfo is None:
+                raise ValueError("now must be timezone-aware")
+            current_s = _stamp(current)
+            expires = _stamp(current + timedelta(seconds=ttl))
             row = c.execute("SELECT * FROM scheduler_leader_lease WHERE id=1").fetchone()
             if row and row["owner_id"] != owner_id and row["expires_at"] > current_s:
                 c.commit()
@@ -233,13 +233,13 @@ class ScheduleStore:
 
     def renew_scheduler_lease(self, owner_id, lease_token, lease_seconds=90, now=None):
         ttl = _lease_seconds(lease_seconds, 15)
-        current = now or datetime.now(timezone.utc)
-        if current.tzinfo is None:
-            raise ValueError("now must be timezone-aware")
-        current_s = _stamp(current)
-        expires = _stamp(current + timedelta(seconds=ttl))
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            current = now if now is not None else datetime.now(timezone.utc)
+            if current.tzinfo is None:
+                raise ValueError("now must be timezone-aware")
+            current_s = _stamp(current)
+            expires = _stamp(current + timedelta(seconds=ttl))
             cur = c.execute("""UPDATE scheduler_leader_lease
                 SET expires_at=?,updated_at=? WHERE id=1 AND owner_id=?
                 AND lease_token=? AND expires_at>?""",

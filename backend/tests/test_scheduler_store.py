@@ -244,6 +244,82 @@ class SchedulerTests(unittest.TestCase):
             "2026-11-17T12:00:00+00:00",
         )
 
+    def test_scheduler_lease_acquire_samples_clock_after_write_lock(self):
+        sampled_time = threading.Event()
+        operation_started = threading.Event()
+        observed = {}
+
+        class ControlledDateTime:
+            @staticmethod
+            def now(tz=None):
+                sampled_time.set()
+                return datetime(2026, 11, 17, 12, 0, 30, tzinfo=timezone.utc)
+
+        def acquire():
+            operation_started.set()
+            observed["token"] = self.schedules.acquire_scheduler_lease("worker-a")
+
+        with self.schedules.db() as blocker:
+            blocker.execute("BEGIN IMMEDIATE")
+            with patch.object(scheduler_store_module, "datetime", ControlledDateTime):
+                thread = threading.Thread(target=acquire)
+                thread.start()
+                self.assertTrue(operation_started.wait(2))
+                self.assertFalse(
+                    sampled_time.wait(0.1),
+                    "lease timestamp must not be sampled before the SQLite write lock",
+                )
+                blocker.commit()
+                thread.join(5)
+                self.assertFalse(thread.is_alive(), "lease acquisition did not finish")
+        self.assertTrue(observed["token"])
+        lease = self.schedules.db()
+        with lease as connection:
+            row = connection.execute(
+                "SELECT updated_at,expires_at FROM scheduler_leader_lease WHERE id=1"
+            ).fetchone()
+        self.assertEqual(row["updated_at"], "2026-11-17T12:00:30+00:00")
+        self.assertEqual(row["expires_at"], "2026-11-17T12:02:00+00:00")
+
+    def test_scheduler_lease_renew_samples_clock_after_write_lock(self):
+        token = self.schedules.acquire_scheduler_lease(
+            "worker-a", now=datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+        )
+        sampled_time = threading.Event()
+        operation_started = threading.Event()
+        observed = {}
+
+        class ControlledDateTime:
+            @staticmethod
+            def now(tz=None):
+                sampled_time.set()
+                return datetime(2026, 11, 17, 12, 0, 30, tzinfo=timezone.utc)
+
+        def renew():
+            operation_started.set()
+            observed["renewed"] = self.schedules.renew_scheduler_lease("worker-a", token)
+
+        with self.schedules.db() as blocker:
+            blocker.execute("BEGIN IMMEDIATE")
+            with patch.object(scheduler_store_module, "datetime", ControlledDateTime):
+                thread = threading.Thread(target=renew)
+                thread.start()
+                self.assertTrue(operation_started.wait(2))
+                self.assertFalse(
+                    sampled_time.wait(0.1),
+                    "renewal timestamp must not be sampled before the SQLite write lock",
+                )
+                blocker.commit()
+                thread.join(5)
+                self.assertFalse(thread.is_alive(), "lease renewal did not finish")
+        self.assertTrue(observed["renewed"])
+        with self.schedules.db() as connection:
+            row = connection.execute(
+                "SELECT updated_at,expires_at FROM scheduler_leader_lease WHERE id=1"
+            ).fetchone()
+        self.assertEqual(row["updated_at"], "2026-11-17T12:00:30+00:00")
+        self.assertEqual(row["expires_at"], "2026-11-17T12:02:00+00:00")
+
     def test_outbox_status_reports_pending_and_dispatched_counts(self):
         now = datetime.now(timezone.utc)
         self.schedule(now - timedelta(minutes=5))

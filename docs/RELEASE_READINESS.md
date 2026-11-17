@@ -103,3 +103,9 @@ These are additional readiness constraints documented by the project, not comple
 - Active work: scheduler schedule activation timestamp consistency under SQLite write-lock contention.
 - Scope: `ScheduleStore.set_active` captures `updated_at` only after acquiring `BEGIN IMMEDIATE`; regression holds the database write lock and observes clock sampling.
 - Validation pending for exact PR head; no deployed scheduler validation is claimed.
+
+
+### Engineering checkpoint — BUILD-00293
+- Active work: scheduler leader lease acquire/renew clock consistency under SQLite write-lock contention.
+- Implicit timestamps are sampled after acquiring `BEGIN IMMEDIATE`; explicit `now` arguments remain authoritative.
+- Required evidence: acquire and renew contention regressions pass on exact PR head.
