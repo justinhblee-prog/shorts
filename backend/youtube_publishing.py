@@ -472,10 +472,10 @@ class YouTubeUploadStore:
         owner_id = str(owner_id or "").strip()
         if not owner_id or len(owner_id) > 200:
             raise ValueError("A valid metrics collector owner ID is required")
-        now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
         token = uuid.uuid4().hex
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
             row = c.execute(
                 "SELECT lease_until FROM youtube_metrics_collector_lease WHERE id=1"
             ).fetchone()
@@ -492,9 +492,9 @@ class YouTubeUploadStore:
         return token
 
     def renew_metrics_collector_lease(self, owner_id, token, lease_seconds=300, now=None):
-        now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            now = float(now if now is not None else datetime.now(timezone.utc).timestamp())
             updated = c.execute(
                 """UPDATE youtube_metrics_collector_lease
                    SET lease_until=?,updated_at=?
@@ -518,7 +518,7 @@ class YouTubeUploadStore:
             self._assert_metrics_collector_lease(c, owner_id, token)
 
     @staticmethod
-    def _assert_metrics_collector_lease(c, owner_id, token):
+    def _assert_metrics_collector_lease(c, owner_id, token, now=None):
         if owner_id is None and token is None:
             return
         if not owner_id or not token:
@@ -528,7 +528,7 @@ class YouTubeUploadStore:
         ).fetchone()
         if (
             row is None or row["owner_id"] != owner_id or row["token"] != token
-            or float(row["lease_until"]) <= datetime.now(timezone.utc).timestamp()
+            or float(row["lease_until"]) <= float(now if now is not None else datetime.now(timezone.utc).timestamp())
         ):
             raise RuntimeError("YouTube metrics collector lease lost; stale write rejected")
 
@@ -537,10 +537,11 @@ class YouTubeUploadStore:
                                   lease_owner=None, lease_token=None):
         if status not in ("running", "succeeded", "failed"):
             raise ValueError("Invalid metrics collection status")
-        stamp = _now()
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            self._assert_metrics_collector_lease(c, lease_owner, lease_token)
+            now = datetime.now(timezone.utc)
+            stamp = now.isoformat()
+            self._assert_metrics_collector_lease(c, lease_owner, lease_token, now.timestamp())
             c.execute("""
                 INSERT INTO youtube_metrics_collection_state
                   (id,status,last_attempt_at,last_success_at,last_error,requested,
@@ -575,9 +576,11 @@ class YouTubeUploadStore:
             value = stats.get(key)
             return int(value) if value is not None else None
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            now = datetime.now(timezone.utc)
+            stamp = now.isoformat()
             if lease_owner is not None or lease_token is not None:
-                c.execute("BEGIN IMMEDIATE")
-                self._assert_metrics_collector_lease(c, lease_owner, lease_token)
+                self._assert_metrics_collector_lease(c, lease_owner, lease_token, now.timestamp())
             c.execute("""INSERT INTO youtube_video_snapshots
               (video_id,view_count,like_count,comment_count,collected_at)
               VALUES(?,?,?,?,?)""", (video_id, count("viewCount"), count("likeCount"),
