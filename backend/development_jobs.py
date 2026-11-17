@@ -193,18 +193,19 @@ class DevelopmentJobStore:
             if cycle:
                 raise DevelopmentJobConflict("dependency would create a cycle")
             timestamp = _stamp(_now())
-            connection.execute(
+            inserted = connection.execute(
                 """INSERT OR IGNORE INTO development_job_dependencies
                    (job_id,depends_on_id,created_at) VALUES(?,?,?)""",
                 (job_id, depends_on_id, timestamp),
-            )
-            row = connection.execute("SELECT status FROM development_jobs WHERE id=?", (job_id,)).fetchone()
-            connection.execute(
-                "UPDATE development_jobs SET status='blocked',updated_at=? WHERE id=? AND status='ready'",
-                (timestamp, job_id),
-            )
-            self._event(connection, job_id, "dependency_added", row["status"], "blocked",
-                        "system", {"depends_on": depends_on_id}, timestamp)
+            ).rowcount
+            if inserted:
+                row = connection.execute("SELECT status FROM development_jobs WHERE id=?", (job_id,)).fetchone()
+                connection.execute(
+                    "UPDATE development_jobs SET status='blocked',updated_at=? WHERE id=? AND status='ready'",
+                    (timestamp, job_id),
+                )
+                self._event(connection, job_id, "dependency_added", row["status"], "blocked",
+                            "system", {"depends_on": depends_on_id}, timestamp)
             connection.commit()
         return self.get(job_id)
 
