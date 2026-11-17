@@ -456,9 +456,11 @@
     if(!token)return;
     const data=await api("/api/development/jobs?limit=200");
     const summary=data.summary||{},counts=summary.by_status||{};
-    const metrics=[["전체",summary.total||0],["실행 중",(counts.running||0)+(counts.leased||0)],["대기",counts.ready||0],["선행 대기",counts.blocked||0],["재시도",counts.retry_wait||0],["격리",counts.quarantined||0],["완료",counts.completed||0]];
+    const metrics=[["전체",summary.total||0],["실행 중",(counts.running||0)+(counts.leased||0)],["활성 Lease",summary.active_leases||0],["만료 Lease",summary.expired_leases||0],["대기",counts.ready||0],["선행 대기",counts.blocked||0],["재시도",counts.retry_wait||0],["격리",counts.quarantined||0],["완료",counts.completed||0]];
     $("developmentJobMetrics").innerHTML=metrics.map(([label,value])=>'<div class="development-job-metric"><small>'+esc(label)+'</small><strong>'+Number(value).toLocaleString()+'</strong></div>').join("");
     const jobs=data.jobs||[];
+    const health=$("developmentJobHealth");
+    if(health){health.textContent="최근 갱신: "+(summary.latest_updated_at||"기록 없음")+" · 최근 성공 검증: "+(summary.latest_validation_ref||"아직 없음");}
     $("developmentJobCount").textContent=jobs.length+" JOBS";
     $("developmentJobList").innerHTML=jobs.length?jobs.map(job=>{
       const status=String(job.status||"unknown");
