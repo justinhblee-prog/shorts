@@ -84,6 +84,16 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('id="opportunityList"', html)
         self.assertIn("경쟁 조정", app_js)
 
+    def test_analytics_history_platform_summary_uses_latest_per_video_snapshots(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        css = (ROOT / "frontend" / "styles.css").read_text(encoding="utf-8")
+        self.assertIn("platformLatest={youtube:[],tiktok:[]}", app_js)
+        self.assertIn("최신 조회수 요약", app_js)
+        self.assertIn("영상별 최신 스냅샷 기준", app_js)
+        self.assertIn("플랫폼별 조회수 정의·수집 범위가 다르므로", app_js)
+        self.assertIn(".analytics-platform-grid", css)
+        self.assertIn(".analytics-platform-card", css)
+
     def test_analytics_history_renders_real_snapshot_trend_chart_safely(self):
         frontend = ROOT / "frontend"
         app_js = (frontend / "app.js").read_text(encoding="utf-8")
