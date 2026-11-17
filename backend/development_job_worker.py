@@ -3,6 +3,7 @@
 The executor is injected by the trusted runner; this module never executes
 arbitrary commands from a job record.
 """
+import os
 import threading
 import time
 
@@ -23,6 +24,7 @@ class DevelopmentJobWorker:
             raise ValueError("poll_seconds must be positive")
         self.store = store
         self.worker_id = worker_id.strip()
+        self.hostname = os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME")
         self.executor = executor
         self.poll_seconds = poll_seconds
         self._stop = threading.Event()
@@ -33,15 +35,15 @@ class DevelopmentJobWorker:
 
     def run_once(self):
         """Claim and execute at most one eligible job; return its resulting status."""
-        self.store.touch_worker(self.worker_id)
+        self.store.touch_worker(self.worker_id, hostname=self.hostname)
         job = self.store.claim_ready(self.worker_id)
         if job is None:
             return None
-        self.store.touch_worker(self.worker_id, current_job_id=job["id"])
+        self.store.touch_worker(self.worker_id, hostname=self.hostname, current_job_id=job["id"])
 
         lease_lost = threading.Event()
         heartbeat_stop = threading.Event()
-        interval = max(1, self.store.lease_seconds // 3)
+        interval = max(1, min(30, self.store.lease_seconds // 3))
 
         def keep_lease_alive():
             while not heartbeat_stop.wait(interval):
@@ -93,7 +95,7 @@ class DevelopmentJobWorker:
             heartbeat_stop.set()
             heartbeat.join(timeout=interval + 1)
             try:
-                self.store.touch_worker(self.worker_id, current_job_id=None)
+                self.store.touch_worker(self.worker_id, hostname=self.hostname, current_job_id=None)
             except Exception:
                 pass
 
