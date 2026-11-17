@@ -328,14 +328,18 @@ class ScheduleStore:
                 job = queue.enqueue("short_video_production", payload,
                     channel_name=payload["brand"],
                     idempotency_key="schedule:" + item["schedule_id"] + ":" + item["scheduled_for"])
-                stamp = _stamp(datetime.now(timezone.utc))
                 with self.db() as c:
                     c.execute("BEGIN IMMEDIATE")
+                    # The queue may have accepted the idempotent job while this
+                    # process waited for SQLite. Timestamp the durable completion
+                    # only after acquiring the write lock, and use that same
+                    # decision time for fencing and both persisted records.
+                    completed_at = datetime.now(timezone.utc)
+                    stamp = _stamp(completed_at)
                     if lease_owner is not None:
                         lease = c.execute("""SELECT 1 FROM scheduler_leader_lease
                             WHERE id=1 AND owner_id=? AND lease_token=? AND expires_at>?""",
-                            (str(lease_owner), lease_token,
-                             _stamp(datetime.now(timezone.utc)))).fetchone()
+                            (str(lease_owner), lease_token, stamp)).fetchone()
                         if not lease:
                             c.rollback()
                             return {"dispatched": dispatched, "count": len(dispatched),
