@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 JOB_LABELS = frozenset({"development-job", "nexus:development-job"})
-DEFAULT_SCOPE = ["backend/"]
+DEFAULT_SCOPE: list[str] = []
 
 
 def _labels(item: dict[str, Any]) -> set[str]:
@@ -28,7 +28,7 @@ def _positive_int(value: Any) -> int | None:
 
 def normalize_issue(issue: dict[str, Any]) -> dict[str, Any] | None:
     """Return a job candidate only for open, explicitly labeled issues."""
-    if not isinstance(issue, dict) or issue.get("state") != "open":
+    if not isinstance(issue, dict) or issue.get("state") != "open" or "pull_request" in issue:
         return None
     number = _positive_int(issue.get("number"))
     title = issue.get("title")
@@ -108,7 +108,7 @@ def summarize_workflow_run(run: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def sync_labeled_issues(store: Any, issues: Iterable[dict[str, Any]]) -> dict[str, Any]:
+def sync_labeled_issues(store: Any, issues: Iterable[dict[str, Any]], scope_resolver: Any = None) -> dict[str, Any]:
     """Idempotently import only labeled open issues into the local job store."""
     existing = {
         job.get("source_ref")
@@ -124,11 +124,15 @@ def sync_labeled_issues(store: Any, issues: Iterable[dict[str, Any]]) -> dict[st
         if candidate["source_ref"] in existing:
             skipped.append({"source_ref": candidate["source_ref"], "reason": "duplicate"})
             continue
+        scope = scope_resolver(candidate) if callable(scope_resolver) else []
+        if not isinstance(scope, list) or not scope or not all(isinstance(path, str) and path.strip() for path in scope):
+            skipped.append({"source_ref": candidate["source_ref"], "reason": "scope_not_configured"})
+            continue
         job = store.create(
             title=candidate["title"],
             description=candidate["description"],
             priority=candidate["priority"],
-            scope=candidate["scope"],
+            scope=scope,
             acceptance=candidate["acceptance"],
             source_ref=candidate["source_ref"],
         )
