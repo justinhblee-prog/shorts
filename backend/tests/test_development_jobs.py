@@ -151,5 +151,25 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(len(set(ids)), 4)
 
 
+    def test_completion_rejects_changed_files_outside_declared_scope(self):
+        job = self.store.create("Scoped completion", scope=["backend/allowed.py"])
+        claim = self.store.claim_ready("worker-a")
+        with self.assertRaisesRegex(ValueError, "outside the declared scope"):
+            self.store.complete(job["id"], "worker-a", claim["lease_token"],
+                                ["backend/other.py"], True, "ci://run/3")
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+
+    def test_completion_rejects_unsafe_and_duplicate_paths(self):
+        job = self.store.create("Safe paths", scope=["backend"])
+        claim = self.store.claim_ready("worker-a")
+        for paths in (["../outside.py"], ["backend\\\\secret.py"], ["backend/a.py", "backend/a.py"]):
+            with self.subTest(paths=paths):
+                with self.assertRaises(ValueError):
+                    self.store.complete(job["id"], "worker-a", claim["lease_token"],
+                                        paths, True, "ci://run/4")
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+
+
+
 if __name__ == "__main__":
     unittest.main()
