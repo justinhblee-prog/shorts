@@ -109,3 +109,9 @@ These are additional readiness constraints documented by the project, not comple
 - Active work: scheduler leader lease acquire/renew clock consistency under SQLite write-lock contention.
 - Implicit timestamps are sampled after acquiring `BEGIN IMMEDIATE`; explicit `now` arguments remain authoritative.
 - Required evidence: acquire and renew contention regressions pass on exact PR head.
+
+
+### Engineering checkpoint — BUILD-00294
+- Active work: scheduled dispatch reservation timestamp and fencing-lease consistency under SQLite write-lock contention.
+- Clock sampling and lease validation now occur under the reservation write lock.
+- Required evidence: exact-head CI including dispatch contention regression.
