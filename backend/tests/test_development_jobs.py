@@ -103,6 +103,22 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(quarantined["status"], "quarantined")
         self.assertIsNone(self.store.claim_ready("worker-c"))
 
+    def test_overlapping_file_scope_serializes_jobs(self):
+        first = self.store.create("Writer A", scope=["backend/shared.py"])
+        second = self.store.create("Writer B", scope=["backend/shared.py"])
+        claim = self.store.claim_ready("worker-a")
+        self.assertEqual(claim["id"], first["id"])
+        self.assertIsNone(self.store.claim_ready("worker-b"))
+        self.store.complete(first["id"], "worker-a", claim["lease_token"],
+                            ["backend/shared.py"], True, "ci://run/1")
+        next_claim = self.store.claim_ready("worker-b")
+        self.assertEqual(next_claim["id"], second["id"])
+
+    def test_parent_child_path_scopes_conflict(self):
+        self.assertTrue(self.store._scopes_conflict(["backend"], ["backend/api.py"]))
+        self.assertFalse(self.store._scopes_conflict(["backend/api.py"], ["frontend/app.js"]))
+        self.assertTrue(self.store._scopes_conflict([], ["frontend/app.js"]))
+
     def test_attempt_limit_quarantines_job(self):
         job = self.store.create("One attempt only", max_attempts=1)
         claim = self.store.claim_ready("worker-a")
@@ -127,7 +143,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
 
     def test_parallel_workers_claim_distinct_jobs(self):
         from concurrent.futures import ThreadPoolExecutor
-        jobs = [self.store.create("Job " + str(i)) for i in range(4)]
+        jobs = [self.store.create("Job " + str(i), scope=["backend/module_" + str(i) + ".py"]) for i in range(4)]
         with ThreadPoolExecutor(max_workers=4) as pool:
             claimed = list(pool.map(lambda i: self.store.claim_ready("worker-" + str(i)), range(4)))
         ids = [item["id"] for item in claimed if item]
