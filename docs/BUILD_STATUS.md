@@ -2338,3 +2338,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add regression coverage with two simultaneous ambiguous jobs: reconcile one, verify resume remains blocked and pause persists, reconcile the second, then verify resume succeeds.
 - GitHub Actions run #44016900395 passed on implementation head `52e221b45302a9259f8d5e0d3e3c1efbff3a2bc6` (673 backend tests), including the new two-job resume regression. The documentation-inclusive final PR head is validated separately.
 - This is a local SQLite transaction/test guarantee. Provider-console evidence remains operator-supplied and is not independently validated; deployed multi-process/provider behavior remains pending integrated environment verification.
+
+
+## BUILD-00307 — journal transcription provider attempts for crash-safe recovery
+- Found that optional speech transcription was the only external provider call in the production pipeline that bypassed the durable provider-attempt journal. A process crash or transport timeout after the transcription request could therefore leave no request identity, durable response, or per-attempt reconciliation record.
+- Route `speech_alignment` through the same fenced `_provider_request` lifecycle as script, voice, and rendering: persist an idempotency key before the external call, persist the response before artifact adoption, recover an already-received response without a second call, and mark ambiguous transport outcomes as unknown.
+- Mark the transcription attempt adopted only after the speech-alignment artifact is persisted under the active worker lease.
+- Extend tests to assert the transcription idempotency key and adopted response journal, and to recover a durable transcription response without calling the provider again.
+- This is deterministic local SQLite/test coverage. Actual transcription-provider idempotency semantics depend on provider support for the supplied request key and require deployed integration verification.
