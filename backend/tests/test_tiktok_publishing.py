@@ -689,6 +689,62 @@ class TikTokPublishingTests(unittest.TestCase):
                          "bytes 0-15/16")
         self.assertEqual(result["events"][0]["event_type"], "operator_consent_recorded")
 
+    def test_tiktok_disclosure_mapping_rejects_malformed_types(self):
+        from tiktok_disclosure import build_tiktok_disclosure, TikTokDisclosureError
+
+        for invalid in (None, True, 0, [], {}, "UNKNOWN", " ai_generated "):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(TikTokDisclosureError):
+                    build_tiktok_disclosure(invalid)
+
+    def test_missing_tiktok_disclosure_acknowledgement_blocks_before_network(self):
+        policy = evaluate_content_policy({
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "synthetic_media_status": "ai_generated",
+            "platforms": ["tiktok"],
+            "platform_disclosures": {"tiktok_ai_generated_content": False},
+            "factual_claims_verified": True,
+            "originality_notes": "Original animation.",
+        })
+        self.assertIn(
+            "platform_disclosures.tiktok_ai_generated_content",
+            policy["approval_blockers"],
+        )
+        self.prod.artifact("job-1", "script", "text", None, {
+            "script": "Approved test script", "policy_preflight": policy
+        })
+        self.review.decide("job-1", "approved", "reviewer-1")
+        with self.assertRaisesRegex(TikTokPublishError, "blockers"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(self.transport.calls, [])
+        self.assertIsNone(self.store.get("job-1"))
+
+    def test_tiktok_non_ai_content_uses_false_aigc_field(self):
+        policy = evaluate_content_policy({
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "synthetic_media_status": "none",
+            "platforms": ["tiktok"],
+            "factual_claims_verified": True,
+            "originality_notes": "Original filmed footage.",
+        })
+        self.prod.artifact("job-1", "script", "text", None, {
+            "script": "Approved test script", "policy_preflight": policy
+        })
+        self.review.decide("job-1", "approved", "reviewer-1")
+        self.transport.calls.clear()
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "Filmed short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        init = next(call for call in self.transport.calls if "/video/init/" in call[0])
+        body = json.loads(init[2].decode("utf-8"))
+        self.assertIs(body["post_info"]["is_aigc"], False)
+
     def test_explicit_consent_is_required_before_any_network_request(self):
         with self.assertRaisesRegex(TikTokPublishError, "Explicit operator consent"):
             self.publisher.publish_private_approved(
