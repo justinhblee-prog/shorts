@@ -1046,6 +1046,28 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["tiktok"]["pending"],2)
         self.assertNotIn("access_token",str(result))
 
+    def test_publishing_analytics_history_enforces_scope_platform_and_limits(self):
+        from app import publishing_analytics_history
+        youtube=[{"video_id":"yt-1","views":150,"collected_at":"2099-01-01T00:00:00+00:00"}]
+        tiktok=[{"video_id":"tt-1","view_count":250,"collected_at":"2099-01-01T00:00:00+00:00"}]
+        with (
+            mock.patch.object(app_module,"require_review_permission") as authorize,
+            mock.patch.object(app_module.youtube_analytics_store,"history",return_value=youtube) as yt_history,
+            mock.patch.object(app_module.tiktok_metrics_store,"history",return_value=tiktok) as tt_history,
+        ):
+            result=publishing_analytics_history(
+                platform="all",days=30,limit=200,x_review_token="analytics-token"
+            )
+        authorize.assert_called_once_with("analytics-token","analytics.read")
+        yt_history.assert_called_once_with(video_id=None,limit=200)
+        tt_history.assert_called_once_with(app_module.tiktok_publish_store,video_id=None,limit=200)
+        self.assertEqual(result["counts"],{"youtube":1,"tiktok":1})
+        self.assertTrue(result["read_only"])
+        with self.assertRaises(HTTPException):
+            publishing_analytics_history(platform="unknown",x_review_token="analytics-token")
+        with self.assertRaises(HTTPException):
+            publishing_analytics_history(video_id="bad\\nvideo",x_review_token="analytics-token")
+
     def test_publishing_analytics_status_requires_analytics_permission_and_limits_fields(self):
         from app import publishing_analytics_status
         youtube={
