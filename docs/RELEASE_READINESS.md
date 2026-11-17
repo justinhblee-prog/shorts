@@ -18,11 +18,12 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 
 ## Current checkpoint
 
-- Latest completed engineering item in the current stacked chain: BUILD-00294 — serialize scheduled dispatch reservation and scheduler fencing validation under the SQLite write lock.
+- Latest completed engineering item in the current stacked chain: BUILD-00295 — serialize dispatch-completion timestamp and scheduler fencing validation after the SQLite write lock.
 - PR #298 (BUILD-00292): https://github.com/justinhblee-prog/shorts/pull/298 — exact head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`, GitHub Actions passed.
 - PR #299 (BUILD-00293): https://github.com/justinhblee-prog/shorts/pull/299 — exact head `724d4f78425577debc74a7990cf4d34133162390`, GitHub Actions passed.
-- PR #300 (BUILD-00294): https://github.com/justinhblee-prog/shorts/pull/300 — exact head `2184c13ac56854075145ce9ad39572cc1ff6004f`, GitHub Actions run #43990440580 passed.
-- PRs #298–#300 are open Draft PRs, stacked in dependency order, and remain unmerged. Earlier PRs #288–#295 and #297 remain Draft/unmerged; PR #296 is closed as a superseded duplicate. Preserve Draft status and do not merge or push to main.
+- PR #300 (BUILD-00294): https://github.com/justinhblee-prog/shorts/pull/300 — latest docs-inclusive head `00a55e1ae52a102a7eddfa52d3bc65c0b58aa8db`, GitHub Actions run #43990440580 passed.
+- PR #301 (BUILD-00295): https://github.com/justinhblee-prog/shorts/pull/301 — exact head `17cff30eae5e05893eb03e7db04638c32bbdbcea`, GitHub Actions run #43990763068 passed.
+- PRs #298–#301 are open Draft PRs, stacked in dependency order, and remain unmerged. Earlier PRs #288–#295 and #297 remain Draft/unmerged; PR #296 is closed as a superseded duplicate. Preserve Draft status and do not merge or push to main.
 - The scheduler regressions are deterministic SQLite lock-contention tests. They do not establish multi-host scheduler safety or deployed runtime readiness.
 
 ## Phase 1 — Engineering closure (rolling)
@@ -32,8 +33,9 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 Current ordered work:
 1. BUILD-00292: schedule activation timestamp after SQLite write-lock acquisition — CI passed on exact PR #298 head.
 2. BUILD-00293: scheduler lease acquire/renew timestamps after SQLite write-lock acquisition — CI passed on exact PR #299 head.
-3. BUILD-00294: due-dispatch timestamp and scheduler fencing lease validation in the reservation transaction — CI passed on exact PR #300 head.
-4. Continue the timestamp/atomicity audit across queue, worker registry, production-run, review, upload and reconciliation transitions.
+3. BUILD-00294: due-dispatch timestamp and scheduler fencing lease validation in the reservation transaction — CI passed on PR #300.
+4. BUILD-00295: dispatch-completion timestamp and fencing validation after queue acceptance — CI passed on exact PR #301 head.
+5. Continue the timestamp/atomicity audit across queue, worker registry, production-run, review, upload and reconciliation transitions.
 5. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records.
 6. Reconcile API authorization and diagnostic redaction with UI actions; identify shared-token/claimed-identity limitations before multi-user deployment.
 7. Audit dashboard workflows, accessibility, loading/error states and add browser-level checks where a runnable browser environment is available.
