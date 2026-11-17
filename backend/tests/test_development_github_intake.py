@@ -44,7 +44,7 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
             "labels": ["development-job"], "repository": "acme/app",
         })
         self.assertEqual(candidate["source_ref"], "github:issue:acme/app#4")
-        self.assertEqual(candidate["scope"], ["backend/"])
+        self.assertEqual(candidate["scope"], [])
         self.assertIsNone(normalize_issue({
             "number": 5, "title": "Ordinary issue", "state": "open", "labels": [],
         }))
@@ -52,16 +52,28 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
             "number": 6, "title": "Closed", "state": "closed",
             "labels": ["development-job"],
         }))
+        self.assertIsNone(normalize_issue({
+            "number": 7, "title": "PR masquerading as issue", "state": "open",
+            "labels": ["development-job"], "pull_request": {"url": "https://api.github.com/..."}
+        }))
 
     def test_sync_is_idempotent_and_does_not_import_prs(self):
         issue = {"number": 4, "title": "Fix render", "state": "open",
                  "labels": ["development-job"], "repository": "acme/app"}
-        first = sync_labeled_issues(self.store, [issue])
-        second = sync_labeled_issues(self.store, [issue])
+        resolver = lambda _: ["backend/export.py"]
+        first = sync_labeled_issues(self.store, [issue], scope_resolver=resolver)
+        second = sync_labeled_issues(self.store, [issue], scope_resolver=resolver)
         self.assertEqual(first["created_count"], 1)
         self.assertEqual(second["created_count"], 0)
         self.assertEqual(second["skipped"][0]["reason"], "duplicate")
         self.assertEqual(len(self.store.list()), 1)
+
+    def test_scope_must_be_configured_before_import(self):
+        issue = {"number": 3, "title": "Feature", "state": "open", "labels": ["development-job"], "repository": "acme/app"}
+        result = sync_labeled_issues(self.store, [issue])
+        self.assertEqual(result["created_count"], 0)
+        self.assertEqual(result["skipped"][0]["reason"], "scope_not_configured")
+        self.assertEqual(self.store.list(), [])
 
     def test_pull_request_states_are_context_only(self):
         self.assertEqual(summarize_pull_request({
