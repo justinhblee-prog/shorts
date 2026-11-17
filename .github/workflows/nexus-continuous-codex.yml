@@ -1,0 +1,189 @@
+name: NEXUS STUDIO PRO local-model iteration
+
+on:
+  # Bootstrap-only push trigger lets the first run start before this file is
+  # adopted into the default branch. Remove after the first verified run.
+  push:
+    branches:
+      - build/build-00312-continuous-agent-bootstrap
+  workflow_dispatch:
+  # Scheduled events run only from the default branch.
+  schedule:
+    - cron: "0 */2 * * *"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: nexus-studio-pro-local-agent
+  cancel-in-progress: false
+
+jobs:
+  select-base:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      base_branch: ${{ steps.select.outputs.base_branch }}
+    steps:
+      - name: Select newest open development branch
+        id: select
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const response = await github.rest.pulls.list({
+              owner, repo, state: "open", per_page: 100,
+              sort: "created", direction: "desc",
+            });
+            const candidates = response.data
+              .filter((pr) => !pr.merged_at &&
+                pr.head.repo?.full_name === `${owner}/${repo}` &&
+                // Never use this bootstrap PR as its own development base.
+                pr.head.ref !== "build/build-00312-continuous-agent-bootstrap" &&
+                pr.head.ref.startsWith("build/"))
+              .sort((a, b) => b.number - a.number);
+            const base = candidates[0]?.head.ref ??
+              context.payload.repository?.default_branch ?? "main";
+            core.setOutput("base_branch", base);
+
+  develop:
+    needs: select-base
+    # Requires a repository-owned Windows runner with Ollama and the model installed.
+    # No paid model API or OPENAI_API_KEY is used.
+    runs-on: [self-hosted, nexus-local-ai]
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out latest development branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.select-base.outputs.base_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The selected development base predates this bootstrap PR. Fetch the
+      # agent instructions from the workflow's own commit, outside the worktree.
+      - name: Load bounded agent instructions
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .agent-bootstrap
+          sparse-checkout: .github/codex/NEXUS_CONTINUOUS_AGENT.md
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Copy agent instructions outside the repository
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = Join-Path $env:GITHUB_WORKSPACE ".agent-bootstrap/.github/codex/NEXUS_CONTINUOUS_AGENT.md"
+          $target = Join-Path $env:RUNNER_TEMP "NEXUS_CONTINUOUS_AGENT.md"
+          if (-not (Test-Path $source)) {
+            throw "Agent instructions were not found at the workflow commit."
+          }
+          Copy-Item -LiteralPath $source -Destination $target -Force
+          Remove-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE ".agent-bootstrap") -Recurse -Force
+
+      - name: Verify local Ollama model is available
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
+            throw "Ollama was not found on PATH. Start/install Ollama on the runner host."
+          }
+          $models = ollama list
+          $models | Out-Host
+          if ($LASTEXITCODE -ne 0) {
+            throw "ollama list failed with exit code $LASTEXITCODE"
+          }
+          if (-not ($models | Select-String -SimpleMatch "qwen2.5-coder:7b")) {
+            throw "Install qwen2.5-coder:7b with: ollama pull qwen2.5-coder:7b"
+          }
+
+      - name: Install local coding agent with isolated Python 3.11
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m pip install --user --upgrade uv
+          if ($LASTEXITCODE -ne 0) { throw "Failed to install uv." }
+          $userScripts = python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
+          $uv = Join-Path $userScripts "uv.exe"
+          if (-not (Test-Path $uv)) { throw "uv executable was not found after installation: $uv" }
+          Add-Content -Path $env:GITHUB_PATH -Value $userScripts
+          & $uv python install 3.11 --install-dir "C:\nexus-python"
+          if ($LASTEXITCODE -ne 0) { throw "uv could not install Python 3.11." }
+          & $uv tool install --python 3.11 aider-chat
+          if ($LASTEXITCODE -ne 0) { throw "uv could not install aider-chat." }
+          $toolBin = & $uv tool dir --bin
+          if ($LASTEXITCODE -ne 0 -or -not $toolBin) { throw "Could not locate uv tool executables." }
+          Add-Content -Path $env:GITHUB_PATH -Value $toolBin
+          & $uv tool run --python 3.11 --from aider-chat aider --version
+          if ($LASTEXITCODE -ne 0) { throw "Aider smoke test failed." }
+
+      - name: Exclude Aider session metadata from product changes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exclude = Join-Path $env:GITHUB_WORKSPACE ".git/info/exclude"
+          Add-Content -Path $exclude -Value @(".aider*", ".aider/")
+      - name: Run one bounded local-model development iteration
+        shell: powershell
+        env:
+          OLLAMA_API_BASE: http://127.0.0.1:11434
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Get-Command aider -ErrorAction SilentlyContinue)) {
+            throw "Aider is not on PATH after installation."
+          }
+          aider --model ollama_chat/qwen2.5-coder:7b --yes-always --no-auto-commits --edit-format diff --map-tokens 512 --max-chat-history-tokens 4096 --message-file "$env:RUNNER_TEMP\NEXUS_CONTINUOUS_AGENT.md" backend/queue_store.py backend/tests/test_queue.py
+          if ($LASTEXITCODE -ne 0) {
+            throw "Aider exited with code $LASTEXITCODE"
+          }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw "git diff --check failed." }
+
+      - name: Run focused queue regression suite
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m unittest discover -s backend/tests -p test_queue.py
+          if ($LASTEXITCODE -ne 0) { throw "Focused queue regression suite failed." }
+
+      - name: Detect meaningful changes
+        id: changes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $changed = git status --porcelain
+          if ($LASTEXITCODE -ne 0) { throw "Could not inspect worktree changes." }
+          if (-not $changed) {
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "has_changes=false"
+            Write-Host "No product changes were produced; Draft PR creation will be skipped."
+          } else {
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "has_changes=true"
+            $changed | Out-Host
+          }
+
+      - name: Create a Draft PR for review
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ needs.select-base.outputs.base_branch }}
+          branch: automation/nexus-agent-${{ github.run_id }}
+          delete-branch: false
+          draft: true
+          title: "AUTO: NEXUS STUDIO PRO local iteration ${{ github.run_number }}"
+          commit-message: "chore: local-model NEXUS STUDIO PRO iteration"
+          body: |
+            ## Automated local-model development iteration
+            - Base: ${{ needs.select-base.outputs.base_branch }}
+            - Model: Ollama qwen2.5-coder:7b running on a repository-owned self-hosted runner.
+            - No paid AI API or OPENAI_API_KEY is used.
+            - Tests and documentation are required by the agent instructions.
+            - This PR is Draft and must never be merged automatically.
+            - Live provider, OAuth, publishing, deployment, and production validation are not implied.
