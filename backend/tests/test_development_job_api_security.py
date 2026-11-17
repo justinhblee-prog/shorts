@@ -90,7 +90,7 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
             mock.patch.object(app_module.development_job_store, "list_workers", return_value=workers),
             mock.patch.object(app_module.development_job_store, "summary", return_value=summary),
         ):
-            result = app_module.list_development_workers(x_review_token="monitor-token")
+            result = app_module.list_development_workers(limit=50, x_review_token="monitor-token")
         auth.assert_called_once_with("monitor-token", "operations.read")
         self.assertEqual(result["workers"][0]["worker_id"], "runner-a")
         self.assertTrue(result["workers"][0]["is_online"])
