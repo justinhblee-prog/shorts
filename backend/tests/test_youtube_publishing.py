@@ -6,6 +6,7 @@ import tempfile, threading, time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 from production_pipeline import ProductionStore
 from queue_store import JobQueue
@@ -983,6 +984,44 @@ class YouTubePublishingTests(unittest.TestCase):
             self.publisher.upload_approved("job-1","/missing/video.mp4",
                                            self.review,"Title")
 
+
+    def test_touch_upload_samples_timestamp_after_write_lock(self):
+        upload = self.uploads.begin("job-1", "Touch lock test", "")
+        decision = "2036-07-08T09:10:16+00:00"
+        clock_called = threading.Event()
+        started = threading.Event()
+        observed = {}
+
+        def controlled_now():
+            clock_called.set()
+            return decision
+
+        def touch():
+            started.set()
+            try:
+                observed["result"] = self.uploads.touch_upload(
+                    "job-1", upload["attempt_id"]
+                )
+            except Exception as exc:
+                observed["error"] = exc
+
+        with self.uploads.db() as holder:
+            holder.execute("BEGIN IMMEDIATE")
+            with patch("youtube_publishing._now", side_effect=controlled_now):
+                thread = threading.Thread(target=touch)
+                thread.start()
+                self.assertTrue(started.wait(1))
+                self.assertFalse(
+                    clock_called.wait(0.1),
+                    "upload touch timestamp must not be sampled before the SQLite write lock",
+                )
+                holder.commit()
+                thread.join(2)
+            self.assertFalse(thread.is_alive(), "upload touch did not finish after lock release")
+
+        self.assertNotIn("error", observed)
+        self.assertTrue(observed["result"])
+        self.assertEqual(self.uploads.get("job-1")["updated_at"], decision)
 
     def test_fail_is_fenced_to_active_attempt_and_audits_once(self):
         first=self.uploads.begin("job-1","First attempt","")
