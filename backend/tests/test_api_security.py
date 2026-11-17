@@ -975,6 +975,49 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 422)
         mutation.assert_not_called()
 
+    def test_tiktok_due_status_refresh_requires_reconciliation_permission(self):
+        from app import refresh_due_tiktok_publications
+        with (
+            mock.patch.object(
+                app_module, "require_review_permission", return_value="operator-1"
+            ) as authorize,
+            mock.patch.object(
+                app_module.tiktok_publisher, "refresh_due_statuses",
+                return_value={
+                    "skipped": False, "checked": 1, "updated": 1,
+                    "results": [{"job_id": "job-1", "status": "processing"}],
+                    "errors": [],
+                },
+            ) as refresh,
+        ):
+            result = refresh_due_tiktok_publications(
+                limit=5, min_age_seconds=60, x_review_token="review-token"
+            )
+        authorize.assert_called_once_with("review-token", "publish.reconcile")
+        refresh.assert_called_once_with(limit=5, min_age_seconds=60)
+        self.assertEqual(result["checked"], 1)
+        self.assertEqual(result["results"], [
+            {"job_id": "job-1", "status": "processing"}
+        ])
+
+    def test_tiktok_due_status_refresh_bounds_provider_error_output(self):
+        from app import refresh_due_tiktok_publications
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(
+                app_module.tiktok_publisher, "refresh_due_statuses",
+                return_value={
+                    "skipped": False, "checked": 1, "updated": 0,
+                    "results": [],
+                    "errors": [{"job_id": "job-1", "error": "x" * 500}],
+                },
+            ),
+        ):
+            result = refresh_due_tiktok_publications(
+                limit=5, min_age_seconds=60, x_review_token="review-token"
+            )
+        self.assertEqual(len(result["errors"][0]["error"]), 300)
+
 if __name__ == "__main__":
     unittest.main()
 
