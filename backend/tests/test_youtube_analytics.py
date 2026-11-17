@@ -247,6 +247,31 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(reports.calls, [])
         self.assertIsNone(self.store.get("recent-video")["views"])
 
+    def test_legacy_latest_snapshot_is_backfilled_after_schema_migration(self):
+        legacy_db=os.path.join(self.tmp.name,"legacy-history.sqlite3")
+        with sqlite3.connect(legacy_db) as connection:
+            connection.execute("""
+                CREATE TABLE youtube_analytics_snapshots(
+                  video_id TEXT PRIMARY KEY,start_date TEXT NOT NULL,end_date TEXT NOT NULL,
+                  views REAL,estimated_minutes_watched REAL,average_view_duration REAL,
+                  average_view_percentage REAL,retention_json TEXT NOT NULL DEFAULT '[]',
+                  analytics_status TEXT NOT NULL,retention_status TEXT NOT NULL,
+                  retention_error TEXT,collected_at TEXT NOT NULL
+                )
+            """)
+            connection.execute("""
+                INSERT INTO youtube_analytics_snapshots(
+                  video_id,start_date,end_date,views,estimated_minutes_watched,
+                  average_view_duration,average_view_percentage,retention_json,
+                  analytics_status,retention_status,retention_error,collected_at
+                ) VALUES('legacy-video','2026-11-01','2026-11-14',77,5,4,60,'[]',
+                         'available','available',NULL,'2026-11-15T00:00:00+00:00')
+            """)
+        migrated=YouTubeAnalyticsStore(legacy_db)
+        history=migrated.history("legacy-video")
+        self.assertEqual(len(history),1)
+        self.assertEqual(history[0]["views"],77)
+
     def test_analytics_history_appends_snapshots_while_latest_remains_current(self):
         first={"views":100,"engagedViews":60,"estimatedMinutesWatched":10,
                "averageViewDuration":6,"averageViewPercentage":50}
