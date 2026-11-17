@@ -163,3 +163,10 @@ These are additional readiness constraints documented by the project, not comple
 - A single reconciled job is insufficient when another ambiguous job remains. Retry authorization remains separate from resume; all provider outcomes must be investigated before the operator resumes production.
 - Regression covers two concurrent ambiguous jobs, blocked intermediate resume, durable pause, and successful resume only after both reconciliations.
 - Initial implementation head CI run #44016900395 passed (673 backend tests); the documentation-inclusive final PR head is validated separately. This does not independently validate operator-supplied provider evidence or a deployed production environment.
+
+
+### BUILD-00307 — transcription provider attempt recovery
+- Optional speech transcription now uses the durable provider-attempt journal, including request idempotency key, persisted response, adoption state, and ambiguous-outcome blocking.
+- A recovered `response_received` transcription attempt is reused rather than sending a duplicate transcription request after restart.
+- Tests cover successful journal adoption and crash recovery without a duplicate provider call.
+- Provider-side idempotency behavior is not proven by local fixtures; verify the configured transcription service's key semantics and timeout/replay behavior in the deployed environment before production sign-off.
