@@ -90,13 +90,17 @@ class ScheduleStore:
             raise ValueError("minimum schedule interval is one hour")
         if interval > 31536000:
             raise ValueError("maximum schedule interval is 365 days")
-        now = datetime.now(timezone.utc)
-        start = _dt(start_at) if start_at else now
-        if start.tzinfo is None:
+        start = _dt(start_at) if start_at else None
+        if start is not None and start.tzinfo is None:
             raise ValueError("start_at must include timezone")
         sid = str(uuid.uuid4())
-        stamp, due = _stamp(now), _stamp(start)
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            # Use the serialized insert time as the default first-run time and
+            # for both creation audit fields.
+            now = datetime.now(timezone.utc)
+            due = _stamp(start if start is not None else now)
+            stamp = _stamp(now)
             c.execute("""INSERT INTO production_schedules
               (id,name,interval_seconds,payload_json,next_run_at,active,created_at,updated_at)
               VALUES(?,?,?,?,?,1,?,?)""",
