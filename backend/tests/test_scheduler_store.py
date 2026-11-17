@@ -1,8 +1,11 @@
 import os
 import sqlite3
 import tempfile
+import threading
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
+import scheduler_store as scheduler_store_module
 from scheduler_store import ScheduleStore
 from queue_store import JobQueue
 
@@ -205,6 +208,41 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(result["count"], 0)
         self.assertEqual(self.schedules.pending_dispatches(), [])
 
+
+    def test_set_active_samples_updated_at_after_write_lock(self):
+        item = self.schedule(datetime.now(timezone.utc))
+        sampled_time = threading.Event()
+        operation_started = threading.Event()
+        observed = {}
+
+        class ControlledDateTime:
+            @staticmethod
+            def now(tz=None):
+                sampled_time.set()
+                return datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+
+        def update_schedule():
+            operation_started.set()
+            observed["result"] = self.schedules.set_active(item["id"], False)
+
+        with self.schedules.db() as blocker:
+            blocker.execute("BEGIN IMMEDIATE")
+            with patch.object(scheduler_store_module, "datetime", ControlledDateTime):
+                thread = threading.Thread(target=update_schedule)
+                thread.start()
+                self.assertTrue(operation_started.wait(2))
+                self.assertFalse(
+                    sampled_time.wait(0.1),
+                    "activation timestamp must not be sampled before the SQLite write lock",
+                )
+                blocker.commit()
+                thread.join(5)
+                self.assertFalse(thread.is_alive(), "schedule update did not finish")
+        self.assertIsNotNone(observed["result"])
+        self.assertEqual(
+            observed["result"]["updated_at"],
+            "2026-11-17T12:00:00+00:00",
+        )
 
     def test_outbox_status_reports_pending_and_dispatched_counts(self):
         now = datetime.now(timezone.utc)

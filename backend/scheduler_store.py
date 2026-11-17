@@ -127,9 +127,9 @@ class ScheduleStore:
     def set_active(self, sid, active):
         if not isinstance(active, bool):
             raise ValueError("active must be a boolean")
-        stamp = _stamp(datetime.now(timezone.utc))
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            stamp = _stamp(datetime.now(timezone.utc))
             cur = c.execute("UPDATE production_schedules SET active=?,updated_at=? WHERE id=?",
                             (int(bool(active)), stamp, sid))
             if not cur.rowcount:
