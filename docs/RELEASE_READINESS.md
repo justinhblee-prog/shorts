@@ -24,7 +24,7 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 - PR #300 (BUILD-00294): https://github.com/justinhblee-prog/shorts/pull/300 — latest docs-inclusive head `00a55e1ae52a102a7eddfa52d3bc65c0b58aa8db`, GitHub Actions run #43990440580 passed.
 - PR #301 (BUILD-00295): https://github.com/justinhblee-prog/shorts/pull/301 — exact head `62e5211c51305b71102c52f94b4525ca47b38407`, GitHub Actions run #43990907642 passed.
 - PR #302 (BUILD-00296): https://github.com/justinhblee-prog/shorts/pull/302 — latest docs-inclusive head `22af5871853f7f124af9c92b37bf9887d3126a3a`, GitHub Actions run #43991125723 passed.
-- PR #303 (BUILD-00297): https://github.com/justinhblee-prog/shorts/pull/303 — code head `5f61b84948f44d8b9c76f93891fce1f54df6acb4`, GitHub Actions run #43991197866 passed; documentation follow-up validation is pending.
+- PR #303 (BUILD-00297): https://github.com/justinhblee-prog/shorts/pull/303 — latest code head `76655c1269863ce7a5b364d1c18af0017e022c0c`, GitHub Actions run #43991377065 passed.
 - PRs #298–#303 are open Draft PRs, stacked in dependency order, and remain unmerged. Earlier PRs #288–#295 and #297 remain Draft/unmerged; PR #296 is closed as a superseded duplicate. Preserve Draft status and do not merge or push to main.
 - The scheduler regressions are deterministic SQLite lock-contention tests. They do not establish multi-host scheduler safety or deployed runtime readiness.
 
@@ -38,12 +38,12 @@ Current ordered work:
 3. BUILD-00294: due-dispatch timestamp and scheduler fencing lease validation in the reservation transaction — CI passed on PR #300.
 4. BUILD-00295: dispatch-completion timestamp and fencing validation after queue acceptance — CI passed on PR #301.
 5. BUILD-00296: schedule creation timestamp after SQLite write-lock acquisition — CI passed on PR #302.
-6. BUILD-00297: failed-dispatch retry deadline and scheduler fencing validation after SQLite write-lock acquisition — CI passed on PR #303 code head.
+6. BUILD-00297: failed-dispatch retry deadline and scheduler fencing validation after SQLite write-lock acquisition — CI passed on latest PR #303 head.
 7. Continue the timestamp/atomicity audit across queue, worker registry, production-run, review, upload and reconciliation transitions.
-5. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records.
-8. Reconcile API authorization and diagnostic redaction with UI actions; identify shared-token/claimed-identity limitations before multi-user deployment.
-9. Audit dashboard workflows, accessibility, loading/error states and add browser-level checks where a runnable browser environment is available.
-10. Re-run full repository validation after the rolling audit queue is exhausted; fix regressions and publish a verified test inventory.
+8. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records.
+9. Reconcile API authorization and diagnostic redaction with UI actions; identify shared-token/claimed-identity limitations before multi-user deployment.
+10. Audit dashboard workflows, accessibility, loading/error states and add browser-level checks where a runnable browser environment is available.
+11. Re-run full repository validation after the rolling audit queue is exhausted; fix regressions and publish a verified test inventory.
 
 This is a rolling audit, not a claim that exactly six BUILD items remain. Add newly discovered defects in dependency order.
 
