@@ -964,6 +964,21 @@ def refresh_due_tiktok_publications(
         raise HTTPException(502,str(e))
 
 
+@app.get("/api/publishing/analytics-status")
+def publishing_analytics_status(x_review_token:str|None=Header(default=None)):
+    """Summarize analytics freshness and coverage without exposing provider credentials."""
+    require_review_permission(x_review_token,"analytics.read")
+    youtube=youtube_analytics_store.status()
+    tiktok=tiktok_metrics_store.status(tiktok_publish_store)
+    safe_fields=("platform","status","last_attempt_at","last_success_at",
+                 "latest_snapshot_at","last_batch","coverage",
+                 "available_metrics","unavailable_metrics","read_only")
+    return {
+        "youtube":{key:youtube[key] for key in safe_fields if key in youtube},
+        "tiktok":{key:tiktok[key] for key in safe_fields if key in tiktok},
+    }
+
+
 @app.get("/api/tiktok/metrics")
 def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"analytics.read")
