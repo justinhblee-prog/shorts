@@ -1,0 +1,78 @@
+"""Run one bounded NEXUS development-agent cycle on a trusted self-hosted runner.
+
+This command seeds the durable dependency graph, performs read-only GitHub
+backlog intake, and lets the fenced worker execute eligible jobs using the
+configured local Aider/Ollama model. It never merges or deploys.
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+
+from development_agent_executor import AiderDevelopmentExecutor
+from development_backlog_service import DevelopmentBacklogService
+from development_github_intake import GitHubReadOnlyClient
+from development_jobs import DevelopmentJobStore
+from seed_development_jobs import seed_development_jobs
+
+
+def _json_env(name, default):
+    try:
+        value = json.loads(os.environ.get(name, default))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{name} must contain valid JSON") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must be a JSON object")
+    return value
+
+
+def run_once(environ=None):
+    env = os.environ if environ is None else environ
+    token = env.get("GITHUB_TOKEN", "").strip()
+    repository = env.get("GITHUB_REPOSITORY", "").strip()
+    if not token or "/" not in repository:
+        raise ValueError("GITHUB_TOKEN and GITHUB_REPOSITORY=owner/repo are required")
+    owner, name = repository.split("/", 1)
+    if not owner or not name:
+        raise ValueError("GITHUB_REPOSITORY must be owner/repo")
+
+    db_path = env.get("NEXUS_DEVELOPMENT_DB", "data/nexus-development.sqlite3")
+    store = DevelopmentJobStore(db_path)
+    seeded = seed_development_jobs(store)
+    approved_scopes = _json_env("NEXUS_APPROVED_SCOPES", "{}")
+    github = GitHubReadOnlyClient(token)
+    executor = AiderDevelopmentExecutor(
+        repo_root=env.get("GITHUB_WORKSPACE", os.getcwd()),
+        model=env.get("NEXUS_DEV_AGENT_MODEL", "ollama_chat/qwen2.5-coder:7b"),
+        timeout_seconds=int(env.get("NEXUS_DEV_AGENT_TIMEOUT", "2700")),
+    )
+    service = DevelopmentBacklogService(
+        store=store,
+        github_client=github,
+        owner=owner,
+        repository=name,
+        executor=executor,
+        worker_id=env.get("RUNNER_NAME", "nexus-local-agent"),
+        approved_scopes=approved_scopes,
+        poll_seconds=2,
+        idle_seconds=int(env.get("NEXUS_AGENT_IDLE_SECONDS", "5")),
+    )
+    result = service.run_cycle()
+    result["seeded_job_count"] = len(seeded)
+    result["database_summary"] = store.summary()
+    return result
+
+
+def main():
+    try:
+        result = run_once()
+    except Exception as error:
+        print(f"NEXUS development cycle failed: {type(error).__name__}: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
