@@ -247,6 +247,19 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(reports.calls, [])
         self.assertIsNone(self.store.get("recent-video")["views"])
 
+    def test_analytics_history_appends_snapshots_while_latest_remains_current(self):
+        first={"views":100,"engagedViews":60,"estimatedMinutesWatched":10,
+               "averageViewDuration":6,"averageViewPercentage":50}
+        second={"views":150,"engagedViews":90,"estimatedMinutesWatched":15,
+                "averageViewDuration":7,"averageViewPercentage":55}
+        self.store.save("history-video","2026-11-01","2026-11-14",first,[])
+        self.store.save("history-video","2026-11-01","2026-11-15",second,[])
+        history=self.store.history("history-video")
+        self.assertEqual(len(history),2)
+        self.assertEqual({row["views"] for row in history},{100,150})
+        self.assertEqual(self.store.get("history-video")["views"],150)
+        self.assertEqual(len(self.store.history("other-video")),0)
+
     def test_relative_retention_performance_preserves_negative_values(self):
         reports = FakeReports(retention={
             "columnHeaders": [
