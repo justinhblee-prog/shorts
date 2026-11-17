@@ -91,6 +91,77 @@ class SchedulerTests(unittest.TestCase):
             datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc),
         )
 
+    def test_dispatch_completion_samples_clock_after_write_lock(self):
+        due = datetime(2026, 11, 17, 11, 0, tzinfo=timezone.utc)
+        item = self.schedule(due)
+        queue_accepted = threading.Event()
+        allow_enqueue_return = threading.Event()
+        completion_clock_sampled = threading.Event()
+        observed = {}
+        clock_calls = {"count": 0}
+        clock_lock = threading.Lock()
+
+        class ControlledDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                with clock_lock:
+                    clock_calls["count"] += 1
+                    call = clock_calls["count"]
+                if call == 2:
+                    completion_clock_sampled.set()
+                    return datetime(2026, 11, 17, 12, 5, tzinfo=timezone.utc)
+                return datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+
+        class BlockingQueue:
+            @staticmethod
+            def is_paused():
+                return False
+
+            @staticmethod
+            def enqueue(*args, **kwargs):
+                queue_accepted.set()
+                if not allow_enqueue_return.wait(5):
+                    raise TimeoutError("test did not release queue enqueue")
+                return {"id": "job-1"}
+
+        def dispatch():
+            try:
+                observed["result"] = self.schedules.dispatch_due(BlockingQueue())
+            except BaseException as exc:
+                observed["error"] = exc
+
+        with patch.object(scheduler_store_module, "datetime", ControlledDateTime):
+            thread = threading.Thread(target=dispatch)
+            thread.start()
+            self.assertTrue(queue_accepted.wait(2), "queue did not accept the scheduled job")
+            with self.schedules.db() as blocker:
+                blocker.execute("BEGIN IMMEDIATE")
+                allow_enqueue_return.set()
+                self.assertFalse(
+                    completion_clock_sampled.wait(0.1),
+                    "completion clock must not be sampled before the SQLite write lock",
+                )
+                blocker.commit()
+            thread.join(5)
+            self.assertFalse(thread.is_alive(), "dispatch completion did not finish")
+
+        self.assertNotIn("error", observed, repr(observed.get("error")))
+        self.assertEqual(observed["result"]["count"], 1)
+        with self.schedules.db() as connection:
+            outbox = connection.execute(
+                "SELECT status,dispatched_at FROM schedule_dispatch_outbox WHERE schedule_id=?",
+                (item["id"],),
+            ).fetchone()
+            schedule = connection.execute(
+                "SELECT last_enqueued_at,updated_at FROM production_schedules WHERE id=?",
+                (item["id"],),
+            ).fetchone()
+        expected = "2026-11-17T12:05:00+00:00"
+        self.assertEqual(outbox["status"], "dispatched")
+        self.assertEqual(outbox["dispatched_at"], expected)
+        self.assertEqual(schedule["last_enqueued_at"], expected)
+        self.assertEqual(schedule["updated_at"], expected)
+
     def test_scheduled_tiktok_platform_is_preserved_in_dispatched_job(self):
         now=datetime.now(timezone.utc)
         item=self.schedules.create(
