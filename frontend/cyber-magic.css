@@ -53,3 +53,13 @@ input:focus,select:focus,textarea:focus{outline:1px solid #398bff;box-shadow:0 0
 .cyber-calendar-empty{font-size:10px;color:#637b9a;text-align:center;padding:16px 2px}
 @media(max-width:900px){.cyber-calendar-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:700px){.cyber-calendar-head{display:block}.cyber-calendar-head .tag{display:inline-block;margin-top:9px}.cyber-calendar-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cyber-calendar-day{min-height:95px}}
+
+.cyber-approval{margin:0 0 20px;padding:17px;background:linear-gradient(145deg,rgba(13,29,50,.97),rgba(8,19,35,.97))}
+.cyber-approval-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.cyber-approval-item{display:flex;align-items:center;gap:10px;min-width:0;padding:11px;border:1px solid #203956;background:#09172a;border-radius:9px;color:#eaf4ff;text-decoration:none}
+.cyber-approval-item:hover{border-color:#398bff;background:#0c2038}
+.cyber-approval-item>span:nth-child(2){display:grid;gap:4px;min-width:0}
+.cyber-approval-item b{font-size:11px;overflow-wrap:anywhere}.cyber-approval-item small{font-size:9px;color:var(--muted)}
+.cyber-approval-dot{width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#f4c45d;box-shadow:0 0 12px #f4c45d66}
+.cyber-approval-arrow{margin-left:auto;color:#6fdcf5}
+@media(max-width:700px){.cyber-approval-list{grid-template-columns:1fr}.cyber-approval .cyber-calendar-head{display:block}.cyber-approval .button{display:inline-flex;margin-top:9px}}
