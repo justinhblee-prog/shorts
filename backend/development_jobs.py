@@ -468,8 +468,25 @@ class DevelopmentJobStore:
             counts = {row["status"]: row["count"] for row in connection.execute(
                 "SELECT status,COUNT(*) AS count FROM development_jobs GROUP BY status"
             )}
+            now = _stamp(_now())
+            lease_counts = connection.execute(
+                """SELECT
+                     SUM(CASE WHEN status IN ('leased','running') AND lease_expires_at>? THEN 1 ELSE 0 END) AS active,
+                     SUM(CASE WHEN status IN ('leased','running') AND
+                         (lease_expires_at IS NULL OR lease_expires_at<=?) THEN 1 ELSE 0 END) AS expired
+                   FROM development_jobs""",
+                (now, now),
+            ).fetchone()
+            latest = connection.execute(
+                """SELECT updated_at,validation_ref FROM development_jobs
+                   ORDER BY updated_at DESC,id DESC LIMIT 1"""
+            ).fetchone()
             return {"total": sum(counts.values()), "by_status": counts,
                     "ready": counts.get("ready", 0), "running": counts.get("running", 0),
                     "blocked": counts.get("blocked", 0), "retry_wait": counts.get("retry_wait", 0),
                     "quarantined": counts.get("quarantined", 0),
-                    "completed": counts.get("completed", 0)}
+                    "completed": counts.get("completed", 0),
+                    "active_leases": lease_counts["active"] or 0,
+                    "expired_leases": lease_counts["expired"] or 0,
+                    "latest_updated_at": latest["updated_at"] if latest else None,
+                    "latest_validation_ref": latest["validation_ref"] if latest else None}
