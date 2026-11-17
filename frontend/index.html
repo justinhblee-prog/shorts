@@ -6,12 +6,17 @@
   <meta name="theme-color" content="#0b1020">
   <title>NEXUS STUDIO PRO — Shorts Operations</title>
   <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/cyber-magic.css">
 </head>
 <body>
   <header class="topbar">
     <a class="brandmark" href="#home"><span class="brand-symbol">N</span><span>NEXUS <b>STUDIO PRO</b><small>SHORTS OPERATIONS</small></span></a>
-    <nav class="main-nav">
-      <a href="#studio">스튜디오</a><a href="#discovery">인텔리전스</a><a href="#review">검수 센터</a><a href="#operations">운영·수익</a>
+    <nav class="main-nav" aria-label="Workspace navigation">
+      <a href="#home">⌂　Dashboard</a>
+      <a href="#studio">✧　AI Content Studio</a>
+      <a href="#discovery">▦　Content Planner & Intelligence</a>
+      <a href="#review">☑　Approvals & Publishing</a>
+      <a href="#operations">⌁　Analytics & Operations</a>
     </nav>
     <div class="top-actions"><span id="connection" class="status-pill"><i></i> 연결 확인 중</span><button class="button button-quiet" id="refreshAll">새로고침 ↻</button></div>
   </header>
@@ -37,6 +42,15 @@
       <article class="metric-card"><span class="metric-label">검수 대기</span><strong id="metricReview">—</strong><small>사람의 승인 필요</small></article>
       <article class="metric-card"><span class="metric-label">활성 브랜드</span><strong id="metricBrands">10</strong><small>KR · US · JP · GB</small></article>
       <article class="metric-card"><span class="metric-label">누적 수익 장부</span><strong id="metricRevenue">—</strong><small>실제 기록 데이터 기준</small></article>
+    </section>
+
+    <section class="cyber-calendar panel" aria-labelledby="cyberCalendarTitle">
+      <div class="cyber-calendar-head"><div><span class="panel-kicker">PUBLISHING WORKSPACE</span><h2 id="cyberCalendarTitle">Content Calendar</h2><p>등록된 반복 제작 일정의 다음 실행 시각입니다. 실제 게시 예약과는 구분됩니다.</p></div><span class="tag">SCHEDULED PRODUCTION</span></div>
+      <div id="cyberCalendarGrid" class="cyber-calendar-grid"><div class="empty-state">API 인증 후 예약 일정을 불러옵니다.</div></div>
+    </section>
+    <section class="cyber-approval panel" aria-labelledby="cyberApprovalTitle">
+      <div class="cyber-calendar-head"><div><span class="panel-kicker">HUMAN QUALITY GATE</span><h2 id="cyberApprovalTitle">Approval Queue</h2><p>검수 대기 중인 실제 제작 작업입니다. 승인·반려는 검수 화면에서 수행합니다.</p></div><a class="button button-secondary" href="#review">전체 검수 보기 ↗</a></div>
+      <div id="cyberApprovalList" class="cyber-approval-list"><div class="empty-state">API 인증 후 검수 대기 목록을 불러옵니다.</div></div>
     </section>
 
     <section class="section" id="studio">
