@@ -4,7 +4,7 @@ import unittest
 
 from development_github_intake import (
     normalize_issue, normalize_snapshot, read_github_snapshot,
-    summarize_pull_request, summarize_workflow_run, sync_labeled_issues,
+    summarize_pull_request, summarize_workflow_run, sync_labeled_issues, sync_github_backlog,
 )
 from development_jobs import DevelopmentJobStore
 
@@ -67,6 +67,18 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
         self.assertEqual(second["created_count"], 0)
         self.assertEqual(second["skipped"][0]["reason"], "duplicate")
         self.assertEqual(len(self.store.list()), 1)
+
+    def test_sync_github_backlog_requires_per_issue_scope_approval(self):
+        client = FakeReadOnlyGitHub()
+        source_ref = "github:issue:acme/app#7"
+        result = sync_github_backlog(
+            self.store, client, "acme", "app",
+            approved_scopes={source_ref: ["backend/export.py"]},
+        )
+        self.assertEqual(result["import"]["created_count"], 1)
+        self.assertEqual(result["candidate_count"], 1)
+        self.assertEqual(result["snapshot_counts"]["pull_requests"], 1)
+        self.assertEqual(self.store.list()[0]["scope"], ["backend/export.py"])
 
     def test_scope_must_be_configured_before_import(self):
         issue = {"number": 3, "title": "Feature", "state": "open", "labels": ["development-job"], "repository": "acme/app"}
