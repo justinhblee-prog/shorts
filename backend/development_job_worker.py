@@ -46,7 +46,8 @@ class DevelopmentJobWorker:
         def keep_lease_alive():
             while not heartbeat_stop.wait(interval):
                 try:
-                    self.store.heartbeat(job["id"], self.worker_id, job["lease_token"])\n                    self.store.touch_worker(self.worker_id, current_job_id=job["id"])
+                    self.store.heartbeat(job["id"], self.worker_id, job["lease_token"])
+                    self.store.touch_worker(self.worker_id, current_job_id=job["id"])
                 except DevelopmentJobConflict:
                     lease_lost.set()
                     return
@@ -90,7 +91,11 @@ class DevelopmentJobWorker:
             return failed["status"]
         finally:
             heartbeat_stop.set()
-            heartbeat.join(timeout=interval + 1)\n            try:\n                self.store.touch_worker(self.worker_id, current_job_id=None)\n            except Exception:\n                pass
+            heartbeat.join(timeout=interval + 1)
+            try:
+                self.store.touch_worker(self.worker_id, current_job_id=None)
+            except Exception:
+                pass
 
     def run_forever(self):
         """Poll until stop() is called; returns after the current job completes."""
