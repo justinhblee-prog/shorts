@@ -901,6 +901,36 @@ def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(
         raise HTTPException(409,str(e))
 
 
+@app.post("/api/tiktok/publications/refresh-due")
+def refresh_due_tiktok_publications(
+    limit:int=Query(default=5,ge=1,le=20),
+    min_age_seconds:int=Query(default=60,ge=0,le=86400),
+    x_review_token:str|None=Header(default=None),
+):
+    """Refresh a bounded batch of pending TikTok uploads without retrying uploads."""
+    require_review_permission(x_review_token,"publish.reconcile")
+    try:
+        result=tiktok_publisher.refresh_due_statuses(
+            limit=limit,min_age_seconds=min_age_seconds
+        )
+        # Keep the operational response bounded and avoid returning provider payloads.
+        return {
+            "skipped":bool(result.get("skipped",False)),
+            "checked":int(result.get("checked",0)),
+            "updated":int(result.get("updated",0)),
+            "results":[
+                {"job_id":item["job_id"],"status":item["status"]}
+                for item in result.get("results",[])
+            ],
+            "errors":[
+                {"job_id":item["job_id"],"error":item["error"][:300]}
+                for item in result.get("errors",[])
+            ],
+        }
+    except TikTokPublishError as e:
+        raise HTTPException(502,str(e))
+
+
 @app.get("/api/tiktok/metrics")
 def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"analytics.read")
