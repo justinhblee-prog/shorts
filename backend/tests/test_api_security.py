@@ -1046,6 +1046,32 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["tiktok"]["pending"],2)
         self.assertNotIn("access_token",str(result))
 
+    def test_publishing_analytics_status_requires_analytics_permission_and_limits_fields(self):
+        from app import publishing_analytics_status
+        youtube={
+            "platform":"youtube","status":"succeeded","last_success_at":"2026-11-17T10:00:00Z",
+            "latest_snapshot_at":"2026-11-17T10:00:00Z","coverage":{"published_videos":3,"with_snapshot":2,"without_snapshot":1},
+            "available_metrics":["views"],"read_only":True,"last_error":"internal error","token":"secret",
+        }
+        tiktok={
+            "platform":"tiktok","status":"not_configured","last_success_at":None,
+            "coverage":{"published_videos":2,"with_snapshot":0,"without_snapshot":2},
+            "available_metrics":["view_count"],"unavailable_metrics":["audience_retention"],
+            "read_only":True,"last_error":"internal error","access_token":"secret",
+        }
+        with (
+            mock.patch.object(app_module,"require_review_permission") as authorize,
+            mock.patch.object(app_module.youtube_analytics_store,"status",return_value=youtube),
+            mock.patch.object(app_module.tiktok_metrics_store,"status",return_value=tiktok),
+        ):
+            result=publishing_analytics_status(x_review_token="analytics-token")
+        authorize.assert_called_once_with("analytics-token","analytics.read")
+        self.assertEqual(result["youtube"]["coverage"]["published_videos"],3)
+        self.assertEqual(result["tiktok"]["unavailable_metrics"],["audience_retention"])
+        self.assertNotIn("last_error",str(result))
+        self.assertNotIn("access_token",str(result))
+        self.assertNotIn("token",str(result))
+
 if __name__ == "__main__":
     unittest.main()
 
