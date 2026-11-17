@@ -842,6 +842,38 @@ class ProductionTests(unittest.TestCase):
         self.assertTrue(all(item["state"]=="adopted"
                             for item in self.store.provider_attempts("job-render-recovery")))
 
+    def test_pipeline_recovers_persisted_transcription_response_without_duplicate_provider_call(self):
+        job_id="job-transcription-recovery"
+        self.store.create(job_id,self.brief)
+        script_text="A recovered script explains the topic with evidence and a useful takeaway."
+        for stage,response in (
+            ("script",{"script":script_text,"provider":"fixture"}),
+            ("voice_generation",{"audio_url":"https://media.example/recovered.mp3"}),
+            ("speech_alignment",{"transcript":script_text,"provider":"recovered-asr"}),
+        ):
+            key=self.store.begin_provider_attempt(job_id,stage,1)
+            self.store.finish_provider_attempt(job_id,stage,1,key,response)
+        script=FakeProvider(AssertionError("script provider must not be called"))
+        voice=FakeProvider(AssertionError("voice provider must not be called"))
+        transcription=FakeProvider(AssertionError("transcription provider must not be called"))
+        render=FakeProvider({"video_url":"https://media.example/recovered.mp4"})
+        result=ProductionPipeline(
+            self.store,script,voice,render,transcription_provider=transcription
+        ).execute(job_id,self.brief)
+        self.assertEqual(result["status"],"rendered")
+        self.assertEqual(script.calls,[])
+        self.assertEqual(voice.calls,[])
+        self.assertEqual(transcription.calls,[])
+        attempts=self.store.provider_attempts(job_id)
+        recovered=next(item for item in attempts if item["stage"]=="speech_alignment")
+        self.assertEqual(recovered["state"],"adopted")
+        self.assertEqual(recovered["provider_request_id"],None)
+        self.assertEqual(
+            next(item for item in result["artifacts"] if item["stage"]=="speech_alignment")
+                ["metadata"]["provider"],
+            "recovered-asr",
+        )
+
     def test_provider_transport_error_is_recorded_as_unknown_not_retried(self):
         self.store.create("job-provider-unknown",self.brief)
         key=self.store.begin_provider_attempt("job-provider-unknown","voice_generation",1)
