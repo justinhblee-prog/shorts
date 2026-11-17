@@ -250,13 +250,20 @@
       chronological.forEach(item=>{
         const metric=item.platform==="youtube"?"views":"view_count";
         const value=item[metric];
-        if(previous[key]!==undefined&&value!==null&&value!==undefined){
-          deltas[item.platform+":"+item.video_id+":"+item.collected_at]=Number(value)-Number(previous[key]);
+        const numericValue=value===null||value===undefined||value===""?null:Number(value);
+        if(Number.isFinite(numericValue)&&numericValue>=0){
+          if(previous[key]!==undefined){
+            deltas[item.platform+":"+item.video_id+":"+item.collected_at]=numericValue-previous[key];
+          }
+          previous[key]=numericValue;
         }
-        if(value!==null&&value!==undefined)previous[key]=Number(value);
       });
     });
-    const number=value=>value===null||value===undefined?"—":Number(value).toLocaleString();
+    const number=value=>{
+      if(value===null||value===undefined||value==="")return "—";
+      const numeric=Number(value);
+      return Number.isFinite(numeric)?numeric.toLocaleString():"—";
+    };
     const deltaFor=item=>{
       const value=deltas[item.platform+":"+item.video_id+":"+item.collected_at];
       return value===undefined?"—":(value>0?"+":"")+value.toLocaleString();
@@ -279,7 +286,10 @@
     const platformComparison='<section class="analytics-platform-comparison"><div class="analytics-trend-heading"><strong>플랫폼별 최신 조회수 요약</strong><span>영상별 최신 스냅샷 기준</span></div><div class="analytics-platform-grid">'+platformSummary+'</div><p class="analytics-chart-note">플랫폼별 수집 영상 수와 최신 조회수 합계의 참고 지표입니다. 플랫폼별 조회수 정의·수집 범위가 다르므로 우열이나 성과 순위로 해석하지 마세요.</p></section>';
     const chartGroups=Object.entries(grouped).map(([key,items])=>{
       const metric=items[0]?.platform==="youtube"?"views":"view_count";
-      const points=items.map(item=>({time:Date.parse(item.collected_at),value:Number(item[metric])}))
+      const points=items.map(item=>{
+        const raw=item[metric];
+        return {time:Date.parse(item.collected_at),value:raw===null||raw===undefined||raw===""?null:Number(raw)};
+      })
         .filter(point=>Number.isFinite(point.time)&&Number.isFinite(point.value)&&point.value>=0)
         .sort((a,b)=>a.time-b.time);
       return {key,platform:items[0]?.platform,videoId:items[0]?.video_id,points};
