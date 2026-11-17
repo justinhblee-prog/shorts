@@ -5,6 +5,7 @@ module, scope paths are validated, and credentials are removed from the
 subprocess environment.
 """
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -14,7 +15,7 @@ from development_job_worker import NonRetryableDevelopmentJobError
 
 
 _FORBIDDEN_PARTS = {
-    ".git", ".env", ".secrets", "secrets", "credentials", "private",
+    ".git", ".secrets", "secrets", "credentials", "private",
 }
 _FORBIDDEN_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".sqlite", ".sqlite3", ".db"}
 _SECRET_ENV_KEYS = {
@@ -24,7 +25,13 @@ _SECRET_ENV_KEYS = {
 
 
 def _tail(value, limit=2000):
-    return (value or "").strip()[-limit:]
+    text = (value or "").strip()
+    text = re.sub(r"(?i)bearer\\s+[A-Za-z0-9._~+/-]+=*", "Bearer [REDACTED]", text)
+    text = re.sub(r"(?i)(token|api[_-]?key|secret|password)\\s*[=:]\\s*[^\\s,;]+",
+                  r"\\1=[REDACTED]", text)
+    text = re.sub(r"\\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\\b",
+                  "[REDACTED]", text)
+    return text[-limit:]
 
 
 class AiderDevelopmentExecutor:
@@ -62,9 +69,13 @@ class AiderDevelopmentExecutor:
             candidate = Path(raw.strip())
             if candidate.is_absolute() or ".." in candidate.parts:
                 raise NonRetryableDevelopmentJobError("job scope contains a path traversal")
-            normalized = candidate.as_posix().lstrip("./")
+            normalized = candidate.as_posix()
+            if normalized.startswith("./"):
+                normalized = normalized[2:]
             parts = {part.lower() for part in Path(normalized).parts}
-            if parts & _FORBIDDEN_PARTS or Path(normalized).suffix.lower() in _FORBIDDEN_SUFFIXES:
+            name = Path(normalized).name.lower()
+            if (parts & _FORBIDDEN_PARTS or name.startswith(".env")
+                    or Path(normalized).suffix.lower() in _FORBIDDEN_SUFFIXES):
                 raise NonRetryableDevelopmentJobError("job scope includes a protected secret or data path")
             resolved = (self.repo_root / normalized).resolve()
             try:
@@ -94,8 +105,12 @@ class AiderDevelopmentExecutor:
             raise NonRetryableDevelopmentJobError("Aider executable is not installed on this runner")
 
         env = os.environ.copy()
-        for key in _SECRET_ENV_KEYS:
-            env.pop(key, None)
+        for key in list(env):
+            upper = key.upper()
+            if (key in _SECRET_ENV_KEYS or any(marker in upper for marker in
+                    ("TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "API_KEY"))
+                    or upper.startswith(("AWS_", "AZURE_", "GOOGLE_APPLICATION_CREDENTIALS"))):
+                env.pop(key, None)
         env["OLLAMA_API_BASE"] = env.get("OLLAMA_API_BASE", "http://127.0.0.1:11434")
 
         if self._git("status", "--porcelain", "--untracked-files=all", env=env):
