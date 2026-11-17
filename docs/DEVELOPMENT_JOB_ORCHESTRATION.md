@@ -102,6 +102,8 @@ The current Draft PR #321 contains the following prototype components:
 
 The new runner and workflow are code-level implementations, not proof of autonomous operation. CI on hosted Linux validates the Python code and fixtures; it does not validate the Windows self-hosted runner, Ollama availability, real model edits, GitHub token permissions, or scheduled execution from `main`.
 
+Before enabling the workflow on the default branch, configure `NEXUS_GITHUB_READ_TOKEN` as a fine-grained token limited to read-only Issues, Pull requests, Actions, and repository metadata. Configure `NEXUS_APPROVED_SCOPES` only with explicitly approved issue-to-path mappings. The workflow's built-in `GITHUB_TOKEN` is kept separate and is used only by the Draft-PR publication action.
+
 ### Remaining ordered gates
 
 1. Confirm the newest `scripts/validate.sh` CI run passes after the runner configuration fix.
