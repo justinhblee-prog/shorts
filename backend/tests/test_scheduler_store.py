@@ -44,9 +44,9 @@ class SchedulerTests(unittest.TestCase):
         operation_started = threading.Event()
         observed = {}
 
-        class ControlledDateTime:
-            @staticmethod
-            def now(tz=None):
+        class ControlledDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
                 sampled_time.set()
                 return datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
 
@@ -73,8 +73,8 @@ class SchedulerTests(unittest.TestCase):
                 thread.join(5)
                 self.assertFalse(thread.is_alive(), "dispatch reservation did not finish")
 
-        self.assertEqual(observed["count"], 0)
-        self.assertTrue(observed["paused"])
+        self.assertEqual(observed["result"]["count"], 0)
+        self.assertTrue(observed["result"]["paused"])
         with self.schedules.db() as connection:
             outbox = connection.execute(
                 "SELECT created_at FROM schedule_dispatch_outbox WHERE schedule_id=?",
