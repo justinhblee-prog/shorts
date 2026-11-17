@@ -60,5 +60,23 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         self.assertNotIn("detail-secret", json.dumps(result))
 
 
+    def test_summary_endpoint_exposes_lease_health_under_operations_read(self):
+        summary = {
+            "total": 2, "by_status": {"running": 1, "completed": 1},
+            "active_leases": 1, "expired_leases": 0,
+            "latest_updated_at": "2026-11-17T10:00:00+00:00",
+            "latest_validation_ref": "ci://run/42",
+        }
+        with (
+            mock.patch.object(app_module, "require_review_permission") as auth,
+            mock.patch.object(app_module.development_job_store, "summary", return_value=summary),
+        ):
+            result = app_module.development_job_summary(x_review_token="monitor-token")
+        auth.assert_called_once_with("monitor-token", "operations.read")
+        self.assertEqual(result["active_leases"], 1)
+        self.assertEqual(result["expired_leases"], 0)
+        self.assertEqual(result["latest_validation_ref"], "ci://run/42")
+
+
 if __name__ == "__main__":
     unittest.main()
