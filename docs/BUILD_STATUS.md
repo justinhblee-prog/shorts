@@ -2202,3 +2202,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Missing-queue-row guard tests explicitly remove the trigger before simulating out-of-band deletion; normal operation retains append-only protection.
 - GitHub Actions Backend tests run #43984822638 passed on exact PR #297 head `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a`.
 - This is database-local protection, not tamper-proof storage against privileged schema/database-file modification.
+
+
+## BUILD-00292 — capture schedule activation timestamp after SQLite write lock
+
+- Move the `set_active` timestamp read inside `BEGIN IMMEDIATE`, after SQLite grants the write lock.
+- Add a deterministic lock-contention regression proving no activation timestamp is sampled while waiting for the lock and that the committed row uses the post-lock timestamp.
+- Validation: pending exact-head GitHub Actions.
