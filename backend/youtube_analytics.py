@@ -68,6 +68,16 @@ class YouTubeAnalyticsStore:
             );
             CREATE INDEX IF NOT EXISTS idx_youtube_analytics_collected
               ON youtube_analytics_snapshots(collected_at);
+            CREATE TABLE IF NOT EXISTS youtube_analytics_history(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              video_id TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,
+              views REAL,engaged_views REAL,engaged_view_share REAL,
+              estimated_minutes_watched REAL,average_view_duration REAL,
+              average_view_percentage REAL,analytics_status TEXT NOT NULL,
+              retention_status TEXT NOT NULL,collected_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_youtube_analytics_history_video_time
+              ON youtube_analytics_history(video_id,collected_at DESC,id DESC);
             CREATE TABLE IF NOT EXISTS youtube_analytics_collector_lease(
               id INTEGER PRIMARY KEY CHECK(id=1),
               owner_id TEXT NOT NULL,
@@ -188,6 +198,18 @@ class YouTubeAnalyticsStore:
             if lease_owner is not None or lease_token is not None:
                 connection.execute("BEGIN IMMEDIATE")
                 self._assert_lease(connection, lease_owner, lease_token)
+            connection.execute("""
+                INSERT INTO youtube_analytics_history(
+                  video_id,start_date,end_date,views,engaged_views,engaged_view_share,
+                  estimated_minutes_watched,average_view_duration,average_view_percentage,
+                  analytics_status,retention_status,collected_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                video_id,start_date,end_date,values["views"],values["engaged_views"],
+                values["engaged_view_share"],values["estimated_minutes_watched"],
+                values["average_view_duration"],values["average_view_percentage"],
+                analytics_status,retention_status,_now(),
+            ))
             connection.execute("""
                 INSERT INTO youtube_analytics_snapshots(
                   video_id,start_date,end_date,views,engaged_views,engaged_view_share,
@@ -325,6 +347,21 @@ class YouTubeAnalyticsStore:
         except (TypeError, ValueError):
             result["retention_curve"] = []
         return result
+
+    def history(self, video_id=None, limit=100):
+        limit=max(1,min(int(limit),500))
+        with self.db() as connection:
+            if video_id:
+                rows=connection.execute("""
+                  SELECT * FROM youtube_analytics_history WHERE video_id=?
+                  ORDER BY collected_at DESC,id DESC LIMIT ?
+                """,(video_id,limit)).fetchall()
+            else:
+                rows=connection.execute("""
+                  SELECT * FROM youtube_analytics_history
+                  ORDER BY collected_at DESC,id DESC LIMIT ?
+                """,(limit,)).fetchall()
+        return [dict(row) for row in rows]
 
     def assert_lease(self, owner_id, token):
         with self.db() as connection:
