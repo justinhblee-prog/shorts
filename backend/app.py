@@ -1351,6 +1351,31 @@ def get_events(jid:str,x_review_token:str|None=Header(default=None)):
 
 
 
+def _public_development_job(job):
+    """Expose monitor-safe fields only; never return a worker lease token or raw error."""
+    fields = (
+        "id", "title", "description", "status", "priority", "scope", "acceptance",
+        "max_attempts", "attempts", "worker_id", "lease_expires_at", "source_ref",
+        "changed_files", "tests_passed", "validation_ref", "created_at", "updated_at",
+        "started_at", "completed_at", "retry_after", "dependencies",
+    )
+    return {field: job.get(field) for field in fields if field in job}
+
+
+def _public_development_event(event):
+    allowed_details = {"lease_expires_at", "depends_on", "changed_files",
+                       "validation_ref", "retry_after", "retryable", "reason"}
+    details = event.get("details") or {}
+    return {
+        "event_type": event.get("event_type"),
+        "from_status": event.get("from_status"),
+        "to_status": event.get("to_status"),
+        "actor": event.get("actor"),
+        "created_at": event.get("created_at"),
+        "details": {key: value for key, value in details.items() if key in allowed_details},
+    }
+
+
 @app.get("/api/development/jobs/summary")
 def development_job_summary(x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"operations.read")
@@ -1365,7 +1390,7 @@ def list_development_jobs(
 ):
     require_review_permission(x_review_token,"operations.read")
     statuses=[item.strip() for item in status.split(",") if item.strip()] if status else None
-    return {"jobs":development_job_store.list(statuses=statuses,limit=limit),
+    return {"jobs":[_public_development_job(job) for job in development_job_store.list(statuses=statuses,limit=limit)],
             "summary":development_job_store.summary()}
 
 
@@ -1377,7 +1402,7 @@ def development_job_events(
 ):
     require_review_permission(x_review_token,"operations.read")
     try:
-        return {"events":development_job_store.events(job_id,limit)}
+        return {"events":[_public_development_event(event) for event in development_job_store.events(job_id,limit)]}
     except DevelopmentJobNotFound:
         raise HTTPException(404,"Development job not found")
 
@@ -1388,7 +1413,7 @@ def get_development_job(job_id:str,x_review_token:str|None=Header(default=None))
     job=development_job_store.get(job_id)
     if job is None:
         raise HTTPException(404,"Development job not found")
-    return {"job":job}
+    return {"job":_public_development_job(job)}
 
 
 @app.get("/api/preflight")
