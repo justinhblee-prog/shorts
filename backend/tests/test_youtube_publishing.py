@@ -108,9 +108,11 @@ class YouTubePublishingTests(unittest.TestCase):
                            "https://media.example/video.mp4",
                            {"media_staging":media_staging})
         policy_brief = {
+            "platforms": ["youtube"],
             "rights": {"visuals_cleared": True, "audio_cleared": True,
                        "likeness_authorized": True},
-            "synthetic_media_status": "none",
+            "synthetic_media_status": "ai_generated",
+            "platform_disclosures": {"youtube_altered_content": True},
             "factual_claims_verified": True,
             "originality_notes": "Original educational narration.",
         }
@@ -811,6 +813,44 @@ class YouTubePublishingTests(unittest.TestCase):
         self.uploads.finish("job-1","yt-recent",attempt["attempt_id"])
         self.uploads.snapshot("yt-recent",{"viewCount":"100"})
         self.assertEqual(self.uploads.due_metric_video_ids(limit=50,min_age_seconds=21600),[])
+
+    def test_youtube_upload_sets_synthetic_media_disclosure_from_approved_policy(self):
+        result = self.publisher.upload_approved(
+            "job-1", self.media, self.review, "Synthetic short", "Description"
+        )
+        self.assertEqual(result["status"], "uploaded")
+        self.assertIs(
+            self.service._videos.body["status"]["containsSyntheticMedia"], True
+        )
+
+    def test_youtube_disclosure_mapping_requires_known_status_and_acknowledgement(self):
+        mapping = YouTubePublisher._youtube_contains_synthetic_media
+        self.assertIs(mapping({
+            "platforms": ["youtube"], "synthetic_media_status": "none"
+        }), False)
+        self.assertIs(mapping({
+            "platforms": ["youtube"],
+            "synthetic_media_status": "ai_assisted_nonrealistic",
+        }), False)
+        self.assertIs(mapping({
+            "platforms": ["youtube"],
+            "synthetic_media_status": "realistic_alteration",
+            "platform_disclosures": {"youtube_altered_content": True},
+        }), True)
+        with self.assertRaisesRegex(YouTubeUploadError, "not acknowledged"):
+            mapping({
+                "platforms": ["youtube"],
+                "synthetic_media_status": "ai_generated",
+                "platform_disclosures": {"youtube_altered_content": False},
+            })
+        with self.assertRaisesRegex(YouTubeUploadError, "unknown or unsupported"):
+            mapping({
+                "platforms": ["youtube"], "synthetic_media_status": "unsure",
+            })
+        with self.assertRaisesRegex(YouTubeUploadError, "does not include YouTube"):
+            mapping({
+                "platforms": ["tiktok"], "synthetic_media_status": "none",
+            })
 
     def test_upload_is_always_private_and_persists_source_stats(self):
         result=self.publisher.upload_approved("job-1",self.media,self.review,
