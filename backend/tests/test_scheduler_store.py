@@ -1,8 +1,11 @@
 import os
 import sqlite3
 import tempfile
+import threading
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
+import scheduler_store as scheduler_store_module
 from scheduler_store import ScheduleStore
 from queue_store import JobQueue
 
@@ -208,8 +211,6 @@ class SchedulerTests(unittest.TestCase):
 
     def test_set_active_samples_updated_at_after_write_lock(self):
         item = self.schedule(datetime.now(timezone.utc))
-        lock_acquired = threading.Event()
-        release_lock = threading.Event()
         sampled_time = threading.Event()
         operation_started = threading.Event()
         observed = {}
@@ -226,7 +227,6 @@ class SchedulerTests(unittest.TestCase):
 
         with self.schedules.db() as blocker:
             blocker.execute("BEGIN IMMEDIATE")
-            lock_acquired.set()
             with patch.object(scheduler_store_module, "datetime", ControlledDateTime):
                 thread = threading.Thread(target=update_schedule)
                 thread.start()
