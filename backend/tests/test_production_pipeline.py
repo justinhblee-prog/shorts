@@ -48,6 +48,51 @@ class ProductionTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_artifact_and_provider_attempt_adoption_commit_atomically(self):
+        job_id = "job-atomic-provider-adoption"
+        self.store.create(job_id, self.brief)
+        key = self.store.begin_provider_attempt(job_id, "speech_alignment", 1)
+        self.store.finish_provider_attempt(
+            job_id, "speech_alignment", 1, key,
+            {"transcript": "durable transcript", "provider": "fixture"},
+        )
+
+        self.store.artifact(
+            job_id, "speech_alignment", "report", None,
+            {"transcript": "durable transcript"},
+            provider_attempt=("speech_alignment", 1),
+        )
+        attempt = self.store.provider_attempts(job_id)[0]
+        artifact = next(
+            item for item in self.store.get(job_id)["artifacts"]
+            if item["stage"] == "speech_alignment"
+        )
+        self.assertEqual(attempt["state"], "adopted")
+        self.assertEqual(artifact["metadata"]["transcript"], "durable transcript")
+
+    def test_failed_provider_adoption_rolls_back_artifact_write(self):
+        job_id = "job-atomic-provider-adoption-rollback"
+        self.store.create(job_id, self.brief)
+        key = self.store.begin_provider_attempt(job_id, "speech_alignment", 1)
+        self.store.finish_provider_attempt(
+            job_id, "speech_alignment", 1, key,
+            {"transcript": "durable transcript"},
+        )
+
+        with self.assertRaisesRegex(ValueError, "provider response is missing"):
+            self.store.artifact(
+                job_id, "speech_alignment", "report", None,
+                {"transcript": "must roll back"},
+                provider_attempt=("speech_alignment", 99),
+            )
+
+        self.assertEqual(self.store.provider_attempts(job_id)[0]["state"],
+                         "response_received")
+        self.assertFalse(any(
+            item["stage"] == "speech_alignment"
+            for item in self.store.get(job_id)["artifacts"]
+        ))
+
     def test_create_uses_one_timestamp_after_acquiring_write_lock(self):
         decision = "2036-07-08T09:10:11+00:00"
         clock_called = Event()
