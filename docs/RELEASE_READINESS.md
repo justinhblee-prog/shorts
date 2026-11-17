@@ -149,3 +149,10 @@ These are additional readiness constraints documented by the project, not comple
 - Regression covers a late upload completion discovered after an ambiguous cancellation and asserts no queue retry or reconciliation audit is committed.
 - PR #309 (BUILD-00303): https://github.com/justinhblee-prog/shorts/pull/309 — exact head `ac96e68e4b661bcd638f0075d81732022720edd9`, GitHub Actions run #43995170924 passed (rerun attempt 2).
 - PR #310 (BUILD-00304): implementation head `485f9d8e05e323323d38d73edf52e833b82c5f1b`, GitHub Actions run #44014933856 passed (669 backend tests). Docs-inclusive exact-head validation is pending.
+
+
+### BUILD-00305 — worker generation identity
+- Default worker IDs are now derived from the host name so a process restart on the same host rotates the existing registry generation and fences the prior process incarnation.
+- Set `NEXUS_WORKER_ID` explicitly to a stable per-worker identity when the runtime hostname is ephemeral (for example, replaceable containers); do not use a random per-process value.
+- Regression coverage: same-host restart identity stability, explicit override, and empty-host rejection.
+- Exact-head CI pending. This does not replace lease fencing or prove a distributed deployment's hostname/identity configuration.
