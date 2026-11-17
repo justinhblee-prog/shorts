@@ -148,4 +148,4 @@ These are additional readiness constraints documented by the project, not comple
 - Existing behavior for jobs whose production run has not yet been created is preserved.
 - Regression covers a late upload completion discovered after an ambiguous cancellation and asserts no queue retry or reconciliation audit is committed.
 - PR #309 (BUILD-00303): https://github.com/justinhblee-prog/shorts/pull/309 — exact head `ac96e68e4b661bcd638f0075d81732022720edd9`, GitHub Actions run #43995170924 passed (rerun attempt 2).
-- BUILD-00304 exact-head CI is pending.
+- PR #310 (BUILD-00304): implementation head `485f9d8e05e323323d38d73edf52e833b82c5f1b`, GitHub Actions run #44014933856 passed (669 backend tests). Docs-inclusive exact-head validation is pending.
