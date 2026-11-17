@@ -192,6 +192,7 @@ class YouTubeUploadStore:
                     "automatic retry is blocked to prevent duplicate videos"
                 )
             attempt_id=uuid.uuid4().hex
+            stamp=_now()
             c.execute("""INSERT INTO youtube_uploads
               (job_id,status,privacy_status,title,description,updated_at,attempt_id,
                policy_version,policy_checked_on)
@@ -202,7 +203,7 @@ class YouTubeUploadStore:
                 video_id=NULL,uploaded_at=NULL,attempt_id=excluded.attempt_id,
                 policy_version=excluded.policy_version,
                 policy_checked_on=excluded.policy_checked_on
-            """,(job_id,title,description,_now(),attempt_id,
+            """,(job_id,title,description,stamp,attempt_id,
                   current_policy["policy_version"],current_policy.get("policy_checked_on")))
             c.execute("""INSERT INTO youtube_upload_events
               (job_id,attempt_id,event_type,outcome,operator_id,note,previous_status,
@@ -212,7 +213,7 @@ class YouTubeUploadStore:
               (job_id,attempt_id,
                "Upload attempt initialized with private visibility; policy version "
                + str(current_policy["policy_version"]),
-               row["status"] if row else None,_now(),
+               row["status"] if row else None,stamp,
                current_policy["policy_version"],current_policy.get("policy_checked_on")))
             return dict(c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone())
 
@@ -244,10 +245,11 @@ class YouTubeUploadStore:
                   (video_id.strip(),"Late remote success from a superseded upload attempt; operator resolution required",now,job_id))
                 late_conflict=True
             else:
+                stamp=_now()
                 updated=c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
                   privacy_status='private',uploaded_at=?,updated_at=?,error=NULL
                   WHERE job_id=? AND status='uploading' AND attempt_id=?""",
-                  (video_id.strip(),_now(),_now(),job_id,attempt_id))
+                  (video_id.strip(),stamp,stamp,job_id,attempt_id))
                 if updated.rowcount != 1:
                     state_error="Upload attempt was replaced before finalization"
                 else:
@@ -257,7 +259,7 @@ class YouTubeUploadStore:
                       VALUES(?,?,'upload_confirmed','uploaded',?,'system:youtube_response',
                        'YouTube returned a video ID for the active upload attempt',
                        'uploading','uploaded',?)""",
-                      (job_id,attempt_id,video_id.strip(),_now()))
+                      (job_id,attempt_id,video_id.strip(),stamp))
         if late_conflict:
             raise YouTubeUploadError("Late YouTube success detected for a superseded attempt. Retry is blocked; all returned video IDs are preserved for operator review.")
         if state_error:
@@ -298,8 +300,10 @@ class YouTubeUploadStore:
 
     def touch_upload(self,job_id,attempt_id=None):
         with self.db() as c:
+            c.execute("BEGIN IMMEDIATE")
+            stamp=_now()
             updated=c.execute("""UPDATE youtube_uploads SET updated_at=?
-              WHERE job_id=? AND status='uploading' AND attempt_id=?""",(_now(),job_id,attempt_id))
+              WHERE job_id=? AND status='uploading' AND attempt_id=?""",(stamp,job_id,attempt_id))
             return updated.rowcount==1
 
     def mark_reconciliation_required(self,job_id,error,attempt_id=None):
@@ -397,15 +401,16 @@ class YouTubeUploadStore:
                 )
             if row["status"] not in ("uploading","reconciliation_required"):
                 raise YouTubeUploadError("Only an ambiguous upload can be reconciled")
+            stamp=_now()
             if outcome=="uploaded":
                 updated=c.execute("""UPDATE youtube_uploads SET video_id=?,status='uploaded',
                   privacy_status='private',uploaded_at=?,updated_at=?,error=NULL
                   WHERE job_id=? AND status IN ('uploading','reconciliation_required') AND attempt_id=?""",
-                  (video_id.strip(),_now(),_now(),job_id,row["attempt_id"]))
+                  (video_id.strip(),stamp,stamp,job_id,row["attempt_id"]))
             else:
                 updated=c.execute("""UPDATE youtube_uploads SET status='failed',error=?,updated_at=?
                   WHERE job_id=? AND status IN ('uploading','reconciliation_required') AND attempt_id=?""",
-                  ("Operator verified no matching remote upload. "+note,_now(),job_id,row["attempt_id"]))
+                  ("Operator verified no matching remote upload. "+note,stamp,job_id,row["attempt_id"]))
             if updated.rowcount != 1:
                 raise YouTubeUploadError("Upload state changed during reconciliation")
             resulting="uploaded" if outcome=="uploaded" else "failed"
@@ -413,7 +418,7 @@ class YouTubeUploadStore:
               (job_id,attempt_id,event_type,outcome,video_id,operator_id,note,previous_status,resulting_status,created_at)
               VALUES(?,?,'operator_reconciliation',?,?,?,?,?,?,?)""",
               (job_id,row["attempt_id"],outcome,video_id.strip() if isinstance(video_id,str) else None,
-               operator_id,note,row["status"],resulting,_now()))
+               operator_id,note,row["status"],resulting,stamp))
         return self.get(job_id)
 
     def resolve_late_success(self,job_id,operator_id,note,video_id=None,expected_attempt_id=None):
