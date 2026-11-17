@@ -52,7 +52,6 @@ class JobQueue:
               BEGIN SELECT RAISE(ABORT,'job events are immutable'); END;
             CREATE TRIGGER IF NOT EXISTS job_events_no_delete
               BEFORE DELETE ON job_events
-              WHEN EXISTS (SELECT 1 FROM pipeline_jobs WHERE id=OLD.job_id)
               BEGIN SELECT RAISE(ABORT,'job events are immutable'); END;
             CREATE TABLE IF NOT EXISTS worker_registry(
               worker_id TEXT PRIMARY KEY, hostname TEXT, last_seen_at TEXT NOT NULL,
