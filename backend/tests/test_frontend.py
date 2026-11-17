@@ -150,3 +150,15 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('Approvals & Publishing', html)
         self.assertIn('position:fixed', css)
         self.assertIn('prefers-reduced-motion', css)
+
+    def test_cyber_magic_calendar_uses_real_schedule_next_run_data(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        css = (frontend / "cyber-magic.css").read_text(encoding="utf-8")
+        self.assertIn('id="cyberCalendarGrid"', html)
+        self.assertIn('new Date(item.next_run_at)', app_js)
+        self.assertIn('item.payload?.brand', app_js)
+        self.assertIn('SCHEDULED PRODUCTION', html)
+        self.assertIn('.cyber-calendar-grid', css)
+        self.assertIn('실제 게시 예약과는 구분됩니다', html)
