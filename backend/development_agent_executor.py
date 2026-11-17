@@ -74,7 +74,8 @@ class AiderDevelopmentExecutor:
                 normalized = normalized[2:]
             parts = {part.lower() for part in Path(normalized).parts}
             name = Path(normalized).name.lower()
-            if (parts & _FORBIDDEN_PARTS or name.startswith(".env")
+            protected_name = any(marker in name for marker in ("credential", "secret", "private"))
+            if (parts & _FORBIDDEN_PARTS or protected_name or name.startswith(".env")
                     or Path(normalized).suffix.lower() in _FORBIDDEN_SUFFIXES):
                 raise NonRetryableDevelopmentJobError("job scope includes a protected secret or data path")
             resolved = (self.repo_root / normalized).resolve()
