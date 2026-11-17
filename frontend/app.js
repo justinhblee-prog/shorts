@@ -447,7 +447,7 @@
     const data=await api("/api/development/jobs/"+encodeURIComponent(jobId)+"/events?limit=100");
     const events=data.events||[];
     host.innerHTML=events.length?events.map(event=>{
-      const transition=(event.from_status||"—")+" → "+(event.to_status||event.to_status===null?"—":event.to_status);
+      const transition=(event.from_status||"—")+" → "+(event.to_status??"—");
       const details=event.details&&Object.keys(event.details).length?" · "+JSON.stringify(event.details):"";
       return '<div class="development-job-event"><b>'+esc(event.event_type)+' · '+esc(transition)+'</b><small>'+esc(event.created_at||"")+' · '+esc(event.actor||"system")+esc(details)+'</small></div>';
     }).join(""):'<div class="empty-state">기록된 변경 이력이 없습니다.</div>';
@@ -456,7 +456,7 @@
     if(!token)return;
     const data=await api("/api/development/jobs?limit=200");
     const summary=data.summary||{},counts=summary.by_status||{};
-    const metrics=[["전체",summary.total||0],["실행 중",counts.running||counts.leased||0],["대기",counts.ready||0],["선행 대기",counts.blocked||0],["재시도",counts.retry_wait||0],["완료",counts.completed||0]];
+    const metrics=[["전체",summary.total||0],["실행 중",(counts.running||0)+(counts.leased||0)],["대기",counts.ready||0],["선행 대기",counts.blocked||0],["재시도",counts.retry_wait||0],["완료",counts.completed||0]];
     $("developmentJobMetrics").innerHTML=metrics.map(([label,value])=>'<div class="development-job-metric"><small>'+esc(label)+'</small><strong>'+Number(value).toLocaleString()+'</strong></div>').join("");
     const jobs=data.jobs||[];
     $("developmentJobCount").textContent=jobs.length+" JOBS";
@@ -467,7 +467,7 @@
       const attempts=Number(job.attempts||0)+"/"+Number(job.max_attempts||0);
       return '<button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p></button>';
     }).join(""):'<div class="empty-state">등록된 개발 잡이 없습니다. 현재 화면은 실제 저장소의 개발 잡 데이터만 표시합니다.</div>';
-    hostDevelopmentJobSelected="";
+    document.querySelectorAll("[data-development-job]").forEach(item=>item.setAttribute("aria-pressed",String(item.getAttribute("data-development-job")===hostDevelopmentJobSelected)));
   }
   let hostDevelopmentJobSelected="";
   async function refreshAll(){
