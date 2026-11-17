@@ -2320,3 +2320,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve the existing supported case where the production_runs table or the individual run row does not yet exist.
 - Add a regression simulating a late authoritative upload completion after an ambiguous queue cancellation; verify the queue remains cancelled, the production run remains uploaded, the global pause remains, and no retry audit is written.
 - GitHub Actions run #44014933856 passed on exact PR #310 implementation head `485f9d8e05e323323d38d73edf52e833b82c5f1b` (669 backend tests).
+
+
+## BUILD-00305 — make default worker identity restart-stable
+- Found that `NEXUS_WORKER_ID` defaulted to a random UUID fragment on every process start. This meant a restarted process registered a different worker row and could not rotate/fence the previous incarnation's generation token.
+- Change the default identity to `nexus-production-<hostname>`; preserve explicit `NEXUS_WORKER_ID` overrides.
+- Reject an empty fallback hostname rather than silently generating an unstable identity.
+- Document the explicit stable-ID requirement for container/orchestrator environments where hostnames change between restarts.
+- Add deterministic tests for same-host restart stability, explicit override precedence, and missing fallback rejection.
+- Validation pending exact-head GitHub Actions.
