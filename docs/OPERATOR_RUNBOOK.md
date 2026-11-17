@@ -704,3 +704,13 @@ For each affected job:
 4. After all ambiguous jobs have been reconciled, submit the separate queue resume action with a new operator note.
 
 A retry authorization does not resume production. Conversely, a non-empty resume note alone is not sufficient to resume while any ambiguous job remains. The database check and pause-clear transition execute in one SQLite write transaction.
+
+
+## BUILD-00307 — transcription provider crash recovery
+
+The optional `speech_alignment` transcription call participates in the same provider-attempt journal as script, voice and rendering. Before making the external request, the worker persists a request idempotency key. A response is durably stored before the speech-alignment artifact is written and the attempt is marked adopted.
+
+When recovering:
+- If the attempt is `response_received`, the worker reuses the stored response and does not submit another transcription request.
+- If the attempt is `request_started` or `outcome_unknown`, do not retry automatically. Investigate the transcription provider using its request/idempotency reference and reconcile the attempt using the supported provider-attempt reconciliation workflow.
+- A provider's actual deduplication behavior for the supplied idempotency key must be confirmed from that provider's documentation/configuration; the local journal alone cannot guarantee remote deduplication.
