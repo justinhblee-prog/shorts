@@ -60,6 +60,29 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # The selected development base predates this bootstrap PR. Fetch the
+      # agent instructions from the workflow's own commit, outside the worktree.
+      - name: Load bounded agent instructions
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .agent-bootstrap
+          sparse-checkout: .github/codex/NEXUS_CONTINUOUS_AGENT.md
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Copy agent instructions outside the repository
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = Join-Path $env:GITHUB_WORKSPACE ".agent-bootstrap/.github/codex/NEXUS_CONTINUOUS_AGENT.md"
+          $target = Join-Path $env:RUNNER_TEMP "NEXUS_CONTINUOUS_AGENT.md"
+          if (-not (Test-Path $source)) {
+            throw "Agent instructions were not found at the workflow commit."
+          }
+          Copy-Item -LiteralPath $source -Destination $target -Force
+          Remove-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE ".agent-bootstrap") -Recurse -Force
+
       - name: Verify local Ollama model is available
         shell: pwsh
         run: |
@@ -103,7 +126,7 @@ jobs:
           if (-not (Get-Command aider -ErrorAction SilentlyContinue)) {
             throw "Aider is not on PATH after installation."
           }
-          aider --model ollama_chat/qwen2.5-coder:7b --yes-always --no-auto-commits --message-file .github/codex/NEXUS_CONTINUOUS_AGENT.md
+          aider --model ollama_chat/qwen2.5-coder:7b --yes-always --no-auto-commits --message-file "$env:RUNNER_TEMP\\NEXUS_CONTINUOUS_AGENT.md"
           if ($LASTEXITCODE -ne 0) {
             throw "Aider exited with code $LASTEXITCODE"
           }
