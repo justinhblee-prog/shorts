@@ -226,6 +226,48 @@
     }).join("");
   }
 
+  async function loadAnalyticsHistory(){
+    const days=Number($("analyticsHistoryDays").value||30);
+    const platform=$("analyticsHistoryPlatform").value||"all";
+    const videoId=$("analyticsHistoryVideoId").value.trim();
+    const query=new URLSearchParams({days:String(days),platform,limit:"500"});
+    if(videoId)query.set("video_id",videoId);
+    const data=await api("/api/publishing/analytics-history?"+query.toString());
+    const rows=[];
+    for(const [key,items] of Object.entries(data.items||{})){
+      for(const item of items)rows.push({...item,platform:key});
+    }
+    rows.sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||"")));
+    const grouped={};
+    rows.forEach(item=>{
+      const key=item.platform+":"+item.video_id;
+      (grouped[key]||(grouped[key]=[])).push(item);
+    });
+    const previous={};
+    const deltas={};
+    Object.entries(grouped).forEach(([key,items])=>{
+      const chronological=[...items].sort((a,b)=>String(a.collected_at||"").localeCompare(String(b.collected_at||"")));
+      chronological.forEach(item=>{
+        const metric=item.platform==="youtube"?"views":"view_count";
+        const value=item[metric];
+        if(previous[key]!==undefined&&value!==null&&value!==undefined){
+          deltas[item.platform+":"+item.video_id+":"+item.collected_at]=Number(value)-Number(previous[key]);
+        }
+        if(value!==null&&value!==undefined)previous[key]=Number(value);
+      });
+    });
+    const number=value=>value===null||value===undefined?"—":Number(value).toLocaleString();
+    const deltaFor=item=>{
+      const value=deltas[item.platform+":"+item.video_id+":"+item.collected_at];
+      return value===undefined?"—":(value>0?"+":"")+value.toLocaleString();
+    };
+    $("analyticsHistory").innerHTML=rows.length
+      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개</div><div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>평균 시청 비율</th></tr></thead><tbody>'
+      +rows.slice(0,200).map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>').join("")
+      +'</tbody></table></div>'
+      : '<div class="empty-state">선택한 기간에 저장된 성과 스냅샷이 없습니다. 데이터 수집이 완료된 후 다시 조회하세요.</div>';
+  }
+
   async function loadApproved(){
     const data=await api("/api/review/approved?limit=100");
     const items=data.items||[];
@@ -603,6 +645,12 @@
   $("refreshPublishingOverview").addEventListener("click",async()=>{
     const button=$("refreshPublishingOverview");button.disabled=true;
     try{await loadPublishingOverview();toast("YouTube · TikTok 게시 현황을 갱신했습니다.");}
+    catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
+  $("loadAnalyticsHistory").addEventListener("click",async()=>{
+    const button=$("loadAnalyticsHistory");button.disabled=true;
+    try{await loadAnalyticsHistory();}
     catch(err){toast(err.message);}
     finally{button.disabled=false;}
   });
