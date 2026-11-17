@@ -94,12 +94,44 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
     def test_snapshot_uses_bounded_read_only_client(self):
         client = FakeReadOnlyGitHub()
         snapshot = read_github_snapshot(client, "acme", "app")
+        self.assertEqual(snapshot["issues"][0]["repository"], "acme/app")
         normalized = normalize_snapshot(snapshot)
         self.assertEqual(len(normalized["job_candidates"]), 1)
         self.assertEqual(normalized["pull_requests"][0]["state"], "draft")
         self.assertEqual(normalized["workflow_runs"][0]["conclusion"], "failure")
         self.assertEqual([call[0] for call in client.calls], ["issues", "pulls", "runs"])
         self.assertTrue(all(call[3]["per_page"] == 100 for call in client.calls))
+
+
+    def test_rest_client_exposes_get_only_bounded_endpoints(self):
+        from development_github_intake import GitHubReadOnlyClient
+
+        class RecordingClient(GitHubReadOnlyClient):
+            def __init__(self):
+                super().__init__("test-token")
+                self.paths = []
+
+            def _get_pages(self, path, params=""):
+                self.paths.append((path, params))
+                if path.endswith("/actions/runs"):
+                    return [{"workflow_runs": [{"id": 1}]}]
+                return []
+
+        client = RecordingClient()
+        self.assertEqual(client.list_issues("acme", "app"), [])
+        self.assertEqual(client.list_pull_requests("acme", "app"), [])
+        self.assertEqual(client.list_workflow_runs("acme", "app"), [{"id": 1}])
+        self.assertEqual([item[0] for item in client.paths], [
+            "/repos/acme/app/issues", "/repos/acme/app/pulls",
+            "/repos/acme/app/actions/runs",
+        ])
+        with self.assertRaises(ValueError):
+            client.list_issues("acme", "app", state="all")
+
+    def test_rest_client_requires_token(self):
+        from development_github_intake import GitHubReadOnlyClient
+        with self.assertRaises(ValueError):
+            GitHubReadOnlyClient(" ")
 
 
 if __name__ == "__main__":
