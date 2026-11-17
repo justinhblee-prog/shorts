@@ -97,3 +97,9 @@ These are additional readiness constraints documented by the project, not comple
 - GitHub Actions Backend tests run #43984822638 passed on exact PR #297 head `3f0d4e534b16743c2b650b5f9ac2dc5e92fc678a`.
 - `job_events` and `worker_control_events` reject UPDATE and DELETE through SQLite triggers.
 - The protection does not prevent privileged schema or database-file modification and is not an external tamper-proof audit service.
+
+
+### Engineering checkpoint — BUILD-00292
+- Active work: scheduler schedule activation timestamp consistency under SQLite write-lock contention.
+- Scope: `ScheduleStore.set_active` captures `updated_at` only after acquiring `BEGIN IMMEDIATE`; regression holds the database write lock and observes clock sampling.
+- Validation pending for exact PR head; no deployed scheduler validation is claimed.
