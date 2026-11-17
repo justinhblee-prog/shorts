@@ -12,7 +12,8 @@ import threading
 from production_pipeline import (ProductionPipeline, ProductionStore,
                                  ProductionLeaseConflict, ProviderError, PolicyBlocked)
 from queue_store import JobQueue, LeaseConflict
-from worker_runtime import (parse_worker_runtime_config, request_worker_shutdown,\n                            resolve_worker_id)
+from worker_runtime import (parse_worker_runtime_config, request_worker_shutdown,
+                            resolve_worker_id)
 
 
 DB_PATH = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
