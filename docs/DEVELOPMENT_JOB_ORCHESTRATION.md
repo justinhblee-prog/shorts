@@ -3,7 +3,7 @@
 **Checkpoint:** BUILD-00313 (planning and repository-state baseline)  
 **Updated:** 2026-11-17  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Status:** Stage 1 complete only; orchestration runtime is not implemented.
+**Status:** Control-plane prototype implemented on Draft PR #321; default-branch autonomous execution is not yet verified.
 
 ## 1. Why this exists
 
@@ -15,7 +15,7 @@ This is a development-control plane. It is separate from the product's existing 
 
 - Default branch is `main`; the repository is Python-based.
 - `main` contains the product runtime queue and scheduler: `backend/queue_store.py`, `backend/scheduler.py`, and `backend/scheduler_store.py`. These manage content-production work and scheduled production dispatch, not the engineering backlog.
-- The current local-model agent workflow exists on the open Draft PR branch `build/build-00312-continuous-agent-bootstrap`, not on `main`. Its two-hour cron is therefore not active from the default branch.
+- The bootstrap local-model workflow and `nexus-development-job-worker.yml` scheduled worker workflow exist only on development branches/Draft PRs until reviewed and merged. Their schedules are not active from `main` yet.
 - Workflow run [44061280928](https://github.com/justinhblee-prog/shorts/actions/runs/44061280928) completed with a successful Actions conclusion. The agent step and focused queue test step completed, but the workflow detected no meaningful product diff and skipped Draft PR creation. This is an automation execution, not a delivered code change.
 - Open Draft PRs #313–#318 form a sequential development branch chain. Each PR's base is the preceding development branch; they must be reviewed and validated in dependency order.
 - Open Draft PRs #319 and #320 each contain only a one-line `.gitignore` change (`.aider*`) and are not evidence of product development. Keep them Draft; do not merge them as feature work.
@@ -49,7 +49,7 @@ The following are implementation jobs for the engineering automation itself. The
 | DEV-ORCH-006 | Add retry/backoff, dead-letter/quarantine, and operator recovery | 001–005 | retry/recovery/idempotency tests |
 | DEV-ORCH-007 | Connect GitHub Issues/PRs/Actions as read-only evidence sources; reconcile without auto-merging | 001–006 | fixture-backed integration tests |
 | DEV-ORCH-008 | Add truthful development-job API and dashboard view | 001–007 | API/UI tests and live-state contract |
-| DEV-ORCH-009 | Wire scheduled/manual GitHub Actions dispatch and prove autonomous continuation on the default branch | 001–008 | observed end-to-end run creating a real Draft PR from a meaningful code+test diff |
+| DEV-ORCH-009 | Wire scheduled/manual GitHub Actions dispatch and prove autonomous continuation on the default branch | 001–008 | observed end-to-end run creating a real Draft PR from a meaningful code+test diff |\n| DEV-ORCH-010 | Verify real Ollama worker end-to-end execution and dependent-job advancement | 009 | real model-generated product diff, passing tests, Draft PR, and unlocked dependent job |
 
 ### Product backlog intake (separate graph)
 
@@ -87,6 +87,24 @@ All state changes must be append-only in the job event history and guarded by co
 - Distinguish workflow success, test success, code-change success, and product/runtime validation.
 - Never claim background continuation unless a scheduled workflow is on the default branch, a trusted runner is online, and an actual subsequent run is observed.
 
-## 8. Next implementation step
+## 8. Implemented prototype and remaining gates
 
-Implement `DEV-ORCH-001` as a dedicated engineering-job store and migration, reusing proven transaction/lease patterns only after reviewing their boundaries. Do not overload the existing content-production queue or recurring publishing scheduler. Add tests before connecting model workers or scheduling.
+The current Draft PR #321 contains the following prototype components:
+
+- `backend/development_jobs.py`: SQLite-backed job graph, dependency checks, leases, heartbeat/fencing, append-only events, retry/quarantine, and completion evidence gate.
+- `backend/development_job_worker.py`: bounded worker lifecycle, heartbeat, retries, and idle draining.
+- `backend/development_github_intake.py`: read-only GitHub Issues/PR/Actions intake, deduplication, and explicit per-issue file-scope approval.
+- `backend/development_backlog_service.py`: sync → register → worker cycle coordinator.
+- `backend/run_development_agent.py`: one-cycle runner that seeds the engineering graph and injects the local Aider/Ollama executor.
+- `backend/development_agent_executor.py`: constrained Aider executor with protected-path checks, credential-stripped child environment, scoped diff check, and repository validation.
+- `.github/workflows/nexus-development-job-worker.yml`: scheduled/manual self-hosted runner workflow and Draft PR publication step.
+
+The new runner and workflow are code-level implementations, not proof of autonomous operation. CI on hosted Linux validates the Python code and fixtures; it does not validate the Windows self-hosted runner, Ollama availability, real model edits, GitHub token permissions, or scheduled execution from `main`.
+
+### Remaining ordered gates
+
+1. Confirm the newest `scripts/validate.sh` CI run passes after the runner configuration fix.
+2. Review and safely integrate PR #321 into the development branch chain; do not merge it without user approval.
+3. After the workflow reaches `main`, verify a manual dispatch on the trusted Windows runner before claiming the schedule is operational.
+4. Verify a real Ollama-generated scoped diff, full test result, Draft PR creation, and dependent-job advancement.
+5. Implement the truthful API/dashboard (DEV-ORCH-008) only after actual job and worker state contracts are stable.
