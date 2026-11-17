@@ -1252,9 +1252,8 @@ class ProductionPipeline:
                                 {"script": script_text, "provider": script.get("provider"),
                                  "provider_quality_metadata": script_metadata,
                                  "policy_preflight": policy_report},
+                                provider_attempt=("script", script_attempt_number),
                                 **lease)
-            self.store.mark_provider_attempt_adopted(
-                job_id,"script",script_attempt_number,**lease)
             self.store.artifact(job_id, "originality_check", "report", None,
                                 originality_report, **lease)
 
@@ -1275,9 +1274,8 @@ class ProductionPipeline:
                 raise ProviderError("voice_generation", "Voice provider returned no valid audio_url", False)
             self.store.artifact(job_id, "voice_generation", "audio", audio_url,
                                 {k: v for k, v in voice.items() if k != "audio_url"},
+                                provider_attempt=("voice_generation", voice_attempt_number),
                                 **lease)
-            self.store.mark_provider_attempt_adopted(
-                job_id,"voice_generation",voice_attempt_number,**lease)
 
             speech_report = None
             transcript_text = None
@@ -1380,9 +1378,9 @@ class ProductionPipeline:
                         retryable=False,
                     ) from exc
             self.store.artifact(job_id, "rendering", "video", video_url,
-                                render_metadata, **lease)
-            self.store.mark_provider_attempt_adopted(
-                job_id,"rendering",render_attempt_number,**lease)
+                                render_metadata,
+                                provider_attempt=("rendering", render_attempt_number),
+                                **lease)
             quality_report = evaluate_production_quality(
                 script_text, script_metadata,
                 {k: v for k, v in voice.items() if k != "audio_url"},
