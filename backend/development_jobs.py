@@ -478,8 +478,13 @@ class DevelopmentJobStore:
                 (now, now),
             ).fetchone()
             latest = connection.execute(
-                """SELECT updated_at,validation_ref FROM development_jobs
+                """SELECT updated_at FROM development_jobs
                    ORDER BY updated_at DESC,id DESC LIMIT 1"""
+            ).fetchone()
+            latest_validation = connection.execute(
+                """SELECT validation_ref FROM development_jobs
+                   WHERE status='completed' AND validation_ref IS NOT NULL
+                   ORDER BY completed_at DESC,id DESC LIMIT 1"""
             ).fetchone()
             return {"total": sum(counts.values()), "by_status": counts,
                     "ready": counts.get("ready", 0), "running": counts.get("running", 0),
@@ -489,4 +494,4 @@ class DevelopmentJobStore:
                     "active_leases": lease_counts["active"] or 0,
                     "expired_leases": lease_counts["expired"] or 0,
                     "latest_updated_at": latest["updated_at"] if latest else None,
-                    "latest_validation_ref": latest["validation_ref"] if latest else None}
+                    "latest_validation_ref": latest_validation["validation_ref"] if latest_validation else None}
