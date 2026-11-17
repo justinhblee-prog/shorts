@@ -185,3 +185,9 @@ These are additional readiness constraints documented by the project, not comple
 - Active destination state follows scroll position, click navigation and URL hash, with `aria-current="page"`; keyboard focus and reduced-motion behavior are covered by frontend regression assertions.
 - PR #316: https://github.com/justinhblee-prog/shorts/pull/316 — exact final-head CI is pending. No deployed browser or assistive-technology validation is claimed.
 - This change does not close any mandatory launch gate. Keep the launch-gate score at 1/8 until environment and external evidence is supplied.
+
+
+### Engineering checkpoint — BUILD-00311
+- Extend atomic artifact/provider-attempt adoption to script, voice-generation and rendering; the previous split writes left a crash window after artifact commit but before attempt adoption.
+- New regression checks paired adoption and rollback for all three stages.
+- Validation pending exact PR-head CI. No live provider or deployed runtime validation is claimed; launch-gate score remains 1/8.
