@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, StrictInt
 from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflict
 from development_jobs import DevelopmentJobStore, DevelopmentJobNotFound
+from seed_development_jobs import seed_development_jobs
 from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
 from profitability import OpportunityStore, score_opportunity, analyze_competition
@@ -102,6 +103,12 @@ performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.s
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 development_job_store=DevelopmentJobStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+
+def initialize_development_job_registry():
+    seed_development_jobs(development_job_store)
+
+
+app.add_event_handler("startup", initialize_development_job_registry)
 media_stager=MediaStager()
 
 class Enqueue(BaseModel):
