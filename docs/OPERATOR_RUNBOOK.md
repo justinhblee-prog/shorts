@@ -714,3 +714,10 @@ When recovering:
 - If the attempt is `response_received`, the worker reuses the stored response and does not submit another transcription request.
 - If the attempt is `request_started` or `outcome_unknown`, do not retry automatically. Investigate the transcription provider using its request/idempotency reference and reconcile the attempt using the supported provider-attempt reconciliation workflow.
 - A provider's actual deduplication behavior for the supplied idempotency key must be confirmed from that provider's documentation/configuration; the local journal alone cannot guarantee remote deduplication.
+
+
+## BUILD-00308 — provider response/artifact adoption recovery
+
+For the speech-alignment stage, the artifact row and provider-attempt adoption state are committed in one SQLite write transaction. The active worker lease is checked within that transaction. A failed adoption transition rolls back the artifact upsert, leaving the durable provider response available for recovery. A failed artifact write leaves the attempt in `response_received`.
+
+This protects local database consistency only. It does not make the external provider request transactional; retain the provider idempotency and ambiguous-outcome reconciliation procedures described above.
