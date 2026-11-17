@@ -33,9 +33,11 @@ class DevelopmentJobWorker:
 
     def run_once(self):
         """Claim and execute at most one eligible job; return its resulting status."""
+        self.store.touch_worker(self.worker_id)
         job = self.store.claim_ready(self.worker_id)
         if job is None:
             return None
+        self.store.touch_worker(self.worker_id, current_job_id=job["id"])
 
         lease_lost = threading.Event()
         heartbeat_stop = threading.Event()
@@ -44,7 +46,7 @@ class DevelopmentJobWorker:
         def keep_lease_alive():
             while not heartbeat_stop.wait(interval):
                 try:
-                    self.store.heartbeat(job["id"], self.worker_id, job["lease_token"])
+                    self.store.heartbeat(job["id"], self.worker_id, job["lease_token"])\n                    self.store.touch_worker(self.worker_id, current_job_id=job["id"])
                 except DevelopmentJobConflict:
                     lease_lost.set()
                     return
@@ -88,14 +90,17 @@ class DevelopmentJobWorker:
             return failed["status"]
         finally:
             heartbeat_stop.set()
-            heartbeat.join(timeout=interval + 1)
+            heartbeat.join(timeout=interval + 1)\n            try:\n                self.store.touch_worker(self.worker_id, current_job_id=None)\n            except Exception:\n                pass
 
     def run_forever(self):
         """Poll until stop() is called; returns after the current job completes."""
-        while not self._stop.is_set():
-            status = self.run_once()
-            if status is None:
-                self._stop.wait(self.poll_seconds)
+        try:
+            while not self._stop.is_set():
+                status = self.run_once()
+                if status is None:
+                    self._stop.wait(self.poll_seconds)
+        finally:
+            self.store.stop_worker(self.worker_id)
 
 
     def run_until_idle(self, idle_seconds=60):
@@ -105,13 +110,16 @@ class DevelopmentJobWorker:
         last_activity = time.monotonic()
         processed = 0
         outcomes = {}
-        while not self._stop.is_set() and time.monotonic() - last_activity < idle_seconds:
-            status = self.run_once()
-            if status is None:
-                remaining = idle_seconds - (time.monotonic() - last_activity)
-                self._stop.wait(min(self.poll_seconds, max(0.05, remaining)))
-                continue
-            processed += 1
-            outcomes[status] = outcomes.get(status, 0) + 1
-            last_activity = time.monotonic()
+        try:
+            while not self._stop.is_set() and time.monotonic() - last_activity < idle_seconds:
+                status = self.run_once()
+                if status is None:
+                    remaining = idle_seconds - (time.monotonic() - last_activity)
+                    self._stop.wait(min(self.poll_seconds, max(0.05, remaining)))
+                    continue
+                processed += 1
+                outcomes[status] = outcomes.get(status, 0) + 1
+                last_activity = time.monotonic()
+        finally:
+            self.store.stop_worker(self.worker_id)
         return {"processed": processed, "outcomes": outcomes, "summary": self.store.summary()}
