@@ -6,6 +6,8 @@ on:
       - "frontend/**"
       - "scripts/**"
       - ".github/workflows/backend-tests.yml"
+      - ".github/workflows/nexus-development-job-worker.yml"
+      - ".github/workflows/nexus-continuous-codex.yml"
   pull_request:
     paths:
       - "backend/**"
