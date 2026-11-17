@@ -2209,3 +2209,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Move the `set_active` timestamp read inside `BEGIN IMMEDIATE`, after SQLite grants the write lock.
 - Add a deterministic lock-contention regression proving no activation timestamp is sampled while waiting for the lock and that the committed row uses the post-lock timestamp.
 - Validation: pending exact-head GitHub Actions.
+
+
+## BUILD-00293 — scheduler lease timestamps after SQLite write lock
+
+- Move implicit clock sampling in scheduler lease acquisition and renewal inside `BEGIN IMMEDIATE`.
+- Preserve explicit caller-supplied `now` semantics for deterministic scheduling and tests.
+- Add lock-contention regressions for both acquire and renew, asserting no clock read while blocked and verifying persisted expiry/update timestamps.
+- Validation: pending exact-head GitHub Actions.
