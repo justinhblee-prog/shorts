@@ -555,6 +555,20 @@ class JobQueue:
             row=c.execute("SELECT paused,pause_reason,paused_job_id FROM worker_control WHERE id=1").fetchone()
             if not row or not row["paused"]:
                 raise ValueError("Production queue is not paused")
+            unresolved = c.execute("""SELECT COUNT(*) FROM pipeline_jobs
+                WHERE job_type='short_video_production'
+                  AND (
+                    (status='failed_terminal' AND error_code IN (
+                      'production_lease_expired_ambiguous',
+                      'production_pause_external_outcome_ambiguous'
+                    ))
+                    OR (status='cancelled'
+                        AND error_code='cancelled_external_outcome_ambiguous')
+                  )""").fetchone()[0]
+            if unresolved:
+                raise ValueError(
+                    f"{unresolved} production job(s) still require ambiguous-outcome reconciliation"
+                )
             prior_reason = row["pause_reason"] or ""
             paused_job_id = row["paused_job_id"]
             c.execute("""UPDATE worker_control SET paused=0,pause_reason=NULL,
