@@ -2168,15 +2168,16 @@ The latest workflow run observed during this update was [run 43662557760](https:
 See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based remaining-work plan, phase exit criteria, and launch checklist.
 
 - The current repository does not define a finite total engineering acceptance backlog; therefore no honest overall project completion percentage can yet be calculated from BUILD numbers or open PR counts.
-- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #302 head `5371db9346c15ca6c556df95e419d714c7e98407` (run #43990950232). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
+- The explicit Operator Runbook launch checklist has 8 gates. Gate 1 (`scripts/validate.sh` on Python 3.11+) is verified by successful GitHub Actions on PR #303 head `76655c1269863ce7a5b364d1c18af0017e022c0c` (run #43991377065). The remaining 7 gates require Docker/deployment, real provider/media, YouTube, financial, security/operations, and cohort/ROI evidence.
 - Launch-gate progress: **1/8 (12.5%)**. This is not an overall product completion percentage.
-- PRs #288–#295 and #297–#302 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve the no-merge/no-main-push constraint.
+- PRs #288–#295 and #297–#303 remain Draft and unmerged; PR #296 is closed as a superseded duplicate. Preserve the no-merge/no-main-push constraint.
 - BUILD-00289 (PR #294), BUILD-00290 (PR #295), and BUILD-00291 (PR #297) have successful exact-head GitHub Actions validation.
 - BUILD-00292 (PR #298) passed CI on exact head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`.
 - BUILD-00293 (PR #299) passed CI on exact head `724d4f78425577debc74a7990cf4d34133162390`.
 - BUILD-00294 (PR #300) passed CI on exact head `00a55e1ae52a102a7eddfa52d3bc65c0b58aa8db` (run #43990440580).
 - BUILD-00295 (PR #301) passed CI on exact head `62e5211c51305b71102c52f94b4525ca47b38407` (run #43990907642).
-- BUILD-00296 (PR #302) passed CI on exact head `5371db9346c15ca6c556df95e419d714c7e98407` (run #43990950232).
+- BUILD-00296 (PR #302) passed CI on latest docs-inclusive head `22af5871853f7f124af9c92b37bf9887d3126a3a` (run #43991125723).
+- BUILD-00297 (PR #303) passed CI on latest code head `76655c1269863ce7a5b364d1c18af0017e022c0c` (run #43991377065); documentation follow-up validation is pending.
 - CI and deterministic SQLite coverage must remain separate from live external-service and production validation.
 
 
@@ -2242,4 +2243,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Acquire SQLite's `BEGIN IMMEDIATE` write lock before sampling the schedule creation timestamp.
 - Use one post-lock timestamp for `created_at`, `updated_at`, and the default `next_run_at` when `start_at` is omitted; preserve explicitly supplied timezone-aware start times.
 - Add a lock-contention regression that verifies the default clock is not sampled while creation waits for the write lock and all three persisted timestamps match.
-- GitHub Actions run #43990950232 passed on exact PR #302 head `5371db9346c15ca6c556df95e419d714c7e98407`. Deterministic SQLite coverage only; no deployed scheduler or multi-host validation is claimed.
+- GitHub Actions run #43991125723 passed on latest docs-inclusive PR #302 head `22af5871853f7f124af9c92b37bf9887d3126a3a`. Deterministic SQLite coverage only; no deployed scheduler or multi-host validation is claimed.
+
+
+## BUILD-00297 — serialize scheduler retry backoff after write lock
+- Compute a failed dispatch's retry deadline from the failure timestamp captured after acquiring SQLite's `BEGIN IMMEDIATE`, rather than reusing the dispatch-loop start time.
+- Validate the scheduler fencing lease in the same transaction before persisting retry/dead-letter state.
+- Preserve explicit caller-supplied `now` semantics for deterministic invocations.
+- Add a lock-contention regression with a delayed queue failure; verify the retry backoff starts from the post-lock failure timestamp.
+- GitHub Actions run #43991377065 passed on latest PR #303 code head `76655c1269863ce7a5b364d1c18af0017e022c0c`. Deterministic SQLite coverage only; no deployed or multi-host scheduler validation is claimed.
