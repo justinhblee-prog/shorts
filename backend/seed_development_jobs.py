@@ -37,7 +37,7 @@ DEVELOPMENT_JOBS = (
         "title": "기본 브랜치 예약 실행 및 Draft PR 자동 발행",
         "description": "기본 브랜치에서만 스케줄이 작동하도록 워크플로를 연결하고, 실행 가능한 잡을 worker에 배정해 실제 변경이 있을 때만 Draft PR을 생성합니다.",
         "priority": 70,
-        "scope": [".github/workflows/nexus-continuous-codex.yml", "scripts/run_development_agent.py"],
+        "scope": [".github/workflows/nexus-development-job-worker.yml", "backend/run_development_agent.py", "backend/development_backlog_service.py"],
         "acceptance": [
             "scheduled workflow is present on the default branch before claiming background continuation",
             "trusted runner and local Ollama model are verified",
@@ -51,7 +51,7 @@ DEVELOPMENT_JOBS = (
         "title": "실제 Ollama Worker 연속 실행 종단 검증",
         "description": "실제 runner에서 잡 등록부터 claim, 실행, heartbeat, 테스트, Draft PR, 다음 잡 해제까지 한 사이클을 증거로 검증합니다.",
         "priority": 80,
-        "scope": [".github/workflows/nexus-continuous-codex.yml", "backend/development_job_worker.py"],
+        "scope": [".github/workflows/nexus-development-job-worker.yml", "backend/development_job_worker.py"],
         "acceptance": [
             "a real product-source diff is created by the configured local model",
             "regression tests pass and the Draft PR is created",
