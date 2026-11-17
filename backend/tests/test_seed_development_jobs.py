@@ -30,6 +30,7 @@ class SeedDevelopmentJobsTests(unittest.TestCase):
             ".github/workflows/nexus-development-job-worker.yml",
             "backend/run_development_agent.py",
             "backend/development_backlog_service.py",
+            "backend/tests/test_development_worker_workflow_contract.py",
         ])
         self.assertEqual(self.store.get("DEV-ORCH-010")["scope"], [
             ".github/workflows/nexus-development-job-worker.yml",
