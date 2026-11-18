@@ -2397,7 +2397,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Tests use mocked transport; no real TikTok account or public posting is claimed.
 
 ## BUILD-00316 — preserve development-job state across scheduled runner cycles
-- Move `NEXUS_DEVELOPMENT_DB` from the checked-out repository workspace to `%LOCALAPPDATA%\\NexusStudioPro\\shorts\\development.sqlite3` (with a `%USERPROFILE%\\AppData\\Local` fallback) so the default `actions/checkout` workspace cleanup cannot erase the engineering job graph and event history between runs.
+- Move `NEXUS_DEVELOPMENT_DB` from the checked-out repository workspace to `%LOCALAPPDATA%\NexusStudioPro\shorts\development.sqlite3` (with a `%USERPROFILE%\AppData\Local` fallback) so the default `actions/checkout` workspace cleanup cannot erase the engineering job graph and event history between runs.
 - Add a workflow-contract regression proving the persistent path is configured before the worker cycle and is outside `GITHUB_WORKSPACE`.
 - The local database remains specific to the Windows runner account/host; use one trusted persistent runner until a shared durable store is deliberately designed. This does not back up the runner disk or prove a real runner execution.
 - Exact documentation-inclusive PR-head CI is pending.
