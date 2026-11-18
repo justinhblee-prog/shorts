@@ -326,7 +326,7 @@ class DevelopmentJobStore:
             ).fetchall()
             active_rows = connection.execute(
                 """SELECT scope_json FROM development_jobs
-                   WHERE status IN ('leased','running')"""
+                   WHERE status IN ('leased','running','review_pending')"""
             ).fetchall()
             active_scopes = [json.loads(item["scope_json"]) for item in active_rows]
             row = next((candidate for candidate in candidates
