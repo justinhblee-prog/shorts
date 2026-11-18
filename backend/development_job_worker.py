@@ -65,7 +65,7 @@ class DevelopmentJobWorker:
                 return "lease_lost"
             if not isinstance(result, dict):
                 raise ValueError("executor must return an evidence dictionary")
-            completed = self.store.complete(
+            completed = self.store.mark_review_pending(
                 job["id"], self.worker_id, job["lease_token"],
                 result.get("changed_files"), result.get("tests_passed"),
                 result.get("validation_ref"), result.get("result_summary", ""),
