@@ -263,6 +263,19 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertIn("review_pending", event_types)
         self.assertIn("review_published", event_types)
 
+    def test_review_artifact_columns_migrate_existing_database_in_place(self):
+        import sqlite3
+        if sqlite3.sqlite_version_info < (3, 35, 0):
+            self.skipTest("SQLite DROP COLUMN requires 3.35+")
+        with self.store.db() as connection:
+            connection.execute("ALTER TABLE development_jobs DROP COLUMN review_published_at")
+            connection.execute("ALTER TABLE development_jobs DROP COLUMN review_head_sha")
+            connection.execute("ALTER TABLE development_jobs DROP COLUMN review_url")
+        migrated = DevelopmentJobStore(self.store.db_path)
+        with migrated.db() as connection:
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(development_jobs)")}
+        self.assertTrue({"review_url", "review_head_sha", "review_published_at"}.issubset(columns))
+
     def test_review_artifact_publication_is_idempotent_for_same_head(self):
         job = self.store.create("Idempotent review", scope=["backend/review.py"])
         claim = self.store.claim_ready("worker-review")
