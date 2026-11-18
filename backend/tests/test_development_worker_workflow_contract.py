@@ -41,6 +41,16 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("draft: true", self.source)
         self.assertIn("No automatic merge or deployment is permitted.", self.source)
 
+    def test_job_completion_waits_for_exact_draft_pr_artifact(self):
+        create = self.source.index("id: publish-pr")
+        publish = self.source.index("name: Record exact Draft PR review artifact")
+        self.assertLess(create, publish)
+        self.assertIn("pull-request-head-sha", self.source[publish:])
+        self.assertIn("NEXUS_REVIEW_HEAD_SHA", self.source[publish:])
+        self.assertIn("python backend/publish_development_reviews.py", self.source[publish:])
+        self.assertIn("draft: true", self.source)
+        self.assertIn("review_pending", self.source)
+
     def test_approved_scope_is_explicitly_required_by_environment_contract(self):
         self.assertIn("NEXUS_APPROVED_SCOPES", self.source)
         self.assertIn("NEXUS_GITHUB_READ_TOKEN", self.source)

@@ -21,8 +21,8 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
             lambda _: {"changed_files": ["backend/example.py"], "tests_passed": True,
                        "validation_ref": "ci://run/42", "result_summary": "implemented"},
         )
-        self.assertEqual(worker.run_once(), "completed")
-        self.assertEqual(self.store.get(job["id"])["status"], "completed")
+        self.assertEqual(worker.run_once(), "review_pending")
+        self.assertEqual(self.store.get(job["id"])["status"], "review_pending")
 
     def test_worker_rejects_noop_and_schedules_retry(self):
         job = self.store.create("No-op must not pass", scope=["backend/example.py"])
@@ -62,11 +62,32 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
             lambda _: {"changed_files": ["backend/example.py"], "tests_passed": True,
                        "validation_ref": "ci://run/44"},
         )
-        self.assertEqual(worker.run_once(), "completed")
+        self.assertEqual(worker.run_once(), "review_pending")
         presence = self.store.get_worker("runner-a")
         self.assertEqual(presence["status"], "online")
         self.assertIsNone(presence["current_job_id"])
         self.assertEqual(self.store.summary()["online_workers"], 1)
+
+    def test_run_until_idle_stops_after_one_review_pending_diff(self):
+        first = self.store.create("First diff", scope=["backend/first.py"])
+        second = self.store.create("Second diff", scope=["backend/second.py"])
+        calls = []
+
+        def execute(job):
+            calls.append(job["id"])
+            return {
+                "changed_files": [job["scope"][0]],
+                "tests_passed": True,
+                "validation_ref": "ci://run/one",
+            }
+
+        worker = DevelopmentJobWorker(self.store, "runner-once", execute, poll_seconds=1)
+        result = worker.run_until_idle(idle_seconds=1)
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(result["outcomes"], {"review_pending": 1})
+        self.assertEqual(calls, [first["id"]])
+        self.assertEqual(self.store.get(first["id"])["status"], "review_pending")
+        self.assertEqual(self.store.get(second["id"])["status"], "ready")
 
     def test_run_until_idle_marks_worker_offline_on_exit(self):
         worker = DevelopmentJobWorker(self.store, "runner-idle", lambda _: {})

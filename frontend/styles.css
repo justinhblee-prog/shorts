@@ -71,6 +71,7 @@
 .development-job-status{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px 8px;font:10px var(--mono);white-space:nowrap}
 .development-job-status.running,.development-job-status.leased{border-color:#3b9c8c;color:var(--cyan)}
 .development-job-status.completed{border-color:#438b62;color:#9be0ad}
+.development-job-status.review_pending{border-color:#8b72c9;color:#c4b2ff}
 .development-job-status.quarantined,.development-job-status.failed{border-color:#a85c69;color:#ff9ba7}
 .development-job-status.retry_wait{border-color:#9c7c3f;color:var(--amber)}
 .development-job-event{border-left:2px solid var(--line);padding:2px 0 12px 12px;margin-left:4px}

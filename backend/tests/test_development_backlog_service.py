@@ -49,10 +49,10 @@ class DevelopmentBacklogServiceTests(unittest.TestCase):
         result = service.run_cycle()
         self.assertEqual(result["intake"]["import"]["created_count"], 1)
         self.assertEqual(result["execution"]["processed"], 1)
-        self.assertEqual(result["execution"]["outcomes"], {"completed": 1})
+        self.assertEqual(result["execution"]["outcomes"], {"review_pending": 1})
         jobs = self.store.list()
         self.assertEqual(len(jobs), 1)
-        self.assertEqual(jobs[0]["status"], "completed")
+        self.assertEqual(jobs[0]["status"], "review_pending")
 
     def test_cycle_does_not_import_issue_without_scope_approval(self):
         service = DevelopmentBacklogService(

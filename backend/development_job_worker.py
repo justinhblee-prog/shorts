@@ -65,7 +65,7 @@ class DevelopmentJobWorker:
                 return "lease_lost"
             if not isinstance(result, dict):
                 raise ValueError("executor must return an evidence dictionary")
-            completed = self.store.complete(
+            completed = self.store.mark_review_pending(
                 job["id"], self.worker_id, job["lease_token"],
                 result.get("changed_files"), result.get("tests_passed"),
                 result.get("validation_ref"), result.get("result_summary", ""),
@@ -127,6 +127,10 @@ class DevelopmentJobWorker:
                 processed += 1
                 outcomes[status] = outcomes.get(status, 0) + 1
                 last_activity = time.monotonic()
+                # A validated diff remains in the worktree until the workflow
+                # publishes its Draft PR. Do not try another job against it.
+                if status == "review_pending":
+                    break
         finally:
             self.store.stop_worker(self.worker_id)
         return {"processed": processed, "outcomes": outcomes, "summary": self.store.summary()}

@@ -117,6 +117,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Development agent cycle failed." }
 
       - name: Create Draft PR for verified changes only
+        id: publish-pr
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -130,6 +131,27 @@ jobs:
             - Worker: dependency-aware SQLite development-job scheduler
             - Model: repository-owned Ollama runner (qwen2.5-coder:7b)
             - Changes are produced only within an explicitly approved file scope.
-            - Repository validation must pass before a job is marked complete.
+            - Repository validation and exact open Draft PR evidence must be recorded before a job is marked complete.
             - This PR is Draft. No automatic merge or deployment is permitted.
             - External provider integrations and production behavior are not implied.
+            
+      - name: Record exact Draft PR review artifact
+        if: steps.publish-pr.outputs.pull-request-url != '' && steps.publish-pr.outputs.pull-request-head-sha != ''
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NEXUS_REVIEW_PR_URL: ${{ steps.publish-pr.outputs.pull-request-url }}
+          NEXUS_REVIEW_HEAD_SHA: ${{ steps.publish-pr.outputs.pull-request-head-sha }}
+          NEXUS_REVIEW_HEAD_REF: automation/nexus-development-cycle
+          NEXUS_REVIEW_BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          python backend/publish_development_reviews.py
+          if ($LASTEXITCODE -ne 0) { throw "Draft PR review-artifact verification failed; jobs remain review_pending." }
+
+      - name: Leave jobs pending when no Draft PR artifact was published
+        if: steps.publish-pr.outputs.pull-request-url == '' || steps.publish-pr.outputs.pull-request-head-sha == ''
+        shell: powershell
+        run: |
+          Write-Warning "No exact Draft PR URL/head SHA was returned. Development jobs remain review_pending and are not marked completed."

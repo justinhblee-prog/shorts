@@ -18,16 +18,18 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 
 ## Current checkpoint
 
-- Latest code/test validation in this branch: BUILD-00316, PR #324, final code/documentation head `3377ca24119853ca584c3adffc58204e8d2e0d55`; GitHub Actions run [44252520537](https://github.com/justinhblee-prog/shorts/actions/runs/44252520537) passed 741 backend tests, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- Latest code/test validation before BUILD-00317: BUILD-00316, PR #324, exact current head `f6c6beb16f370114e17a43a9efbe9cb6c2ef135d`; GitHub Actions run [44252805612](https://github.com/justinhblee-prog/shorts/actions/runs/44252805612) completed successfully, including `scripts/validate.sh` (741 backend tests) and `node --check frontend/app.js`.
 - PR #324 is Draft/Open and is based on the BUILD-00313 orchestration prototype branch. It persists the development-job database outside the Actions checkout workspace; the Windows runner has not yet been observed completing repeated cycles.
 - PR #321 (BUILD-00313) exact head passed run [44075082662](https://github.com/justinhblee-prog/shorts/actions/runs/44075082662). It contains a development-job control-plane prototype, but does not prove real local Ollama execution or default-branch scheduling.
 - PR #322 (BUILD-00314, YouTube synthetic-media disclosure) exact head passed run [44076538828](https://github.com/justinhblee-prog/shorts/actions/runs/44076538828); tests are fixture-based, not a live upload.
 - PR #323 (BUILD-00315, TikTok AI-content disclosure) exact head passed run [44091928487](https://github.com/justinhblee-prog/shorts/actions/runs/44091928487); tests use mocked transport, not a real account or public post.
 - PRs #311–#318 were checked as Open/Draft/unmerged. Exact-head backend CI passed for #311–#317; the current lookup returned no PR-triggered run for #318. The local self-hosted runner and model execution remain unverified.
 - PRs #321–#324 were checked as Open/Draft/unmerged. No merge or default-branch change was performed. The work branches remain separate; the Cyber Magic and provider changes have not been integrated into `main`.
-- The development worker still has a completion-gate defect: it marks jobs completed after source/tests/validation but before the later Draft-PR publication action records a PR URL and exact head SHA. This must be fixed before autonomous scheduled operation.
+- BUILD-00317 (Draft PR #325) changes the development-job lifecycle to review_pending until a GET-only verifier confirms an open Draft PR, exact action/API head SHA, expected head/base branches, and every changed file. GitHub Actions run [44258464733](https://github.com/justinhblee-prog/shorts/actions/runs/44258464733) passed for exact code/test head `3ac4800227e05129fddfd824a51d3b1cca28cdde` (754 backend tests, repository validation, and frontend syntax check). A documentation-only evidence update follows and is validated separately. This code-level gate is not proof of a Windows runner or live Ollama cycle.
 - The default branch is still `main`; the BUILD status ledger and release-readiness changes in this branch are not yet on `main`. Scheduled workflows are not considered active until their reviewed code is present on the default branch and the trusted runner is online.
 - The launch-gate score remains **1/8**. Hosted CI is the only verified mandatory gate; Compose deployment, real AI/media providers, renderer playback, OAuth/private test upload, financial reconciliation, security/backup/restore operations, and ROI cohort evidence remain pending.
+- PR #325 is a separate Draft branch stacked on PR #324. The implementation head `3ac4800227e05129fddfd824a51d3b1cca28cdde` passed run [44258464733](https://github.com/justinhblee-prog/shorts/actions/runs/44258464733), and the following documentation head `3a2ec516a918eb30c583f54ecca3217c9819368d` passed run [44258650491](https://github.com/justinhblee-prog/shorts/actions/runs/44258650491); the latest documentation-only note is covered by the final exact-head PR check recorded in PR #325. Windows self-hosted execution remains unverified. No merge or default-branch activation has occurred.
+- Next code priority: add a safe, audited recovery path for orphaned review_pending jobs; verify any existing PR branch before requiring an explicit operator-approved requeue.
 
 ## Phase 1 — Engineering closure (rolling)
 
@@ -212,3 +214,9 @@ These are additional readiness constraints documented by the project, not comple
 - GitHub Actions run [44252322555](https://github.com/justinhblee-prog/shorts/actions/runs/44252322555) passed on code/test head `c05c7d5416b4b079a6366c849ec2e8a922921740` (741 backend tests plus frontend syntax check). The database is still local to one runner host/account and has no off-host backup; do not claim durable operation until the Windows runner has completed repeated cycles with the same database.
 - Control-plane gate still open: `DevelopmentJobWorker` marks a job completed before the workflow's Draft-PR publication action runs, and no PR URL/head SHA is persisted as review evidence. Implement this gate before enabling autonomous scheduled execution.
 - The launch-gate score remains 1/8. No production deployment, live provider validation, public publishing, or recovery drill is implied.
+
+
+### BUILD-00317 — development-job review artifact gate (Draft PR #325)
+- A validated code diff enters review_pending; it cannot unlock dependent work or count as completed until the exact Draft PR artifact is read back from GitHub.
+- The verifier requires an open, unmerged Draft PR, the action's exact head SHA, the expected automation branch/default base, and inclusion of every recorded changed file. It uses GET-only API calls.
+- Publication failure leaves the job visibly review_pending; exact-head hosted CI is pending. The change does not establish a Windows runner, real Ollama inference, or production deployment.
