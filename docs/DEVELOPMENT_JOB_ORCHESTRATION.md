@@ -3,7 +3,7 @@
 **Checkpoint:** BUILD-00317 (review-artifact completion gate)  
 **Updated:** 2026-11-18  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Status:** Exact Draft PR publication gate implemented on Draft PR #325; hosted CI and Windows local-runner execution remain separate verification gates.
+**Status:** BUILD-00317 implementation CI passed on exact code/test head 3ac4800227e05129fddfd824a51d3b1cca28cdde (run 44258464733, 754 tests); Windows local-runner execution remains unverified.
 
 ## 1. Why this exists
 
