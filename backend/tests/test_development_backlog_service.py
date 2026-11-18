@@ -1,6 +1,8 @@
+import hashlib
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 from development_backlog_service import DevelopmentBacklogService
 from development_jobs import DevelopmentJobStore
@@ -28,6 +30,11 @@ class DevelopmentBacklogServiceTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def _artifact(self):
+        path = Path(self.tmp.name) / "service-artifact.zip"
+        path.write_bytes(b"validated service source")
+        return str(path), hashlib.sha256(path.read_bytes()).hexdigest()
+
     def test_cycle_syncs_approved_issue_then_worker_claims_it(self):
         source_ref = "github:issue:acme/app#12"
         service = DevelopmentBacklogService(
@@ -39,6 +46,8 @@ class DevelopmentBacklogServiceTests(unittest.TestCase):
                 "changed_files": ["backend/export.py"],
                 "tests_passed": True,
                 "validation_ref": "ci://run/123",
+                "artifact_path": self._artifact()[0],
+                "artifact_sha256": self._artifact()[1],
                 "result_summary": "export implementation validated",
             },
             worker_id="test-worker",
@@ -49,10 +58,10 @@ class DevelopmentBacklogServiceTests(unittest.TestCase):
         result = service.run_cycle()
         self.assertEqual(result["intake"]["import"]["created_count"], 1)
         self.assertEqual(result["execution"]["processed"], 1)
-        self.assertEqual(result["execution"]["outcomes"], {"completed": 1})
+        self.assertEqual(result["execution"]["outcomes"], {"review_pending": 1})
         jobs = self.store.list()
         self.assertEqual(len(jobs), 1)
-        self.assertEqual(jobs[0]["status"], "completed")
+        self.assertEqual(jobs[0]["status"], "review_pending")
 
     def test_cycle_does_not_import_issue_without_scope_approval(self):
         service = DevelopmentBacklogService(
