@@ -103,6 +103,41 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(completed["status"], "completed")
 
 
+
+    def test_schema_migration_preserves_existing_development_job_rows(self):
+        legacy = Path(self.tmp.name) / "legacy.sqlite3"
+        connection = sqlite3.connect(legacy)
+        connection.execute(
+            """CREATE TABLE development_jobs(
+                id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'blocked', priority INTEGER NOT NULL DEFAULT 100,
+                scope_json TEXT NOT NULL DEFAULT '[]', acceptance_json TEXT NOT NULL DEFAULT '[]',
+                max_attempts INTEGER NOT NULL DEFAULT 3, attempts INTEGER NOT NULL DEFAULT 0,
+                worker_id TEXT, lease_token TEXT, lease_expires_at TEXT,
+                source_ref TEXT, changed_files_json TEXT, tests_passed INTEGER,
+                validation_ref TEXT, result_summary TEXT,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                started_at TEXT, completed_at TEXT
+            )"""
+        )
+        connection.execute(
+            """INSERT INTO development_jobs
+               (id,title,status,scope_json,acceptance_json,created_at,updated_at)
+               VALUES('legacy-job','Existing progress','completed','[]','[]','2026-01-01','2026-01-01')"""
+        )
+        connection.commit()
+        connection.close()
+        migrated = DevelopmentJobStore(str(legacy))
+        row = migrated.get("legacy-job")
+        self.assertEqual(row["title"], "Existing progress")
+        self.assertEqual(row["status"], "completed")
+        self.assertIsNone(row["artifact_path"])
+        self.assertIsNone(row["review_pr_url"])
+        with migrated.db() as db:
+            columns = {item["name"] for item in db.execute("PRAGMA table_info(development_jobs)")}
+        self.assertTrue({"artifact_path", "artifact_sha256", "review_pr_url",
+                         "review_head_sha", "review_published_at"}.issubset(columns))
+
     def test_publication_rejects_head_sha_mismatch_and_missing_changed_files(self):
         job = self.store.create("Publication evidence", scope=["backend/file.py"])
         claim = self.store.claim_ready("worker-a")
