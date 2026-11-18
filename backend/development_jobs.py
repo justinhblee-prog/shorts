@@ -468,7 +468,7 @@ class DevelopmentJobStore:
             if row is None:
                 raise DevelopmentJobNotFound("development job not found")
             if row["status"] == "completed":
-                if row["review_url"] == review_url and row["review_head_sha"] == review_head_sha:
+                if row["review_url"] == review_url and row["review_head_sha"] == review_head_sha.lower():
                     connection.commit()
                     return self.get(job_id)
                 raise DevelopmentJobConflict("completed job is already bound to a different review artifact")
