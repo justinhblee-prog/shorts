@@ -15,6 +15,14 @@ class FakeStore:
         return []
 
 
+
+class PendingFakeStore(FakeStore):
+    def list(self, statuses=None, limit=100):
+        if statuses == ["review_pending"]:
+            return [{"id": "pending-job"}]
+        return []
+
+
 class FakeService:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
@@ -52,6 +60,28 @@ class RunDevelopmentAgentTests(unittest.TestCase):
         self.assertEqual(result["seeded_job_count"], 2)
         self.assertEqual(result["execution"]["processed"], 0)
         self.assertEqual(result["database_summary"]["ready"], 0)
+
+
+    def test_restores_pending_publication_before_claiming_new_work(self):
+        env = {
+            "GITHUB_TOKEN": "read-only-test-token",
+            "GITHUB_REPOSITORY": "acme/app",
+            "GITHUB_WORKSPACE": "/tmp/nexus",
+            "RUNNER_NAME": "nexus-runner",
+            "NEXUS_APPROVED_SCOPES": "{}",
+            "NEXUS_DEVELOPMENT_ARTIFACT_DIR": "/tmp/nexus-state/artifacts",
+        }
+        with patch("run_development_agent.DevelopmentJobStore", PendingFakeStore), \
+             patch("run_development_agent.seed_development_jobs", return_value=[]), \
+             patch("run_development_agent.GitHubReadOnlyClient"), \
+             patch("run_development_agent.AiderDevelopmentExecutor"), \
+             patch("run_development_agent.DevelopmentBacklogService") as service, \
+             patch("run_development_agent.restore_pending_artifacts", return_value=["pending-job"]) as restore:
+            result = run_once(env)
+        restore.assert_called_once()
+        service.return_value.run_cycle.assert_not_called()
+        self.assertEqual(result["restored_pending_job_ids"], ["pending-job"])
+        self.assertEqual(result["execution"]["processed"], 0)
 
     def test_rejects_non_object_scope_configuration(self):
         env = {
