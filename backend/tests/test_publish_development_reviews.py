@@ -12,15 +12,23 @@ HEAD_REF = "automation/nexus-development-cycle"
 BASE_REF = "main"
 
 
+def make_pr(head_sha=HEAD_SHA, head_ref=HEAD_REF, base_ref=BASE_REF,
+            draft=True, state="open", merged_at=None, head_repo="acme/app",
+            base_repo="acme/app"):
+    return {
+        "number": 42,
+        "html_url": PR_URL,
+        "state": state,
+        "draft": draft,
+        "merged_at": merged_at,
+        "head": {"ref": head_ref, "sha": head_sha, "repo": {"full_name": head_repo}},
+        "base": {"ref": base_ref, "repo": {"full_name": base_repo}},
+    }
+
+
 class FakeReviewClient:
     def __init__(self, pull_request=None, files=None):
-        self.pull_request = pull_request or {
-            "state": "open",
-            "draft": True,
-            "merged_at": None,
-            "head": {"ref": HEAD_REF, "sha": HEAD_SHA},
-            "base": {"ref": BASE_REF},
-        }
+        self.pull_request = pull_request or make_pr()
         self.files = files or [{"filename": "backend/example.py"}]
         self.requested = []
 
@@ -76,23 +84,16 @@ class PublishDevelopmentReviewsTests(unittest.TestCase):
         ])
 
     def test_head_sha_mismatch_leaves_job_review_pending(self):
-        client = FakeReviewClient(pull_request={
-            "state": "open", "draft": True, "merged_at": None,
-            "head": {"ref": HEAD_REF, "sha": "b" * 40},
-            "base": {"ref": BASE_REF},
-        })
+        client = FakeReviewClient(pull_request=make_pr(head_sha="b" * 40))
         with self.assertRaisesRegex(RuntimeError, "head SHA"):
             self.publish(client)
         self.assertEqual(self.store.get(self.job_id)["status"], "review_pending")
 
     def test_non_draft_or_closed_pr_cannot_complete_job(self):
         for pr in (
-            {"state": "open", "draft": False, "merged_at": None,
-             "head": {"ref": HEAD_REF, "sha": HEAD_SHA}, "base": {"ref": BASE_REF}},
-            {"state": "closed", "draft": True, "merged_at": None,
-             "head": {"ref": HEAD_REF, "sha": HEAD_SHA}, "base": {"ref": BASE_REF}},
-            {"state": "open", "draft": True, "merged_at": "2026-11-18T00:00:00Z",
-             "head": {"ref": HEAD_REF, "sha": HEAD_SHA}, "base": {"ref": BASE_REF}},
+            make_pr(draft=False),
+            make_pr(state="closed"),
+            make_pr(merged_at="2026-11-18T00:00:00Z"),
         ):
             with self.subTest(pr=pr):
                 with self.assertRaises(RuntimeError):
@@ -101,15 +102,16 @@ class PublishDevelopmentReviewsTests(unittest.TestCase):
 
     def test_wrong_head_or_base_branch_cannot_complete_job(self):
         for head_ref, base_ref in (("other-branch", BASE_REF), (HEAD_REF, "develop")):
-            pr = {
-                "state": "open", "draft": True, "merged_at": None,
-                "head": {"ref": head_ref, "sha": HEAD_SHA},
-                "base": {"ref": base_ref},
-            }
+            pr = make_pr(head_ref=head_ref, base_ref=base_ref)
             with self.subTest(head_ref=head_ref, base_ref=base_ref):
                 with self.assertRaises(RuntimeError):
                     self.publish(FakeReviewClient(pull_request=pr))
                 self.assertEqual(self.store.get(self.job_id)["status"], "review_pending")
+
+    def test_fork_head_cannot_be_used_as_review_artifact(self):
+        with self.assertRaisesRegex(RuntimeError, "head must belong"):
+            self.publish(FakeReviewClient(pull_request=make_pr(head_repo="attacker/fork")))
+        self.assertEqual(self.store.get(self.job_id)["status"], "review_pending")
 
     def test_pr_missing_job_change_keeps_job_pending(self):
         result = self.publish(FakeReviewClient(files=[{"filename": "backend/other.py"}]))
