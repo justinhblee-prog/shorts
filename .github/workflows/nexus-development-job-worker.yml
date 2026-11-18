@@ -33,6 +33,28 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Configure persistent development-job state
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stateRoot = $env:LOCALAPPDATA
+          if (-not $stateRoot) {
+            if (-not $env:USERPROFILE) {
+              throw "Windows runner has neither LOCALAPPDATA nor USERPROFILE; refusing an ephemeral database path."
+            }
+            $stateRoot = Join-Path $env:USERPROFILE "AppData\Local"
+          }
+          $stateRoot = Join-Path $stateRoot "NexusStudioPro\shorts"
+          New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
+          $database = Join-Path $stateRoot "development.sqlite3"
+          $workspace = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
+          $databaseFull = [System.IO.Path]::GetFullPath($database)
+          if ($databaseFull.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Development job state must be outside GITHUB_WORKSPACE because checkout cleanup removes workspace files."
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_DEVELOPMENT_DB=$databaseFull" -Encoding utf8
+          Write-Host "Persistent development-job database: $databaseFull"
+
       - name: Verify Python, Ollama and local model
         shell: powershell
         run: |
