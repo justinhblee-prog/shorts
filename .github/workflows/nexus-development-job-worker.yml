@@ -46,6 +46,8 @@ jobs:
           }
           $stateRoot = Join-Path $stateRoot "NexusStudioPro\shorts"
           New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
+          $artifactRoot = Join-Path $stateRoot "artifacts"
+          New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
           $database = Join-Path $stateRoot "development.sqlite3"
           $workspace = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
           $databaseFull = [System.IO.Path]::GetFullPath($database)
@@ -53,7 +55,9 @@ jobs:
             throw "Development job state must be outside GITHUB_WORKSPACE because checkout cleanup removes workspace files."
           }
           Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_DEVELOPMENT_DB=$databaseFull" -Encoding utf8
+          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_DEVELOPMENT_ARTIFACT_DIR=$artifactRoot" -Encoding utf8
           Write-Host "Persistent development-job database: $databaseFull"
+          Write-Host "Persistent development-job artifact directory: $artifactRoot"
 
       - name: Verify Python, Ollama and local model
         shell: powershell
@@ -130,6 +134,65 @@ jobs:
             - Worker: dependency-aware SQLite development-job scheduler
             - Model: repository-owned Ollama runner (qwen2.5-coder:7b)
             - Changes are produced only within an explicitly approved file scope.
-            - Repository validation must pass before a job is marked complete.
+            - Repository validation moves a job to review_pending; completion is recorded only after the exact Draft PR head and changed files are verified and persisted.
+            - If publication fails, validated source snapshots remain in the runner's persistent artifact directory for a later retry.
             - This PR is Draft. No automatic merge or deployment is permitted.
             - External provider integrations and production behavior are not implied.
+
+      - name: Record verified Draft PR publication
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $repository = $env:GITHUB_REPOSITORY
+          $parts = $repository.Split("/")
+          if ($parts.Length -ne 2) { throw "GITHUB_REPOSITORY must be owner/repo." }
+          $owner = $parts[0]
+          $branch = "automation/nexus-development-cycle"
+          $api = $env:GITHUB_API_URL.TrimEnd("/")
+          $headers = @{
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Accept = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $headFilter = [uri]::EscapeDataString($owner + ":" + $branch)
+          $baseFilter = [uri]::EscapeDataString($env:GITHUB_DEFAULT_BRANCH)
+          $pulls = @(Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/repos/$repository/pulls?state=open&head=$headFilter&base=$baseFilter&per_page=100")
+          if ($pulls.Count -eq 0) {
+            python backend/finalize_development_publication.py --no-publication
+            if ($LASTEXITCODE -ne 0) { throw "Validated work is still pending because no Draft PR exists." }
+            Write-Host "No pending review artifacts require publication."
+            exit 0
+          }
+          if ($pulls.Count -ne 1) { throw "Expected exactly one open automation Draft PR for the configured branch." }
+          $pr = $pulls[0]
+          if ($pr.state -ne "open" -or -not $pr.draft -or $pr.merged_at) {
+            throw "Automation PR must remain open, Draft and unmerged."
+          }
+          if ($pr.head.ref -ne $branch -or $pr.base.ref -ne $env:GITHUB_DEFAULT_BRANCH) {
+            throw "Automation PR head/base branch does not match the configured publication target."
+          }
+          $ref = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/repos/$repository/git/ref/heads/$branch"
+          $branchSha = ([string]$ref.object.sha).ToLowerInvariant()
+          $headSha = ([string]$pr.head.sha).ToLowerInvariant()
+          if (-not $branchSha -or $headSha -ne $branchSha) {
+            throw "Draft PR head SHA does not match the current automation branch ref."
+          }
+          $publishedFiles = @()
+          $page = 1
+          do {
+            $pageFiles = @(Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/repos/$repository/pulls/$($pr.number)/files?per_page=100&page=$page")
+            $publishedFiles += @($pageFiles | ForEach-Object { $_.filename })
+            $page += 1
+          } while ($pageFiles.Count -eq 100)
+          if ($publishedFiles.Count -eq 0) { throw "Draft PR contains no changed files for pending review evidence." }
+          $env:NEXUS_PUBLICATION_PR_URL = $pr.html_url
+          $env:NEXUS_PUBLICATION_HEAD_SHA = $headSha
+          $env:NEXUS_PUBLICATION_BRANCH_SHA = $branchSha
+          $env:NEXUS_PUBLICATION_FILES_JSON = ConvertTo-Json -InputObject @($publishedFiles) -Compress
+          python backend/finalize_development_publication.py
+          if ($LASTEXITCODE -ne 0) { throw "Draft PR publication evidence could not be committed to the development-job ledger." }
