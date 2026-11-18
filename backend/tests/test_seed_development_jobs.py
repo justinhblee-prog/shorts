@@ -41,11 +41,19 @@ class SeedDevelopmentJobsTests(unittest.TestCase):
     def test_dependency_chain_unlocks_only_after_all_prerequisites_complete(self):
         seed_development_jobs(self.store)
         first = self.store.claim_ready("worker-a")
-        self.store.complete(first["id"], "worker-a", first["lease_token"],
-                            ["backend/development_jobs.py"], True, "ci://run/1")
+        self.store.mark_review_pending(first["id"], "worker-a", first["lease_token"],
+                                       ["backend/development_jobs.py"], True, "ci://run/1")
+        self.store.publish_review_artifact(
+            first["id"], "https://github.com/acme/app/pull/11", "a" * 40,
+            ["backend/development_jobs.py"], is_draft=True, is_open=True,
+        )
         second = self.store.claim_ready("worker-b")
-        self.store.complete(second["id"], "worker-b", second["lease_token"],
-                            ["backend/development_github_intake.py"], True, "ci://run/2")
+        self.store.mark_review_pending(second["id"], "worker-b", second["lease_token"],
+                                       ["backend/development_github_intake.py"], True, "ci://run/2")
+        self.store.publish_review_artifact(
+            second["id"], "https://github.com/acme/app/pull/12", "b" * 40,
+            ["backend/development_github_intake.py"], is_draft=True, is_open=True,
+        )
         third = self.store.claim_ready("worker-c")
         self.assertEqual(third["id"], "DEV-ORCH-009")
         self.assertEqual(self.store.get("DEV-ORCH-010")["status"], "blocked")
