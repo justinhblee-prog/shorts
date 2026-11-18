@@ -4,11 +4,13 @@ This store is intentionally separate from JobQueue/ScheduleStore, which operate
 short-video production work rather than repository development work.
 """
 import json
+import re
 import sqlite3
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 TERMINAL = {"completed", "cancelled"}
@@ -59,7 +61,8 @@ class DevelopmentJobStore:
               source_ref TEXT, changed_files_json TEXT, tests_passed INTEGER,
               validation_ref TEXT, result_summary TEXT,
               created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-              started_at TEXT, completed_at TEXT, retry_after TEXT
+              started_at TEXT, completed_at TEXT, retry_after TEXT,
+              review_url TEXT, review_head_sha TEXT, review_published_at TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_development_jobs_ready
               ON development_jobs(status,priority,created_at);
@@ -100,8 +103,9 @@ class DevelopmentJobStore:
               BEGIN SELECT RAISE(ABORT,'development job events are immutable'); END;
             """)
             columns = {row["name"] for row in connection.execute("PRAGMA table_info(development_jobs)")}
-            if "retry_after" not in columns:
-                connection.execute("ALTER TABLE development_jobs ADD COLUMN retry_after TEXT")
+            for column in ("retry_after", "review_url", "review_head_sha", "review_published_at"):
+                if column not in columns:
+                    connection.execute(f"ALTER TABLE development_jobs ADD COLUMN {column} TEXT")
 
     @contextmanager
     def db(self):
@@ -313,7 +317,7 @@ class DevelopmentJobStore:
             ).fetchall()
             active_rows = connection.execute(
                 """SELECT scope_json FROM development_jobs
-                   WHERE status IN ('leased','running')"""
+                   WHERE status IN ('leased','running','review_pending')"""
             ).fetchall()
             active_scopes = [json.loads(item["scope_json"]) for item in active_rows]
             row = next((candidate for candidate in candidates
@@ -355,16 +359,17 @@ class DevelopmentJobStore:
             connection.commit()
             return self.get(job_id)
 
-    def complete(self, job_id, worker_id, lease_token, changed_files, tests_passed,
-                 validation_ref, result_summary=""):
+    def mark_review_pending(self, job_id, worker_id, lease_token, changed_files, tests_passed,
+                            validation_ref, result_summary=""):
+        """Record validated source evidence without claiming a review artifact exists."""
         if not isinstance(changed_files, list) or not changed_files or not all(
             isinstance(path, str) and path.strip() for path in changed_files
         ):
-            raise ValueError("completion requires at least one meaningful changed file")
+            raise ValueError("review-pending transition requires at least one meaningful changed file")
         if tests_passed is not True:
-            raise ValueError("completion requires tests_passed=True")
+            raise ValueError("review-pending transition requires tests_passed=True")
         if not isinstance(validation_ref, str) or not validation_ref.strip() or len(validation_ref) > 1000:
-            raise ValueError("completion requires a validation evidence reference")
+            raise ValueError("review-pending transition requires a validation evidence reference")
         normalized_files = []
         for raw_path in changed_files:
             if not isinstance(raw_path, str) or not raw_path.strip():
@@ -386,10 +391,10 @@ class DevelopmentJobStore:
                 (job_id, worker_id, lease_token, timestamp),
             ).fetchone()
             if current is None:
-                raise DevelopmentJobConflict("completion rejected: lease is missing, expired, or fenced")
+                raise DevelopmentJobConflict("review-pending transition rejected: lease is missing, expired, or fenced")
             scope = json.loads(current["scope_json"] or "[]")
             if not scope:
-                raise ValueError("completion requires a declared file scope")
+                raise ValueError("review-pending transition requires a declared file scope")
             outside_scope = [
                 path for path in normalized_files
                 if not any(
@@ -401,23 +406,93 @@ class DevelopmentJobStore:
             if outside_scope:
                 raise ValueError("changed_files contains paths outside the declared scope")
             cur = connection.execute(
-                """UPDATE development_jobs SET status='completed',worker_id=NULL,lease_token=NULL,
+                """UPDATE development_jobs SET status='review_pending',worker_id=NULL,lease_token=NULL,
                    lease_expires_at=NULL,changed_files_json=?,tests_passed=1,validation_ref=?,
-                   result_summary=?,completed_at=?,updated_at=?
+                   result_summary=?,completed_at=NULL,review_url=NULL,review_head_sha=NULL,
+                   review_published_at=NULL,updated_at=?
                    WHERE id=? AND worker_id=? AND lease_token=? AND status IN ('leased','running')
                      AND lease_expires_at>?""",
                 (json.dumps(sorted(normalized_files)), validation_ref.strip(),
-                 str(result_summary)[:4000], timestamp, timestamp,
+                 str(result_summary)[:4000], timestamp,
                  job_id, worker_id, lease_token, timestamp),
             )
             if not cur.rowcount:
-                raise DevelopmentJobConflict("completion rejected: lease is missing, expired, or fenced")
-            self._event(connection, job_id, "completed", "leased/running", "completed",
-                        worker_id, {"changed_files": sorted(set(changed_files)),
+                raise DevelopmentJobConflict("review-pending transition rejected: lease is missing, expired, or fenced")
+            self._event(connection, job_id, "review_pending", "leased/running", "review_pending",
+                        worker_id, {"changed_files": sorted(normalized_files),
                                     "validation_ref": validation_ref.strip()}, timestamp)
             connection.commit()
         return self.get(job_id)
 
+    def complete(self, job_id, worker_id, lease_token, changed_files, tests_passed,
+                 validation_ref, result_summary=""):
+        """Backward-compatible alias; validation alone only reaches review_pending."""
+        return self.mark_review_pending(
+            job_id, worker_id, lease_token, changed_files, tests_passed,
+            validation_ref, result_summary,
+        )
+
+    def publish_review_artifact(self, job_id, review_url, review_head_sha, review_files,
+                                is_draft, is_open):
+        """Complete a job only after its exact changes appear in an open Draft PR."""
+        if not isinstance(review_url, str) or not review_url.strip():
+            raise ValueError("review URL is required")
+        review_url = review_url.strip()
+        parsed = urlparse(review_url)
+        if (parsed.scheme != "https" or parsed.netloc.lower() != "github.com"
+                or parsed.username or parsed.password or parsed.query or parsed.fragment
+                or not re.fullmatch(r"/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]*", parsed.path)):
+            raise ValueError("review URL must be a canonical GitHub pull-request URL")
+        if not isinstance(review_head_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", review_head_sha):
+            raise ValueError("review head SHA must be a full 40-character commit SHA")
+        if not isinstance(review_files, list) or not review_files:
+            raise ValueError("review artifact must contain at least one changed file")
+        normalized_review_files = set()
+        for raw_path in review_files:
+            if not isinstance(raw_path, str) or not raw_path.strip():
+                raise ValueError("review artifact contains an invalid file path")
+            path = raw_path.strip()
+            if "\\" in path or path.startswith("/") or any(part in ("", ".", "..") for part in path.split("/")):
+                raise ValueError("review artifact contains an unsafe or non-normalized file path")
+            normalized_review_files.add(path)
+        if is_draft is not True:
+            raise ValueError("review artifact must be a Draft pull request")
+        if is_open is not True:
+            raise ValueError("review artifact must be an open, unmerged pull request")
+
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM development_jobs WHERE id=?", (job_id,)
+            ).fetchone()
+            if row is None:
+                raise DevelopmentJobNotFound("development job not found")
+            if row["status"] == "completed":
+                if row["review_url"] == review_url and row["review_head_sha"] == review_head_sha:
+                    connection.commit()
+                    return self.get(job_id)
+                raise DevelopmentJobConflict("completed job is already bound to a different review artifact")
+            if row["status"] != "review_pending":
+                raise DevelopmentJobConflict("job must be review_pending before its PR artifact can complete it")
+            changed_files = set(json.loads(row["changed_files_json"] or "[]"))
+            if not changed_files or not changed_files.issubset(normalized_review_files):
+                missing = sorted(changed_files - normalized_review_files)
+                raise ValueError("review PR does not contain every job change: " + ", ".join(missing[:20]))
+            timestamp = _stamp(_now())
+            cur = connection.execute(
+                """UPDATE development_jobs SET status='completed',review_url=?,review_head_sha=?,
+                   review_published_at=?,completed_at=?,updated_at=?
+                   WHERE id=? AND status='review_pending'""",
+                (review_url, review_head_sha.lower(), timestamp, timestamp, timestamp, job_id),
+            )
+            if not cur.rowcount:
+                raise DevelopmentJobConflict("review publication lost a concurrent state transition")
+            self._event(connection, job_id, "review_published", "review_pending", "completed",
+                        "github", {"review_url": review_url, "review_head_sha": review_head_sha.lower(),
+                                   "draft": True, "state": "open",
+                                   "review_file_count": len(normalized_review_files)}, timestamp)
+            connection.commit()
+        return self.get(job_id)
 
     def fail(self, job_id, worker_id, lease_token, error, retryable=True, retry_delay_seconds=None):
         """Record a failed attempt; retry with bounded exponential backoff or quarantine."""
@@ -548,8 +623,8 @@ class DevelopmentJobStore:
             ).fetchone()
             latest_validation = connection.execute(
                 """SELECT validation_ref FROM development_jobs
-                   WHERE status='completed' AND validation_ref IS NOT NULL
-                   ORDER BY completed_at DESC,id DESC LIMIT 1"""
+                   WHERE status IN ('review_pending','completed') AND validation_ref IS NOT NULL
+                   ORDER BY updated_at DESC,id DESC LIMIT 1"""
             ).fetchone()
             worker_cutoff = _stamp(_now() - timedelta(seconds=90))
             worker_counts = connection.execute(
@@ -563,6 +638,7 @@ class DevelopmentJobStore:
                     "ready": counts.get("ready", 0), "running": counts.get("running", 0),
                     "blocked": counts.get("blocked", 0), "retry_wait": counts.get("retry_wait", 0),
                     "quarantined": counts.get("quarantined", 0),
+                    "review_pending": counts.get("review_pending", 0),
                     "completed": counts.get("completed", 0),
                     "active_leases": lease_counts["active"] or 0,
                     "expired_leases": lease_counts["expired"] or 0,
