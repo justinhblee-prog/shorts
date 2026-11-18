@@ -65,12 +65,13 @@ class DevelopmentJobWorker:
                 return "lease_lost"
             if not isinstance(result, dict):
                 raise ValueError("executor must return an evidence dictionary")
-            completed = self.store.complete(
+            pending = self.store.prepare_review(
                 job["id"], self.worker_id, job["lease_token"],
                 result.get("changed_files"), result.get("tests_passed"),
-                result.get("validation_ref"), result.get("result_summary", ""),
+                result.get("validation_ref"), result.get("artifact_path"),
+                result.get("artifact_sha256"), result.get("result_summary", ""),
             )
-            return completed["status"]
+            return pending["status"]
         except DevelopmentJobConflict:
             if lease_lost.is_set():
                 return "lease_lost"
@@ -127,6 +128,10 @@ class DevelopmentJobWorker:
                 processed += 1
                 outcomes[status] = outcomes.get(status, 0) + 1
                 last_activity = time.monotonic()
+                # A dirty checkout belongs to the one pending review artifact.
+                # Publish it before claiming another job in a later workflow run.
+                if status == "review_pending":
+                    break
         finally:
             self.store.stop_worker(self.worker_id)
         return {"processed": processed, "outcomes": outcomes, "summary": self.store.summary()}
