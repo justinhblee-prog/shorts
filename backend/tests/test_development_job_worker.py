@@ -21,8 +21,8 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
             lambda _: {"changed_files": ["backend/example.py"], "tests_passed": True,
                        "validation_ref": "ci://run/42", "result_summary": "implemented"},
         )
-        self.assertEqual(worker.run_once(), "completed")
-        self.assertEqual(self.store.get(job["id"])["status"], "completed")
+        self.assertEqual(worker.run_once(), "review_pending")
+        self.assertEqual(self.store.get(job["id"])["status"], "review_pending")
 
     def test_worker_rejects_noop_and_schedules_retry(self):
         job = self.store.create("No-op must not pass", scope=["backend/example.py"])
@@ -62,7 +62,7 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
             lambda _: {"changed_files": ["backend/example.py"], "tests_passed": True,
                        "validation_ref": "ci://run/44"},
         )
-        self.assertEqual(worker.run_once(), "completed")
+        self.assertEqual(worker.run_once(), "review_pending")
         presence = self.store.get_worker("runner-a")
         self.assertEqual(presence["status"], "online")
         self.assertIsNone(presence["current_job_id"])
