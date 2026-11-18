@@ -116,6 +116,12 @@ Use one trusted persistent Windows runner host/account for this local database. 
 
 The workflow-contract test checks that the path is configured before the worker cycle and is outside the checkout. Hosted CI does not prove that the Windows runner actually reuses the database across separate runs; that remains an end-to-end release gate.
 
+### Next implementation priority — review artifact completion gate
+
+A code audit found that `DevelopmentJobWorker.run_once` calls `DevelopmentJobStore.complete` as soon as the executor reports a scoped diff and successful repository validation. The GitHub Actions `Create Draft PR for verified changes only` step runs after the Python worker process returns. The current job schema stores no Draft PR URL or exact PR head SHA, and the worker does not use the documented `review_pending` state. Consequently, a job can be marked `completed` even if Draft PR publication later fails.
+
+Before autonomous scheduled operation is enabled, add a two-phase publication lifecycle: record validated implementation evidence as `review_pending`, then record the created Draft PR URL and exact head SHA before marking the job review-complete. If publication fails, keep the job visibly pending/retryable; never report it as completed. Add regressions for successful publication, publication failure, and head-SHA mismatch. This is the next code task after BUILD-00316 and is not included in this PR.
+
 ### Remaining ordered gates
 
 1. Confirm the newest `scripts/validate.sh` CI run passes after the runner configuration fix.
