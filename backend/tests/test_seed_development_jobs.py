@@ -1,6 +1,8 @@
+import hashlib
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 from development_jobs import DevelopmentJobStore
 from seed_development_jobs import seed_development_jobs
@@ -13,6 +15,20 @@ class SeedDevelopmentJobsTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def _prepare(self, job_id, worker_id, lease_token, files, validation_ref):
+        artifact = Path(self.tmp.name) / ("artifact-" + hashlib.sha256(job_id.encode("utf-8")).hexdigest() + ".zip")
+        artifact.write_bytes(job_id.encode("utf-8"))
+        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        return self.store.prepare_review(
+            job_id, worker_id, lease_token, files, True, validation_ref, str(artifact), digest,
+        )
+
+    def _publish(self, files):
+        sha = "d" * 40
+        return self.store.publish_review(
+            "https://github.com/acme/app/pull/456", sha, files, expected_head_sha=sha,
+        )
 
     def test_seed_is_idempotent_and_preserves_existing_progress(self):
         first = seed_development_jobs(self.store)
@@ -41,8 +57,9 @@ class SeedDevelopmentJobsTests(unittest.TestCase):
     def test_dependency_chain_unlocks_only_after_all_prerequisites_complete(self):
         seed_development_jobs(self.store)
         first = self.store.claim_ready("worker-a")
-        self.store.complete(first["id"], "worker-a", first["lease_token"],
-                            ["backend/development_jobs.py"], True, "ci://run/1")
+        self._prepare(first["id"], "worker-a", first["lease_token"],
+                      ["backend/development_jobs.py"], "ci://run/1")
+        self._publish(["backend/development_jobs.py"])
         second = self.store.claim_ready("worker-b")
         self.store.complete(second["id"], "worker-b", second["lease_token"],
                             ["backend/development_github_intake.py"], True, "ci://run/2")
