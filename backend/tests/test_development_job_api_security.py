@@ -11,6 +11,10 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
             "id": "DEV-ORCH-001", "title": "Registry", "status": "running",
             "lease_token": "private-lease-token", "worker_id": "runner-a",
             "result_summary": "provider error bearer private-result-secret",
+            "artifact_path": "C:\\Users\\runner\\AppData\\Local\\NexusStudioPro\\shorts\\artifacts\\private.zip",
+            "artifact_sha256": "private-artifact-digest",
+            "review_pr_url": "https://github.com/acme/app/pull/123",
+            "review_head_sha": "a" * 40,
             "scope": ["backend/development_jobs.py"], "attempts": 1,
             "max_attempts": 3,
         }
@@ -25,6 +29,10 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         serialized = json.dumps(result)
         self.assertNotIn("private-lease-token", serialized)
         self.assertNotIn("private-result-secret", serialized)
+        self.assertNotIn("private.zip", serialized)
+        self.assertNotIn("private-artifact-digest", serialized)
+        self.assertEqual(result["jobs"][0]["review_pr_url"], "https://github.com/acme/app/pull/123")
+        self.assertEqual(result["jobs"][0]["review_head_sha"], "a" * 40)
         self.assertEqual(result["jobs"][0]["worker_id"], "runner-a")
         self.assertEqual(result["jobs"][0]["scope"], ["backend/development_jobs.py"])
 
@@ -32,7 +40,8 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         events = [{
             "event_type": "failed", "from_status": "running", "to_status": "retry_wait",
             "actor": "runner-a", "created_at": "2026-11-17T10:00:00+00:00",
-            "details": {"error": "Bearer event-private-secret", "retryable": True},
+            "details": {"error": "Bearer event-private-secret", "retryable": True,
+                        "pr_url": "https://github.com/acme/app/pull/123", "pr_head_sha": "b" * 40},
             "details_json": "{\"error\":\"Bearer event-private-secret\"}",
         }]
         with (
@@ -45,7 +54,11 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         auth.assert_called_once_with("monitor-token", "operations.read")
         serialized = json.dumps(result)
         self.assertNotIn("event-private-secret", serialized)
-        self.assertEqual(result["events"][0]["details"], {"retryable": True})
+        self.assertEqual(result["events"][0]["details"], {
+            "retryable": True,
+            "pr_url": "https://github.com/acme/app/pull/123",
+            "pr_head_sha": "b" * 40,
+        })
 
     def test_detail_endpoint_redacts_worker_lease_token(self):
         job = {"id": "DEV-ORCH-001", "status": "leased", "lease_token": "detail-secret"}
