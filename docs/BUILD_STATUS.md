@@ -2402,3 +2402,15 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - The local database remains specific to the Windows runner account/host; use one trusted persistent runner until a shared durable store is deliberately designed. This does not back up the runner disk or prove a real runner execution.
 - GitHub Actions run [44252322555](https://github.com/justinhblee-prog/shorts/actions/runs/44252322555) passed for exact code/test head `c05c7d5416b4b079a6366c849ec2e8a922921740`: 741 backend tests passed and `node --check frontend/app.js` succeeded. A later documentation-only checkpoint follows; no Windows runner execution is implied.
 - Follow-up audit finding (not fixed by this checkpoint): the worker marks a job `completed` after source/tests/validation, but the workflow creates the Draft PR only afterward and the job record stores no PR URL/head SHA. Do not interpret `completed` as a verified review artifact; implement and test a separate review-publication completion gate next.
+
+
+## BUILD-00317 — require an exact Draft PR review artifact before development-job completion (2026-11-18)
+
+- Change the engineering worker lifecycle from leased/running to review_pending to completed. Source diff, regression tests and repository validation alone no longer mark a development job complete.
+- Add additive SQLite columns for the review URL, exact PR head SHA and publication timestamp; existing runner databases migrate in place without deleting or replacing job/event data.
+- Add a GET-only GitHub review-artifact verifier. It checks the action-returned PR URL/head SHA against the live API response, requires an open, unmerged Draft PR with the expected automation head and default base branches, and verifies every job-changed file is included in the PR before recording completion.
+- Keep review_pending jobs and their write scopes reserved; dependency jobs remain blocked until the review artifact is recorded. Stop the worker after the first changed job in a cycle to avoid trying a second task against an uncommitted worktree.
+- Expose sanitized PR URL/head SHA in the authenticated development-job API and Cyber Magic operations panel; add a distinct Draft-PR-review-pending status and count.
+- Regression tests cover publication success/failure, exact head SHA, Draft/open state, head/base branch, repository identity, changed-file inclusion, idempotent artifact recording, dependency blocking, scope reservation and one changed job per cycle.
+- Draft PR: https://github.com/justinhblee-prog/shorts/pull/325 — exact-head hosted CI is pending. The tests use temporary SQLite databases and a fixture-backed GitHub client; no real Windows self-hosted runner, Ollama-generated edit, repeated-run persistence, live provider, OAuth, public post, deployment or production recovery is claimed.
+- Safety: no PR was merged, no main push was made, and no existing user data or credentials were deleted or overwritten.
