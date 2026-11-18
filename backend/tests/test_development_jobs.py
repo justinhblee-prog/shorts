@@ -34,8 +34,13 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         claim = self.store.claim_ready("worker-a")
         self.assertEqual(claim["id"], parent["id"])
         self.store.heartbeat(parent["id"], "worker-a", claim["lease_token"])
-        self.store.complete(parent["id"], "worker-a", claim["lease_token"],
-                            ["backend/module.py"], True, "ci://run/123")
+        self.store.mark_review_pending(parent["id"], "worker-a", claim["lease_token"],
+                                       ["backend/module.py"], True, "ci://run/123")
+        self.assertEqual(self.store.get(child["id"])["status"], "blocked")
+        self.store.publish_review_artifact(
+            parent["id"], "https://github.com/acme/app/pull/1", "a" * 40,
+            ["backend/module.py"], is_draft=True, is_open=True,
+        )
         next_job = self.store.claim_ready("worker-b")
         self.assertEqual(next_job["id"], child["id"])
 
@@ -55,10 +60,10 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         job = self.store.create("Must change code")
         claim = self.store.claim_ready("worker-a")
         with self.assertRaisesRegex(ValueError, "changed file"):
-            self.store.complete(job["id"], "worker-a", claim["lease_token"],
+            self.store.mark_review_pending(job["id"], "worker-a", claim["lease_token"],
                                 [], True, "ci://run/1")
         with self.assertRaisesRegex(ValueError, "tests_passed"):
-            self.store.complete(job["id"], "worker-a", claim["lease_token"],
+            self.store.mark_review_pending(job["id"], "worker-a", claim["lease_token"],
                                 ["backend/file.py"], False, "ci://run/1")
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
@@ -66,15 +71,21 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         job = self.store.create("Completion", scope=["backend/file.py"])
         claim = self.store.claim_ready("worker-a")
         with self.assertRaisesRegex(ValueError, "validation evidence"):
-            self.store.complete(job["id"], "worker-a", claim["lease_token"],
+            self.store.mark_review_pending(job["id"], "worker-a", claim["lease_token"],
                                 ["backend/file.py"], True, "")
         with self.assertRaises(DevelopmentJobConflict):
-            self.store.complete(job["id"], "worker-b", claim["lease_token"],
+            self.store.mark_review_pending(job["id"], "worker-b", claim["lease_token"],
                                 ["backend/file.py"], True, "ci://run/2")
-        completed = self.store.complete(job["id"], "worker-a", claim["lease_token"],
-                                        ["backend/file.py"], True, "ci://run/2")
+        pending = self.store.mark_review_pending(job["id"], "worker-a", claim["lease_token"],
+                                                 ["backend/file.py"], True, "ci://run/2")
+        self.assertEqual(pending["status"], "review_pending")
+        completed = self.store.publish_review_artifact(
+            job["id"], "https://github.com/acme/app/pull/2", "b" * 40,
+            ["backend/file.py"], is_draft=True, is_open=True,
+        )
         self.assertEqual(completed["status"], "completed")
         self.assertEqual(completed["changed_files"], ["backend/file.py"])
+        self.assertEqual(completed["review_head_sha"], "b" * 40)
         self.assertTrue(completed["tests_passed"])
 
     def test_event_history_is_append_only(self):
@@ -109,8 +120,13 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         claim = self.store.claim_ready("worker-a")
         self.assertEqual(claim["id"], first["id"])
         self.assertIsNone(self.store.claim_ready("worker-b"))
-        self.store.complete(first["id"], "worker-a", claim["lease_token"],
-                            ["backend/shared.py"], True, "ci://run/1")
+        self.store.mark_review_pending(first["id"], "worker-a", claim["lease_token"],
+                                       ["backend/shared.py"], True, "ci://run/1")
+        self.assertIsNone(self.store.claim_ready("worker-b"))
+        self.store.publish_review_artifact(
+            first["id"], "https://github.com/acme/app/pull/3", "c" * 40,
+            ["backend/shared.py"], is_draft=True, is_open=True,
+        )
         next_claim = self.store.claim_ready("worker-b")
         self.assertEqual(next_claim["id"], second["id"])
 
@@ -137,7 +153,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(second["id"], job["id"])
         self.assertNotEqual(first["lease_token"], second["lease_token"])
         with self.assertRaises(DevelopmentJobConflict):
-            self.store.complete(job["id"], "worker-a", first["lease_token"],
+            self.store.mark_review_pending(job["id"], "worker-a", first["lease_token"],
                                 ["backend/file.py"], True, "ci://run/stale")
         self.assertEqual(self.store.get(job["id"])["worker_id"], "worker-b")
 
@@ -155,7 +171,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         job = self.store.create("Scoped completion", scope=["backend/allowed.py"])
         claim = self.store.claim_ready("worker-a")
         with self.assertRaisesRegex(ValueError, "outside the declared scope"):
-            self.store.complete(job["id"], "worker-a", claim["lease_token"],
+            self.store.mark_review_pending(job["id"], "worker-a", claim["lease_token"],
                                 ["backend/other.py"], True, "ci://run/3")
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
@@ -165,7 +181,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         for paths in (["../outside.py"], ["backend\\\\secret.py"], ["backend/a.py", "backend/a.py"]):
             with self.subTest(paths=paths):
                 with self.assertRaises(ValueError):
-                    self.store.complete(job["id"], "worker-a", claim["lease_token"],
+                    self.store.mark_review_pending(job["id"], "worker-a", claim["lease_token"],
                                         paths, True, "ci://run/4")
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
@@ -175,7 +191,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         claim = self.store.claim_ready("worker-a")
         completed = self.store.create("Completed work", scope=["backend/done.py"])
         done_claim = self.store.claim_ready("worker-b")
-        self.store.complete(completed["id"], "worker-b", done_claim["lease_token"],
+        self.store.mark_review_pending(completed["id"], "worker-b", done_claim["lease_token"],
                             ["backend/done.py"], True, "ci://run/42")
         expired = self.store.create("Expired lease", scope=["backend/expired.py"])
         expired_claim = self.store.claim_ready("worker-c")
@@ -212,6 +228,61 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.list_workers(online_within_seconds=0)
 
+
+
+    def test_review_artifact_requires_draft_open_and_all_changed_files(self):
+        job = self.store.create("Review evidence", scope=["backend/review.py"])
+        claim = self.store.claim_ready("worker-review")
+        self.store.mark_review_pending(
+            job["id"], "worker-review", claim["lease_token"],
+            ["backend/review.py"], True, "ci://run/55",
+        )
+        with self.assertRaisesRegex(ValueError, "does not contain"):
+            self.store.publish_review_artifact(
+                job["id"], "https://github.com/acme/app/pull/4", "d" * 40,
+                ["backend/other.py"], is_draft=True, is_open=True,
+            )
+        with self.assertRaisesRegex(ValueError, "Draft"):
+            self.store.publish_review_artifact(
+                job["id"], "https://github.com/acme/app/pull/4", "d" * 40,
+                ["backend/review.py"], is_draft=False, is_open=True,
+            )
+        with self.assertRaisesRegex(ValueError, "open"):
+            self.store.publish_review_artifact(
+                job["id"], "https://github.com/acme/app/pull/4", "d" * 40,
+                ["backend/review.py"], is_draft=True, is_open=False,
+            )
+        self.assertEqual(self.store.get(job["id"])["status"], "review_pending")
+        published = self.store.publish_review_artifact(
+            job["id"], "https://github.com/acme/app/pull/4", "d" * 40,
+            ["backend/review.py"], is_draft=True, is_open=True,
+        )
+        self.assertEqual(published["status"], "completed")
+        self.assertEqual(published["review_url"], "https://github.com/acme/app/pull/4")
+        event_types = [event["event_type"] for event in self.store.events(job["id"])]
+        self.assertIn("review_pending", event_types)
+        self.assertIn("review_published", event_types)
+
+    def test_review_artifact_publication_is_idempotent_for_same_head(self):
+        job = self.store.create("Idempotent review", scope=["backend/review.py"])
+        claim = self.store.claim_ready("worker-review")
+        self.store.mark_review_pending(
+            job["id"], "worker-review", claim["lease_token"],
+            ["backend/review.py"], True, "ci://run/56",
+        )
+        args = (
+            job["id"], "https://github.com/acme/app/pull/5", "e" * 40,
+            ["backend/review.py"],
+        )
+        first = self.store.publish_review_artifact(*args, is_draft=True, is_open=True)
+        second = self.store.publish_review_artifact(*args, is_draft=True, is_open=True)
+        self.assertEqual(first["status"], "completed")
+        self.assertEqual(second["review_head_sha"], "e" * 40)
+        with self.assertRaises(DevelopmentJobConflict):
+            self.store.publish_review_artifact(
+                job["id"], "https://github.com/acme/app/pull/5", "f" * 40,
+                ["backend/review.py"], is_draft=True, is_open=True,
+            )
 
 
 if __name__ == "__main__":
