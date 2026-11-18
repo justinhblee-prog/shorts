@@ -4,11 +4,13 @@ This store is intentionally separate from JobQueue/ScheduleStore, which operate
 short-video production work rather than repository development work.
 """
 import json
+import re
 import sqlite3
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 TERMINAL = {"completed", "cancelled"}
@@ -59,7 +61,9 @@ class DevelopmentJobStore:
               source_ref TEXT, changed_files_json TEXT, tests_passed INTEGER,
               validation_ref TEXT, result_summary TEXT,
               created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-              started_at TEXT, completed_at TEXT, retry_after TEXT
+              started_at TEXT, completed_at TEXT, retry_after TEXT,
+              artifact_path TEXT, artifact_sha256 TEXT,
+              review_pr_url TEXT, review_head_sha TEXT, review_published_at TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_development_jobs_ready
               ON development_jobs(status,priority,created_at);
@@ -102,6 +106,15 @@ class DevelopmentJobStore:
             columns = {row["name"] for row in connection.execute("PRAGMA table_info(development_jobs)")}
             if "retry_after" not in columns:
                 connection.execute("ALTER TABLE development_jobs ADD COLUMN retry_after TEXT")
+            for column, declaration in (
+                ("artifact_path", "TEXT"),
+                ("artifact_sha256", "TEXT"),
+                ("review_pr_url", "TEXT"),
+                ("review_head_sha", "TEXT"),
+                ("review_published_at", "TEXT"),
+            ):
+                if column not in columns:
+                    connection.execute(f"ALTER TABLE development_jobs ADD COLUMN {column} {declaration}")
 
     @contextmanager
     def db(self):
@@ -355,16 +368,21 @@ class DevelopmentJobStore:
             connection.commit()
             return self.get(job_id)
 
-    def complete(self, job_id, worker_id, lease_token, changed_files, tests_passed,
-                 validation_ref, result_summary=""):
+    def prepare_review(self, job_id, worker_id, lease_token, changed_files, tests_passed,
+                       validation_ref, artifact_path, artifact_sha256, result_summary=""):
+        """Persist validated source evidence as review_pending, never as completed."""
         if not isinstance(changed_files, list) or not changed_files or not all(
             isinstance(path, str) and path.strip() for path in changed_files
         ):
-            raise ValueError("completion requires at least one meaningful changed file")
+            raise ValueError("review preparation requires at least one meaningful changed file")
         if tests_passed is not True:
-            raise ValueError("completion requires tests_passed=True")
+            raise ValueError("review preparation requires tests_passed=True")
         if not isinstance(validation_ref, str) or not validation_ref.strip() or len(validation_ref) > 1000:
-            raise ValueError("completion requires a validation evidence reference")
+            raise ValueError("review preparation requires a validation evidence reference")
+        if not isinstance(artifact_path, str) or not artifact_path.strip() or not Path(artifact_path).is_absolute():
+            raise ValueError("review preparation requires an absolute persistent artifact path")
+        if not isinstance(artifact_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", artifact_sha256.lower()):
+            raise ValueError("review preparation requires a SHA-256 artifact digest")
         normalized_files = []
         for raw_path in changed_files:
             if not isinstance(raw_path, str) or not raw_path.strip():
@@ -386,10 +404,10 @@ class DevelopmentJobStore:
                 (job_id, worker_id, lease_token, timestamp),
             ).fetchone()
             if current is None:
-                raise DevelopmentJobConflict("completion rejected: lease is missing, expired, or fenced")
+                raise DevelopmentJobConflict("review preparation rejected: lease is missing, expired, or fenced")
             scope = json.loads(current["scope_json"] or "[]")
             if not scope:
-                raise ValueError("completion requires a declared file scope")
+                raise ValueError("review preparation requires a declared file scope")
             outside_scope = [
                 path for path in normalized_files
                 if not any(
@@ -401,23 +419,85 @@ class DevelopmentJobStore:
             if outside_scope:
                 raise ValueError("changed_files contains paths outside the declared scope")
             cur = connection.execute(
-                """UPDATE development_jobs SET status='completed',worker_id=NULL,lease_token=NULL,
+                """UPDATE development_jobs SET status='review_pending',worker_id=NULL,lease_token=NULL,
                    lease_expires_at=NULL,changed_files_json=?,tests_passed=1,validation_ref=?,
-                   result_summary=?,completed_at=?,updated_at=?
+                   result_summary=?,artifact_path=?,artifact_sha256=?,completed_at=NULL,updated_at=?
                    WHERE id=? AND worker_id=? AND lease_token=? AND status IN ('leased','running')
                      AND lease_expires_at>?""",
                 (json.dumps(sorted(normalized_files)), validation_ref.strip(),
-                 str(result_summary)[:4000], timestamp, timestamp,
-                 job_id, worker_id, lease_token, timestamp),
+                 str(result_summary)[:4000], str(Path(artifact_path)), artifact_sha256.lower(),
+                 timestamp, job_id, worker_id, lease_token, timestamp),
             )
             if not cur.rowcount:
-                raise DevelopmentJobConflict("completion rejected: lease is missing, expired, or fenced")
-            self._event(connection, job_id, "completed", "leased/running", "completed",
-                        worker_id, {"changed_files": sorted(set(changed_files)),
-                                    "validation_ref": validation_ref.strip()}, timestamp)
+                raise DevelopmentJobConflict("review preparation rejected: lease is missing, expired, or fenced")
+            self._event(connection, job_id, "validation_passed", "leased/running", "review_pending",
+                        worker_id, {"changed_files": sorted(normalized_files),
+                                    "validation_ref": validation_ref.strip(),
+                                    "artifact_sha256": artifact_sha256.lower()}, timestamp)
             connection.commit()
         return self.get(job_id)
 
+    def publish_review(self, pr_url, pr_head_sha, published_files, expected_head_sha=None,
+                       actor="github-actions"):
+        """Complete only jobs whose validated changed files are present in the exact Draft PR head."""
+        if not isinstance(pr_url, str) or len(pr_url.strip()) > 1000:
+            raise ValueError("a Draft PR URL is required")
+        parsed = urlparse(pr_url.strip())
+        if (parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password
+                or not re.search(r"/pull/\d+/?$", parsed.path)):
+            raise ValueError("review publication URL must be an HTTPS GitHub pull-request URL")
+        if not isinstance(pr_head_sha, str) or not re.fullmatch(r"[0-9a-f]{40,64}", pr_head_sha.lower()):
+            raise ValueError("review publication requires the exact PR head SHA")
+        if expected_head_sha is not None and (
+            not isinstance(expected_head_sha, str)
+            or not re.fullmatch(r"[0-9a-f]{40,64}", expected_head_sha.lower())
+            or expected_head_sha.lower() != pr_head_sha.lower()
+        ):
+            raise DevelopmentJobConflict("Draft PR head SHA does not match the published branch ref")
+        if not isinstance(published_files, list) or not all(
+            isinstance(path, str) and path.strip() for path in published_files
+        ):
+            raise ValueError("published_files must be a list of repository paths")
+        normalized = []
+        for raw_path in published_files:
+            path = raw_path.strip()
+            if "\\" in path or path.startswith("/") or any(part in ("", ".", "..") for part in path.split("/")):
+                raise ValueError("published_files contains an unsafe or non-normalized path")
+            normalized.append(path)
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("published_files must not contain duplicates")
+        if not isinstance(actor, str) or not actor.strip():
+            raise ValueError("publication actor is required")
+
+        published = set(normalized)
+        completed_ids = []
+        pending_ids = []
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            timestamp = _stamp(_now())
+            rows = connection.execute(
+                "SELECT * FROM development_jobs WHERE status='review_pending' ORDER BY priority,created_at,id"
+            ).fetchall()
+            for row in rows:
+                changed = json.loads(row["changed_files_json"] or "[]")
+                if not changed or not set(changed).issubset(published):
+                    pending_ids.append(row["id"])
+                    continue
+                cur = connection.execute(
+                    """UPDATE development_jobs SET status='completed',review_pr_url=?,
+                       review_head_sha=?,review_published_at=?,completed_at=?,updated_at=?
+                       WHERE id=? AND status='review_pending'""",
+                    (pr_url.strip(), pr_head_sha.lower(), timestamp, timestamp, timestamp, row["id"]),
+                )
+                if cur.rowcount:
+                    self._event(
+                        connection, row["id"], "review_published", "review_pending", "completed",
+                        actor, {"pr_url": pr_url.strip(), "pr_head_sha": pr_head_sha.lower(),
+                                "changed_files": changed}, timestamp,
+                    )
+                    completed_ids.append(row["id"])
+            connection.commit()
+        return {"completed_job_ids": completed_ids, "pending_job_ids": pending_ids}
 
     def fail(self, job_id, worker_id, lease_token, error, retryable=True, retry_delay_seconds=None):
         """Record a failed attempt; retry with bounded exponential backoff or quarantine."""
@@ -548,8 +628,8 @@ class DevelopmentJobStore:
             ).fetchone()
             latest_validation = connection.execute(
                 """SELECT validation_ref FROM development_jobs
-                   WHERE status='completed' AND validation_ref IS NOT NULL
-                   ORDER BY completed_at DESC,id DESC LIMIT 1"""
+                   WHERE status IN ('review_pending','completed') AND validation_ref IS NOT NULL
+                   ORDER BY updated_at DESC,id DESC LIMIT 1"""
             ).fetchone()
             worker_cutoff = _stamp(_now() - timedelta(seconds=90))
             worker_counts = connection.execute(
@@ -564,6 +644,7 @@ class DevelopmentJobStore:
                     "blocked": counts.get("blocked", 0), "retry_wait": counts.get("retry_wait", 0),
                     "quarantined": counts.get("quarantined", 0),
                     "completed": counts.get("completed", 0),
+                    "review_pending": counts.get("review_pending", 0),
                     "active_leases": lease_counts["active"] or 0,
                     "expired_leases": lease_counts["expired"] or 0,
                     "latest_updated_at": latest["updated_at"] if latest else None,
