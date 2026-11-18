@@ -12,7 +12,8 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
             "lease_token": "private-lease-token", "worker_id": "runner-a",
             "result_summary": "provider error bearer private-result-secret",
             "scope": ["backend/development_jobs.py"], "attempts": 1,
-            "max_attempts": 3,
+            "max_attempts": 3, "review_url": "https://github.com/acme/app/pull/42",
+            "review_head_sha": "a" * 40, "review_published_at": "2026-11-18T10:00:00+00:00",
         }
         with (
             mock.patch.object(app_module, "require_review_permission") as auth,
@@ -27,12 +28,16 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         self.assertNotIn("private-result-secret", serialized)
         self.assertEqual(result["jobs"][0]["worker_id"], "runner-a")
         self.assertEqual(result["jobs"][0]["scope"], ["backend/development_jobs.py"])
+        self.assertEqual(result["jobs"][0]["review_url"], "https://github.com/acme/app/pull/42")
+        self.assertEqual(result["jobs"][0]["review_head_sha"], "a" * 40)
 
     def test_event_endpoint_omits_raw_error_details(self):
         events = [{
             "event_type": "failed", "from_status": "running", "to_status": "retry_wait",
             "actor": "runner-a", "created_at": "2026-11-17T10:00:00+00:00",
-            "details": {"error": "Bearer event-private-secret", "retryable": True},
+            "details": {"error": "Bearer event-private-secret", "retryable": True,
+                        "review_url": "https://github.com/acme/app/pull/42",
+                        "review_head_sha": "a" * 40, "draft": True, "state": "open"},
             "details_json": "{\"error\":\"Bearer event-private-secret\"}",
         }]
         with (
@@ -45,7 +50,10 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         auth.assert_called_once_with("monitor-token", "operations.read")
         serialized = json.dumps(result)
         self.assertNotIn("event-private-secret", serialized)
-        self.assertEqual(result["events"][0]["details"], {"retryable": True})
+        self.assertEqual(result["events"][0]["details"], {
+            "retryable": True, "review_url": "https://github.com/acme/app/pull/42",
+            "review_head_sha": "a" * 40, "draft": True, "state": "open",
+        })
 
     def test_detail_endpoint_redacts_worker_lease_token(self):
         job = {"id": "DEV-ORCH-001", "status": "leased", "lease_token": "detail-secret"}
