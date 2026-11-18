@@ -28,3 +28,10 @@
 
 ## 주의
 Self-hosted runner는 저장소 코드와 workflow가 PC에서 명령을 실행할 수 있게 합니다. 신뢰할 수 없는 PR의 workflow를 실행하지 말고, 전용 OS 계정과 작업 폴더를 사용하십시오. 무료 모델은 상용 코딩 에이전트보다 성능이 낮을 수 있으므로 모든 Draft PR을 사람이 검토해야 합니다.
+
+
+## 개발 잡 완료 판정 (BUILD-00317)
+- 모델 변경과 로컬 검증이 끝나도 개발 잡은 즉시 completed가 되지 않고 review_pending 상태로 남습니다.
+- Draft PR 생성 후 별도 검증 단계가 GitHub API에서 PR 상태, Draft 여부, head/base 브랜치, 정확한 head SHA와 변경 파일 목록을 읽어 확인합니다.
+- 검증된 PR URL과 head SHA가 영속 DB에 기록된 경우에만 개발 잡이 completed가 되고 종속 작업이 풀립니다.
+- PR 생성 또는 검증이 실패하면 review_pending 상태를 유지합니다. CI 성공이나 실제 Windows/Ollama 실행으로 간주하지 않습니다.
