@@ -126,6 +126,10 @@ If the action returns no PR URL/head SHA, the PR is not Draft/open, the head SHA
 
 Regression coverage includes successful publication, missing files, head-SHA mismatch, non-Draft/closed PR, branch/base mismatch, repository mismatch, idempotent same-head recording, dependency blocking until publication, review-pending scope reservation, and one changed job per worker cycle. Hosted CI remains fixture-backed; it does not prove the Windows runner or real Ollama execution.
 
+### Next code priority — recover orphaned review_pending jobs safely
+
+BUILD-00317 deliberately fails closed when no exact Draft PR artifact can be verified. A remaining recovery gap is that a job may stay review_pending if the PR action fails before a branch/PR is created. Add a bounded, audited recovery workflow that first checks for an existing automation branch and open PR; if one exists, retry only the read-back/publication step. If no branch/PR contains the job changes, require an explicit operator-approved requeue that preserves the prior event/evidence history and increments the retry count. Never reset a review_pending job automatically merely because the PR URL output is empty, and never discard a potentially published diff.
+
 ### Remaining ordered gates
 
 1. Review the stacked control-plane PR chain (#321 → #324 → #325) in dependency order; no PR is merged without explicit user approval.
