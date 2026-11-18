@@ -4,11 +4,15 @@ Job descriptions are treated as untrusted data. Commands are fixed by this
 module, scope paths are validated, and credentials are removed from the
 subprocess environment.
 """
+import hashlib
+import json
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import uuid
+import zipfile
 from pathlib import Path
 
 from development_job_worker import NonRetryableDevelopmentJobError
@@ -98,6 +102,68 @@ class AiderDevelopmentExecutor:
         return any(path == item or item.endswith("/") and path.startswith(item)
                    or path.startswith(item.rstrip("/") + "/") and Path(item).suffix == ""
                    for item in scope)
+
+    def _persist_artifact(self, job, changed_files, env):
+        """Snapshot changed source files outside the checkout for publication retry."""
+        configured = env.get("NEXUS_DEVELOPMENT_ARTIFACT_DIR")
+        if configured:
+            artifact_root = Path(configured).expanduser().resolve()
+        else:
+            local = env.get("LOCALAPPDATA")
+            base = Path(local) if local else Path.home() / ".local" / "share"
+            artifact_root = (base / "NexusStudioPro" / "shorts" / "artifacts").resolve()
+        try:
+            artifact_root.relative_to(self.repo_root)
+        except ValueError:
+            pass
+        else:
+            raise NonRetryableDevelopmentJobError("development artifacts must be stored outside the checkout")
+        artifact_root.mkdir(parents=True, exist_ok=True)
+
+        entries = []
+        contents = {}
+        for relative in changed_files:
+            source = self.repo_root / relative
+            resolved = source.resolve()
+            try:
+                resolved.relative_to(self.repo_root)
+            except ValueError as error:
+                raise NonRetryableDevelopmentJobError("changed file escapes the repository") from error
+            if source.is_symlink() or not source.is_file():
+                raise NonRetryableDevelopmentJobError(
+                    "publication recovery does not permit symlinks or deleted/non-file paths: " + relative
+                )
+            data = source.read_bytes()
+            base = subprocess.run(
+                ["git", "show", f"HEAD:{relative}"], cwd=self.repo_root, env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120, check=False,
+            )
+            base_sha = hashlib.sha256(base.stdout).hexdigest() if base.returncode == 0 else None
+            content_sha = hashlib.sha256(data).hexdigest()
+            entries.append({"path": relative, "base_sha256": base_sha, "content_sha256": content_sha})
+            contents[relative] = data
+
+        manifest = {"version": 1, "job_id": str(job.get("id", "")), "files": entries}
+        artifact_path = artifact_root / (uuid.uuid4().hex + ".zip")
+        handle = tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".tmp", prefix="nexus-artifact-", dir=artifact_root, delete=False,
+        )
+        temporary = Path(handle.name)
+        handle.close()
+        try:
+            with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, sort_keys=True))
+                for relative, data in contents.items():
+                    archive.writestr("files/" + relative, data)
+            os.replace(temporary, artifact_path)
+        except Exception:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
+            raise
+        digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+        return str(artifact_path), digest
 
     def __call__(self, job):
         scope = self._validated_scope(job)
@@ -198,9 +264,12 @@ class AiderDevelopmentExecutor:
             raise NonRetryableDevelopmentJobError(
                 "validation evidence reference is missing; set GITHUB_RUN_ID/GITHUB_REPOSITORY"
             )
+        artifact_path, artifact_sha256 = self._persist_artifact(job, changed_files, env)
         return {
             "changed_files": changed_files,
             "tests_passed": True,
             "validation_ref": validation_ref,
-            "result_summary": "Aider produced scoped changes; git diff --check and repository validation passed.",
+            "artifact_path": artifact_path,
+            "artifact_sha256": artifact_sha256,
+            "result_summary": "Aider produced scoped changes; git diff --check and repository validation passed; a persistent recovery artifact was saved.",
         }
