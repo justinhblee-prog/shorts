@@ -122,8 +122,14 @@ def publish_pending_reviews(
     pr = client.get_pull_request(owner, repo_name, number)
     head = pr.get("head") if isinstance(pr.get("head"), dict) else {}
     base = pr.get("base") if isinstance(pr.get("base"), dict) else {}
+    if pr.get("number") != number or pr.get("html_url") != review_url:
+        raise RuntimeError("GitHub returned a different pull-request identity")
     if pr.get("state") != "open" or pr.get("merged_at") is not None:
         raise RuntimeError("review pull request is not open and unmerged")
+    if not isinstance(head.get("repo"), dict) or head["repo"].get("full_name", "").lower() != repository.lower():
+        raise RuntimeError("pull-request head must belong to the configured repository")
+    if not isinstance(base.get("repo"), dict) or base["repo"].get("full_name", "").lower() != repository.lower():
+        raise RuntimeError("pull-request base must belong to the configured repository")
     if pr.get("draft") is not True:
         raise RuntimeError("review pull request is not Draft")
     if head.get("sha", "").lower() != expected_head_sha.lower():
