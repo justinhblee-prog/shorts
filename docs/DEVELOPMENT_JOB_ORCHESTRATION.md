@@ -1,9 +1,9 @@
 # NEXUS STUDIO PRO — Development Job Orchestration
 
-**Checkpoint:** BUILD-00313 (planning and repository-state baseline)  
-**Updated:** 2026-11-17  
+**Checkpoint:** BUILD-00317 (review-artifact completion gate)  
+**Updated:** 2026-11-18  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Status:** Control-plane prototype implemented on Draft PR #321; default-branch autonomous execution is not yet verified.
+**Status:** Exact Draft PR publication gate implemented on Draft PR #325; hosted CI and Windows local-runner execution remain separate verification gates.
 
 ## 1. Why this exists
 
@@ -92,13 +92,13 @@ All state changes must be append-only in the job event history and guarded by co
 The current Draft PR #321 contains the following prototype components:
 
 - `backend/development_jobs.py`: SQLite-backed job graph, dependency checks, leases, heartbeat/fencing, append-only events, retry/quarantine, and completion evidence gate.
-- `backend/development_job_worker.py`: bounded worker lifecycle, heartbeat, retries, and idle draining.
+- `backend/development_job_worker.py`: bounded worker lifecycle, heartbeat, retries, and idle draining; a cycle stops after its first review_pending diff so a second task cannot run against an uncommitted worktree.
 - `backend/tests/test_development_worker_workflow_contract.py`: regression checks for the two-hour schedule, manual dispatch, trusted runner/model, split GitHub credentials, and stable Draft PR branch.
 - `backend/development_github_intake.py`: read-only GitHub Issues/PR/Actions intake, deduplication, and explicit per-issue file-scope approval.
 - `backend/development_backlog_service.py`: sync → register → worker cycle coordinator.
 - `backend/run_development_agent.py`: one-cycle runner that seeds the engineering graph and injects the local Aider/Ollama executor.
 - `backend/development_agent_executor.py`: constrained Aider executor with protected-path checks, credential-stripped child environment, scoped diff check, and repository validation.
-- `.github/workflows/nexus-development-job-worker.yml`: scheduled/manual self-hosted runner workflow and Draft PR publication step.
+- `.github/workflows/nexus-development-job-worker.yml`: scheduled/manual self-hosted runner workflow, Draft PR creation, and a post-publication verification step using the action's exact PR URL/head SHA outputs.
 - Automated Draft PR publication reuses the stable `automation/nexus-development-cycle` branch so scheduled runs update the same review surface instead of creating a new PR branch every cycle.
 - `backend/app.py` and `frontend/app.js`: authenticated read-only development-job API and live status/event panel; lease tokens and raw error details are redacted. `backend/tests/test_development_job_api_security.py` covers the access-control and redaction contract.
 - The monitor summary now reports active and expired lease counts, latest update time, and the most recent successful validation reference; the UI exposes these alongside the job list.
@@ -116,16 +116,20 @@ Use one trusted persistent Windows runner host/account for this local database. 
 
 The workflow-contract test checks that the path is configured before the worker cycle and is outside the checkout. Hosted CI does not prove that the Windows runner actually reuses the database across separate runs; that remains an end-to-end release gate.
 
-### Next implementation priority — review artifact completion gate
+### BUILD-00317 — exact Draft PR review-artifact completion gate
 
-A code audit found that `DevelopmentJobWorker.run_once` calls `DevelopmentJobStore.complete` as soon as the executor reports a scoped diff and successful repository validation. The GitHub Actions `Create Draft PR for verified changes only` step runs after the Python worker process returns. The current job schema stores no Draft PR URL or exact PR head SHA, and the worker does not use the documented `review_pending` state. Consequently, a job can be marked `completed` even if Draft PR publication later fails.
+The worker now records validated source changes as review_pending; this state is not terminal and does not unlock dependent jobs. The worker releases its lease but keeps the file scope reserved, and it stops after the first changed job in a cycle so another job cannot run against the same uncommitted worktree.
 
-Before autonomous scheduled operation is enabled, add a two-phase publication lifecycle: record validated implementation evidence as `review_pending`, then record the created Draft PR URL and exact head SHA before marking the job review-complete. If publication fails, keep the job visibly pending/retryable; never report it as completed. Add regressions for successful publication, publication failure, and head-SHA mismatch. This is the next code task after BUILD-00316 and is not included in this PR.
+After peter-evans/create-pull-request@v7 runs, backend/publish_development_reviews.py performs GET-only GitHub API verification. It checks that the returned PR belongs to the configured repository, is open, unmerged and Draft, targets the default branch, uses the expected automation head branch, and has the exact head SHA returned by the action. It then reads the complete PR file list and requires every changed path recorded for the job to be present before DevelopmentJobStore.publish_review_artifact records the PR URL/head SHA and transitions the job to completed.
+
+If the action returns no PR URL/head SHA, the PR is not Draft/open, the head SHA changes, the base/head branch differs, the API read fails, or a changed file is missing, the job remains review_pending; dependent jobs remain blocked. No PR mutation, approval, merge, deployment or public publishing is performed by the verification script.
+
+Regression coverage includes successful publication, missing files, head-SHA mismatch, non-Draft/closed PR, branch/base mismatch, repository mismatch, idempotent same-head recording, dependency blocking until publication, review-pending scope reservation, and one changed job per worker cycle. Hosted CI remains fixture-backed; it does not prove the Windows runner or real Ollama execution.
 
 ### Remaining ordered gates
 
-1. Confirm the newest `scripts/validate.sh` CI run passes after the runner configuration fix.
-2. Review and safely integrate PR #321 into the development branch chain; do not merge it without user approval.
-3. After the workflow reaches `main`, verify a manual dispatch on the trusted Windows runner before claiming the schedule is operational.
-4. Verify a real Ollama-generated scoped diff, full test result, Draft PR creation, and dependent-job advancement.
-5. Verify the existing read-only API/dashboard against a real worker run, then extend it with heartbeat age, active lease expiry, runner availability, and the last successful validation reference.
+1. Review the stacked control-plane PR chain (#321 → #324 → #325) in dependency order; no PR is merged without explicit user approval.
+2. After the workflow is deliberately integrated into main, configure the fine-grained NEXUS_GITHUB_READ_TOKEN and explicit NEXUS_APPROVED_SCOPES mappings.
+3. Verify the trusted Windows self-hosted runner, Ollama model access, and persistent LocalAppData database across at least two separate workflow runs.
+4. Verify a real Ollama-generated scoped diff, exact open Draft PR publication, successful review-artifact recording, and dependent-job advancement.
+5. Verify the read-only API/dashboard against that real runner cycle; then continue product integration and the remaining release gates.
