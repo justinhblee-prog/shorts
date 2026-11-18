@@ -127,6 +127,10 @@ class DevelopmentJobWorker:
                 processed += 1
                 outcomes[status] = outcomes.get(status, 0) + 1
                 last_activity = time.monotonic()
+                # A validated diff remains in the worktree until the workflow
+                # publishes its Draft PR. Do not try another job against it.
+                if status == "review_pending":
+                    break
         finally:
             self.store.stop_worker(self.worker_id)
         return {"processed": processed, "outcomes": outcomes, "summary": self.store.summary()}
