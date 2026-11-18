@@ -51,11 +51,15 @@ jobs:
           $database = Join-Path $stateRoot "development.sqlite3"
           $workspace = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
           $databaseFull = [System.IO.Path]::GetFullPath($database)
+          $artifactFull = [System.IO.Path]::GetFullPath($artifactRoot)
           if ($databaseFull.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
             throw "Development job state must be outside GITHUB_WORKSPACE because checkout cleanup removes workspace files."
           }
+          if ($artifactFull.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Development job recovery artifacts must be outside GITHUB_WORKSPACE."
+          }
           Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_DEVELOPMENT_DB=$databaseFull" -Encoding utf8
-          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_DEVELOPMENT_ARTIFACT_DIR=$artifactRoot" -Encoding utf8
+          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_DEVELOPMENT_ARTIFACT_DIR=$artifactFull" -Encoding utf8
           Write-Host "Persistent development-job database: $databaseFull"
           Write-Host "Persistent development-job artifact directory: $artifactRoot"
 
