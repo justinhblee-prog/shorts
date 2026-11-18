@@ -213,6 +213,6 @@ These are additional readiness constraints documented by the project, not comple
 ### Engineering checkpoint — BUILD-00316
 - Configure the development-job SQLite database under the Windows runner user's persistent LocalAppData directory, outside the checkout that GitHub Actions cleans between jobs.
 - Add a workflow-contract regression for path selection and ordering.
-- Exact PR-head CI is pending. The database is still local to one runner host/account and has no off-host backup; do not claim durable operation until the Windows runner has completed repeated cycles with the same database.
+- GitHub Actions run [44252322555](https://github.com/justinhblee-prog/shorts/actions/runs/44252322555) passed on code/test head `c05c7d5416b4b079a6366c849ec2e8a922921740` (741 backend tests plus frontend syntax check). The database is still local to one runner host/account and has no off-host backup; do not claim durable operation until the Windows runner has completed repeated cycles with the same database.
 - Control-plane gate still open: `DevelopmentJobWorker` marks a job completed before the workflow's Draft-PR publication action runs, and no PR URL/head SHA is persisted as review evidence. Implement this gate before enabling autonomous scheduled execution.
 - The launch-gate score remains 1/8. No production deployment, live provider validation, public publishing, or recovery drill is implied.
