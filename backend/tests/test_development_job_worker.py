@@ -1,6 +1,8 @@
+import hashlib
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 from development_jobs import DevelopmentJobStore
 from development_job_worker import DevelopmentJobWorker, NonRetryableDevelopmentJobError
@@ -14,15 +16,29 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_worker_completes_job_with_evidence(self):
+    def _evidence(self, path, validation_ref):
+        artifact = Path(self.tmp.name) / "worker-artifact.zip"
+        artifact.write_bytes(b"validated worker source snapshot")
+        return {
+            "changed_files": [path],
+            "tests_passed": True,
+            "validation_ref": validation_ref,
+            "artifact_path": str(artifact),
+            "artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+            "result_summary": "implemented",
+        }
+
+    def test_worker_stages_validated_job_for_review_publication(self):
         job = self.store.create("Worker completion", scope=["backend/example.py"])
         worker = DevelopmentJobWorker(
             self.store, "worker-a",
-            lambda _: {"changed_files": ["backend/example.py"], "tests_passed": True,
-                       "validation_ref": "ci://run/42", "result_summary": "implemented"},
+            lambda _: self._evidence("backend/example.py", "ci://run/42"),
         )
-        self.assertEqual(worker.run_once(), "completed")
-        self.assertEqual(self.store.get(job["id"])["status"], "completed")
+        self.assertEqual(worker.run_once(), "review_pending")
+        pending = self.store.get(job["id"])
+        self.assertEqual(pending["status"], "review_pending")
+        self.assertIsNone(pending["completed_at"])
+        self.assertTrue(pending["artifact_path"])
 
     def test_worker_rejects_noop_and_schedules_retry(self):
         job = self.store.create("No-op must not pass", scope=["backend/example.py"])
@@ -59,10 +75,9 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         job = self.store.create("Worker presence", scope=["backend/example.py"])
         worker = DevelopmentJobWorker(
             self.store, "runner-a",
-            lambda _: {"changed_files": ["backend/example.py"], "tests_passed": True,
-                       "validation_ref": "ci://run/44"},
+            lambda _: self._evidence("backend/example.py", "ci://run/44"),
         )
-        self.assertEqual(worker.run_once(), "completed")
+        self.assertEqual(worker.run_once(), "review_pending")
         presence = self.store.get_worker("runner-a")
         self.assertEqual(presence["status"], "online")
         self.assertIsNone(presence["current_job_id"])
