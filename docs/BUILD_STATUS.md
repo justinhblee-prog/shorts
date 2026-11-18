@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Updated:** 2026-11-17
+**Updated:** 2026-11-18
 
 ## Business objective
 
@@ -2371,3 +2371,34 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Persist each core-stage artifact and its provider-attempt adoption in the same `BEGIN IMMEDIATE` transaction and worker-lease fencing decision; remove the separate adoption writes.
 - Add regression coverage for script, voice and rendering adoption, including rollback when the matching attempt cannot be adopted.
 - Validation: exact final PR-head CI pending. These are local SQLite transaction tests; remote provider execution remains non-transactional and live provider idempotency is not established.
+
+
+## BUILD-00312 — free local Ollama development-agent bootstrap
+- Replace the paid Codex/OpenAI inference path with a repository-owned Windows self-hosted runner, local Ollama `qwen2.5-coder:7b`, and Aider; no paid inference API key is required.
+- Add the local-runner installation guide and bounded one-task agent prompt. Results are intended to remain Draft PRs; automatic merge and deployment are prohibited.
+- The exact-head local Ollama/self-hosted-runner execution has not been observed. A hosted Actions success or an installed Ollama model alone does not prove the local runner is online or that a real model-generated diff was produced.
+
+## BUILD-00313 — evidence-based development-job orchestration prototype
+- Add a separate SQLite-backed engineering job DAG, dependency checks, conflict-aware leases, heartbeat/fencing, retry/quarantine, append-only event history, and a source/test/validation completion gate.
+- Add a bounded Aider executor with explicit path scopes, protected-path checks, credential-stripped subprocess environment, diff validation, and repository validation.
+- Add read-only GitHub Issues/PR/Actions intake, explicit issue-to-file-scope approvals, worker presence, authenticated read-only API/dashboard, and a scheduled/manual Windows self-hosted workflow.
+- GitHub Actions run [44075082662](https://github.com/justinhblee-prog/shorts/actions/runs/44075082662) passed for exact PR #321 head `b97bbad4debeed6694c90869df56e4dd53c771cc`.
+- This validates hosted CI and fixture-backed behavior only. It does not prove a Windows runner, Ollama, real model edit, GitHub token permission, scheduled default-branch execution, or dependent-job advancement.
+
+## BUILD-00314 — YouTube synthetic-media disclosure enforcement
+- Carry the approved synthetic-media declaration into the YouTube upload payload and fail closed for unsupported targets, unknown status, or missing altered-content acknowledgement.
+- GitHub Actions run [44076538828](https://github.com/justinhblee-prog/shorts/actions/runs/44076538828) passed for exact PR #322 head `82afa613627fe8bfba24ac639760ac5df4d50802`.
+- Tests use local fixtures; no live YouTube account, OAuth consent, or public upload is claimed.
+
+## BUILD-00315 — TikTok AI-content disclosure hardening
+- Reject malformed synthetic-media classifications safely and require the TikTok AI-generated disclosure acknowledgement before any provider request when applicable.
+- Verify the outbound `is_aigc` value for non-AI and approved AI-generated content; document the human-review boundary.
+- GitHub Actions run [44091928487](https://github.com/justinhblee-prog/shorts/actions/runs/44091928487) passed for exact PR #323 head `16aafd15765e23c883d88f31788d4da5cdf31aa8`.
+- Tests use mocked transport; no real TikTok account or public posting is claimed.
+
+## BUILD-00316 — preserve development-job state across scheduled runner cycles
+- Move `NEXUS_DEVELOPMENT_DB` from the checked-out repository workspace to `%LOCALAPPDATA%\NexusStudioPro\shorts\development.sqlite3` (with a `%USERPROFILE%\AppData\Local` fallback) so the default `actions/checkout` workspace cleanup cannot erase the engineering job graph and event history between runs.
+- Add a workflow-contract regression proving the persistent path is configured before the worker cycle and is outside `GITHUB_WORKSPACE`.
+- The local database remains specific to the Windows runner account/host; use one trusted persistent runner until a shared durable store is deliberately designed. This does not back up the runner disk or prove a real runner execution.
+- GitHub Actions run [44252322555](https://github.com/justinhblee-prog/shorts/actions/runs/44252322555) passed for exact code/test head `c05c7d5416b4b079a6366c849ec2e8a922921740`: 741 backend tests passed and `node --check frontend/app.js` succeeded. A later documentation-only checkpoint follows; no Windows runner execution is implied.
+- Follow-up audit finding (not fixed by this checkpoint): the worker marks a job `completed` after source/tests/validation, but the workflow creates the Draft PR only afterward and the job record stores no PR URL/head SHA. Do not interpret `completed` as a verified review artifact; implement and test a separate review-publication completion gate next.

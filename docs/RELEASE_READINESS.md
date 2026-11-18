@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Inventory date:** 2026-11-17  
+**Inventory date:** 2026-11-18  
 **Inventory source:** `docs/BUILD_STATUS.md`, `docs/OPERATOR_RUNBOOK.md`, `docs/HANDOVER.md`, `docs/PLATFORM_POLICY_MATRIX.md`, current Draft PR chain.
 
 ## How progress is measured
@@ -18,20 +18,16 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 
 ## Current checkpoint
 
-- Latest completed engineering item in the current stacked chain: BUILD-00302 — serialize OAuth state and refresh-lease clocks after the SQLite write lock; CI passed on PR #308.
-- PR #298 (BUILD-00292): https://github.com/justinhblee-prog/shorts/pull/298 — exact head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`, GitHub Actions passed.
-- PR #299 (BUILD-00293): https://github.com/justinhblee-prog/shorts/pull/299 — exact head `724d4f78425577debc74a7990cf4d34133162390`, GitHub Actions passed.
-- PR #300 (BUILD-00294): https://github.com/justinhblee-prog/shorts/pull/300 — latest docs-inclusive head `00a55e1ae52a102a7eddfa52d3bc65c0b58aa8db`, GitHub Actions run #43990440580 passed.
-- PR #301 (BUILD-00295): https://github.com/justinhblee-prog/shorts/pull/301 — exact head `62e5211c51305b71102c52f94b4525ca47b38407`, GitHub Actions run #43990907642 passed.
-- PR #302 (BUILD-00296): https://github.com/justinhblee-prog/shorts/pull/302 — latest docs-inclusive head `22af5871853f7f124af9c92b37bf9887d3126a3a`, GitHub Actions run #43991125723 passed.
-- PR #303 (BUILD-00297): https://github.com/justinhblee-prog/shorts/pull/303 — latest docs-inclusive head `5db4bd5ba8d307e9cd7c72aab5b3afd09dc1eedd`, GitHub Actions run #43991573385 passed.
-- PR #304 (BUILD-00298): https://github.com/justinhblee-prog/shorts/pull/304 — latest docs-inclusive head `29759c56e2d05f8cf1226b55101dc612776214db`, GitHub Actions run #43992018437 passed (660 backend tests).
-- PR #305 (BUILD-00299): https://github.com/justinhblee-prog/shorts/pull/305 — latest docs-inclusive head `705e897582d0592174719bc4bcff66051c4cc58d`, GitHub Actions run #43992365077 passed.
-- PR #306 (BUILD-00300): https://github.com/justinhblee-prog/shorts/pull/306 — latest docs-inclusive head `d0e37b075d2efa46d0a0366642f75ce824238d7d`, GitHub Actions run #43992684188 passed (664 backend tests).
-- PR #307 (BUILD-00301): https://github.com/justinhblee-prog/shorts/pull/307 — latest docs-inclusive head `001237c0cbb20b885557dec3ad2e1ec7c412cb58`, GitHub Actions run #43992985705 passed.
-- PR #308 (BUILD-00302): https://github.com/justinhblee-prog/shorts/pull/308 — latest code head `2b70602d274a4ed583516a22d092728dee1a257d`, GitHub Actions run #43993556051 passed.
-- PRs #298–#308 are open Draft PRs, stacked in dependency order, and remain unmerged. Earlier PRs #288–#295 and #297 remain Draft/unmerged; PR #296 is closed as a superseded duplicate. Preserve Draft status and do not merge or push to main.
-- The scheduler regressions are deterministic SQLite lock-contention tests. They do not establish multi-host scheduler safety or deployed runtime readiness.
+- Latest code/test validation in this branch: BUILD-00316, PR #324, final code/documentation head `3377ca24119853ca584c3adffc58204e8d2e0d55`; GitHub Actions run [44252520537](https://github.com/justinhblee-prog/shorts/actions/runs/44252520537) passed 741 backend tests, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- PR #324 is Draft/Open and is based on the BUILD-00313 orchestration prototype branch. It persists the development-job database outside the Actions checkout workspace; the Windows runner has not yet been observed completing repeated cycles.
+- PR #321 (BUILD-00313) exact head passed run [44075082662](https://github.com/justinhblee-prog/shorts/actions/runs/44075082662). It contains a development-job control-plane prototype, but does not prove real local Ollama execution or default-branch scheduling.
+- PR #322 (BUILD-00314, YouTube synthetic-media disclosure) exact head passed run [44076538828](https://github.com/justinhblee-prog/shorts/actions/runs/44076538828); tests are fixture-based, not a live upload.
+- PR #323 (BUILD-00315, TikTok AI-content disclosure) exact head passed run [44091928487](https://github.com/justinhblee-prog/shorts/actions/runs/44091928487); tests use mocked transport, not a real account or public post.
+- PRs #311–#318 were checked as Open/Draft/unmerged. Exact-head backend CI passed for #311–#317; the current lookup returned no PR-triggered run for #318. The local self-hosted runner and model execution remain unverified.
+- PRs #321–#324 were checked as Open/Draft/unmerged. No merge or default-branch change was performed. The work branches remain separate; the Cyber Magic and provider changes have not been integrated into `main`.
+- The development worker still has a completion-gate defect: it marks jobs completed after source/tests/validation but before the later Draft-PR publication action records a PR URL and exact head SHA. This must be fixed before autonomous scheduled operation.
+- The default branch is still `main`; the BUILD status ledger and release-readiness changes in this branch are not yet on `main`. Scheduled workflows are not considered active until their reviewed code is present on the default branch and the trusted runner is online.
+- The launch-gate score remains **1/8**. Hosted CI is the only verified mandatory gate; Compose deployment, real AI/media providers, renderer playback, OAuth/private test upload, financial reconciliation, security/backup/restore operations, and ROI cohort evidence remain pending.
 
 ## Phase 1 — Engineering closure (rolling)
 
@@ -191,3 +187,28 @@ These are additional readiness constraints documented by the project, not comple
 - Extend atomic artifact/provider-attempt adoption to script, voice-generation and rendering; the previous split writes left a crash window after artifact commit but before attempt adoption.
 - New regression checks paired adoption and rollback for all three stages.
 - Validation pending exact PR-head CI. No live provider or deployed runtime validation is claimed; launch-gate score remains 1/8.
+
+
+### Engineering checkpoint — BUILD-00312
+- Free local inference is implemented as an optional self-hosted Windows runner workflow using Ollama; paid model APIs are not required.
+- Gate: the workflow is not active from the default branch until reviewed and merged. The real runner/model execution has not been observed.
+
+### Engineering checkpoint — BUILD-00313
+- The development-job control-plane prototype is present on Draft PR #321: durable job DAG, dependency/lease lifecycle, scoped Aider execution, read-only GitHub intake, worker telemetry, and read-only dashboard.
+- Exact PR-head hosted CI run [44075082662](https://github.com/justinhblee-prog/shorts/actions/runs/44075082662) succeeded.
+- Gate: the local database must persist across runner cycles; Windows runner, real Ollama edit, token permissions, default-branch schedule and end-to-end PR publication remain unverified.
+
+### BUILD-00314 — YouTube disclosure
+- Exact PR #322 head passed hosted CI run [44076538828](https://github.com/justinhblee-prog/shorts/actions/runs/44076538828).
+- Live OAuth/account access and real YouTube upload remain unverified.
+
+### BUILD-00315 — TikTok disclosure
+- Exact PR #323 head passed hosted CI run [44091928487](https://github.com/justinhblee-prog/shorts/actions/runs/44091928487).
+- Tests use mocked transport; real TikTok OAuth/account access and public posting remain unverified.
+
+### Engineering checkpoint — BUILD-00316
+- Configure the development-job SQLite database under the Windows runner user's persistent LocalAppData directory, outside the checkout that GitHub Actions cleans between jobs.
+- Add a workflow-contract regression for path selection and ordering.
+- GitHub Actions run [44252322555](https://github.com/justinhblee-prog/shorts/actions/runs/44252322555) passed on code/test head `c05c7d5416b4b079a6366c849ec2e8a922921740` (741 backend tests plus frontend syntax check). The database is still local to one runner host/account and has no off-host backup; do not claim durable operation until the Windows runner has completed repeated cycles with the same database.
+- Control-plane gate still open: `DevelopmentJobWorker` marks a job completed before the workflow's Draft-PR publication action runs, and no PR URL/head SHA is persisted as review evidence. Implement this gate before enabling autonomous scheduled execution.
+- The launch-gate score remains 1/8. No production deployment, live provider validation, public publishing, or recovery drill is implied.

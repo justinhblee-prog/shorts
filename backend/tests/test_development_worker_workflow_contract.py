@@ -11,6 +11,17 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
     def setUpClass(cls):
         cls.source = WORKFLOW.read_text(encoding="utf-8")
 
+    def test_development_job_database_is_persistent_outside_checkout(self):
+        configure = self.source.index("name: Configure persistent development-job state")
+        execute = self.source.index("name: Execute one dependency-aware development cycle")
+        self.assertLess(configure, execute)
+        step = self.source[configure:execute]
+        self.assertIn("$env:LOCALAPPDATA", step)
+        self.assertIn("NEXUS_DEVELOPMENT_DB=", step)
+        self.assertIn("$env:GITHUB_ENV", step)
+        self.assertIn("outside GITHUB_WORKSPACE", step)
+        self.assertIn("databaseFull.StartsWith($workspace", step)
+
     def test_schedule_and_manual_dispatch_are_configured(self):
         self.assertIn("workflow_dispatch:", self.source)
         self.assertIn('cron: "17 */2 * * *"', self.source)

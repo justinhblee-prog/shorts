@@ -12,12 +12,15 @@
 2. 모델을 내려받습니다: `ollama pull qwen2.5-coder:7b`
 3. 모델 응답 확인: `ollama run qwen2.5-coder:7b`
 4. GitHub 저장소의 Settings → Actions → Runners → New self-hosted runner에서 Windows x64 안내에 따라 runner를 설치합니다.
-5. runner 등록 시 추가 라벨 `nexus-local-ai`를 지정하고, 저장소 전용의 제한된 계정/폴더에서 서비스로 실행합니다.
-6. runner PC에서 Ollama가 로컬로 접근 가능한지 확인합니다: `ollama list`
+5. runner 등록 시 추가 라벨 `nexus-local-ai`를 지정합니다.
+6. GitHub runner 서비스는 Ollama가 설치·실행되는 것과 **동일한 Windows 사용자 계정**으로 실행합니다. 다른 계정(예: LocalSystem)으로 서비스를 실행하면 사용자 세션의 Ollama 프로세스와 PATH를 보지 못할 수 있습니다.
+7. runner 서비스 계정에서 `ollama list`와 `Invoke-RestMethod http://127.0.0.1:11434/api/tags`가 모두 성공하는지 확인합니다. Ollama 포트 11434를 외부 네트워크에 공개하지 마십시오.
+8. development-job worker는 SQLite 상태를 `%LOCALAPPDATA%\NexusStudioPro\shorts\development.sqlite3`에 보관합니다. 이 폴더를 runner 정리 작업으로 삭제하지 마십시오. 현재 설계는 하나의 신뢰된 Windows runner 계정을 전제로 합니다.
 
 ## 실행 및 안전
-- 워크플로: `.github/workflows/nexus-continuous-codex.yml`
-- 수동 실행은 Actions 탭에서 `NEXUS STUDIO PRO local-model iteration` → Run workflow.
+- 기본 로컬 모델 반복 워크플로: `.github/workflows/nexus-continuous-codex.yml` (`NEXUS STUDIO PRO local-model iteration`).
+- 의존성 기반 개발 작업 워커: `.github/workflows/nexus-development-job-worker.yml` (`NEXUS development job worker`). 두 워크플로 모두 기본 브랜치에 반영된 뒤에만 예약 실행됩니다.
+- 수동 실행은 Actions 탭에서 해당 워크플로를 선택하고 Run workflow를 누릅니다.
 - 2시간 주기 예약은 워크플로 파일이 기본 브랜치에 반영된 뒤에만 작동합니다.
 - 결과는 Draft PR로만 생성하며 자동 병합하지 않습니다.
 - 외부 배포, 실제 SNS 게시, OAuth, 유료 서비스 호출은 금지합니다.
