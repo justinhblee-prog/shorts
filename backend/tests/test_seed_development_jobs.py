@@ -61,8 +61,9 @@ class SeedDevelopmentJobsTests(unittest.TestCase):
                       ["backend/development_jobs.py"], "ci://run/1")
         self._publish(["backend/development_jobs.py"])
         second = self.store.claim_ready("worker-b")
-        self.store.complete(second["id"], "worker-b", second["lease_token"],
-                            ["backend/development_github_intake.py"], True, "ci://run/2")
+        self._prepare(second["id"], "worker-b", second["lease_token"],
+                      ["backend/development_github_intake.py"], "ci://run/2")
+        self._publish(["backend/development_github_intake.py"])
         third = self.store.claim_ready("worker-c")
         self.assertEqual(third["id"], "DEV-ORCH-009")
         self.assertEqual(self.store.get("DEV-ORCH-010")["status"], "blocked")
