@@ -110,7 +110,7 @@ Before enabling the workflow on the default branch, configure `NEXUS_GITHUB_READ
 
 ### Persistent runner state (BUILD-00316)
 
-The development-job database must survive separate scheduled GitHub Actions jobs. The workflow now sets `NEXUS_DEVELOPMENT_DB` to `%LOCALAPPDATA%\\NexusStudioPro\\shorts\\development.sqlite3` (falling back to `%USERPROFILE%\\AppData\\Local`) before the worker starts. This path is outside `GITHUB_WORKSPACE`, because the checkout action cleans the workspace and would otherwise remove an untracked SQLite file between runs.
+The development-job database must survive separate scheduled GitHub Actions jobs. The workflow now sets `NEXUS_DEVELOPMENT_DB` to `%LOCALAPPDATA%\NexusStudioPro\shorts\development.sqlite3` (falling back to `%USERPROFILE%\AppData\Local`) before the worker starts. This path is outside `GITHUB_WORKSPACE`, because the checkout action cleans the workspace and would otherwise remove an untracked SQLite file between runs.
 
 Use one trusted persistent Windows runner host/account for this local database. Multiple runners with the same label would have separate local job graphs; no shared database or off-host backup is provided by this change. The database contains engineering job state and audit events, not product media or provider credentials. Do not delete the LocalAppData directory as part of routine runner cleanup.
 
