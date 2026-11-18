@@ -131,7 +131,7 @@ jobs:
             - Worker: dependency-aware SQLite development-job scheduler
             - Model: repository-owned Ollama runner (qwen2.5-coder:7b)
             - Changes are produced only within an explicitly approved file scope.
-            - Repository validation must pass before a job is marked complete.
+            - Repository validation and exact open Draft PR evidence must be recorded before a job is marked complete.
             - This PR is Draft. No automatic merge or deployment is permitted.
             - External provider integrations and production behavior are not implied.
             
