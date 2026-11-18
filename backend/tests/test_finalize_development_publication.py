@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from development_jobs import DevelopmentJobStore
+from development_jobs import DevelopmentJobConflict, DevelopmentJobStore
 from finalize_development_publication import finalize
 
 
@@ -47,7 +47,7 @@ class DevelopmentPublicationFinalizerTests(unittest.TestCase):
     def test_finalizer_rejects_branch_and_pr_head_mismatch(self):
         env = dict(self.env)
         env["NEXUS_PUBLICATION_BRANCH_SHA"] = "f" * 40
-        with self.assertRaisesRegex(RuntimeError, "head SHA"):
+        with self.assertRaisesRegex(DevelopmentJobConflict, "head SHA"):
             finalize(env)
         self.assertEqual(self.store.get(self.job_id)["status"], "review_pending")
 
