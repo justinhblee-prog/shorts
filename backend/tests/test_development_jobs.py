@@ -77,10 +77,10 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         job = self.store.create("Must change code")
         claim = self.store.claim_ready("worker-a")
         with self.assertRaisesRegex(ValueError, "changed file"):
-            self.store.complete(job["id"], "worker-a", claim["lease_token"],
+            self._prepare(job["id"], "worker-a", claim["lease_token"],
                                 [], True, "ci://run/1")
         with self.assertRaisesRegex(ValueError, "tests_passed"):
-            self.store.complete(job["id"], "worker-a", claim["lease_token"],
+            self._prepare(job["id"], "worker-a", claim["lease_token"],
                                 ["backend/file.py"], False, "ci://run/1")
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
@@ -88,12 +88,12 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         job = self.store.create("Completion", scope=["backend/file.py"])
         claim = self.store.claim_ready("worker-a")
         with self.assertRaisesRegex(ValueError, "validation evidence"):
-            self.store.complete(job["id"], "worker-a", claim["lease_token"],
+            self._prepare(job["id"], "worker-a", claim["lease_token"],
                                 ["backend/file.py"], True, "")
         with self.assertRaises(DevelopmentJobConflict):
-            self.store.complete(job["id"], "worker-b", claim["lease_token"],
+            self._prepare(job["id"], "worker-b", claim["lease_token"],
                                 ["backend/file.py"], True, "ci://run/2")
-        completed = self.store.complete(job["id"], "worker-a", claim["lease_token"],
+        completed = self._prepare(job["id"], "worker-a", claim["lease_token"],
                                         ["backend/file.py"], True, "ci://run/2")
         self.assertEqual(completed["status"], "completed")
         self.assertEqual(completed["changed_files"], ["backend/file.py"])
@@ -161,7 +161,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         claim = self.store.claim_ready("worker-a")
         self.assertEqual(claim["id"], first["id"])
         self.assertIsNone(self.store.claim_ready("worker-b"))
-        self.store.complete(first["id"], "worker-a", claim["lease_token"],
+        self._prepare(first["id"], "worker-a", claim["lease_token"],
                             ["backend/shared.py"], True, "ci://run/1")
         next_claim = self.store.claim_ready("worker-b")
         self.assertEqual(next_claim["id"], second["id"])
@@ -189,7 +189,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(second["id"], job["id"])
         self.assertNotEqual(first["lease_token"], second["lease_token"])
         with self.assertRaises(DevelopmentJobConflict):
-            self.store.complete(job["id"], "worker-a", first["lease_token"],
+            self._prepare(job["id"], "worker-a", first["lease_token"],
                                 ["backend/file.py"], True, "ci://run/stale")
         self.assertEqual(self.store.get(job["id"])["worker_id"], "worker-b")
 
@@ -207,7 +207,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         job = self.store.create("Scoped completion", scope=["backend/allowed.py"])
         claim = self.store.claim_ready("worker-a")
         with self.assertRaisesRegex(ValueError, "outside the declared scope"):
-            self.store.complete(job["id"], "worker-a", claim["lease_token"],
+            self._prepare(job["id"], "worker-a", claim["lease_token"],
                                 ["backend/other.py"], True, "ci://run/3")
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
@@ -217,7 +217,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         for paths in (["../outside.py"], ["backend\\\\secret.py"], ["backend/a.py", "backend/a.py"]):
             with self.subTest(paths=paths):
                 with self.assertRaises(ValueError):
-                    self.store.complete(job["id"], "worker-a", claim["lease_token"],
+                    self._prepare(job["id"], "worker-a", claim["lease_token"],
                                         paths, True, "ci://run/4")
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
@@ -227,7 +227,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         claim = self.store.claim_ready("worker-a")
         completed = self.store.create("Completed work", scope=["backend/done.py"])
         done_claim = self.store.claim_ready("worker-b")
-        self.store.complete(completed["id"], "worker-b", done_claim["lease_token"],
+        self._prepare(completed["id"], "worker-b", done_claim["lease_token"],
                             ["backend/done.py"], True, "ci://run/42")
         expired = self.store.create("Expired lease", scope=["backend/expired.py"])
         expired_claim = self.store.claim_ready("worker-c")
