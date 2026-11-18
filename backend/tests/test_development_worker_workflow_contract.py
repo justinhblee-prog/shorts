@@ -22,6 +22,14 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("outside GITHUB_WORKSPACE", step)
         self.assertIn("databaseFull.StartsWith($workspace", step)
 
+    def test_review_completion_requires_exact_draft_pr_publication(self):
+        self.assertIn("NEXUS_DEVELOPMENT_ARTIFACT_DIR=", self.source)
+        self.assertIn("name: Record verified Draft PR publication", self.source)
+        self.assertIn("if ($pr.head.sha -ne $branchSha)", self.source)
+        self.assertIn("pull-requests", self.source)
+        self.assertIn("backend/finalize_development_publication.py", self.source)
+        self.assertIn("draft: true", self.source)
+
     def test_schedule_and_manual_dispatch_are_configured(self):
         self.assertIn("workflow_dispatch:", self.source)
         self.assertIn('cron: "17 */2 * * *"', self.source)
