@@ -1365,13 +1365,15 @@ def _public_development_job(job):
         "max_attempts", "attempts", "worker_id", "lease_expires_at", "source_ref",
         "changed_files", "tests_passed", "validation_ref", "created_at", "updated_at",
         "started_at", "completed_at", "retry_after", "dependencies",
+        "review_url", "review_head_sha", "review_published_at",
     )
     return {field: job.get(field) for field in fields if field in job}
 
 
 def _public_development_event(event):
     allowed_details = {"lease_expires_at", "depends_on", "changed_files",
-                       "validation_ref", "retry_after", "retryable", "reason"}
+                       "validation_ref", "retry_after", "retryable", "reason",
+                       "review_url", "review_head_sha", "draft", "state", "review_file_count"}
     details = event.get("details") or {}
     return {
         "event_type": event.get("event_type"),
