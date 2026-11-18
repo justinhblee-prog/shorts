@@ -19,7 +19,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def _prepare(self, job_id, worker_id, lease_token, changed_files, tests_passed, validation_ref):
-        artifact = Path(self.tmp.name) / ("artifact-" + job_id + ".zip")
+        artifact = Path(self.tmp.name) / ("artifact-" + hashlib.sha256(job_id.encode("utf-8")).hexdigest() + ".zip")
         artifact.write_bytes(("validated source for " + job_id).encode("utf-8"))
         digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
         return self.store.prepare_review(
@@ -95,9 +95,12 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                                 ["backend/file.py"], True, "ci://run/2")
         completed = self._prepare(job["id"], "worker-a", claim["lease_token"],
                                         ["backend/file.py"], True, "ci://run/2")
-        self.assertEqual(completed["status"], "completed")
+        self.assertEqual(completed["status"], "review_pending")
         self.assertEqual(completed["changed_files"], ["backend/file.py"])
         self.assertTrue(completed["tests_passed"])
+        self._publish(["backend/file.py"])
+        completed = self.store.get(job["id"])
+        self.assertEqual(completed["status"], "completed")
 
 
     def test_publication_rejects_head_sha_mismatch_and_missing_changed_files(self):
@@ -162,7 +165,9 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(claim["id"], first["id"])
         self.assertIsNone(self.store.claim_ready("worker-b"))
         self._prepare(first["id"], "worker-a", claim["lease_token"],
-                            ["backend/shared.py"], True, "ci://run/1")
+                      ["backend/shared.py"], True, "ci://run/1")
+        self.assertIsNone(self.store.claim_ready("worker-b"))
+        self._publish(["backend/shared.py"])
         next_claim = self.store.claim_ready("worker-b")
         self.assertEqual(next_claim["id"], second["id"])
 
@@ -228,7 +233,8 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         completed = self.store.create("Completed work", scope=["backend/done.py"])
         done_claim = self.store.claim_ready("worker-b")
         self._prepare(completed["id"], "worker-b", done_claim["lease_token"],
-                            ["backend/done.py"], True, "ci://run/42")
+                      ["backend/done.py"], True, "ci://run/42")
+        self._publish(["backend/done.py"])
         expired = self.store.create("Expired lease", scope=["backend/expired.py"])
         expired_claim = self.store.claim_ready("worker-c")
         with self.store.db() as connection:
