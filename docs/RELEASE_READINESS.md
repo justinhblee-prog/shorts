@@ -191,3 +191,27 @@ These are additional readiness constraints documented by the project, not comple
 - Extend atomic artifact/provider-attempt adoption to script, voice-generation and rendering; the previous split writes left a crash window after artifact commit but before attempt adoption.
 - New regression checks paired adoption and rollback for all three stages.
 - Validation pending exact PR-head CI. No live provider or deployed runtime validation is claimed; launch-gate score remains 1/8.
+
+
+### Engineering checkpoint — BUILD-00312
+- Free local inference is implemented as an optional self-hosted Windows runner workflow using Ollama; paid model APIs are not required.
+- Gate: the workflow is not active from the default branch until reviewed and merged. The real runner/model execution has not been observed.
+
+### Engineering checkpoint — BUILD-00313
+- The development-job control-plane prototype is present on Draft PR #321: durable job DAG, dependency/lease lifecycle, scoped Aider execution, read-only GitHub intake, worker telemetry, and read-only dashboard.
+- Exact PR-head hosted CI run [44075082662](https://github.com/justinhblee-prog/shorts/actions/runs/44075082662) succeeded.
+- Gate: the local database must persist across runner cycles; Windows runner, real Ollama edit, token permissions, default-branch schedule and end-to-end PR publication remain unverified.
+
+### BUILD-00314 — YouTube disclosure
+- Exact PR #322 head passed hosted CI run [44076538828](https://github.com/justinhblee-prog/shorts/actions/runs/44076538828).
+- Live OAuth/account access and real YouTube upload remain unverified.
+
+### BUILD-00315 — TikTok disclosure
+- Exact PR #323 head passed hosted CI run [44091928487](https://github.com/justinhblee-prog/shorts/actions/runs/44091928487).
+- Tests use mocked transport; real TikTok OAuth/account access and public posting remain unverified.
+
+### Engineering checkpoint — BUILD-00316
+- Configure the development-job SQLite database under the Windows runner user's persistent LocalAppData directory, outside the checkout that GitHub Actions cleans between jobs.
+- Add a workflow-contract regression for path selection and ordering.
+- Exact PR-head CI is pending. The database is still local to one runner host/account and has no off-host backup; do not claim durable operation until the Windows runner has completed repeated cycles with the same database.
+- The launch-gate score remains 1/8. No production deployment, live provider validation, public publishing, or recovery drill is implied.
