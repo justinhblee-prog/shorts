@@ -1,7 +1,9 @@
+import hashlib
 import os
 import sqlite3
 import tempfile
 import unittest
+from pathlib import Path
 
 from development_jobs import (
     DevelopmentJobConflict, DevelopmentJobNotFound, DevelopmentJobStore,
@@ -15,6 +17,23 @@ class DevelopmentJobStoreTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def _prepare(self, job_id, worker_id, lease_token, changed_files, tests_passed, validation_ref):
+        artifact = Path(self.tmp.name) / ("artifact-" + job_id + ".zip")
+        artifact.write_bytes(("validated source for " + job_id).encode("utf-8"))
+        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        return self.store.prepare_review(
+            job_id, worker_id, lease_token, changed_files, tests_passed,
+            validation_ref, str(artifact), digest,
+        )
+
+    def _publish(self, files):
+        sha = "a" * 40
+        result = self.store.publish_review(
+            "https://github.com/acme/app/pull/123", sha, files, expected_head_sha=sha,
+        )
+        self.assertEqual(result["pending_job_ids"], [])
+        return result
 
     def test_create_and_claim_ready_job(self):
         job = self.store.create("Add job registry", scope=["backend/development_jobs.py"],
@@ -34,8 +53,11 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         claim = self.store.claim_ready("worker-a")
         self.assertEqual(claim["id"], parent["id"])
         self.store.heartbeat(parent["id"], "worker-a", claim["lease_token"])
-        self.store.complete(parent["id"], "worker-a", claim["lease_token"],
-                            ["backend/module.py"], True, "ci://run/123")
+        prepared = self._prepare(parent["id"], "worker-a", claim["lease_token"],
+                                 ["backend/module.py"], True, "ci://run/123")
+        self.assertEqual(prepared["status"], "review_pending")
+        self.assertEqual(self.store.get(child["id"])["status"], "blocked")
+        self._publish(["backend/module.py"])
         next_job = self.store.claim_ready("worker-b")
         self.assertEqual(next_job["id"], child["id"])
 
@@ -76,6 +98,36 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(completed["status"], "completed")
         self.assertEqual(completed["changed_files"], ["backend/file.py"])
         self.assertTrue(completed["tests_passed"])
+
+
+    def test_publication_rejects_head_sha_mismatch_and_missing_changed_files(self):
+        job = self.store.create("Publication evidence", scope=["backend/file.py"])
+        claim = self.store.claim_ready("worker-a")
+        self._prepare(job["id"], "worker-a", claim["lease_token"],
+                      ["backend/file.py"], True, "ci://run/88")
+        with self.assertRaises(DevelopmentJobConflict):
+            self.store.publish_review(
+                "https://github.com/acme/app/pull/123", "b" * 40,
+                ["backend/file.py"], expected_head_sha="c" * 40,
+            )
+        missing = self.store.publish_review(
+            "https://github.com/acme/app/pull/123", "b" * 40,
+            ["backend/other.py"], expected_head_sha="b" * 40,
+        )
+        self.assertEqual(missing["completed_job_ids"], [])
+        self.assertEqual(missing["pending_job_ids"], [job["id"]])
+        self.assertEqual(self.store.get(job["id"])["status"], "review_pending")
+
+    def test_publication_is_idempotent_after_exact_pr_head_is_recorded(self):
+        job = self.store.create("Published once", scope=["backend/file.py"])
+        claim = self.store.claim_ready("worker-a")
+        self._prepare(job["id"], "worker-a", claim["lease_token"],
+                      ["backend/file.py"], True, "ci://run/89")
+        first = self._publish(["backend/file.py"])
+        second = self._publish(["backend/file.py"])
+        self.assertEqual(first["completed_job_ids"], [job["id"]])
+        self.assertEqual(second["completed_job_ids"], [])
+        self.assertEqual(len([e for e in self.store.events(job["id"]) if e["event_type"] == "review_published"]), 1)
 
     def test_event_history_is_append_only(self):
         job = self.store.create("Audit")
