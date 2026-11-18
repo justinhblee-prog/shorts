@@ -2401,3 +2401,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add a workflow-contract regression proving the persistent path is configured before the worker cycle and is outside `GITHUB_WORKSPACE`.
 - The local database remains specific to the Windows runner account/host; use one trusted persistent runner until a shared durable store is deliberately designed. This does not back up the runner disk or prove a real runner execution.
 - Exact documentation-inclusive PR-head CI is pending.
+- Follow-up audit finding (not fixed by this checkpoint): the worker marks a job `completed` after source/tests/validation, but the workflow creates the Draft PR only afterward and the job record stores no PR URL/head SHA. Do not interpret `completed` as a verified review artifact; implement and test a separate review-publication completion gate next.
