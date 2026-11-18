@@ -11,6 +11,7 @@ import os
 import sys
 
 from development_agent_executor import AiderDevelopmentExecutor
+from development_artifact_recovery import restore_pending_artifacts
 from development_backlog_service import DevelopmentBacklogService
 from development_github_intake import GitHubReadOnlyClient
 from development_jobs import DevelopmentJobStore
@@ -60,7 +61,20 @@ def run_once(environ=None):
         poll_seconds=2,
         idle_seconds=int(env.get("NEXUS_AGENT_IDLE_SECONDS", "5")),
     )
-    result = service.run_cycle()
+    pending_publication = store.list(statuses=["review_pending"], limit=500)
+    if pending_publication:
+        restored = restore_pending_artifacts(
+            store,
+            repo_root=env.get("GITHUB_WORKSPACE", os.getcwd()),
+            artifact_root=env.get("NEXUS_DEVELOPMENT_ARTIFACT_DIR"),
+        )
+        result = {
+            "intake": {"skipped": "pending Draft PR publication must be recovered first"},
+            "execution": {"processed": 0, "outcomes": {}, "summary": store.summary()},
+            "restored_pending_job_ids": restored,
+        }
+    else:
+        result = service.run_cycle()
     result["seeded_job_count"] = len(seeded)
     result["database_summary"] = store.summary()
     return result
