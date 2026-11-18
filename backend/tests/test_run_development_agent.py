@@ -9,7 +9,10 @@ class FakeStore:
         self.path = path
 
     def summary(self):
-        return {"ready": 0, "completed": 0}
+        return {"ready": 0, "completed": 0, "review_pending": 0}
+
+    def list(self, statuses=None, limit=100):
+        return []
 
 
 class FakeService:
