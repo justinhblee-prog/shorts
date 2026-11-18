@@ -2402,3 +2402,15 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - The local database remains specific to the Windows runner account/host; use one trusted persistent runner until a shared durable store is deliberately designed. This does not back up the runner disk or prove a real runner execution.
 - GitHub Actions run [44252322555](https://github.com/justinhblee-prog/shorts/actions/runs/44252322555) passed for exact code/test head `c05c7d5416b4b079a6366c849ec2e8a922921740`: 741 backend tests passed and `node --check frontend/app.js` succeeded. A later documentation-only checkpoint follows; no Windows runner execution is implied.
 - Follow-up audit finding (not fixed by this checkpoint): the worker marks a job `completed` after source/tests/validation, but the workflow creates the Draft PR only afterward and the job record stores no PR URL/head SHA. Do not interpret `completed` as a verified review artifact; implement and test a separate review-publication completion gate next.
+
+## BUILD-00317 — require verified Draft PR publication before development-job completion
+
+- Split implementation validation from review publication. The worker now records source/test evidence as `review_pending`; only the post-action publication finalizer may move a job to `completed`.
+- Persist a SHA-256-verified ZIP snapshot of validated changed files outside the GitHub Actions checkout. The manifest records per-file base/content digests so a later run can restore a failed publication without overwriting a changed base file.
+- Stop after one source-changing job per cycle and keep review-pending scopes reserved until publication, preventing later jobs from sharing a dirty checkout or advancing dependencies prematurely.
+- On a later run, restore pending snapshots before intake/execution. Missing or tampered archives, changed base files, unsafe paths, symlinks, and out-of-scope entries fail closed; no automatic overwrite or rerun is attempted.
+- After Draft PR creation, verify the PR is open, Draft and unmerged; verify the configured base and stable automation branch; compare the PR head SHA with the remote branch ref; enumerate all changed-file pages; and persist PR URL/head SHA only when the job's changed paths are present.
+- Expose safe PR URL/head SHA/publication timestamp in the operations-read API while keeping local artifact paths and digests private.
+- Add regression tests for review-pending dependencies and scope fencing, successful/idempotent publication, missing files, head mismatch, old SQLite schema migration, artifact integrity/recovery conflicts, agent retry priority, workflow contract, and API redaction.
+- Validation status: exact final PR-head CI pending. The previous BUILD-00316 hosted CI is not a substitute for this branch's exact-head run.
+- Limitations: hosted CI and deterministic fixtures do not prove the Windows self-hosted runner, real Ollama model execution, LocalAppData persistence across scheduled runs, GitHub PR publication, or backup/restore of runner state. No live provider, OAuth, deployment, or public publishing was performed.
