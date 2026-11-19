@@ -2579,6 +2579,6 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 
 ## BUILD-00377 — reject symlink aliases in worker scopes
-- Reject any symlink path component, including benign in-repository file and directory targets, to prevent lexical scope aliases from bypassing write locks.
+- Reject symlink and Windows reparse-point components (including junctions), including benign in-repository file and directory targets, to prevent lexical scope aliases from bypassing write locks; metadata inspection errors fail closed.
 - Add regressions for protected-file symlinks, ordinary-file symlinks and directory symlinks.
 - Exact-head hosted CI pending.
