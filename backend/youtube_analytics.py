@@ -389,8 +389,9 @@ class YouTubeAnalyticsStore:
             result["retention_curve"] = []
         return result
 
-    def history(self, video_id=None, limit=100, since=None):
+    def history(self, video_id=None, limit=100, since=None, offset=0):
         limit=max(1,min(int(limit),500))
+        offset=max(0,min(int(offset),10000000))
         with self.db() as connection:
             clauses=[]
             params=[]
@@ -403,8 +404,8 @@ class YouTubeAnalyticsStore:
             where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
             rows=connection.execute(
                 "SELECT * FROM youtube_analytics_history"+where+
-                " ORDER BY collected_at DESC,id DESC LIMIT ?",
-                (*params,limit),
+                " ORDER BY collected_at DESC,id DESC LIMIT ? OFFSET ?",
+                (*params,limit,offset),
             ).fetchall()
         result=[]
         for row in rows:
