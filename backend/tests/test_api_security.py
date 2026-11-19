@@ -627,10 +627,10 @@ class ApiSecurityTests(unittest.TestCase):
     def test_session_endpoint_returns_server_resolved_operator_identity(self):
         from app import get_operator_session
         with mock.patch.object(
-            app_module,"require_review_access",return_value="legacy-operator"
+            app_module,"require_review_permission",return_value="legacy-operator"
         ) as authenticate:
             result=get_operator_session(x_review_token="legacy-token")
-        authenticate.assert_called_once_with("legacy-token")
+        authenticate.assert_called_once_with("legacy-token","session.read")
         self.assertEqual(result,{"operator_id":"legacy-operator"})
 
     def test_queue_control_endpoints_are_authenticated_and_audited(self):
