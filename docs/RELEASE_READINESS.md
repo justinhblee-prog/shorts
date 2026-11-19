@@ -453,3 +453,9 @@ The durable review-pending gate is aligned with scheduler and executor path matc
 - The trusted local runner enables strict mode; missing verifier, mismatched claims, or out-of-scope changes are quarantined rather than advanced to `review_pending`.
 - Add worker, executor, service and runner regressions.
 - Exact-head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and frontend syntax validation in [run 44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). Hosted Linux only; Windows self-hosted execution remains unverified.
+
+
+## BUILD-00386 — quarantine recovery control
+- Operator recovery is explicit, reason-bearing and audited; only quarantined jobs can be requeued. Recovery resets attempts and stale evidence before a fresh bounded execution.
+- API access requires `operations.manage`; the operator role receives the permission and reviewer/producer roles do not.
+- Code head `628d5d1e22a56bbb58642e27530722d4d67e8992` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44548442047](https://github.com/justinhblee-prog/shorts/actions/runs/44548442047). Subsequent commits on this branch are documentation-only. Production role-map configuration and live Windows worker operation remain unverified.

@@ -105,5 +105,42 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["summary"]["online_workers"], 1)
 
 
+    def test_quarantine_recovery_requires_operations_manage_and_records_actor(self):
+        job = {
+            "id": "DEV-ORCH-006", "status": "ready", "attempts": 0,
+            "scope": ["backend/development_jobs.py"],
+        }
+        with (
+            mock.patch.object(app_module, "require_review_permission", return_value="ops-admin") as auth,
+            mock.patch.object(app_module.development_job_store, "recover_quarantined", return_value=job) as recover,
+        ):
+            result = app_module.recover_development_job(
+                "DEV-ORCH-006",
+                app_module.DevelopmentJobRecoveryAction(reason="Reviewed and fixed the failure"),
+                x_review_token="operator-token",
+            )
+        auth.assert_called_once_with("operator-token", "operations.manage")
+        recover.assert_called_once_with(
+            "DEV-ORCH-006", "ops-admin", "Reviewed and fixed the failure"
+        )
+        self.assertEqual(result["job"]["status"], "ready")
+        self.assertNotIn("lease_token", json.dumps(result))
+
+    def test_quarantine_recovery_maps_missing_and_conflicting_jobs(self):
+        with (
+            mock.patch.object(app_module, "require_review_permission", return_value="ops-admin"),
+            mock.patch.object(
+                app_module.development_job_store, "recover_quarantined",
+                side_effect=app_module.DevelopmentJobConflict("only quarantined jobs can be manually recovered"),
+            ),
+        ):
+            with self.assertRaises(app_module.HTTPException) as conflict:
+                app_module.recover_development_job(
+                    "DEV-ORCH-006",
+                    app_module.DevelopmentJobRecoveryAction(reason="Reviewed"),
+                    x_review_token="operator-token",
+                )
+        self.assertEqual(conflict.exception.status_code, 409)
+
 if __name__ == "__main__":
     unittest.main()

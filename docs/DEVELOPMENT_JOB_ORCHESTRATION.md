@@ -347,3 +347,7 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 The trusted runner now requires a second worktree read after executor completion. The worker requires an executor verification hook, compares its actual tracked/untracked Git paths with the claimed list, and quarantines missing or mismatched evidence before review-pending.
 
 Exact-head validation: head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and frontend syntax validation in [run 44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). Hosted Linux only; Windows local runner and live autonomous continuation remain unverified.
+
+
+### DEV-ORCH-006 implementation follow-up — BUILD-00386
+Quarantined jobs can now be requeued only through an authenticated operator action. The action requires `operations.manage`, a non-empty reason, and records an immutable event containing the operator identity, redacted reason and previous attempt count. The new attempt starts with a reset retry budget and cleared stale execution evidence. Latest head `ff25fa9dc1c12b74a4b90c4fe5c55a42678b4aff` passed **830 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in exact-head GitHub Actions runs [44557052717](https://github.com/justinhblee-prog/shorts/actions/runs/44557052717) and [44557071228](https://github.com/justinhblee-prog/shorts/actions/runs/44557071228). Regression coverage includes the authenticated recovery API contract and safe error mapping.
