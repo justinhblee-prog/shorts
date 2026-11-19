@@ -2401,3 +2401,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - The stored engaged-view share is a ratio (for example, 0.62); convert it to a percentage (62%) for chart, table and CSV presentation. Chart deltas are therefore percentage-point changes.
 - TikTok has no corresponding engaged-view fields in the current provider contract; those points remain absent rather than being synthesized.
 - Validation: GitHub Actions runs #44446285363 and #44446292661 passed the full validation workflow with 697 backend tests on code checkpoint `fc2ec38`. The ratio conversion and UI assertions are included. Live YouTube Analytics account coverage and browser rendering remain unverified.
+
+
+## BUILD-00318 — preserve audience-retention history per YouTube snapshot
+
+- Extend `youtube_analytics_history` with a JSON retention-curve snapshot so historical rows retain the same audience-retention evidence collected at that point in time.
+- Parse and expose the curve as `retention_curve` from the history store/API; malformed stored JSON fails safely to an empty curve.
+- Migrate existing databases by adding the column with an empty-array default and backfilling the latest history row per video from the current snapshot only. Older snapshots without recorded curves remain unavailable rather than receiving today's curve retroactively.
+- Render the 25%/50%/75% audience-retention checkpoints and sparkline in the history table; include the checkpoint summary in CSV exports.
+- Validation: exact-head GitHub Actions pending. Migration, snapshot isolation, API pass-through and frontend rendering regressions are added. Live YouTube account retention coverage and browser rendering remain unverified.
