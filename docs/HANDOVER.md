@@ -1453,3 +1453,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - The restore operates only on a disposable copy and never overwrites the running service database.
 - This is a CI restore smoke against synthetic container data, not a production backup retention or disaster-recovery drill.
 - Exact-head validation pending.
+
+
+## BUILD-00343 — encrypted Compose backup and restore smoke
+
+- Generate an ephemeral 256-bit backup key in the CI-only `.env` file and set `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` for the Compose smoke.
+- Require the backup service to create a `.tar.gz.enc` archive and assert that no plaintext `.tar.gz` archive is present.
+- Restore the encrypted archive into isolated temporary database/media paths using the same ephemeral key and verify SQLite integrity.
+- The key exists only for this disposable CI job. Production key custody, off-host retention, key rotation, and recovery-time objectives remain external release gates.
+- Exact-head validation pending.
