@@ -2605,3 +2605,15 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - A durable `mark_review_pending` rejection caused by an expired or fenced lease is now returned as the normal `lease_lost` worker outcome instead of escaping as an unhandled runner exception.
 - Add regression coverage proving a stale evidence-gate conflict cannot advance the job or fail the whole worker invocation.
 - Exact-head hosted CI pending.
+
+
+## BUILD-00370 — enforce diagnostic redaction at the durable store boundary
+- Apply the shared redactor inside `DevelopmentJobStore.mark_review_pending` and `fail`, so callers cannot bypass worker-level sanitization and persist credentials in result summaries, validation references or immutable event details.
+- Add direct-store regressions for success evidence, failure evidence and event-history persistence.
+- Exact-head hosted CI pending.
+
+
+### BUILD-00370 — exact-head hosted validation
+- Code head `d6af913a2325a4a390f9bcb788f473670cf018b4` passed GitHub Actions Backend tests run [44532160221](https://github.com/justinhblee-prog/shorts/actions/runs/44532160221): **800 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Direct-store success/failure redaction tests verify secrets are absent from persisted job rows and immutable event history.
+- Hosted Linux only; this validates the SQLite persistence boundary in the test environment, not a production database inventory.

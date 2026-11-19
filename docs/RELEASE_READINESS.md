@@ -341,3 +341,11 @@ GitHub Actions run [44531177231](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00369 — stale lease conflict gate
 A stale lease rejection at the durable completion/evidence gate must not be reported as an unhandled worker crash or allow the job to advance. The worker now reports `lease_lost`; hosted regression validation is pending.
+
+
+### BUILD-00370 — durable evidence sanitization
+The final SQLite persistence methods now redact credential-bearing content even when called outside the Worker: validation references, result summaries, failure summaries and immutable event details are sanitized before commit. Direct-store regression validation is pending.
+
+
+### BUILD-00370 — durable redaction validation evidence
+GitHub Actions run [44532160221](https://github.com/justinhblee-prog/shorts/actions/runs/44532160221) passed **800 backend tests**, repository validation and frontend syntax validation. Direct-store tests verify successful and failed evidence plus event history are sanitized before SQLite commit.

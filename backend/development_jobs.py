@@ -12,6 +12,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+from development_security import redact_sensitive_text
+
 
 TERMINAL = {"completed", "cancelled"}
 ACTIVE = {"leased", "running"}
@@ -388,6 +390,8 @@ class DevelopmentJobStore:
             raise ValueError("review-pending transition requires tests_passed=True")
         if not isinstance(validation_ref, str) or not validation_ref.strip() or len(validation_ref) > 1000:
             raise ValueError("review-pending transition requires a validation evidence reference")
+        safe_validation_ref = redact_sensitive_text(validation_ref.strip(), limit=1000)
+        safe_result_summary = redact_sensitive_text(str(result_summary), limit=4000)
         normalized_files = []
         for raw_path in changed_files:
             if not isinstance(raw_path, str) or not raw_path.strip():
@@ -430,15 +434,15 @@ class DevelopmentJobStore:
                    review_published_at=NULL,updated_at=?
                    WHERE id=? AND worker_id=? AND lease_token=? AND status IN ('leased','running')
                      AND lease_expires_at>?""",
-                (json.dumps(sorted(normalized_files)), validation_ref.strip(),
-                 str(result_summary)[:4000], timestamp,
+                (json.dumps(sorted(normalized_files)), safe_validation_ref,
+                 safe_result_summary, timestamp,
                  job_id, worker_id, lease_token, timestamp),
             )
             if not cur.rowcount:
                 raise DevelopmentJobConflict("review-pending transition rejected: lease is missing, expired, or fenced")
             self._event(connection, job_id, "review_pending", "leased/running", "review_pending",
                         worker_id, {"changed_files": sorted(normalized_files),
-                                    "validation_ref": validation_ref.strip()}, timestamp)
+                                    "validation_ref": safe_validation_ref}, timestamp)
             connection.commit()
         return self.get(job_id)
 
@@ -523,6 +527,7 @@ class DevelopmentJobStore:
             or not 0 <= retry_delay_seconds <= 86400
         ):
             raise ValueError("retry_delay_seconds must be an integer from 0 to 86400")
+        safe_error = redact_sensitive_text(error.strip(), limit=4000)
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
             now = _now()
@@ -546,10 +551,10 @@ class DevelopmentJobStore:
             connection.execute(
                 """UPDATE development_jobs SET status=?,worker_id=NULL,lease_token=NULL,
                    lease_expires_at=NULL,retry_after=?,result_summary=?,updated_at=? WHERE id=?""",
-                (status, retry_after, error.strip()[:4000], timestamp, job_id),
+                (status, retry_after, safe_error, timestamp, job_id),
             )
             self._event(connection, job_id, "failed", row["status"], status, worker_id,
-                        {"error": error.strip()[:4000], "retryable": retryable,
+                        {"error": safe_error, "retryable": retryable,
                          "retry_after": retry_after}, timestamp)
             connection.commit()
         return self.get(job_id)

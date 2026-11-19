@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import tempfile
@@ -84,6 +85,47 @@ class DevelopmentJobStoreTests(unittest.TestCase):
             self.store.mark_review_pending(job["id"], "worker-a", claim["lease_token"],
                                 ["backend/file.py"], False, "ci://run/1")
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
+
+    def test_durable_store_redacts_success_and_failure_evidence(self):
+        token = "ghp_123456789012345678901234567890"
+        success_job = self.store.create(
+            "Direct store success redaction", scope=["backend/safe.py"]
+        )
+        success_claim = self.store.claim_ready("worker-store-redaction")
+        pending = self.store.mark_review_pending(
+            success_job["id"], "worker-store-redaction", success_claim["lease_token"],
+            ["backend/safe.py"], True,
+            f"https://ci.example/run/1?GITHUB_TOKEN={token}",
+            f"validated GITHUB_TOKEN={token}",
+        )
+        success_events = self.store.events(success_job["id"])
+        success_evidence = json.dumps(
+            {"job": pending, "events": success_events}, ensure_ascii=False
+        )
+        self.assertNotIn(token, success_evidence)
+        self.assertIn("[REDACTED]", pending["validation_ref"])
+        self.assertIn("[REDACTED]", pending["result_summary"])
+
+        failure_job = self.store.create(
+            "Direct store failure redaction", scope=["backend/failure.py"]
+        )
+        failure_claim = self.store.claim_ready("worker-store-redaction")
+        password = "database-password-sensitive"
+        error = (
+            "RuntimeError: Bearer abc.def "
+            f"DATABASE_URL=postgres://user:{password}@db.example/nexus"
+        )
+        failed = self.store.fail(
+            failure_job["id"], "worker-store-redaction",
+            failure_claim["lease_token"], error, retryable=False,
+        )
+        failure_events = self.store.events(failure_job["id"])
+        failure_evidence = json.dumps(
+            {"job": failed, "events": failure_events}, ensure_ascii=False
+        )
+        self.assertNotIn("abc.def", failure_evidence)
+        self.assertNotIn(password, failure_evidence)
+        self.assertIn("[REDACTED]", failed["result_summary"])
 
     def test_completion_requires_evidence_and_valid_fence(self):
         job = self.store.create("Completion", scope=["backend/file.py"])

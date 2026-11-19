@@ -1405,3 +1405,11 @@ Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actio
 
 ### BUILD-00369 — stale evidence-gate conflict handling
 When the durable `mark_review_pending` gate rejects a worker because its lease is missing, expired or fenced, the worker now returns `lease_lost` rather than propagating an unhandled conflict to the workflow runner. A regression verifies that the job is not advanced. Exact-head hosted CI pending.
+
+
+### BUILD-00370 — durable persistence redaction
+The SQLite store now applies shared diagnostic redaction at the final persistence boundary for review-pending validation references/result summaries and failure summaries/event details. This prevents direct callers from bypassing the worker's sanitization. Direct store-level regressions cover both successful evidence and failure history. Exact-head hosted CI pending.
+
+
+### BUILD-00370 — exact-head CI result
+Code head `d6af913a2325a4a390f9bcb788f473670cf018b4` passed GitHub Actions run [44532160221](https://github.com/justinhblee-prog/shorts/actions/runs/44532160221): **800 tests**, repository validation and frontend syntax check. Direct store tests confirm credential values do not persist in successful evidence, failure summaries or immutable event details.
