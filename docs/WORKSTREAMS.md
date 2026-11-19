@@ -336,5 +336,5 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 
 - Audited publishing/reconciliation route identity handling on the integrated candidate. TikTok publish already rejects a request whose body `operator_id` differs from the principal authenticated by `publish.execute`, before staged-media lookup or provider access.
 - Added a focused regression in `backend/tests/test_api_security.py` asserting HTTP 403 and proving both media staging and the TikTok publisher remain untouched for a spoofed actor.
-- Source commit: `bd3592951ae359fee7272e7b04951409960579f7` on PR #407's integration branch. Exact-head hosted validation has not yet been observed; do not count this test as passing until its workflow completes.
+- Source commit: `db796c7b297ca2b511faa7034311eb1734fab5c8` on PR #407's integration branch. Exact-head hosted validation has not yet been observed; do not count this test as passing until its workflow completes.
 - PR #407 remains Draft/unmerged. No live TikTok API or provider account was contacted.
