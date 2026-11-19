@@ -209,11 +209,12 @@ def run_youtube_analytics_once(store=None, collector=None, token_manager=None):
 def run_tiktok_once(store=None, collector=None, publication_store=None, token_manager=None):
     store = store or TikTokMetricsStore(DB)
     publication_store = publication_store or TikTokPublishStore(DB)
-    token_manager = token_manager or TikTokOAuthManager(TikTokOAuthStore(DB))
-    collector = collector or TikTokMetricsCollector(
-        store, publication_store,
-        lambda required_scope: token_manager.get_access_token(required_scope=required_scope),
-    )
+    if collector is None:
+        token_manager = token_manager or TikTokOAuthManager(TikTokOAuthStore(DB))
+        collector = TikTokMetricsCollector(
+            store, publication_store,
+            lambda required_scope: token_manager.get_access_token(required_scope=required_scope),
+        )
     lease_seconds = METRICS_LEASE_SECONDS
     lease_token = store.acquire_lease(OWNER_ID, lease_seconds=lease_seconds)
     if lease_token is None:
