@@ -11,6 +11,26 @@ class DevelopmentDiagnosticRedactionTests(unittest.TestCase):
         self.assertNotIn(secret, safe)
         self.assertIn("[REDACTED]", safe)
 
+    def test_preserves_safe_diagnostic_context_after_inline_credentials(self):
+        safe = redact_sensitive_text(
+            "stage=validation GITHUB_TOKEN=private-token next_step=retry"
+        )
+        self.assertNotIn("private-token", safe)
+        self.assertIn("next_step=retry", safe)
+        self.assertIn("stage=validation", safe)
+
+    def test_multiline_service_account_redaction_preserves_following_context(self):
+        value = (
+            'FIREBASE_SERVICE_ACCOUNT={\\n'
+            '  "type": "service_account",\\n'
+            '  "private_key": "firebase-private-secret"\\n'
+            '}\\nstage=validation-failed'
+        )
+        safe = redact_sensitive_text(value)
+        self.assertNotIn("firebase-private-secret", safe)
+        self.assertNotIn('"type": "service_account"', safe)
+        self.assertIn("stage=validation-failed", safe)
+
     def test_redacts_basic_authorization_and_url_credentials(self):
         basic = "Basic dXNlcjpwYXNzd29yZA=="
         url = "https://runner:secret-password@example.test/private"
