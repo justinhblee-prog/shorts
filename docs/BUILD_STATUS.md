@@ -2391,4 +2391,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Quote and escape CSV cells, prefix formula-like text values to reduce spreadsheet formula injection risk, and emit UTF-8 BOM for spreadsheet compatibility.
 - Disable export while a replacement query is loading and when the result set is empty, preventing stale-filter exports after failed requests.
 - Scope the platform summary cards to the selected platform instead of displaying an unqueried platform as an empty result.
-- Validation: exact-head GitHub Actions pending. CSV behavior is covered by source regression assertions; a real browser download and spreadsheet import have not been exercised.
+- Validation: GitHub Actions run #44445767691 passed the full validation workflow with 697 backend tests on the CSV/export implementation checkpoint. A subsequent test-only hardening removes a one-second boundary race in the pre-existing TikTok polling backoff test; its exact-head CI is pending. CSV behavior is covered by source regression assertions; a real browser download and spreadsheet import have not been exercised.
