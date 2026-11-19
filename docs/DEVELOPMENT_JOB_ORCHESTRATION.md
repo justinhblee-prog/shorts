@@ -130,14 +130,14 @@ Integration scheduling: keep UI-00014 dependent on UI-00013; do not rebase it on
 
 ## UI-00015 — analytics history pagination (2026-11-20)
 
-PR #395 is a Draft follow-up stacked on UI-00014 (#394), currently at head `4b1f7a3d6657c0640d3bde5681df9c8a5e073bae`.
+PR #395 is a Draft follow-up stacked on UI-00014 (#394), currently at head `6afe85c0e31cb0a478fe1159c10d303f75800535`.
 
 The browser capture showed that up to 200 analytics snapshot rows were rendered in a single long table. UI-00015 changes the visible table to 25 rows per page with accessible previous/next controls and a live page/count status. It retains full-history aggregation, chart rendering, and the separate cursor-paginated CSV export.
 
 Validation:
 - Latest-head hosted repository validation is passing through the full `scripts/validate.sh` test suite in [run 44567584068](https://github.com/justinhblee-prog/shorts/actions/runs/44567584068).
 - Full Compose image build, service startup/readiness, scheduled backup and isolated restore passed in [run 44567584065](https://github.com/justinhblee-prog/shorts/actions/runs/44567584065).
-- A follow-up browser run exposed that the API returns 501 snapshots while the legacy visible table is intentionally capped at 200. The current head restores the 200-row display cap and paginates those 200 rows. The latest exact-head browser smoke is in progress after the full repository test suite passed; page navigation and complete 502-row CSV export assertions remain pending.
+- A follow-up browser run exposed that the API returns 501 snapshots while the legacy visible table is intentionally capped at 200. The current head restores the 200-row display cap and paginates those 200 rows. The browser smoke also checks the pagination controls at a 320px viewport; the latest exact-head repository and Chromium browser checks are running. Page navigation and complete 502-row CSV export had passed on the preceding exact head.
 - An earlier CI attempt failed due to dynamically generated IDs being absent from static HTML and a stale test expectation. The implementation now uses scoped data attributes for generated controls and the frontend regression assertion was updated. Do not count the failed attempts as validation.
 
 Next gate: confirm latest-head Chromium smoke and inspect the refreshed screenshot artifact. Keep PR #395 Draft and do not merge it independently of PR #394.
