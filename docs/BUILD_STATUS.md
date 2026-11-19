@@ -2583,7 +2583,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 
 ## BUILD-00368 — terminate stale worker process trees after lease loss
-- Worker heartbeat failures now have a bounded budget based on the configured lease window; persistent storage failure or a fencing conflict signals lease loss.
+- An independent watchdog enforces a bounded lease-relative heartbeat budget even when the heartbeat database call itself is blocked; persistent storage failure or a fencing conflict signals lease loss.
 - The trusted Aider executor polls the in-memory lease-loss signal while child commands run and terminates the isolated process group/tree before proceeding to diff inspection or validation.
 - Regression tests cover prolonged heartbeat failure, rejection of stale success evidence, and child-process termination.
 - Exact-head hosted CI pending. Windows process-tree termination remains a runner integration gate.
