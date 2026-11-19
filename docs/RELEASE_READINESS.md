@@ -360,3 +360,7 @@ The redactor now targets only the credential value and preserves unrelated diagn
 
 ### BUILD-00371 — value-aware redaction validation
 GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391) passed **802 backend tests**, repository validation and frontend syntax validation. Inline and multiline credential redaction both preserve trailing safe diagnostic context.
+
+
+### BUILD-00372 — untrusted backlog content gate
+Titles, descriptions and acceptance criteria are sanitized at the durable job-creation boundary before storage. This reduces the chance that credentials pasted into an external issue become long-lived database content. Exact-head hosted regression validation pending.
