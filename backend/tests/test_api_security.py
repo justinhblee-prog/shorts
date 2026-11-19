@@ -975,8 +975,6 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 422)
         mutation.assert_not_called()
 
-if __name__ == "__main__":
-    unittest.main()
 
 
     def test_provider_attempt_reconciliation_requires_explicit_confirmation_and_admin_permission(self):
@@ -1011,4 +1009,34 @@ if __name__ == "__main__":
                     "job-1",body,provider_attempt_id="attempt-1")
         self.assertEqual(caught.exception.status_code,422)
 
+    def test_publishing_overview_summarizes_both_platforms_without_provider_secrets(self):
+        from app import publishing_overview
+        approved=[{"job_id":"yt-ok"},{"job_id":"tt-ok"},{"job_id":"yt-failed"},{"job_id":"tt-processing"}]
+        yt_records={
+            "yt-ok":{"status":"uploaded","access_token":"do-not-return"},
+            "yt-failed":{"status":"failed","error":"upload rejected"},
+        }
+        tt_records={
+            "tt-ok":{"status":"publish_complete","access_token":"do-not-return"},
+            "tt-processing":{"status":"processing"},
+        }
+        with (
+            mock.patch.object(app_module,"require_review_permission") as authorize,
+            mock.patch.object(app_module.review_store,"list_approved",return_value=approved),
+            mock.patch.object(app_module.youtube_upload_store,"get",side_effect=lambda key:yt_records.get(key)),
+            mock.patch.object(app_module.tiktok_publish_store,"get",side_effect=lambda key:tt_records.get(key)),
+        ):
+            result=publishing_overview(x_review_token="review-token")
+        authorize.assert_called_once_with("review-token","review.read")
+        self.assertEqual(result["total"],4)
+        self.assertEqual(result["youtube"]["uploaded"],1)
+        self.assertEqual(result["youtube"]["failed"],1)
+        self.assertEqual(result["youtube"]["pending"],2)
+        self.assertEqual(result["tiktok"]["published"],1)
+        self.assertEqual(result["tiktok"]["processing"],1)
+        self.assertEqual(result["tiktok"]["pending"],2)
+        self.assertNotIn("access_token",str(result))
 
+
+if __name__ == "__main__":
+    unittest.main()
