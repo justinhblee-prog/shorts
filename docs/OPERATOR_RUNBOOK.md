@@ -92,7 +92,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 - Worker leases are fenced; stale workers cannot complete a job after losing ownership.
 - Scheduler dispatch uses deterministic idempotency keys. Run one scheduler process until distributed leadership is implemented.
 - Back up the persistent SQLite volume and test restoration before real operation.
-- **Restore is an offline maintenance operation.** Stop the API, worker, scheduler, metrics collector and backup service before restoring. The restore command refuses to proceed when SQLite `-wal`, `-shm` or `-journal` sidecars exist; do not delete those files manually to bypass the guard. Close/checkpoint the database cleanly, restore, verify integrity, then restart services.
+- **Restore is an offline maintenance operation.** Stop the API, worker, scheduler, metrics collector and backup service before restoring. The restore command refuses to proceed when SQLite `-wal`, `-shm` or `-journal` sidecars exist; do not delete those files manually to bypass the guard. Close/checkpoint the database cleanly, restore, verify integrity, inspect the command result's `cleanup_warnings` array for retained pre-restore copies, then restart services.
   ```bash
   docker compose stop api worker scheduler metrics-collector backup
   docker compose run --rm --no-deps --entrypoint python backup /app/backend/backup_restore.py restore --archive /backups/ARCHIVE_NAME.tar.gz.enc --confirm-restore
