@@ -302,6 +302,19 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("prefers-reduced-motion:reduce", css)
 
 
+
+    def test_analytics_history_exposes_busy_state_and_snapshot_as_of_time(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        css = (frontend / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('id="analyticsHistory" class="analytics-history" aria-busy="false"', html)
+        self.assertIn('setAttribute("aria-busy","true")', app_js)
+        self.assertIn('setAttribute("aria-busy","false")', app_js)
+        self.assertIn('new Date(data.as_of).toLocaleString()', app_js)
+        self.assertIn('.analytics-history[aria-busy="true"]', css)
+
+
 class AnalyticsFreshnessPresentationTests(unittest.TestCase):
     def test_analytics_status_displays_latest_snapshot_and_counts_stale_data(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
