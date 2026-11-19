@@ -327,6 +327,25 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(len(set(ids)), 4)
 
 
+    def test_parallel_workers_serialize_case_and_separator_alias_scopes(self):
+        first = self.store.create(
+            "Case alias writer A", priority=1, scope=["Backend\\Export.py"]
+        )
+        second = self.store.create(
+            "Case alias writer B", priority=2, scope=["backend/export.py"]
+        )
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            claimed = list(pool.map(
+                lambda index: self.store.claim_ready("scope-worker-" + str(index)),
+                range(2),
+            ))
+        claimed_jobs = [job for job in claimed if job is not None]
+        self.assertEqual(len(claimed_jobs), 1)
+        self.assertEqual(claimed_jobs[0]["id"], first["id"])
+        self.assertEqual(self.store.get(first["id"])["status"], "leased")
+        self.assertEqual(self.store.get(second["id"])["status"], "ready")
+
     def test_completion_rejects_changed_files_outside_declared_scope(self):
         job = self.store.create("Scoped completion", scope=["backend/allowed.py"])
         claim = self.store.claim_ready("worker-a")

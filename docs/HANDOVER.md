@@ -1485,3 +1485,5 @@ Approved scopes are now stored using resolved repository-relative targets rather
 ### BUILD-00382 — exact-head validation
 - Code head `a94482501ac192c11039bb9cb8974ee47df8575e` passed **809 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44540567494](https://github.com/justinhblee-prog/shorts/actions/runs/44540567494) and [44540594755](https://github.com/justinhblee-prog/shorts/actions/runs/44540594755).
 - The approved file/directory symlink alias canonicalization regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.
+
+The scope conflict follow-up also verifies two concurrent workers cannot both claim jobs whose path scopes differ only by Windows casing or slash direction.
