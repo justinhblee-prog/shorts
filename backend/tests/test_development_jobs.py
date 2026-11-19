@@ -258,6 +258,38 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         )
         self.assertEqual(pending["status"], "review_pending")
 
+    def test_scope_conflicts_are_case_insensitive_for_windows_runner(self):
+        self.assertTrue(
+            self.store._scopes_conflict(
+                ["backend/Export.py"], ["backend/export.py"]
+            )
+        )
+        self.assertTrue(
+            self.store._scopes_conflict(
+                ["Backend/"], ["backend/api.py"]
+            )
+        )
+        self.assertTrue(
+            self.store._scopes_conflict(
+                ["backend\\\\Export.py"], ["backend/export.py"]
+            )
+        )
+        self.assertTrue(
+            self.store._scopes_conflict(
+                ["./Backend//"], ["backend/api.py"]
+            )
+        )
+        self.assertTrue(
+            self.store._scopes_conflict(
+                ["../outside.py"], ["frontend/app.js"]
+            )
+        )
+        self.assertFalse(
+            self.store._scopes_conflict(
+                ["backend/export.py"], ["frontend/app.js"]
+            )
+        )
+
     def test_parent_child_path_scopes_conflict(self):
         self.assertTrue(self.store._scopes_conflict(["backend"], ["backend/api.py"]))
         self.assertFalse(self.store._scopes_conflict(["backend/api.py"], ["frontend/app.js"]))
