@@ -69,6 +69,8 @@ class TikTokPublishStore:
             );
             CREATE INDEX IF NOT EXISTS idx_tiktok_publications_video_status
               ON tiktok_publications(video_id,status);
+            CREATE INDEX IF NOT EXISTS idx_tiktok_publications_due_scan
+              ON tiktok_publications(status,video_id,updated_at DESC,job_id);
             CREATE INDEX IF NOT EXISTS idx_tiktok_publication_events_job
               ON tiktok_publication_events(job_id,id);
             CREATE TRIGGER IF NOT EXISTS tiktok_publication_events_no_update
