@@ -215,3 +215,9 @@ Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actio
 - Treat `DevelopmentJobConflict` from the durable `mark_review_pending` gate as a normal `lease_lost` outcome, including expiry/fencing that occurs after the executor returns but before evidence persistence.
 - Preserve the durable store's fencing checks; no stale worker can write review-pending evidence.
 - Add regression coverage proving the runner returns normally and the job remains unadvanced when the completion fence rejects the worker. Exact-head hosted CI pending.
+
+
+### BUILD-00370 — redact at the durable evidence boundary
+- Apply the shared redactor within `DevelopmentJobStore.mark_review_pending` and `fail`, not only in the Worker wrapper.
+- Sanitize validation references, successful result summaries, failure summaries and immutable event payloads before they are committed to SQLite.
+- Add direct-store tests that inject token and database credential strings and verify neither job records nor event history retain the values. Exact-head hosted CI pending.
