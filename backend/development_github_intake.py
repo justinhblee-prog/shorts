@@ -149,11 +149,13 @@ def sync_labeled_issues(store: Any, issues: Iterable[dict[str, Any]], scope_reso
     return {"created": created, "skipped": skipped, "created_count": len(created)}
 
 
-def read_github_snapshot(client: Any, owner: str, repository: str) -> dict[str, list[dict[str, Any]]]:
+def read_github_snapshot(client: Any, owner: str, repository: str) -> dict[str, Any]:
     """Read a bounded snapshot via an injected GET-only client.
 
     The client must expose list_issues, list_pull_requests, and list_workflow_runs.
-    Each method receives owner, repository, and per_page=100. No write method is used.
+    Each method receives owner, repository, and per_page=100. The concrete client
+    reads at most five pages (500 records) per feed and reports truncation. No
+    write method is used.
     """
     if not isinstance(owner, str) or not owner.strip() or not isinstance(repository, str) or not repository.strip():
         raise ValueError("owner and repository are required")
@@ -161,10 +163,16 @@ def read_github_snapshot(client: Any, owner: str, repository: str) -> dict[str, 
     raw_prs = client.list_pull_requests(owner, repository, state="open", per_page=100)
     raw_runs = client.list_workflow_runs(owner, repository, per_page=100)
     repository_name = f"{owner}/{repository}"
+    page_state = getattr(client, "pagination_truncated", {})
     return {
         "issues": [dict(item, repository=repository_name) for item in raw_issues if isinstance(item, dict) and "pull_request" not in item],
         "pull_requests": [item for item in raw_prs if isinstance(item, dict)],
         "workflow_runs": [item for item in raw_runs if isinstance(item, dict)],
+        "pagination_truncated": {
+            "issues": bool(page_state.get(f"/repos/{owner}/{repository}/issues", False)),
+            "pull_requests": bool(page_state.get(f"/repos/{owner}/{repository}/pulls", False)),
+            "workflow_runs": bool(page_state.get(f"/repos/{owner}/{repository}/actions/runs", False)),
+        },
     }
 
 
@@ -183,12 +191,14 @@ def normalize_snapshot(snapshot: dict[str, Any]) -> dict[str, list[dict[str, Any
             item for raw in snapshot.get("workflow_runs", [])
             if (item := summarize_workflow_run(raw)) is not None
         ],
+        "pagination_truncated": dict(snapshot.get("pagination_truncated") or {}),
     }
 
     
 class GitHubReadOnlyClient:
     """Minimal GitHub REST client exposing GET operations only."""
     API_ROOT = "https://api.github.com"
+    MAX_PAGES = 5
 
     def __init__(self, token: str, timeout: int = 15):
         if not isinstance(token, str) or not token.strip():
@@ -197,6 +207,7 @@ class GitHubReadOnlyClient:
             raise ValueError("timeout must be between 1 and 60 seconds")
         self._token = token.strip()
         self._timeout = timeout
+        self.pagination_truncated: dict[str, bool] = {}
 
     def _get_pages(self, path: str, params: str = "") -> list[dict[str, Any]]:
         import json
@@ -204,7 +215,8 @@ class GitHubReadOnlyClient:
         from urllib.request import Request, urlopen
         url = f"{self.API_ROOT}{path}?{params}" if params else f"{self.API_ROOT}{path}"
         results: list[dict[str, Any]] = []
-        while url:
+        pages_fetched = 0
+        while url and pages_fetched < self.MAX_PAGES:
             if not url.startswith(self.API_ROOT + "/"):
                 raise ValueError("refusing non-GitHub API URL")
             request = Request(url, headers={
@@ -226,6 +238,7 @@ class GitHubReadOnlyClient:
             else:
                 raise RuntimeError("GitHub API returned an unexpected collection")
             results.extend(item for item in page_items if isinstance(item, dict))
+            pages_fetched += 1
             next_url = None
             for part in link.split(","):
                 if 'rel="next"' in part:
@@ -233,6 +246,7 @@ class GitHubReadOnlyClient:
                     next_url = candidate if candidate.startswith(self.API_ROOT + "/") else None
                     break
             url = next_url
+        self.pagination_truncated[path] = bool(url)
         return results
 
     def list_issues(self, owner: str, repository: str, state: str = "open", per_page: int = 100):
@@ -284,4 +298,5 @@ def sync_github_backlog(
             "pull_requests": len(snapshot["pull_requests"]),
             "workflow_runs": len(snapshot["workflow_runs"]),
         },
+        "snapshot_truncated": normalized["pagination_truncated"],
     }
