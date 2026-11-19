@@ -1365,3 +1365,7 @@ Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions run [
 
 ### BUILD-00367 — redact persisted worker errors
 Worker exception messages are now sanitized before they are written to the durable job result summary, covering bearer tokens, common secret assignments, database URLs, private keys and recognizable GitHub/OpenAI token formats. Aider subprocess diagnostics use the same shared redactor. Regression coverage verifies secret values do not persist. Exact-head CI pending.
+
+
+### BUILD-00367 — exact-head CI result
+Code head `4a987bf76067aaaee19e4fe9f345090cfa53c767` passed GitHub Actions run [44517983256](https://github.com/justinhblee-prog/shorts/actions/runs/44517983256): **786 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Hosted Linux only; no production log inventory is implied.
