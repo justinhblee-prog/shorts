@@ -95,3 +95,5 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Inject a single controlled HTTP 503 for `/api/queue/stats` to verify partial API failure feedback while all other API requests remain real.
 - External YouTube/TikTok provider calls are not made; this is local API/database integration, not live provider validation.
 - Exact-head CI validation pending.
+
+- Browser integration additionally asserts HTTP 200 and response shapes from the real authenticated `/api/brands`, `/api/queue/stats`, `/api/review/pending`, and `/api/publishing/analytics-status` endpoints before exercising analytics history and CSV export.
