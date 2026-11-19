@@ -36,12 +36,12 @@
 ## 최신 확인 기준선
 
 - 통합 후보: PR #407 — [Modern analytics dashboard with audited quarantine recovery](https://github.com/justinhblee-prog/shorts/pull/407), Draft/unmerged.
-- PR #407 source head `b9b375a3ea9f95ef7ab4b18210ec43f474824fb4` passed hosted run [44586621312](https://github.com/justinhblee-prog/shorts/actions/runs/44586621312): **879 tests**, frontend syntax, authenticated dashboard with all 19 modules connected, analytics Chromium smoke, quarantine recovery Chromium smoke.
-- This candidate includes UI-00013/00014 visual system, UI-00015–00017 analytics pagination/semantics, Core/Policy controls and Engineering quarantine recovery workspace.
-- Actual browser visual review found and corrected missing Korean font fallback and full-page screenshot scroll positioning. The final artifact [14559944009](https://github.com/justinhblee-prog/shorts/actions/runs/44586621312/artifacts/14559944009) contains desktop 1440px and mobile 320px screenshots with readable Korean text, visible desktop rail, and API connected state.
-- API contract closure: restored bounded `GET /api/publishing/overview`; implemented audited provider-attempt reconciliation endpoint; activated two previously undiscovered API security tests by moving the unittest main guard to the file end.
-- PR #407 source head `0bcc4cfaa7d8b88f89b43c2984bebdb188bec87e` passed [workflow 44588685235](https://github.com/justinhblee-prog/shorts/actions/runs/44588685235): 880 tests, frontend syntax, both Chromium browser suites, and artifact upload. The source includes authenticated-principal binding for provider reconciliation and a regression test rejecting spoofed operator IDs. Backend README was subsequently clarified in commit `77333d264a123d80c87e6ca13f1edfc0282be06a`; exact-head run [44589059999](https://github.com/justinhblee-prog/shorts/actions/runs/44589059999) passed 880 tests and both browser suites. Final artifact: [14564045600](https://github.com/justinhblee-prog/shorts/actions/runs/44589059999/artifacts/14564045600).
-- Handover docs are maintained on Draft PR #396. All PRs remain unmerged; no production deployment, real OAuth/provider publishing, or live production recovery is claimed.
+- Final exact head: `6dd0824c7bc7450a8f485f5cc5797200d1d09858`; hosted workflow [44592048648](https://github.com/justinhblee-prog/shorts/actions/runs/44592048648) passed **888 tests**, frontend JavaScript syntax, analytics Chromium smoke, quarantine recovery Chromium smoke, and artifact upload.
+- UI scope includes UI-00013/00014 visual system, UI-00015–00017 analytics pagination/semantics, Core/Policy controls, six-area portal navigation, and Engineering quarantine recovery workspace.
+- Browser visual review corrected Korean font fallback and full-page screenshot scroll positioning. Final artifact [14564023636](https://github.com/justinhblee-prog/shorts/actions/runs/44592048648/artifacts/14564023636) contains desktop and 320px mobile screenshots.
+- API closure: bounded GET /api/publishing/overview; protected GET /api/session; audited provider-attempt reconciliation; server-bound actor identity for queue, production reconciliation and TikTok publishing; canonical job-bound staged-media path validation.
+- The portal now resolves the operator ID from the authenticated credential, displays it read-only, and uses it for audit-bearing actions. Caller-supplied identity spoofing is rejected before mutation.
+- PR #407 and handover PR #396 remain Draft/unmerged. No production deployment, real OAuth/provider publishing, live production recovery, or actual account access is claimed.
 
 ## 변경 이력
 
