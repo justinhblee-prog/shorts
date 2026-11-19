@@ -151,7 +151,7 @@ Implemented on `build/build-00319-bounded-autonomous-continuation`.
 
 ### Remaining ordered gates
 
-1. Review the stacked control-plane PR chain (#321 → #327) in dependency order; no PR is merged without explicit user approval.
+1. Review the stacked control-plane PR chain (#321 → #328) in dependency order; no PR is merged without explicit user approval.
 2. After the workflow is deliberately integrated into main, configure the fine-grained NEXUS_GITHUB_READ_TOKEN and explicit NEXUS_APPROVED_SCOPES mappings.
 3. Verify the trusted Windows self-hosted runner toolchain, isolated Python environments, Ollama model access, and persistent LocalAppData database across at least two separate workflow runs.
 4. Verify a real Ollama-generated scoped diff, exact open Draft PR publication, successful review-artifact recording, and dependent-job advancement.
@@ -160,7 +160,7 @@ Implemented on `build/build-00319-bounded-autonomous-continuation`.
 
 ### BUILD-00320 — Windows runner preflight and isolated Python environments
 
-Implemented on `build/build-00320-windows-validation-shell-preflight`.
+Implemented on `build/build-00320-windows-validation-shell-preflight` (Draft PR #328).
 
 - Fail fast before model execution unless the trusted Windows runner has Python 3.11+, Git Bash/POSIX sh, Node.js 18+, a responding loopback Ollama API, and the exact `qwen2.5-coder:7b` model tag.
 - Replace substring model matching with exact CLI/API tag checks so similarly named variants cannot satisfy the runtime gate.
