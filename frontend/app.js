@@ -373,29 +373,67 @@
     const exportButton=$("exportAnalyticsHistory");
     if(exportButton){
       exportButton.disabled=rows.length===0;
-      exportButton.onclick=rows.length?()=>{
-        const headers=["수집 시각","플랫폼","영상 ID","조회수","참여 조회수","참여 조회 비율(%)","유지율 수집 상태","시청자 유지율 (25/50/75%)","이전 수집 대비 조회수","좋아요","댓글","공유","시청 시간(분)","평균 시청 시간(초)","평균 시청 비율(%)"];
-        const csvCell=value=>{
-          let cell=value===null||value===undefined?"":String(value);
-          if(/^[\u0000-\u0020]*[=+\-@]/.test(cell))cell="'"+cell;
-          return '"'+cell.replace(/"/g,'""')+'"';
-        };
-        const csv=[headers,...exportRows.map(item=>[
-          item.collected_at,item.platform==="youtube"?"YouTube":"TikTok",item.video_id,
-          item.views??item.view_count,item.engaged_views,item.engaged_view_share===null||item.engaged_view_share===undefined?null:Number(item.engaged_view_share)*100,item.platform==="youtube"?(retentionStatusLabels[item.retention_status]||"상태 미확인"):null,item.platform==="youtube"?retentionSummary(item.retention_curve):null,deltaFor(item),item.like_count,item.comment_count,
-          item.share_count,item.estimated_minutes_watched,item.average_view_duration,
-          item.average_view_percentage
-        ])].map(record=>record.map(csvCell).join(",")).join("\r\n");
-        const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});
-        const url=URL.createObjectURL(blob);
-        const link=document.createElement("a");
-        link.href=url;
-        link.download="nexus-analytics-"+new Date().toISOString().slice(0,10)+".csv";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(()=>URL.revokeObjectURL(url),1000);
-      }:null;
+      exportButton.onclick=rows.length?async()=>{
+        exportButton.disabled=true;
+        try{
+          const exportRows=[];
+          const pageSize=500;
+          for(const exportPlatform of (platform==="all"?["youtube","tiktok"]:[platform])){
+            let offset=0;
+            while(true){
+              const pageQuery=new URLSearchParams({days:String(days),platform:exportPlatform,limit:String(pageSize),offset:String(offset)});
+              if(videoId)pageQuery.set("video_id",videoId);
+              const page=await api("/api/publishing/analytics-history?"+pageQuery.toString());
+              const pageItems=page.items?.[exportPlatform]||[];
+              exportRows.push(...pageItems.map(item=>({...item,platform:exportPlatform})));
+              if(pageItems.length<pageSize)break;
+              offset+=pageItems.length;
+            }
+          }
+          exportRows.sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||""))||Number(b.id||0)-Number(a.id||0));
+          const exportDeltas=new WeakMap();
+          const exportGroups={};
+          exportRows.forEach(item=>{
+            const key=item.platform+":"+item.video_id;
+            (exportGroups[key]||(exportGroups[key]=[])).push(item);
+          });
+          Object.values(exportGroups).forEach(items=>{
+            const chronological=[...items].sort((a,b)=>String(a.collected_at||"").localeCompare(String(b.collected_at||""))||Number(a.id||0)-Number(b.id||0));
+            let previous;
+            chronological.forEach(item=>{
+              const value=item.platform==="youtube"?item.views:item.view_count;
+              const numeric=value===null||value===undefined||value===""?null:Number(value);
+              if(numeric!==null&&Number.isFinite(numeric)&&numeric>=0){
+                if(previous!==undefined)exportDeltas.set(item,numeric-previous);
+                previous=numeric;
+              }
+            });
+          });
+          const headers=["수집 시각","플랫폼","영상 ID","조회수","참여 조회수","참여 조회 비율(%)","유지율 수집 상태","시청자 유지율 (25/50/75%)","이전 수집 대비 조회수","좋아요","댓글","공유","시청 시간(분)","평균 시청 시간(초)","평균 시청 비율(%)"];
+          const csvCell=value=>{
+            let cell=value===null||value===undefined?"":String(value);
+            if(/^[\\u0000-\\u0020]*[=+\\-@]/.test(cell))cell="'"+cell;
+            return '"'+cell.replace(/"/g,'""')+'"';
+          };
+          const csv=[headers,...exportRows.map(item=>[
+            item.collected_at,item.platform==="youtube"?"YouTube":"TikTok",item.video_id,
+            item.views??item.view_count,item.engaged_views,item.engaged_view_share===null||item.engaged_view_share===undefined?null:Number(item.engaged_view_share)*100,item.platform==="youtube"?(retentionStatusLabels[item.retention_status]||"상태 미확인"):null,item.platform==="youtube"?retentionSummary(item.retention_curve):null,exportDeltas.has(item)?exportDeltas.get(item):null,item.like_count,item.comment_count,
+            item.share_count,item.estimated_minutes_watched,item.average_view_duration,
+            item.average_view_percentage
+          ])].map(record=>record.map(csvCell).join(",")).join("\\r\\n");
+          const blob=new Blob(["\\uFEFF",csv],{type:"text/csv;charset=utf-8"});
+          const url=URL.createObjectURL(blob);
+          const link=document.createElement("a");
+          link.href=url;
+          link.download="nexus-analytics-"+new Date().toISOString().slice(0,10)+".csv";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),1000);
+        }finally{
+          exportButton.disabled=false;
+        }
+      }:null;;
     }
     $("analyticsHistory").dataset.loaded="true";
   }
