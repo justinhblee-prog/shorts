@@ -6,7 +6,7 @@ It evaluates declarations supplied by the operator; it does not inspect media by
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-POLICY_VERSION = "2026-11-20.1"
+POLICY_VERSION = "2026-11-16.2"
 POLICY_CHECKED_ON = "2026-11-16"
 PLATFORMS = ("youtube", "tiktok")
 
