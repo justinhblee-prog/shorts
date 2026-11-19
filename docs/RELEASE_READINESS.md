@@ -453,3 +453,10 @@ The durable review-pending gate is aligned with scheduler and executor path matc
 - The trusted local runner enables strict mode; missing verifier, mismatched claims, or out-of-scope changes are quarantined rather than advanced to `review_pending`.
 - Add worker, executor, service and runner regressions.
 - Exact-head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and frontend syntax validation in [run 44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). Hosted Linux only; Windows self-hosted execution remains unverified.
+
+
+## BUILD-00386 — apply YouTube altered/synthetic media disclosure
+- Read the latest human-approved `policy_preflight` artifact before upload; reject missing/invalid reports and non-overridable blockers.
+- Set YouTube `status.containsSyntheticMedia` from the approved status (`ai_generated`/`realistic_alteration` => true; `none`/`ai_assisted_nonrealistic` => false).
+- Require the approved YouTube disclosure acknowledgement for realistic synthetic media; add upload-body regressions. Exact-head CI pending.
+- Official API support is documented at https://developers.google.com/youtube/data/reference/rest/v3/videos.
