@@ -1,5 +1,6 @@
 import os
 import tempfile
+import threading
 import unittest
 
 from development_jobs import DevelopmentJobStore
@@ -125,6 +126,29 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         worker = DevelopmentJobWorker(self.store, "worker-a", rejected)
         self.assertEqual(worker.run_once(), "quarantined")
         self.assertEqual(self.store.get(job["id"])["status"], "quarantined")
+
+    def test_worker_stops_executor_when_heartbeat_cannot_prove_lease(self):
+        job = self.store.create("Heartbeat outage", scope=["backend/example.py"])
+        self.store.lease_seconds = 1
+
+        def wait_for_fence(claimed):
+            self.assertTrue(claimed["_lease_lost_event"].wait(timeout=4))
+            return {
+                "changed_files": ["backend/example.py"],
+                "tests_passed": True,
+                "validation_ref": "ci://must-not-be-recorded",
+            }
+
+        worker = DevelopmentJobWorker(self.store, "worker-heartbeat-outage", wait_for_fence)
+        original_heartbeat = self.store.heartbeat
+        self.store.heartbeat = lambda *args, **kwargs: (_ for _ in ()).throw(OSError("database unavailable"))
+        try:
+            self.assertEqual(worker.run_once(), "lease_lost")
+        finally:
+            self.store.heartbeat = original_heartbeat
+        saved = self.store.get(job["id"])
+        self.assertEqual(saved["status"], "leased")
+        self.assertIsNone(saved["validation_ref"])
 
     def test_worker_requires_callable_executor(self):
         with self.assertRaisesRegex(ValueError, "executor"):
