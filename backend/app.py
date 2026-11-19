@@ -984,6 +984,7 @@ def publishing_analytics_status(x_review_token:str|None=Header(default=None)):
 def publishing_analytics_history(
     platform:str="all",video_id:str|None=None,days:int=30,limit:int=200,offset:int=0,
     before_collected_at:str|None=None,before_id:int|None=None,
+    as_of:str|None=None,
     x_review_token:str|None=Header(default=None),
 ):
     """Return stored, read-only metric snapshots for trend comparison."""
@@ -1006,7 +1007,20 @@ def publishing_analytics_history(
         or before_id is None or before_id<1
     ):
         raise HTTPException(422,"history cursor is invalid")
-    cutoff=(datetime.now(timezone.utc)-timedelta(days=bounded_days)).isoformat()
+    if as_of is None:
+        as_of_time=datetime.now(timezone.utc)
+    else:
+        if len(as_of)>64 or any(ord(char)<32 or ord(char)==127 for char in as_of):
+            raise HTTPException(422,"as_of is invalid")
+        try:
+            as_of_time=datetime.fromisoformat(as_of.replace("Z","+00:00"))
+            if as_of_time.tzinfo is None or as_of_time.utcoffset() is None:
+                raise ValueError("timezone required")
+            as_of_time=as_of_time.astimezone(timezone.utc)
+        except (TypeError,ValueError,OverflowError):
+            raise HTTPException(422,"as_of must be a timezone-aware ISO-8601 timestamp")
+    normalized_as_of=as_of_time.isoformat()
+    cutoff=(as_of_time-timedelta(days=bounded_days)).isoformat()
     result={}
     if platform in {"all","youtube"}:
         result["youtube"]=youtube_analytics_store.history(
@@ -1019,7 +1033,7 @@ def publishing_analytics_history(
             before_collected_at=before_collected_at,before_id=before_id
         )
     return {
-        "platform":platform,"video_id":video_id,"days":bounded_days,
+        "platform":platform,"video_id":video_id,"days":bounded_days,"as_of":normalized_as_of,
         "limit":bounded_limit,"offset":bounded_offset,
         "items":result,
         "counts":{key:len(value) for key,value in result.items()},
