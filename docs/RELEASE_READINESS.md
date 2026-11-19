@@ -333,3 +333,7 @@ A Worker must not continue modifying a shared worktree when heartbeat persistenc
 
 ### BUILD-00368 — hosted validation evidence
 GitHub Actions run [44530628392](https://github.com/justinhblee-prog/shorts/actions/runs/44530628392) passed **797 backend tests**, repository validation and frontend syntax validation for the fail-closed heartbeat and executor cancellation changes. This does not establish Windows self-hosted process-tree behavior or live runner recovery.
+
+
+### BUILD-00368 — fencing-loss cancellation evidence
+GitHub Actions run [44531177231](https://github.com/justinhblee-prog/shorts/actions/runs/44531177231) passed **798 backend tests**, repository validation and frontend syntax validation, including both heartbeat transport failure and fencing-token rejection cancellation paths. Windows self-hosted process-tree behavior remains unverified.
