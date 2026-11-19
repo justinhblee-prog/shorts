@@ -94,3 +94,17 @@ Use only these states:
 - `NOT STARTED`: no implementation attempt yet.
 
 Do not label several lanes as simultaneously ACTIVE unless separate operations are actually running. The chat does not continue background execution while idle; scheduled work requires an enabled workflow and an online trusted runner.
+
+
+## 8. Live lane checkpoint — 2026-11-20
+
+| Lane | State | Current evidence |
+|---|---|---|
+| FLOW-UI | VERIFYING | PR #412 adds source-backed workstream grouping and dependency labels; exact-head CI run [44594354319](https://github.com/justinhblee-prog/shorts/actions/runs/44594354319) is running |
+| FLOW-QA | VERIFYING | PR #412 adds static presentation assertions and Chromium checks for UI/Core lanes plus a completed dependency edge; same exact-head run 44594354319 |
+| FLOW-CORE | READY | Existing persisted DAG, dependency release, lease fencing and audit event APIs are in the integration candidate; next is review for missing invariants |
+| FLOW-AUTO | PASS / BLOCKED | PR #409 hosted validation passed in run 44592757768; Windows self-hosted runner and LocalAppData two-run persistence remain BLOCKED pending actual trusted runner execution |
+| FLOW-DOCS | ACTIVE | This execution plan and the handover/workstream docs are being maintained in PR #410/#411 |
+| FLOW-INTEGRATION | READY | Wait for PR #412 exact-head CI, then review the UI/API contract and integration diff; no merge/deploy |
+
+PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at checkpoint: `150fdc86c9a2a7519ea406c7d4fb2d1bdb87f871`. These are lane states, not claims of separate autonomous agents running in the background.
