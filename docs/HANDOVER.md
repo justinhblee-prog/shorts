@@ -1324,3 +1324,7 @@ The local Windows worker workflow now upgrades `actions/checkout` to v7 and `pet
 
 ### BUILD-00359 — Aider child environment secret scrub
 The local model subprocess no longer inherits backup encryption keys, database/Redis URLs, Supabase service-role keys, service-account values, access/private/signing keys, or GitHub workflow command-file variables that could write environment/output files for later steps, plus runner temp/workspace/tool-cache paths. Existing API/provider/GitHub tokens remain stripped. The Ollama endpoint, workspace, approved path scopes and model name remain available. Regression tests cover both removed and preserved variables, plus diagnostic redaction for encryption, database, service-role and private-key values. Exact-head backend CI passed run [44513202976](https://github.com/justinhblee-prog/shorts/actions/runs/44513202976) with 775 tests; no live Aider/Ollama execution is claimed.
+
+
+### BUILD-00360 — immutable secret-file scope denylist
+The Aider scope validator now rejects SSH private identities/authorized-key files, cloud credential directories, Kubernetes/Docker/GnuPG configuration, Terraform/Pulumi state, package-manager credential files, service-account JSON and private-key/keystore formats. Sensitive subdirectories under `.config` are blocked. Exact-head CI pending; this is a code-level denylist, not a scan of the user's Windows runner.
