@@ -69,6 +69,14 @@ This runs Python bytecode compilation, unittest discovery, and (when Node.js is 
 The review workspace includes a TikTok connection action, creator capability display, private-only publishing action, status refresh/reconciliation controls, and a metrics panel. Posting requires a human-approved job, an unchanged approved media fingerprint, a connected TikTok account, a creator-info lookup, explicit operator consent, and `SELF_ONLY` privacy. The approved queue remains visible until both platform publication records are complete. OAuth and live account checks require the operator's TikTok developer credentials and account consent.
 
 
+### Cross-platform publishing analytics history
+
+- `GET /api/publishing/analytics-history?platform=all&days=30&limit=500` returns read-only YouTube and TikTok metric snapshots and requires the `analytics.read` permission. Optional filters are `platform=all|youtube|tiktok`, `days=1..365`, `limit=1..500` per platform, and `video_id`.
+- The dashboard charts views, YouTube engaged views/share, average view duration, watch minutes and average view percentage, plus TikTok views/likes/comments/shares where the provider actually supplies them. Unsupported platform/metric combinations remain absent.
+- YouTube audience-retention curves are retained with each history snapshot and summarized at 25%, 50% and 75% video progress. Collection status is displayed separately from missing curve data.
+- The history table shows up to 200 most recent returned rows. CSV export includes the complete currently fetched result set (up to 500 rows per selected platform), UTF-8 BOM and spreadsheet-formula-safe text cells.
+- History snapshots and CSV are evidence records, not proof of causation or guaranteed audience growth. Live account permission, provider coverage and browser download validation remain deployment checks.
+
 ### Platform-specific recommendation evidence
 
 The trend workspace supports separate YouTube Shorts and TikTok recommendation exposures. TikTok performance analysis uses owned-video Display API snapshots only (views, likes, comments, shares), computes time-normalized view velocity and interaction-rate deltas, and forms comparable brand/region/topic/duration/format/publication-age cohorts. Recommendation exposures and production selections are tagged and evaluated within their platform; YouTube outcomes are never mixed with TikTok outcomes. Score adjustment remains disabled until the required within-exposure holdout sample is available. TikTok Display API data in this collector does not provide audience retention, watch time or estimated revenue, so those metrics are not inferred.
