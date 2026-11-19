@@ -663,7 +663,8 @@ class TikTokMetricsTests(unittest.TestCase):
 
 
     def test_due_video_query_handles_ten_thousand_publications_and_snapshots(self):
-        base = datetime(2026, 11, 18, tzinfo=timezone.utc)
+        base = datetime.now(timezone.utc) + timedelta(minutes=1)
+        query_now = base + timedelta(days=1)
         old_snapshot = "2025-01-01T00:00:00+00:00"
         publication_rows = []
         snapshot_rows = []
@@ -693,7 +694,7 @@ class TikTokMetricsTests(unittest.TestCase):
 
         started = datetime.now(timezone.utc)
         due = self.store.due_videos(
-            limit=20, min_age_seconds=0, now=started,
+            limit=20, min_age_seconds=0, now=query_now,
         )
         self.assertEqual(len(due), 20)
         self.assertEqual(due[0]["video_id"], "load-video-9999")
