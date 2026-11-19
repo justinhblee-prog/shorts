@@ -171,7 +171,7 @@ def read_github_snapshot(client: Any, owner: str, repository: str) -> dict[str, 
     reads at most five pages (500 records) per feed and reports truncation. No
     write method is used.
     """
-    repository_path = _repository_api_path(owner, repository)
+    _repository_api_path(owner, repository)
     raw_issues = client.list_issues(owner, repository, state="open", per_page=100)
     raw_prs = client.list_pull_requests(owner, repository, state="open", per_page=100)
     raw_runs = client.list_workflow_runs(owner, repository, per_page=100)
