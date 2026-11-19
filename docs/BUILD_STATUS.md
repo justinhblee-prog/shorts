@@ -2632,3 +2632,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00371 — exact-head hosted validation
 - Code head `e219560b26a74ffea9e883ec3e3de8226644f385` passed GitHub Actions run [44528766250](https://github.com/justinhblee-prog/shorts/actions/runs/44528766250): **803 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Hosted Linux only; this does not verify real Windows runner process termination or workspace reset.
+
+
+## BUILD-00372 — enforce non-test source evidence at durable completion gate
+- Move the no-test-only completion rule into the final SQLite `mark_review_pending` gate, not just the Aider executor.
+- Reject review-pending transitions unless the validated changed-file evidence includes at least one non-test source path; mixed source-plus-test changes remain valid.
+- Add durable-store regression coverage for Python/JavaScript test path conventions and mixed source/test evidence.
+- Exact-head hosted CI pending.
