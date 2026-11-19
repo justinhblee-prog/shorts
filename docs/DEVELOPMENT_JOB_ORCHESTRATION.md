@@ -194,3 +194,9 @@ The read-only intake now validates owner and repository as separate single path 
 
 ### BUILD-00366 — explicit file and directory scope semantics
 Approved existing directory paths are normalized to a trailing slash against the trusted repository root before backlog import. A trailing slash is the only recursive-scope marker at the durable evidence gate; file scopes, including extensionless files such as `LICENSE`, authorize only that exact path. The executor and SQLite `mark_review_pending` gate enforce the same rule. Traversal and symlink escapes remain rejected by executor path validation.
+
+
+
+### BUILD-00375 — reject noncanonical scope path aliases
+
+The executor now requires the supplied scope string to match its canonical POSIX representation, allowing only one optional trailing slash to mark a directory. It rejects leading `./`, repeated separators, interior dot segments, and a trailing slash on a non-directory file. This ensures the executor, durable store evidence gate and scope-lock scheduler all reason about the same exact path string.
