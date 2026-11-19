@@ -372,3 +372,7 @@ GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00372 — field-boundary behavior
 Backlog text sanitization preserves the beginning of descriptions and acceptance criteria when enforcing storage limits, while scanning the full input for credentials before truncation. Updated exact-head hosted validation pending.
+
+
+### BUILD-00372 — final backlog sanitization evidence
+GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519) passed **804 backend tests**, repository validation and frontend syntax validation, including credential removal and leading-context preservation under field limits.
