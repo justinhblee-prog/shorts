@@ -753,10 +753,33 @@
   }
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
-    try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadPublishingOverview(),loadPublishingAnalytics(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight()]);
-      toast("운영 데이터 갱신 완료");
-    }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
+    const tasks=[
+      ["핵심 지표",loadMetrics],["재무",loadFinance],["검수 대기열",loadReviews],
+      ["승인 콘텐츠",loadApproved],["게시 현황",loadPublishingOverview],
+      ["성과 수집",loadPublishingAnalytics],["YouTube 연결",loadYouTubeConnection],
+      ["TikTok 연결",loadTikTokConnection],["TikTok 분석",loadTikTokMetrics],
+      ["트렌드",loadTrends],["추천",loadTrendRecommendations],
+      ["추천 평가",loadRecommendationEvaluation],["일정",loadSchedules],
+      ["운영 인사이트",loadInsights],["기회 분석",loadOpportunities],
+      ["작업 큐",loadQueue],["무결성 검사",loadIntegrityReport],
+      ["제작 사전검사",loadPreflight]
+    ];
+    const results=await Promise.allSettled(tasks.map(([,load])=>load()));
+    const failed=results.map((result,index)=>({result,label:tasks[index][0]}))
+      .filter(item=>item.result.status==="rejected");
+    const succeeded=results.length-failed.length;
+    if(failed.length===0){
+      setConnection(true,"API 연결됨");
+      toast("운영 데이터 전체 갱신 완료");
+      return;
+    }
+    if(succeeded===0){
+      setConnection(false,"API 연결 실패");
+    }else{
+      setConnection(true,"API 부분 연결 · "+failed.length+"개 기능 오류");
+    }
+    const details=failed.map(item=>item.label+": "+(item.result.reason?.message||"조회 실패")).join(" / ");
+    toast("일부 데이터 갱신 실패 ("+failed.length+"/"+tasks.length+") · "+details);
   }
   function requireToken(){if(!token){$("settingsDialog").showModal();return false;}return true;}
   function queueControlPayload(){
