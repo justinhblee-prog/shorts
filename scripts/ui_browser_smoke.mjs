@@ -74,6 +74,24 @@ async function waitForServer() {
     await page.locator("#tokenInput").fill("nexus-ui-browser-smoke-token-2026-11-19-32chars");
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
+    const liveApiChecks = await page.evaluate(async token => {
+      const paths = [
+        "/api/brands",
+        "/api/queue/stats",
+        "/api/review/pending?limit=100",
+        "/api/publishing/analytics-status",
+      ];
+      return Promise.all(paths.map(async path => {
+        const response = await fetch(path, { headers: { "X-Review-Token": token } });
+        const body = await response.json();
+        return { path, status: response.status, body };
+      }));
+    }, "nexus-ui-browser-smoke-token-2026-11-19-32chars");
+    assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200]);
+    assert.ok(Array.isArray(liveApiChecks[0].body.brands));
+    assert.ok(Number.isFinite(Number(liveApiChecks[1].body.queued)));
+    assert.ok(Array.isArray(liveApiChecks[2].body.items));
+    assert.ok(liveApiChecks[3].body.youtube && liveApiChecks[3].body.tiktok);
     await page.locator("#loadAnalyticsHistory").click();
     await analyticsStarted;
     assert.equal(await page.locator("#analyticsHistory").getAttribute("aria-busy"), "true");
