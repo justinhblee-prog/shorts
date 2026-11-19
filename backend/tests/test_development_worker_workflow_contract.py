@@ -22,6 +22,13 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("outside GITHUB_WORKSPACE", step)
         self.assertIn("databaseFull.StartsWith($workspace", step)
 
+    def test_documentation_and_ignore_changes_trigger_repository_validation(self):
+        ci_workflow = ROOT / ".github" / "workflows" / "backend-tests.yml"
+        ci_source = ci_workflow.read_text(encoding="utf-8")
+        self.assertIn('"docs/**"', ci_source)
+        self.assertIn('"README.md"', ci_source)
+        self.assertIn('".gitignore"', ci_source)
+
     def test_schedule_and_manual_dispatch_are_configured(self):
         self.assertIn("workflow_dispatch:", self.source)
         self.assertIn('cron: "17 */2 * * *"', self.source)
