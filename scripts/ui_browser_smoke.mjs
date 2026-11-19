@@ -88,7 +88,11 @@ async function waitForServer() {
     await page.locator("#tokenInput").fill("nexus-ui-browser-smoke-token-2026-11-19-32chars");
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
-    checkpoint("authenticated dashboard loaded");
+    await page.waitForFunction(() =>
+      document.querySelector("#connection").textContent.includes("API 연결됨")
+    );
+    assert.doesNotMatch(await page.locator("#connection").textContent(), /부분 연결|연결 실패/);
+    checkpoint("authenticated dashboard loaded with all 19 modules connected");
     const liveApiChecks = await page.evaluate(async token => {
       const paths = [
         "/api/brands",
