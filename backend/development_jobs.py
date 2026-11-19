@@ -450,14 +450,23 @@ class DevelopmentJobStore:
             scope = json.loads(current["scope_json"] or "[]")
             if not scope:
                 raise ValueError("review-pending transition requires a declared file scope")
-            outside_scope = [
-                path for path in normalized_files
-                if not any(
-                    path == item.rstrip("/")
-                    or item.endswith("/") and path.startswith(item)
-                    for item in scope
-                )
-            ]
+            outside_scope = []
+            for path in normalized_files:
+                normalized_path = path.replace("\\", "/").casefold()
+                matched = False
+                for item in scope:
+                    if not isinstance(item, str):
+                        continue
+                    normalized_item = item.replace("\\", "/").casefold()
+                    directory_scope = normalized_item.endswith("/")
+                    base = normalized_item.rstrip("/")
+                    if normalized_path == base or (
+                        directory_scope and normalized_path.startswith(base + "/")
+                    ):
+                        matched = True
+                        break
+                if not matched:
+                    outside_scope.append(path)
             if outside_scope:
                 raise ValueError("changed_files contains paths outside the declared scope")
             cur = connection.execute(

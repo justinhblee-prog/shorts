@@ -354,6 +354,34 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                                 ["backend/other.py"], True, "ci://run/3")
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
+    def test_completion_scope_gate_matches_windows_case_insensitive_file_paths(self):
+        job = self.store.create("Case-insensitive scoped completion", scope=["Backend/Allowed.py"])
+        claim = self.store.claim_ready("worker-a")
+        pending = self.store.mark_review_pending(
+            job["id"], "worker-a", claim["lease_token"],
+            ["backend/allowed.py"], True, "ci://run/casefold",
+        )
+        self.assertEqual(pending["status"], "review_pending")
+
+    def test_completion_scope_gate_matches_case_insensitive_directory_paths(self):
+        job = self.store.create("Case-insensitive directory completion", scope=["BACKEND/"])
+        claim = self.store.claim_ready("worker-a")
+        pending = self.store.mark_review_pending(
+            job["id"], "worker-a", claim["lease_token"],
+            ["backend/nested/allowed.py"], True, "ci://run/directory-casefold",
+        )
+        self.assertEqual(pending["status"], "review_pending")
+
+    def test_completion_scope_gate_keeps_directory_boundary_exact(self):
+        job = self.store.create("Directory boundary completion", scope=["backend/"])
+        claim = self.store.claim_ready("worker-a")
+        with self.assertRaisesRegex(ValueError, "outside the declared scope"):
+            self.store.mark_review_pending(
+                job["id"], "worker-a", claim["lease_token"],
+                ["backend-other/allowed.py"], True, "ci://run/boundary",
+            )
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+
     def test_completion_rejects_unsafe_and_duplicate_paths(self):
         job = self.store.create("Safe paths", scope=["backend"])
         claim = self.store.claim_ready("worker-a")
