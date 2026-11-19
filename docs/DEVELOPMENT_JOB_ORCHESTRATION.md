@@ -173,3 +173,10 @@ Do not duplicate these isolated fixtures and call them cross-stack integration. 
 PR #397 adds API-handler regressions for authorization ordering (403 before store mutation), missing-job mapping (404), and blank-reason rejection (422) on top of UI-00012 / PR #387. Exact head `f0c2ff4d0e8a27494cf48e6be2333808e0997e5c` passed hosted backend validation in [run 44573305813](https://github.com/justinhblee-prog/shorts/actions/runs/44573305813), including the repository validation script and frontend syntax check. The test invokes the route function directly with a mocked store; it is not a live HTTP/browser or real operator recovery test. PR #397 remains Draft and depends on #387, which depends on BUILD-00386 / #384.
 
 The broader cross-lane gate remains BLOCKED_BY_STACK_INTEGRATION: no single candidate commit currently contains and validates the full Core + Policy + UI dependency set. Preserve Draft status and do not merge/deploy. Next bounded action is to assemble/validate an isolated candidate stack or continue closing specific contract seams without altering dependency order.
+
+
+### UI-00016 — analytics pagination accessibility and boundary regression
+
+PR #398 adds a named navigation landmark for the analytics pagination controls and real-browser assertions for keyboard activation, final-page row rendering, next-button disabled state at the upper boundary, and navigation back to the first page. Exact head `0d9db34cc5969f277c1174f7092e7d4907f957af` passed the full hosted backend/browser workflow [44573923657](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657). The run completed `scripts/validate.sh` and the full browser smoke: mobile 320px, page navigation, full 502-row CSV export, review approval/audit history, partial API failure feedback, keyboard navigation, browser history, and no page errors. Screenshots are retained as artifact [14555931151](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657/artifacts/14555931151).
+
+PR #398 is Draft/unmerged, based on UI-00015 / PR #395. The exact-head hosted test is a CI/browser fixture result, not a production deployment or live provider validation.
