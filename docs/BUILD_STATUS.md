@@ -2640,7 +2640,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject new dependency edges once a job leaves ready/blocked, preventing late prerequisites from being bypassed by already-claimed work.
 - Keep duplicate edge insertion idempotent, including after claim.
 - Serialize dependency mutation against claims using the existing immediate SQLite transaction.
-- Add regressions for late-edge rejection and duplicate-edge idempotency after claim.
+- Add regressions for late-edge rejection, duplicate-edge idempotency after claim, and a threaded dependency-insertion/claim race.
 - Exact-head hosted CI pending.
 
 
