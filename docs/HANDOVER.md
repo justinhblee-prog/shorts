@@ -1515,4 +1515,5 @@ The final store transition now applies the same case-insensitive, separator-norm
 ## BUILD-00385 — verify actual Git worktree evidence before review-pending
 - Add a post-execution verifier that re-reads tracked and untracked Git changes, compares the exact list to the executor claim, and rechecks the declared scope.
 - The trusted local runner enables strict mode; missing verifier, mismatched claims, or out-of-scope changes are quarantined rather than advanced to `review_pending`.
-- Add worker, executor, service and runner regressions. Exact-head CI pending.
+- Add worker, executor, service and runner regressions.
+- Exact-head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and frontend syntax validation in [run 44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). Hosted Linux only; Windows self-hosted execution remains unverified.
