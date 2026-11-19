@@ -31,6 +31,9 @@ concurrency:
 
 jobs:
   development-cycle:
+    # Manual dispatch must use the default-branch workflow definition; never
+    # execute privileged self-hosted jobs from an arbitrary feature branch.
+    if: github.event_name != 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     # Requires the repository-owned Windows runner with Ollama and
     # qwen2.5-coder:7b installed. Scheduled workflows run from the default branch.
     runs-on: [self-hosted, windows, nexus-local-ai]
@@ -44,6 +47,7 @@ jobs:
       - name: Check out default branch
         uses: actions/checkout@v5
         with:
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
           persist-credentials: false
 
