@@ -2426,3 +2426,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Show the retention collection status separately from the 25%/50%/75% checkpoint summary in the history table and CSV.
 - Do not present missing retention curves as zero retention or as a successful collection.
 - Validation: GitHub Actions runs #44447418651 and #44447424894 passed the full validation workflow with 698 backend tests on code checkpoint `5e60fe8`. The later README-inclusive checkpoint also passed 698 tests in run #44447642344. Frontend status-label regression assertions passed; real account permission/coverage combinations remain unverified.
+
+
+## BUILD-00321 — analytics chart gaps and coverage visibility
+
+- Stop drawing a continuous trend line across long periods without analytics snapshots. For each video series, split the polyline when a sampling gap exceeds both a 48-hour floor and three times that series' median observed sampling interval.
+- Keep every actual snapshot marker and tooltip; do not interpolate missing values or synthesize a trend through an unobserved period.
+- Display the actual first-to-last collection date range for the returned history result alongside snapshot counts.
+- Validation: frontend regression assertions cover the gap threshold, non-interpolation explanation and coverage-range label. Exact-head GitHub Actions pending; real browser rendering and live account sampling cadence remain unverified.
