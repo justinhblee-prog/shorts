@@ -305,3 +305,7 @@ Retryable and non-retryable worker exceptions are passed through a shared redact
 
 ### BUILD-00367 — worker diagnostic redaction CI evidence
 GitHub Actions run [44517983256](https://github.com/justinhblee-prog/shorts/actions/runs/44517983256) passed **786 backend tests**, repository validation and frontend JavaScript syntax validation for the shared diagnostic redactor and worker failure-persistence changes. This is a code-level contract, not a production log inventory.
+
+
+### BUILD-00367 — multiline credential redaction evidence
+GitHub Actions run [44518327365](https://github.com/justinhblee-prog/shorts/actions/runs/44518327365) passed **787 backend tests**, repository validation and frontend syntax validation, including multiline service-account JSON redaction. This remains a code-level test contract, not a production log inventory.
