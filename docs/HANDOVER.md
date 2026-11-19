@@ -1348,3 +1348,10 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - TikTok composite index schema regressions passed in Actions runs [44490415081](https://github.com/justinhblee-prog/shorts/actions/runs/44490415081) and [44490415183](https://github.com/justinhblee-prog/shorts/actions/runs/44490415183), each with 700 backend tests.
 - BUILD-00329/00330 stable keyset pagination and frozen date-window checkpoint passed runs [44490155724](https://github.com/justinhblee-prog/shorts/actions/runs/44490155724) and [44490164457](https://github.com/justinhblee-prog/shorts/actions/runs/44490164457), each with 700 backend tests.
 - Production-sized SQLite query-plan and latency benchmark remains outstanding; CI does not substitute for production workload measurement.
+
+## BUILD-00332 — validate analytics keyset cursor timestamps
+
+- Require `before_collected_at` to parse as a timezone-aware ISO-8601 timestamp before passing it to either analytics history store. This prevents arbitrary or timezone-naive strings from reaching the SQL keyset comparison.
+- Preserve the original timestamp text for the database cursor comparison; accept the UTC `Z` form used by ISO-8601 clients.
+- Add API regression cases for malformed, date-only, and timezone-naive cursor values, plus a valid UTC-`Z` cursor pass-through case.
+- GitHub Actions validation is running for implementation and tests; no passing result is claimed yet. Live provider and browser behavior remain unverified.
