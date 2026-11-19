@@ -19,7 +19,7 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 ## Current checkpoint
 
 - Repository default branch remains `main`; current main head is `5558c058f09bc09d15f5d13fd3746eb9cc76f630`. Development branches and Draft PRs are not integrated into main.
-- PRs #311–#327 were checked in GitHub: all remain Open, Draft and unmerged. This includes the user's specifically protected PRs #311–#315. No merge or main push was performed.
+- PRs #311–#328 were checked in GitHub: all remain Open, Draft and unmerged. This includes the user's specifically protected PRs #311–#315. No merge or main push was performed.
 - PR #327 (BUILD-00319) exact head `95844080e8635354ab8f8e2511c4b64b5bfe91ae` passed GitHub Actions run [44437965780](https://github.com/justinhblee-prog/shorts/actions/runs/44437965780). The run executed repository validation and frontend JavaScript syntax checks. It validates hosted CI only, not the Windows runner or local Ollama.
 - PR #326 adds read-only recovery for orphaned review-pending jobs. PR #327 adds bounded self-dispatch after a changed Draft PR is read back and verified. Both remain Draft/Open.
 - BUILD-00320 (Draft PR #328) exact head `d91bab89b2659b2080c7f0749291fbee240b2ccd` passed GitHub Actions run [44472930435](https://github.com/justinhblee-prog/shorts/actions/runs/44472930435): 764 backend tests, `scripts/validate.sh`, and `node --check frontend/app.js`. This remains hosted CI; Windows runner/Ollama execution is not proven.
