@@ -2473,4 +2473,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add an exact video ID predicate to the publication identity query, allowing targeted lookup without scanning/truncating the recent-publication window.
 - Raise the bounded bulk identity window to 500 to match the analytics-history API/export limit; keep the per-video lookup bounded to one eligible publication.
 - Add a regression test with more than 200 published videos and an older video whose snapshot must remain queryable.
-- Validation: pending exact-head GitHub Actions.
+- Validation: GitHub Actions passed on the code/test checkpoint `2d81a86594a1b3d0c1bb9831a988225729da63b5` (run `44486853576`: 700 tests; run `44486850076`: 699 tests). Earlier sequential commits also passed (runs `44486846374` and `44486840647`, 699 tests each). The later documentation-only commits do not change executable code.
