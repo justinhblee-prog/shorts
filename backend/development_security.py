@@ -11,15 +11,15 @@ def redact_sensitive_text(value, limit=2000):
                   "[REDACTED PRIVATE KEY]", text)
     text = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/-]+=*", "Bearer [REDACTED]", text)
     text = re.sub(r"(?i)(?:basic)\s+[A-Za-z0-9+/]{12,}={0,2}", "Basic [REDACTED]", text)
-    text = re.sub(
+    credential_key = (
         r"(?i)([\"']?[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTHORIZATION|COOKIE|SESSION|API[_-]?KEY|ENCRYPTION[_-]?KEY|"
         r"PRIVATE[_-]?KEY|SIGNING[_-]?KEY|ACCESS[_-]?KEY|SERVICE[_-]?ROLE[_-]?KEY|"
         r"DATABASE[_-]?URL|DB[_-]?URL|REDIS[_-]?URL|POSTGRES[_-]?URL|MYSQL[_-]?URL|"
         r"MONGODB[_-]?URI|MONGO[_-]?URL|SUPABASE[_-]?URL|SERVICE[_-]?ACCOUNT|"
-        r"CONNECTION[_-]?STRING)[A-Z0-9_]*[\"']?)"
-        r"\s*[=:]\s*[\s\S]*",
-        r"\1=[REDACTED]", text,
+        r"CONNECTION[_-]?STRING)[A-Z0-9_]*[\"']?\s*[=:]\s*)"
     )
+    credential_value = r'(?:"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|\{[\s\S]*?\}|[^\s,;]+)'
+    text = re.sub(credential_key + credential_value, r'\1"[REDACTED]"', text)
     text = re.sub(
         r"(?i)\b(https?|postgres(?:ql)?|redis|mongodb|mysql|amqps?)://[^\s/@:]+(?::[^\s/@]*)?@[^\s,;]+",
         r"\1://[REDACTED]@[REDACTED]", text,

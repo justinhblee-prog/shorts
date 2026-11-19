@@ -1413,3 +1413,14 @@ The SQLite store now applies shared diagnostic redaction at the final persistenc
 
 ### BUILD-00370 — exact-head CI result
 Code head `d6af913a2325a4a390f9bcb788f473670cf018b4` passed GitHub Actions run [44532160221](https://github.com/justinhblee-prog/shorts/actions/runs/44532160221): **800 tests**, repository validation and frontend syntax check. Direct store tests confirm credential values do not persist in successful evidence, failure summaries or immutable event details.
+
+
+### BUILD-00370 — final validation checkpoint
+Final PR head `07896636170c92a1ed497ed097f0d9a0aa245e7f` passed GitHub Actions run [44532360324](https://github.com/justinhblee-prog/shorts/actions/runs/44532360324): **800 tests**, repository validation and frontend syntax check. The direct-store redaction fixture was corrected to use an independent file scope before the successful run.
+
+### BUILD-00371 — value-aware diagnostic redaction
+Credential assignment redaction now replaces only the matched value instead of consuming the remainder of the diagnostic. It supports quoted values, plain tokens and multiline JSON objects, preserving later safe context. Regression coverage added; exact-head CI pending.
+
+
+### BUILD-00371 — exact-head CI result
+Exact PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391): **802 tests**, repository validation and frontend syntax check. Tests confirm redaction preserves safe text after inline credentials and multiline service-account JSON.

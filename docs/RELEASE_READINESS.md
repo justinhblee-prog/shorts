@@ -349,3 +349,14 @@ The final SQLite persistence methods now redact credential-bearing content even 
 
 ### BUILD-00370 — durable redaction validation evidence
 GitHub Actions run [44532160221](https://github.com/justinhblee-prog/shorts/actions/runs/44532160221) passed **800 backend tests**, repository validation and frontend syntax validation. Direct-store tests verify successful and failed evidence plus event history are sanitized before SQLite commit.
+
+
+### BUILD-00370 — final durable-store validation
+GitHub Actions run [44532360324](https://github.com/justinhblee-prog/shorts/actions/runs/44532360324) passed **800 backend tests**, repository validation and frontend syntax validation for direct-store evidence redaction.
+
+### BUILD-00371 — diagnostic context preservation
+The redactor now targets only the credential value and preserves unrelated diagnostic context following it, including text after a multiline service-account JSON object. Exact-head hosted validation pending.
+
+
+### BUILD-00371 — value-aware redaction validation
+GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391) passed **802 backend tests**, repository validation and frontend syntax validation. Inline and multiline credential redaction both preserve trailing safe diagnostic context.
