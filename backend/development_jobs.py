@@ -417,7 +417,7 @@ class DevelopmentJobStore:
                 path for path in normalized_files
                 if not any(
                     path == item.rstrip("/")
-                    or (not Path(item).suffix and path.startswith(item.rstrip("/") + "/"))
+                    or item.endswith("/") and path.startswith(item)
                     for item in scope
                 )
             ]

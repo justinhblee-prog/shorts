@@ -148,6 +148,23 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         next_claim = self.store.claim_ready("worker-b")
         self.assertEqual(next_claim["id"], second["id"])
 
+    def test_store_scope_gate_requires_explicit_directory_marker(self):
+        extensionless = self.store.create("Extensionless file", scope=["LICENSE"])
+        file_claim = self.store.claim_ready("worker-file")
+        with self.assertRaisesRegex(ValueError, "outside the declared scope"):
+            self.store.mark_review_pending(
+                extensionless["id"], "worker-file", file_claim["lease_token"],
+                ["LICENSE/generated.py"], True, "ci://run/extensionless",
+            )
+
+        directory = self.store.create("Directory scope", scope=["backend/"])
+        directory_claim = self.store.claim_ready("worker-directory")
+        pending = self.store.mark_review_pending(
+            directory["id"], "worker-directory", directory_claim["lease_token"],
+            ["backend/module.py"], True, "ci://run/directory",
+        )
+        self.assertEqual(pending["status"], "review_pending")
+
     def test_parent_child_path_scopes_conflict(self):
         self.assertTrue(self.store._scopes_conflict(["backend"], ["backend/api.py"]))
         self.assertFalse(self.store._scopes_conflict(["backend/api.py"], ["frontend/app.js"]))

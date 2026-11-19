@@ -289,3 +289,11 @@ Long-lived worker/service loops no longer continue claiming jobs in a worktree a
 
 ### BUILD-00363–00365 — combined exact-head CI evidence
 GitHub Actions run [44516995900](https://github.com/justinhblee-prog/shorts/actions/runs/44516995900) passed **782 backend tests**, repository validation and frontend JavaScript syntax validation for the combined worker, scope and daemon lifecycle changes. Hosted Linux does not prove Windows self-hosted runner or live local-model behavior.
+
+
+### BUILD-00366 — exact file/directory semantics at the evidence gate
+The durable store now applies the same explicit directory-marker rule as the Aider executor. Approved directory scopes are normalized against the trusted repository root before import; extensionless file scopes cannot authorize child paths. Exact-head CI pending.
+
+
+### BUILD-00366 — durable scope gate CI evidence
+GitHub Actions run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254) passed **785 backend tests**, repository validation and frontend JavaScript syntax validation for the explicit directory-scope and durable evidence-gate changes. This is hosted Linux evidence only.
