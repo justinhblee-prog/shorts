@@ -217,3 +217,12 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - Existing smoke also passed: mobile 320px, 502-row full CSV export, review approval/audit history, partial API failure handling, browser back/forward, reduced motion, and zero page errors.
 - Screenshot artifact: [14555931151](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657/artifacts/14555931151).
 - PR remains Draft/unmerged on the UI-00015 base. No production deployment/live provider publishing was performed.
+
+
+### UI-00017 — exact-head validation checkpoint
+
+- PR #399 corrected head: `16d4964dcf2472f47c0b1dd1fbd890e2d46750c1`.
+- Change: all 14 analytics table column headers declare `scope="col"`; Chromium browser smoke asserts the full set.
+- The initial head failed one legacy frontend assertion because it expected unscoped markup. The source regression was updated to the new semantics.
+- Corrected exact-head backend validation passed in [44574846265](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265); browser smoke was in progress at the checkpoint. Compose service readiness and isolated backup/restore checks passed in [44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267), with cleanup still in progress.
+- Keep PR Draft/unmerged until both workflows finish successfully. No production deployment or live provider publishing was performed.
