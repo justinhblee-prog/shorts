@@ -121,4 +121,4 @@ Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonatio
 
 
 ## POLICY-00003 — approval requires a valid policy preflight
-Every production approval must have a script-level policy preflight report with a recognized status (`blocked`, `review_required`, or `ready_for_human_review`) and a well-formed blocker list. Missing or malformed reports fail closed; reviewer comments cannot substitute for the report. This gate verifies the report's presence and structure, not the truth of operator attestations or the actual media bytes.
+Every approval of a production run that contains a script artifact must have a script-level policy preflight report with a recognized status (`blocked`, `review_required`, or `ready_for_human_review`) and a well-formed blocker list. Missing or malformed reports fail closed; reviewer comments cannot substitute for the report. This gate verifies the report's presence and structure, not the truth of operator attestations or the actual media bytes.
