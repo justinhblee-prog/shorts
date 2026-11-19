@@ -1353,3 +1353,7 @@ The worker and backlog-service daemon loops now poll while idle but return after
 
 ### BUILD-00363–00365 — combined hosted validation
 The combined worker-attempt isolation, explicit file-scope matching and daemon workspace-recycling changes passed GitHub Actions Backend tests run [44516995900](https://github.com/justinhblee-prog/shorts/actions/runs/44516995900): **782 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. This is hosted Linux evidence only; Windows self-hosted runner and live Aider/Ollama execution remain unverified.
+
+
+### BUILD-00366 — durable store scope gate alignment
+The final `mark_review_pending` gate no longer treats every extensionless scope as a directory. Only scopes explicitly ending in `/` authorize descendants. The trusted runner normalizes approved existing directories against the repository root before backlog import, while extensionless files remain exact-match scopes. Regression coverage spans both the store gate and runner normalization. Exact-head CI pending.
