@@ -352,7 +352,7 @@ class FrontendPortalTests(unittest.TestCase):
         html = (frontend / "index.html").read_text(encoding="utf-8")
         app_js = (frontend / "app.js").read_text(encoding="utf-8")
         css = (frontend / "cyber-magic.css").read_text(encoding="utf-8")
-        for label in ("Dashboard", "AI Content Studio", "Content Planner and Intelligence", "Approvals and Publishing", "Analytics and Operations"):
+        for label in ("Dashboard", "AI Content Studio", "Content Planner and Intelligence", "Approvals and Publishing", "Analytics and Operations", "Development Operations"):
             self.assertIn(f'aria-label="{label}"', html)
         self.assertIn("IntersectionObserver", app_js)
         self.assertIn('setAttribute("aria-current","location")', app_js)
