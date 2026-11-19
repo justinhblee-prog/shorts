@@ -2554,3 +2554,16 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve runner-managed GITHUB_* workflow paths and later step-scoped tokens/model settings; do not print environment values.
 - Add workflow-contract tests asserting the scrub occurs before checkout and covers Python, Node, shell, Git, SSH, loader, provider and credential variable families.
 - Exact code/test head `f8033fb17c9067a9f87e6fa5966a15f4641e3f08` passed backend Actions run [44520580445](https://github.com/justinhblee-prog/shorts/actions/runs/44520580445): **786 tests**. Hosted Linux validates workflow text only; Windows self-hosted execution remains an integration gate.
+
+
+## BUILD-00374 — validate runner environment names before GITHUB_ENV writes
+- Validate every blocked inherited variable name against a conservative identifier grammar before writing the line-oriented GITHUB_ENV file.
+- Fail closed without printing malformed names, preventing newline/control-character command injection into later workflow steps.
+- Add workflow-contract regression coverage for the name validation gate.
+- Exact-head hosted CI pending.
+
+
+### BUILD-00374 — exact-head hosted validation
+- Exact code head `a09ebc2b2154bbc09dfb3e8e4a47c2d86b7a20e9` passed GitHub Actions run [44524649879](https://github.com/justinhblee-prog/shorts/actions/runs/44524649879): **786 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- Workflow-contract coverage confirms malformed environment names are rejected before writing to GITHUB_ENV.
+- Hosted Linux only; Windows PowerShell execution remains an integration gate.

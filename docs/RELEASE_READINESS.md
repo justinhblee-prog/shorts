@@ -305,3 +305,11 @@ The executor rejects Windows drive and UNC paths, backslash-based traversal, alt
 
 ### BUILD-00370 — runner startup environment isolation
 The initial PowerShell preflight writes empty values for inherited runtime injection, provider endpoint, credential, Git/SSH, package-manager, dynamic-loader and TLS override variables before checkout or Node/Python actions start. It preserves runner-managed workflow paths and later step-scoped credentials. Exact-head CI pending; no live Windows runner execution is claimed.
+
+
+### BUILD-00374 — runner environment-file injection guard
+The startup scrub now validates inherited environment variable names before serializing them into GITHUB_ENV. Hosted workflow-contract validation pending.
+
+
+### BUILD-00374 — GITHUB_ENV serialization validation evidence
+GitHub Actions run [44524649879](https://github.com/justinhblee-prog/shorts/actions/runs/44524649879) passed **786 backend tests**, repository validation and frontend JavaScript syntax validation, including the malformed environment-name rejection contract. Hosted Linux does not execute the Windows PowerShell preflight.

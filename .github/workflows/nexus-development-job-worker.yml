@@ -83,6 +83,290 @@ jobs:
               $blockedNames += $name
             }
           }
+          # GITHUB_ENV is a line-oriented command file. Never serialize an
+          # inherited variable name containing whitespace or control characters.
+          $invalidBlockedNames = @($blockedNames | Where-Object { $_ -notmatch '^[A-Za-z_][A-Za-z0-9_]*$' })
+          if ($invalidBlockedNames.Count -gt 0) {
+            throw "Refusing to serialize malformed inherited environment variable names to GITHUB_ENV."
+          }
+          $envCommands = @()
+          foreach ($name in ($blockedNames | Sort-Object -Unique)) {
+            $envCommands += "$name="
+          }
+          # Prevent any inherited Git config-count injection while preserving a
+          # valid, explicit empty config list for all later Git invocations.
+          $envCommands += "GIT_CONFIG_COUNT=0"
+          Add-Content -LiteralPath $workflowEnv -Value $envCommands -Encoding utf8
+          Write-Host "Cleared $($blockedNames.Count) inherited runtime/credential override variables before checkout and runtime actions."
+
+          $listener = Get-Process -Name "Runner.Listener" -ErrorAction Stop | Select-Object -First 1
+          if (-not $listener.Path) {
+            throw "Unable to locate the active Runner.Listener executable; cannot verify Node 24 action compatibility."
+          }
+          $versionText = (Get-Item -LiteralPath $listener.Path).VersionInfo.ProductVersion
+          $match = [regex]::Match([string]$versionText, '\d+\.\d+\.\d+')
+          if (-not $match.Success) {
+            throw "Unable to parse self-hosted Actions runner version '$versionText'; Node 24 actions require runner 2.327.1 or newer."
+          }
+          $runnerVersion = [version]$match.Value
+          if ($runnerVersion -lt [version]"2.327.1") {
+            throw "Self-hosted Actions runner $runnerVersion is too old for Node 24 actions; update the runner to 2.327.1 or newer."
+          }
+          Write-Host "Self-hosted Actions runner $runnerVersion supports Node 24 actions."
+
+      - name: Check out default branch
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure persistent development-job state
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stateRoot = $env:LOCALAPPDATA
+          if (-not $stateRoot) {
+            if (-not $env:USERPROFILE) {
+              throw "Windows runner has neither LOCALAPPDATA nor USERPROFILE; refusing an ephemeral database path."
+            }
+            $stateRoot = Join-Path $env:USERPROFILE "AppData\Local"
+          }
+          $stateRoot = Join-Path $stateRoot "NexusStudioPro\shorts"
+          New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
+          $database = Join-Path $stateRoot "development.sqlite3"
+          $workspace = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
+          $databaseFull = [System.IO.Path]::GetFullPath($database)
+          if ($databaseFull.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Development job state must be outside GITHUB_WORKSPACE because checkout cleanup removes workspace files."
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_DEVELOPMENT_DB=$databaseFull" -Encoding utf8
+          Write-Host "Persistent development-job database: $databaseFull"
+
+      - name: Verify Windows local development toolchain
+        if: github.event.inputs.mode != 'recover'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          python --version
+          if ($LASTEXITCODE -ne 0) { throw "Python is required on the self-hosted runner." }
+          python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"
+          if ($LASTEXITCODE -ne 0) { throw "Python 3.11 or newer is required." }
+          if (-not (Get-Command bash.exe -ErrorAction SilentlyContinue) -and
+              -not (Get-Command sh.exe -ErrorAction SilentlyContinue)) {
+            throw "Git for Windows with Git Bash (or a POSIX sh executable) is required for scripts/validate.sh."
+          }
+          if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+            throw "Node.js 18 or newer is required for the frontend validation step."
+          }
+          $nodeMajor = node -p "Number(process.versions.node.split('.')[0])"
+          if ($LASTEXITCODE -ne 0 -or [int]$nodeMajor -lt 18) {
+            throw "Node.js 18 or newer is required."
+          }
+          if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
+            throw "Ollama is not installed or not on PATH."
+          }
+          $modelTag = "qwen2.5-coder:7b"
+          $models = ollama list
+          if ($LASTEXITCODE -ne 0) { throw "ollama list failed." }
+          $models | Out-Host
+          $exactModelInstalled = $false
+          foreach ($line in $models) {
+            if ($line -match ("^\s*" + [regex]::Escape($modelTag) + "\s+")) {
+              $exactModelInstalled = $true
+              break
+            }
+          }
+          if (-not $exactModelInstalled) {
+            throw "$modelTag is not installed on the local runner."
+          }
+          $health = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -TimeoutSec 10
+          $apiModelNames = @($health.models | ForEach-Object { $_.name })
+          if ($apiModelNames -notcontains $modelTag) {
+            throw "Ollama API is unavailable or does not expose the exact $modelTag model."
+          }
+
+      - name: Install isolated backend runtime dependencies
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $backendVenv = Join-Path $env:GITHUB_WORKSPACE ".nexus-backend-venv"
+          if (Test-Path $backendVenv) { throw "Refusing to overwrite an existing backend virtual environment." }
+          python -m venv $backendVenv
+          if ($LASTEXITCODE -ne 0) { throw "Backend virtual environment creation failed." }
+          $backendPython = Join-Path $backendVenv "Scripts\python.exe"
+          if (-not (Test-Path $backendPython)) { throw "Backend virtual environment Python was not created." }
+          & $backendPython -m pip install -r backend/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "Backend dependency installation failed." }
+          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_BACKEND_PYTHON=$backendPython" -Encoding utf8
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $backendVenv "Scripts") -Encoding utf8
+
+      - name: Install and verify isolated local Aider CLI
+        if: github.event.inputs.mode != 'recover'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $aiderVenv = Join-Path $env:GITHUB_WORKSPACE ".nexus-aider-venv"
+          if (Test-Path $aiderVenv) { throw "Refusing to overwrite an existing Aider virtual environment." }
+          python -m venv $aiderVenv
+          if ($LASTEXITCODE -ne 0) { throw "Aider virtual environment creation failed." }
+          $aiderPython = Join-Path $aiderVenv "Scripts\python.exe"
+          & $aiderPython -m pip install aider-chat
+          if ($LASTEXITCODE -ne 0) { throw "Aider installation failed." }
+          $aiderExecutable = Join-Path $aiderVenv "Scripts\aider.exe"
+          if (-not (Test-Path $aiderExecutable)) {
+            throw "Aider executable was not installed in the isolated virtual environment."
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_AIDER_EXECUTABLE=$aiderExecutable" -Encoding utf8
+          & $aiderExecutable --version
+          if ($LASTEXITCODE -ne 0) { throw "Aider CLI verification failed." }
+
+      - name: Recover orphaned review-pending jobs (read-only)
+        if: github.event.inputs.mode == 'recover'
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NEXUS_REVIEW_HEAD_REF: automation/nexus-development-cycle
+          NEXUS_REVIEW_BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not $env:GITHUB_TOKEN) {
+            throw "Configure NEXUS_GITHUB_READ_TOKEN as a fine-grained read-only GitHub token."
+          }
+          & $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py
+          if ($LASTEXITCODE -ne 0) { throw "Review recovery found pending or ambiguous work; no job was requeued." }
+
+      - name: Execute one dependency-aware development cycle
+        if: github.event.inputs.mode != 'recover'
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          RUNNER_NAME: ${{ runner.name }}
+          OLLAMA_API_BASE: http://127.0.0.1:11434
+          NEXUS_DEV_AGENT_MODEL: ollama_chat/qwen2.5-coder:7b
+          NEXUS_APPROVED_SCOPES: ${{ secrets.NEXUS_APPROVED_SCOPES }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not $env:GITHUB_TOKEN) {
+            throw "Configure NEXUS_GITHUB_READ_TOKEN as a fine-grained read-only GitHub token."
+          }
+          if (-not $env:NEXUS_APPROVED_SCOPES) {
+            $env:NEXUS_APPROVED_SCOPES = "{}"
+          }
+          & $env:NEXUS_BACKEND_PYTHON backend/run_development_agent.py
+          if ($LASTEXITCODE -ne 0) { throw "Development agent cycle failed." }
+
+      - name: Detect generated source changes
+        if: github.event.inputs.mode != 'recover'
+        id: detect-changes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $changes = git status --porcelain --untracked-files=all
+          if ($LASTEXITCODE -ne 0) { throw "Unable to inspect generated worktree changes." }
+          if ($changes) {
+            "has_changes=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "Scoped source changes are present; a Draft PR update may run."
+          } else {
+            "has_changes=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "No source changes. Existing Draft PR will be left untouched."
+          }
+
+      - name: Create Draft PR for verified changes only
+        if: github.event.inputs.mode != 'recover' && steps.detect-changes.outputs.has_changes == 'true'
+        id: publish-pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ github.event.repository.default_branch }}
+          branch: automation/nexus-development-cycle
+          delete-branch: false
+          draft: true
+          title: "AUTO: NEXUS development cycle ${{ github.run_number }}"
+          body: |
+            ## Automated local-model development cycle
+            - Worker: dependency-aware SQLite development-job scheduler
+            - Model: repository-owned Ollama runner (qwen2.5-coder:7b)
+            - Changes are produced only within an explicitly approved file scope.
+            - Repository validation and exact open Draft PR evidence must be recorded before a job is marked complete.
+            - This PR is Draft. No automatic merge or deployment is permitted.
+            - External provider integrations and production behavior are not implied.
+            
+      - name: Record exact Draft PR review artifact
+        if: github.event.inputs.mode != 'recover' && steps.detect-changes.outputs.has_changes == 'true' && steps.publish-pr.outputs.pull-request-url != '' && steps.publish-pr.outputs.pull-request-head-sha != ''
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NEXUS_REVIEW_PR_URL: ${{ steps.publish-pr.outputs.pull-request-url }}
+          NEXUS_REVIEW_HEAD_SHA: ${{ steps.publish-pr.outputs.pull-request-head-sha }}
+          NEXUS_REVIEW_HEAD_REF: automation/nexus-development-cycle
+          NEXUS_REVIEW_BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          & $env:NEXUS_BACKEND_PYTHON backend/publish_development_reviews.py
+          if ($LASTEXITCODE -ne 0) { throw "Draft PR review-artifact verification failed; jobs remain review_pending." }
+
+      - name: Leave jobs pending when no Draft PR artifact was published
+        if: github.event.inputs.mode != 'recover' && (steps.detect-changes.outputs.has_changes != 'true' || steps.publish-pr.outputs.pull-request-url == '' || steps.publish-pr.outputs.pull-request-head-sha == '')
+        shell: powershell
+        run: |
+          Write-Warning "No exact Draft PR URL/head SHA was returned. Development jobs remain review_pending and are not marked completed."
+
+      - name: Continue bounded autonomous development after verified PR update
+        if: >-
+          github.event.inputs.mode != 'recover' &&
+          steps.detect-changes.outputs.has_changes == 'true' &&
+          steps.publish-pr.outputs.pull-request-url != '' &&
+          steps.publish-pr.outputs.pull-request-head-sha != '' &&
+          (steps.publish-pr.outputs.pull-request-operation == 'created' ||
+           steps.publish-pr.outputs.pull-request-operation == 'updated')
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPOSITORY: ${{ github.repository }}
+          GH_REF: ${{ github.event.repository.default_branch }}
+          GH_WORKFLOW: nexus-development-job-worker.yml
+          GH_REMAINING_CYCLES: ${{ inputs.remaining_cycles }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $remaining = 5
+          if ($env:GH_REMAINING_CYCLES) {
+            $parsed = 0
+            if (-not [int]::TryParse($env:GH_REMAINING_CYCLES, [ref]$parsed)) {
+              throw "remaining_cycles must be an integer from 1 to 10."
+            }
+            $remaining = $parsed
+          }
+          if ($remaining -lt 1 -or $remaining -gt 10) {
+            throw "remaining_cycles must be between 1 and 10."
+          }
+          if ($remaining -le 1) {
+            Write-Host "Bounded continuation limit reached; next scheduled/manual run will resume the queue."
+            exit 0
+          }
+          $next = $remaining - 1
+          $uri = "https://api.github.com/repos/$env:GH_REPOSITORY/actions/workflows/$env:GH_WORKFLOW/dispatches"
+          $headers = @{
+            Accept = "application/vnd.github+json"
+            Authorization = "Bearer $env:GH_TOKEN"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $body = @{
+            ref = $env:GH_REF
+            inputs = @{
+              mode = "develop"
+              remaining_cycles = [string]$next
+            }
+          } | ConvertTo-Json -Depth 5
+          Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType "application/json" -Body $body
+          Write-Host "Queued next autonomous development run; remaining chained runs: $next."
+ })
+          if ($invalidBlockedNames.Count -gt 0) {
+            throw "Refusing to serialize malformed inherited environment variable names to GITHUB_ENV."
+          }
           $envCommands = @()
           foreach ($name in ($blockedNames | Sort-Object -Unique)) {
             $envCommands += "$name="

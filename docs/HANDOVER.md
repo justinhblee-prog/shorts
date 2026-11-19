@@ -1370,3 +1370,11 @@ The scope validator now accepts only portable repository-relative POSIX paths an
 
 ### BUILD-00370 — sanitize inherited runner environment before checkout
 The first PowerShell preflight clears inherited runtime/provider/credential/Git/SSH/package-manager/loader/TLS overrides through GITHUB_ENV before checkout@v7 and before Python/Node runtime actions. It does not print values and preserves runner-managed GITHUB_* paths. Exact-head CI pending; actual Windows self-hosted execution remains unverified.
+
+
+### BUILD-00374 — safe GITHUB_ENV serialization
+Before writing scrubbed variable names to the line-oriented GITHUB_ENV file, the first PowerShell preflight now validates a conservative identifier grammar and fails closed without printing malformed names. This prevents newline/control-character environment-name injection. Exact-head CI pending; Windows runner execution remains an integration gate.
+
+
+### BUILD-00374 — exact-head CI result
+Code head `a09ebc2b2154bbc09dfb3e8e4a47c2d86b7a20e9` passed GitHub Actions run [44524649879](https://github.com/justinhblee-prog/shorts/actions/runs/44524649879): **786 tests**, repository validation and frontend syntax check. The GITHUB_ENV name-validation workflow contract passed; Windows execution remains unverified.
