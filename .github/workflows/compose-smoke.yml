@@ -35,7 +35,7 @@ jobs:
       - name: Build all service images
         run: docker compose build
       - name: Start API, worker, scheduler, metrics collector and backup
-        run: docker compose up -d --wait --wait-timeout 600
+        run: docker compose up -d
       - name: Verify service processes and API readiness
         run: |
           set -eu
@@ -46,21 +46,34 @@ jobs:
           docker compose exec -T api python -c "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8502/api/ready',timeout=5); assert r.status == 200"
           docker compose exec -T worker python -c "import os; assert os.path.exists('/app/data')"
           docker compose exec -T scheduler python -c "import os; assert os.path.exists('/app/data')"
-          for service in api worker scheduler metrics-collector backup; do
-            cid="$(docker compose ps -q "$service")"
-            health="$(docker inspect --format '{{.State.Health.Status}}' "$cid")"
-            test "$health" = "healthy"
+          for service in api worker scheduler metrics-collector; do
+            healthy=0
+            for attempt in $(seq 1 90); do
+              cid="$(docker compose ps -q "$service")"
+              health="$(docker inspect --format '{{.State.Health.Status}}' "$cid")"
+              if [ "$health" = "healthy" ]; then healthy=1; break; fi
+              sleep 1
+            done
+            test "$healthy" = "1"
           done
-          docker compose exec -T backup test -s /backups/.last-success
       - name: Verify scheduled backup and isolated restore
         run: |
           set -eu
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 600); do
             if docker compose exec -T backup sh -c 'find /backups -maxdepth 1 -type f -name "nexus-backup-*.tar.gz.enc" -print -quit | grep -q .' ; then
               break
             fi
             sleep 1
           done
+          backup_healthy=0
+          for attempt in $(seq 1 90); do
+            backup_cid="$(docker compose ps -q backup)"
+            backup_health="$(docker inspect --format '{{.State.Health.Status}}' "$backup_cid")"
+            if [ "$backup_health" = "healthy" ]; then backup_healthy=1; break; fi
+            sleep 1
+          done
+          test "$backup_healthy" = "1"
+          docker compose exec -T backup test -s /backups/.last-success
           docker compose exec -T backup python - <<'PY'
           import base64
           import hashlib
