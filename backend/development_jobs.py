@@ -171,7 +171,7 @@ class DevelopmentJobStore:
             job_id = job_id.strip()
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            if source_ref is not None:
+            if isinstance(source_ref, str) and source_ref.startswith("github:issue:"):
                 duplicate = connection.execute(
                     "SELECT id FROM development_jobs WHERE source_ref=? LIMIT 1",
                     (source_ref,),
