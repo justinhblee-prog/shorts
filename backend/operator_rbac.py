@@ -22,7 +22,7 @@ ROLE_PERMISSIONS = {
         "trends.read", "intelligence.read", "recommendations.read", "production.read",
     },
     "finance": {"session.read", "finance.read", "finance.write"},
-    "worker": {"session.read", "worker.execute"},
+    "worker": {"session.read", "worker.execute", "production.execute"},
 }
 
 
