@@ -56,3 +56,12 @@ Develop the product interface and its runtime independently so both can make pro
 - Refine compact desktop spacing and mobile touch target dimensions for navigation and connection controls.
 - Add source regression coverage for localized tooltips and the main landmark label.
 - Actual mobile/desktop browser and assistive-technology validation remain outstanding.
+
+
+## UI-00004 — compact navigation touch and status accessibility
+
+- Localize the workspace navigation landmark for Korean screen-reader users.
+- Expose API connection changes as a polite live status announcement.
+- Make the main skip-link destination programmatically focusable.
+- Preserve minimum 48px navigation targets and 44px refresh action targets in the icon-only compact layout.
+- Add source-level regression coverage. Actual touch-device and screen-reader verification remain outstanding.
