@@ -50,10 +50,15 @@ This runs Python bytecode compilation, unittest discovery, and (when Node.js is 
 
 ## Documentation
 
+- [Project handover index](docs/PROJECT_HANDOVER_INDEX.md)
+- [Product strategy and requirements](docs/PRODUCT_AND_REQUIREMENTS.md)
+- [System architecture and UX handover](docs/SYSTEM_ARCHITECTURE.md)
+- [Development, validation and release handover](docs/DEVELOPMENT_AND_VALIDATION.md)
 - [Build status](docs/BUILD_STATUS.md)
 - [Technical handover](docs/HANDOVER.md)
 - [Operator runbook](docs/OPERATOR_RUNBOOK.md)
 - [Backend/API reference](backend/README.md)
+
 
 ## Non-negotiable operating constraints
 
