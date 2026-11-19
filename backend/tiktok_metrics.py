@@ -338,7 +338,7 @@ class TikTokMetricsStore:
                 SELECT job_id,video_id,updated_at,
                        ROW_NUMBER() OVER (
                          PARTITION BY video_id
-                         ORDER BY updated_at DESC,job_id
+                         ORDER BY updated_at DESC,job_id DESC
                        ) AS publication_rank
                 FROM tiktok_publications
                 WHERE status='publish_complete' AND video_id IS NOT NULL
@@ -355,7 +355,7 @@ class TikTokMetricsStore:
               WHERE p.publication_rank=1
                 AND (s.collected_at IS NULL OR s.collected_at<?)
                 AND (r.next_retry_at IS NULL OR r.next_retry_at<=?)
-              ORDER BY p.updated_at DESC,p.job_id
+              ORDER BY p.updated_at DESC,p.job_id DESC
               LIMIT ?
             """, (cutoff, stamp, limit)).fetchall()
         return [dict(row) for row in rows]
