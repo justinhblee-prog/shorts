@@ -212,6 +212,23 @@ async function waitForServer() {
     );
     checkpoint("browser forward restores the active workspace");
 
+    await page.locator("#loadAnalyticsHistory").click();
+    await page.waitForFunction(() =>
+      document.querySelector("#analyticsHistory").getAttribute("aria-busy") === "false" &&
+      document.querySelector("#analyticsHistoryStatus").textContent.includes("기준 시각")
+    );
+    await page.setViewportSize({ width: 320, height: 844 });
+    assert.equal(await page.locator("[data-analytics-table-body] tr").count(), 25);
+    const mobilePagination = await page.locator(".analytics-table-pagination").boundingBox();
+    assert.ok(mobilePagination && mobilePagination.x >= 0 &&
+      mobilePagination.x + mobilePagination.width <= 320,
+      "analytics pagination controls must fit the 320px mobile viewport");
+    await page.locator('[data-analytics-page="1"]').click();
+    assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "2 / 8 · 200개");
+    await page.locator('[data-analytics-page="-1"]').click();
+    assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "1 / 8 · 200개");
+    checkpoint("analytics history pagination remains usable on mobile");
+
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       await page.waitForTimeout(100);
