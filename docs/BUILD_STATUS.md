@@ -2714,3 +2714,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
 - Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
 - Exact-head validation passed on `59ec8286f6c216345955593dd82a1047851fad4d`: backend [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693), **725 tests**; Compose [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702), all five services healthy, fresh successful-backup marker present, encrypted isolated restore passed, wrong-key restore rejected without changing the target DB. CI-only; no production-host or production-data recovery is claimed.
+
+
+## UI-00010 — active in-page navigation semantics
+- The workspace navigation now uses `aria-current="location"` for the active section rather than announcing an in-page anchor as a separate page.
+- The JavaScript state, active-link CSS, source regression and Playwright browser smoke assertion are aligned. Actual assistive-technology verification remains outstanding.

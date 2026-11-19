@@ -96,3 +96,8 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Announce result counts through a polite status region and retain the query across queue refreshes.
 - Add source and Chromium browser regressions for zero-result and matching-result behavior.
 - Exact-head validation passed in the same UI checkpoint: [run 44505738015](https://github.com/justinhblee-prog/shorts/actions/runs/44505738015), 730 tests and Playwright Chromium.
+
+
+## UI-00010 — active section semantics
+- Use `aria-current="location"` for the selected section in the single-page workspace navigation. This communicates the user's current in-page location to assistive technology while preserving the existing visual active state.
+- Source regression coverage checks the JavaScript state update and matching CSS selector. Actual browser and screen-reader verification remain outstanding.
