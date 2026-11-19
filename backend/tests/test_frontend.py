@@ -53,6 +53,12 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('addEventListener("input",filterReviewCards)', app_js)
         self.assertIn(".review-card[hidden]{display:none}", css)
 
+
+    def test_browser_analytics_gate_matches_query_string_requests(self):
+        script = (ROOT / "scripts" / "ui_browser_smoke.mjs").read_text(encoding="utf-8")
+        self.assertIn('url.pathname === "/api/publishing/analytics-history"', script)
+        self.assertIn('await waitForSignal(analyticsStarted, "analytics history request")', script)
+
     def test_dashboard_assets_are_packaged(self):
         frontend = ROOT / "frontend"
         self.assertTrue((frontend / "index.html").is_file())
