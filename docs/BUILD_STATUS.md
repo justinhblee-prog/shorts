@@ -2392,3 +2392,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Disable export while a replacement query is loading and when the result set is empty, preventing stale-filter exports after failed requests.
 - Scope the platform summary cards to the selected platform instead of displaying an unqueried platform as an empty result.
 - Validation: GitHub Actions run #44445767691 passed the full validation workflow with 697 backend tests on the CSV/export implementation checkpoint. A subsequent test-only hardening removes a one-second boundary race in the pre-existing TikTok polling backoff test; its exact-head CI is pending. CSV behavior is covered by source regression assertions; a real browser download and spreadsheet import have not been exercised.
+
+
+## BUILD-00317 — expose YouTube engaged-view quality metrics
+
+- Add chart choices for engaged views, engaged-view share and average view duration, alongside the existing cross-platform metrics.
+- Add engaged views and engaged-view share to the analytics history table and CSV export.
+- The stored engaged-view share is a ratio (for example, 0.62); convert it to a percentage (62%) for chart, table and CSV presentation. Chart deltas are therefore percentage-point changes.
+- TikTok has no corresponding engaged-view fields in the current provider contract; those points remain absent rather than being synthesized.
+- Validation: exact-head GitHub Actions pending. Live YouTube Analytics account coverage and browser rendering remain unverified.
