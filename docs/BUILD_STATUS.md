@@ -2644,3 +2644,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00372 — exact-head hosted validation
 - Code head `3664b352d1d10da5d4f0a84beb6f81327f73bc5c` passed GitHub Actions run [44529199064](https://github.com/justinhblee-prog/shorts/actions/runs/44529199064): **804 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Hosted Linux validation only.
+
+
+## BUILD-00373 — bounded GitHub API transient retry handling
+- Retry transient HTTP 408/425/429/5xx and network timeout/URL failures up to two times per page request.
+- Respect numeric or HTTP-date `Retry-After` and GitHub primary-rate-limit reset headers only when the wait is at most five seconds; otherwise fail fast with a sanitized error.
+- Do not retry authentication/permission failures or malformed response payloads.
+- Add regression coverage for 429 retry, 403 rate-limit reset timing, excessive reset delay and non-retryable 401.
+- Exact-head hosted CI pending.
