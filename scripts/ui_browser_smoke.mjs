@@ -33,6 +33,7 @@ async function waitForServer() {
       route.fulfill({ status: 200, contentType: "text/css", body: "" })
     );
     let authenticated = false;
+    let failQueueStats = false;
     let resolveAnalyticsStarted;
     let releaseAnalytics;
     const analyticsStarted = new Promise(resolve => { resolveAnalyticsStarted = resolve; });
@@ -46,6 +47,13 @@ async function waitForServer() {
         });
       }
       const pathname = new URL(route.request().url()).pathname;
+      if (failQueueStats && pathname === "/api/queue/stats") {
+        return route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "Synthetic queue stats outage" }),
+        });
+      }
       if (pathname === "/api/publishing/analytics-history") {
         resolveAnalyticsStarted();
         await analyticsGate;
@@ -129,6 +137,14 @@ async function waitForServer() {
     await page.waitForFunction(() => document.querySelector("#analyticsHistoryStatus").textContent.includes("CSV 다운로드 요청 완료"));
     assert.match(await page.locator("#analyticsHistoryStatus").textContent(), /CSV 다운로드 요청 완료/);
 
+    failQueueStats = true;
+    await page.locator("#refreshAll").click();
+    await page.waitForFunction(() =>
+      document.querySelector("#connection").textContent.includes("API 부분 연결")
+    );
+    assert.match(await page.locator("#toast").textContent(), /일부 데이터 갱신 실패/);
+    failQueueStats = false;
+
     await page.reload({ waitUntil: "networkidle" });
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.keyboard.press("Tab");
@@ -167,7 +183,7 @@ async function waitForServer() {
     await page.emulateMedia({ reducedMotion: "reduce" });
     assert.equal(await page.locator("html").evaluate(el => getComputedStyle(el).scrollBehavior), "auto");
     assert.deepEqual(pageErrors, []);
-    process.stdout.write("UI browser smoke passed: desktop/mobile, keyboard navigation, analytics busy/as-of state, paginated 502-row CSV download, reduced motion.\n");
+    process.stdout.write("UI browser smoke passed: desktop/mobile, keyboard navigation, analytics busy/as-of state, paginated 502-row CSV download, partial API failure feedback, reduced motion.\n");
   } catch (error) {
     process.stderr.write((error && error.stack) || String(error));
     process.exitCode = 1;
