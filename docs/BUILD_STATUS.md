@@ -2533,3 +2533,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Normalize approved existing directory paths against the trusted repository root before importing them into the job store; traversal/out-of-root inputs remain unchanged for the executor's fail-closed validation.
 - Add store regressions for extensionless files and explicit directories, plus runner normalization tests.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00366 — exact-head hosted validation
+- Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions Backend tests run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254): **785 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- A subsequent documentation-only update records the scope semantics; no application code changed after the validated code head.
+- Hosted Linux only; Windows self-hosted runner and live Aider/Ollama behavior remain separate integration gates.
