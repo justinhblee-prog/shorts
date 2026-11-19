@@ -2553,3 +2553,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Avoid wall-clock scheduling races where the test runner crosses a one-second boundary between SQL timestamp update and due-job assertion.
 - No production scheduler behavior changes; test-only reliability correction.
 - Exact-head CI pending.
+
+
+## BUILD-00375 — reject noncanonical scope path aliases
+- Require scope strings to match their canonical repository-relative POSIX representation, with only one optional trailing slash for directories.
+- Reject leading dot prefixes, repeated separators, interior dot segments and trailing slashes on non-directory files.
+- Add regression coverage for noncanonical aliases while preserving explicit directory scopes.
+- Exact-head hosted CI pending.
