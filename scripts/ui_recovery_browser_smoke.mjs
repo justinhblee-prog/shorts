@@ -52,6 +52,15 @@ async function waitForServer() {
     assert.match(dependencyBoard, /선행 작업/);
     assert.match(dependencyBoard, /Browser smoke UI dependency/);
     assert.match(dependencyBoard, /완료/);
+    await page.setViewportSize({ width: 320, height: 900 });
+    const mobileLayout = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }));
+    assert.ok(mobileLayout.content <= mobileLayout.viewport,
+      "multi-flow workstream board must not overflow a 320px mobile viewport");
+    assert.equal(await page.locator('#developmentJobList [data-workstream="UI"]').count(), 1);
+    await page.setViewportSize({ width: 1440, height: 960 });
 
     page.on("dialog", async dialog => {
       if (dialog.type() === "prompt") {
