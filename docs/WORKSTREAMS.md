@@ -47,3 +47,12 @@ Develop the product interface and its runtime independently so both can make pro
 - Browser keyboard traversal and assistive-technology validation remain outstanding.
 
 - UI PR merge-result validation initially inherited a Core SQL aggregation regression from the base branch; Core corrected the response mapping in commit `c17ee8661b7a830a4f55e97d57eab4e163b65ae5`. Re-run the UI merge-result workflow against the corrected base before treating this UI checkpoint as validated.
+
+
+## UI-00003 — touch navigation clarity and responsive refinements
+
+- Add localized native tooltips to the five workspace navigation links, preserving their accessible names and active-section behavior.
+- Label the main landmark in Korean for assistive technology.
+- Refine compact desktop spacing and mobile touch target dimensions for navigation and connection controls.
+- Add source regression coverage for localized tooltips and the main landmark label.
+- Actual mobile/desktop browser and assistive-technology validation remain outstanding.
