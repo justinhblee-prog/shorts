@@ -864,6 +864,28 @@ class YouTubePublishingTests(unittest.TestCase):
             with self.assertRaisesRegex(YouTubeUploadError,"blocked or has an unsupported status"):
                 self.publisher.upload_approved("job-1",self.media,self.review,"Blocked policy report")
 
+    def test_upload_rejects_malformed_policy_blockers_and_disclosures(self):
+        for field,value,message in (
+            ("approval_blockers","none","malformed approval blockers"),
+            ("platform_disclosures",None,"malformed platform disclosures"),
+        ):
+            with self.subTest(field=field):
+                history=self.review.history("job-1")
+                report=evaluate_content_policy({
+                    "platforms":["youtube"],
+                    "rights":{"visuals_cleared":True,"audio_cleared":True,"likeness_authorized":True},
+                    "synthetic_media_status":"realistic_alteration",
+                    "platform_disclosures":{"youtube_altered_content":True},
+                    "factual_claims_verified":True,
+                    "originality_notes":"Original narration and editing.",
+                })
+                report[field]=value
+                script=next(item for item in history[-1]["artifact_snapshot"] if item.get("stage")=="script")
+                script["metadata"]["policy_preflight"]=report
+                with patch.object(self.review,"history",return_value=history):
+                    with self.assertRaisesRegex(YouTubeUploadError,message):
+                        self.publisher.upload_approved("job-1",self.media,self.review,"Malformed policy report")
+
     def test_upload_rejects_policy_report_that_does_not_cover_youtube(self):
         history=self.review.history("job-1")
         report=evaluate_content_policy({
