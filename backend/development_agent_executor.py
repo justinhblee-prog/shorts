@@ -110,7 +110,11 @@ class AiderDevelopmentExecutor:
         parts = {part.lower() for part in candidate.parts}
         name = candidate.name.lower()
         protected_name = (
-            any(marker in name for marker in ("credential", "secret", "private"))
+            any(marker in name for marker in (
+                "credential", "secret", "private", "service-account",
+                "service_account", "serviceaccount",
+            ))
+            or name.startswith("firebase-adminsdk")
             or name in _FORBIDDEN_NAMES
             or name.startswith((
                 "id_rsa_", "id_dsa_", "id_ecdsa_", "id_ed25519_",
