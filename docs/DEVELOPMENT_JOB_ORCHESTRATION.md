@@ -255,3 +255,11 @@ Code head `43b223c49f4e95f4bb830476b259bebcbb16e6df` passed GitHub Actions run [
 
 ### BUILD-00372 — final exact-head result
 Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519): **804 tests**, `scripts/validate.sh` and frontend syntax validation. Backlog credentials are redacted and field bounds preserve the leading issue summary and acceptance context.
+
+
+### BUILD-00378 — redact imported source references
+- Sanitize `source_ref` before SQLite persistence and before writing the immutable creation event.
+- Use the sanitized value for GitHub issue source-reference duplicate checks so the persisted identity and deduplication identity match.
+- Add regression coverage for secret removal from both the job row and event history, plus duplicate handling.
+- Draft PR #374: https://github.com/justinhblee-prog/shorts/pull/374. Code head `2c1342338cd6a0cb978cd8e575fc3eb18dd4f2d4` passed GitHub Actions runs [44535753188](https://github.com/justinhblee-prog/shorts/actions/runs/44535753188) and [44535765648](https://github.com/justinhblee-prog/shorts/actions/runs/44535765648): backend validation, `scripts/validate.sh`, and `node --check frontend/app.js` all passed. Hosted Linux only; Windows local-runner and production execution remain unverified. No Windows local-runner execution is claimed.
+- Apply the same sanitization in `source_ref_exists` so preflight duplicate checks compare against the stored canonical value.

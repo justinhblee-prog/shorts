@@ -1440,3 +1440,8 @@ The backlog sanitizer now processes the full description/acceptance string for s
 
 ### BUILD-00372 — final exact-head CI result
 Final code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519): **804 tests**, repository validation and frontend syntax check. The credential redaction and prefix-preservation regressions both passed.
+
+
+### BUILD-00378 — source-reference persistence redaction
+The development-job store now redacts credential-bearing `source_ref` values before persisting either the job row or its immutable creation event. GitHub issue deduplication uses the same sanitized value. Regression coverage checks both durable representations and duplicate handling. Draft PR #374: https://github.com/justinhblee-prog/shorts/pull/374. Code head `2c1342338cd6a0cb978cd8e575fc3eb18dd4f2d4` passed GitHub Actions runs [44535753188](https://github.com/justinhblee-prog/shorts/actions/runs/44535753188) and [44535765648](https://github.com/justinhblee-prog/shorts/actions/runs/44535765648): backend validation, `scripts/validate.sh`, and `node --check frontend/app.js` all passed. Hosted Linux only; Windows local-runner and production execution remain unverified. No local Windows runner or production validation is claimed.
+The `source_ref_exists` preflight lookup also applies the same redactor, keeping caller-side duplicate checks consistent with the stored value.

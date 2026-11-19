@@ -55,6 +55,19 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertTrue(job["acceptance"][0].startswith("Acceptance begins here."))
         self.assertEqual(len(job["acceptance"][0]), 2000)
 
+    def test_create_redacts_credentials_from_source_ref_and_event(self):
+        secret = "source-reference-token-sensitive"
+        source_ref = f"github:issue:acme/app#42 token={secret}"
+        job = self.store.create("Imported issue", source_ref=source_ref)
+        events = self.store.events(job["id"])
+        persisted = json.dumps({"job": job, "events": events}, ensure_ascii=False)
+        self.assertNotIn(secret, persisted)
+        self.assertIn("[REDACTED]", job["source_ref"])
+        self.assertEqual(events[0]["details"]["source_ref"], job["source_ref"])
+        self.assertTrue(self.store.source_ref_exists(source_ref))
+        with self.assertRaisesRegex(DevelopmentJobConflict, "source_ref already exists"):
+            self.store.create("Duplicate import", source_ref=source_ref)
+
     def test_source_ref_is_indexed_and_duplicate_creation_is_rejected(self):
         first = self.store.create("Imported issue", source_ref="github:issue:acme/app#17")
         self.assertTrue(self.store.source_ref_exists("github:issue:acme/app#17"))

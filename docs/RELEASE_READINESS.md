@@ -376,3 +376,8 @@ Backlog text sanitization preserves the beginning of descriptions and acceptance
 
 ### BUILD-00372 — final backlog sanitization evidence
 GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519) passed **804 backend tests**, repository validation and frontend syntax validation, including credential removal and leading-context preservation under field limits.
+
+
+### BUILD-00378 — source-reference data minimization
+Credential-bearing source references are redacted at the durable store boundary and in the creation event. Deduplication uses the sanitized value to avoid comparing a different representation from the one persisted. Draft PR #374's exact code head passed hosted validation: Code head `2c1342338cd6a0cb978cd8e575fc3eb18dd4f2d4` passed GitHub Actions runs [44535753188](https://github.com/justinhblee-prog/shorts/actions/runs/44535753188) and [44535765648](https://github.com/justinhblee-prog/shorts/actions/runs/44535765648): backend validation, `scripts/validate.sh`, and `node --check frontend/app.js` all passed. Hosted Linux only; Windows local-runner and production execution remain unverified. Live runner and production checks remain unverified.
+The source-reference existence preflight now normalizes credential-bearing values with the same redactor used by creation, keeping lookup and persistence consistent.
