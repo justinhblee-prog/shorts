@@ -71,6 +71,15 @@ RISK_ACTIONS = {
 }
 
 
+def _optional_object(brief, field):
+    value = brief.get(field, {})
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"{field} must be an object")
+    return value
+
+
 def _nonblank(value):
     return isinstance(value, str) and bool(value.strip())
 
@@ -90,7 +99,7 @@ def evaluate_content_policy(brief):
     if not isinstance(brief, dict):
         raise ValueError("brief must be an object")
 
-    flags = brief.get("policy_flags") or {}
+    flags = _optional_object(brief, "policy_flags")
     if not isinstance(flags, dict) or any(
         key not in BLOCKING_FLAGS or not isinstance(value, bool)
         for key, value in flags.items()
@@ -98,10 +107,10 @@ def evaluate_content_policy(brief):
         raise ValueError("policy_flags contains an unsupported flag or non-boolean value")
     blocked = [key for key in BLOCKING_FLAGS if flags.get(key) is True]
 
-    rights = brief.get("rights") or {}
-    if not isinstance(rights, dict):
-        raise ValueError("rights must be an object")
+    rights = _optional_object(brief, "rights")
     required_rights = ("visuals_cleared", "audio_cleared", "likeness_authorized")
+    if any(key in rights and not isinstance(rights[key], bool) for key in required_rights):
+        raise ValueError("rights fields must be boolean values")
     missing_rights = [f"rights.{key}" for key in required_rights if rights.get(key) is not True]
     denied_rights = [f"rights.{key}" for key in required_rights if rights.get(key) is False]
     blocked.extend(denied_rights)
@@ -118,7 +127,7 @@ def evaluate_content_policy(brief):
     if synthetic not in allowed_synthetic:
         raise ValueError("synthetic_media_status is invalid")
 
-    disclosures = brief.get("platform_disclosures") or {}
+    disclosures = _optional_object(brief, "platform_disclosures")
     allowed_disclosures = {"youtube_altered_content", "tiktok_ai_generated_content"}
     if (not isinstance(disclosures, dict) or any(
         key not in allowed_disclosures or not isinstance(value, bool)
@@ -147,7 +156,7 @@ def evaluate_content_policy(brief):
         if flags.get(key) is True:
             blocked.append(key)
 
-    risk_flags = brief.get("risk_flags") or {}
+    risk_flags = _optional_object(brief, "risk_flags")
     if not isinstance(risk_flags, dict) or any(
         key not in RISK_ACTIONS or not isinstance(value, bool)
         for key, value in risk_flags.items()
