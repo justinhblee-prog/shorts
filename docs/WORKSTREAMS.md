@@ -72,3 +72,8 @@ Develop the product interface and its runtime independently so both can make pro
 - PR #409 exact head `4d7286a7a4472736c0c037a34cff36743c54ae69` passed hosted run [44592757768](https://github.com/justinhblee-prog/shorts/actions/runs/44592757768), including both analytics and recovery Chromium smoke tests.
 - Backend and Aider virtual environments are now outside `GITHUB_WORKSPACE` under LocalAppData; Windows runner/Ollama execution remains unverified.
 - Next: Windows preflight, two-run persistent SQLite proof, then one real scoped Ollama cycle.
+
+
+## Multi-flow execution baseline (2026-11-20)
+
+The authoritative lane ownership, dependency graph, queue, evidence rules, and execution-state protocol are maintained in [`MULTI_FLOW_EXECUTION.md`](MULTI_FLOW_EXECUTION.md). UI, Core, Automation, QA, Docs, and Integration are independent delivery lanes with disjoint file ownership. Do not describe a lane as actively running unless an actual tool or trusted runner operation is executing. Current next UI increment: render the persisted development-job dependency graph and group jobs by their actual file scopes; this must use API data and must not fabricate lane status.
