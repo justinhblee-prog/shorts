@@ -136,7 +136,8 @@ The browser capture showed that up to 200 analytics snapshot rows were rendered 
 
 Validation:
 - Exact-head hosted repository validation passed in [run 44567167733](https://github.com/justinhblee-prog/shorts/actions/runs/44567167733), including the full `scripts/validate.sh` test suite.
-- Chromium browser smoke is still running at the Korean font fallback step in this snapshot; page navigation and full 502-row CSV export assertions are included but not yet confirmed.
+- Full Compose image build, service startup/readiness, scheduled backup and isolated restore passed in [run 44567167743](https://github.com/justinhblee-prog/shorts/actions/runs/44567167743).
+- Chromium browser smoke is still running through Chromium installation in this snapshot; page navigation and full 502-row CSV export assertions are included but not yet confirmed.
 - An earlier CI attempt failed due to dynamically generated IDs being absent from static HTML and a stale test expectation. The implementation now uses scoped data attributes for generated controls and the frontend regression assertion was updated. Do not count the failed attempts as validation.
 
 Next gate: confirm latest-head Chromium smoke and inspect the refreshed screenshot artifact. Keep PR #395 Draft and do not merge it independently of PR #394.
