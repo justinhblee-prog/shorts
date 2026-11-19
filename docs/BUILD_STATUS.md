@@ -2450,3 +2450,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Update the GitHub intake to use the indexed lookup, preserve batch-level deduplication, and classify a transaction-level duplicate conflict as a skipped duplicate rather than a new job.
 - Add regression coverage for a pre-existing source beyond the first 500 listed jobs and for a simulated race after preflight.
 - Exact-head backend Actions run [44510490935](https://github.com/justinhblee-prog/shorts/actions/runs/44510490935) passed **768 tests** on `743a10762fa57a49afee5d681d0899579ce93721`. This is hosted CI only; no live Windows runner/Ollama execution is implied.
+
+
+## BUILD-00356 — bound GitHub backlog pagination and expose truncation
+- Cap each read-only GitHub Issues, PRs and Actions feed at five pages (maximum 500 records per feed) to prevent a scheduled sync from traversing the repository's entire historical Actions run list and exhausting API rate limits.
+- Preserve Link-header pagination within the cap and record per-feed truncation metadata when additional pages remain.
+- Return truncation metadata through snapshot normalization and the backlog sync result so an incomplete snapshot is never silently presented as complete.
+- Add regressions for the five-page hard cap, retained next-page detection, and per-feed truncation propagation.
+- Exact-head CI pending. No live GitHub token rate-limit or Windows runner execution is claimed.
