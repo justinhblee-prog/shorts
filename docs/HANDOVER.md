@@ -1476,3 +1476,7 @@ Scope conflict comparison now normalizes slash direction, repeated separators an
 ### BUILD-00381 — exact-head validation
 - Final head `d28864929dbaf71e4aed68f6f07127112455b0a3` passed **808 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44539840507](https://github.com/justinhblee-prog/shorts/actions/runs/44539840507) and [44539829594](https://github.com/justinhblee-prog/shorts/actions/runs/44539829594).
 - The Windows case/separator/traversal scope-conflict regression passed in both runs. Hosted Linux only; actual Windows multi-runner scheduling remains unverified.
+
+
+### BUILD-00382 — canonical approved scopes
+Approved scopes are now stored using resolved repository-relative targets rather than symlink aliases. This aligns durable scheduler reservations with the physical files the executor will edit and prevents alias-based parallel overlap. File/directory symlink tests added; exact-head CI pending.

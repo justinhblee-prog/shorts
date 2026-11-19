@@ -1,7 +1,11 @@
 import unittest
 from unittest.mock import patch
 
-from run_development_agent import run_once
+from run_development_agent import _normalize_approved_scopes, run_once
+
+import os
+import tempfile
+from pathlib import Path
 
 
 class FakeStore:
@@ -49,6 +53,29 @@ class RunDevelopmentAgentTests(unittest.TestCase):
         self.assertEqual(result["seeded_job_count"], 2)
         self.assertEqual(result["execution"]["processed"], 0)
         self.assertEqual(result["database_summary"]["ready"], 0)
+
+    def test_approved_scope_symlink_aliases_resolve_to_canonical_targets(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            backend = root / "backend"
+            target_dir = backend / "real"
+            target_dir.mkdir(parents=True)
+            alias_dir = backend / "alias"
+            alias_dir.symlink_to(target_dir, target_is_directory=True)
+
+            target_file = backend / "real.py"
+            target_file.write_text("value = 1", encoding="utf-8")
+            alias_file = backend / "alias.py"
+            alias_file.symlink_to(target_file)
+
+            result = _normalize_approved_scopes(
+                {"github:issue:acme/app#2": ["backend/alias", "backend/alias.py"]},
+                root,
+            )
+            self.assertEqual(
+                result["github:issue:acme/app#2"],
+                ["backend/real/", "backend/real.py"],
+            )
 
     def test_rejects_non_object_scope_configuration(self):
         env = {

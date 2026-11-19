@@ -42,7 +42,10 @@ def _normalize_approved_scopes(scopes, repo_root):
             except ValueError:
                 entries.append(raw)
                 continue
-            path = candidate.as_posix()
+            # Persist the resolved repository-relative target, not the
+            # user-supplied symlink alias. This keeps scheduler scope
+            # reservations aligned with the physical files Aider will edit.
+            path = resolved.relative_to(root).as_posix()
             if resolved.is_dir():
                 path = path.rstrip("/") + "/"
             entries.append(path)

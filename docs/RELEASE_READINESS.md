@@ -412,3 +412,7 @@ Scope reservation conflicts now account for Windows case-insensitive path semant
 ### BUILD-00381 — exact-head validation
 - Final head `d28864929dbaf71e4aed68f6f07127112455b0a3` passed **808 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44539840507](https://github.com/justinhblee-prog/shorts/actions/runs/44539840507) and [44539829594](https://github.com/justinhblee-prog/shorts/actions/runs/44539829594).
 - The Windows case/separator/traversal scope-conflict regression passed in both runs. Hosted Linux only; actual Windows multi-runner scheduling remains unverified.
+
+
+### BUILD-00382 — symlink-aware scope reservations
+Approved job scopes are canonicalized to resolved repository-relative paths before durable storage, so symlink aliases cannot bypass parallel write-scope conflict checks. Exact-head hosted validation pending.
