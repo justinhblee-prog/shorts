@@ -68,6 +68,11 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
             "GITHUB_EVENT_PATH": "C:/runner/_temp/event.json",
             "ACTIONS_CACHE_URL": "https://cache.example",
             "ACTIONS_RESULTS_URL": "https://results.example",
+            "RUNNER_TEMP": "C:/runner/_temp",
+            "RUNNER_WORKSPACE": "C:/runner/_work",
+            "RUNNER_TOOL_CACHE": "C:/runner/_tool",
+            "RUNNER_TRACKING_ID": "runner-tracking-sensitive",
+            "RUNNER_NAME": "private-runner-name",
             "OLLAMA_API_BASE": "http://127.0.0.1:11434",
             "GITHUB_WORKSPACE": str(self.root),
             "NEXUS_APPROVED_SCOPES": "{}",
@@ -82,6 +87,8 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
             "AWS_ACCESS_KEY_ID", "AZURE_CLIENT_SECRET", "GITHUB_ENV", "GITHUB_OUTPUT",
             "GITHUB_PATH", "GITHUB_STEP_SUMMARY", "GITHUB_STATE",
             "GITHUB_EVENT_PATH", "ACTIONS_CACHE_URL", "ACTIONS_RESULTS_URL",
+            "RUNNER_TEMP", "RUNNER_WORKSPACE", "RUNNER_TOOL_CACHE",
+            "RUNNER_TRACKING_ID", "RUNNER_NAME",
         ):
             with self.subTest(secret=key):
                 self.assertNotIn(key, child_env)
