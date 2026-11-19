@@ -2451,3 +2451,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extend TikTok coverage with `stale_or_missing`, combining published videos with no snapshot and videos whose latest snapshot is older than the freshness threshold. Preserve the existing `stale_snapshots` field for compatibility.
 - Regression test verifies latest snapshot visibility and that missing published videos are counted without being misreported as collected.
 - Validation: GitHub Actions runs [44485474387](https://github.com/justinhblee-prog/shorts/actions/runs/44485474387) and [44485467845](https://github.com/justinhblee-prog/shorts/actions/runs/44485467845) passed the full validation workflow with **698 backend tests** on exact checkpoint `fe7b2e4`. Live TikTok account collection and browser rendering remain unverified.
+
+
+## BUILD-00324 — surface analytics snapshot freshness in the dashboard
+
+- Display each platform's latest stored snapshot timestamp separately from the last collection attempt/success timestamp.
+- Calculate the dashboard's “data missing / refresh needed” count from the combined `stale_or_missing` field, or from legacy `without_snapshot + stale_snapshots` fields when the combined field is unavailable. This prevents old snapshots from being presented as current coverage.
+- Add frontend source regression coverage for timestamp display and stale/missing count selection.
+- Validation: GitHub Actions runs [44485794642](https://github.com/justinhblee-prog/shorts/actions/runs/44485794642) and [44485787820](https://github.com/justinhblee-prog/shorts/actions/runs/44485787820) passed the full validation workflow with **699 backend tests** on exact checkpoint `df66e52`. Browser rendering and live provider freshness remain unverified.
