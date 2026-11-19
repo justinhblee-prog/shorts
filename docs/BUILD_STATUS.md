@@ -2637,7 +2637,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Require the backup service to create a `.tar.gz.enc` archive and assert that no plaintext `.tar.gz` archive is present.
 - Restore the encrypted archive into isolated temporary database/media paths using the same ephemeral key and verify SQLite integrity.
 - The key exists only for this disposable CI job. Production key custody, off-host retention, key rotation, and recovery-time objectives remain external release gates.
-- Exact-head validation pending.
+- Exact-head validation passed.
+
+- Exact-head Compose workflow run [44500032102](https://github.com/justinhblee-prog/shorts/actions/runs/44500032102) passed: AES-256-GCM archive created, wrong-key restore failed authentication without changing the target DB, correct-key restore succeeded, and SQLite integrity passed. Backend run [44500032128](https://github.com/justinhblee-prog/shorts/actions/runs/44500032128) passed **712 tests**; synthetic 10k-row scan measured 0.65 ms on that runner.
 
 
 ## BUILD-00344 — encrypted backup wrong-key fail-closed test
