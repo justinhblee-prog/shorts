@@ -206,3 +206,5 @@ These are additional readiness constraints documented by the project, not comple
 - Compose workflow run [44498381444](https://github.com/justinhblee-prog/shorts/actions/runs/44498381444) verified a generated tar archive and restored it into isolated temporary paths with SQLite integrity verification. This does not satisfy the production backup/restore gate; production data, off-host retention, encryption-key custody, and recovery-time objectives remain pending.
 
 - BUILD-00343 passed Compose run [44499051491](https://github.com/justinhblee-prog/shorts/actions/runs/44499051491): AES-256-GCM encrypted archive creation, plaintext rejection, isolated restore, and SQLite integrity check. Production encryption-key custody and off-host recovery remain pending.
+
+- BUILD-00344 extends the encrypted backup CI smoke with a wrong-key restore attempt; it must fail authentication without changing the target database, before the correct-key restore is allowed.

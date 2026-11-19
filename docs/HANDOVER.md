@@ -1463,4 +1463,14 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Require the backup service to create a `.tar.gz.enc` archive and assert that no plaintext `.tar.gz` archive is present.
 - Restore the encrypted archive into isolated temporary database/media paths using the same ephemeral key and verify SQLite integrity.
 - The key exists only for this disposable CI job. Production key custody, off-host retention, key rotation, and recovery-time objectives remain external release gates.
+- Exact-head validation passed.
+
+- Exact-head Compose workflow run [44500032102](https://github.com/justinhblee-prog/shorts/actions/runs/44500032102) passed: AES-256-GCM archive created, wrong-key restore failed authentication without changing the target DB, correct-key restore succeeded, and SQLite integrity passed. Backend run [44500032128](https://github.com/justinhblee-prog/shorts/actions/runs/44500032128) passed **712 tests**; synthetic 10k-row scan measured 0.65 ms on that runner.
+
+
+## BUILD-00344 — encrypted backup wrong-key fail-closed test
+
+- Extend the Compose backup/restore smoke to attempt restore with a syntactically valid but incorrect AES-256 key.
+- Require authentication failure and verify the target database SHA-256 is unchanged before performing the successful restore with the ephemeral CI key.
+- This validates wrong-key fail-closed behavior on a real generated archive in a disposable container environment; it does not prove production key custody or disaster recovery.
 - Exact-head validation pending.

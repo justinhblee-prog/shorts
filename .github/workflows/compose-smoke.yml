@@ -56,11 +56,13 @@ jobs:
             sleep 1
           done
           docker compose exec -T backup python - <<'PY'
+          import base64
+          import hashlib
           import shutil
           import sqlite3
           import tempfile
           from pathlib import Path
-          from backup_restore import restore_backup
+          from backup_restore import BackupRestoreError, restore_backup
 
           archives = sorted(Path("/backups").glob("nexus-backup-*.tar.gz.enc"))
           assert archives, "backup service did not create an encrypted archive"
@@ -77,6 +79,18 @@ jobs:
               else:
                   target_media.mkdir()
               backup_dir = root / "pre-restore-backups"
+              original_digest = hashlib.sha256(target_db.read_bytes()).hexdigest()
+              wrong_key = base64.urlsafe_b64encode(bytes(32)).decode("ascii")
+              try:
+                  restore_backup(
+                      archives[-1], target_db, target_media, backup_dir,
+                      confirm_restore=True, encryption_key=wrong_key,
+                  )
+              except BackupRestoreError as error:
+                  assert "authentication failed" in str(error).lower()
+              else:
+                  raise AssertionError("restore unexpectedly accepted the wrong key")
+              assert hashlib.sha256(target_db.read_bytes()).hexdigest() == original_digest
               result = restore_backup(
                   archives[-1], target_db, target_media, backup_dir,
                   confirm_restore=True,
