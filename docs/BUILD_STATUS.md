@@ -2587,3 +2587,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - The trusted Aider executor polls the in-memory lease-loss signal while child commands run and terminates the isolated process group/tree before proceeding to diff inspection or validation.
 - Regression tests cover prolonged heartbeat failure, rejection of stale success evidence, and child-process termination.
 - Exact-head hosted CI pending. Windows process-tree termination remains a runner integration gate.
+
+
+### BUILD-00368 — exact-head hosted validation
+- Exact PR head `9d2c89e855f826909b80ed57c94171a6561a547c` passed GitHub Actions Backend tests run [44520050960](https://github.com/justinhblee-prog/shorts/actions/runs/44520050960): **797 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- Hosted Linux validates POSIX process-group termination; Windows `taskkill /T /F` remains a trusted-runner integration gate.
