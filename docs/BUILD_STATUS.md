@@ -2530,3 +2530,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve the original timestamp text for the database cursor comparison; accept the UTC `Z` form used by ISO-8601 clients.
 - Add API regression cases for malformed, date-only, and timezone-naive cursor values, plus a valid UTC-`Z` cursor pass-through case.
 - GitHub Actions validation is running for implementation and tests; no passing result is claimed yet. Live provider and browser behavior remain unverified.
+
+
+## BUILD-00333 — guard TikTok analytics history query plans
+
+- Add a SQLite `EXPLAIN QUERY PLAN` regression for the targeted, date-bounded, keyset-paginated TikTok analytics history query.
+- Require the planner to use `idx_tiktok_metric_video_time_id` for snapshot filtering/order and `idx_tiktok_publications_video_status` for publication eligibility lookup.
+- This is a deterministic index-usage regression, not a production-scale latency benchmark. Representative-volume performance and browser/provider validation remain separate checks.
+- Exact-head GitHub Actions validation pending.
