@@ -126,19 +126,67 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
             def _get_pages(self, path, params=""):
                 self.paths.append((path, params))
                 if path.endswith("/actions/runs"):
-                    return [{"workflow_runs": [{"id": 1}]}]
+                    return [{"id": 1, "name": "CI", "status": "completed", "conclusion": "success"}]
                 return []
 
         client = RecordingClient()
         self.assertEqual(client.list_issues("acme", "app"), [])
         self.assertEqual(client.list_pull_requests("acme", "app"), [])
-        self.assertEqual(client.list_workflow_runs("acme", "app"), [{"id": 1}])
+        self.assertEqual(client.list_workflow_runs("acme", "app"), [
+            {"id": 1, "name": "CI", "status": "completed", "conclusion": "success"}
+        ])
         self.assertEqual([item[0] for item in client.paths], [
             "/repos/acme/app/issues", "/repos/acme/app/pulls",
             "/repos/acme/app/actions/runs",
         ])
         with self.assertRaises(ValueError):
             client.list_issues("acme", "app", state="all")
+
+    def test_rest_client_parses_and_paginates_actions_run_envelopes(self):
+        import json
+        from unittest.mock import patch
+        from development_github_intake import GitHubReadOnlyClient
+
+        class Response:
+            def __init__(self, payload, link=""):
+                self.payload = payload
+                self.headers = {"Link": link}
+
+            def read(self):
+                return json.dumps(self.payload).encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        second_page = (
+            "https://api.github.com/repos/acme/app/actions/runs?per_page=100&page=2"
+        )
+        pages = [
+            Response(
+                {"total_count": 2, "workflow_runs": [
+                    {"id": 101, "name": "Backend tests", "status": "completed",
+                     "conclusion": "success", "head_sha": "a" * 40}
+                ]},
+                f'<{second_page}>; rel="next"',
+            ),
+            Response(
+                {"total_count": 2, "workflow_runs": [
+                    {"id": 102, "name": "Backend tests", "status": "completed",
+                     "conclusion": "failure", "head_sha": "b" * 40}
+                ]},
+            ),
+        ]
+        with patch("urllib.request.urlopen", side_effect=pages) as request:
+            client = GitHubReadOnlyClient("test-token")
+            runs = client.list_workflow_runs("acme", "app")
+
+        self.assertEqual([run["id"] for run in runs], [101, 102])
+        self.assertEqual([run["conclusion"] for run in runs], ["success", "failure"])
+        self.assertEqual(request.call_count, 2)
+        self.assertTrue(all(call.args[0].get_method() == "GET" for call in request.call_args_list))
 
     def test_rest_client_requires_token(self):
         from development_github_intake import GitHubReadOnlyClient
