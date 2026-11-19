@@ -143,6 +143,11 @@ jobs:
             $stateRoot = Join-Path $env:USERPROFILE "AppData\Local"
           }
           $toolRoot = Join-Path $stateRoot "NexusStudioPro\tooling"
+          $workspace = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
+          $toolRootFull = [System.IO.Path]::GetFullPath($toolRoot).TrimEnd('\') + '\'
+          if ($toolRootFull.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Persistent runner tooling must be outside GITHUB_WORKSPACE."
+          }
           New-Item -ItemType Directory -Force -Path $toolRoot | Out-Null
           $backendVenv = Join-Path $toolRoot "backend-venv"
           $backendPython = Join-Path $backendVenv "Scripts\python.exe"
@@ -168,6 +173,11 @@ jobs:
             $stateRoot = Join-Path $env:USERPROFILE "AppData\Local"
           }
           $toolRoot = Join-Path $stateRoot "NexusStudioPro\tooling"
+          $workspace = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
+          $toolRootFull = [System.IO.Path]::GetFullPath($toolRoot).TrimEnd('\') + '\'
+          if ($toolRootFull.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Persistent runner tooling must be outside GITHUB_WORKSPACE."
+          }
           New-Item -ItemType Directory -Force -Path $toolRoot | Out-Null
           $aiderVenv = Join-Path $toolRoot "aider-venv"
           $aiderPython = Join-Path $aiderVenv "Scripts\python.exe"
@@ -178,6 +188,9 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Aider virtual environment creation failed." }
             & $aiderPython -m pip install aider-chat
             if ($LASTEXITCODE -ne 0) { throw "Aider installation failed." }
+          }
+          if (-not (Test-Path $aiderPython)) {
+            throw "Aider virtual environment Python is missing; refusing to execute a stale launcher."
           }
           if (-not (Test-Path $aiderExecutable)) {
             throw "Aider executable was not installed in the isolated virtual environment."
