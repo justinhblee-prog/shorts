@@ -1385,3 +1385,7 @@ Updated code head `11126bb8261e5a3d49625bd65a8ad75b1ffaf6d5` passed GitHub Actio
 
 ### BUILD-00367 — workflow-level diagnostic validation
 Updated code head `ba03a9997693b7bb77137fcd18b028f5e784fee9` passed GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/actions/runs/44518919606): **795 tests**, repository validation and frontend syntax check. Top-level runner stderr is now sanitized as well as worker persistence and Aider subprocess diagnostics.
+
+
+### BUILD-00367 — final validation checkpoint
+- Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
