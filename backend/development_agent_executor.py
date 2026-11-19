@@ -167,8 +167,6 @@ class AiderDevelopmentExecutor:
     @staticmethod
     def _terminate_process_tree(process):
         """Stop the complete command group so a fenced worker leaves no child running."""
-        if process.poll() is not None:
-            return
         try:
             if os.name == "nt":
                 subprocess.run(
