@@ -233,3 +233,7 @@ GitHub Actions run [44527844531](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00371 — exact-head validation
 GitHub Actions run [44528766250](https://github.com/justinhblee-prog/shorts/actions/runs/44528766250) passed **803 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Worker identity registration and shutdown are now fenced against active leases; expired identities require explicit workspace-reset recovery before reuse.
+
+
+### BUILD-00372 — store-level source-change gate
+The durable `mark_review_pending` transition enforces that changed-file evidence contains at least one non-test source path. Test-only evidence is rejected even when `tests_passed=True`; mixed source and test changes are valid. The executor applies the same rule before returning its evidence dictionary. Exact-head CI pending.
