@@ -74,14 +74,15 @@ YouTube channel search, channel snapshots and recent public video statistics are
 
 - Continue product development on branch `build/build-00315-harden-tiktok-aigc-disclosure` and PR #323. Keep the PR Draft; do not merge without an explicit user request.
 - The user has authorized routine product implementation, tests, fixes and documentation to proceed without per-task approval. Do not pause for confirmation on ordinary implementation choices.
-- PR #323 began as BUILD-00315 TikTok AI-generated-content disclosure hardening. It now also contains publishing analytics follow-up and BUILD-00316 through BUILD-00319.
+- PR #323 began as BUILD-00315 TikTok AI-generated-content disclosure hardening. It now also contains publishing analytics follow-up and BUILD-00316 through BUILD-00320.
 - Analytics history supports platform-specific view fields, selectable metrics, immediate chart refresh, watch-time/average-duration columns, platform-filtered summaries and CSV export of all fetched rows (not only the 200-row visible table).
 - CSV output includes UTF-8 BOM, escaped quoted cells, formula-like text prefixing, and is disabled during refresh/when no rows are available. A browser download/spreadsheet import has not yet been exercised.
 - YouTube engaged views, engaged-view share and average view duration are selectable chart metrics and included in table/export. Stored engaged-view share is a ratio; the UI and CSV convert it to percentages and chart deltas to percentage-point changes. TikTok does not fabricate unsupported equivalents.
 - YouTube audience-retention curves are persisted per analytics history snapshot, exposed through the history API, displayed as 25%/50%/75% checkpoints with a sparkline, and included in CSV. Existing databases add a default empty curve and backfill only the latest row by collection timestamp from the current snapshot; older retention data is not invented.
+- Retention status is shown separately from curve data: collected, no data, unavailable/permission-limited, and pending availability are not conflated.
 - History table, chart series and latest-per-video summaries use deterministic collection timestamp + ID tie-breaks for same-time snapshots.
 - GitHub Actions runs #44447186007 and #44447192379 passed the full validation workflow with 698 backend tests on code checkpoint `5793823`. Coverage includes legacy retention migration ordering, per-snapshot retention isolation, malformed JSON fallback, API pass-through, CSV safeguards and stable frontend ordering.
-- Documentation commits after that validated code checkpoint are subject to exact-head CI; do not claim the current head green until its own check completes.
+- The latest UI status-label changes and documentation are awaiting exact-head CI; do not claim the current head green until its own checks complete.
 - Preserve human approval gates, private-only upload constraints, token/lease fencing, fail-closed behavior and source provenance.
 - Automated tests do not prove live AI generation, external provider idempotency, OAuth connectivity, real YouTube/TikTok account behavior, browser usability or production restore readiness. Keep those explicitly pending until validated in an integrated environment.
 
