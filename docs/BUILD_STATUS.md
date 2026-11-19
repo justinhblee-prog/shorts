@@ -2458,3 +2458,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Return truncation metadata through snapshot normalization and the backlog sync result so an incomplete snapshot is never silently presented as complete.
 - Add regressions for the five-page hard cap, retained next-page detection, and per-feed truncation propagation.
 - Exact-head backend Actions run [44511056511](https://github.com/justinhblee-prog/shorts/actions/runs/44511056511) passed **771 tests** on `7c48c967eca8460378ffa9dc5ea13cacdfd89a16`. This is hosted CI only; no live GitHub token rate-limit or Windows runner execution is claimed.
+
+
+## BUILD-00357 — validate GitHub repository path segments
+- Validate owner and repository names as separate bounded GitHub path segments before constructing API paths; reject slashes, query/fragment delimiters, whitespace and traversal-like values.
+- Apply the same validation in snapshot intake and each direct Issues/PR/Actions client method so callers cannot bypass the boundary.
+- Add regressions for malformed owner/repository inputs being rejected before any API call and for valid hyphen/underscore/dot names.
+- Exact-head CI pending. This protects read-only API path construction; no live token or remote GitHub rate-limit behavior is claimed.
