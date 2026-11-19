@@ -235,4 +235,4 @@ Exact head `743a10762fa57a49afee5d681d0899579ce93721` passed backend Actions run
 
 
 ### BUILD-00356 — bounded GitHub API intake
-Each GitHub backlog feed is now capped at five pages (500 records) per sync. Per-feed truncation metadata is returned with the snapshot and sync result, avoiding silent partial reads while preventing a routine cycle from scanning the repository's entire Actions history. Exact-head CI is pending; live token rate-limit behavior remains unverified.
+Each GitHub backlog feed is now capped at five pages (500 records) per sync. Per-feed truncation metadata is returned with the snapshot and sync result, avoiding silent partial reads while preventing a routine cycle from scanning the repository's entire Actions history. Pagination links are restricted to the GitHub API host. Exact-head CI is pending; live token rate-limit behavior remains unverified.
