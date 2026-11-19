@@ -1526,7 +1526,7 @@ The final store transition now applies the same case-insensitive, separator-norm
 - Code head `628d5d1e22a56bbb58642e27530722d4d67e8992` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44548442047](https://github.com/justinhblee-prog/shorts/actions/runs/44548442047). Subsequent commits on this branch are documentation-only.
 
 
-## BUILD-00387 — GitHub pagination endpoint confinement
+## BUILD-00388 — GitHub pagination endpoint confinement
 - Tightened the GET-only backlog client so a server-provided Link header can continue only over HTTPS to the exact GitHub API host and same collection path requested initially.
 - Rejects same-host cross-repository/feed pagination, URL user-info, fragments and malformed initial collection paths before issuing a follow-up request.
 - Added focused regression tests. Exact-head CI pending.
