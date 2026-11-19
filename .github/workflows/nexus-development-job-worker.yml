@@ -69,46 +69,82 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_DEVELOPMENT_DB=$databaseFull" -Encoding utf8
           Write-Host "Persistent development-job database: $databaseFull"
 
-      - name: Verify Python, Ollama and local model
+      - name: Verify Windows local development toolchain
         if: github.event.inputs.mode != 'recover'
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           python --version
           if ($LASTEXITCODE -ne 0) { throw "Python is required on the self-hosted runner." }
+          python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"
+          if ($LASTEXITCODE -ne 0) { throw "Python 3.11 or newer is required." }
+          if (-not (Get-Command bash.exe -ErrorAction SilentlyContinue) -and
+              -not (Get-Command sh.exe -ErrorAction SilentlyContinue)) {
+            throw "Git for Windows with Git Bash (or a POSIX sh executable) is required for scripts/validate.sh."
+          }
+          if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+            throw "Node.js 18 or newer is required for the frontend validation step."
+          }
+          $nodeMajor = node -p "Number(process.versions.node.split('.')[0])"
+          if ($LASTEXITCODE -ne 0 -or [int]$nodeMajor -lt 18) {
+            throw "Node.js 18 or newer is required."
+          }
           if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
             throw "Ollama is not installed or not on PATH."
           }
+          $modelTag = "qwen2.5-coder:7b"
           $models = ollama list
           if ($LASTEXITCODE -ne 0) { throw "ollama list failed." }
           $models | Out-Host
-          if (-not ($models | Select-String -SimpleMatch "qwen2.5-coder:7b")) {
-            throw "qwen2.5-coder:7b is not installed on the local runner."
+          $exactModelInstalled = $false
+          foreach ($line in $models) {
+            if ($line -match ("^\s*" + [regex]::Escape($modelTag) + "\s+")) {
+              $exactModelInstalled = $true
+              break
+            }
+          }
+          if (-not $exactModelInstalled) {
+            throw "$modelTag is not installed on the local runner."
           }
           $health = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -TimeoutSec 10
-          if (-not $health.models) { throw "Ollama API returned no installed models." }
+          $apiModelNames = @($health.models | ForEach-Object { $_.name })
+          if ($apiModelNames -notcontains $modelTag) {
+            throw "Ollama API is unavailable or does not expose the exact $modelTag model."
+          }
 
-      - name: Install backend runtime dependencies
+      - name: Install isolated backend runtime dependencies
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          python -m pip install -r backend/requirements.txt
+          $backendVenv = Join-Path $env:GITHUB_WORKSPACE ".nexus-backend-venv"
+          if (Test-Path $backendVenv) { throw "Refusing to overwrite an existing backend virtual environment." }
+          python -m venv $backendVenv
+          if ($LASTEXITCODE -ne 0) { throw "Backend virtual environment creation failed." }
+          $backendPython = Join-Path $backendVenv "Scripts\python.exe"
+          if (-not (Test-Path $backendPython)) { throw "Backend virtual environment Python was not created." }
+          & $backendPython -m pip install -r backend/requirements.txt
           if ($LASTEXITCODE -ne 0) { throw "Backend dependency installation failed." }
+          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_BACKEND_PYTHON=$backendPython" -Encoding utf8
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $backendVenv "Scripts") -Encoding utf8
 
-      - name: Install and verify local Aider CLI
+      - name: Install and verify isolated local Aider CLI
         if: github.event.inputs.mode != 'recover'
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          python -m pip install --user aider-chat
+          $aiderVenv = Join-Path $env:GITHUB_WORKSPACE ".nexus-aider-venv"
+          if (Test-Path $aiderVenv) { throw "Refusing to overwrite an existing Aider virtual environment." }
+          python -m venv $aiderVenv
+          if ($LASTEXITCODE -ne 0) { throw "Aider virtual environment creation failed." }
+          $aiderPython = Join-Path $aiderVenv "Scripts\python.exe"
+          & $aiderPython -m pip install aider-chat
           if ($LASTEXITCODE -ne 0) { throw "Aider installation failed." }
-          $userScripts = python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
-          if (-not (Test-Path (Join-Path $userScripts "aider.exe"))) {
-            throw "Aider executable was not installed in the user scripts directory."
+          $aiderExecutable = Join-Path $aiderVenv "Scripts\aider.exe"
+          if (-not (Test-Path $aiderExecutable)) {
+            throw "Aider executable was not installed in the isolated virtual environment."
           }
-          Add-Content -Path $env:GITHUB_PATH -Value $userScripts
-          $env:PATH = "$userScripts;$env:PATH"
-          aider --version
+          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_AIDER_EXECUTABLE=$aiderExecutable" -Encoding utf8
+          & $aiderExecutable --version
           if ($LASTEXITCODE -ne 0) { throw "Aider CLI verification failed." }
 
       - name: Recover orphaned review-pending jobs (read-only)
@@ -124,7 +160,7 @@ jobs:
           if (-not $env:GITHUB_TOKEN) {
             throw "Configure NEXUS_GITHUB_READ_TOKEN as a fine-grained read-only GitHub token."
           }
-          python backend/recover_development_reviews.py
+          & $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py
           if ($LASTEXITCODE -ne 0) { throw "Review recovery found pending or ambiguous work; no job was requeued." }
 
       - name: Execute one dependency-aware development cycle
@@ -146,7 +182,7 @@ jobs:
           if (-not $env:NEXUS_APPROVED_SCOPES) {
             $env:NEXUS_APPROVED_SCOPES = "{}"
           }
-          python backend/run_development_agent.py
+          & $env:NEXUS_BACKEND_PYTHON backend/run_development_agent.py
           if ($LASTEXITCODE -ne 0) { throw "Development agent cycle failed." }
 
       - name: Detect generated source changes
@@ -197,7 +233,7 @@ jobs:
           NEXUS_REVIEW_BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
           $ErrorActionPreference = "Stop"
-          python backend/publish_development_reviews.py
+          & $env:NEXUS_BACKEND_PYTHON backend/publish_development_reviews.py
           if ($LASTEXITCODE -ne 0) { throw "Draft PR review-artifact verification failed; jobs remain review_pending." }
 
       - name: Leave jobs pending when no Draft PR artifact was published
