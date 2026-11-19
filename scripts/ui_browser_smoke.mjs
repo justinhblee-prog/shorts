@@ -36,6 +36,17 @@ async function waitForServer() {
     let releaseAnalytics;
     const analyticsStarted = new Promise(resolve => { resolveAnalyticsStarted = resolve; });
     const analyticsGate = new Promise(resolve => { releaseAnalytics = resolve; });
+    let failQueueStats = false;
+    await page.route("**/api/queue/stats", async route => {
+      if (failQueueStats) {
+        return route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "Injected queue stats outage for UI recovery smoke" }),
+        });
+      }
+      return route.continue();
+    });
     const analyticsRequests = [];
     page.on("request", request => {
       const requestUrl = new URL(request.url());
