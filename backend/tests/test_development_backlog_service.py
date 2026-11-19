@@ -84,6 +84,28 @@ class DevelopmentBacklogServiceTests(unittest.TestCase):
         self.assertEqual(self.store.get(first["id"])["status"], "review_pending")
         self.assertEqual(self.store.get(second["id"])["status"], "ready")
 
+    def test_strict_service_quarantines_executor_without_worktree_verifier(self):
+        source_ref = "github:issue:acme/app#12"
+        service = DevelopmentBacklogService(
+            store=self.store,
+            github_client=FakeGitHub(),
+            owner="acme",
+            repository="app",
+            executor=lambda job: {
+                "changed_files": ["backend/export.py"],
+                "tests_passed": True,
+                "validation_ref": "ci://run/unverified",
+            },
+            worker_id="strict-test-worker",
+            approved_scopes={source_ref: ["backend/export.py"]},
+            poll_seconds=1,
+            idle_seconds=1,
+            require_execution_verifier=True,
+        )
+        result = service.run_cycle()
+        self.assertEqual(result["execution"]["outcomes"], {"quarantined": 1})
+        self.assertEqual(self.store.list()[0]["status"], "quarantined")
+
     def test_cycle_does_not_import_issue_without_scope_approval(self):
         service = DevelopmentBacklogService(
             store=self.store,
