@@ -1523,3 +1523,5 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Add regressions for all three sidecar types and verify live DB contents remain unchanged.
 - The sidecar check is a fail-closed safeguard, not proof that no process has an open database handle; operator shutdown remains mandatory.
 - Exact-head Actions validation pending.
+
+- BUILD-00349 regression checkpoint: backend run [44504236299](https://github.com/justinhblee-prog/shorts/actions/runs/44504236299) passed 719 tests after ensuring the injected rollback-journal fixture is removed before reopening the SQLite database for assertions. Matching Compose validation is in progress.
