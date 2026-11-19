@@ -168,7 +168,7 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
 
         self.assertFalse(thread.is_alive())
         self.assertEqual(outcomes, ["lease_lost"])
-        self.assertEqual(self.store.get(job["id"])["status"], "running")
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
         self.assertNotEqual(self.store.get(job["id"])["status"], "review_pending")
 
     def test_run_once_registers_worker_and_clears_current_job(self):
