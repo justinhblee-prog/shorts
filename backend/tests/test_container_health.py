@@ -16,6 +16,19 @@ class ContainerHealthTests(unittest.TestCase):
         self.assertFalse(process_matches("../worker.py", b"python\0../worker.py\0"))
         self.assertFalse(process_matches("", b"python\0worker.py\0"))
 
+
+    def test_compose_healthchecks_cover_workers_collector_and_backup_freshness(self):
+        root = Path(__file__).resolve().parents[2]
+        compose = (root / "compose.yaml").read_text(encoding="utf-8")
+        example = (root / ".env.example").read_text(encoding="utf-8")
+        workflow = (root / ".github" / "workflows" / "compose-smoke.yml").read_text(encoding="utf-8")
+        for process in ("worker.py", "scheduler.py", "metrics_collector.py"):
+            self.assertIn('container_health.py","process","' + process, compose)
+        self.assertIn('container_health.py","backup","/backups/.last-success', compose)
+        self.assertIn("NEXUS_BACKUP_HEALTH_MAX_AGE_SECONDS=", example)
+        self.assertIn('docker inspect --format', workflow)
+        self.assertIn('docker compose exec -T backup test -s /backups/.last-success', workflow)
+
     def test_backup_marker_accepts_fresh_success_timestamp(self):
         with tempfile.TemporaryDirectory() as temp:
             marker = Path(temp) / ".last-success"
