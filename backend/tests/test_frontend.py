@@ -120,7 +120,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('exportButton.disabled=rows.length===0', app_js)
         self.assertIn('new Blob(["\\uFEFF",csv]', app_js)
         self.assertIn('cell.replace(/"/g,\'""\')', app_js)
-        self.assertIn('if(/^[\\\\u0000-\\\\u0020]*[=+\\\\-@]/.test(cell))', app_js)
+        self.assertIn('if(/^[\\u0000-\\u0020]*[=+\\-@]/.test(cell))', app_js)
         self.assertIn("Number.isFinite(numeric)?numeric.toLocaleString():\"—\"", app_js)
         self.assertIn("Number.isFinite(numericValue)&&numericValue>=0", app_js)
         self.assertIn("선택 지표가 없는 플랫폼의 영상은 그래프에서 제외됩니다", app_js)
