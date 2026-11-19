@@ -357,3 +357,7 @@ Worker presence can no longer be overwritten by a concurrent process sharing the
 
 ### BUILD-00371 — worker identity validation evidence
 GitHub Actions run [44528766250](https://github.com/justinhblee-prog/shorts/actions/runs/44528766250) passed **803 backend tests**, repository validation and frontend syntax validation for active worker presence fencing, expired identity quarantine, and shutdown protection. Live Windows runner behavior remains an operational check.
+
+
+### BUILD-00372 — durable completion evidence
+The final store transition now independently requires at least one non-test source file in the recorded diff. This closes the gap where a caller could bypass the executor's test-only classification and directly mark a test-only job review_pending. Hosted CI pending.
