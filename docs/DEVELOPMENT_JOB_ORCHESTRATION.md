@@ -214,3 +214,6 @@ Quarantine recovery successor validation is complete at hosted CI level: PR #404
 ### Core + Policy + UI candidate assembly
 
 Draft PR #406 assembles one integration commit `96f59cc8b19792602f03eafd1c1138bde5c7b138` on the current BUILD-00385 base, overlaying 20 source/test files from dependency-aligned Core, Policy and UI successor branches (#400–#405 plus #384/#385). Compare is ahead 1 / behind 0 and mergeable. Hosted workflows [44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216) were queued/in progress. The cross-stack gate is not complete until exact-head validation succeeds; do not merge/deploy.
+
+
+PR #406 exact candidate head `96f59cc8b19792602f03eafd1c1138bde5c7b138` passed both hosted backend runs [44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216). The latter reports 854 tests passed in `scripts/validate.sh` plus `node --check frontend/app.js`. This confirms the combined backend/source contracts, not browser interaction on the unified candidate: the branch workflow has no Playwright smoke step. Keep the combined browser and production/provider gates open.
