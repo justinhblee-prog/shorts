@@ -1389,3 +1389,7 @@ Updated code head `ba03a9997693b7bb77137fcd18b028f5e784fee9` passed GitHub Actio
 
 ### BUILD-00367 — final validation checkpoint
 - Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
+
+
+### BUILD-00368 — expired Worker Lease safety
+Expired leases no longer auto-return to the ready queue. They are quarantined because database fencing alone cannot terminate an old process or prove its worktree is clean. Requeue requires explicit operator confirmation that the old runner was terminated and its workspace reset, plus an audit reason. Attempt exhaustion and non-expiry quarantines cannot use this recovery path. A worker identity may hold only one active lease. Exact-head hosted CI pending.
