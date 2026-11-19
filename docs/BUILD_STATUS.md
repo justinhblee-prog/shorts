@@ -2546,3 +2546,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject Windows drive/drive-relative and UNC roots, backslash separators, alternate data stream colons, root scopes, trailing-dot/space segments and reserved device names (CON/PRN/AUX/NUL/COM/LPT).
 - Add regression coverage for Windows-style traversal and aliases while preserving valid repository-relative paths.
 - Exact PR head `0414d43ebf24b9b5eadc728a5f92fd86006af090` passed backend Actions run [44519037430](https://github.com/justinhblee-prog/shorts/actions/runs/44519037430): **785 tests**. This is a cross-platform path-validation contract; no live Windows runner filesystem access is claimed.
+
+
+## BUILD-00369 — stabilize scheduler backoff boundary test
+- Replace near-boundary 59/61-second and 119/121-second timestamps in the TikTok status-poll backoff test with wider 30/90-second and 90/150-second margins.
+- Avoid wall-clock scheduling races where the test runner crosses a one-second boundary between SQL timestamp update and due-job assertion.
+- No production scheduler behavior changes; test-only reliability correction.
+- Exact-head CI pending.
