@@ -84,7 +84,7 @@ class PerformanceTests(unittest.TestCase):
    {"elapsedVideoTimeRatio":0.01,"audienceWatchRatio":1.0,
     "relativeRetentionPerformance":0.9},
    {"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.4,
-    "relativeRetentionPerformance":1.1},
+    "relativeRetentionPerformance":0.5},
   ])
   result=PerformanceAnalyzer(self.db).analyze()
   video=result["videos"][0]
