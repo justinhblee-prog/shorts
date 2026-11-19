@@ -66,10 +66,17 @@ class DevelopmentJobWorker:
                 return "lease_lost"
             if not isinstance(result, dict):
                 raise ValueError("executor must return an evidence dictionary")
+            result_summary = result.get("result_summary", "")
+            if not isinstance(result_summary, str):
+                result_summary = str(result_summary)
+            safe_summary = redact_sensitive_text(result_summary, limit=4000)
+            validation_ref = result.get("validation_ref")
+            if isinstance(validation_ref, str):
+                validation_ref = redact_sensitive_text(validation_ref, limit=1000)
             completed = self.store.mark_review_pending(
                 job["id"], self.worker_id, job["lease_token"],
                 result.get("changed_files"), result.get("tests_passed"),
-                result.get("validation_ref"), result.get("result_summary", ""),
+                validation_ref, safe_summary,
             )
             return completed["status"]
         except DevelopmentJobConflict:
