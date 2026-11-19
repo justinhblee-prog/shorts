@@ -1,0 +1,44 @@
+name: Compose integration smoke
+on:
+  push:
+    paths:
+      - "backend/**"
+      - "compose.yaml"
+      - ".env.example"
+      - ".github/workflows/compose-smoke.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "compose.yaml"
+      - ".env.example"
+      - ".github/workflows/compose-smoke.yml"
+jobs:
+  compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare non-production environment
+        run: cp .env.example .env
+      - name: Verify Compose configuration
+        run: docker compose config --quiet
+      - name: Build all service images
+        run: docker compose build
+      - name: Start API, worker, scheduler, metrics collector and backup
+        run: docker compose up -d --wait --wait-timeout 180
+      - name: Verify service processes and API readiness
+        run: |
+          set -eu
+          running="$(docker compose ps --status running --services)"
+          for service in api worker scheduler metrics-collector backup; do
+            printf '%s\n' "$running" | grep -qx "$service"
+          done
+          docker compose exec -T api python -c "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8502/api/ready',timeout=5); assert r.status == 200"
+          docker compose exec -T worker python -c "import os; assert os.path.exists('/app/data')"
+          docker compose exec -T scheduler python -c "import os; assert os.path.exists('/app/data')"
+      - name: Collect service logs
+        if: always()
+        run: docker compose logs --no-color || true
+      - name: Stop services and remove test volumes
+        if: always()
+        run: docker compose down -v --remove-orphans
