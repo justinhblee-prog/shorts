@@ -79,10 +79,19 @@ class OperatorRoleTests(unittest.TestCase):
             "producer": ["producer"],
         })
         self.assertTrue(has_permission("worker-service", "worker.execute", role_map_json=roles))
+        self.assertTrue(has_permission("worker-service", "production.execute", role_map_json=roles))
         self.assertFalse(has_permission("worker-service", "queue.control", role_map_json=roles))
         self.assertTrue(has_permission("analyst", "opportunities.manage", role_map_json=roles))
         self.assertFalse(has_permission("analyst", "review.decide", role_map_json=roles))
         self.assertFalse(has_permission("producer", "publish.execute", role_map_json=roles))
+
+    def test_every_role_can_read_its_authenticated_session_identity(self):
+        for role in ("producer","reviewer","publisher","analyst","operator","finance","worker"):
+            with self.subTest(role=role):
+                roles=json.dumps({"principal":["%s" % role]})
+                self.assertTrue(has_permission(
+                    "principal","session.read",role_map_json=roles))
+
 
     def test_admin_role_grants_wildcard(self):
         self.assertTrue(has_permission("root", "any.future.permission",

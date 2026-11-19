@@ -35,9 +35,10 @@ async function waitForServer() {
 
     await page.locator("#openSettings").click();
     await page.locator("#tokenInput").fill(token);
-    await page.locator("#reviewerInput").fill("recovery-smoke-operator");
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
+    assert.equal(await page.locator("#reviewerInput").inputValue(), "legacy-operator");
+    assert.equal(await page.locator("#queueOperator").inputValue(), "legacy-operator");
     await page.locator("#loadDevelopmentJobs").click();
 
     const recoverButton = page.locator('[data-recover-development-job="' + jobId + '"]');

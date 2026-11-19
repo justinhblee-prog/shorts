@@ -503,6 +503,19 @@ class ApiSecurityTests(unittest.TestCase):
                 draft_production_from_trend("trend-kr", body, x_review_token="test-token")
         self.assertEqual(unsupported.exception.status_code, 422)
 
+    def test_production_execution_rejects_worker_id_spoofing_before_queue_access(self):
+        from app import ProductionExecute,execute_production_job
+        body=ProductionExecute(worker_id="forged-worker",lease_token="lease-1")
+        with (
+            mock.patch("app.require_review_permission",return_value="authenticated-worker") as auth,
+            mock.patch.object(app_module.queue,"get") as get_job,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job("job-1",body,x_review_token="worker-token")
+        self.assertEqual(caught.exception.status_code,403)
+        auth.assert_called_once_with("worker-token","production.execute")
+        get_job.assert_not_called()
+
     def test_api_production_execution_passes_worker_lease_and_reconciles_handoff(self):
         job = {"id": "job-1", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
@@ -510,7 +523,7 @@ class ApiSecurityTests(unittest.TestCase):
         response = {"status": "review_pending"}
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="worker-1"),
             mock.patch("app.queue.get", return_value=job),
             mock.patch("app.production_pipeline.execute",
                               return_value={"artifacts": []}) as execute,
@@ -533,7 +546,7 @@ class ApiSecurityTests(unittest.TestCase):
                "lease_token": "lease-1", "payload": {"topic": "test"}}
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="worker-1"),
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProductionLeaseConflict("stale lease")),
@@ -551,7 +564,7 @@ class ApiSecurityTests(unittest.TestCase):
                "lease_token": "lease-1", "payload": {"topic": "test"}}
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="worker-1"),
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(
                 app_module.production_pipeline, "execute",
@@ -587,7 +600,7 @@ class ApiSecurityTests(unittest.TestCase):
                "lease_token": "lease-1", "payload": {"topic": "test"}}
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="worker-1"),
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProviderError("script", "provider timeout", True)),
@@ -612,7 +625,7 @@ class ApiSecurityTests(unittest.TestCase):
                "lease_token": "lease-1", "payload": {"topic": "test"}}
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="worker-1"),
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=RuntimeError("unexpected")),
@@ -624,12 +637,21 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 500)
         fail.assert_called_once()
         pause.assert_called_once()
+    def test_session_endpoint_returns_server_resolved_operator_identity(self):
+        from app import get_operator_session
+        with mock.patch.object(
+            app_module,"require_review_permission",return_value="legacy-operator"
+        ) as authenticate:
+            result=get_operator_session(x_review_token="legacy-token")
+        authenticate.assert_called_once_with("legacy-token","session.read")
+        self.assertEqual(result,{"operator_id":"legacy-operator"})
+
     def test_queue_control_endpoints_are_authenticated_and_audited(self):
         body = QueueControlAction(operator_id="operator-1", note="Reviewed worker state")
         control = {"paused": True, "pause_reason": body.note, "paused_job_id": "job-1"}
         events = [{"event_type": "paused", "actor": body.operator_id}]
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="operator-1"),
             mock.patch.object(app_module.queue, "pause", return_value=control) as pause,
             mock.patch.object(app_module.queue, "worker_control", return_value=control),
             mock.patch.object(app_module.queue, "worker_control_events", return_value=events),
@@ -641,7 +663,7 @@ class ApiSecurityTests(unittest.TestCase):
 
         resumed_control = {"paused": False, "pause_reason": None, "paused_job_id": None}
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="operator-1"),
             mock.patch.object(app_module.queue, "resume", return_value=resumed_control) as resume,
             mock.patch.object(app_module.queue, "worker_control_events", return_value=[]),
         ):
@@ -652,19 +674,95 @@ class ApiSecurityTests(unittest.TestCase):
     def test_queue_resume_rejects_unpaused_queue(self):
         body = QueueControlAction(operator_id="operator-1", note="Checked state")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="operator-1"),
             mock.patch.object(app_module.queue, "resume", side_effect=ValueError("not paused")),
         ):
             with self.assertRaises(HTTPException) as caught:
                 resume_queue(body, x_review_token="test-token")
         self.assertEqual(caught.exception.status_code, 409)
     def test_queue_control_rejects_whitespace_only_fields(self):
-        with mock.patch("app.require_review_access"):
+        with mock.patch("app.require_review_permission",return_value="operator-1"):
             for action in (pause_queue, resume_queue):
                 body = QueueControlAction(operator_id="   ", note="   ")
                 with self.assertRaises(HTTPException) as caught:
                     action(body, x_review_token="test-token")
                 self.assertEqual(caught.exception.status_code, 422)
+    def test_queue_control_rejects_operator_id_spoofing(self):
+        body=QueueControlAction(operator_id="spoofed-operator",note="Pause for investigation")
+        with (
+            mock.patch("app.require_review_permission",return_value="authenticated-operator") as auth,
+            mock.patch.object(app_module.queue,"pause") as pause,
+            mock.patch.object(app_module.queue,"resume") as resume,
+        ):
+            for action in (pause_queue,resume_queue):
+                with self.assertRaises(HTTPException) as caught:
+                    action(body,x_review_token="operator-token")
+                self.assertEqual(caught.exception.status_code,403)
+        auth.assert_has_calls([
+            mock.call("operator-token","queue.control"),
+            mock.call("operator-token","queue.control"),
+        ])
+        pause.assert_not_called()
+        resume.assert_not_called()
+
+    def test_production_reconciliation_rejects_operator_id_spoofing(self):
+        from app import ProductionReconciliationAction,reconcile_production_retry
+        body=ProductionReconciliationAction(
+            operator_id="spoofed-admin",evidence_reference="provider-case-1",
+            note="Provider confirmed the request did not execute")
+        with (
+            mock.patch("app.require_review_permission",return_value="authenticated-admin") as auth,
+            mock.patch.object(app_module.queue,"reconcile_production_retry") as reconcile,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                reconcile_production_retry("job-1",body,x_review_token="admin-token")
+        self.assertEqual(caught.exception.status_code,403)
+        auth.assert_called_once_with("admin-token","queue.control")
+        reconcile.assert_not_called()
+
+    def test_canonical_staged_media_rejects_noncanonical_client_path(self):
+        from pathlib import Path
+        from app import require_canonical_staged_media
+        canonical=Path("/tmp/nexus-media/expected.mp4")
+        with (
+            mock.patch.object(app_module.media_stager,"staged_path",return_value=canonical),
+            mock.patch.object(app_module.media_stager,"fingerprint") as fingerprint,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                require_canonical_staged_media("job-1","../expected.mp4")
+        self.assertEqual(caught.exception.status_code,409)
+        fingerprint.assert_not_called()
+
+    def test_canonical_staged_media_fingerprints_the_job_bound_file(self):
+        from pathlib import Path
+        from app import require_canonical_staged_media
+        canonical=Path("/tmp/nexus-media/expected.mp4")
+        with (
+            mock.patch.object(app_module.media_stager,"staged_path",return_value=canonical),
+            mock.patch.object(app_module.media_stager,"fingerprint",return_value={"sha256":"a"*64}) as fingerprint,
+        ):
+            result=require_canonical_staged_media("job-1","expected.mp4")
+        self.assertEqual(result,canonical)
+        fingerprint.assert_called_once_with(canonical)
+
+    def test_tiktok_publish_rejects_operator_id_spoofing(self):
+        from app import TikTokPublishRequest,publish_tiktok_video
+        body=TikTokPublishRequest(
+            media_path="job-1.mp4",title="Approved short",operator_id="spoofed-publisher",
+            privacy_level="SELF_ONLY",explicit_consent=True,
+            brand_content_toggle=False,brand_organic_toggle=False)
+        with (
+            mock.patch("app.require_review_permission",return_value="authenticated-publisher") as auth,
+            mock.patch("app.require_canonical_staged_media") as stage,
+            mock.patch.object(app_module.tiktok_publisher,"publish_private_approved") as publish,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                publish_tiktok_video("job-1",body,x_review_token="publisher-token")
+        self.assertEqual(caught.exception.status_code,403)
+        auth.assert_called_once_with("publisher-token","publish.execute")
+        stage.assert_not_called()
+        publish.assert_not_called()
+
     def test_review_token_fails_closed(self):
         previous = os.environ.get("NEXUS_REVIEW_TOKEN")
         os.environ["NEXUS_REVIEW_TOKEN"] = "unit-test-secret-with-at-least-32-characters"
@@ -975,8 +1073,6 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 422)
         mutation.assert_not_called()
 
-if __name__ == "__main__":
-    unittest.main()
 
 
     def test_provider_attempt_reconciliation_requires_explicit_confirmation_and_admin_permission(self):
@@ -986,7 +1082,7 @@ if __name__ == "__main__":
             note="Provider console confirms no job was created.",
             confirmed_not_executed=True)
         with (
-            mock.patch.object(app_module,"require_review_permission") as auth,
+            mock.patch.object(app_module,"require_review_permission",return_value="admin-1") as auth,
             mock.patch.object(app_module.production_store,
                 "confirm_provider_attempt_not_executed",
                 return_value={"state":"not_executed_confirmed"}) as resolve,
@@ -1005,10 +1101,56 @@ if __name__ == "__main__":
         body=ProviderAttemptReconciliationAction(
             operator_id="admin-1",evidence_reference="case-123",
             note="No remote job exists.",confirmed_not_executed=False)
-        with mock.patch.object(app_module,"require_review_permission"):
+        with mock.patch.object(app_module,"require_review_permission",return_value="admin-1"):
             with self.assertRaises(HTTPException) as caught:
                 reconcile_provider_attempt(
                     "job-1",body,provider_attempt_id="attempt-1")
         self.assertEqual(caught.exception.status_code,422)
 
+    def test_provider_attempt_reconciliation_rejects_body_identity_spoofing(self):
+        from app import ProviderAttemptReconciliationAction, reconcile_provider_attempt
+        body=ProviderAttemptReconciliationAction(
+            operator_id="spoofed-admin",evidence_reference="case-123",
+            note="No remote job exists.",confirmed_not_executed=True)
+        with (
+            mock.patch.object(app_module,"require_review_permission",return_value="authenticated-admin") as auth,
+            mock.patch.object(app_module.production_store,"confirm_provider_attempt_not_executed") as resolve,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                reconcile_provider_attempt(
+                    "job-1",body,provider_attempt_id="attempt-1",x_review_token="admin-token")
+        self.assertEqual(caught.exception.status_code,403)
+        auth.assert_called_once_with("admin-token","production.provider_reconcile")
+        resolve.assert_not_called()
 
+
+    def test_publishing_overview_summarizes_both_platforms_without_provider_secrets(self):
+        from app import publishing_overview
+        approved=[{"job_id":"yt-ok"},{"job_id":"tt-ok"},{"job_id":"yt-failed"},{"job_id":"tt-processing"}]
+        yt_records={
+            "yt-ok":{"status":"uploaded","access_token":"do-not-return"},
+            "yt-failed":{"status":"failed","error":"upload rejected"},
+        }
+        tt_records={
+            "tt-ok":{"status":"publish_complete","access_token":"do-not-return"},
+            "tt-processing":{"status":"processing"},
+        }
+        with (
+            mock.patch.object(app_module,"require_review_permission") as authorize,
+            mock.patch.object(app_module.review_store,"list_approved",return_value=approved),
+            mock.patch.object(app_module.youtube_upload_store,"get",side_effect=lambda key:yt_records.get(key)),
+            mock.patch.object(app_module.tiktok_publish_store,"get",side_effect=lambda key:tt_records.get(key)),
+        ):
+            result=publishing_overview(x_review_token="review-token")
+        authorize.assert_called_once_with("review-token","review.read")
+        self.assertEqual(result["total"],4)
+        self.assertEqual(result["youtube"]["uploaded"],1)
+        self.assertEqual(result["youtube"]["failed"],1)
+        self.assertEqual(result["youtube"]["pending"],2)
+        self.assertEqual(result["tiktok"]["published"],1)
+        self.assertEqual(result["tiktok"]["processing"],1)
+        self.assertEqual(result["tiktok"]["pending"],2)
+        self.assertNotIn("access_token",str(result))
+
+if __name__ == "__main__":
+    unittest.main()
