@@ -209,3 +209,11 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - Included: BUILD-00386 recovery (#384), BUILD-00387 disclosure (#385), BUILD-00388 feed pagination (#400), POLICY-00001→00003 (#401→#403), and UI/API quarantine recovery (#404→#405).
 - Candidate compare is cleanly ahead by one commit, zero behind; GitHub reports mergeable. Hosted exact-head runs [44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216) were queued/in progress at checkpoint.
 - This is the first unified Core/Policy/UI source candidate; the cross-stack validation gate remains pending until both workflows complete. No merge, deployment or live provider operation was performed.
+
+
+### PR #406 unified candidate backend validation result
+
+- Exact candidate head `96f59cc8b19792602f03eafd1c1138bde5c7b138` passed hosted backend workflows [44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216).
+- The detailed validation run executed `scripts/validate.sh`: **854 tests passed**, followed by `node --check frontend/app.js` success.
+- Scope: unified backend/source regression plus JavaScript syntax. The candidate branch's workflow does not include Playwright browser smoke; separate UI branch browser checks (#399 and #404) are not a substitute for a browser run on this exact combined candidate.
+- Candidate PR #406 remains Draft/unmerged. Full combined browser validation, production deployment, live OAuth/provider publishing and real operator recovery remain outstanding.
