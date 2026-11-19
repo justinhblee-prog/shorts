@@ -115,3 +115,5 @@ Develop the product interface and its runtime independently so both can make pro
 - The API responses are deterministic browser fixtures. This verifies frontend pagination/download handling, not live backend completeness or real provider data.
 
 - Desktop screenshot capture now occurs after the authenticated UI fixture loads analytics history, so the visual artifact shows a populated analytics state rather than only the initial unauthenticated screen.
+
+- Final populated-screen browser checkpoint `7ac55a0af12a6e931cc86494f4006071622c1b79` passed [Actions run 44499970650](https://github.com/justinhblee-prog/shorts/actions/runs/44499970650): 717 tests plus Playwright desktop/mobile, keyboard, reduced-motion, analytics busy/as-of, and paginated 502-row CSV download. The screenshot artifact ID `14516477491` was captured after analytics fixture data loaded, so the desktop artifact shows a populated analytics state.
