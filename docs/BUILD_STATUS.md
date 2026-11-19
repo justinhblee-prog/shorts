@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Updated:** 2026-11-18
+**Updated:** 2026-11-19
 
 ## Business objective
 
@@ -2433,4 +2433,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Install backend requirements and Aider into separate per-run workspace virtual environments; avoid modifying the runner user's global/user Python installation.
 - Explicitly select the backend interpreter and Aider executable so repository validation and model execution use their intended environments.
 - Declare PyYAML in backend requirements because the validation script parses the Docker Compose YAML.
-- Add regressions for toolchain preflight, isolated environments, and explicit Aider executable resolution. Exact PR-head CI is pending; Windows runner/Ollama execution and persistent database reuse remain unverified.
+- Add regressions for toolchain preflight, isolated environments, and explicit Aider executable resolution. Draft PR #328 exact head `d91bab89b2659b2080c7f0749291fbee240b2ccd` passed GitHub Actions run [44472930435](https://github.com/justinhblee-prog/shorts/actions/runs/44472930435): **764 backend tests**, `scripts/validate.sh`, and `node --check frontend/app.js` succeeded. This is hosted CI only; Windows runner/Ollama execution and persistent database reuse remain unverified.
