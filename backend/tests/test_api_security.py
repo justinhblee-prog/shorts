@@ -503,6 +503,19 @@ class ApiSecurityTests(unittest.TestCase):
                 draft_production_from_trend("trend-kr", body, x_review_token="test-token")
         self.assertEqual(unsupported.exception.status_code, 422)
 
+    def test_production_execution_rejects_worker_id_spoofing_before_queue_access(self):
+        from app import ProductionExecute,execute_production_job
+        body=ProductionExecute(worker_id="forged-worker",lease_token="lease-1")
+        with (
+            mock.patch("app.require_review_permission",return_value="authenticated-worker") as auth,
+            mock.patch.object(app_module.queue,"get") as get_job,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                execute_production_job("job-1",body,x_review_token="worker-token")
+        self.assertEqual(caught.exception.status_code,403)
+        auth.assert_called_once_with("worker-token","production.execute")
+        get_job.assert_not_called()
+
     def test_api_production_execution_passes_worker_lease_and_reconciles_handoff(self):
         job = {"id": "job-1", "job_type": "short_video_production",
                "status": "running", "worker_id": "worker-1",
@@ -510,7 +523,7 @@ class ApiSecurityTests(unittest.TestCase):
         response = {"status": "review_pending"}
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="worker-1"),
             mock.patch("app.queue.get", return_value=job),
             mock.patch("app.production_pipeline.execute",
                               return_value={"artifacts": []}) as execute,
@@ -533,7 +546,7 @@ class ApiSecurityTests(unittest.TestCase):
                "lease_token": "lease-1", "payload": {"topic": "test"}}
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="worker-1"),
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProductionLeaseConflict("stale lease")),
@@ -551,7 +564,7 @@ class ApiSecurityTests(unittest.TestCase):
                "lease_token": "lease-1", "payload": {"topic": "test"}}
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="worker-1"),
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(
                 app_module.production_pipeline, "execute",
