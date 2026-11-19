@@ -984,7 +984,7 @@ class ApiSecurityTests(unittest.TestCase):
             note="Provider console confirms no job was created.",
             confirmed_not_executed=True)
         with (
-            mock.patch.object(app_module,"require_review_permission") as auth,
+            mock.patch.object(app_module,"require_review_permission",return_value="admin-1") as auth,
             mock.patch.object(app_module.production_store,
                 "confirm_provider_attempt_not_executed",
                 return_value={"state":"not_executed_confirmed"}) as resolve,
@@ -1003,11 +1003,28 @@ class ApiSecurityTests(unittest.TestCase):
         body=ProviderAttemptReconciliationAction(
             operator_id="admin-1",evidence_reference="case-123",
             note="No remote job exists.",confirmed_not_executed=False)
-        with mock.patch.object(app_module,"require_review_permission"):
+        with mock.patch.object(app_module,"require_review_permission",return_value="admin-1"):
             with self.assertRaises(HTTPException) as caught:
                 reconcile_provider_attempt(
                     "job-1",body,provider_attempt_id="attempt-1")
         self.assertEqual(caught.exception.status_code,422)
+
+    def test_provider_attempt_reconciliation_rejects_body_identity_spoofing(self):
+        from app import ProviderAttemptReconciliationAction, reconcile_provider_attempt
+        body=ProviderAttemptReconciliationAction(
+            operator_id="spoofed-admin",evidence_reference="case-123",
+            note="No remote job exists.",confirmed_not_executed=True)
+        with (
+            mock.patch.object(app_module,"require_review_permission",return_value="authenticated-admin") as auth,
+            mock.patch.object(app_module.production_store,"confirm_provider_attempt_not_executed") as resolve,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                reconcile_provider_attempt(
+                    "job-1",body,provider_attempt_id="attempt-1",x_review_token="admin-token")
+        self.assertEqual(caught.exception.status_code,403)
+        auth.assert_called_once_with("admin-token","production.provider_reconcile")
+        resolve.assert_not_called()
+
 
     def test_publishing_overview_summarizes_both_platforms_without_provider_secrets(self):
         from app import publishing_overview
