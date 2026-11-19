@@ -1535,3 +1535,5 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Include only the retained path and exception type; do not silently swallow disk-usage cleanup failures.
 - Add failure-injection coverage for both old database and media cleanup paths while verifying the restored database remains valid.
 - Exact-head Actions validation pending.
+
+- BUILD-00350 exact checkpoint `fc77c904e72cc2e4f05972a5492a0f10566d0d05` passed 720 backend tests and five-service Compose integration: [backend 44505492687](https://github.com/justinhblee-prog/shorts/actions/runs/44505492687), [Compose 44505492612](https://github.com/justinhblee-prog/shorts/actions/runs/44505492612). Restore results now expose retained pre-restore cleanup paths instead of silently swallowing filesystem cleanup failures.
