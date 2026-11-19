@@ -2571,3 +2571,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject Windows-forbidden filename characters `< > " | ? *` and ASCII control characters in portable scope paths.
 - Add regression cases for wildcard, quote, angle-bracket, pipe and control-character paths.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00376 — exact-head hosted validation
+- Exact code head `68c654594eb4de57e3cdd4f3aae3f17037079320` passed GitHub Actions run [44525610403](https://github.com/justinhblee-prog/shorts/actions/runs/44525610403): **785 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- Coverage rejects Windows-invalid punctuation and ASCII control characters in scope path segments.
