@@ -1492,3 +1492,6 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Add regressions verifying both unsafe layouts fail before changing live database or archive contents.
 - Exact-head Actions validation pending.
 - Preserve symlink rejection before resolving the archive path and add a regression proving a symlinked archive cannot bypass the regular-file check.
+
+
+- Latest exact Core checkpoint `5898d0de5ab3b29799b83d78d1c91fa1f38e4745`: 716 backend tests passed; Compose five-service integration and encrypted backup/restore workflow passed. BUILD-00345 rollback-failure and BUILD-00346 path-overlap/symlink regressions are included.
