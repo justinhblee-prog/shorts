@@ -1389,3 +1389,7 @@ Updated code head `ba03a9997693b7bb77137fcd18b028f5e784fee9` passed GitHub Actio
 
 ### BUILD-00367 — final validation checkpoint
 - Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
+
+
+### BUILD-00368 — lease-loss process fencing
+The worker now signals lease loss after prolonged heartbeat storage failure (75% of the lease window, minimum one second) or immediately on fencing conflict. The Aider executor receives the signal in memory and terminates the active child process tree before it can continue to inspect or validate a stale worktree. A stale worker does not persist success/failure evidence; the lease remains for store-side expiry recovery. Regression tests cover heartbeat outage and subprocess termination. Exact-head CI pending; Windows process-tree behavior remains to be verified on the trusted runner.
