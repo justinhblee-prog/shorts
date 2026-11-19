@@ -444,5 +444,40 @@ class BackupRestoreTests(unittest.TestCase):
                 self.assertEqual(self._db_value(), "before")
 
 
+
+    def test_restore_reports_old_database_and_media_cleanup_failures(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        (self.media / "new-in-live-state.txt").write_text("keep in pre-restore copy")
+        real_unlink = Path.unlink
+        real_rmtree = shutil.rmtree
+
+        def fail_old_database_cleanup(path, *args, **kwargs):
+            if ".pre-restore-" in Path(path).name and Path(path).suffix == self.db.suffix:
+                raise PermissionError("simulated database cleanup denial")
+            return real_unlink(path, *args, **kwargs)
+
+        def fail_old_media_cleanup(path, *args, **kwargs):
+            if ".pre-restore-" in Path(path).name:
+                raise PermissionError("simulated media cleanup denial")
+            return real_rmtree(path, *args, **kwargs)
+
+        with (
+            patch("backup_restore.Path.unlink", new=fail_old_database_cleanup),
+            patch("backup_restore.shutil.rmtree", side_effect=fail_old_media_cleanup),
+        ):
+            result = restore_backup(
+                backup, self.db, self.media, self.backups, confirm_restore=True
+            )
+
+        self.assertTrue(result["restored"])
+        self.assertEqual(
+            {warning["error"] for warning in result["cleanup_warnings"]},
+            {"PermissionError"},
+        )
+        self.assertEqual(len(result["cleanup_warnings"]), 2)
+        self.assertTrue(all(".pre-restore-" in warning["path"] for warning in result["cleanup_warnings"]))
+        self.assertEqual(self._db_value(), "before")
+
+
 if __name__ == "__main__":
     unittest.main()
