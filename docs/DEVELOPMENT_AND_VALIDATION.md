@@ -173,3 +173,28 @@ CI 통과는 live provider 성공, 실제 수익, 게시 정책 승인, 운영 �
 
 ## Change log
 - 2026-11-20: UI-00015 exact-head backend/browser and Compose checks passed; desktop/mobile screenshot artifact inspected; PR description and handover state synchronized.
+
+
+## Exact-head CI refresh — 2026-11-20 02:10 KST
+
+The following active Draft PR heads were queried directly. These results apply only to the listed commit SHAs:
+
+| PR / work item | Exact head | Evidence |
+|---|---|---|
+| #384 BUILD-00386 | `6f8f378b8e8e343919af3a4aaba585c90ae6f00d` | [Backend tests passed](https://github.com/justinhblee-prog/shorts/actions/runs/44557449271) |
+| #385 BUILD-00387 | `151ee074d8116e12759a6dc46e734cf84f52c2d4` | [Backend tests passed](https://github.com/justinhblee-prog/shorts/actions/runs/44563227397) |
+| #386 POLICY-00001 | `7a83fe9960c3581ad18ddd25805c5f3aa35afc03` | [Backend tests passed](https://github.com/justinhblee-prog/shorts/actions/runs/44550380614) |
+| #387 UI-00012 | `13ab5be32c108118aa57512bce1ac1bd17726ae8` | [Backend tests passed](https://github.com/justinhblee-prog/shorts/actions/runs/44555664708) |
+| #388 BUILD-00388 | `f55030dab87cbcb8a1fa1a015a74db87961496f4` | [Repository validation + frontend syntax passed](https://github.com/justinhblee-prog/shorts/actions/runs/44558169681) |
+| #389 POLICY-00002 | `d38bca36389c439d4cf37de31d9dfc4d72d53780` | [Backend tests passed](https://github.com/justinhblee-prog/shorts/actions/runs/44552071509) |
+| #390 POLICY-00003 | `cc29af580467e6b261fa724aad99a976eedb5552` | [Backend tests passed](https://github.com/justinhblee-prog/shorts/actions/runs/44560114906) |
+| #394 UI-00014 | `b098826455150fefe4a8def6377bf77630a1ad7f` | [Full validation/browser smoke](https://github.com/justinhblee-prog/shorts/actions/runs/44565614418) and [duplicate exact-head run](https://github.com/justinhblee-prog/shorts/actions/runs/44565685710) passed |
+| #395 UI-00015 | `bd2926c981c44398465994d4825d981729bf4e13` | [Backend/browser smoke](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677) and [Compose integration](https://github.com/justinhblee-prog/shorts/actions/runs/44570606778) passed |
+
+The PR #388 job log confirms `scripts/validate.sh` and `node --check frontend/app.js` both passed. No live Windows runner, OAuth provider, public upload, or production deployment was exercised.
+
+### Integration readiness
+
+The existing `backend/tests/test_end_to_end_lifecycle.py` is a mocked-provider lifecycle contract test: it covers queue → worker → production artifacts → human review → staged-media reapproval → private YouTube upload → analytics snapshot → finance ledger. The test file itself explicitly states that this is not live provider validation. Policy review and disclosure gates are also covered in dedicated review/publishing tests.
+
+This is not yet a cross-branch integration result. The worker-recovery, GitHub intake, policy, and UI changes remain in dependency-ordered Draft PRs. A single candidate commit containing those dependencies must be assembled and validated before reporting cross-lane integration as passed. The required missing seam to prioritize is the authenticated UI/API quarantine-recovery action with authorization, reason validation, state transition, and immutable audit event assertions.
