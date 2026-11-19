@@ -373,6 +373,32 @@ def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(d
         })
     return {"job_id":job_id,"attempts":safe_attempts}
 
+@app.post("/api/production/jobs/{job_id}/provider-attempts/{provider_attempt_id}/reconcile")
+def reconcile_provider_attempt(
+    job_id:str,
+    body:ProviderAttemptReconciliationAction,
+    provider_attempt_id:str,
+    x_review_token:str|None=Header(default=None),
+):
+    """Resolve an ambiguous provider call only after explicit operator evidence."""
+    require_review_permission(x_review_token,"production.provider_reconcile")
+    if not body.confirmed_not_executed:
+        raise HTTPException(422,"Explicit confirmation that the provider did not execute is required")
+    try:
+        result=production_store.confirm_provider_attempt_not_executed(
+            job_id,provider_attempt_id,body.operator_id,
+            body.evidence_reference,body.note,
+        )
+    except KeyError:
+        raise HTTPException(404,"Provider attempt not found")
+    except ValueError as exc:
+        raise HTTPException(409,str(exc))
+    return {
+        "reconciliation":result,
+        "warning":"This records a separate operator-controlled provider reconciliation; it does not retry or resume production.",
+    }
+
+
 @app.post("/api/production/jobs/{job_id}/adopt-recovered-render")
 def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionAction,
                                       x_review_token:str|None=Header(default=None)):
