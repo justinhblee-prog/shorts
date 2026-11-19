@@ -39,6 +39,42 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_snapshot_rejects_invalid_repository_path_segments_before_api_calls(self):
+        client = FakeReadOnlyGitHub()
+        for owner, repository in (
+            ("../acme", "app"),
+            ("acme/other", "app"),
+            ("acme", "app?state=all"),
+            ("acme", "../other"),
+            (" ", "app"),
+        ):
+            with self.subTest(owner=owner, repository=repository):
+                with self.assertRaises(ValueError):
+                    read_github_snapshot(client, owner, repository)
+        self.assertEqual(client.calls, [])
+
+    def test_github_client_accepts_valid_owner_and_repository_segments(self):
+        from development_github_intake import GitHubReadOnlyClient
+
+        class RecordingClient(GitHubReadOnlyClient):
+            def __init__(self):
+                super().__init__("test-token")
+                self.paths = []
+
+            def _get_pages(self, path, params=""):
+                self.paths.append(path)
+                return []
+
+        client = RecordingClient()
+        client.list_issues("acme-team", "studio_tools.v2")
+        client.list_pull_requests("acme-team", "studio_tools.v2")
+        client.list_workflow_runs("acme-team", "studio_tools.v2")
+        self.assertEqual(client.paths, [
+            "/repos/acme-team/studio_tools.v2/issues",
+            "/repos/acme-team/studio_tools.v2/pulls",
+            "/repos/acme-team/studio_tools.v2/actions/runs",
+        ])
+
     def test_only_explicitly_labeled_open_issue_becomes_candidate(self):
         candidate = normalize_issue({
             "number": 4, "title": "Fix render", "state": "open",

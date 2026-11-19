@@ -6,9 +6,23 @@ GitHub mutations and accepts an injected client for least-privilege testing.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Iterable
 
 from development_jobs import DevelopmentJobConflict
+
+_OWNER_SEGMENT = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
+_REPOSITORY_SEGMENT = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?$")
+
+
+def _repository_api_path(owner: str, repository: str) -> str:
+    """Build a repository API path from two validated single path segments."""
+    if not isinstance(owner, str) or not _OWNER_SEGMENT.fullmatch(owner):
+        raise ValueError("owner must be a valid GitHub account or organization name")
+    if not isinstance(repository, str) or not _REPOSITORY_SEGMENT.fullmatch(repository):
+        raise ValueError("repository must be a valid GitHub repository name")
+    return f"/repos/{owner}/{repository}"
+
 
 JOB_LABELS = frozenset({"development-job", "nexus:development-job"})
 DEFAULT_SCOPE: list[str] = []
@@ -157,8 +171,7 @@ def read_github_snapshot(client: Any, owner: str, repository: str) -> dict[str, 
     reads at most five pages (500 records) per feed and reports truncation. No
     write method is used.
     """
-    if not isinstance(owner, str) or not owner.strip() or not isinstance(repository, str) or not repository.strip():
-        raise ValueError("owner and repository are required")
+    _repository_api_path(owner, repository)
     raw_issues = client.list_issues(owner, repository, state="open", per_page=100)
     raw_prs = client.list_pull_requests(owner, repository, state="open", per_page=100)
     raw_runs = client.list_workflow_runs(owner, repository, per_page=100)
@@ -254,12 +267,12 @@ class GitHubReadOnlyClient:
     def list_issues(self, owner: str, repository: str, state: str = "open", per_page: int = 100):
         if state != "open" or per_page != 100:
             raise ValueError("only bounded open-issue reads are supported")
-        return self._get_pages(f"/repos/{owner}/{repository}/issues", "state=open&per_page=100")
+        return self._get_pages(_repository_api_path(owner, repository) + "/issues", "state=open&per_page=100")
 
     def list_pull_requests(self, owner: str, repository: str, state: str = "open", per_page: int = 100):
         if state != "open" or per_page != 100:
             raise ValueError("only bounded open-PR reads are supported")
-        return self._get_pages(f"/repos/{owner}/{repository}/pulls", "state=open&per_page=100")
+        return self._get_pages(_repository_api_path(owner, repository) + "/pulls", "state=open&per_page=100")
 
     def list_workflow_runs(self, owner: str, repository: str, per_page: int = 100):
         if per_page != 100:
@@ -268,7 +281,7 @@ class GitHubReadOnlyClient:
         # response envelope and flattens every Link-paginated page into run rows.
         # Do not try to unwrap workflow_runs a second time: each returned item is
         # an individual workflow run, not the original response envelope.
-        return self._get_pages(f"/repos/{owner}/{repository}/actions/runs", "per_page=100")
+        return self._get_pages(_repository_api_path(owner, repository) + "/actions/runs", "per_page=100")
 
 def sync_github_backlog(
     store: Any,

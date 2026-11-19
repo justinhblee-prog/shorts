@@ -186,3 +186,7 @@ The intake no longer derives global idempotency from `store.list(limit=500)`, wh
 ### BUILD-00356 — bounded GitHub backlog pagination
 
 The read-only intake client now caps each Issues, PR and Actions feed at five 100-record pages. This avoids fetching thousands of historical Actions runs on every scheduled cycle. The snapshot records a per-feed truncation flag and the backlog sync response exposes it; operators can distinguish a complete snapshot from a capped one. The client also rejects pagination links that point outside the GitHub API host. Tests cover the five-page stop and metadata propagation. Exact-head backend CI passed run [44511056511](https://github.com/justinhblee-prog/shorts/actions/runs/44511056511) with 771 tests; no live GitHub rate-limit or self-hosted runner execution is claimed.
+
+
+### BUILD-00357 — GitHub repository path validation
+The read-only intake now validates owner and repository as separate single path segments before constructing GitHub API URLs. Traversal-like segments, slashes, whitespace, query and fragment delimiters are rejected before network access; valid organization/repository names containing supported hyphens, underscores and dots remain accepted. Exact-head backend CI passed run [44511457164](https://github.com/justinhblee-prog/shorts/actions/runs/44511457164) with 773 tests.
