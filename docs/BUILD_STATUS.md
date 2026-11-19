@@ -2530,3 +2530,53 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve the original timestamp text for the database cursor comparison; accept the UTC `Z` form used by ISO-8601 clients.
 - Add API regression cases for malformed, date-only, and timezone-naive cursor values, plus a valid UTC-`Z` cursor pass-through case.
 - GitHub Actions validation is running for implementation and tests; no passing result is claimed yet. Live provider and browser behavior remain unverified.
+
+
+## BUILD-00333 — guard TikTok analytics history query plans
+
+- Add a SQLite `EXPLAIN QUERY PLAN` regression for the targeted, date-bounded, keyset-paginated TikTok analytics history query.
+- Require the planner to use `idx_tiktok_metric_video_time_id` for snapshot filtering/order and `idx_tiktok_publications_video_status` for publication eligibility lookup.
+- This is a deterministic index-usage regression, not a production-scale latency benchmark. Representative-volume performance and browser/provider validation remain separate checks.
+- - Exact-head GitHub Actions validation: run [44492971072](https://github.com/justinhblee-prog/shorts/actions/runs/44492971072) passed `scripts/validate.sh` with **701 backend tests** on `05bbf26363cc786f771c2b59fe8ac00f74ec7cfa`.
+
+
+## BUILD-00334 — SQL aggregate TikTok analytics coverage
+
+- Replace Python-side materialization of all eligible publication IDs and all latest snapshot timestamps with a single SQLite CTE aggregate.
+- Count distinct published video identities, snapshot coverage, stale snapshots, and latest snapshot time in the database. Duplicate publication rows for one video no longer inflate coverage; only snapshots for currently published identities contribute.
+- Add regression coverage for duplicate publication identities, one stale snapshot, one missing snapshot, and latest snapshot timestamp.
+- This is a query-volume reduction and correctness improvement. Representative production-sized latency benchmarking remains outstanding.
+- Validation: pending exact-head GitHub Actions.
+
+- Initial exact-head CI caught a stale Python variable reference in the new response mapping (3 errors); corrected it to return the SQL aggregate's `published` count. Revalidation is running on the corrected code checkpoint.
+
+
+## BUILD-00335 — bounded TikTok metrics candidate selection
+
+- Move due-video selection into one bounded SQLite query. It deduplicates multiple publication rows per video, joins latest snapshot timestamps and missing-video retry deadlines, and returns at most 20 candidates.
+- The collector no longer materializes the full publication ledger, all snapshot timestamps, or the complete retry set in Python on every collection cycle.
+- Add regression tests for bounded result size, duplicate publication identities, retry eligibility, and ensuring the collector does not call the full-ledger/full-snapshot methods.
+- Production-scale latency and query-plan measurements remain outstanding. Exact-head CI pending.
+
+- Follow-up optimization: add `idx_tiktok_publications_due_scan(status,video_id,updated_at DESC,job_id)` to support the bounded due-video scan's filter, partition/order keys; add a schema regression assertion. This index complements the existing video/status lookup index. Exact-head CI pending.
+
+
+## BUILD-00336 — fair bounded TikTok metrics retry ordering
+
+- Resolve tied publication timestamps with a descending job ID tie-breaker in both the per-video ranking and final due-candidate ordering. This makes the bounded 20-video window deterministic and prevents recently inserted records from being starved when timestamp precision ties.
+- Update the EXPLAIN QUERY PLAN regression to accept either the dedicated video/status index or the newer due-scan composite index for the publication side; the planner correctly prefers the latter when available.
+- Triggered by exact-head CI failures: the bounded scan selected the wrong 20 tied records, so missing-video retry backoff could not expose the previously excluded video. The test no longer over-constrains a valid index choice.
+- Validation: pending exact-head GitHub Actions.
+
+
+## BUILD-00336 — fair bounded TikTok metrics retry ordering
+
+- Resolve tied publication timestamps with a descending job ID tie-breaker in both per-video ranking and final due-candidate ordering. This makes the bounded 20-video window deterministic and prevents recently inserted records from being starved when timestamps tie.
+- Update the history EXPLAIN regression to accept the dedicated video/status index or the newer due-scan composite index; SQLite correctly prefers the latter when available.
+- Exact-head GitHub Actions run [44495481567](https://github.com/justinhblee-prog/shorts/actions/runs/44495481567) passed `scripts/validate.sh` with **705 tests** on code/test checkpoint `3bc4a826cce64aa6ac7834f2a1c974eddcea80fe`.
+
+## BUILD-00337 — guard bounded TikTok collector query plan
+
+- Add an `EXPLAIN QUERY PLAN` regression for the bounded due-video CTE/window query.
+- Require the publication due-scan composite index to participate in selecting the bounded candidate set.
+- Exact-head Actions run above includes the query-plan regression and passed. Production-sized latency and database growth benchmarks remain outstanding.

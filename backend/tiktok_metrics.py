@@ -323,6 +323,41 @@ class TikTokMetricsStore:
                       last_missing_at=excluded.last_missing_at
                 """, (video_id, attempts, retry_at, stamp))
 
+    def due_videos(self, limit=20, min_age_seconds=21600, now=None):
+        """Select a bounded set of stale published videos in SQLite."""
+        limit = max(1, min(int(limit), 20))
+        min_age_seconds = max(0, int(min_age_seconds))
+        current = now or _now()
+        if isinstance(current, (int, float)):
+            current = datetime.fromtimestamp(float(current), timezone.utc)
+        stamp = _stamp(current)
+        cutoff = _stamp(current - timedelta(seconds=min_age_seconds))
+        with self.db() as c:
+            rows = c.execute("""
+              SELECT p.job_id,p.video_id
+              FROM tiktok_publications AS p
+              LEFT JOIN tiktok_metrics_missing_retry AS r ON r.video_id=p.video_id
+              WHERE p.status='publish_complete' AND p.video_id IS NOT NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM tiktok_publications AS newer
+                  WHERE newer.status='publish_complete'
+                    AND newer.video_id=p.video_id
+                    AND (newer.updated_at>p.updated_at
+                         OR (newer.updated_at=p.updated_at AND newer.job_id>p.job_id))
+                )
+                AND COALESCE((
+                  SELECT s.collected_at
+                  FROM tiktok_video_metric_snapshots AS s
+                  WHERE s.video_id=p.video_id
+                  ORDER BY s.collected_at DESC,s.id DESC
+                  LIMIT 1
+                ),'')<?
+                AND (r.next_retry_at IS NULL OR r.next_retry_at<=?)
+              ORDER BY p.updated_at DESC,p.job_id DESC
+              LIMIT ?
+            """, (cutoff, stamp, limit)).fetchall()
+        return [dict(row) for row in rows]
+
     def latest_snapshot_times(self):
         with self.db() as c:
             rows = c.execute("""
@@ -386,20 +421,40 @@ class TikTokMetricsStore:
         return items
 
     def status(self, publication_store, freshness_seconds=43200):
+        # Aggregate coverage in SQLite instead of materializing every published
+        # identity and every snapshot timestamp in Python. Both stores share the
+        # same database file; keep the join and counts in one read transaction.
+        cutoff = _stamp(_now() - timedelta(seconds=max(0, freshness_seconds)))
         with self.db() as c:
             row = c.execute(
                 "SELECT * FROM tiktok_metrics_collection_state WHERE id=1"
             ).fetchone()
-            count = c.execute("""
-              SELECT COUNT(DISTINCT video_id) FROM tiktok_video_metric_snapshots
-            """).fetchone()[0]
-        eligible = publication_store.list_metrics_eligible()
-        latest = self.latest_snapshot_times()
-        cutoff = _stamp(_now() - timedelta(seconds=max(0, freshness_seconds)))
-        with_snapshot = sum(1 for x in eligible if x["video_id"] in latest)
-        stale = sum(1 for x in eligible if x["video_id"] in latest and latest[x["video_id"]] < cutoff)
-        latest_snapshot_at = max(latest.values()) if latest else None
-        missing = max(0, len(eligible) - with_snapshot)
+            coverage = c.execute("""
+              WITH eligible AS (
+                SELECT DISTINCT video_id
+                FROM tiktok_publications
+                WHERE status='publish_complete' AND video_id IS NOT NULL
+              ),
+              latest AS (
+                SELECT s.video_id,MAX(s.collected_at) AS collected_at
+                FROM tiktok_video_metric_snapshots AS s
+                JOIN eligible AS e ON e.video_id=s.video_id
+                GROUP BY s.video_id
+              )
+              SELECT COUNT(*) AS published_videos,
+                     COUNT(latest.video_id) AS with_snapshot,
+                     SUM(CASE WHEN latest.video_id IS NOT NULL
+                                   AND latest.collected_at < ? THEN 1 ELSE 0 END)
+                       AS stale_snapshots,
+                     MAX(latest.collected_at) AS latest_snapshot_at
+              FROM eligible
+              LEFT JOIN latest ON latest.video_id=eligible.video_id
+            """, (cutoff,)).fetchone()
+        published = int(coverage["published_videos"] or 0)
+        with_snapshot = int(coverage["with_snapshot"] or 0)
+        stale = int(coverage["stale_snapshots"] or 0)
+        latest_snapshot_at = coverage["latest_snapshot_at"]
+        missing = max(0, published - with_snapshot)
         state = dict(row) if row else {}
         return {
             "platform": "tiktok",
@@ -414,7 +469,7 @@ class TikTokMetricsStore:
             "source": state.get("source"),
             "available_metrics": ["view_count", "like_count", "comment_count", "share_count"],
             "unavailable_metrics": ["audience_retention", "watch_time", "estimated_revenue"],
-            "coverage": {"published_videos": len(eligible), "with_snapshot": with_snapshot,
+            "coverage": {"published_videos": published, "with_snapshot": with_snapshot,
                          "without_snapshot": missing,
                          "stale_snapshots": stale,
                          "stale_or_missing": missing + stale},
@@ -444,15 +499,9 @@ class TikTokMetricsCollector:
                             lease_owner=None, lease_token=None):
         limit = max(1, min(int(limit), 20))
         min_age_seconds = max(0, int(min_age_seconds))
-        eligible = self.publication_store.list_metrics_eligible()
-        latest = self.store.latest_snapshot_times()
-        deferred = self.store.deferred_video_ids()
-        cutoff = _stamp(_now() - timedelta(seconds=min_age_seconds))
-        due = [
-            x for x in eligible
-            if x["video_id"] not in deferred
-            and (x["video_id"] not in latest or latest[x["video_id"]] < cutoff)
-        ][:limit]
+        # Keep candidate selection bounded in SQLite. Avoid loading the
+        # entire publication ledger, snapshot map, and retry set into worker RAM.
+        due = self.store.due_videos(limit=limit, min_age_seconds=min_age_seconds)
         if not due:
             return {"requested": 0, "collected": 0, "missing": [], "source": "TikTok Display API v2"}
         # OAuth token refresh may make a network request. Reject a worker

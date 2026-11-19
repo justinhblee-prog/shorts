@@ -105,6 +105,34 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertIn("idx_tiktok_metric_video_time",indexes)
         self.assertIn("idx_tiktok_metric_video_time_id",indexes)
 
+    def test_history_query_plan_uses_video_time_and_publication_composite_indexes(self):
+        with self.store.db() as connection:
+            plan = connection.execute("""
+                EXPLAIN QUERY PLAN
+                SELECT DISTINCT s.*,p.status AS publication_status,
+                       COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
+                FROM tiktok_video_metric_snapshots s
+                JOIN tiktok_publications p ON p.video_id=s.video_id
+                WHERE p.status='publish_complete'
+                  AND p.video_id IS NOT NULL
+                  AND p.video_id=?
+                  AND s.collected_at>=?
+                  AND (s.collected_at<? OR (s.collected_at=? AND s.id<?))
+                ORDER BY s.collected_at DESC,s.id DESC
+                LIMIT ? OFFSET ?
+            """, (
+                "video-1", "2026-11-01T00:00:00+00:00",
+                "2026-11-19T00:00:00+00:00",
+                "2026-11-19T00:00:00+00:00", 999, 500, 0,
+            )).fetchall()
+        details = " ".join(row["detail"] for row in plan)
+        self.assertIn("idx_tiktok_metric_video_time_id", details)
+        self.assertTrue(
+            "idx_tiktok_publications_video_status" in details
+            or "idx_tiktok_publications_due_scan" in details,
+            details,
+        )
+
     def test_history_since_filters_before_applying_limit(self):
         self.store.save_snapshot("job-1", {
             "id": "video-1", "view_count": 10, "like_count": 1,
@@ -573,6 +601,90 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertTrue(self.store.renew_lease("collector-minimum", token, 3600))
         with self.assertRaisesRegex(ValueError, "lease duration"):
             self.store.renew_lease("collector-minimum", token, True)
+
+
+    def test_status_coverage_is_aggregated_in_sql_and_counts_distinct_published_videos(self):
+        self._publish("job-duplicate", "video-1")
+        self._publish("job-2", "video-2")
+        self.store.save_snapshot("job-1", {
+            "id": "video-1", "view_count": 100, "like_count": 2,
+            "comment_count": 1, "share_count": 0,
+        })
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_video_metric_snapshots SET collected_at=? WHERE video_id=?",
+                ("2000-01-01T00:00:00+00:00", "video-1"),
+            )
+        status = self.store.status(self.publications, freshness_seconds=60)
+        coverage = status["coverage"]
+        self.assertEqual(coverage["published_videos"], 2)
+        self.assertEqual(coverage["with_snapshot"], 1)
+        self.assertEqual(coverage["without_snapshot"], 1)
+        self.assertEqual(coverage["stale_snapshots"], 1)
+        self.assertEqual(coverage["stale_or_missing"], 2)
+        self.assertEqual(status["latest_snapshot_at"], "2000-01-01T00:00:00+00:00")
+
+
+
+
+    def test_due_video_query_plan_uses_publication_due_scan_index(self):
+        with self.store.db() as connection:
+            plan = connection.execute("""
+                EXPLAIN QUERY PLAN
+                SELECT p.job_id,p.video_id
+                FROM tiktok_publications AS p
+                LEFT JOIN tiktok_metrics_missing_retry AS r ON r.video_id=p.video_id
+                WHERE p.status='publish_complete' AND p.video_id IS NOT NULL
+                  AND NOT EXISTS (
+                    SELECT 1 FROM tiktok_publications AS newer
+                    WHERE newer.status='publish_complete'
+                      AND newer.video_id=p.video_id
+                      AND (newer.updated_at>p.updated_at
+                           OR (newer.updated_at=p.updated_at AND newer.job_id>p.job_id))
+                  )
+                  AND COALESCE((
+                    SELECT s.collected_at
+                    FROM tiktok_video_metric_snapshots AS s
+                    WHERE s.video_id=p.video_id
+                    ORDER BY s.collected_at DESC,s.id DESC
+                    LIMIT 1
+                  ),'')<?
+                  AND (r.next_retry_at IS NULL OR r.next_retry_at<=?)
+                ORDER BY p.updated_at DESC,p.job_id DESC
+                LIMIT ?
+            """, (
+                "2026-11-19T00:00:00+00:00",
+                "2026-11-19T00:00:00+00:00", 20,
+            )).fetchall()
+        details = " ".join(row["detail"] for row in plan)
+        self.assertIn("idx_tiktok_publications_due_order", details)
+        self.assertIn("idx_tiktok_publications_due_scan", details)
+        self.assertIn("idx_tiktok_metric_video_time_id", details)
+
+    def test_due_video_selection_is_bounded_and_deduplicates_publications(self):
+        for index in range(2, 32):
+            self._publish("job-" + str(index), "video-" + str(index))
+        self._publish("job-duplicate", "video-1")
+        due = self.store.due_videos(limit=7, min_age_seconds=0)
+        self.assertEqual(len(due), 7)
+        ids = [item["video_id"] for item in due]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(sum(1 for item in due if item["video_id"] == "video-1"), 1)
+
+    def test_collector_uses_bounded_sql_candidate_selection_not_full_ledger_scans(self):
+        self._publish("job-2", "video-2")
+        self.publications.list_metrics_eligible = lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("full publication scan must not be used")
+        )
+        self.store.latest_snapshot_times = lambda: (_ for _ in ()).throw(
+            AssertionError("full snapshot map must not be used")
+        )
+        collector = self._collector({
+            "data": {"videos": []}, "error": {"code": "ok", "message": ""},
+        })
+        result = collector.refresh_due_metrics(limit=2, min_age_seconds=0)
+        self.assertEqual(result["requested"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

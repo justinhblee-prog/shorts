@@ -1219,6 +1219,13 @@ class TikTokPublishingTests(unittest.TestCase):
                 )
 
 
+    def test_due_video_order_index_supports_global_candidate_recency(self):
+        with self.store.db() as connection:
+            indexes = {row["name"] for row in connection.execute("PRAGMA index_list(tiktok_publications)")}
+        self.assertIn("idx_tiktok_publications_due_order", indexes)
+
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -1226,3 +1233,8 @@ if __name__ == "__main__":
         with self.store.db() as connection:
             indexes={row["name"] for row in connection.execute("PRAGMA index_list(tiktok_publications)")}
         self.assertIn("idx_tiktok_publications_video_status",indexes)
+
+    def test_due_video_scan_has_status_video_and_recency_index(self):
+        with self.store.db() as connection:
+            indexes = {row["name"] for row in connection.execute("PRAGMA index_list(tiktok_publications)")}
+        self.assertIn("idx_tiktok_publications_due_scan", indexes)
