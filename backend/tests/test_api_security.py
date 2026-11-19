@@ -1176,3 +1176,17 @@ if __name__ == "__main__":
                     "job-1",body,provider_attempt_id="attempt-1")
         self.assertEqual(caught.exception.status_code,422)
 
+
+    def test_publishing_analytics_history_rejects_incomplete_or_invalid_cursor(self):
+        from app import publishing_analytics_history
+        with mock.patch.object(app_module,"require_review_permission"):
+            for kwargs in (
+                {"before_collected_at":"2026-11-18T00:00:00+00:00"},
+                {"before_id":4},
+                {"before_collected_at":"bad\\nvalue","before_id":4},
+                {"before_collected_at":"2026-11-18T00:00:00+00:00","before_id":0},
+            ):
+                with self.subTest(kwargs=kwargs):
+                    with self.assertRaises(HTTPException) as caught:
+                        publishing_analytics_history(**kwargs,x_review_token="analytics-token")
+                    self.assertEqual(caught.exception.status_code,422)
