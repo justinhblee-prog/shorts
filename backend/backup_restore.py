@@ -67,6 +67,15 @@ def _effective_encryption_key(value):
     return value or None
 
 
+def _validate_database_media_paths(db_path, media_dir):
+    db_path = Path(db_path).resolve()
+    media_dir = Path(media_dir).resolve()
+    if db_path == media_dir or media_dir in db_path.parents:
+        raise BackupRestoreError(
+            "Database path must be outside the media directory"
+        )
+
+
 def _encryption_key_bytes(key):
     if key is None:
         raise BackupRestoreError("NEXUS_BACKUP_ENCRYPTION_KEY is required for encrypted backup operations")
@@ -269,6 +278,7 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14,
     db_path = Path(db_path).resolve()
     media_dir = Path(media_dir).resolve()
     output_dir = Path(output_dir).resolve()
+    _validate_database_media_paths(db_path, media_dir)
     if output_dir == media_dir or media_dir in output_dir.parents:
         raise BackupRestoreError("Backup output directory must be outside the media directory")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -500,7 +510,10 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
     db_path = Path(db_path).resolve()
     media_dir = Path(media_dir).resolve()
     backup_dir = Path(backup_dir).resolve()
-    archive_path = Path(archive_path)
+    archive_path = Path(archive_path).resolve()
+    _validate_database_media_paths(db_path, media_dir)
+    if media_dir == archive_path or media_dir in archive_path.parents:
+        raise BackupRestoreError("Backup archive must be outside the media directory")
     if not db_path.parent.exists():
         db_path.parent.mkdir(parents=True, exist_ok=True)
     media_dir.parent.mkdir(parents=True, exist_ok=True)
