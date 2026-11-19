@@ -2576,3 +2576,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00376 — exact-head hosted validation
 - Exact code head `68c654594eb4de57e3cdd4f3aae3f17037079320` passed GitHub Actions run [44525610403](https://github.com/justinhblee-prog/shorts/actions/runs/44525610403): **785 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
 - Coverage rejects Windows-invalid punctuation and ASCII control characters in scope path segments.
+
+
+## BUILD-00377 — reject symlink aliases in worker scopes
+- Reject any symlink path component, including benign in-repository file and directory targets, to prevent lexical scope aliases from bypassing write locks.
+- Add regressions for protected-file symlinks, ordinary-file symlinks and directory symlinks.
+- Exact-head hosted CI pending.
