@@ -2400,4 +2400,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add engaged views and engaged-view share to the analytics history table and CSV export.
 - The stored engaged-view share is a ratio (for example, 0.62); convert it to a percentage (62%) for chart, table and CSV presentation. Chart deltas are therefore percentage-point changes.
 - TikTok has no corresponding engaged-view fields in the current provider contract; those points remain absent rather than being synthesized.
-- Validation: exact-head GitHub Actions pending. Live YouTube Analytics account coverage and browser rendering remain unverified.
+- Validation: GitHub Actions runs #44446285363 and #44446292661 passed the full validation workflow with 697 backend tests on code checkpoint `fc2ec38`. The ratio conversion and UI assertions are included. Live YouTube Analytics account coverage and browser rendering remain unverified.
