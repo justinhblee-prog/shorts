@@ -501,15 +501,9 @@ class TikTokMetricsCollector:
                             lease_owner=None, lease_token=None):
         limit = max(1, min(int(limit), 20))
         min_age_seconds = max(0, int(min_age_seconds))
-        eligible = self.publication_store.list_metrics_eligible()
-        latest = self.store.latest_snapshot_times()
-        deferred = self.store.deferred_video_ids()
-        cutoff = _stamp(_now() - timedelta(seconds=min_age_seconds))
-        due = [
-            x for x in eligible
-            if x["video_id"] not in deferred
-            and (x["video_id"] not in latest or latest[x["video_id"]] < cutoff)
-        ][:limit]
+        # Keep candidate selection bounded in SQLite. Avoid loading the
+        # entire publication ledger, snapshot map, and retry set into worker RAM.
+        due = self.store.due_videos(limit=limit, min_age_seconds=min_age_seconds)
         if not due:
             return {"requested": 0, "collected": 0, "missing": [], "source": "TikTok Display API v2"}
         # OAuth token refresh may make a network request. Reject a worker
