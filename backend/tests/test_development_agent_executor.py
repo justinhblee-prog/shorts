@@ -29,6 +29,8 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         for path in (
             "../outside.py", ".env", ".env.production",
             "..\\outside.py", "backend\\..\\outside.py",
+            "./backend/module.py", "backend//module.py", "backend/./module.py",
+            "backend//", "backend/module.py/",
             "C:\\Windows\\win.ini", "C:/Windows/win.ini", "C:relative.txt",
             "//server/share/private.txt", "backend/file.txt:secret-stream",
             ".", "./", "backend/CON.txt", "backend/aux", "backend/COM1.log",
