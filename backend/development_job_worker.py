@@ -57,6 +57,8 @@ class DevelopmentJobWorker:
                 try:
                     self.store.heartbeat(job["id"], self.worker_id, job["lease_token"])
                     last_successful_heartbeat[0] = time.monotonic()
+                    if lease_lost.is_set():
+                        return
                     self.store.touch_worker(self.worker_id, current_job_id=job["id"])
                 except DevelopmentJobConflict:
                     lease_lost.set()
@@ -69,8 +71,20 @@ class DevelopmentJobWorker:
                         return
                     continue
 
+        def watch_lease_deadline():
+            # Separate from the database heartbeat thread: SQLite busy_timeout
+            # or a network-backed store may block heartbeat() past lease expiry.
+            while not heartbeat_stop.wait(0.1):
+                if lease_lost.is_set():
+                    return
+                if time.monotonic() - last_successful_heartbeat[0] >= heartbeat_failure_budget:
+                    lease_lost.set()
+                    return
+
         heartbeat = threading.Thread(target=keep_lease_alive, name="dev-job-heartbeat", daemon=True)
+        watchdog = threading.Thread(target=watch_lease_deadline, name="dev-job-lease-watchdog", daemon=True)
         heartbeat.start()
+        watchdog.start()
         try:
             result = self.executor(job)
             if lease_lost.is_set():
@@ -112,6 +126,7 @@ class DevelopmentJobWorker:
             return failed["status"]
         finally:
             heartbeat_stop.set()
+            watchdog.join(timeout=1)
             heartbeat.join(timeout=interval + 1)
             try:
                 self.store.touch_worker(self.worker_id, hostname=self.hostname, current_job_id=None)
