@@ -364,3 +364,7 @@ GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00372 — untrusted backlog content gate
 Titles, descriptions and acceptance criteria are sanitized at the durable job-creation boundary before storage. This reduces the chance that credentials pasted into an external issue become long-lived database content. Exact-head hosted regression validation pending.
+
+
+### BUILD-00372 — backlog persistence validation
+GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/actions/runs/44533179406) passed **803 backend tests**, repository validation and frontend syntax validation. The direct store regression verifies credential values are absent from imported job text and creation history.
