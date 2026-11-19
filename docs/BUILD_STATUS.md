@@ -2592,3 +2592,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00368 — exact-head hosted validation
 - Exact PR head `9d2c89e855f826909b80ed57c94171a6561a547c` passed GitHub Actions Backend tests run [44520050960](https://github.com/justinhblee-prog/shorts/actions/runs/44520050960): **797 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
 - Hosted Linux validates POSIX process-group termination; Windows `taskkill /T /F` remains a trusted-runner integration gate.
+
+
+### BUILD-00368 — independent watchdog exact-head validation
+- Exact code head `9711e03cdfabff72c73d3adbe2aa05a1b88d6e99` passed GitHub Actions run [44520547849](https://github.com/justinhblee-prog/shorts/actions/runs/44520547849): **797 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- Regression holds the heartbeat database call beyond the lease watchdog budget and confirms the executor is fenced without saving success evidence.
+- Hosted Linux only; Windows process-tree termination remains a trusted-runner integration gate.
