@@ -119,6 +119,10 @@ async function waitForServer() {
     await page.locator("#reviewSearch").fill("Browser Smoke");
     await page.waitForFunction(() => document.querySelector("#reviewSearchStatus").textContent.includes("1 / 1"));
     assert.equal(await reviewCard.isVisible(), true);
+    page.once("dialog", async dialog => {
+      assert.equal(dialog.type(), "prompt");
+      await dialog.accept("실제 미디어와 정책 경고를 확인한 뒤 승인 메모를 기록했습니다.");
+    });
     const approvalResponse = page.waitForResponse(response =>
       response.url().includes("/api/review/" + encodeURIComponent(reviewJob.job_id) + "/approve") &&
       response.request().method() === "POST"
