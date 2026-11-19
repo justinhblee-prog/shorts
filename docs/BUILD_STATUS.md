@@ -2652,3 +2652,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Do not retry authentication/permission failures or malformed response payloads.
 - Add regression coverage for 429 retry, 403 rate-limit reset timing, excessive reset delay and non-retryable 401.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00373 — exact-head hosted validation
+- Code head `ff9228ed4bcc3a021fa1383862feaf7a4c866dd8` passed GitHub Actions run [44529902141](https://github.com/justinhblee-prog/shorts/actions/runs/44529902141): **806 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Hosted Linux only; no live GitHub rate-limit response was exercised.
