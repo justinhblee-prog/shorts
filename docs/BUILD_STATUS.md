@@ -2782,3 +2782,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Upload preflight now requires `approval_blockers` to be a list of non-empty strings and `platform_disclosures` to be an object before evaluating the YouTube disclosure flag.
 - Malformed structures fail closed with a controlled `YouTubeUploadError`; regression coverage exercises malformed blocker and disclosure fields.
 - Exact-head CI pending. No real YouTube API upload was performed.
+
+
+### BUILD-00392 — bind upload authorization to the latest script
+- YouTube upload now evaluates the policy preflight attached to the newest approved script artifact, rather than selecting the newest valid report from any historical script revision.
+- Added a regression proving an older valid report cannot authorize a later script revision with no preflight report.
+- Exact-head CI pending. No live YouTube API upload was performed.
