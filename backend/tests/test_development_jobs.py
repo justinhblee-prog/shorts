@@ -217,7 +217,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertIsNone(self.store.claim_ready("worker-c"))
 
     def test_retry_scheduler_transitions_are_recorded(self):
-        ready_job = self.store.create("Retry becomes ready", max_attempts=3)
+        ready_job = self.store.create("Retry becomes ready", max_attempts=3, scope=["backend/retry-ready.py"])
         first = self.store.claim_ready("worker-retry-ready")
         self.store.fail(
             ready_job["id"], "worker-retry-ready", first["lease_token"],
@@ -233,7 +233,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
             for event in ready_events
         ))
 
-        exhausted = self.store.create("Retry becomes quarantined", max_attempts=2, priority=10)
+        exhausted = self.store.create("Retry becomes quarantined", max_attempts=2, priority=10, scope=["backend/retry-exhausted.py"])
         claim = self.store.claim_ready("worker-exhausted")
         self.assertEqual(claim["id"], exhausted["id"])
         self.store.fail(
