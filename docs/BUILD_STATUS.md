@@ -2561,3 +2561,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Fail closed without printing malformed names, preventing newline/control-character command injection into later workflow steps.
 - Add workflow-contract regression coverage for the name validation gate.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00374 — exact-head hosted validation
+- Exact code head `a09ebc2b2154bbc09dfb3e8e4a47c2d86b7a20e9` passed GitHub Actions run [44524649879](https://github.com/justinhblee-prog/shorts/actions/runs/44524649879): **786 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- Workflow-contract coverage confirms malformed environment names are rejected before writing to GITHUB_ENV.
+- Hosted Linux only; Windows PowerShell execution remains an integration gate.
