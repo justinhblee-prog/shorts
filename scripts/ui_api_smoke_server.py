@@ -69,7 +69,37 @@ def main() -> None:
         "share_count": 3,
     })
 
-    print("UI API smoke fixture seeded: 501 YouTube and 1 TikTok snapshots", flush=True)
+    review_brief = {
+        "brand": "Browser Smoke",
+        "region": "US",
+        "language": "English",
+        "topic": "A review-ready browser integration fixture",
+        "idempotency_key": "browser-smoke-review-ready-001",
+        "rights": {
+            "visuals_cleared": True,
+            "audio_cleared": True,
+            "likeness_authorized": True,
+        },
+        "synthetic_media_status": "ai_generated",
+        "platforms": ["youtube", "tiktok"],
+        "platform_disclosures": {
+            "youtube_altered_content": True,
+            "tiktok_ai_generated_content": True,
+        },
+    }
+    review_job = app.submit_production(app.queue, app.production_store, review_brief)["job"]
+    claimed = app.queue.claim(
+        "ui-smoke-worker", "ui-smoke-host", job_type="short_video_production"
+    )
+    app.queue.finish(
+        review_job["id"], "ui-smoke-worker", claimed["lease_token"],
+        {"production_status": "review_pending"},
+    )
+    app.production_store.stage(
+        review_job["id"], "review_pending", "review_pending"
+    )
+
+    print("UI API smoke fixture seeded: 501 YouTube, 1 TikTok snapshot, 1 review-ready job", flush=True)
     import uvicorn  # noqa: E402
 
     uvicorn.run(app.app, host="127.0.0.1", port=args.port, log_level="warning", access_log=False)
