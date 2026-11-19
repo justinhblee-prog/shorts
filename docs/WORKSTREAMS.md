@@ -217,3 +217,12 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - The detailed validation run executed `scripts/validate.sh`: **854 tests passed**, followed by `node --check frontend/app.js` success.
 - Scope: unified backend/source regression plus JavaScript syntax. The candidate branch's workflow does not include Playwright browser smoke; separate UI branch browser checks (#399 and #404) are not a substitute for a browser run on this exact combined candidate.
 - Candidate PR #406 remains Draft/unmerged. Full combined browser validation, production deployment, live OAuth/provider publishing and real operator recovery remain outstanding.
+
+
+### PR #406 unified candidate — browser recovery verification passed
+
+- Corrected exact candidate head: `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0`.
+- Both exact-head backend/browser runs [44577763179](https://github.com/justinhblee-prog/shorts/actions/runs/44577763179) and [44577785714](https://github.com/justinhblee-prog/shorts/actions/runs/44577785714) passed.
+- `scripts/validate.sh`: **854 tests passed**; `node --check frontend/app.js` passed; Chromium recovery smoke passed authenticated dashboard load, quarantine state, operator prompt/confirmation, recovery to ready state, and immutable audit attribution.
+- The browser runner is pinned to Ubuntu 24.04 because Playwright 1.56.1 does not support the GitHub Ubuntu 26.04 runner image. An initial 26.04 browser-install attempt failed before the smoke test; the pinned 24.04 exact-head runs passed.
+- This closes the unified candidate's backend + targeted recovery-browser gate only. It does not validate the full analytics browser flow on this candidate, live YouTube/TikTok OAuth/publishing, production recovery, or deployment. PR #406 remains Draft/unmerged.
