@@ -200,10 +200,22 @@ class DevelopmentJobStore:
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
             rows = connection.execute(
-                "SELECT id FROM development_jobs WHERE id IN (?,?)", (job_id, depends_on_id)
+                "SELECT id,status FROM development_jobs WHERE id IN (?,?)", (job_id, depends_on_id)
             ).fetchall()
             if len(rows) != 2:
                 raise DevelopmentJobNotFound("job or dependency not found")
+            job_row = next(row for row in rows if row["id"] == job_id)
+            existing = connection.execute(
+                "SELECT 1 FROM development_job_dependencies WHERE job_id=? AND depends_on_id=?",
+                (job_id, depends_on_id),
+            ).fetchone()
+            if existing:
+                connection.commit()
+                return self.get(job_id)
+            if job_row["status"] not in {"ready", "blocked"}:
+                raise DevelopmentJobConflict(
+                    "dependencies cannot be changed after a job has been claimed or finalized"
+                )
             # Adding job -> parent is invalid if parent already depends (transitively) on job.
             cycle = connection.execute(
                 """WITH RECURSIVE ancestors(id) AS (
