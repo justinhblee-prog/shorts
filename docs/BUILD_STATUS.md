@@ -2634,3 +2634,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Exact PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391): **802 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Inline credential and multiline service-account regressions both passed, including preservation of trailing safe diagnostic context.
 - Hosted Linux only.
+
+
+## BUILD-00372 — sanitize imported backlog text before persistence
+- Apply shared diagnostic/credential redaction to job titles, descriptions and acceptance criteria inside `DevelopmentJobStore.create`, covering GitHub-intake and direct callers before SQLite persistence.
+- Preserve ordinary task context while preventing pasted bearer tokens, provider keys and database credentials from entering durable job records.
+- Add regression coverage across title, description, acceptance criteria and creation history. Exact-head hosted CI pending.
