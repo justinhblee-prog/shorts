@@ -2651,3 +2651,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00372 — preserve task prefixes under field limits
 - Backlog descriptions and acceptance criteria are now redacted in full before truncation, then bounded from the beginning so the issue summary and first acceptance steps are not discarded.
 - Added regressions for prefix preservation and the 8,000/2,000-character persisted field limits. Updated exact-head hosted validation pending.
+
+
+### BUILD-00372 — final exact-head validation
+- Final code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519): **804 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Credential redaction and prefix-preserving 8,000/2,000-character backlog bounds both passed.
+- Hosted Linux only.
