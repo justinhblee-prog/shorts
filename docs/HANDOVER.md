@@ -1357,3 +1357,7 @@ The combined worker-attempt isolation, explicit file-scope matching and daemon w
 
 ### BUILD-00366 — durable store scope gate alignment
 The final `mark_review_pending` gate no longer treats every extensionless scope as a directory. Only scopes explicitly ending in `/` authorize descendants. The trusted runner normalizes approved existing directories against the repository root before backlog import, while extensionless files remain exact-match scopes. Regression coverage spans both the store gate and runner normalization. Exact-head CI pending.
+
+
+### BUILD-00366 — exact-head CI result
+Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254): **785 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. A later docs-only commit records this result; no application code changed after the validated head. Live Windows runner/Aider/Ollama behavior remains unverified.
