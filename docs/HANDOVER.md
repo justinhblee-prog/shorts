@@ -1401,3 +1401,7 @@ PR head `9d2c89e855f826909b80ed57c94171a6561a547c` passed GitHub Actions run [44
 
 ### BUILD-00368 — independent watchdog CI result
 Code head `9711e03cdfabff72c73d3adbe2aa05a1b88d6e99` passed GitHub Actions run [44520547849](https://github.com/justinhblee-prog/shorts/actions/runs/44520547849): **797 tests**, repository validation and frontend syntax check. The added regression stalls the heartbeat database call past the watchdog deadline and verifies no stale success evidence is persisted. Windows process-tree behavior remains unverified on the trusted runner.
+
+
+### BUILD-00369 — unique worker session identity
+The runner now creates a unique worker-session ID instead of using the static RUNNER_NAME as the database primary key. IDs retain host and workflow run/attempt context, add a random suffix, and remain within 128 characters. This prevents presence-row collisions and cross-process stop_worker updates. Exact-head CI pending.
