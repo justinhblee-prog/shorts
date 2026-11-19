@@ -1065,7 +1065,7 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(yt_history.call_args.kwargs["offset"],500)
         self.assertEqual(yt_history.call_args.kwargs["before_collected_at"],"2026-11-18T00:00:00+00:00")
         self.assertEqual(yt_history.call_args.kwargs["before_id"],17)
-        self.assertEqual(result["as_of"],result["as_of"])
+        self.assertTrue(result["as_of"].endswith("+00:00"))
         self.assertIsNotNone(yt_history.call_args.kwargs["since"])
         tt_history.assert_called_once()
         self.assertIs(tt_history.call_args.args[0],app_module.tiktok_publish_store)
