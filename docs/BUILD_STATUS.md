@@ -2557,3 +2557,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Updated code head `431155113b1e5e749141333bc139af3b245f4223` passed GitHub Actions run [44518327365](https://github.com/justinhblee-prog/shorts/actions/runs/44518327365): **787 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Coverage includes multiline Firebase service-account JSON redaction before worker failure persistence.
 - Hosted Linux only; no production log inventory is implied.
+
+
+### BUILD-00367 — extended diagnostic and success-evidence redaction
+- Extend shared redaction to PEM/OpenSSH private-key blocks, Basic authorization values, authenticated MongoDB/MySQL/AMQP URLs and common provider token formats.
+- Sanitize successful executor result summaries and validation references as well as retryable/non-retryable exception messages before durable persistence.
+- Add regressions for PEM/database URL failures and secret-bearing success evidence.
+- Exact-head CI pending.
