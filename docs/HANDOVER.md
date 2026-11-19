@@ -1405,3 +1405,7 @@ The Aider executor now recalculates the full Git worktree change set after repos
 
 ### BUILD-00369 — exact-head CI result
 Code head `d802ff98a8e7ab5fed3cfdf37aca38ff5ece9ce4` passed GitHub Actions run [44527024967](https://github.com/justinhblee-prog/shorts/actions/runs/44527024967): **801 tests**, repository validation and frontend syntax check. Tests cover staged, unstaged and untracked Git changes plus test-only change classification. Hosted Linux only.
+
+
+### BUILD-00370 — GitHub API token redirect boundary
+The read-only GitHub client now uses a dedicated redirect handler. Authenticated requests may follow HTTPS redirects only to the exact `api.github.com` origin; off-host, HTTP, credential-bearing and nonstandard-port redirects are rejected. Exact-head hosted CI pending.
