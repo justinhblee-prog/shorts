@@ -134,10 +134,9 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
             "GITHUB_TOKEN", "NEXUS_BACKUP_ENCRYPTION_KEY", "DATABASE_URL",
             "REDIS_URL", "SUPABASE_SERVICE_ROLE_KEY", "FIREBASE_SERVICE_ACCOUNT",
             "AWS_ACCESS_KEY_ID", "AZURE_CLIENT_SECRET", "GITHUB_ENV", "GITHUB_OUTPUT",
-            "GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
             "GIT_CONFIG_PARAMETERS", "GIT_ASKPASS", "GIT_SSH_COMMAND",
             "SSH_AUTH_SOCK", "SSH_AGENT_PID", "NPM_CONFIG_REGISTRY",
-            "PIP_INDEX_URL", "DOCKER_CONFIG", "NETRC", "AIDER_MODEL",
+            "PIP_INDEX_URL", "NETRC", "AIDER_MODEL",
             "OPENAI_BASE_URL", "LITELLM_LOG", "OLLAMA_HOST",
             "GITHUB_PATH", "GITHUB_STEP_SUMMARY", "GITHUB_STATE",
             "GITHUB_EVENT_PATH", "ACTIONS_CACHE_URL", "ACTIONS_RESULTS_URL",
@@ -151,12 +150,19 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertEqual(child_env["HOME"], str((self.root / "isolated-home").resolve()))
         self.assertEqual(child_env["USERPROFILE"], str((self.root / "isolated-home").resolve()))
         self.assertEqual(child_env["GIT_CONFIG_NOSYSTEM"], "1")
+        self.assertEqual(child_env["GIT_CONFIG_COUNT"], "2")
+        self.assertEqual(child_env["GIT_CONFIG_KEY_0"], "credential.helper")
+        self.assertEqual(child_env["GIT_CONFIG_VALUE_0"], "")
+        self.assertEqual(child_env["GIT_CONFIG_KEY_1"], "credential.interactive")
+        self.assertEqual(child_env["GIT_CONFIG_VALUE_1"], "false")
         self.assertEqual(child_env["GIT_TERMINAL_PROMPT"], "0")
         self.assertEqual(child_env["GCM_INTERACTIVE"], "Never")
         self.assertEqual(Path(child_env["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8"), "")
         self.assertEqual(Path(child_env["NPM_CONFIG_USERCONFIG"]).read_text(encoding="utf-8"), "")
         self.assertEqual(Path(child_env["PIP_CONFIG_FILE"]).read_text(encoding="utf-8"), "")
         self.assertEqual(child_env["DOCKER_CONFIG"], str((self.root / "isolated-home" / ".config" / "docker").resolve()))
+        self.assertEqual(child_env["NPM_CONFIG_USERCONFIG"], str((self.root / "isolated-home" / ".npmrc").resolve()))
+        self.assertEqual(child_env["PIP_CONFIG_FILE"], str((self.root / "isolated-home" / "pip.ini").resolve()))
         self.assertEqual(child_env["GITHUB_WORKSPACE"], str(self.root))
         self.assertEqual(child_env["NEXUS_APPROVED_SCOPES"], "{}")
         self.assertEqual(child_env["NEXUS_DEV_AGENT_MODEL"], "ollama_chat/qwen2.5-coder:7b")
