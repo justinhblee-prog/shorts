@@ -480,5 +480,17 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertEqual(self._db_value(), "before")
 
 
+    def test_operator_runbook_restore_example_uses_encrypted_archive(self):
+        root = Path(__file__).resolve().parents[2]
+        runbook = (root / "docs" / "OPERATOR_RUNBOOK.md").read_text(encoding="utf-8")
+        restore_section = runbook.split("## 8. Automated backup and restore", 1)[1].split(
+            "## 9.", 1
+        )[0]
+        self.assertIn("--archive /backups/ARCHIVE_NAME.tar.gz.enc", restore_section)
+        self.assertIn("NEXUS_BACKUP_ENCRYPTION_REQUIRED=true", restore_section)
+        self.assertIn("Legacy `.tar.gz` archives", restore_section)
+        self.assertNotIn("--archive /backups/ARCHIVE_NAME.tar.gz ", restore_section)
+
+
 if __name__ == "__main__":
     unittest.main()
