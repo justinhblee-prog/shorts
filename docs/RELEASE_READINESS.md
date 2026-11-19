@@ -208,3 +208,11 @@ These are additional readiness constraints documented by the project, not comple
 - BUILD-00343 passed Compose run [44499051491](https://github.com/justinhblee-prog/shorts/actions/runs/44499051491): AES-256-GCM encrypted archive creation, plaintext rejection, isolated restore, and SQLite integrity check. Production encryption-key custody and off-host recovery remain pending.
 
 - BUILD-00344 extends the encrypted backup CI smoke with a wrong-key restore attempt; it must fail authentication without changing the target database, before the correct-key restore is allowed.
+
+
+### BUILD-00354 — retained archive health verification
+The backup health probe now requires both a fresh success marker and a recent archive file. If encryption-required mode is enabled, only a recent `.tar.gz.enc` archive with the encrypted `NEXUSBK1` header satisfies health; a renamed plaintext file, missing archive, stale archive or symlink cannot report healthy. Optional mode also verifies that archive suffix and gzip/encrypted magic agree. Regression coverage exercises the CLI path and these fail-closed cases. Exact-head CI pending; off-host and production recovery gates remain open.
+
+
+### BUILD-00354 — exact-head CI result
+Exact head `03a04d68169e5d128aaa4c49d05a34ef4fb9ec90` passed backend run [44510184167](https://github.com/justinhblee-prog/shorts/actions/runs/44510184167) with 729 tests and Compose run [44510186004](https://github.com/justinhblee-prog/shorts/actions/runs/44510186004), including five-service health and encrypted isolated backup/restore smoke. The backup health check verifies the retained archive exists, matches its declared format header, is fresh, and satisfies encryption-required mode. Production/off-host recovery remains unverified.
