@@ -301,3 +301,7 @@ GitHub Actions run [44517570254](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00367 — worker diagnostic secret containment
 Retryable and non-retryable worker exceptions are passed through a shared redactor before persistence. The same helper sanitizes Aider subprocess output. Exact-head CI pending; this is a code-level redaction contract, not a production log inventory.
+
+
+### BUILD-00367 — worker diagnostic redaction CI evidence
+GitHub Actions run [44517983256](https://github.com/justinhblee-prog/shorts/actions/runs/44517983256) passed **786 backend tests**, repository validation and frontend JavaScript syntax validation for the shared diagnostic redactor and worker failure-persistence changes. This is a code-level contract, not a production log inventory.
