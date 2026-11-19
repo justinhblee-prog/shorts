@@ -199,7 +199,7 @@ Approved existing directory paths are normalized to a trailing slash against the
 
 ### BUILD-00368 — fence the executing process after lease loss
 
-The worker now tracks the last successful heartbeat and raises its in-memory lease-loss signal when storage failures persist for 75% of the configured lease window (with a one-second minimum). A fencing-token conflict still signals immediate loss. The signal is attached only to the in-memory job passed to the trusted executor; it is not persisted.
+The worker now tracks the last successful heartbeat and runs an independent watchdog that raises its in-memory lease-loss signal when storage failures persist for 75% of the configured lease window (with a one-second minimum). The watchdog is separate from the heartbeat thread so a database call blocked by SQLite busy timeout cannot block the lease deadline check. A fencing-token conflict still signals immediate loss. The signal is attached only to the in-memory job passed to the trusted executor; it is not persisted.
 
 The Aider executor polls that signal while waiting for each child command. Commands run in an isolated process group; lease loss terminates the process tree (Windows uses `taskkill /T /F`, POSIX uses process-group TERM/KILL) and prevents the executor from continuing into diff inspection or validation. The durable job remains leased until the store can safely observe expiry; the stale worker does not write failure or success evidence.
 
