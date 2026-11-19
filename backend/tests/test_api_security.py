@@ -1112,6 +1112,10 @@ class ApiSecurityTests(unittest.TestCase):
             media_path="staged/job/video.mp4",
             title="Approved private draft",
             operator_id="forged-operator",
+            privacy_level="SELF_ONLY",
+            explicit_consent=True,
+            brand_content_toggle=False,
+            brand_organic_toggle=False,
         )
         with (
             mock.patch.object(
