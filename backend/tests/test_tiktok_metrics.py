@@ -76,6 +76,16 @@ class TikTokMetricsTests(unittest.TestCase):
             [1200, 80, 12, 5],
         )
 
+    def test_metrics_history_has_global_time_index(self):
+        with self.store.db() as connection:
+            indexes={
+                row["name"] for row in connection.execute(
+                    "PRAGMA index_list(tiktok_video_metric_snapshots)"
+                ).fetchall()
+            }
+        self.assertIn("idx_tiktok_metric_time",indexes)
+        self.assertIn("idx_tiktok_metric_video_time",indexes)
+
     def test_history_since_filters_before_applying_limit(self):
         self.store.save_snapshot("job-1", {
             "id": "video-1", "view_count": 10, "like_count": 1,
