@@ -111,3 +111,10 @@ Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonatio
 ### POLICY-00001 — exact-head validation
 - Code head `dcb959f32a5c93fd80f957c5b37525eac0cede74` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44550031926](https://github.com/justinhblee-prog/shorts/actions/runs/44550031926).
 - Regressions confirmed that falsey non-object declarations and non-boolean rights attestations are rejected. Hosted CI only; no external platform actions were performed.
+
+
+## POLICY-00002 — validate evidence URL structure and rights keys
+- Require each supplied evidence URL to be an absolute HTTPS URL with a hostname and valid port; reject whitespace/control characters and embedded URL credentials.
+- Preserve valid query and fragment references for source citations.
+- Reject unknown rights-attestation keys so unsupported declarations cannot be mistaken for recognized clearance evidence.
+- Bump the policy pack to `2026-11-20.1`. Exact-head CI pending.
