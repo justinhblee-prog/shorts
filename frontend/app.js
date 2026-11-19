@@ -247,7 +247,7 @@
     const metricLabels={views:"조회수",like_count:"좋아요",comment_count:"댓글",share_count:"공유",estimated_minutes_watched:"시청 시간(분)",average_view_percentage:"평균 시청 비율(%)"};
     const metricUnits={views:"회",like_count:"개",comment_count:"개",share_count:"개",estimated_minutes_watched:"분",average_view_percentage:"%"};
     const chartMetricValue=item=>{
-      const key=chartMetric==="views"?"views":chartMetric;
+      const key=chartMetric==="views"?(item.platform==="youtube"?"views":"view_count"):chartMetric;
       const raw=item[key];
       if(raw===null||raw===undefined||raw==="")return null;
       const value=Number(raw);
