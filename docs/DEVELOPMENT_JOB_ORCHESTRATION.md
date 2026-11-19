@@ -205,3 +205,7 @@ Approved existing directory paths are normalized to a trailing slash against the
 
 ### BUILD-00368 — hosted regression result
 Exact code head `f6c69af52204ebfccce88a48114291c4fb6946e8` passed GitHub Actions Backend tests run [44530628392](https://github.com/justinhblee-prog/shorts/actions/runs/44530628392): **797 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Heartbeat transport failure and active child-process cancellation tests passed. Hosted Linux only; Windows self-hosted process-tree behavior and live runner recovery remain separate integration gates.
+
+
+### BUILD-00368 — final heartbeat-loss validation
+Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actions Backend tests run [44531177231](https://github.com/justinhblee-prog/shorts/actions/runs/44531177231): **798 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Transport/database heartbeat errors and definitive fencing-token rejection both cancel the executor; active child-process cancellation passed. Hosted Linux only; Windows runner behavior remains a separate gate.
