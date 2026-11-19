@@ -363,19 +363,23 @@ class YouTubeAnalyticsStore:
             result["retention_curve"] = []
         return result
 
-    def history(self, video_id=None, limit=100):
+    def history(self, video_id=None, limit=100, since=None):
         limit=max(1,min(int(limit),500))
         with self.db() as connection:
+            clauses=[]
+            params=[]
             if video_id:
-                rows=connection.execute("""
-                  SELECT * FROM youtube_analytics_history WHERE video_id=?
-                  ORDER BY collected_at DESC,id DESC LIMIT ?
-                """,(video_id,limit)).fetchall()
-            else:
-                rows=connection.execute("""
-                  SELECT * FROM youtube_analytics_history
-                  ORDER BY collected_at DESC,id DESC LIMIT ?
-                """,(limit,)).fetchall()
+                clauses.append("video_id=?")
+                params.append(video_id)
+            if since:
+                clauses.append("collected_at>=?")
+                params.append(since)
+            where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
+            rows=connection.execute(
+                "SELECT * FROM youtube_analytics_history"+where+
+                " ORDER BY collected_at DESC,id DESC LIMIT ?",
+                (*params,limit),
+            ).fetchall()
         return [dict(row) for row in rows]
 
     def assert_lease(self, owner_id, token):
