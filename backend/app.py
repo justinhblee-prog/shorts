@@ -999,17 +999,13 @@ def publishing_analytics_history(
     cutoff=(datetime.now(timezone.utc)-timedelta(days=bounded_days)).isoformat()
     result={}
     if platform in {"all","youtube"}:
-        rows=youtube_analytics_store.history(video_id=video_id,limit=bounded_limit)
-        result["youtube"]=[
-            row for row in rows if row.get("collected_at") and row["collected_at"]>=cutoff
-        ]
-    if platform in {"all","tiktok"}:
-        rows=tiktok_metrics_store.history(
-            tiktok_publish_store,video_id=video_id,limit=bounded_limit
+        result["youtube"]=youtube_analytics_store.history(
+            video_id=video_id,limit=bounded_limit,since=cutoff
         )
-        result["tiktok"]=[
-            row for row in rows if row.get("collected_at") and row["collected_at"]>=cutoff
-        ]
+    if platform in {"all","tiktok"}:
+        result["tiktok"]=tiktok_metrics_store.history(
+            tiktok_publish_store,video_id=video_id,limit=bounded_limit,since=cutoff
+        )
     return {
         "platform":platform,"video_id":video_id,"days":bounded_days,
         "items":result,
