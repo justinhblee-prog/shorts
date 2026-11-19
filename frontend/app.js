@@ -812,7 +812,25 @@
     const health=$("developmentJobHealth");
     if(health){health.textContent="Worker: "+workerLabel+" · 최근 갱신: "+(summary.latest_updated_at||"기록 없음")+" · 최근 성공 검증: "+(summary.latest_validation_ref||"아직 없음");}
     $("developmentJobCount").textContent=jobs.length+" JOBS";
-    $("developmentJobList").innerHTML=jobs.length?jobs.map(job=>{
+    const jobById=new Map(jobs.map(job=>[String(job.id),job]));
+    const laneForJob=job=>{
+      const paths=Array.isArray(job.scope)?job.scope:[];
+      const lanes=new Set(paths.map(path=>{
+        const value=String(path||"");
+        if(value.startsWith("frontend/"))return "UI";
+        if(value.startsWith(".github/workflows/")||value.startsWith("scripts/"))return "AUTOMATION";
+        if(value.startsWith("backend/tests/")||value.startsWith("backend/test_"))return "QA";
+        if(value.startsWith("backend/"))return "CORE";
+        if(value.startsWith("docs/"))return "DOCS";
+        return "INTEGRATION";
+      }));
+      return lanes.size===0?"UNCLASSIFIED":lanes.size===1?[...lanes][0]:"INTEGRATION";
+    };
+    const laneLabels={UI:"UI · 화면",CORE:"CORE · 백엔드",AUTOMATION:"AUTOMATION · 실행환경",QA:"QA · 검증",DOCS:"DOCS · 인수인계",INTEGRATION:"INTEGRATION · 교차 작업",UNCLASSIFIED:"미분류"};
+    const laneOrder=["UI","CORE","AUTOMATION","QA","DOCS","INTEGRATION","UNCLASSIFIED"];
+    const groupedJobs=new Map(laneOrder.map(lane=>[lane,[]]));
+    jobs.forEach(job=>groupedJobs.get(laneForJob(job)).push(job));
+    const renderDevelopmentJob=job=>{
       const status=String(job.status||"unknown");
       const scope=Array.isArray(job.scope)?job.scope.join(", "):"범위 미지정";
       const worker=job.worker_id?" · "+job.worker_id:"";
@@ -822,9 +840,21 @@
       const changed=Array.isArray(job.changed_files)&&job.changed_files.length?job.changed_files.join(", "):"아직 기록된 변경 파일 없음";
       const evidence=job.validation_ref?"검증 증거: "+job.validation_ref:"검증 증거 대기";
       const review=job.review_url?"Draft PR: "+job.review_url+" · "+String(job.review_head_sha||"").slice(0,12):"Draft PR 검토 증거 대기";
+      const dependencies=Array.isArray(job.dependencies)?job.dependencies:[];
+      const dependencyMarkup=dependencies.length?dependencies.map(id=>{
+        const parent=jobById.get(String(id));
+        const label=parent?(parent.title||id):id;
+        const parentStatus=parent?(developmentStatusLabels[parent.status]||parent.status):"현재 목록 외";
+        return '<span class="development-job-dependency">'+esc(label)+' · '+esc(parentStatus)+'</span>';
+      }).join(""):'<span class="development-job-dependency development-job-dependency-none">선행 작업 없음</span>';
       const recovery=status==="quarantined"?'<button type="button" class="button button-outline development-job-recover" data-recover-development-job="'+esc(job.id)+'">격리 작업 복구</button>':"";
-      return '<div class="development-job-card"><button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p><small>'+esc(lease)+' · '+esc(updated)+'</small><p>변경 파일: '+esc(changed)+'</p><small>'+esc(evidence)+'</small><small>'+esc(review)+'</small></button>'+recovery+'</div>';
-    }).join(""):'<div class="empty-state">등록된 개발 잡이 없습니다. 현재 화면은 실제 저장소의 개발 잡 데이터만 표시합니다.</div>';
+      return '<div class="development-job-card"><button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p><div class="development-job-dependencies"><small>선행 작업</small>'+dependencyMarkup+'</div><small>'+esc(lease)+' · '+esc(updated)+'</small><p>변경 파일: '+esc(changed)+'</p><small>'+esc(evidence)+'</small><small>'+esc(review)+'</small></button>'+recovery+'</div>';
+    };
+    const groupedMarkup=laneOrder.filter(lane=>groupedJobs.get(lane).length).map(lane=>{
+      const laneJobs=groupedJobs.get(lane);
+      return '<section class="development-workstream-group" data-workstream="'+lane+'"><div class="development-workstream-heading"><b>'+esc(laneLabels[lane])+'</b><span>'+laneJobs.length+'개 작업</span></div>'+laneJobs.map(renderDevelopmentJob).join("")+'</section>';
+    }).join("");
+    $("developmentJobList").innerHTML=jobs.length?groupedMarkup:'<div class="empty-state">등록된 개발 잡이 없습니다. 현재 화면은 실제 저장소의 개발 잡 데이터만 표시합니다.</div>';
     document.querySelectorAll("[data-development-job]").forEach(item=>item.setAttribute("aria-pressed",String(item.getAttribute("data-development-job")===hostDevelopmentJobSelected)));
   }
   let hostDevelopmentJobSelected="";

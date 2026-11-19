@@ -44,6 +44,23 @@ async function waitForServer() {
     await recoverButton.waitFor({ state: "visible" });
     assert.equal(await recoverButton.isEnabled(), true);
     assert.match(await page.locator("#developmentJobList").textContent(), /격리/);
+    assert.equal(await page.locator('#developmentJobList [data-workstream="UI"]').count(), 1,
+      "UI-scoped jobs must appear in their own workstream lane");
+    assert.equal(await page.locator('#developmentJobList [data-workstream="CORE"]').count(), 1,
+      "backend-scoped jobs must appear in the Core workstream lane");
+    const dependencyBoard = await page.locator("#developmentJobList").textContent();
+    assert.match(dependencyBoard, /선행 작업/);
+    assert.match(dependencyBoard, /Browser smoke UI dependency/);
+    assert.match(dependencyBoard, /완료/);
+    await page.setViewportSize({ width: 320, height: 900 });
+    const mobileLayout = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }));
+    assert.ok(mobileLayout.content <= mobileLayout.viewport,
+      "multi-flow workstream board must not overflow a 320px mobile viewport");
+    assert.equal(await page.locator('#developmentJobList [data-workstream="UI"]').count(), 1);
+    await page.setViewportSize({ width: 1440, height: 960 });
 
     page.on("dialog", async dialog => {
       if (dialog.type() === "prompt") {
