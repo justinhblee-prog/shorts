@@ -337,3 +337,7 @@ GitHub Actions run [44526419213](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00369 — final source diff validation
 Job completion evidence now uses the post-validation Git state rather than a pre-test snapshot. Tracked, staged and untracked files are included, scope is rechecked after tests, and at least one non-test source path is required. Hosted CI pending.
+
+
+### BUILD-00369 — final diff validation evidence
+GitHub Actions run [44527024967](https://github.com/justinhblee-prog/shorts/actions/runs/44527024967) passed **801 backend tests**, repository validation and frontend syntax validation for post-validation diff recalculation, scope rechecking and test-only completion rejection. Live runner behavior remains unverified.
