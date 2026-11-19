@@ -896,11 +896,13 @@ def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
 @app.post("/api/tiktok/publish/{job_id}",status_code=201)
 def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
                          x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.execute")
+    authenticated_operator=require_review_permission(x_review_token,"publish.execute")
+    if body.operator_id != authenticated_operator:
+        raise HTTPException(403,"Operator ID must match the authenticated principal")
     staged_path=require_canonical_staged_media(job_id,body.media_path)
     try:
         return tiktok_publisher.publish_private_approved(
-            job_id,staged_path,review_store,body.title,body.operator_id,
+            job_id,staged_path,review_store,body.title,authenticated_operator,
             explicit_consent=body.explicit_consent,privacy_level=body.privacy_level,
             brand_content_toggle=body.brand_content_toggle,
             brand_organic_toggle=body.brand_organic_toggle)
@@ -1409,12 +1411,14 @@ def get_production_reconciliation(job_id:str,x_review_token:str|None=Header(defa
 @app.post("/api/production/jobs/{job_id}/reconcile-retry")
 def reconcile_production_retry(job_id:str,body:ProductionReconciliationAction,
                                 x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.control")
+    authenticated_operator=require_review_permission(x_review_token,"queue.control")
     if not body.operator_id.strip() or not body.evidence_reference.strip() or not body.note.strip():
         raise HTTPException(422,"operator_id, evidence_reference and note must not be blank")
+    if body.operator_id.strip() != authenticated_operator:
+        raise HTTPException(403,"Operator ID must match the authenticated principal")
     try:
         job=queue.reconcile_production_retry(
-            job_id,body.operator_id,body.evidence_reference,body.note)
+            job_id,authenticated_operator,body.evidence_reference.strip(),body.note.strip())
         return {
             "job":review_store.sanitize_production_record(job),
             "production_paused":queue.is_paused(),
@@ -1427,12 +1431,14 @@ def reconcile_production_retry(job_id:str,body:ProductionReconciliationAction,
 
 @app.post("/api/queue/pause")
 def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.control")
+    authenticated_operator=require_review_permission(x_review_token,"queue.control")
     operator_id=body.operator_id.strip()
     note=body.note.strip()
     if not operator_id or not note:
         raise HTTPException(422,"operator_id and note must not be blank")
-    control=queue.pause(note,actor=operator_id)
+    if operator_id != authenticated_operator:
+        raise HTTPException(403,"Operator ID must match the authenticated principal")
+    control=queue.pause(note,actor=authenticated_operator)
     return {
         "control":review_store.sanitize_worker_control(control),
         "events":review_store.sanitize_worker_control_events(queue.worker_control_events(30)),
@@ -1440,11 +1446,13 @@ def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=N
 
 @app.post("/api/queue/resume")
 def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.control")
+    authenticated_operator=require_review_permission(x_review_token,"queue.control")
     if not body.operator_id.strip() or not body.note.strip():
         raise HTTPException(422,"operator_id and note must not be blank")
+    if body.operator_id.strip() != authenticated_operator:
+        raise HTTPException(403,"Operator ID must match the authenticated principal")
     try:
-        control=queue.resume(actor=body.operator_id.strip(),note=body.note.strip())
+        control=queue.resume(actor=authenticated_operator,note=body.note.strip())
         return {
             "control":review_store.sanitize_worker_control(control),
             "events":review_store.sanitize_worker_control_events(queue.worker_control_events(30)),
