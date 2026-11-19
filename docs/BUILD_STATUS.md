@@ -2704,3 +2704,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Include only the retained path and exception type; do not silently swallow disk-usage cleanup failures.
 - Add failure-injection coverage for both old database and media cleanup paths while verifying the restored database remains valid.
 - Exact-head Actions validation pending.
+
+
+## BUILD-00351 — Compose service health probes
+
+- Add PID-1 command probes for worker, scheduler and metrics collector containers.
+- Add an atomic successful-backup timestamp marker and a freshness health probe for the backup service; failed or overdue backups now make the container unhealthy.
+- Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
+- Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
+- Exact-head Actions validation pending.
