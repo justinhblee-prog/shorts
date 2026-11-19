@@ -2663,6 +2663,6 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extend the durable backlog persistence redaction boundary to `source_ref`, including the immutable job-created event payload.
 - Use the sanitized reference consistently for GitHub issue deduplication and stored identity.
 - Add a regression proving source-reference credentials are absent from the persisted job and event history.
-- Exact-head hosted CI is running; do not treat this checkpoint as validated until it completes.
+- Code head `2c1342338cd6a0cb978cd8e575fc3eb18dd4f2d4` passed GitHub Actions runs [44535753188](https://github.com/justinhblee-prog/shorts/actions/runs/44535753188) and [44535765648](https://github.com/justinhblee-prog/shorts/actions/runs/44535765648): backend validation, `scripts/validate.sh`, and `node --check frontend/app.js` all passed. Hosted Linux only; Windows local-runner and production execution remain unverified.
 
 - Align `source_ref_exists` with the same redaction rule so preflight lookups and durable deduplication use one canonical sanitized value.
