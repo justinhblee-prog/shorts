@@ -21,7 +21,15 @@ _FORBIDDEN_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".sqlite", ".sqlite3", ".
 _SECRET_ENV_KEYS = {
     "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GITHUB_TOKEN", "GH_TOKEN",
     "NEXUS_REVIEW_TOKEN", "NEXUS_REVIEW_CREDENTIALS_JSON",
+    "NEXUS_BACKUP_ENCRYPTION_KEY",
 }
+_SECRET_ENV_MARKERS = (
+    "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "API_KEY",
+    "ENCRYPTION_KEY", "PRIVATE_KEY", "SIGNING_KEY", "ACCESS_KEY",
+    "SERVICE_ROLE_KEY", "DATABASE_URL", "DB_URL", "REDIS_URL",
+    "POSTGRES_URL", "MYSQL_URL", "MONGODB_URI", "MONGO_URL",
+    "CONNECTION_STRING", "SERVICE_ACCOUNT",
+)
 
 
 def _tail(value, limit=2000):
@@ -41,6 +49,21 @@ class AiderDevelopmentExecutor:
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or not 60 <= timeout_seconds <= 7200:
             raise ValueError("timeout_seconds must be between 60 and 7200")
         self.timeout_seconds = timeout_seconds
+
+    @staticmethod
+    def _child_environment():
+        """Build a least-privilege environment for the local model subprocess."""
+        env = os.environ.copy()
+        for key in tuple(env):
+            upper = key.upper()
+            if (
+                key in _SECRET_ENV_KEYS
+                or any(marker in upper for marker in _SECRET_ENV_MARKERS)
+                or upper.startswith(("AWS_", "AZURE_", "GOOGLE_APPLICATION_CREDENTIALS"))
+            ):
+                env.pop(key, None)
+        env["OLLAMA_API_BASE"] = env.get("OLLAMA_API_BASE", "http://127.0.0.1:11434")
+        return env
 
     def _run(self, args, env, timeout):
         try:
@@ -117,14 +140,7 @@ class AiderDevelopmentExecutor:
         scope = self._validated_scope(job)
         aider = self._resolve_aider_executable()
 
-        env = os.environ.copy()
-        for key in list(env):
-            upper = key.upper()
-            if (key in _SECRET_ENV_KEYS or any(marker in upper for marker in
-                    ("TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "API_KEY"))
-                    or upper.startswith(("AWS_", "AZURE_", "GOOGLE_APPLICATION_CREDENTIALS"))):
-                env.pop(key, None)
-        env["OLLAMA_API_BASE"] = env.get("OLLAMA_API_BASE", "http://127.0.0.1:11434")
+        env = self._child_environment()
 
         if self._git("status", "--porcelain", "--untracked-files=all", env=env):
             raise NonRetryableDevelopmentJobError(
