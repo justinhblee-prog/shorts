@@ -488,7 +488,7 @@ class BackupRestoreTests(unittest.TestCase):
         )[0]
         self.assertIn("--archive /backups/ARCHIVE_NAME.tar.gz.enc", restore_section)
         self.assertIn("NEXUS_BACKUP_ENCRYPTION_REQUIRED=true", restore_section)
-        self.assertIn("Legacy `.tar.gz` archives", restore_section)
+        self.assertIn("A legacy `.tar.gz` archive is valid only when encryption-required mode is disabled", restore_section)
         self.assertNotIn("--archive /backups/ARCHIVE_NAME.tar.gz ", restore_section)
 
 
