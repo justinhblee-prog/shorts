@@ -2539,3 +2539,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions Backend tests run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254): **785 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - A subsequent documentation-only update records the scope semantics; no application code changed after the validated code head.
 - Hosted Linux only; Windows self-hosted runner and live Aider/Ollama behavior remain separate integration gates.
+
+
+## BUILD-00367 — redact worker failure evidence before persistence
+- Extract shared diagnostic redaction for bearer tokens, common credential assignments, database URLs, private keys and GitHub/OpenAI token formats.
+- Apply redaction to retryable and non-retryable worker exceptions before storing them in the durable job result summary.
+- Reuse the same redactor for Aider subprocess diagnostics and add a regression proving secrets never reach persisted failure evidence.
+- Exact-head hosted CI pending.
