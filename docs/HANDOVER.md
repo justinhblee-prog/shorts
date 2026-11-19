@@ -1329,3 +1329,10 @@ CSV export now uses a per-platform composite keyset cursor (`collected_at,id`) i
 ## BUILD-00330 — stable export time window
 
 The analytics history API now returns a normalized UTC `as_of` timestamp and accepts it on subsequent requests. CSV export pins this value from the first response and reuses it across all pages and platforms, so the rolling date-window cutoff does not move during long-running exports. Timezone-aware ISO-8601 values are required. Regression tests added; exact-head CI pending.
+
+
+### BUILD-00329 / BUILD-00330 validation checkpoint
+
+- Combined implementation and regression-test checkpoint: `deae2f0451b56e2bb4839a5cee2959db15504817`.
+- Actions run [44490155724](https://github.com/justinhblee-prog/shorts/actions/runs/44490155724) passed with **700 backend tests**; a second exact-head run was still in progress when recorded.
+- Export uses stable per-platform keyset cursors and a shared timezone-aware UTC `as_of` boundary across pages and platforms. No live provider or browser download validation is claimed.
