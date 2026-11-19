@@ -2658,3 +2658,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Record retry promotion, retry exhaustion/quarantine, and dependency-unblock transitions in immutable job events within the same SQLite transaction as each status change.
 - Add regression coverage for retry_ready, retry_quarantined, and dependencies_satisfied event records.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00373 — exact-head hosted validation
+- Exact head `f1408abd9fd878c9c06e3f5ceb9448e7e9a27b85` passed GitHub Actions run [44523925899](https://github.com/justinhblee-prog/shorts/actions/runs/44523925899): **805 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- Coverage verifies immutable events for retry promotion, retry exhaustion/quarantine and dependency unblocking.
