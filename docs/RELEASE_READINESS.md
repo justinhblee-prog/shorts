@@ -8,7 +8,7 @@
 ## Current checkpoint — 2026-11-19
 
 - Core lane: PR [#323](https://github.com/justinhblee-prog/shorts/pull/323), Open / Draft / Unmerged. Latest docs-inclusive head `9bb930be024e42874f150ee46143213b04660c45`; GitHub Actions run [44496236632](https://github.com/justinhblee-prog/shorts/actions/runs/44496236632) passed `scripts/validate.sh` with **711 tests**.
-- Latest Core engineering items: BUILD-00336 fair bounded TikTok retry ordering; BUILD-00337 due-candidate query-plan guard; BUILD-00338 indexed ordered scan with correlated latest-snapshot lookup; BUILD-00339 TikTok OAuth initialization and lease-fencing coverage.
+- Latest Core engineering items: BUILD-00336 fair bounded TikTok retry ordering; BUILD-00337 due-candidate query-plan guard; BUILD-00338 indexed ordered scan with correlated latest-snapshot lookup; BUILD-00339 TikTok OAuth initialization and lease-fencing coverage; BUILD-00340 synthetic 10k-publication/10k-snapshot scan smoke test (712 tests, 0.50 ms CI measurement).
 - UI lane: PR [#329](https://github.com/justinhblee-prog/shorts/pull/329), Open / Draft / Unmerged. UI-00001–00004 passed [run 44495954616](https://github.com/justinhblee-prog/shorts/actions/runs/44495954616) with **710 tests**. UI-00005 adds analytics refresh/busy state and displays the API's frozen `as_of` cutoff; exact-head validation is pending.
 - Both lanes remain separate; the UI branch is based on the Core branch and the PRs remain unmerged.
 - Browser rendering, actual CSV download, physical touch-device/screen-reader validation, real YouTube/TikTok OAuth and provider operations, Docker deployment, backup/restore drill, and actual cohort ROI remain unverified.
