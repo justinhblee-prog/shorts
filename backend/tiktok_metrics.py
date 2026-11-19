@@ -49,6 +49,8 @@ class TikTokMetricsStore:
             );
             CREATE INDEX IF NOT EXISTS idx_tiktok_metric_video_time
               ON tiktok_video_metric_snapshots(video_id,collected_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_tiktok_metric_video_time_id
+              ON tiktok_video_metric_snapshots(video_id,collected_at DESC,id DESC);
             CREATE INDEX IF NOT EXISTS idx_tiktok_metric_time
               ON tiktok_video_metric_snapshots(collected_at DESC,id DESC);
             CREATE TABLE IF NOT EXISTS tiktok_metrics_collection_state(
