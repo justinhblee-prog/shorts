@@ -257,7 +257,7 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         parent_code = (
             "import subprocess,sys,time; "
             "subprocess.Popen([sys.executable, '-c', sys.argv[1]]); "
-            "time.sleep(30)"
+            "sys.exit(0)"
         )
         cancelled = threading.Event()
         self.executor._lease_lost_event = cancelled
