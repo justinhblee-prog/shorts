@@ -75,7 +75,7 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
                 f"Existing job {number}", priority=1,
                 source_ref=f"github:acme/app#existing-{number}",
             )
-        source_ref = "github:acme/app#501"
+        source_ref = "github:issue:acme/app#501"
         target = self.store.create(
             "Older imported issue", priority=100, source_ref=source_ref,
         )
