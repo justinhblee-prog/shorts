@@ -2459,3 +2459,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Calculate the dashboard's “data missing / refresh needed” count from the combined `stale_or_missing` field, or from legacy `without_snapshot + stale_snapshots` fields when the combined field is unavailable. This prevents old snapshots from being presented as current coverage.
 - Add frontend source regression coverage for timestamp display and stale/missing count selection.
 - Validation: GitHub Actions runs [44485794642](https://github.com/justinhblee-prog/shorts/actions/runs/44485794642) and [44485787820](https://github.com/justinhblee-prog/shorts/actions/runs/44485787820) passed the full validation workflow with **699 backend tests** on exact checkpoint `df66e52`. Browser rendering and live provider freshness remain unverified.
+
+
+### BUILD-00324 API contract regression
+
+- Extend the protected analytics-status API test to verify that TikTok `latest_snapshot_at` and `coverage.stale_or_missing` pass through the allowlisted response fields, while internal errors and credentials remain excluded.
+- Exact-head GitHub Actions runs [44486123616](https://github.com/justinhblee-prog/shorts/actions/runs/44486123616) and [44486133696](https://github.com/justinhblee-prog/shorts/actions/runs/44486133696) passed with **699 backend tests** on checkpoint `910c521`.
