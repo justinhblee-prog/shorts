@@ -632,8 +632,9 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertIsNone(saved["estimated_minutes_watched"])
         self.assertEqual(saved["average_view_duration"], 12.5)
         self.assertEqual(saved["average_view_percentage"], 125.0)
-        self.assertEqual(len(saved["retention_curve"]), 4)
+        self.assertEqual(len(saved["retention_curve"]), 5)
         self.assertEqual(saved["retention_curve"][1]["audience_watch_ratio"], 1.2)
+        self.assertIsNone(saved["retention_curve"][2]["relative_retention_performance"])
         self.assertEqual(
             saved["retention_curve"][0],
             {
