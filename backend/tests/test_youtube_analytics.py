@@ -361,6 +361,11 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(recent[0]["views"],30)
         older=self.store.history("range-video",limit=5,since="2026-11-02")
         self.assertEqual({row["views"] for row in older},{20,30})
+        cursor=next(row for row in older if row["views"]==20)
+        stable=self.store.history(
+            "range-video",limit=5,before_collected_at=cursor["collected_at"],before_id=cursor["id"]
+        )
+        self.assertEqual([row["views"] for row in stable],[10])
 
     def test_relative_retention_performance_rejects_negative_values(self):
         reports = FakeReports(retention={
