@@ -21,7 +21,7 @@
 ### Python 패키지 격리
 - 각 workflow 실행은 checkout workspace 안에 임시 `.nexus-backend-venv`와 `.nexus-aider-venv`를 별도로 생성합니다.
 - Backend requirements와 Aider를 서로 다른 가상환경에 설치해 의존성 충돌을 줄이고 PC의 전역 Python/사용자 패키지를 변경하지 않습니다.
-- 이 두 가상환경은 매 실행 때 새로 만들어지며 checkout 정리 대상입니다. 영속 개발 잡 DB는 별도로 LocalAppData에 남습니다.
+- 이 두 가상환경은 매 실행 때 새로 만들어지며 checkout 정리 대상입니다. `.gitignore`에 등록되어 worker의 clean-worktree 검사에 나타나지 않습니다. 영속 개발 잡 DB는 별도로 LocalAppData에 남습니다.
 - 사전 점검에서 Python 3.11+, Git Bash/sh, Node.js 18+, Ollama API 및 정확한 모델 태그를 확인합니다.
 
 ## 실행 및 안전
