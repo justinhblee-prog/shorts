@@ -1277,3 +1277,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - TikTok analytics status now reports `latest_snapshot_at` and `coverage.stale_or_missing`; existing `stale_snapshots` remains backward-compatible.
 - Remaining external validation: live YouTube/TikTok OAuth and provider API behavior, scheduled production collection, and browser-level dashboard rendering. CI does not claim these have been exercised.
 - Next development focus: verify analytics-history filter/bounds and export integrity end-to-end, then improve analytics freshness presentation in the dashboard without inventing a collection cadence.
+
+
+## Latest validated checkpoint — BUILD-00324
+
+- Branch head at this checkpoint: `df66e525ad4f6b85ca3bfb450a0f6e03c0cd1357`.
+- TikTok analytics status now exposes the latest snapshot timestamp and a combined stale/missing coverage count; the dashboard displays the latest snapshot timestamp and counts stale snapshots as needing refresh.
+- Exact-head GitHub Actions runs [44485794642](https://github.com/justinhblee-prog/shorts/actions/runs/44485794642) and [44485787820](https://github.com/justinhblee-prog/shorts/actions/runs/44485787820) passed; full validation completed with **699 backend tests**.
+- The PR remains Open / Draft; do not merge without explicit user approval. Documentation updates may move the branch head beyond this tested code checkpoint; do not describe docs-only commits as separately tested code.
+- Next: inspect analytics-history filters and export path for platform/period/video isolation, CSV injection safety and consistent metric formatting; add regression coverage before changing behavior.
