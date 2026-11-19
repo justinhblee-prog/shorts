@@ -342,6 +342,34 @@ class AiderDevelopmentExecutor:
                 return True
         return False
 
+    def verify_execution_evidence(self, job, result):
+        """Re-read Git state and independently verify the executor's changed-file claim."""
+        if not isinstance(result, dict):
+            raise NonRetryableDevelopmentJobError("executor evidence must be an object")
+        claimed = result.get("changed_files")
+        if not isinstance(claimed, list) or not claimed or not all(
+            isinstance(path, str) and path.strip() for path in claimed
+        ):
+            raise NonRetryableDevelopmentJobError("executor did not report meaningful changed files")
+        scope = self._validated_scope(job)
+        with tempfile.TemporaryDirectory(prefix="nexus-verify-home-") as isolated_home:
+            env = self._child_environment(isolated_home)
+            actual = self._changed_files(env)
+        if not actual:
+            raise NonRetryableDevelopmentJobError("Git worktree contains no source changes")
+        normalize = lambda paths: sorted({path.replace("\\\\", "/") for path in paths})
+        if normalize(claimed) != normalize(actual):
+            raise NonRetryableDevelopmentJobError(
+                "executor changed_files do not match the current Git worktree"
+            )
+        outside_scope = [path for path in actual if not self._matches_scope(path, scope)]
+        if outside_scope:
+            raise NonRetryableDevelopmentJobError(
+                "Git worktree contains changes outside the declared scope: "
+                + ", ".join(outside_scope[:20])
+            )
+        return actual
+
     def __call__(self, job):
         scope = self._validated_scope(job)
         aider = self._resolve_aider_executable()
