@@ -50,7 +50,7 @@ jobs:
             throw "Unable to locate the active Runner.Listener executable; cannot verify Node 24 action compatibility."
           }
           $versionText = (Get-Item -LiteralPath $listener.Path).VersionInfo.ProductVersion
-          $match = [regex]::Match([string]$versionText, '\\d+\\.\\d+\\.\\d+')
+          $match = [regex]::Match([string]$versionText, '\d+\.\d+\.\d+')
           if (-not $match.Success) {
             throw "Unable to parse self-hosted Actions runner version '$versionText'; Node 24 actions require runner 2.327.1 or newer."
           }
