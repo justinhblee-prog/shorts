@@ -2523,3 +2523,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve existing indexes for compatibility and add schema regression checks. Exact-head CI validation pending; performance impact on production-sized databases remains to be benchmarked.
 
 - BUILD-00331 validation: GitHub Actions runs [44490415081](https://github.com/justinhblee-prog/shorts/actions/runs/44490415081) and [44490415183](https://github.com/justinhblee-prog/shorts/actions/runs/44490415183) passed with **700 backend tests** each. The preceding stable-pagination/date-window checkpoint also passed twice (runs [44490155724](https://github.com/justinhblee-prog/shorts/actions/runs/44490155724) and [44490164457](https://github.com/justinhblee-prog/shorts/actions/runs/44490164457), 700 tests each). Production-scale query latency still needs benchmarking.
+
+## BUILD-00332 — validate analytics keyset cursor timestamps
+
+- Require `before_collected_at` to parse as a timezone-aware ISO-8601 timestamp before passing it to either analytics history store. This prevents arbitrary or timezone-naive strings from reaching the SQL keyset comparison.
+- Preserve the original timestamp text for the database cursor comparison; accept the UTC `Z` form used by ISO-8601 clients.
+- Add API regression cases for malformed, date-only, and timezone-naive cursor values, plus a valid UTC-`Z` cursor pass-through case.
+- GitHub Actions validation is running for implementation and tests; no passing result is claimed yet. Live provider and browser behavior remain unverified.
