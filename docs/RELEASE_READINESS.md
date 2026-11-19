@@ -208,3 +208,7 @@ These are additional readiness constraints documented by the project, not comple
 - BUILD-00343 passed Compose run [44499051491](https://github.com/justinhblee-prog/shorts/actions/runs/44499051491): AES-256-GCM encrypted archive creation, plaintext rejection, isolated restore, and SQLite integrity check. Production encryption-key custody and off-host recovery remain pending.
 
 - BUILD-00344 extends the encrypted backup CI smoke with a wrong-key restore attempt; it must fail authentication without changing the target database, before the correct-key restore is allowed.
+
+
+### BUILD-00352 — encrypted restore instructions
+The production restore command now selects `.tar.gz.enc` and explicitly requires the protected `NEXUS_BACKUP_ENCRYPTION_KEY` plus `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true`. The prior runbook example selected the legacy plaintext suffix, contradicting the encrypted production configuration and failing closed. A regression test protects the documentation contract. Exact-head CI is pending; this does not configure or exercise a production secret or restore.
