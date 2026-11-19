@@ -213,11 +213,12 @@
       const unavailableNames=unavailable.map(x=>metricLabels[x]||x);
       const total=Number(coverage.published_videos||0);
       const collected=Number(coverage.with_snapshot||0);
-      const missing=Number(coverage.without_snapshot??coverage.stale_or_missing??Math.max(0,total-collected));
+      const missing=Number(coverage.stale_or_missing??(Number(coverage.without_snapshot||0)+Number(coverage.stale_snapshots||0)));
       const coverageText=total?collected+" / "+total+"개 영상":"대상 영상 없음";
       const batch=item.last_batch||{};
       return '<article class="analytics-card"><div class="analytics-card-head"><strong>'+name+'</strong><span class="analytics-status">'+esc(statusLabels[item.status]||item.status||"상태 미확인")+'</span></div>'
         +'<div class="analytics-coverage"><b>'+esc(coverageText)+'</b><small>데이터 누락·갱신 필요 '+missing+'개</small></div>'
+        +'<div class="analytics-meta"><span>최근 스냅샷</span><b>'+esc(stamp(item.latest_snapshot_at))+'</b></div>'
         +'<div class="analytics-meta"><span>최근 수집 성공</span><b>'+esc(stamp(item.last_success_at))+'</b></div>'
         +'<div class="analytics-meta"><span>최근 수집 시도</span><b>'+esc(stamp(item.last_attempt_at))+'</b></div>'
         +'<div class="analytics-meta"><span>최근 배치</span><b>요청 '+Number(batch.requested||0)+' · 수집 '+Number(batch.collected||0)+'</b></div>'
