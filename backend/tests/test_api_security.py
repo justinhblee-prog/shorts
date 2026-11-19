@@ -1059,8 +1059,15 @@ class ApiSecurityTests(unittest.TestCase):
                 platform="all",days=30,limit=200,x_review_token="analytics-token"
             )
         authorize.assert_called_once_with("analytics-token","analytics.read")
-        yt_history.assert_called_once_with(video_id=None,limit=200)
-        tt_history.assert_called_once_with(app_module.tiktok_publish_store,video_id=None,limit=200)
+        yt_history.assert_called_once()
+        self.assertEqual(yt_history.call_args.kwargs["video_id"],None)
+        self.assertEqual(yt_history.call_args.kwargs["limit"],200)
+        self.assertIsNotNone(yt_history.call_args.kwargs["since"])
+        tt_history.assert_called_once()
+        self.assertIs(tt_history.call_args.args[0],app_module.tiktok_publish_store)
+        self.assertEqual(tt_history.call_args.kwargs["video_id"],None)
+        self.assertEqual(tt_history.call_args.kwargs["limit"],200)
+        self.assertIsNotNone(tt_history.call_args.kwargs["since"])
         self.assertEqual(result["counts"],{"youtube":1,"tiktok":1})
         self.assertTrue(result["read_only"])
         with self.assertRaises(HTTPException):
