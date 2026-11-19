@@ -598,5 +598,28 @@ class TikTokMetricsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "lease duration"):
             self.store.renew_lease("collector-minimum", token, True)
 
+
+    def test_status_coverage_is_aggregated_in_sql_and_counts_distinct_published_videos(self):
+        self._publish("job-duplicate", "video-1")
+        self._publish("job-2", "video-2")
+        self.store.save_snapshot("job-1", {
+            "id": "video-1", "view_count": 100, "like_count": 2,
+            "comment_count": 1, "share_count": 0,
+        })
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_video_metric_snapshots SET collected_at=? WHERE video_id=?",
+                ("2000-01-01T00:00:00+00:00", "video-1"),
+            )
+        status = self.store.status(self.publications, freshness_seconds=60)
+        coverage = status["coverage"]
+        self.assertEqual(coverage["published_videos"], 2)
+        self.assertEqual(coverage["with_snapshot"], 1)
+        self.assertEqual(coverage["without_snapshot"], 1)
+        self.assertEqual(coverage["stale_snapshots"], 1)
+        self.assertEqual(coverage["stale_or_missing"], 2)
+        self.assertEqual(status["latest_snapshot_at"], "2000-01-01T00:00:00+00:00")
+
+
 if __name__ == "__main__":
     unittest.main()
