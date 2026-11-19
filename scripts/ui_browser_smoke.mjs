@@ -126,6 +126,7 @@ async function waitForServer() {
     assert.ok(csv.includes("video-yt-500"));
     assert.ok(csv.includes("video-yt-501"));
     assert.ok(csv.includes("video-tt-1"));
+    await page.waitForFunction(() => document.querySelector("#analyticsHistoryStatus").textContent.includes("CSV 다운로드 요청 완료"));
     assert.match(await page.locator("#analyticsHistoryStatus").textContent(), /CSV 다운로드 요청 완료/);
 
     await page.reload({ waitUntil: "networkidle" });
