@@ -1401,3 +1401,7 @@ Code head `923a4bd36ad3f7e5bf36c271c07f20b45c8642ef` passed GitHub Actions run [
 
 ### BUILD-00369 — final diff evidence gate
 The Aider executor now recalculates the full Git worktree change set after repository validation, because validation itself may create or modify files. It rejects post-validation changes outside the approved scope and refuses to report success for no-op or test-only diffs. Exact-head hosted CI pending.
+
+
+### BUILD-00369 — exact-head CI result
+Code head `d802ff98a8e7ab5fed3cfdf37aca38ff5ece9ce4` passed GitHub Actions run [44527024967](https://github.com/justinhblee-prog/shorts/actions/runs/44527024967): **801 tests**, repository validation and frontend syntax check. Tests cover staged, unstaged and untracked Git changes plus test-only change classification. Hosted Linux only.
