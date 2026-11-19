@@ -392,4 +392,4 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 
 - Added a regression for `POST /api/tiktok/publish/{job_id}`: a body-supplied operator ID that differs from the token-authenticated principal must return HTTP 403.
 - The test asserts the guard runs before canonical staged-media resolution and before the TikTok publisher is called, preventing both filesystem/provider side effects for spoofed identities.
-- Commit: `bd3592951ae359fee7272e7b04951409960579f7` (PR #407 integration branch). Exact-head CI status pending at documentation time; no pass is claimed.
+- Commit: `db796c7b297ca2b511faa7034311eb1734fab5c8` (PR #407 integration branch). Exact-head CI status pending at documentation time; no pass is claimed.
