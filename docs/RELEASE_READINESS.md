@@ -365,3 +365,7 @@ The final store transition now independently requires at least one non-test sour
 
 ### BUILD-00372 — durable source evidence CI
 GitHub Actions run [44529199064](https://github.com/justinhblee-prog/shorts/actions/runs/44529199064) passed **804 backend tests**, repository validation and frontend syntax validation for the store-level non-test source requirement. Hosted Linux only.
+
+
+### BUILD-00373 — GitHub intake transient resilience
+GitHub backlog reads now have bounded retry handling for transient failures and rate limits, with a strict five-second per-retry delay ceiling. Authentication and permission errors are not retried. Hosted CI pending; no live GitHub rate-limit test is claimed.
