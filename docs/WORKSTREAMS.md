@@ -106,3 +106,10 @@ Develop the product interface and its runtime independently so both can make pro
 - Simulate a 500-row YouTube page, a second keyset-cursor page, and a TikTok page; assert the downloaded CSV contains the header plus all 502 rows and the first/last/platform-specific video IDs.
 - The API/provider data is mocked; this validates browser download and pagination logic, not live backend completeness or real provider data.
 - Exact-head browser CI validation pending.
+
+## UI-00007 — browser-level paginated CSV download verified
+
+- Exact UI checkpoint `7803b4f76b3a2fa32ce5e1ada3ff831765c62988` passed [Actions run 44499334826](https://github.com/justinhblee-prog/shorts/actions/runs/44499334826): **717 tests** plus Playwright Chromium.
+- Browser test verified the delayed analytics `aria-busy` state, visible frozen `as_of` cutoff, a real Chromium download event, a 500-row YouTube first page plus keyset second page and one TikTok page, and the downloaded CSV's 502 data rows (503 lines including the header).
+- Screenshot artifact `nexus-dashboard-browser-screenshots` ID `14516885953` is attached to the same Actions run and expires 2027-02-17.
+- The API responses are deterministic browser fixtures. This verifies frontend pagination/download handling, not live backend completeness or real provider data.
