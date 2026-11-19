@@ -81,3 +81,5 @@ Develop the product interface and its runtime independently so both can make pro
 - Exercise the actual rendered dashboard in Chromium at desktop, 390px and 320px viewports; check page overflow, navigation targets, section navigation, keyboard skip-link focus, reduced-motion behavior, and uncaught page errors.
 - API calls are deliberately intercepted as unauthenticated responses. This verifies frontend rendering and navigation only; it does not claim live API, authenticated workflows, or real CSV download validation.
 - Exact-head browser CI validation pending.
+
+- Initial Playwright install failed because `ubuntu-latest` resolved to Ubuntu 26.04, which Playwright 1.56.1 does not support. Pin the UI browser workflow to Ubuntu 24.04; rerun the browser smoke on the supported runner before claiming validation.
