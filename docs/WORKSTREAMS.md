@@ -73,3 +73,11 @@ Develop the product interface and its runtime independently so both can make pro
 - Show the API's frozen UTC `as_of` cutoff in the completed/empty result status so users can distinguish query time from the newest snapshot time.
 - Add source regression coverage for the busy state, cutoff display, and visual refresh indication.
 - Browser/screen-reader behavior remains to be verified in a runnable browser environment.
+
+
+## UI-00006 — real-browser responsive and keyboard smoke test
+
+- Add a minimal static server and Playwright Chromium smoke test to the UI CI workflow.
+- Exercise the actual rendered dashboard in Chromium at desktop, 390px and 320px viewports; check page overflow, navigation targets, section navigation, keyboard skip-link focus, reduced-motion behavior, and uncaught page errors.
+- API calls are deliberately intercepted as unauthenticated responses. This verifies frontend rendering and navigation only; it does not claim live API, authenticated workflows, or real CSV download validation.
+- Exact-head browser CI validation pending.
