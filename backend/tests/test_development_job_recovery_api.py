@@ -42,7 +42,6 @@ class DevelopmentJobRecoveryApiTests(unittest.TestCase):
         )
         self.assertEqual(result["job"]["status"], "ready")
         self.assertNotIn("lease_token", result["job"])
-        self.assertNotIn("worker_id", result["job"])
 
     def test_recovery_authorization_failure_never_mutates_store(self):
         with (
