@@ -140,6 +140,21 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('.integrity-item', css)
         self.assertIn('loadIntegrityReport()', app_js)
 
+    def test_quarantined_development_jobs_expose_audited_operator_recovery(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        css = (frontend / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('status==="quarantined"', app_js)
+        self.assertIn('data-recover-development-job=', app_js)
+        self.assertIn('/api/development/jobs/"+encodeURIComponent(jobId)+"/recover', app_js)
+        self.assertIn('JSON.stringify({reason:reason.trim()})', app_js)
+        self.assertIn('window.prompt("격리된 작업을 다시 실행해야 하는 사유를 입력하세요.")', app_js)
+        self.assertIn('window.confirm("운영자 복구 사유를 감사 기록에 남기고', app_js)
+        self.assertIn('data-recover-development-job', app_js)
+        self.assertIn('격리된 작업만 운영자 권한과 복구 사유를 확인한 뒤 재대기', html)
+        self.assertIn('.development-job-recover', css)
+
     def test_cyber_magic_theme_is_loaded_after_base_styles(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         css = (ROOT / "frontend" / "cyber-magic.css").read_text(encoding="utf-8")
