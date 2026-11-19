@@ -2,6 +2,7 @@ import os
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from development_jobs import DevelopmentJobStore
 from development_job_worker import DevelopmentJobWorker, NonRetryableDevelopmentJobError
@@ -156,7 +157,7 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         executor = CancellableExecutor()
         worker = DevelopmentJobWorker(self.store, "worker-heartbeat-failure", executor)
         outcomes = []
-        with unittest.mock.patch.object(
+        with patch.object(
             self.store, "heartbeat", side_effect=RuntimeError("database temporarily unavailable")
         ):
             thread = threading.Thread(target=lambda: outcomes.append(worker.run_once()))
