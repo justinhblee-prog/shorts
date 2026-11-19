@@ -2457,4 +2457,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve Link-header pagination within the cap, reject any `rel=next` URL outside `api.github.com`, and record per-feed truncation metadata when additional pages remain.
 - Return truncation metadata through snapshot normalization and the backlog sync result so an incomplete snapshot is never silently presented as complete.
 - Add regressions for the five-page hard cap, retained next-page detection, and per-feed truncation propagation.
-- Exact-head CI pending. No live GitHub token rate-limit or Windows runner execution is claimed.
+- Exact-head backend Actions run [44511056511](https://github.com/justinhblee-prog/shorts/actions/runs/44511056511) passed **771 tests** on `7c48c967eca8460378ffa9dc5ea13cacdfd89a16`. This is hosted CI only; no live GitHub token rate-limit or Windows runner execution is claimed.
