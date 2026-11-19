@@ -227,4 +227,4 @@ These are additional readiness constraints documented by the project, not comple
 
 
 ### BUILD-00355 — idempotent GitHub issue intake
-The read-only backlog sync now deduplicates by indexed `source_ref` across the complete development-job store, rather than the first 500 rows returned by the list API. The store enforces duplicate identity under its SQLite write transaction, so concurrent intake runs cannot create duplicate jobs after racing preflight checks. Exact-head CI is pending; no live Windows runner execution is claimed.
+The read-only backlog sync now deduplicates by indexed `source_ref` across the complete development-job store, rather than the first 500 rows returned by the list API. The store enforces uniqueness for `github:issue:` source references under its SQLite write transaction, so concurrent intake runs cannot create duplicate issue jobs after racing preflight checks. Other seeded/documentation source references are unaffected. Exact-head CI is pending; no live Windows runner execution is claimed.
