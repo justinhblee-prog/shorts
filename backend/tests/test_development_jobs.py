@@ -96,6 +96,11 @@ class DevelopmentJobStoreTests(unittest.TestCase):
 
     def test_dependency_insertion_racing_claim_is_serialized(self):
         gate = self.store.create("Unfinished gate", priority=3, scope=["backend/gate.py"])
+        gate_claim = self.store.claim_ready("worker-gate")
+        self.store.mark_review_pending(
+            gate["id"], "worker-gate", gate_claim["lease_token"],
+            ["backend/gate.py"], True, "ci://gate",
+        )
         parent = self.store.create("Blocked prerequisite", priority=2, scope=["backend/parent.py"])
         self.store.add_dependency(parent["id"], gate["id"])
         child = self.store.create("Racing child", priority=1, scope=["backend/child.py"])
