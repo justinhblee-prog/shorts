@@ -2763,4 +2763,5 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ## BUILD-00388 — confine GitHub pagination to the requested feed
 - Validate each pagination URL as HTTPS on the exact GitHub API host and require its path to remain identical to the originally requested repository/feed endpoint.
 - Reject user-info, fragments, malformed collection paths and same-host links that redirect pagination to a different repository or endpoint before sending another authenticated GET.
-- Add regressions for cross-repository same-host links, user-info links and invalid initial paths. Exact-head CI pending; hosted and live GitHub pagination behavior remain to be verified.
+- Validate imported issue `html_url` values against the exact HTTPS `github.com` host and matching owner/repository/issue-number path; reject credentials, non-default ports, query/fragment data, whitespace and lookalike hosts, falling back to a constructed canonical link.
+- Add regressions for cross-repository same-host pagination, user-info links, invalid initial paths, and hostile/mismatched issue URLs. Live GitHub API pagination remains to be verified.
