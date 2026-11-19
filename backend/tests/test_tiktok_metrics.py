@@ -103,6 +103,7 @@ class TikTokMetricsTests(unittest.TestCase):
             }
         self.assertIn("idx_tiktok_metric_time",indexes)
         self.assertIn("idx_tiktok_metric_video_time",indexes)
+        self.assertIn("idx_tiktok_metric_video_time_id",indexes)
 
     def test_history_since_filters_before_applying_limit(self):
         self.store.save_snapshot("job-1", {
