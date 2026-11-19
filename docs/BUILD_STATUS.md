@@ -2580,3 +2580,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ### BUILD-00367 — final redaction and scope-normalization validation
 - Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
+
+
+## BUILD-00368 — quarantine expired leases until workspace reset
+- Expired worker leases now move to `quarantined` rather than becoming immediately claimable. A database fencing token prevents stale evidence writes but cannot stop an old subprocess or prove its shared worktree is clean.
+- Add an explicit recovery gate requiring an operator identity, a recorded reason, and affirmative workspace-reset confirmation; recovery is refused for non-expiry quarantines and exhausted attempt budgets.
+- Enforce one active lease per worker identity so duplicate processes cannot claim multiple jobs under one presence record.
+- Add concurrency, stale-token, recovery-gate, attempt-limit and same-worker identity regressions.
+- Exact-head hosted CI pending.
