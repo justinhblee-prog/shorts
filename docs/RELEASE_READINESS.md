@@ -7,7 +7,7 @@
 
 ## Current checkpoint — 2026-11-19
 
-- Core lane: PR [#323](https://github.com/justinhblee-prog/shorts/pull/323), Open / Draft / Unmerged. Latest Core code head `1dbd12852bf41c9c58c11a801a30d9d3000daffa` adds BUILD-00351 service health probes; exact-head CI is running. The preceding checkpoint `fc77c904e72cc2e4f05972a5492a0f10566d0d05` passed 720 backend tests and five-service encrypted backup/restore Compose smoke. BUILD-00345–00351 add restore rollback, path-overlap, symlink-root, archive-size, offline-restore, cleanup-warning and container health protections.
+- Core lane: PR [#323](https://github.com/justinhblee-prog/shorts/pull/323), Open / Draft / Unmerged. Latest Core code checkpoint `1dbd12852bf41c9c58c11a801a30d9d3000daffa` passed 725 backend tests [run 44506538368](https://github.com/justinhblee-prog/shorts/actions/runs/44506538368) and health-aware five-service Compose integration [run 44506538484](https://github.com/justinhblee-prog/shorts/actions/runs/44506538484). Worker, scheduler, metrics collector and backup healthchecks were healthy; the backup marker and encrypted isolated restore passed. BUILD-00345–00351 add restore rollback, path-overlap, symlink-root, archive-size, offline-restore, cleanup-warning and container health protections.
 - Latest Core engineering items: BUILD-00336–00340 (bounded/fair indexed TikTok scan, query-plan guard, collector lease/OAuth coverage, synthetic 10k-row scan); BUILD-00341–00344 (Compose service integration, AES-256-GCM backup, isolated restore, wrong-key failure without DB modification). Synthetic due scan measured 0.65 ms for 10k publications and 10k snapshots on the CI runner.
 - UI lane: PR [#329](https://github.com/justinhblee-prog/shorts/pull/329), Open / Draft / Unmerged. Latest UI code checkpoint `20207d401d9a65a1f3c112dec621174e56917860` passed 730 tests and Playwright Chromium; current docs head `ff77b20ae500e7bb11a40960d86ab9518c2a6585` is documentation-only. UI-00008 exercises the actual FastAPI app/SQLite, authenticated API, review approval, analytics cursor pagination, browser CSV download and partial API outage handling; UI-00009 adds review search.
 - Verified in CI: browser rendering/navigation, authenticated FastAPI/SQLite API requests, real review approval/audit history, keyset-paginated analytics and a 502-row Chromium CSV download; desktop/mobile viewport, keyboard/skip-link, reduced-motion and partial API outage behavior; Docker Compose five-service startup; encrypted synthetic backup and isolated restore; wrong-key restore rejection without changing the target database. New worker/scheduler/collector/backup health probes and the health-aware Compose smoke are pending exact-head validation. Not verified: live authenticated backend/provider data, real YouTube/TikTok OAuth/publishing/analytics, production-host deployment, production-data backup recovery, physical touch-device and assistive-technology validation, and real cohort ROI.
@@ -70,7 +70,7 @@ This is a rolling audit, not a claim that exactly six BUILD items remain. Add ne
 
 **Exit criteria:** all five Compose services start and remain healthy; API, worker and scheduler exercise one complete supervised lifecycle; recovery and backup behavior are demonstrated.
 
-- [ ] Build and start Docker Compose on the deployment host; confirm API, worker and scheduler health. CI Compose smoke (BUILD-00341–00350) verifies five service startup, encrypted backup creation, isolated restore and wrong-key fail-closed behavior. BUILD-00351 adds per-service health probes; this does not count as deployment-host evidence.
+- [ ] Build and start Docker Compose on the deployment host; confirm API, worker and scheduler health. CI Compose smoke (BUILD-00341–00351) verifies all five service healthchecks, encrypted backup creation, isolated restore and wrong-key fail-closed behavior; this does not count as deployment-host evidence.
 - [ ] Exercise queue → worker → production record → review handoff → recovery on the deployed single-host SQLite volume.
 - [ ] Verify scheduler pause, pending outbox replay, restart behavior and idempotency on the deployed host.
 - [ ] Run a backup and restore drill against a copy of the persistent data volume.
@@ -84,7 +84,7 @@ Source: `docs/OPERATOR_RUNBOOK.md`, section 8.
 
 | # | Required evidence | Status |
 |---:|---|---|
-| 1 | `sh scripts/validate.sh` passes on Python 3.11+ | Verified in GitHub Actions for PR #323 checkpoint `fc77c904`; 720 tests, CI only; BUILD-00351 exact-head validation pending |
+| 1 | `sh scripts/validate.sh` passes on Python 3.11+ | Verified in GitHub Actions for PR #323 checkpoint `1dbd1285`; 725 tests, CI only |
 | 2 | Docker Compose build/start; all five services healthy | Pending deployment evidence |
 | 3 | Real script, voice and video generation; vendor compatibility, rights/licensing and costs checked | Pending real provider credentials and media review |
 | 4 | Renderer CDN allowlist and staged MP4 playback verified | Pending real renderer artifact and playback |
