@@ -2500,4 +2500,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Remove inherited Python interpreter/module injection settings, dynamic-loader overrides, shell startup hooks (Bash/sh/Zsh), and Node/Ruby/Perl/Java runtime preload and module-path variables from the Aider child environment.
 - Preserve only the explicitly constructed local model, repository, and isolated tool configuration context.
 - Add regression coverage for PYTHONPATH/PYTHONHOME/PYTHONUSERBASE/PYTHONSTARTUP, LD_PRELOAD/LD_LIBRARY_PATH/LD_AUDIT, DYLD_INSERT_LIBRARIES/DYLD_FRAMEWORK_PATH, BASH_ENV/ENV/PROMPT_COMMAND/ZDOTDIR/ZSHENV, NODE_OPTIONS/NODE_PATH, RUBYOPT/RUBYLIB, PERL5OPT/PERL5LIB and Java agent/classpath variables.
-- Exact-head CI pending. This is environment-contract coverage; no live Windows runner or Aider/Ollama execution is claimed.
+- Exact-head backend Actions run [44516499054](https://github.com/justinhblee-prog/shorts/actions/runs/44516499054) passed **778 tests** on `369ce6589c4c7aadf43a569ac4455a9e056f747d`. This is environment-contract coverage; no live Windows runner or Aider/Ollama execution is claimed.
