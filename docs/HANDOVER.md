@@ -1405,3 +1405,7 @@ Code head `9711e03cdfabff72c73d3adbe2aa05a1b88d6e99` passed GitHub Actions run [
 
 ### BUILD-00369 — unique worker session identity
 The runner now creates a unique worker-session ID instead of using the static RUNNER_NAME as the database primary key. IDs retain host and workflow run/attempt context, add a random suffix, and remain within 128 characters. This prevents presence-row collisions and cross-process stop_worker updates. Exact-head CI pending.
+
+
+### BUILD-00369 — exact-head CI result
+Code head `5b20520ca125c080407b3b3ccb57bb94b42a4637` passed GitHub Actions run [44521107433](https://github.com/justinhblee-prog/shorts/actions/runs/44521107433): **799 tests**, repository validation and frontend syntax check. Worker session identity uniqueness and maximum-length regressions passed.
