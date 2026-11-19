@@ -2760,7 +2760,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add store, API and role authorization regressions. Code head `628d5d1e22a56bbb58642e27530722d4d67e8992` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44548442047](https://github.com/justinhblee-prog/shorts/actions/runs/44548442047). Subsequent commits on this branch are documentation-only.
 
 
-## BUILD-00387 — confine GitHub pagination to the requested feed
+## BUILD-00388 — confine GitHub pagination to the requested feed
 - Validate each pagination URL as HTTPS on the exact GitHub API host and require its path to remain identical to the originally requested repository/feed endpoint.
 - Reject user-info, fragments, malformed collection paths and same-host links that redirect pagination to a different repository or endpoint before sending another authenticated GET.
 - Add regressions for cross-repository same-host links, user-info links and invalid initial paths. Exact-head CI pending; hosted and live GitHub pagination behavior remain to be verified.
