@@ -1441,3 +1441,7 @@ Code head `ff9228ed4bcc3a021fa1383862feaf7a4c866dd8` passed GitHub Actions run [
 
 ### BUILD-00374 — review-artifact API boundary
 The PR verification/recovery client now uses the same restricted redirect handler as backlog intake, so bearer credentials are not forwarded to off-origin redirects. It validates API origin and resource-specific pagination links, limits file/open-PR reads to five pages, and fails closed rather than treating an incomplete snapshot as verified. It also reuses bounded transient retry behavior. Exact-head hosted CI pending.
+
+
+### BUILD-00374 — exact-head CI result
+Code head `7ad1bde4314ee76057fdb81428584eab243df0da` passed GitHub Actions run [44530524384](https://github.com/justinhblee-prog/shorts/actions/runs/44530524384): **812 tests**, repository validation and frontend syntax check. Review-artifact reads use the restricted API-origin redirect handler and fail closed on unsafe/incomplete pagination. Hosted Linux only.
