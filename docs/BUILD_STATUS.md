@@ -2714,3 +2714,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
 - Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
 - Exact-head validation passed on `59ec8286f6c216345955593dd82a1047851fad4d`: backend [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693), **725 tests**; Compose [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702), all five services healthy, fresh successful-backup marker present, encrypted isolated restore passed, wrong-key restore rejected without changing the target DB. CI-only; no production-host or production-data recovery is claimed.
+
+
+## BUILD-00353 — migrate GitHub Actions workflows to Node 24 runtimes
+- Upgrade `actions/checkout` from major v4 to v7 and `actions/setup-python` from v5 to v7 in both repository CI workflows. The previous exact-head runs emitted GitHub's Node 20 deprecation warning; current upstream releases use the Node 24 runtime.
+- Add a workflow contract test to prevent either workflow from silently reverting to the deprecated major versions.
+- Exact-head Actions validation passed on `f60504183b07e6d7118d7995a5a855eb4a1f885a`: backend [run 44509178372](https://github.com/justinhblee-prog/shorts/actions/runs/44509178372), **726 tests**; Compose [run 44509177970](https://github.com/justinhblee-prog/shorts/actions/runs/44509177970), all five services healthy and encrypted backup/restore smoke passed. Action logs confirm checkout v7 and setup-python v7 ran without the prior Node 20 deprecation warning. This remains hosted CI evidence and does not prove Windows self-hosted runner readiness.
