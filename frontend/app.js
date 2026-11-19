@@ -380,7 +380,7 @@
           if(/^[\u0000-\u0020]*[=+\-@]/.test(cell))cell="'"+cell;
           return '"'+cell.replace(/"/g,'""')+'"';
         };
-        const csv=[headers,...rows.map(item=>[
+        const csv=[headers,...exportRows.map(item=>[
           item.collected_at,item.platform==="youtube"?"YouTube":"TikTok",item.video_id,
           item.views??item.view_count,item.engaged_views,item.engaged_view_share===null||item.engaged_view_share===undefined?null:Number(item.engaged_view_share)*100,item.platform==="youtube"?(retentionStatusLabels[item.retention_status]||"상태 미확인"):null,item.platform==="youtube"?retentionSummary(item.retention_curve):null,deltaFor(item),item.like_count,item.comment_count,
           item.share_count,item.estimated_minutes_watched,item.average_view_duration,
