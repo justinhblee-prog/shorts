@@ -267,6 +267,14 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('.cyber-approval-list', css)
 
 
+
+    def test_workspace_navigation_has_localized_tooltips_and_main_landmark_label(self):
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        for title in ("대시보드", "AI 콘텐츠 제작", "콘텐츠 기획 및 시장 분석", "검수 및 게시", "분석 및 운영"):
+            self.assertIn(f'title="{title}"', html)
+        self.assertIn('<main id="home" aria-label="주요 콘텐츠">', html)
+
+
     def test_cyber_magic_workspace_navigation_is_accessible_and_tracks_active_section(self):
         frontend = ROOT / "frontend"
         html = (frontend / "index.html").read_text(encoding="utf-8")
