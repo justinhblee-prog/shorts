@@ -57,6 +57,19 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
                 with self.assertRaises(NonRetryableDevelopmentJobError):
                     self.executor._validated_scope({"scope": [path]})
 
+    def test_scope_reparse_point_detection_covers_windows_junction_attributes(self):
+        class ReparsePath:
+            def is_symlink(self):
+                return False
+
+            def is_junction(self):
+                return False
+
+            def lstat(self):
+                return SimpleNamespace(st_file_attributes=0x400)
+
+        self.assertTrue(self.executor._is_scope_reparse_point(ReparsePath()))
+
     def test_scope_rejects_symlink_aliases_to_internal_secret_files(self):
         ssh_dir = self.root / ".ssh"
         ssh_dir.mkdir()
