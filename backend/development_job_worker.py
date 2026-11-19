@@ -8,6 +8,7 @@ import threading
 import time
 
 from development_jobs import DevelopmentJobConflict
+from development_security import redact_sensitive_text
 
 
 class NonRetryableDevelopmentJobError(Exception):
@@ -80,7 +81,7 @@ class DevelopmentJobWorker:
                 return "lease_lost"
             failed = self.store.fail(
                 job["id"], self.worker_id, job["lease_token"],
-                f"{type(error).__name__}: {error}", retryable=False,
+                redact_sensitive_text(f"{type(error).__name__}: {error}", limit=4000), retryable=False,
             )
             return failed["status"]
         except Exception as error:
@@ -88,7 +89,7 @@ class DevelopmentJobWorker:
                 return "lease_lost"
             failed = self.store.fail(
                 job["id"], self.worker_id, job["lease_token"],
-                f"{type(error).__name__}: {error}", retryable=True,
+                redact_sensitive_text(f"{type(error).__name__}: {error}", limit=4000), retryable=True,
             )
             return failed["status"]
         finally:
