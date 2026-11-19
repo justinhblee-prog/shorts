@@ -313,3 +313,11 @@ Noncanonical scope aliases and directory markers on files are rejected before ex
 
 ### BUILD-00375 — canonical path validation evidence
 GitHub Actions run [44525189997](https://github.com/justinhblee-prog/shorts/actions/runs/44525189997) passed **785 backend tests**, repository validation and frontend JavaScript syntax validation, including noncanonical scope alias rejection.
+
+
+### BUILD-00376 — portable filename validation
+Windows-invalid filename characters and control characters are rejected before scope execution. Hosted validation pending.
+
+
+### BUILD-00376 — portable filename validation evidence
+GitHub Actions run [44525610403](https://github.com/justinhblee-prog/shorts/actions/runs/44525610403) passed **785 backend tests**, repository validation and frontend JavaScript syntax validation, including Windows-invalid filename character rejection.

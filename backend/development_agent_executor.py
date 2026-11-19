@@ -238,7 +238,8 @@ class AiderDevelopmentExecutor:
                     raise NonRetryableDevelopmentJobError("job scope contains a Windows-reserved path segment")
             if (
                 "\\" in raw_path
-                or ":" in raw_path
+                or re.search(r'[<>:"|?*]', raw_path)
+                or any(ord(character) < 32 for character in raw_path)
                 or raw_path in {".", "./"}
                 or windows_path.drive
                 or windows_path.root

@@ -200,3 +200,9 @@ Approved existing directory paths are normalized to a trailing slash against the
 ### BUILD-00375 — reject noncanonical scope path aliases
 
 The executor now requires the supplied scope string to match its canonical POSIX representation, allowing only one optional trailing slash to mark a directory. It rejects leading `./`, repeated separators, interior dot segments, and a trailing slash on a non-directory file. This ensures the executor, durable store evidence gate and scope-lock scheduler all reason about the same exact path string.
+
+
+
+### BUILD-00376 — reject Windows-invalid filename characters
+
+Portable scope validation now rejects Windows-forbidden filename characters `< > " | ? *` and ASCII control characters in every path segment, in addition to drive/UNC roots, colons, reserved device names and noncanonical separators. This avoids accepting repository paths that cannot be represented consistently on the production Windows worktree.
