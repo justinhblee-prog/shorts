@@ -1535,3 +1535,8 @@ The final store transition now applies the same case-insensitive, separator-norm
 - Stop treating falsey non-object values (empty lists, strings, or booleans) as omitted `policy_flags`, `rights`, `platform_disclosures`, or `risk_flags` objects.
 - Require supplied rights attestations to be booleans; preserve omitted/`null` optional objects as empty declarations so missing evidence remains review-required.
 - Add malformed-input and rights-type regressions. Exact-head CI pending.
+
+
+### POLICY-00001 — exact-head validation
+- Code head `dcb959f32a5c93fd80f957c5b37525eac0cede74` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44550031926](https://github.com/justinhblee-prog/shorts/actions/runs/44550031926).
+- Regressions confirmed that falsey non-object declarations and non-boolean rights attestations are rejected. Hosted CI only; no external platform actions were performed.
