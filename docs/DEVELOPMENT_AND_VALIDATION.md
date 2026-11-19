@@ -325,3 +325,15 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - PR #407 is Draft and unmerged. No production deployment or live provider tests.
 
 - First integrated browser run `44581865675` exposed one expected UI assertion mismatch: adding the Engineering navigation group increased the navigation count from five to six. The analytics smoke assertion and frontend navigation regression were corrected to assert six links and the `#development` panel; the modern cyber-magic stylesheet now includes the sixth navigation item. The corrected exact-head run `44582200007` is in progress; no passing result is claimed yet.
+
+
+### PR #407 exact-head integrated validation — PASS
+
+- Candidate head: `fba2e32633e41df20464dd1edddb8091b06feea9` on `integration/core-policy-ui-modern-dashboard-2026-11-20`, based on #406 `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0`.
+- Hosted CI run [44582779913](https://github.com/justinhblee-prog/shorts/actions/runs/44582779913): **success**.
+- `scripts/validate.sh`: **868 tests passed**.
+- `node --check frontend/app.js`: passed.
+- `scripts/ui_browser_smoke.mjs`: passed authenticated dashboard/API checks, review approval/audit, analytics history paging, 25-row page behavior, 320px mobile pagination, full 502-row CSV export, partial API failure feedback, browser history, responsive/keyboard checks, reduced motion, and no page errors.
+- `scripts/ui_recovery_browser_smoke.mjs`: passed authenticated quarantine state, operator reason + confirmation, recovery endpoint HTTP 200, ready state, and immutable audit attribution.
+- Browser artifact: [nexus-integrated-dashboard-browser-artifacts](https://github.com/justinhblee-prog/shorts/actions/runs/44582779913/artifacts/14558714645) (4.94 MB).
+- PR #407 remains Draft/unmerged; no production deployment or live provider/OAuth action was tested.
