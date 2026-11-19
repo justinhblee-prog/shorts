@@ -260,3 +260,7 @@ The self-hosted development workflow now uses Node 24-compatible checkout v7 and
 
 ### BUILD-00359 — local model subprocess secret isolation
 The constrained Aider executor now removes backup-encryption keys, database/Redis connection URLs, Supabase service-role credentials, service-account credentials and access/private/signing keys from the child environment, in addition to existing API/provider/GitHub secrets. GitHub workflow command-file variables, runner cache/results endpoints and runner temp/workspace/tool-cache paths are also withheld so the model cannot write outputs or inspect runner-internal files. Required local context (Ollama endpoint, workspace, approved scope mapping and model selection) remains available. Exact-head backend Actions run [44513202976](https://github.com/justinhblee-prog/shorts/actions/runs/44513202976) passed 775 tests; this is a local environment-filter contract, not a live model execution.
+
+
+### BUILD-00360 — secret-file path denylist
+The local Aider executor now rejects common SSH private identities, cloud credential folders, Kubernetes/Docker/GnuPG config, Terraform/Pulumi state, package-manager credential files, service-account JSON and private-key/keystore formats even when an issue scope mapping would otherwise include them. Credential-bearing subdirectories under `.config` are also blocked. Exact-head CI is pending; no live runner filesystem scan is claimed.
