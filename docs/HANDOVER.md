@@ -1429,3 +1429,7 @@ The SQLite completion gate now independently rejects test-only changed-file evid
 
 ### BUILD-00372 — exact-head CI result
 Code head `3664b352d1d10da5d4f0a84beb6f81327f73bc5c` passed GitHub Actions run [44529199064](https://github.com/justinhblee-prog/shorts/actions/runs/44529199064): **804 tests**, repository validation and frontend syntax check. The final store gate rejects test-only evidence and accepts source-plus-test evidence. Hosted Linux only.
+
+
+### BUILD-00373 — bounded GitHub API retry policy
+The read-only intake now retries transient network failures and HTTP 408/425/429/5xx up to two times. It respects Retry-After and primary-rate-limit reset metadata only for waits of five seconds or less; long waits and auth/permission errors fail fast rather than stalling a worker cycle. Exact-head hosted CI pending.
