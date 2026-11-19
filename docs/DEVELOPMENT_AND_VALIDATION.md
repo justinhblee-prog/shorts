@@ -147,3 +147,11 @@ CI 통과는 live provider 성공, 실제 수익, 게시 정책 승인, 운영 �
 ## 변경 이력
 
 - 2026-11-20: 최초 작성. 현재 PR #395 및 run 44568430230/44568430260 상태를 기준으로 작성.
+
+
+## UI-00015 CI remediation update — 2026-11-20
+
+- The original exact-head browser run `44568430230` remained in progress at `sudo apt-get update && sudo apt-get install -y fonts-noto-cjk`; Playwright/Chromium/browser smoke/artifact steps never started. The workflow job log endpoint later returned 404, so no terminal failure reason could be recovered from that run.
+- Removed this network-dependent font installation step from `.github/workflows/backend-tests.yml` in commit `bd2926c981c44398465994d4825d981729bf4e13`. The browser smoke still runs; system font fallbacks remain defined in CSS and browser assertions are unchanged.
+- The new exact-head workflow attempts are run [44570606677](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677) (Backend tests) and [44570606778](https://github.com/justinhblee-prog/shorts/actions/runs/44570606778) (Compose integration). At last inspection, backend dependency installation and Compose image build were in progress. No new browser artifact had been produced yet.
+- Do not mark UI-00015 complete until both exact-head validation jobs finish successfully and the uploaded desktop/mobile artifact is inspected.
