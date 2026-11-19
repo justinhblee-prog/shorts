@@ -107,3 +107,9 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Integrated UI/Core head `f0cd22c11169378efeedf7fac593f0bcd7b0490c` passed **735 tests**, `scripts/validate.sh`, frontend syntax validation and Playwright Chromium browser smoke in [run 44537041759](https://github.com/justinhblee-prog/shorts/actions/runs/44537041759).
 - Compose service startup, API readiness, scheduled backup, isolated restore and cleanup passed in [run 44537041818](https://github.com/justinhblee-prog/shorts/actions/runs/44537041818).
 - Browser smoke verified active in-page navigation, desktop/mobile layout, keyboard navigation, review approval/history, analytics pagination and CSV download. Actual assistive-technology testing remains outstanding.
+
+
+### UI-00011 — browser history navigation synchronization
+- Keep the active workspace indicator synchronized with both hash navigation and browser history (`popstate`).
+- Add a Chromium back/forward regression that checks the active `aria-current` workspace after history traversal.
+- Desktop/mobile and browser validation remain part of the existing UI lane; exact-head CI pending.

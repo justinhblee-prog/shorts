@@ -2725,3 +2725,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Integrated UI/Core head `f0cd22c11169378efeedf7fac593f0bcd7b0490c` passed **735 tests**, `scripts/validate.sh`, frontend syntax validation and Playwright Chromium browser smoke in [run 44537041759](https://github.com/justinhblee-prog/shorts/actions/runs/44537041759).
 - Compose service startup, API readiness, scheduled backup, isolated restore and cleanup passed in [run 44537041818](https://github.com/justinhblee-prog/shorts/actions/runs/44537041818).
 - Browser smoke verified active in-page navigation, desktop/mobile layout, keyboard navigation, review approval/history, analytics pagination and CSV download. Actual assistive-technology testing remains outstanding.
+
+
+## UI-00011 — synchronize active workspace with browser history
+- Extract location synchronization into a shared handler for `hashchange` and `popstate`.
+- Add frontend contract and Chromium browser-back/browser-forward regressions for the active workspace indicator.
+- Exact-head UI CI pending.

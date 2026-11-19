@@ -1548,3 +1548,7 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact-head Actions validation pending.
 
 - BUILD-00351 exact checkpoint `1dbd12852bf41c9c58c11a801a30d9d3000daffa` passed 725 backend tests and the health-aware five-service Compose integration: [backend 44506538368](https://github.com/justinhblee-prog/shorts/actions/runs/44506538368), [Compose 44506538484](https://github.com/justinhblee-prog/shorts/actions/runs/44506538484). Worker, scheduler, metrics collector and backup reported healthy; backup success marker and encrypted isolated restore were verified.
+
+
+### UI-00011 — browser history navigation
+The active workspace indicator now uses one location-sync handler for hash changes and browser history traversal. Static and Chromium regressions cover back/forward restoring the correct `aria-current` workspace. Exact-head CI pending.
