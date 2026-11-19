@@ -331,7 +331,9 @@ class TikTokMetricsStore:
 
     def history(self, publication_store, video_id=None, limit=100, since=None):
         limit=max(1,min(int(limit),500))
-        eligible=publication_store.list_metrics_eligible(limit=500)
+        eligible=publication_store.list_metrics_eligible(
+            limit=500 if video_id is None else 1,video_id=video_id
+        )
         allowed={item["video_id"]:item for item in eligible}
         if video_id:
             if video_id not in allowed:
