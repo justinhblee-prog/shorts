@@ -315,3 +315,9 @@ code{font-family:var(--mono);color:#b7a2ff}
   .main-nav a{min-width:48px;min-height:48px}
   .top-actions .button{min-width:44px;min-height:44px}
 }
+
+/* Analytics history: keep long-running data sets navigable without an endless page. */
+.analytics-table-pagination{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:10px 2px;color:#a9bfd4;font-size:11px}
+.analytics-table-pagination span{min-width:120px;text-align:center;font-variant-numeric:tabular-nums}
+.analytics-table-pagination button:disabled{opacity:.42;cursor:not-allowed}
+@media(max-width:760px){.analytics-table-pagination{justify-content:space-between}.analytics-table-pagination span{min-width:0}}
