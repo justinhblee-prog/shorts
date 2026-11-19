@@ -346,5 +346,20 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertTrue(embedded_archive.is_file())
 
 
+
+    def test_restore_rejects_symbolic_link_archive(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        link = self.backups / "linked-backup.tar.gz"
+        try:
+            link.symlink_to(backup)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are not supported in this environment")
+        with self.assertRaisesRegex(BackupRestoreError, "not a regular file"):
+            restore_backup(
+                link, self.db, self.media, self.backups, confirm_restore=True
+            )
+        self.assertEqual(self._db_value(), "before")
+
+
 if __name__ == "__main__":
     unittest.main()
