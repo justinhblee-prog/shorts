@@ -98,6 +98,7 @@ def run_once(environ=None):
         approved_scopes=approved_scopes,
         poll_seconds=2,
         idle_seconds=int(env.get("NEXUS_AGENT_IDLE_SECONDS", "5")),
+        require_execution_verifier=True,
     )
     result = service.run_cycle()
     result["seeded_job_count"] = len(seeded)
