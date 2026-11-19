@@ -2546,3 +2546,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Apply redaction to retryable and non-retryable worker exceptions before storing them in the durable job result summary.
 - Reuse the same redactor for Aider subprocess diagnostics and add a regression proving secrets never reach persisted failure evidence.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00367 — exact-head hosted validation
+- Exact code head `4a987bf76067aaaee19e4fe9f345090cfa53c767` passed GitHub Actions Backend tests run [44517983256](https://github.com/justinhblee-prog/shorts/actions/runs/44517983256): **786 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Hosted Linux only; no production log inventory or live Windows runner behavior is implied.
