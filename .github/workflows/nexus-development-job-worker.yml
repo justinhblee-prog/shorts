@@ -149,8 +149,24 @@ jobs:
           python backend/run_development_agent.py
           if ($LASTEXITCODE -ne 0) { throw "Development agent cycle failed." }
 
-      - name: Create Draft PR for verified changes only
+      - name: Detect generated source changes
         if: github.event.inputs.mode != 'recover'
+        id: detect-changes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $changes = git status --porcelain --untracked-files=all
+          if ($LASTEXITCODE -ne 0) { throw "Unable to inspect generated worktree changes." }
+          if ($changes) {
+            "has_changes=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "Scoped source changes are present; a Draft PR update may run."
+          } else {
+            "has_changes=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "No source changes. Existing Draft PR will be left untouched."
+          }
+
+      - name: Create Draft PR for verified changes only
+        if: github.event.inputs.mode != 'recover' && steps.detect-changes.outputs.has_changes == 'true'
         id: publish-pr
         uses: peter-evans/create-pull-request@v7
         with:
@@ -170,7 +186,7 @@ jobs:
             - External provider integrations and production behavior are not implied.
             
       - name: Record exact Draft PR review artifact
-        if: github.event.inputs.mode != 'recover' && steps.publish-pr.outputs.pull-request-url != '' && steps.publish-pr.outputs.pull-request-head-sha != ''
+        if: github.event.inputs.mode != 'recover' && steps.detect-changes.outputs.has_changes == 'true' && steps.publish-pr.outputs.pull-request-url != '' && steps.publish-pr.outputs.pull-request-head-sha != ''
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -185,7 +201,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Draft PR review-artifact verification failed; jobs remain review_pending." }
 
       - name: Leave jobs pending when no Draft PR artifact was published
-        if: github.event.inputs.mode != 'recover' && (steps.publish-pr.outputs.pull-request-url == '' || steps.publish-pr.outputs.pull-request-head-sha == '')
+        if: github.event.inputs.mode != 'recover' && (steps.detect-changes.outputs.has_changes != 'true' || steps.publish-pr.outputs.pull-request-url == '' || steps.publish-pr.outputs.pull-request-head-sha == '')
         shell: powershell
         run: |
           Write-Warning "No exact Draft PR URL/head SHA was returned. Development jobs remain review_pending and are not marked completed."
@@ -193,6 +209,7 @@ jobs:
       - name: Continue bounded autonomous development after verified PR update
         if: >-
           github.event.inputs.mode != 'recover' &&
+          steps.detect-changes.outputs.has_changes == 'true' &&
           steps.publish-pr.outputs.pull-request-url != '' &&
           steps.publish-pr.outputs.pull-request-head-sha != '' &&
           (steps.publish-pr.outputs.pull-request-operation == 'created' ||
