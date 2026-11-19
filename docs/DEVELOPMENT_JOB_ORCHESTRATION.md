@@ -222,3 +222,9 @@ A follow-up process-tree audit found that waiting only for the command-group lea
 ### BUILD-00371 — case-insensitive write-scope conflicts
 
 Scope-lock comparison now normalizes slash direction, repeated separators and dot segments, then applies Unicode case-folding before exact/parent-child overlap checks. The trusted production runner is Windows, so paths such as `Backend/` and `backend/api.py` must serialize even though hosted Linux validation itself uses a case-sensitive filesystem. This is deliberately conservative and prevents case-only aliases from allowing concurrent edits to the same Windows worktree files.
+
+
+
+### BUILD-00372 — freeze dependency graph after claim
+
+New dependency edges may be added only while a job is `ready` or `blocked`. The store uses `BEGIN IMMEDIATE` to serialize dependency mutation against claims: if the claim wins first, a late new edge is rejected; if the edge wins first, the job is blocked before it can be claimed. Re-adding an already-existing edge remains idempotent even after execution starts. This prevents a running job from bypassing a prerequisite added concurrently and avoids retroactively changing completed-job history.

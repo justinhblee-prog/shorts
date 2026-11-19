@@ -2634,3 +2634,21 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Exact code head `78a0a488ad8c7d4358c57accb772ba12effe2359` passed GitHub Actions run [44522472503](https://github.com/justinhblee-prog/shorts/actions/runs/44522472503): **801 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
 - Coverage includes case-only aliases, repeated separators, dot segments, backslash aliases and scheduler-level serialization.
 - Hosted Linux only; Windows filesystem integration remains a separate gate.
+
+
+## BUILD-00372 — dependency graph immutability after claim
+- Reject new dependency edges once a job leaves ready/blocked, preventing late prerequisites from being bypassed by already-claimed work.
+- Keep duplicate edge insertion idempotent, including after claim.
+- Serialize dependency mutation against claims using the existing immediate SQLite transaction.
+- Add regressions for late-edge rejection, duplicate-edge idempotency after claim, and a threaded dependency-insertion/claim race.
+- Exact-head hosted CI pending.
+
+
+### BUILD-00372 — exact-head hosted validation
+- Exact code head `b2c74c47ee95c59544ea5fea12ff2fbbd456ef0a` passed GitHub Actions run [44522908956](https://github.com/justinhblee-prog/shorts/actions/runs/44522908956): **803 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- Coverage verifies late dependency additions are rejected after claim while existing edges remain idempotent.
+
+
+### BUILD-00372 — dependency/claim race exact-head validation
+- Updated head `148025eba9939f1c86488ddc705fa36632e942bd` passed GitHub Actions run [44523330129](https://github.com/justinhblee-prog/shorts/actions/runs/44523330129): **804 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- A threaded regression confirms the dependency edge either blocks the job before claim or is rejected after claim; no interleaving bypasses the prerequisite.

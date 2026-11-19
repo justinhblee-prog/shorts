@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import tempfile
+import threading
 import unittest
 
 from development_jobs import (
@@ -61,6 +62,82 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         )
         next_job = self.store.claim_ready("worker-b")
         self.assertEqual(next_job["id"], child["id"])
+
+    def test_dependency_changes_are_rejected_after_job_is_claimed(self):
+        child = self.store.create("Claimed child", priority=1, scope=["backend/child.py"])
+        parent = self.store.create("Late prerequisite", priority=2, scope=["backend/parent.py"])
+        claim = self.store.claim_ready("worker-late-dependency")
+        self.assertEqual(claim["id"], child["id"])
+        with self.assertRaisesRegex(DevelopmentJobConflict, "after a job has been claimed"):
+            self.store.add_dependency(child["id"], parent["id"])
+        saved = self.store.get(child["id"])
+        self.assertEqual(saved["status"], "leased")
+        self.assertEqual(saved["dependencies"], [])
+
+    def test_existing_dependency_addition_remains_idempotent_after_claim(self):
+        parent = self.store.create("Existing prerequisite", priority=1, scope=["backend/parent.py"])
+        child = self.store.create("Dependent child", priority=2, scope=["backend/child.py"])
+        self.store.add_dependency(child["id"], parent["id"])
+        parent_claim = self.store.claim_ready("worker-parent")
+        self.assertEqual(parent_claim["id"], parent["id"])
+        self.store.mark_review_pending(
+            parent["id"], "worker-parent", parent_claim["lease_token"],
+            ["backend/parent.py"], True, "ci://parent",
+        )
+        self.store.publish_review_artifact(
+            parent["id"], "https://github.com/acme/repo/pull/1", "a" * 40,
+            ["backend/parent.py"], True, True,
+        )
+        child_claim = self.store.claim_ready("worker-child")
+        self.assertEqual(child_claim["id"], child["id"])
+        unchanged = self.store.add_dependency(child["id"], parent["id"])
+        self.assertEqual(unchanged["status"], "leased")
+        self.assertEqual(unchanged["dependencies"], [parent["id"]])
+
+    def test_dependency_insertion_racing_claim_is_serialized(self):
+        gate = self.store.create("Unfinished gate", priority=3, scope=["backend/gate.py"])
+        gate_claim = self.store.claim_ready("worker-gate")
+        self.store.mark_review_pending(
+            gate["id"], "worker-gate", gate_claim["lease_token"],
+            ["backend/gate.py"], True, "ci://gate",
+        )
+        parent = self.store.create("Blocked prerequisite", priority=2, scope=["backend/parent.py"])
+        self.store.add_dependency(parent["id"], gate["id"])
+        child = self.store.create("Racing child", priority=1, scope=["backend/child.py"])
+        barrier = threading.Barrier(3)
+        outcomes = {}
+
+        def add_edge():
+            barrier.wait()
+            try:
+                outcomes["dependency"] = ("added", self.store.add_dependency(child["id"], parent["id"]))
+            except DevelopmentJobConflict:
+                outcomes["dependency"] = ("rejected", None)
+
+        def claim_job():
+            barrier.wait()
+            outcomes["claim"] = self.store.claim_ready("worker-race")
+
+        threads = [
+            threading.Thread(target=add_edge),
+            threading.Thread(target=claim_job),
+        ]
+        for thread in threads:
+            thread.start()
+        barrier.wait()
+        for thread in threads:
+            thread.join(timeout=5)
+            self.assertFalse(thread.is_alive(), "dependency/claim race did not finish")
+
+        saved = self.store.get(child["id"])
+        if outcomes["claim"] is not None:
+            self.assertEqual(outcomes["dependency"][0], "rejected")
+            self.assertEqual(saved["status"], "leased")
+            self.assertEqual(saved["dependencies"], [])
+        else:
+            self.assertEqual(outcomes["dependency"][0], "added")
+            self.assertEqual(saved["status"], "blocked")
+            self.assertEqual(saved["dependencies"], [parent["id"]])
 
     def test_dependency_cycle_is_rejected(self):
         first = self.store.create("First")

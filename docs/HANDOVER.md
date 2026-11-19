@@ -1425,3 +1425,15 @@ The durable scheduler now treats case-only path aliases as overlapping, normaliz
 
 ### BUILD-00371 — exact-head CI result
 Code head `78a0a488ad8c7d4358c57accb772ba12effe2359` passed GitHub Actions run [44522472503](https://github.com/justinhblee-prog/shorts/actions/runs/44522472503): **801 tests**, repository validation and frontend syntax check. Scope-lock regressions cover case-only, repeated-separator, dot-segment and backslash aliases.
+
+
+### BUILD-00372 — freeze dependencies after claim
+New dependency edges are now accepted only for ready/blocked jobs. The transaction serializes edge insertion against claim_ready; late edges fail closed, while duplicate existing edges remain idempotent. A threaded race regression confirms either the edge wins and blocks the job before claim, or the claim wins and the late edge is rejected. This prevents a running or completed job from silently gaining a prerequisite after execution. Exact-head CI pending.
+
+
+### BUILD-00372 — exact-head CI result
+Code head `b2c74c47ee95c59544ea5fea12ff2fbbd456ef0a` passed GitHub Actions run [44522908956](https://github.com/justinhblee-prog/shorts/actions/runs/44522908956): **803 tests**, repository validation and frontend syntax check. Dependency mutation/claim race regressions passed.
+
+
+### BUILD-00372 — dependency/claim race CI result
+Updated head `148025eba9939f1c86488ddc705fa36632e942bd` passed GitHub Actions run [44523330129](https://github.com/justinhblee-prog/shorts/actions/runs/44523330129): **804 tests**, repository validation and frontend syntax check. The threaded claim/dependency race regression passed.
