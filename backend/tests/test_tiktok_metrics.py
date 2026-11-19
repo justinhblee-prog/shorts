@@ -1,7 +1,7 @@
 import json
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -660,6 +660,46 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertIn("idx_tiktok_publications_due_order", details)
         self.assertIn("idx_tiktok_publications_due_scan", details)
         self.assertIn("idx_tiktok_metric_video_time_id", details)
+
+
+    def test_due_video_query_handles_ten_thousand_publications_and_snapshots(self):
+        base = datetime(2026, 11, 18, tzinfo=timezone.utc)
+        old_snapshot = "2025-01-01T00:00:00+00:00"
+        publication_rows = []
+        snapshot_rows = []
+        for index in range(10000):
+            job_id = "load-job-" + str(index)
+            video_id = "load-video-" + str(index)
+            updated_at = (base + timedelta(seconds=index)).isoformat()
+            publication_rows.append((
+                job_id, "publish_complete", "Load fixture", 0, video_id,
+                "load-test", old_snapshot, updated_at, "policy-v1",
+            ))
+            snapshot_rows.append((job_id, video_id, index, old_snapshot))
+        with self.store.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.executemany("""
+                INSERT INTO tiktok_publications
+                  (job_id,status,title,is_aigc,video_id,operator_id,
+                   consented_at,updated_at,policy_version)
+                VALUES(?,?,?,?,?,?,?,?,?)
+            """, publication_rows)
+            connection.executemany("""
+                INSERT INTO tiktok_video_metric_snapshots
+                  (job_id,video_id,view_count,collected_at)
+                VALUES(?,?,?,?)
+            """, snapshot_rows)
+            connection.commit()
+
+        started = datetime.now(timezone.utc)
+        due = self.store.due_videos(
+            limit=20, min_age_seconds=0, now=started,
+        )
+        self.assertEqual(len(due), 20)
+        self.assertEqual(due[0]["video_id"], "load-video-9999")
+        self.assertEqual(due[-1]["video_id"], "load-video-9980")
+        self.assertEqual(len({item["video_id"] for item in due}), 20)
+
 
     def test_due_video_selection_is_bounded_and_deduplicates_publications(self):
         for index in range(2, 32):
