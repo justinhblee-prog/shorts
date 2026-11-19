@@ -10,14 +10,16 @@ import os
 import re
 import sys
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.parse import urlparse, urlsplit
+from urllib.request import Request, build_opener
 
+from development_github_intake import _GitHubAPIOnlyRedirectHandler, GitHubReadOnlyClient
 from development_jobs import DevelopmentJobStore
 
 
 class GitHubReviewArtifactClient:
     API_ROOT = "https://api.github.com"
+    MAX_PAGES = 5
 
     def __init__(self, token: str, timeout: int = 15):
         if not isinstance(token, str) or not token.strip():
@@ -28,7 +30,15 @@ class GitHubReviewArtifactClient:
         self._timeout = timeout
 
     def _get(self, url: str):
-        if not isinstance(url, str) or not url.startswith(self.API_ROOT + "/"):
+        import time
+
+        parsed = urlsplit(url) if isinstance(url, str) else None
+        if (
+            parsed is None or parsed.scheme != "https"
+            or parsed.hostname != "api.github.com"
+            or parsed.port not in (None, 443)
+            or parsed.username is not None or parsed.password is not None
+        ):
             raise ValueError("refusing a non-GitHub API URL")
         request = Request(url, headers={
             "Accept": "application/vnd.github+json",
@@ -36,13 +46,55 @@ class GitHubReviewArtifactClient:
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "nexus-development-review-publisher",
         }, method="GET")
-        try:
-            with urlopen(request, timeout=self._timeout) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-                link = response.headers.get("Link", "")
-        except (HTTPError, URLError, TimeoutError, ValueError) as error:
-            raise RuntimeError(f"GitHub review-artifact read failed: {type(error).__name__}") from error
-        return payload, link
+        opener = build_opener(_GitHubAPIOnlyRedirectHandler())
+        attempt = 0
+        while True:
+            try:
+                with opener.open(request, timeout=self._timeout) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                    link = response.headers.get("Link", "")
+                return payload, link
+            except HTTPError as error:
+                delay = GitHubReadOnlyClient._retry_delay(error, attempt)
+                if delay is None or attempt >= GitHubReadOnlyClient.MAX_RETRIES:
+                    raise RuntimeError(
+                        f"GitHub review-artifact read failed: {type(error).__name__}"
+                    ) from error
+                time.sleep(delay)
+                attempt += 1
+            except (URLError, TimeoutError) as error:
+                if attempt >= GitHubReadOnlyClient.MAX_RETRIES:
+                    raise RuntimeError(
+                        f"GitHub review-artifact read failed: {type(error).__name__}"
+                    ) from error
+                time.sleep(min(2 ** attempt, GitHubReadOnlyClient.MAX_RETRY_DELAY_SECONDS))
+                attempt += 1
+            except ValueError as error:
+                raise RuntimeError(
+                    f"GitHub review-artifact read failed: {type(error).__name__}"
+                ) from error
+
+    @classmethod
+    def _next_page_url(cls, link: str, expected_path: str):
+        from urllib.parse import urljoin
+
+        for part in (link or "").split(","):
+            if 'rel="next"' not in part:
+                continue
+            left, right = part.find("<"), part.find(">")
+            if left < 0 or right <= left:
+                raise ValueError("GitHub returned a malformed pagination link")
+            candidate = urljoin(cls.API_ROOT + "/", part[left + 1:right])
+            parsed = urlsplit(candidate)
+            if (
+                parsed.scheme != "https" or parsed.hostname != "api.github.com"
+                or parsed.port not in (None, 443)
+                or parsed.username is not None or parsed.password is not None
+                or parsed.path != expected_path or parsed.fragment
+            ):
+                raise ValueError("GitHub returned an unsafe or unexpected pagination URL")
+            return candidate
+        return None
 
     def get_pull_request(self, owner: str, repository: str, number: int):
         payload, _ = self._get(
@@ -53,44 +105,37 @@ class GitHubReviewArtifactClient:
         return payload
 
     def list_pull_request_files(self, owner: str, repository: str, number: int):
-        url = (
-            f"{self.API_ROOT}/repos/{owner}/{repository}/pulls/{number}/files"
-            "?per_page=100"
-        )
+        path = f"/repos/{owner}/{repository}/pulls/{number}/files"
+        url = f"{self.API_ROOT}{path}?per_page=100"
         results = []
-        while url:
+        for page in range(self.MAX_PAGES):
             payload, link = self._get(url)
             if not isinstance(payload, list):
                 raise RuntimeError("GitHub returned an invalid pull-request file list")
             results.extend(item for item in payload if isinstance(item, dict))
-            next_url = None
-            for part in link.split(","):
-                if 'rel="next"' in part:
-                    candidate = part[part.find("<") + 1:part.find(">")]
-                    if candidate.startswith(self.API_ROOT + "/"):
-                        next_url = candidate
-                    break
-            url = next_url
+            url = self._next_page_url(link, path)
+            if not url:
+                return results
+            if page == self.MAX_PAGES - 1:
+                raise RuntimeError("GitHub pull-request file list exceeded the bounded page limit")
         return results
 
 
     def list_open_pull_requests(self, owner: str, repository: str):
-        """Read every open PR page; recovery must not assume the first page is complete."""
-        url = f"{self.API_ROOT}/repos/{owner}/{repository}/pulls?state=open&per_page=100"
+        """Read every open PR page; fail closed if the bounded snapshot is incomplete."""
+        path = f"/repos/{owner}/{repository}/pulls"
+        url = f"{self.API_ROOT}{path}?state=open&per_page=100"
         results = []
-        while url:
+        for page in range(self.MAX_PAGES):
             payload, link = self._get(url)
             if not isinstance(payload, list):
                 raise RuntimeError("GitHub returned an invalid open pull-request list")
             results.extend(item for item in payload if isinstance(item, dict))
-            next_url = None
-            for part in link.split(","):
-                if 'rel="next"' in part:
-                    candidate = part[part.find("<") + 1:part.find(">")]
-                    if candidate.startswith(self.API_ROOT + "/"):
-                        next_url = candidate
-                    break
-            url = next_url
+            url = self._next_page_url(link, path)
+            if not url:
+                return results
+            if page == self.MAX_PAGES - 1:
+                raise RuntimeError("GitHub open pull-request list exceeded the bounded page limit")
         return results
 
 
