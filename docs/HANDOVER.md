@@ -1312,3 +1312,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The analytics-history API clamps each platform's history query to 500 snapshots. Selecting both platforms therefore yields at most 1,000 CSV rows; it is not an unlimited archive export.
 - Updated the dashboard summary to state the on-screen 200-row limit and CSV cap of 1,000 total / 500 per platform. Added a frontend regression assertion so the UI does not overstate export completeness.
 - Validation: pending GitHub Actions.
+
+
+## BUILD-00328 — analytics export pagination
+
+The analytics history endpoint now accepts bounded `offset` alongside the existing maximum 500-row page size. YouTube and TikTok stores paginate deterministically by `collected_at DESC,id DESC`. TikTok history now joins publication records directly rather than preloading a capped list of video IDs. The dashboard CSV action fetches sequential pages for each selected platform until a short page is returned, then exports the complete result set for the selected date/video filters. The visible preview remains bounded. Validation is pending exact-head GitHub Actions.
