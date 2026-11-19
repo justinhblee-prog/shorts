@@ -253,3 +253,7 @@ GitHub Actions run [44529902141](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00374 — review artifact verification read contract
 The exact-PR verification client must use the restricted GitHub API redirect handler, validate that pagination remains on the same resource endpoint, and fail closed if the five-page bound is exceeded. This prevents bearer-token forwarding and prevents incomplete PR-file/recovery snapshots from being treated as exact evidence. Exact-head CI pending.
+
+
+### BUILD-00374 — exact-head validation
+GitHub Actions run [44530524384](https://github.com/justinhblee-prog/shorts/actions/runs/44530524384) passed **812 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. PR-file and open-PR reads are capped at five pages and reject pagination outside their expected endpoint.
