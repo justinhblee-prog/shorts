@@ -2686,3 +2686,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Allow a fixed 256 MiB envelope for tar headers, directory entries, compression overhead and the encryption envelope beyond the supported uncompressed database/media payload cap.
 - Add regressions for oversized plaintext and encrypted archives; verify the live database remains unchanged and no restore staging directory is left behind.
 - Exact-head Actions validation pending.
+
+
+## BUILD-00349 — offline SQLite restore guard
+
+- Refuse restore when SQLite `-wal`, `-shm` or `-journal` sidecars are present, preventing the restore flow from replacing the database while uncheckpointed or active sidecar state may exist.
+- Document restore as an offline maintenance operation: stop API, worker, scheduler, metrics collector and backup processes; close/checkpoint the DB; restore and verify; then restart.
+- Add regressions for all three sidecar types and verify live DB contents remain unchanged.
+- The sidecar check is a fail-closed safeguard, not proof that no process has an open database handle; operator shutdown remains mandatory.
+- Exact-head Actions validation pending.
