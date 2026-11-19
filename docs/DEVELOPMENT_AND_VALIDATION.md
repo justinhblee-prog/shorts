@@ -314,3 +314,12 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - Integration direction is corrected: use #406 as the dependency-aligned backend base and port the full UI-00015–UI-00017 dashboard/frontend work (#395–#399) with a three-way merge that retains #406 recovery markup/handler. Do not replace frontend files wholesale.
 - Scratch branch `integration/ui-analytics-quarantine-recovery-2026-11-20` remains an analytics-only staging branch; no application source change was made in this pass. Its purpose is not an integrated release candidate.
 - Docs update commit: `be65206586ba18cd6ecd30203512bed5a7a2ddf4` (WORKSTREAMS). Combined full-stack browser validation remains open.
+
+
+### PR #407 unified UI validation checkpoint
+
+- Candidate branch: `integration/core-policy-ui-modern-dashboard-2026-11-20`.
+- Exact head: `7393e41a689f655c7974cab763aacef363a6b659`; base: #406 exact head `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0`.
+- Included modern UI-00017 analytics screen/pagination and 14 column scopes; Core/Policy audited quarantine recovery API; development-job status/events UI; recovery reason/confirmation controls; and both analytics/recovery Chromium smoke scripts.
+- CI run `44581865675` is currently in progress. At checkpoint, dependencies installed and `scripts/validate.sh` is running; browser tests have not yet been confirmed. This is not a passing validation result.
+- PR #407 is Draft and unmerged. No production deployment or live provider tests.
