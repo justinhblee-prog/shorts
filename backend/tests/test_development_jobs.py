@@ -188,6 +188,9 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         expired = self.store.get(job["id"])
         self.assertEqual(expired["status"], "quarantined")
         self.assertIsNone(expired["worker_id"])
+        competing = self.store.create("Overlapping work must wait", scope=["backend/file.py"])
+        self.assertIsNone(self.store.claim_ready("worker-c"))
+        self.assertEqual(self.store.get(competing["id"])["status"], "ready")
         with self.assertRaises(DevelopmentJobConflict):
             self.store.mark_review_pending(job["id"], "worker-a", first["lease_token"],
                                 ["backend/file.py"], True, "ci://run/stale")
@@ -200,6 +203,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(recovered["status"], "ready")
         second = self.store.claim_ready("worker-b")
         self.assertEqual(second["id"], job["id"])
+        self.assertIsNone(self.store.claim_ready("worker-c"))
         self.assertNotEqual(first["lease_token"], second["lease_token"])
         with self.assertRaises(DevelopmentJobConflict):
             self.store.mark_review_pending(job["id"], "worker-a", first["lease_token"],
