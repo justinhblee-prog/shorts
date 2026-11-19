@@ -194,3 +194,13 @@ The read-only intake now validates owner and repository as separate single path 
 
 ### BUILD-00366 — explicit file and directory scope semantics
 Approved existing directory paths are normalized to a trailing slash against the trusted repository root before backlog import. A trailing slash is the only recursive-scope marker at the durable evidence gate; file scopes, including extensionless files such as `LICENSE`, authorize only that exact path. The executor and SQLite `mark_review_pending` gate enforce the same rule. Traversal and symlink escapes remain rejected by executor path validation.
+
+
+
+### BUILD-00368 — fence the executing process after lease loss
+
+The worker now tracks the last successful heartbeat and raises its in-memory lease-loss signal when storage failures persist for 75% of the configured lease window (with a one-second minimum). A fencing-token conflict still signals immediate loss. The signal is attached only to the in-memory job passed to the trusted executor; it is not persisted.
+
+The Aider executor polls that signal while waiting for each child command. Commands run in an isolated process group; lease loss terminates the process tree (Windows uses `taskkill /T /F`, POSIX uses process-group TERM/KILL) and prevents the executor from continuing into diff inspection or validation. The durable job remains leased until the store can safely observe expiry; the stale worker does not write failure or success evidence.
+
+Regression coverage simulates prolonged heartbeat storage errors and verifies the worker returns `lease_lost` without persisting success evidence, and verifies active command termination on a lost lease. Hosted CI does not prove Windows taskkill behavior or real runner interruption; that remains a Windows integration gate.
