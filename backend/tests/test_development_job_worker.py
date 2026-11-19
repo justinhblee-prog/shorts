@@ -126,6 +126,21 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         self.assertEqual(worker.run_once(), "quarantined")
         self.assertEqual(self.store.get(job["id"])["status"], "quarantined")
 
+    def test_duplicate_worker_identity_does_not_claim_or_overwrite_presence(self):
+        job = self.store.create("Existing runner owns this lease", scope=["backend/owned.py"])
+        self.store.touch_worker("shared-runner")
+        claim = self.store.claim_ready("shared-runner")
+        self.store.touch_worker("shared-runner", current_job_id=job["id"])
+        worker = DevelopmentJobWorker(
+            self.store, "shared-runner",
+            lambda _: self.fail("duplicate worker must not execute"),
+        )
+        self.assertIsNone(worker.run_once())
+        presence = self.store.get_worker("shared-runner")
+        self.assertEqual(presence["status"], "online")
+        self.assertEqual(presence["current_job_id"], job["id"])
+        self.assertEqual(self.store.get(job["id"])["lease_token"], claim["lease_token"])
+
     def test_worker_requires_callable_executor(self):
         with self.assertRaisesRegex(ValueError, "executor"):
             DevelopmentJobWorker(self.store, "worker-a", None)
