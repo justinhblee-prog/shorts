@@ -29,6 +29,12 @@ def main() -> None:
 
     import app  # noqa: E402
 
+    parent = app.development_job_store.create(
+        "Browser smoke UI dependency",
+        description="Completed upstream job for the multi-flow dependency board",
+        scope=["frontend/app.js"],
+        job_id="browser-smoke-ui-parent",
+    )
     job = app.development_job_store.create(
         "Browser smoke quarantined job",
         description="Disposable fixture for the audited recovery browser flow",
@@ -37,9 +43,21 @@ def main() -> None:
         max_attempts=1,
         job_id="browser-smoke-quarantine-001",
     )
+    app.development_job_store.add_dependency(job["id"], parent["id"])
+    parent_claim = app.development_job_store.claim_ready("recovery-smoke-worker")
+    if not parent_claim or parent_claim["id"] != parent["id"]:
+        raise RuntimeError("Failed to claim the seeded upstream dependency")
+    app.development_job_store.mark_review_pending(
+        parent["id"], "recovery-smoke-worker", parent_claim["lease_token"],
+        ["frontend/app.js"], True, "ci://browser-smoke/workstream-dependency",
+    )
+    app.development_job_store.publish_review_artifact(
+        parent["id"], "https://github.com/example/nexus/pull/1", "a" * 40,
+        ["frontend/app.js"], is_draft=True, is_open=True,
+    )
     claim = app.development_job_store.claim_ready("recovery-smoke-worker")
     if not claim or claim["id"] != job["id"]:
-        raise RuntimeError("Failed to claim the seeded development job")
+        raise RuntimeError("Failed to claim the seeded development job after its dependency completed")
     quarantined = app.development_job_store.fail(
         job["id"],
         "recovery-smoke-worker",
