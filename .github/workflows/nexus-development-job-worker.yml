@@ -135,11 +135,27 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $backendVenv = Join-Path $env:GITHUB_WORKSPACE ".nexus-backend-venv"
-          if (Test-Path $backendVenv) { throw "Refusing to overwrite an existing backend virtual environment." }
-          python -m venv $backendVenv
-          if ($LASTEXITCODE -ne 0) { throw "Backend virtual environment creation failed." }
+          # Tooling lives in persistent LocalAppData, never in the Git worktree.
+          # The executor requires a clean worktree before it starts a job.
+          $stateRoot = $env:LOCALAPPDATA
+          if (-not $stateRoot) {
+            if (-not $env:USERPROFILE) { throw "Windows runner has neither LOCALAPPDATA nor USERPROFILE." }
+            $stateRoot = Join-Path $env:USERPROFILE "AppData\Local"
+          }
+          $toolRoot = Join-Path $stateRoot "NexusStudioPro\tooling"
+          $workspace = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
+          $toolRootFull = [System.IO.Path]::GetFullPath($toolRoot).TrimEnd('\') + '\'
+          if ($toolRootFull.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Persistent runner tooling must be outside GITHUB_WORKSPACE."
+          }
+          New-Item -ItemType Directory -Force -Path $toolRoot | Out-Null
+          $backendVenv = Join-Path $toolRoot "backend-venv"
           $backendPython = Join-Path $backendVenv "Scripts\python.exe"
+          if (-not (Test-Path $backendPython)) {
+            if (Test-Path $backendVenv) { throw "Backend virtual environment exists but is incomplete; refusing destructive repair." }
+            python -m venv $backendVenv
+            if ($LASTEXITCODE -ne 0) { throw "Backend virtual environment creation failed." }
+          }
           if (-not (Test-Path $backendPython)) { throw "Backend virtual environment Python was not created." }
           & $backendPython -m pip install -r backend/requirements.txt
           if ($LASTEXITCODE -ne 0) { throw "Backend dependency installation failed." }
@@ -151,14 +167,31 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $aiderVenv = Join-Path $env:GITHUB_WORKSPACE ".nexus-aider-venv"
-          if (Test-Path $aiderVenv) { throw "Refusing to overwrite an existing Aider virtual environment." }
-          python -m venv $aiderVenv
-          if ($LASTEXITCODE -ne 0) { throw "Aider virtual environment creation failed." }
+          $stateRoot = $env:LOCALAPPDATA
+          if (-not $stateRoot) {
+            if (-not $env:USERPROFILE) { throw "Windows runner has neither LOCALAPPDATA nor USERPROFILE." }
+            $stateRoot = Join-Path $env:USERPROFILE "AppData\Local"
+          }
+          $toolRoot = Join-Path $stateRoot "NexusStudioPro\tooling"
+          $workspace = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
+          $toolRootFull = [System.IO.Path]::GetFullPath($toolRoot).TrimEnd('\') + '\'
+          if ($toolRootFull.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Persistent runner tooling must be outside GITHUB_WORKSPACE."
+          }
+          New-Item -ItemType Directory -Force -Path $toolRoot | Out-Null
+          $aiderVenv = Join-Path $toolRoot "aider-venv"
           $aiderPython = Join-Path $aiderVenv "Scripts\python.exe"
-          & $aiderPython -m pip install aider-chat
-          if ($LASTEXITCODE -ne 0) { throw "Aider installation failed." }
           $aiderExecutable = Join-Path $aiderVenv "Scripts\aider.exe"
+          if (-not (Test-Path $aiderExecutable)) {
+            if (Test-Path $aiderVenv) { throw "Aider virtual environment exists but is incomplete; refusing destructive repair." }
+            python -m venv $aiderVenv
+            if ($LASTEXITCODE -ne 0) { throw "Aider virtual environment creation failed." }
+            & $aiderPython -m pip install aider-chat
+            if ($LASTEXITCODE -ne 0) { throw "Aider installation failed." }
+          }
+          if (-not (Test-Path $aiderPython)) {
+            throw "Aider virtual environment Python is missing; refusing to execute a stale launcher."
+          }
           if (-not (Test-Path $aiderExecutable)) {
             throw "Aider executable was not installed in the isolated virtual environment."
           }
