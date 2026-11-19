@@ -331,11 +331,16 @@ class AiderDevelopmentExecutor:
 
     @staticmethod
     def _matches_scope(path, scope):
-        return any(
-            path == item.rstrip("/")
-            or item.endswith("/") and path.startswith(item)
-            for item in scope
-        )
+        normalized_path = path.replace("\\", "/").casefold()
+        for item in scope:
+            normalized_item = item.replace("\\", "/").casefold()
+            directory_scope = normalized_item.endswith("/")
+            base = normalized_item.rstrip("/")
+            if normalized_path == base:
+                return True
+            if directory_scope and normalized_path.startswith(base + "/"):
+                return True
+        return False
 
     def __call__(self, job):
         scope = self._validated_scope(job)

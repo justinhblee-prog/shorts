@@ -428,3 +428,12 @@ A concurrent-claim regression confirms that path aliases cannot bypass the durab
 ### BUILD-00382 — final exact-head validation
 - Final head `dbcbf2d54a21ae78380b282faaeeb213eed76c3d` passed **810 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44541640154](https://github.com/justinhblee-prog/shorts/actions/runs/44541640154) and [44541653671](https://github.com/justinhblee-prog/shorts/actions/runs/44541653671).
 - Both the approved symlink-alias canonicalization test and concurrent worker scope-alias claim regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.
+
+
+### BUILD-00383 — executor/scheduler path semantics alignment
+Changed-file validation now uses the same Windows case-insensitive and separator-normalized path semantics as the scheduler's scope conflict gate. Exact-head hosted validation pending.
+
+
+### BUILD-00383 — exact-head validation
+- Code head `86de6e72313c627f49ee2c2204c200fa74191918` passed **811 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44542261551](https://github.com/justinhblee-prog/shorts/actions/runs/44542261551) and [44542296386](https://github.com/justinhblee-prog/shorts/actions/runs/44542296386).
+- The case/separator-insensitive changed-file scope regression passed in both runs. Hosted Linux only; Windows local-runner execution remains unverified.
