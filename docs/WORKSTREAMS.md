@@ -194,3 +194,10 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - Original UI PR #387 was diverged from the current BUILD-00386 base. Successor PR #404 rebases the audited quarantine recovery dashboard controls onto current PR #384 and carries only frontend UI, markup, styling and frontend regression files. It is cleanly ahead by four commits, zero behind, and mergeable. Hosted checks [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819) passed; [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665) was still running at checkpoint.
 - Original API contract PR #397 was based on the stale #387 branch. Successor PR #405 carries the API authorization/validation regression test onto #404; it is ahead by one commit, zero behind, and mergeable. Exact-head workflow [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441) was running at checkpoint.
 - Original PRs #387 and #397 remain unchanged for traceability. Successors #404 and #405 remain Draft/unmerged. API tests use mocked storage and do not constitute live operator recovery.
+
+
+### Quarantine recovery successor exact-head results
+
+- PR #404 exact head `ee6a1113ce280c49c0a65c31e3555cf5a61de6d4`: both backend workflow runs [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819) and [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665) passed.
+- PR #405 exact head `5dcfc199cd4d719b03601e1a3507f83689a7bbd0`: backend workflow [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441) passed.
+- PRs #404 and #405 remain Draft/unmerged. The API contract tests use mocked storage; no live production recovery was performed.
