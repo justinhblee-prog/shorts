@@ -275,6 +275,18 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('<main id="home" aria-label="주요 콘텐츠">', html)
 
 
+    def test_dashboard_connection_status_and_skip_target_are_accessible(self):
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="connection" class="status-pill" role="status" aria-live="polite"', html)
+        self.assertIn('<main id="home" aria-label="주요 콘텐츠" tabindex="-1">', html)
+        self.assertIn('href="#home">본문으로 건너뛰기</a>', html)
+
+    def test_mobile_workspace_navigation_preserves_minimum_touch_targets(self):
+        css = (ROOT / "frontend" / "cyber-magic.css").read_text(encoding="utf-8")
+        self.assertIn("@media(max-width:700px)", css)
+        self.assertIn(".main-nav a{min-width:48px;min-height:48px}", css)
+        self.assertIn(".top-actions .button{min-width:44px;min-height:44px}", css)
+
     def test_cyber_magic_workspace_navigation_is_accessible_and_tracks_active_section(self):
         frontend = ROOT / "frontend"
         html = (frontend / "index.html").read_text(encoding="utf-8")
