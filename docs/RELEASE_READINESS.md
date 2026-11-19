@@ -277,7 +277,7 @@ The local Aider executor removes inherited Python import/startup settings, dynam
 
 
 ### BUILD-00363 — worker workspace isolation between job attempts
-The bounded worker does not claim a second job after a failed or successful first attempt in the same workspace cycle. This prevents partial unvalidated edits from one Aider job contaminating the next job. Regression coverage verifies the second job remains ready after the first attempt fails with a partial edit. Exact-head CI pending; hosted tests do not establish Windows runner workspace cleanup.
+The bounded worker and the continuous development service both stop after any claimed job attempt, including retryable failure, so a second job cannot reuse the same potentially dirty checkout. This prevents partial unvalidated edits from one Aider job contaminating the next job. Regression coverage verifies the second job remains ready after the first attempt fails with a partial edit and that run_forever does not begin another cycle. Exact-head CI pending; hosted tests do not establish Windows runner workspace cleanup.
 
 ### BUILD-00364 — exact file versus directory scope boundary
 The Aider executor no longer infers recursive scope from a missing filename suffix. Existing directories are normalized with a trailing slash; ordinary file scopes are exact-match only. This prevents an extensionless file from being replaced by a directory tree that passes the scope check. Exact-head CI pending.
