@@ -1239,9 +1239,11 @@
   }
   const initialWorkspace=window.location.hash.slice(1);
   setActiveWorkspace(workspaceLinks.some(link=>link.getAttribute("href")==="#"+initialWorkspace)?initialWorkspace:"home");
-  window.addEventListener("hashchange",()=>{
+  function syncWorkspaceFromLocation(){
     const id=window.location.hash.slice(1);
     setActiveWorkspace(workspaceLinks.some(link=>link.getAttribute("href")==="#"+id)?id:"home");
-  });
+  }
+  window.addEventListener("hashchange",syncWorkspaceFromLocation);
+  window.addEventListener("popstate",syncWorkspaceFromLocation);
   loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
 })();

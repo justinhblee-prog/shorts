@@ -189,6 +189,20 @@ async function waitForServer() {
       assert.equal(await link.getAttribute("aria-current"), "location");
     }
 
+    await page.evaluate(() => history.back());
+    await page.waitForFunction(() => window.location.hash === "#review");
+    await page.waitForFunction(() =>
+      document.querySelector('.main-nav a[href="#review"]').getAttribute("aria-current") === "location"
+    );
+    checkpoint("browser back restores the active workspace");
+
+    await page.evaluate(() => history.forward());
+    await page.waitForFunction(() => window.location.hash === "#operations");
+    await page.waitForFunction(() =>
+      document.querySelector('.main-nav a[href="#operations"]').getAttribute("aria-current") === "location"
+    );
+    checkpoint("browser forward restores the active workspace");
+
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       await page.waitForTimeout(100);

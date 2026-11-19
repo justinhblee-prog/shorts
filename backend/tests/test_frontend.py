@@ -359,6 +359,14 @@ class FrontendPortalTests(unittest.TestCase):
 
 
 
+    def test_workspace_navigation_tracks_hash_and_history_location(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        browser_smoke = (ROOT / "scripts" / "ui_browser_smoke.mjs").read_text(encoding="utf-8")
+        self.assertIn('window.addEventListener("hashchange",syncWorkspaceFromLocation)', app_js)
+        self.assertIn('window.addEventListener("popstate",syncWorkspaceFromLocation)', app_js)
+        self.assertIn("history.back()", browser_smoke)
+        self.assertIn("history.forward()", browser_smoke)
+
     def test_analytics_history_exposes_busy_state_and_snapshot_as_of_time(self):
         frontend = ROOT / "frontend"
         html = (frontend / "index.html").read_text(encoding="utf-8")
