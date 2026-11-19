@@ -2382,3 +2382,13 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add regression coverage for the platform-specific view mapping, selector refresh, additional metrics and API platform/limit bounds.
 - Relevant commits: `42c9b4b` (platform metric mapping), `9f40cab` (history table and selector refresh), `10d18a4` (frontend regressions), `c1d2ee1` / `a25ef1f` (API bounds regression and test isolation fix).
 - Validation: `42c9b4b` passed both CI checks; the latest exact-head run for `a25ef1f` is in progress. Live YouTube/TikTok account data and deployed browser behavior remain unverified.
+
+
+## BUILD-00316 — export filtered cross-platform analytics history
+
+- Add a CSV export action beside the analytics history filters. Export the full currently queried snapshot set (up to the API's bounded result count), not only the first 200 rows rendered in the HTML table.
+- Include collection timestamp, platform, video ID, views, previous-snapshot view delta, likes, comments, shares, estimated watch minutes, average view duration and average view percentage.
+- Quote and escape CSV cells, prefix formula-like text values to reduce spreadsheet formula injection risk, and emit UTF-8 BOM for spreadsheet compatibility.
+- Disable export while a replacement query is loading and when the result set is empty, preventing stale-filter exports after failed requests.
+- Scope the platform summary cards to the selected platform instead of displaying an unqueried platform as an empty result.
+- Validation: exact-head GitHub Actions pending. CSV behavior is covered by source regression assertions; a real browser download and spreadsheet import have not been exercised.
