@@ -1,123 +1,77 @@
 # NEXUS STUDIO PRO — Parallel Workstreams
 
-**Coordination baseline:** `813dfb74fc7c5243dc35f1c3dbdb67c58d9a066b`  
-**Core workstream:** `build/build-00315-harden-tiktok-aigc-disclosure` (existing Draft PR #323)  
-**UI workstream:** `ui/nexus-dashboard-workspace` (this branch)
+**Updated:** 2026-11-19  
+**Core branch:** `build/build-00315-harden-tiktok-aigc-disclosure` — head `3a300622f7d8a7e0f6c134239c152156c55cc9fe`, Draft PR [#323](https://github.com/justinhblee-prog/shorts/pull/323)  
+**UI branch:** `ui/nexus-dashboard-workspace` — head `5e86a432f7bdc42280d1293d3a52fa70eb95b057`, Draft PR [#329](https://github.com/justinhblee-prog/shorts/pull/329)
 
 ## Goal
 
-Develop the product interface and its runtime independently so both can make progress without waiting for the other. Integrate through explicit API contracts and end-to-end validation.
+Develop the product interface and its runtime independently so both tracks can progress without waiting for each other. Integrate through documented API contracts and end-to-end validation.
 
 ## Ownership boundaries
 
 | Workstream | Owns | Avoids |
 |---|---|---|
-| UI | `frontend/index.html`, `frontend/app.js`, `frontend/styles.css`, `frontend/cyber-magic*`, frontend-focused tests and UI docs | Backend routes, persistence schemas, worker/provider behavior |
-| Core | `backend/**`, database schema and migrations, worker/scheduler/provider integrations, backend tests and operational contracts | UI layout/styling unless a coordinated integration change is required |
+| UI | `frontend/index.html`, `frontend/app.js`, `frontend/styles.css`, `frontend/cyber-magic*`, frontend-focused tests, browser smoke scripts and UI docs | Backend routes, persistence schemas, worker/provider behavior |
+| Core | `backend/**`, database schema/migrations, worker/scheduler/provider integrations, backend tests and operational contracts | UI layout/styling unless a coordinated integration change is required |
 | Integration | API contract docs, cross-layer regression tests, release/readiness notes | Uncoordinated edits to files owned by both tracks |
 
 ## Working rules
 
-1. Keep Core work on PR #323 and UI work on this branch and its own Draft PR. Do not merge either PR without explicit approval.
+1. Keep Core work on PR #323 and UI work on PR #329. Both remain Open / Draft / Unmerged; do not merge without explicit user approval.
 2. One owner per file at a time. Cross-boundary changes are split into separate commits or coordinated through a documented contract first.
-3. UI consumes existing documented API shapes. If a required field or endpoint is missing, record the contract gap and request a Core-side implementation rather than inventing mock success.
-4. Core changes preserve stable API semantics or document compatible changes before UI adoption.
-5. Each workstream runs its own focused tests. Integration validation runs after both sides are ready.
-6. Mark browser, OAuth, AI-provider, publishing, and production-scale checks as unverified unless executed against the real target environment.
+3. UI consumes existing API shapes. If an endpoint or field is missing, record the contract gap and implement it in Core rather than inventing mock success.
+4. Core preserves stable API semantics or documents compatible changes before UI adoption.
+5. Each track runs focused tests. Integration validation runs after both sides are ready.
+6. Browser, OAuth, AI-provider, publishing, and production-scale checks are marked unverified unless executed against the real target environment.
+7. The UI branch is periodically synchronized with the Core branch using merge commits. This is branch-level parallel work, not a claim that two independent agents are executing simultaneously.
 
-## Work sequence
+## Current product surface
 
-- **UI lane:** information architecture, dashboard/workspace usability, responsive layout, accessible interactions, real API loading/error/empty states, browser validation.
-- **Core lane:** remaining storage/query performance, collection reliability/recovery, provider and worker correctness, security, API contract tests.
-- **Integration lane:** connect real endpoints, exercise create → review → approve → publish → analytics flows, fix regressions, update handover and release readiness.
+The repository contains a single-page NEXUS STUDIO PRO dashboard with four primary workspaces: Studio, Discovery, Review, and Operations. Analytics history, charts, filtering and CSV export are part of the Operations workspace.
 
-## Current baseline
+### UI completed work
 
-- The repository already contains a single-page dashboard with Studio, Discovery, Review, and Operations sections.
-- Analytics history filters, charts, and CSV export are implemented in the frontend; live browser behavior and real provider account behavior are not established by source tests alone.
-- PR #323 remains Open / Draft / Unmerged and is the current Core delivery line.
-- This document establishes ownership and branch boundaries; it does not claim that two independent agents are executing simultaneously.
+- **UI-00001:** analytics-history loading, empty/success, API failure, paginated CSV progress, download-request completion and export-failure feedback.
+- **UI-00002:** keyboard skip navigation and high-visibility focus styles.
+- **UI-00003:** localized navigation tooltips, main landmark label and compact navigation refinements.
+- **UI-00004:** polite connection-status announcements, focusable skip target and 48px/44px compact touch targets.
+- **UI-00005:** analytics region `aria-busy` state and visible frozen API `as_of` cutoff.
+- **UI-00006:** Playwright Chromium checks for desktop and 390px/320px layouts, page overflow, section navigation, keyboard skip, reduced motion and page errors.
+- **UI-00007:** browser-level analytics refresh and paginated CSV download. The test simulates a 500-row YouTube page, a keyset-cursor second page and one TikTok page; the actual Chromium download must contain 502 data rows.
 
+Desktop and compact-mobile full-page screenshots are captured after analytics fixture data loads and uploaded as the `nexus-dashboard-browser-screenshots` Actions artifact.
 
-## UI-00002 — keyboard navigation and focus visibility
+### Core latest work
 
-- Add a keyboard-only skip link to the main content so keyboard users can bypass the sticky workspace header.
-- Add explicit high-contrast `:focus-visible` outlines for links, buttons, and form controls; the skip link becomes visible when focused.
-- Add source regression coverage for the skip link and focus treatment.
-- Browser keyboard traversal and assistive-technology validation remain outstanding.
+- **BUILD-00336–00338:** fair, bounded TikTok metrics candidate selection; ordered publication index; correlated latest-snapshot lookup; EXPLAIN QUERY PLAN regression.
+- **BUILD-00339:** TikTok collector OAuth initialization and lease-fencing tests.
+- **BUILD-00340:** synthetic 10,000-publication / 10,000-snapshot candidate-scan smoke test.
+- **BUILD-00341–00344:** Docker Compose service integration, AES-256-GCM backup creation, isolated restore, and wrong-key fail-closed verification.
 
-- UI PR merge-result validation initially inherited a Core SQL aggregation regression from the base branch; Core corrected the response mapping in commit `c17ee8661b7a830a4f55e97d57eab4e163b65ae5`. Re-run the UI merge-result workflow against the corrected base before treating this UI checkpoint as validated.
+## Validation evidence
 
+### Core
 
-## UI-00003 — touch navigation clarity and responsive refinements
+- Backend validation [run 44500547468](https://github.com/justinhblee-prog/shorts/actions/runs/44500547468): **712 tests passed**.
+- Compose recovery [run 44500547381](https://github.com/justinhblee-prog/shorts/actions/runs/44500547381): five services start, API readiness HTTP 200, encrypted backup archive created, plaintext archive absent, wrong-key restore rejected without changing the target DB, correct-key restore succeeded and SQLite integrity passed.
+- Synthetic 10k-row due scan measured 0.65 ms on the GitHub Actions runner. This is not a production latency SLA.
 
-- Add localized native tooltips to the five workspace navigation links, preserving their accessible names and active-section behavior.
-- Label the main landmark in Korean for assistive technology.
-- Refine compact desktop spacing and mobile touch target dimensions for navigation and connection controls.
-- Add source regression coverage for localized tooltips and the main landmark label.
-- Actual mobile/desktop browser and assistive-technology validation remain outstanding.
+### UI
 
+- Latest synchronized UI head `5e86a432f7bdc42280d1293d3a52fa70eb95b057` passed [Actions run 44501015943](https://github.com/justinhblee-prog/shorts/actions/runs/44501015943): **717 tests** plus Playwright Chromium.
+- Browser checks passed at desktop, 390px and 320px widths; keyboard navigation, reduced-motion behavior, analytics busy/as-of state and paginated 502-row CSV download all passed.
+- The same head passed Compose integration [run 44501015973](https://github.com/justinhblee-prog/shorts/actions/runs/44501015973).
+- Populated desktop/mobile screenshots are in artifact [14516529812](https://github.com/justinhblee-prog/shorts/actions/runs/44501015943), available until 2027-02-17.
 
-## UI-00004 — compact navigation touch and status accessibility
+## Remaining integration and external validation
 
-- Localize the workspace navigation landmark for Korean screen-reader users.
-- Expose API connection changes as a polite live status announcement.
-- Make the main skip-link destination programmatically focusable.
-- Preserve minimum 48px navigation targets and 44px refresh action targets in the icon-only compact layout.
-- Add source-level regression coverage. Actual touch-device and screen-reader verification remain outstanding.
+- Connect the UI to the real authenticated API and validate full create → review → approve → publish → analytics flows.
+- Verify actual YouTube/TikTok OAuth, publishing, analytics collection and provider error recovery with authorized accounts.
+- Verify real browser download against live backend data, not only deterministic API fixtures.
+- Validate on physical touch devices and with assistive technologies.
+- Deploy on the intended production host with HTTPS, persistent volumes, secret rotation, monitoring and alerts.
+- Perform a production-data/off-host backup and disaster-recovery drill; CI uses synthetic disposable data and an ephemeral key.
+- Validate actual media quality, platform policy, costs and cohort ROI.
 
-
-## UI-00005 — analytics refresh state and data cutoff visibility
-
-- Mark the analytics-history result region `aria-busy` during refresh while retaining the last complete result on screen.
-- Show the API's frozen UTC `as_of` cutoff in the completed/empty result status so users can distinguish query time from the newest snapshot time.
-- Add source regression coverage for the busy state, cutoff display, and visual refresh indication.
-- Browser/screen-reader behavior remains to be verified in a runnable browser environment.
-
-
-## UI-00006 — real-browser responsive and keyboard smoke test
-
-- Add a minimal static server and Playwright Chromium smoke test to the UI CI workflow.
-- Exercise the actual rendered dashboard in Chromium at desktop, 390px and 320px viewports; check page overflow, navigation targets, section navigation, keyboard skip-link focus, reduced-motion behavior, and uncaught page errors.
-- API calls are deliberately intercepted as unauthenticated responses. This verifies frontend rendering and navigation only; it does not claim live API, authenticated workflows, or real CSV download validation.
-- Exact-head browser CI validation pending.
-
-- Initial Playwright install failed because `ubuntu-latest` resolved to Ubuntu 26.04, which Playwright 1.56.1 does not support. Pin the UI browser workflow to Ubuntu 24.04; rerun the browser smoke on the supported runner before claiming validation.
-
-- The browser smoke captures full-page desktop and compact-mobile screenshots and uploads them as the `nexus-dashboard-browser-screenshots` Actions artifact for visual review.
-
-- Initial browser smoke runner failed before launching Chromium because the `.mjs` file used CommonJS `require`; converted the runner to native ESM imports. Revalidation pending.
-
-- To avoid a slow/blocked apt dependency-install step on hosted Ubuntu 24.04 runners, the browser workflow now installs only the Chromium binary and uses the runner's preinstalled system libraries. The next exact-head run verifies that those libraries are sufficient.
-
-
-## UI-00006 — browser smoke verified
-
-- Exact UI head `bcd8109e5af663222a706605a3761ae8867cddad` passed [Actions run 44498245718](https://github.com/justinhblee-prog/shorts/actions/runs/44498245718): **717 tests** plus Playwright Chromium browser smoke.
-- Browser checks passed at desktop, 390px and 320px widths; verified no horizontal page overflow, 48px navigation touch targets, section navigation, keyboard skip-link focus, reduced-motion behavior, and no uncaught page errors.
-- Desktop/mobile full-page screenshots are available in the `nexus-dashboard-browser-screenshots` artifact attached to that Actions run (artifact ID `14516156531`, expires 2027-02-17).
-- API calls in the browser smoke are intentionally intercepted as unauthenticated responses. This is real browser rendering/navigation evidence, not live authenticated API/provider validation or real CSV download proof.
-
-
-## UI-00007 — browser-level paginated CSV download
-
-- Extend the Playwright browser smoke with authenticated-session simulation and deterministic API fixtures.
-- Exercise the analytics loading/busy state and visible `as_of` cutoff, then trigger the real Chromium download event from the Blob-generated CSV.
-- Simulate a 500-row YouTube page, a second keyset-cursor page, and a TikTok page; assert the downloaded CSV contains the header plus all 502 rows and the first/last/platform-specific video IDs.
-- The API/provider data is mocked; this validates browser download and pagination logic, not live backend completeness or real provider data.
-- Exact-head browser CI validation pending.
-
-## UI-00007 — browser-level paginated CSV download verified
-
-- Exact UI checkpoint `7803b4f76b3a2fa32ce5e1ada3ff831765c62988` passed [Actions run 44499334826](https://github.com/justinhblee-prog/shorts/actions/runs/44499334826): **717 tests** plus Playwright Chromium.
-- Browser test verified the delayed analytics `aria-busy` state, visible frozen `as_of` cutoff, a real Chromium download event, a 500-row YouTube first page plus keyset second page and one TikTok page, and the downloaded CSV's 502 data rows (503 lines including the header).
-- Screenshot artifact `nexus-dashboard-browser-screenshots` ID `14516885953` is attached to the same Actions run and expires 2027-02-17.
-- The API responses are deterministic browser fixtures. This verifies frontend pagination/download handling, not live backend completeness or real provider data.
-
-- Desktop screenshot capture now occurs after the authenticated UI fixture loads analytics history, so the visual artifact shows a populated analytics state rather than only the initial unauthenticated screen.
-
-- Final populated-screen browser checkpoint `7ac55a0af12a6e931cc86494f4006071622c1b79` passed [Actions run 44499970650](https://github.com/justinhblee-prog/shorts/actions/runs/44499970650): 717 tests plus Playwright desktop/mobile, keyboard, reduced-motion, analytics busy/as-of, and paginated 502-row CSV download. The screenshot artifact ID `14516477491` was captured after analytics fixture data loaded, so the desktop artifact shows a populated analytics state.
-
-- Latest synchronized UI head `9bdc1f3e3b3afedb6f698ec5d8d3df6f37efb9e2` passed [Actions run 44500377424](https://github.com/justinhblee-prog/shorts/actions/runs/44500377424): 717 tests and Chromium browser smoke, including paginated CSV download. The populated desktop/mobile screenshot artifact ID is `14516882003` (expires 2027-02-17).
-
-- Synchronized UI checkpoint `c3ecc0efed6ec1f1ec417dfaab498da9e782f977` passed [Actions run 44500725266](https://github.com/justinhblee-prog/shorts/actions/runs/44500725266): **717 tests** plus Chromium browser smoke, including the paginated 502-row CSV download. The same head passed Compose integration run [44500725399](https://github.com/justinhblee-prog/shorts/actions/runs/44500725399). Populated desktop/mobile screenshots are in artifact `14517516591` (expires 2027-02-17).
+The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do not satisfy external, deployment or business-evidence gates.
