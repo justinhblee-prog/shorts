@@ -2484,5 +2484,5 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ## BUILD-00360 — protect local agent from common secret-file scopes
 - Expand the Aider executor's immutable path denylist to cover SSH identities and authorized-key files, cloud credential directories (`.aws`, `.azure`), Kubernetes/Docker/ GnuPG configuration, Terraform/Pulumi state, package-manager credential files, service-account JSON, and common private-key/keystore formats.
 - Block credential-bearing subdirectories under `.config` (AWS, Azure, gcloud, GitHub CLI, pip, containers, Kubernetes, Docker and npm) while leaving ordinary application configuration paths available.
-- Add regression cases for each secret/config path family so an approved issue scope cannot accidentally authorize these files.
+- Add regression cases for each secret/config path family and symlink aliases, checking both the supplied scope path and its resolved in-repository target so an innocuous filename cannot expose a protected target.
 - Exact-head CI pending. This is a path-policy contract; no actual runner filesystem or secret-file inventory is accessed.
