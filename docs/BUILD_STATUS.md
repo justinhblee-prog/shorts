@@ -2597,3 +2597,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add tests for the default encrypted TikTok OAuth token-provider wiring and injected collector behavior.
 - Verify that results are discarded when the collector loses its lease after the provider call, failures are recorded only while lease ownership remains valid, and every path releases the lease.
 - Exact-head validation pending.
+
+
+## BUILD-00340 — synthetic 10,000-row TikTok collector scan smoke test
+
+- Add a SQLite regression fixture with 10,000 published-video identities and 10,000 historical metric snapshots.
+- Verify the indexed due-candidate query returns exactly the newest 20 stale videos in deterministic order, with no duplicates.
+- This is a synthetic bounded-volume smoke test, not a production latency benchmark or a claim about deployed database performance.
+- Exact-head GitHub Actions validation pending.
