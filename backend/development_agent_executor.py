@@ -168,18 +168,14 @@ class AiderDevelopmentExecutor:
         return env
 
     def cancel(self):
-        """Stop the active child process after lease ownership becomes uncertain."""
+        """Signal the command loop to stop after lease ownership becomes uncertain."""
         self._cancel_requested.set()
-        with self._active_process_lock:
-            process = self._active_process
-        if process is not None and process.poll() is None:
-            self._terminate_process(process)
 
     @staticmethod
     def _terminate_process(process):
         try:
             if os.name == "nt":
-                process.terminate()
+                process.send_signal(getattr(subprocess, "CTRL_BREAK_EVENT", signal.SIGTERM))
             else:
                 os.killpg(process.pid, signal.SIGTERM)
         except (OSError, ProcessLookupError):
