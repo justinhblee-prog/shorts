@@ -1471,3 +1471,8 @@ Worker presence heartbeats now update last-seen state only while the worker is o
 
 ### BUILD-00381 — Windows-safe scope conflict detection
 Scope conflict comparison now normalizes slash direction, repeated separators and `.` segments, then case-folds paths before checking exact and parent/child overlap. Unsafe, absolute or traversal scopes conservatively conflict with every other scope. This prevents two parallel leases from treating case-only path variants as disjoint on the Windows runner. Regression coverage added; exact-head CI pending.
+
+
+### BUILD-00381 — exact-head validation
+- Final head `d28864929dbaf71e4aed68f6f07127112455b0a3` passed **808 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44539840507](https://github.com/justinhblee-prog/shorts/actions/runs/44539840507) and [44539829594](https://github.com/justinhblee-prog/shorts/actions/runs/44539829594).
+- The Windows case/separator/traversal scope-conflict regression passed in both runs. Hosted Linux only; actual Windows multi-runner scheduling remains unverified.

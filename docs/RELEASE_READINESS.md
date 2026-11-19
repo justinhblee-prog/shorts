@@ -407,3 +407,8 @@ The worker presence heartbeat is conditional on the worker still being online wi
 
 ### BUILD-00381 — Windows-safe parallel scope reservation
 Scope reservation conflicts now account for Windows case-insensitive path semantics, preventing two parallel jobs from leasing differently cased references to the same file. Exact-head hosted validation pending.
+
+
+### BUILD-00381 — exact-head validation
+- Final head `d28864929dbaf71e4aed68f6f07127112455b0a3` passed **808 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44539840507](https://github.com/justinhblee-prog/shorts/actions/runs/44539840507) and [44539829594](https://github.com/justinhblee-prog/shorts/actions/runs/44539829594).
+- The Windows case/separator/traversal scope-conflict regression passed in both runs. Hosted Linux only; actual Windows multi-runner scheduling remains unverified.

@@ -295,3 +295,8 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 - Add regression coverage for case-only file differences, directory casing and independent paths. Exact-head CI pending.
 
 - Normalize slash direction, repeated separators and `.` segments, then compare scope paths with `casefold()` before checking exact, parent/child and directory/file conflicts. Unsafe/absolute/traversal scopes conservatively conflict with every other scope.
+
+
+### BUILD-00381 — exact-head validation
+- Final head `d28864929dbaf71e4aed68f6f07127112455b0a3` passed **808 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44539840507](https://github.com/justinhblee-prog/shorts/actions/runs/44539840507) and [44539829594](https://github.com/justinhblee-prog/shorts/actions/runs/44539829594).
+- The Windows case/separator/traversal scope-conflict regression passed in both runs. Hosted Linux only; actual Windows multi-runner scheduling remains unverified.
