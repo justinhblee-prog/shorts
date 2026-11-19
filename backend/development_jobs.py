@@ -258,6 +258,11 @@ class DevelopmentJobStore:
                         (timestamp, job_id),
                     )
                     next_status = "blocked"
+                else:
+                    connection.execute(
+                        "UPDATE development_jobs SET updated_at=? WHERE id=?",
+                        (timestamp, job_id),
+                    )
                 self._event(connection, job_id, "dependency_added", child_status, next_status,
                             "system", {"depends_on": depends_on_id}, timestamp)
             connection.commit()
