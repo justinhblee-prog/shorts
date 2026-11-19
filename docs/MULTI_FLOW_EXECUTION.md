@@ -133,3 +133,11 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - FLOW-CORE implementation PR #413 is at exact head `5d3e7447d72788b8802dfe8c4bcdfd3de76b4ff8`: https://github.com/justinhblee-prog/shorts/pull/413.
 - `scripts/validate.sh` and frontend syntax passed at this exact head in hosted run [44595023343](https://github.com/justinhblee-prog/shorts/actions/runs/44595023343).
 - Chromium setup/browser smoke and artifact upload are still in progress. FLOW-CORE remains VERIFYING until the entire run succeeds.
+
+
+## 12. Core lane exact-head PASS — 2026-11-20
+
+- FLOW-CORE is **PASS** at head `5d3e7447d72788b8802dfe8c4bcdfd3de76b4ff8`.
+- Hosted run [44595023343](https://github.com/justinhblee-prog/shorts/actions/runs/44595023343) succeeded: repository validation (including new DAG mutation regressions), frontend syntax, analytics Chromium smoke, recovery Chromium smoke, and artifact upload [14565337019](https://github.com/justinhblee-prog/shorts/actions/runs/44595023343/artifacts/14565337019).
+- PR #413 remains Draft/unmerged: https://github.com/justinhblee-prog/shorts/pull/413.
+- FLOW-UI and FLOW-QA remain PASS at the tested 320px-capable head in section 10. FLOW-AUTO hosted checks passed under PR #409; real Windows/Ollama execution remains BLOCKED.
