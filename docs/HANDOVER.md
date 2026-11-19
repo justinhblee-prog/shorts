@@ -74,12 +74,13 @@ YouTube channel search, channel snapshots and recent public video statistics are
 
 - Continue product development on branch `build/build-00315-harden-tiktok-aigc-disclosure` and PR #323. Keep the PR Draft; do not merge without an explicit user request.
 - The user has authorized routine product implementation, tests, fixes and documentation to proceed without per-task approval. Do not pause for confirmation on ordinary implementation choices.
-- PR #323 began as BUILD-00315 TikTok AI-generated-content disclosure hardening. It now also contains publishing analytics follow-up, BUILD-00316 CSV export and BUILD-00317 expanded YouTube metrics.
+- PR #323 began as BUILD-00315 TikTok AI-generated-content disclosure hardening. It now also contains publishing analytics follow-up and BUILD-00316 through BUILD-00318.
 - Analytics history supports platform-specific view fields, selectable metrics, immediate chart refresh, watch-time/average-duration columns, platform-filtered summaries and CSV export of all fetched rows (not only the 200-row visible table).
 - CSV output includes UTF-8 BOM, escaped quoted cells, formula-like text prefixing, and is disabled during refresh/when no rows are available. A browser download/spreadsheet import has not yet been exercised.
-- YouTube engaged views, engaged-view share and average view duration are selectable chart metrics and are included in table/export. Stored engaged-view share is a ratio; the UI and CSV convert it to percentage values and chart deltas to percentage-point changes. TikTok does not fabricate unsupported equivalents.
-- GitHub Actions runs #44446285363 and #44446292661 passed the full validation workflow with 697 backend tests on code checkpoint `fc2ec38`. The pre-existing TikTok status-poll backoff test was stabilized by replacing one-second boundary assertions with safer timing margins.
-- Documentation commits after that code checkpoint are subject to exact-head CI; do not claim the current head green until its own check completes.
+- YouTube engaged views, engaged-view share and average view duration are selectable chart metrics and included in table/export. Stored engaged-view share is a ratio; the UI and CSV convert it to percentages and chart deltas to percentage-point changes. TikTok does not fabricate unsupported equivalents.
+- YouTube audience-retention curves are now persisted per analytics history snapshot, exposed through the history API, displayed as 25%/50%/75% checkpoints with a sparkline, and included in CSV. Existing databases add a default empty curve and backfill only the latest history row from the current snapshot; older retention data is not invented.
+- GitHub Actions runs #44446698740 and #44446708718 passed the full validation workflow with 697 backend tests on code checkpoint `fda8549`. Earlier CSV and engagement-metric checkpoints also passed 697 tests.
+- Documentation commits after those validated code checkpoints are subject to exact-head CI; do not claim the current head green until its own check completes.
 - Preserve human approval gates, private-only upload constraints, token/lease fencing, fail-closed behavior and source provenance.
 - Automated tests do not prove live AI generation, external provider idempotency, OAuth connectivity, real YouTube/TikTok account behavior, browser usability or production restore readiness. Keep those explicitly pending until validated in an integrated environment.
 
