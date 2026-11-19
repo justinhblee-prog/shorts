@@ -2494,3 +2494,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Disable system/global Git configuration, interactive credential prompts and inherited credential helpers; supply only an empty isolated global config and explicit noninteractive credential policy.
 - Add regressions for isolated home/config paths, empty config files, blocked environment overrides and preserved required local execution context.
 - Exact-head CI pending. Hosted tests validate the environment contract only; no real Windows runner or Aider/Ollama invocation is claimed.
+
+
+## BUILD-00362 — scrub runtime and shell startup injection variables
+- Remove inherited Python interpreter/module injection settings, dynamic-loader overrides, shell startup hooks, and Node/Ruby/Perl runtime preload variables from the Aider child environment.
+- Preserve only the explicitly constructed local model, repository, and isolated tool configuration context.
+- Add regression coverage for PYTHONPATH/PYTHONHOME, LD_PRELOAD, DYLD_INSERT_LIBRARIES, BASH_ENV, ENV, NODE_OPTIONS and related runtime injection variables.
+- Exact-head hosted CI pending. This is environment-contract coverage; no live Windows runner or Aider/Ollama execution is claimed.
