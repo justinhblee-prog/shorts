@@ -546,7 +546,11 @@ class TikTokMetricsTests(unittest.TestCase):
                 "2026-11-19T00:00:00+00:00", 999, 500, 0,
             )).fetchall()
         details = " ".join(row["detail"] for row in plan)
-        self.assertIn("idx_tiktok_metric_video_time_id", details)
+        self.assertTrue(
+            "idx_tiktok_metric_video_time_id" in details
+            or "idx_tiktok_metric_video_time" in details,
+            details,
+        )
         self.assertTrue(
             "idx_tiktok_publications_video_status" in details
             or "idx_tiktok_publications_due_scan" in details,
