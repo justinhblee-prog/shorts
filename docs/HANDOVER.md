@@ -1369,3 +1369,7 @@ Worker exception messages are now sanitized before they are written to the durab
 
 ### BUILD-00367 — exact-head CI result
 Code head `4a987bf76067aaaee19e4fe9f345090cfa53c767` passed GitHub Actions run [44517983256](https://github.com/justinhblee-prog/shorts/actions/runs/44517983256): **786 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Hosted Linux only; no production log inventory is implied.
+
+
+### BUILD-00367 — expanded redaction CI result
+Updated code head `431155113b1e5e749141333bc139af3b245f4223` passed GitHub Actions run [44518327365](https://github.com/justinhblee-prog/shorts/actions/runs/44518327365): **787 tests**, repository validation and frontend syntax check. The regression includes multiline service-account JSON. Hosted Linux only; no production log inventory is implied.
