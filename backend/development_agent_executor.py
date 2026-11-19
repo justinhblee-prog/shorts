@@ -4,12 +4,14 @@ Job descriptions are treated as untrusted data. Commands are fixed by this
 module, scope paths are validated, and credentials are removed from the
 subprocess environment.
 """
+import ipaddress
 import os
 import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from development_job_worker import NonRetryableDevelopmentJobError
 
@@ -71,6 +73,27 @@ class AiderDevelopmentExecutor:
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or not 60 <= timeout_seconds <= 7200:
             raise ValueError("timeout_seconds must be between 60 and 7200")
         self.timeout_seconds = timeout_seconds
+
+    @staticmethod
+    def _local_ollama_api_base():
+        default = "http://127.0.0.1:11434"
+        candidate = os.environ.get("OLLAMA_API_BASE", default).strip()
+        try:
+            parsed = urlsplit(candidate)
+            host = parsed.hostname or ""
+            loopback = host.lower() == "localhost" or ipaddress.ip_address(host).is_loopback
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not loopback
+                or parsed.username
+                or parsed.password
+                or parsed.query
+                or parsed.fragment
+            ):
+                return default
+        except ValueError:
+            return default
+        return candidate.rstrip("/")
 
     @staticmethod
     def _child_environment(home):
@@ -135,7 +158,7 @@ class AiderDevelopmentExecutor:
             "GIT_CONFIG_VALUE_1": "false",
             "GIT_TERMINAL_PROMPT": "0",
             "GCM_INTERACTIVE": "Never",
-            "OLLAMA_API_BASE": os.environ.get("OLLAMA_API_BASE", "http://127.0.0.1:11434"),
+            "OLLAMA_API_BASE": AiderDevelopmentExecutor._local_ollama_api_base(),
         })
         drive, tail = os.path.splitdrive(str(home))
         if drive:
