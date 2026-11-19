@@ -316,7 +316,7 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual({row["views"] for row in history},{100,150})
         by_views={row["views"]:row["retention_curve"] for row in history}
         self.assertEqual(by_views[100][0]["audience_watch_ratio"],0.8)
-        self.assertEqual(by_views[150][0]["relative_retention_performance"],-0.2)
+        self.assertEqual(by_views[150][0]["relative_retention_performance"],0.2)
         self.assertEqual(self.store.get("history-video")["views"],150)
         self.assertEqual(len(self.store.history("other-video")),0)
 
@@ -620,7 +620,7 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                 {"elapsedVideoTimeRatio": 0.0, "audienceWatchRatio": 1.0,
                  "relativeRetentionPerformance": True},
                 {"elapsedVideoTimeRatio": 0.9, "audienceWatchRatio": 0.7,
-                 "relativeRetentionPerformance": -0.25},
+                 "relativeRetentionPerformance": 0.25},
                 {"elapsedVideoTimeRatio": 1.0, "audienceWatchRatio": 0.0,
                  "relativeRetentionPerformance": 0.25},
             ],
