@@ -407,7 +407,7 @@ class ReviewStore:
                     raise ReviewConflict("Policy preflight report has an unsupported status")
                 if policy_status == "blocked":
                     raise ReviewConflict("Policy-blocked content cannot be approved")
-                approval_blockers = policy_report.get("approval_blockers", [])
+                approval_blockers = policy_report.get("approval_blockers")
                 if (not isinstance(approval_blockers, list)
                         or any(not isinstance(item, str) or not item.strip()
                                for item in approval_blockers)):
