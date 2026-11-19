@@ -181,3 +181,13 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - PR #411 is likewise stacked on PR #410: its base SHA is exactly #410 head `56bb66ca18000563f95f999bc9a94e3f35ed0bf3`. Preserve **#410 before #411** when integrating documentation.
 - Recommended integration sequence after explicit approval: integrate the shared baseline candidate first; then the independent UI/Core changes (#412/#413); then Automation baseline #409 followed by its integrity hardening #414; then the documentation stack #410 followed by #411. Re-run full validation on the resulting combined head because individual branch PASS evidence does not certify the aggregate merge result.
 - No merge or deployment was performed. All six PRs remain Draft pending user approval and the external Windows/Ollama gate.
+
+
+## 17. Parent integration stack review — 2026-11-20
+
+- PR #407 is the parent integration candidate: it targets `integration/core-policy-ui-candidate-2026-11-20` (base `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0`) and its head is `4541b91ce7d440aafcf3732dc8487679793cac56`.
+- `integration/nexus-ui-current-verified` is 36 commits ahead of that same base at `77333d264a123d80c87e6ca13f1edfc0282be06a`. PR #407's head is a further 26 commits ahead of the current verified branch, with the current branch as its merge base. Thus #407 is a superset candidate, not an unrelated branch.
+- The additional 26 commits in #407 touch files also changed by child PR #412, including `frontend/app.js`, `frontend/index.html`, `backend/tests/test_frontend.py`, and related UI/API files. The child PRs' isolated PASS evidence therefore does not remove the need to reconcile their changes with the parent integration delta.
+- FLOW-INTEGRATION is now **BLOCKED / review required**: do not merge #407 or child PRs in an arbitrary order. First reconcile the parent/child branch stack and overlapping UI changes, then run full validation on one aggregate exact head. Automation ancestry still requires #409 before #414; docs ancestry still requires #410 before #411.
+- The integration branch is also 5 commits behind `main` and 1,243 commits ahead according to GitHub comparison. This is recorded as a branch-divergence fact, not a recommendation to merge into main. Mainline promotion remains out of scope and requires a separate review.
+- No branches were force-pushed, rebased, merged, or deployed during this review.
