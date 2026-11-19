@@ -1514,3 +1514,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 
 
 - Latest exact Core checkpoint `a51a4d43e44a586feb5f1b85cea7bc542d4a0a4e`: 718 backend tests passed; Compose image build, five services, API readiness and encrypted backup/restore smoke passed. BUILD-00348 compressed archive bounds are included.
+
+
+## BUILD-00349 — offline SQLite restore guard
+
+- Refuse restore when SQLite `-wal`, `-shm` or `-journal` sidecars are present, preventing the restore flow from replacing the database while uncheckpointed or active sidecar state may exist.
+- Document restore as an offline maintenance operation: stop API, worker, scheduler, metrics collector and backup processes; close/checkpoint the DB; restore and verify; then restart.
+- Add regressions for all three sidecar types and verify live DB contents remain unchanged.
+- The sidecar check is a fail-closed safeguard, not proof that no process has an open database handle; operator shutdown remains mandatory.
+- Exact-head Actions validation pending.
