@@ -1345,3 +1345,7 @@ The bounded worker exits after any claimed job attempt, including retryable fail
 
 ### BUILD-00364 — explicit directory-only recursive scope
 Recursive changed-file matching requires an explicit directory marker produced by validating an existing directory. Extensionless file scopes match only the exact file and cannot authorize nested paths. Regression coverage checks both directory recursion and extensionless-file containment. Exact-head CI pending.
+
+
+### BUILD-00365 — daemon worktree recycling boundary
+The worker and backlog-service daemon loops now poll while idle but return after the first claimed job attempt. This aligns their behavior with the shared-worktree isolation rule and prevents a second job from running against leftover validated or partial edits. Regression tests cover both daemon entry points. Exact-head CI pending; actual host checkout/recycle behavior remains an integration check.
