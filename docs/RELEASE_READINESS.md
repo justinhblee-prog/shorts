@@ -270,3 +270,7 @@ The local Aider executor now rejects common SSH private identities, cloud creden
 
 ### BUILD-00361 — isolated Aider home and tool configuration
 Aider now runs with a per-job temporary user home and isolated XDG/Windows roaming and local app-data, Docker, npm and Git configuration paths; pip configuration-file loading is disabled with the platform null device. SSH/Git credential injection, inherited tool/provider endpoint overrides, and user package-manager configuration variables are removed. System/global Git config and interactive credential prompts are disabled, with an empty isolated global config and an explicit no-helper credential policy. OLLAMA_API_BASE is accepted only for loopback hosts; remote or invalid endpoints fall back to the local default. Exact-head CI pending; hosted tests do not establish real Windows runner or Ollama behavior.
+
+
+### BUILD-00362 — subprocess runtime injection isolation
+The local Aider executor removes inherited Python import/startup settings, dynamic-loader injection variables, shell startup hooks, and Node/Ruby/Perl preload settings before launching the model and validation commands. Regression coverage injects hostile values and verifies they do not reach the child environment. Exact-head CI pending; actual Windows runner and local model execution remain separate launch gates.
