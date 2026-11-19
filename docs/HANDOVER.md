@@ -1429,3 +1429,7 @@ Code head `78a0a488ad8c7d4358c57accb772ba12effe2359` passed GitHub Actions run [
 
 ### BUILD-00372 — freeze dependencies after claim
 New dependency edges are now accepted only for ready/blocked jobs. The transaction serializes edge insertion against claim_ready; late edges fail closed, while duplicate existing edges remain idempotent. This prevents a running or completed job from silently gaining a prerequisite after execution. Exact-head CI pending.
+
+
+### BUILD-00372 — exact-head CI result
+Code head `b2c74c47ee95c59544ea5fea12ff2fbbd456ef0a` passed GitHub Actions run [44522908956](https://github.com/justinhblee-prog/shorts/actions/runs/44522908956): **803 tests**, repository validation and frontend syntax check. Dependency mutation/claim race regressions passed.
