@@ -97,3 +97,5 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Exact-head CI validation pending.
 
 - Browser integration additionally asserts HTTP 200 and response shapes from the real authenticated `/api/brands`, `/api/queue/stats`, `/api/review/pending`, and `/api/publishing/analytics-status` endpoints before exercising analytics history and CSV export.
+
+- The real FastAPI browser fixture now creates a durable production queue job, moves it through the worker-completed review handoff, and approves it through the actual UI action; the test verifies the append-only review history records `approved`.
