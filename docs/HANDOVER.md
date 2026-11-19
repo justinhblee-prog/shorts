@@ -1449,3 +1449,7 @@ The `source_ref_exists` preflight lookup also applies the same redactor, keeping
 
 ### BUILD-00379 — imported repository identity validation
 `normalize_issue` now rejects malformed owner/repository identities before constructing source references or fallback URLs. Tests cover traversal, path/query injection and invalid segments. Code head `7d55d319ad512f885f7a12dccae315c34766e44f` passed GitHub Actions run [44537566649](https://github.com/justinhblee-prog/shorts/actions/runs/44537566649): **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`. Hosted Linux only; Windows local-runner and production execution remain unverified.
+
+
+### CI reliability follow-up
+The full-suite run exposed a timing-sensitive TikTok status-poll backoff test that set timestamps only one second below the 60s/120s thresholds. Its fixtures now use wide margins so scheduler delay and SQLite timestamp precision cannot cause a false failure.

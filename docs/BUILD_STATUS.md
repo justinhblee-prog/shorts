@@ -2672,3 +2672,5 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject malformed repository owner/name values in `normalize_issue` before constructing a durable source reference or fallback GitHub URL.
 - Reuse the same owner/repository segment rules as the read-only GitHub API path validator.
 - Add regressions for traversal, extra path segments, query injection, empty segments and newline injection. Exact-head CI pending.
+
+- Stabilize the existing TikTok poll-backoff regression by using 30/65-second and 90/125-second test timestamps around the 60/120-second thresholds, avoiding a wall-clock scheduling race caused by second-resolution SQLite timestamps.
