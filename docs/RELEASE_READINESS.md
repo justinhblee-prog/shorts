@@ -240,3 +240,7 @@ Each GitHub backlog feed is now capped at five pages (500 records) per sync. Per
 
 ### BUILD-00356 — exact-head CI result
 Exact head `7c48c967eca8460378ffa9dc5ea13cacdfd89a16` passed backend Actions run [44511056511](https://github.com/justinhblee-prog/shorts/actions/runs/44511056511) with 771 tests, including the five-page cap, truncation propagation and rejection of non-GitHub pagination links. This is hosted CI only; live GitHub token rate-limit and Windows runner behavior remain unverified.
+
+
+### BUILD-00357 — safe GitHub repository path construction
+Owner and repository inputs are validated as individual path segments before any read-only GitHub API request. Invalid path traversal, embedded slashes, query/fragment syntax and whitespace fail before network access. Exact-head CI is pending; this is not live GitHub authentication evidence.
