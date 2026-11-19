@@ -108,6 +108,8 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
             "http://github.com/acme/app/issues/4",
             "https://user@github.com/acme/app/issues/4",
             "https://github.com:444/acme/app/issues/4",
+            "https://github.com:not-a-port/acme/app/issues/4",
+            "https://github.com:99999/acme/app/issues/4",
             "https://github.com/acme/other/issues/4",
             "https://github.com/acme/app/pull/4",
             "https://github.com/acme/app/issues/4?redirect=evil",
