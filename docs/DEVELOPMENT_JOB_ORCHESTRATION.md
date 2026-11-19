@@ -80,12 +80,12 @@ flowchart TD
   B385 --> YT[BUILD-00387 YouTube disclosure PR #385]
   B386 --> B388[BUILD-00388 GitHub pagination PR #388]
   B386 --> U012[UI-00012 recovery control PR #387]
-  YT --> P001[POLICY-00001 PR #386]
-  P001 --> P002[POLICY-00002 PR #389]
+  P001[POLICY-00001 PR #386] --> P002[POLICY-00002 PR #389]
   P002 --> P003[POLICY-00003 PR #390]
   U011[UI-00011 history navigation PR #382]
   U012 --> INT[Integration and release validation]
-  B387 --> INT
+  B388 --> INT
+  U011 --> INT
   P003 --> INT
   YT --> INT
 ```
@@ -98,12 +98,12 @@ All listed PRs are Draft and unmerged in this snapshot. Their base/head relation
 - PR #382 UI-00011: exact-head hosted backend/browser/Compose validation passed.
 - PR #383 BUILD-00385: exact-head hosted backend validation passed.
 - PR #384 BUILD-00386: 825-test hosted backend validation passed; live Windows worker recovery remains unverified.
-- PR #385 BUILD-00387 YouTube disclosure mapping: 823-test hosted validation passed; no live platform upload performed.
+- PR #385 BUILD-00387 YouTube disclosure mapping: earlier code head passed 823 tests; subsequent BUILD-00389–00392 hardening is on a newer head with exact-head CI pending; no live platform upload performed.
 - PR #386 POLICY-00001: 825-test hosted validation passed.
 - PR #387 UI-00012: exact-head hosted repository and frontend syntax validation passed; live authenticated browser/API interaction remains unverified.
 - PR #388 BUILD-00388: exact head `f55030dab87cbcb8a1fa1a015a74db87961496f4` passed 829 tests, `scripts/validate.sh`, and `node --check frontend/app.js` in [run 44558169681](https://github.com/justinhblee-prog/shorts/actions/runs/44558169681); live GitHub API pagination remains unverified.
 - PR #389 POLICY-00002: exact-head hosted repository and frontend syntax validation passed.
-- PR #390 POLICY-00003: exact-head `a89dd228f924bf6f7cb8bd7d441c6733851c1acf` passed `scripts/validate.sh` and `node --check frontend/app.js` in runs [44554183308](https://github.com/justinhblee-prog/shorts/actions/runs/44554183308) and [44554192636](https://github.com/justinhblee-prog/shorts/actions/runs/44554192636).
+- PR #390 POLICY-00003: earlier code head `a89dd228f924bf6f7cb8bd7d441c6733851c1acf` passed `scripts/validate.sh` and `node --check frontend/app.js` in runs [44554183308](https://github.com/justinhblee-prog/shorts/actions/runs/44554183308) and [44554192636](https://github.com/justinhblee-prog/shorts/actions/runs/44554192636). POLICY-00004 latest-script binding changes are on a newer head with exact-head CI pending.
 
 ## Next work selection
 
