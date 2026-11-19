@@ -332,35 +332,25 @@ class TikTokMetricsStore:
     def history(self, publication_store, video_id=None, limit=100, since=None, offset=0):
         limit=max(1,min(int(limit),500))
         offset=max(0,min(int(offset),10000000))
-        eligible=publication_store.list_metrics_eligible(
-            limit=1 if video_id is not None else None,video_id=video_id
-        )
-        allowed={item["video_id"]:item for item in eligible}
+        clauses=["p.status='publish_complete'","p.video_id IS NOT NULL"]
+        params=[]
         if video_id:
-            if video_id not in allowed:
-                return []
-            ids=[video_id]
-        else:
-            ids=list(allowed)
-        if not ids:
-            return []
-        placeholders=",".join("?" for _ in ids)
-        date_clause=" AND collected_at>=?" if since else ""
-        params=(*ids,*([since] if since else []),limit)
+            clauses.append("p.video_id=?")
+            params.append(video_id)
+        if since:
+            clauses.append("s.collected_at>=?")
+            params.append(since)
+        where=" AND ".join(clauses)
         with self.db() as c:
             rows=c.execute(f"""
-              SELECT * FROM tiktok_video_metric_snapshots
-              WHERE video_id IN ({placeholders}){date_clause}
-              ORDER BY collected_at DESC,id DESC LIMIT ? OFFSET ?
-            """,(*params,offset)).fetchall()
-        result=[]
-        for row in rows:
-            item=dict(row)
-            publication=allowed.get(item["video_id"],{})
-            item["publication_status"]=publication.get("status")
-            item["privacy_level"]=publication.get("privacy_level") or "SELF_ONLY"
-            result.append(item)
-        return result
+              SELECT s.*,p.status AS publication_status,
+                     COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
+              FROM tiktok_video_metric_snapshots s
+              JOIN tiktok_publications p ON p.video_id=s.video_id
+              WHERE {where}
+              ORDER BY s.collected_at DESC,s.id DESC LIMIT ? OFFSET ?
+            """,(*params,limit,offset)).fetchall()
+        return [dict(row) for row in rows]
 
     def recent_metrics(self, publication_store, limit=100):
         limit = max(1, min(int(limit), 200))
