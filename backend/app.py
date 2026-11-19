@@ -381,12 +381,16 @@ def reconcile_provider_attempt(
     x_review_token:str|None=Header(default=None),
 ):
     """Resolve an ambiguous provider call only after explicit operator evidence."""
-    require_review_permission(x_review_token,"production.provider_reconcile")
+    authenticated_operator=require_review_permission(
+        x_review_token,"production.provider_reconcile"
+    )
+    if body.operator_id != authenticated_operator:
+        raise HTTPException(403,"Operator ID must match the authenticated principal")
     if not body.confirmed_not_executed:
         raise HTTPException(422,"Explicit confirmation that the provider did not execute is required")
     try:
         result=production_store.confirm_provider_attempt_not_executed(
-            job_id,provider_attempt_id,body.operator_id,
+            job_id,provider_attempt_id,authenticated_operator,
             body.evidence_reference,body.note,
         )
     except KeyError:
