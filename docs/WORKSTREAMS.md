@@ -87,3 +87,12 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Exercise real SQLite keyset pagination and actual Chromium CSV download; inject one controlled 503 to verify partial API failure handling.
 - External YouTube/TikTok provider calls, production credentials, and deployed environment remain outside this local integration test.
 - Exact-head validation for the current UI head is pending.
+
+
+## UI-00009 — searchable review queue
+
+- Add an in-page search across review card text, covering brand, topic, job ID, stage/status and visible policy/quality context.
+- Keep the search client-side over the already-authorized pending-review response; it does not expand API access or change approval semantics.
+- Announce result counts through a polite status region and retain the query across queue refreshes.
+- Add source and Chromium browser regressions for zero-result and matching-result behavior.
+- Exact-head validation pending.
