@@ -285,6 +285,16 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(self.store.get("history-video")["views"],150)
         self.assertEqual(len(self.store.history("other-video")),0)
 
+    def test_history_since_filters_before_applying_limit(self):
+        self.store.save("range-video","2026-11-01","2026-11-01",{"views":10},[])
+        self.store.save("range-video","2026-11-02","2026-11-02",{"views":20},[])
+        self.store.save("range-video","2026-11-03","2026-11-03",{"views":30},[])
+        recent=self.store.history("range-video",limit=1,since="2026-11-02")
+        self.assertEqual(len(recent),1)
+        self.assertEqual(recent[0]["views"],30)
+        older=self.store.history("range-video",limit=5,since="2026-11-02")
+        self.assertEqual({row["views"] for row in older},{20,30})
+
     def test_relative_retention_performance_preserves_negative_values(self):
         reports = FakeReports(retention={
             "columnHeaders": [
