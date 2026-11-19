@@ -79,6 +79,7 @@ class OperatorRoleTests(unittest.TestCase):
             "producer": ["producer"],
         })
         self.assertTrue(has_permission("worker-service", "worker.execute", role_map_json=roles))
+        self.assertTrue(has_permission("worker-service", "production.execute", role_map_json=roles))
         self.assertFalse(has_permission("worker-service", "queue.control", role_map_json=roles))
         self.assertTrue(has_permission("analyst", "opportunities.manage", role_map_json=roles))
         self.assertFalse(has_permission("analyst", "review.decide", role_map_json=roles))
