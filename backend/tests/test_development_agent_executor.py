@@ -60,6 +60,14 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
             "FIREBASE_SERVICE_ACCOUNT": "service-account-sensitive",
             "AWS_ACCESS_KEY_ID": "aws-access-sensitive",
             "AZURE_CLIENT_SECRET": "azure-secret-sensitive",
+            "GITHUB_ENV": "C:/runner/_temp/env-file",
+            "GITHUB_OUTPUT": "C:/runner/_temp/output-file",
+            "GITHUB_PATH": "C:/runner/_temp/path-file",
+            "GITHUB_STEP_SUMMARY": "C:/runner/_temp/summary-file",
+            "GITHUB_STATE": "C:/runner/_temp/state-file",
+            "GITHUB_EVENT_PATH": "C:/runner/_temp/event.json",
+            "ACTIONS_CACHE_URL": "https://cache.example",
+            "ACTIONS_RESULTS_URL": "https://results.example",
             "OLLAMA_API_BASE": "http://127.0.0.1:11434",
             "GITHUB_WORKSPACE": str(self.root),
             "NEXUS_APPROVED_SCOPES": "{}",
@@ -71,7 +79,9 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         for key in (
             "GITHUB_TOKEN", "NEXUS_BACKUP_ENCRYPTION_KEY", "DATABASE_URL",
             "REDIS_URL", "SUPABASE_SERVICE_ROLE_KEY", "FIREBASE_SERVICE_ACCOUNT",
-            "AWS_ACCESS_KEY_ID", "AZURE_CLIENT_SECRET",
+            "AWS_ACCESS_KEY_ID", "AZURE_CLIENT_SECRET", "GITHUB_ENV", "GITHUB_OUTPUT",
+            "GITHUB_PATH", "GITHUB_STEP_SUMMARY", "GITHUB_STATE",
+            "GITHUB_EVENT_PATH", "ACTIONS_CACHE_URL", "ACTIONS_RESULTS_URL",
         ):
             with self.subTest(secret=key):
                 self.assertNotIn(key, child_env)
