@@ -201,3 +201,7 @@ Approved existing directory paths are normalized to a trailing slash against the
 - `recover_expired_lease` requires an operator, a reason, and `workspace_reset_confirmed=True`; it accepts only a quarantine caused by `lease_expired` and rejects exhausted attempt budgets.
 - `claim_ready` allows at most one active lease per worker identity.
 - Host-level process termination and worktree cleanup must be verified before invoking recovery.
+
+
+### BUILD-00368 — CI evidence and scope reservation
+GitHub Actions run [44526419213](https://github.com/justinhblee-prog/shorts/actions/runs/44526419213) passed **799 tests**, `scripts/validate.sh` and `node --check frontend/app.js` for the lease safety changes. All quarantined jobs reserve their declared scopes against conflicting claims until explicit workspace-reset recovery. Hosted Linux CI does not establish host-level runner cleanup.
