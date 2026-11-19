@@ -277,9 +277,12 @@ class DevelopmentJobStore:
         if not left or not right:
             return True
         for first in left:
-            a = first.rstrip("/")
+            # The trusted production runner is Windows (case-insensitive paths).
+            # Conservatively apply that filesystem behavior to every scheduler
+            # so case-only aliases cannot bypass scope serialization.
+            a = first.replace("\\", "/").rstrip("/").casefold()
             for second in right:
-                b = second.rstrip("/")
+                b = second.replace("\\", "/").rstrip("/").casefold()
                 if a == b or a.startswith(b + "/") or b.startswith(a + "/"):
                     return True
         return False
