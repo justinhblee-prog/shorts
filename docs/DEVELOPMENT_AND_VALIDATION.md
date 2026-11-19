@@ -348,3 +348,15 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - Hosted workflow [44583842741](https://github.com/justinhblee-prog/shorts/actions/runs/44583842741): **success**; `scripts/validate.sh` reports **876 tests passed**; JS syntax check, analytics browser smoke, recovery browser smoke, and artifact upload all passed.
 - Browser artifact: [nexus-integrated-dashboard-browser-artifacts](https://github.com/justinhblee-prog/shorts/actions/runs/44583842741/artifacts/14560517101) (4.93 MB).
 - PR #407 remains Draft/unmerged; no production deployment or live provider action.
+
+
+### UI visual QA + API contract closure — 2026-11-20
+
+- Actual Chromium artifact inspection found two presentation defects: Korean glyph fallback was unavailable in CI, and full-page screenshots captured the fixed/sticky navigation at the previous smooth-scroll position rather than the top of the document.
+- Installed fonts-noto-cjk in the browser workflow, waited for document.fonts.ready, and forced instant scroll-to-top before desktop/mobile full-page captures. The final screenshot artifact [14559944009](https://github.com/justinhblee-prog/shorts/actions/runs/44586621312/artifacts/14559944009) now shows readable Korean typography and the desktop navigation rail at the top. Mobile screenshot is captured at 320px.
+- The screenshot also exposed a real API gap: the integrated dashboard called GET /api/publishing/overview, but the Core/Policy base did not provide it. Restored the bounded 200-approved-job summary endpoint with review.read authorization and provider-secret redaction; added a unit regression and an authenticated browser API check.
+- Moving the unittest main guard to the end of backend/tests/test_api_security.py activated two previously skipped provider-attempt reconciliation tests. Implemented POST /api/production/jobs/{job_id}/provider-attempts/{provider_attempt_id}/reconcile with production.provider_reconcile permission, explicit not-executed confirmation, durable operator/evidence/note recording, and no automatic retry/resume side effect.
+- Browser smoke now asserts the authenticated dashboard reaches API 연결됨 across all 19 modules before proceeding, and separately exercises the intentional partial-API-failure feedback path.
+- Exact source head `b9b375a3ea9f95ef7ab4b18210ec43f474824fb4` passed [workflow 44586621312](https://github.com/justinhblee-prog/shorts/actions/runs/44586621312): **879 tests passed**, frontend syntax, analytics browser smoke, recovery browser smoke, and artifact upload.
+- A subsequent API documentation-only update created PR #407 head `323ad6c5ad7d6ef7d0301fbb8655f3d7a4b355dc`; its exact-head workflow is running separately. Do not label the newer head passed until that run completes.
+- PR #407 remains Draft/unmerged. No production deployment, live OAuth/provider action, or live operator recovery was performed.
