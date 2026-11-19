@@ -69,6 +69,21 @@ def _effective_encryption_key(value):
     return value or None
 
 
+def _assert_database_offline(db_path):
+    db_path = Path(db_path)
+    sidecars = [
+        Path(str(db_path) + "-wal"),
+        Path(str(db_path) + "-shm"),
+        Path(str(db_path) + "-journal"),
+    ]
+    present = [path.name for path in sidecars if path.exists()]
+    if present:
+        raise BackupRestoreError(
+            "SQLite sidecar files are present; stop all application services and "
+            "close/checkpoint the database before restore: " + ", ".join(present)
+        )
+
+
 def _validate_database_media_paths(db_path, media_dir):
     db_path = Path(db_path).resolve()
     media_dir = Path(media_dir).resolve()
@@ -532,6 +547,7 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
         raise BackupRestoreError("Backup archive does not exist or is not a regular file")
     archive_path = archive_path.resolve()
     _validate_database_media_paths(db_path, media_dir)
+    _assert_database_offline(db_path)
     if media_dir == archive_path or media_dir in archive_path.parents:
         raise BackupRestoreError("Backup archive must be outside the media directory")
     if not db_path.parent.exists():
