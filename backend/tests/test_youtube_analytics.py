@@ -310,6 +310,19 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(self.store.get("history-video")["views"],150)
         self.assertEqual(len(self.store.history("other-video")),0)
 
+    def test_history_malformed_retention_json_fails_safe(self):
+        self.store.save(
+            "bad-retention-history","2026-11-01","2026-11-14",{"views":10},
+            [{"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.4}],
+        )
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE youtube_analytics_history SET retention_json='{' WHERE video_id=?",
+                ("bad-retention-history",),
+            )
+        history=self.store.history("bad-retention-history")
+        self.assertEqual(history[0]["retention_curve"],[])
+
     def test_history_has_global_time_index(self):
         with self.store.db() as connection:
             indexes={
