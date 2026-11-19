@@ -70,7 +70,7 @@ This is a rolling audit, not a claim that exactly six BUILD items remain. Add ne
 
 **Exit criteria:** all three Compose services start and remain healthy; API, worker and scheduler exercise one complete supervised lifecycle; recovery and backup behavior are demonstrated.
 
-- [ ] Build and start Docker Compose; confirm API, worker and scheduler health.
+- [ ] Build and start Docker Compose on the deployment host; confirm API, worker and scheduler health. A separate CI Compose smoke workflow is being added under BUILD-00341 and does not count as deployment evidence.
 - [ ] Exercise queue → worker → production record → review handoff → recovery on the deployed single-host SQLite volume.
 - [ ] Verify scheduler pause, pending outbox replay, restart behavior and idempotency on the deployed host.
 - [ ] Run a backup and restore drill against a copy of the persistent data volume.
