@@ -1286,3 +1286,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Exact-head GitHub Actions runs [44485794642](https://github.com/justinhblee-prog/shorts/actions/runs/44485794642) and [44485787820](https://github.com/justinhblee-prog/shorts/actions/runs/44485787820) passed; full validation completed with **699 backend tests**.
 - The PR remains Open / Draft; do not merge without explicit user approval. Documentation updates may move the branch head beyond this tested code checkpoint; do not describe docs-only commits as separately tested code.
 - Next: inspect analytics-history filters and export path for platform/period/video isolation, CSV injection safety and consistent metric formatting; add regression coverage before changing behavior.
+
+
+### BUILD-00324 API verification addendum
+
+- Added an API-level regression assertion for the TikTok latest-snapshot timestamp and combined stale/missing coverage fields, confirming the protected status endpoint exposes them while continuing to exclude internal errors and credentials.
+- Exact-head Actions runs [44486123616](https://github.com/justinhblee-prog/shorts/actions/runs/44486123616) and [44486133696](https://github.com/justinhblee-prog/shorts/actions/runs/44486133696) both passed with **699 backend tests** on `910c521ce53e9a0f5abd249fdae5024ef0b3d085`.
