@@ -2490,7 +2490,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ## BUILD-00361 — isolate local Aider home and tool configuration
 - Run the Aider subprocess and its scoped validation under a per-job temporary HOME/USERPROFILE with private XDG, Windows roaming/local app-data, Docker, npm and Git configuration directories; disable pip config-file loading entirely; remove the temporary home after the job exits.
-- Strip inherited SSH agent/askpass, Git configuration and transport overrides, npm/pip configuration, Docker/cloud credentials, Aider/LiteLLM/provider endpoint overrides and other tool-specific injection variables.
+- Strip inherited SSH agent/askpass, Git configuration and transport overrides, npm/pip configuration, Docker/cloud credentials, Aider/LiteLLM/provider endpoint overrides and other tool-specific injection variables; accept OLLAMA_API_BASE only for loopback hosts and fall back to the local default for remote/invalid endpoints.
 - Disable system/global Git configuration, interactive credential prompts and inherited credential helpers; supply only an empty isolated global config and explicit noninteractive credential policy.
 - Add regressions for isolated home/config paths, empty config files, blocked environment overrides and preserved required local execution context.
 - Exact-head CI pending. Hosted tests validate the environment contract only; no real Windows runner or Aider/Ollama invocation is claimed.
