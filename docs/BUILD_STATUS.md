@@ -2551,3 +2551,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00367 — exact-head hosted validation
 - Exact code head `4a987bf76067aaaee19e4fe9f345090cfa53c767` passed GitHub Actions Backend tests run [44517983256](https://github.com/justinhblee-prog/shorts/actions/runs/44517983256): **786 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Hosted Linux only; no production log inventory or live Windows runner behavior is implied.
+
+
+### BUILD-00367 — expanded redaction exact-head validation
+- Updated code head `431155113b1e5e749141333bc139af3b245f4223` passed GitHub Actions run [44518327365](https://github.com/justinhblee-prog/shorts/actions/runs/44518327365): **787 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Coverage includes multiline Firebase service-account JSON redaction before worker failure persistence.
+- Hosted Linux only; no production log inventory is implied.
