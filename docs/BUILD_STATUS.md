@@ -2609,3 +2609,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ### BUILD-00369 — exact-head hosted validation
 - Exact code head `5b20520ca125c080407b3b3ccb57bb94b42a4637` passed GitHub Actions run [44521107433](https://github.com/justinhblee-prog/shorts/actions/runs/44521107433): **799 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
+
+
+## BUILD-00370 — terminate residual command descendants
+- POSIX process-group cancellation now escalates to SIGKILL after the SIGTERM grace wait even when the group leader exits early.
+- Add a regression child that ignores SIGTERM and would write a marker if it survived.
+- Exact-head hosted CI pending; Windows process-tree behavior remains a runner integration gate.
