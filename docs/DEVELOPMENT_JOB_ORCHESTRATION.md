@@ -217,3 +217,6 @@ Draft PR #406 assembles one integration commit `96f59cc8b19792602f03eafd1c1138bd
 
 
 PR #406 exact candidate head `96f59cc8b19792602f03eafd1c1138bde5c7b138` passed both hosted backend runs [44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216). The latter reports 854 tests passed in `scripts/validate.sh` plus `node --check frontend/app.js`. This confirms the combined backend/source contracts, not browser interaction on the unified candidate: the branch workflow has no Playwright smoke step. Keep the combined browser and production/provider gates open.
+
+
+PR #406 corrected exact head `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0` passed both [44577763179](https://github.com/justinhblee-prog/shorts/actions/runs/44577763179) and [44577785714](https://github.com/justinhblee-prog/shorts/actions/runs/44577785714). The run reports 854 tests, frontend syntax validation, and Chromium recovery UI coverage: authenticated dashboard, quarantine visibility, operator-confirmed recovery, ready-state transition and immutable audit attribution. Playwright runner pinned to Ubuntu 24.04 after 26.04 incompatibility. Full analytics browser integration and production/provider gates remain open; PR stays Draft/unmerged.
