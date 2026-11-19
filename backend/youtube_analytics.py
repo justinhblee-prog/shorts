@@ -74,7 +74,8 @@ class YouTubeAnalyticsStore:
               views REAL,engaged_views REAL,engaged_view_share REAL,
               estimated_minutes_watched REAL,average_view_duration REAL,
               average_view_percentage REAL,analytics_status TEXT NOT NULL,
-              retention_status TEXT NOT NULL,collected_at TEXT NOT NULL
+              retention_status TEXT NOT NULL,retention_json TEXT NOT NULL DEFAULT '[]',
+              collected_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_youtube_analytics_history_video_time
               ON youtube_analytics_history(video_id,collected_at DESC,id DESC);
@@ -113,6 +114,16 @@ class YouTubeAnalyticsStore:
                 connection.execute(
                     "ALTER TABLE youtube_analytics_snapshots ADD COLUMN engaged_view_share REAL"
                 )
+            history_columns = {
+                row["name"] for row in connection.execute(
+                    "PRAGMA table_info(youtube_analytics_history)"
+                ).fetchall()
+            }
+            if "retention_json" not in history_columns:
+                connection.execute(
+                    "ALTER TABLE youtube_analytics_history "
+                    "ADD COLUMN retention_json TEXT NOT NULL DEFAULT '[]'"
+                )
             connection.execute("""
                 INSERT INTO youtube_analytics_history(
                   video_id,start_date,end_date,views,engaged_views,engaged_view_share,
@@ -126,6 +137,18 @@ class YouTubeAnalyticsStore:
                 WHERE NOT EXISTS (
                   SELECT 1 FROM youtube_analytics_history h
                   WHERE h.video_id=s.video_id AND h.collected_at=s.collected_at
+                )
+            """)
+            connection.execute("""
+                UPDATE youtube_analytics_history
+                SET retention_json=COALESCE((
+                  SELECT snapshots.retention_json
+                  FROM youtube_analytics_snapshots AS snapshots
+                  WHERE snapshots.video_id=youtube_analytics_history.video_id
+                ),'[]')
+                WHERE id=(
+                  SELECT MAX(latest.id) FROM youtube_analytics_history AS latest
+                  WHERE latest.video_id=youtube_analytics_history.video_id
                 )
             """)
             lease_columns = {
@@ -211,6 +234,7 @@ class YouTubeAnalyticsStore:
                 "relative_retention_performance": relative,
             })
         safe_curve.sort(key=lambda point: point["elapsed_video_time_ratio"])
+        retention_json = json.dumps(safe_curve, separators=(",", ":"))
         with self.db() as connection:
             if lease_owner is not None or lease_token is not None:
                 connection.execute("BEGIN IMMEDIATE")
@@ -219,13 +243,13 @@ class YouTubeAnalyticsStore:
                 INSERT INTO youtube_analytics_history(
                   video_id,start_date,end_date,views,engaged_views,engaged_view_share,
                   estimated_minutes_watched,average_view_duration,average_view_percentage,
-                  analytics_status,retention_status,collected_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                  analytics_status,retention_status,retention_json,collected_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
                 video_id,start_date,end_date,values["views"],values["engaged_views"],
                 values["engaged_view_share"],values["estimated_minutes_watched"],
                 values["average_view_duration"],values["average_view_percentage"],
-                analytics_status,retention_status,_now(),
+                analytics_status,retention_status,retention_json,_now(),
             ))
             connection.execute("""
                 INSERT INTO youtube_analytics_snapshots(
@@ -250,7 +274,7 @@ class YouTubeAnalyticsStore:
                 video_id, start_date, end_date, values["views"],
                 values["engaged_views"], values["engaged_view_share"],
                 values["estimated_minutes_watched"], values["average_view_duration"],
-                values["average_view_percentage"], json.dumps(safe_curve, separators=(",", ":")),
+                values["average_view_percentage"], retention_json,
                 analytics_status, retention_status, retention_error, _now(),
             ))
 
@@ -382,7 +406,15 @@ class YouTubeAnalyticsStore:
                 " ORDER BY collected_at DESC,id DESC LIMIT ?",
                 (*params,limit),
             ).fetchall()
-        return [dict(row) for row in rows]
+        result=[]
+        for row in rows:
+            item=dict(row)
+            try:
+                item["retention_curve"]=json.loads(item.pop("retention_json") or "[]")
+            except (TypeError,ValueError):
+                item["retention_curve"]=[]
+            result.append(item)
+        return result
 
     def assert_lease(self, owner_id, token):
         with self.db() as connection:
