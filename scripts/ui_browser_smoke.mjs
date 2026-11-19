@@ -27,6 +27,9 @@ async function waitForServer() {
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, acceptDownloads: true });
     const page = await context.newPage();
+    page.setDefaultTimeout(10000);
+    page.setDefaultNavigationTimeout(15000);
+    const checkpoint = message => process.stdout.write("[ui-smoke] " + message + "\\n");
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
     await page.route("https://fonts.googleapis.com/**", route =>
@@ -74,6 +77,7 @@ async function waitForServer() {
     await page.locator("#tokenInput").fill("nexus-ui-browser-smoke-token-2026-11-19-32chars");
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
+    checkpoint("authenticated dashboard loaded");
     const liveApiChecks = await page.evaluate(async token => {
       const paths = [
         "/api/brands",
@@ -96,6 +100,7 @@ async function waitForServer() {
     );
     assert.ok(reviewJob, "the real API must return the seeded review-ready job");
     assert.ok(liveApiChecks[3].body.youtube && liveApiChecks[3].body.tiktok);
+    checkpoint("authenticated core API endpoints verified");
     const reviewCard = page.locator("#reviewList .review-card").filter({ hasText: reviewJob.job_id });
     await reviewCard.waitFor({ state: "visible" });
     const approvalResponse = page.waitForResponse(response =>
@@ -115,6 +120,7 @@ async function waitForServer() {
     });
     assert.equal(approvalHistory.status, 200);
     assert.equal(approvalHistory.body.items.at(-1).decision, "approved");
+    checkpoint("real review approval and audit history verified");
     await page.locator("#loadAnalyticsHistory").click();
     await analyticsStarted;
     assert.equal(await page.locator("#analyticsHistory").getAttribute("aria-busy"), "true");
@@ -139,6 +145,7 @@ async function waitForServer() {
     assert.ok(analyticsRequests.some(url => new URL(url).searchParams.has("before_id")), "CSV export must request a real keyset-cursor page");
     await page.waitForFunction(() => document.querySelector("#analyticsHistoryStatus").textContent.includes("CSV 다운로드 요청 완료"));
     assert.match(await page.locator("#analyticsHistoryStatus").textContent(), /CSV 다운로드 요청 완료/);
+    checkpoint("real analytics pagination and CSV download verified");
 
     failQueueStats = true;
     await page.locator("#refreshAll").click();
@@ -146,6 +153,7 @@ async function waitForServer() {
       document.querySelector("#connection").textContent.includes("API 부분 연결")
     );
     assert.match(await page.locator("#toast").textContent(), /일부 데이터 갱신 실패/);
+    checkpoint("partial API failure handling verified");
     failQueueStats = false;
 
     await page.reload({ waitUntil: "networkidle" });
@@ -183,6 +191,7 @@ async function waitForServer() {
     }
 
     await page.screenshot({ path: "artifacts/nexus-dashboard-mobile.png", fullPage: true });
+    checkpoint("responsive desktop/mobile and keyboard checks verified");
     await page.emulateMedia({ reducedMotion: "reduce" });
     assert.equal(await page.locator("html").evaluate(el => getComputedStyle(el).scrollBehavior), "auto");
     assert.deepEqual(pageErrors, []);
