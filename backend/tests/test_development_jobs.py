@@ -225,6 +225,43 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(quarantined["status"], "quarantined")
         self.assertIsNone(self.store.claim_ready("worker-c"))
 
+    def test_operator_recovery_requeues_quarantined_job_and_resets_attempts(self):
+        job = self.store.create("Recover quarantined", max_attempts=1)
+        claim = self.store.claim_ready("worker-a")
+        quarantined = self.store.fail(
+            job["id"], "worker-a", claim["lease_token"],
+            "permanent validation error", retryable=False,
+        )
+        self.assertEqual(quarantined["status"], "quarantined")
+        recovered = self.store.recover_quarantined(
+            job["id"], "ops-admin", "Corrected the source scope and reviewed the failure",
+        )
+        self.assertEqual(recovered["status"], "ready")
+        self.assertEqual(recovered["attempts"], 0)
+        self.assertIsNone(recovered["retry_after"])
+        self.assertIsNone(recovered["changed_files"])
+        events = self.store.events(job["id"])
+        event = events[-1]
+        self.assertEqual(event["event_type"], "quarantine_recovered")
+        self.assertEqual(event["actor"], "ops-admin")
+        self.assertEqual(event["details"]["previous_attempts"], 1)
+        self.assertEqual(
+            event["details"]["reason"],
+            "Corrected the source scope and reviewed the failure",
+        )
+        next_claim = self.store.claim_ready("worker-b")
+        self.assertEqual(next_claim["id"], job["id"])
+        self.assertEqual(next_claim["attempts"], 1)
+
+    def test_operator_recovery_rejects_non_quarantined_jobs_and_invalid_reasons(self):
+        job = self.store.create("Not quarantined")
+        with self.assertRaisesRegex(DevelopmentJobConflict, "only quarantined"):
+            self.store.recover_quarantined(job["id"], "ops-admin", "reviewed")
+        for actor, reason in (("", "reviewed"), ("ops-admin", " "), ("ops-admin", "x" * 1001)):
+            with self.subTest(actor=actor, reason_length=len(reason)):
+                with self.assertRaises(ValueError):
+                    self.store.recover_quarantined(job["id"], actor, reason)
+
     def test_overlapping_file_scope_serializes_jobs(self):
         first = self.store.create("Writer A", scope=["backend/shared.py"])
         second = self.store.create("Writer B", scope=["backend/shared.py"])
