@@ -59,17 +59,30 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn('if ($apiModelNames -notcontains $modelTag)', self.source)
         self.assertIn('qwen2.5-coder:7b', self.source)
 
-    def test_runtime_dependencies_use_separate_workspace_virtual_environments(self):
-        self.assertIn(".nexus-backend-venv", self.source)
-        self.assertIn(".nexus-aider-venv", self.source)
-        self.assertIn("NEXUS_BACKEND_PYTHON=", self.source)
-        self.assertIn("NEXUS_AIDER_EXECUTABLE=", self.source)
-        self.assertIn(".nexus-backend-venv/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
-        self.assertIn(".nexus-aider-venv/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+    def test_runtime_virtualenvs_are_persistent_and_outside_the_git_worktree(self):
+        backend = self.source.index("name: Install isolated backend runtime dependencies")
+        aider = self.source.index("name: Install and verify isolated local Aider CLI")
+        recovery = self.source.index("name: Recover orphaned review-pending jobs (read-only)")
+        backend_script = self.source[backend:aider]
+        aider_script = self.source[aider:recovery]
+        for script in (backend_script, aider_script):
+            self.assertIn('$env:LOCALAPPDATA "NexusStudioPro\\tooling"', script)
+            self.assertNotIn("$env:GITHUB_WORKSPACE", script)
+        self.assertIn('"backend-venv"', backend_script)
+        self.assertIn('"aider-venv"', aider_script)
+        self.assertIn("NEXUS_BACKEND_PYTHON=", backend_script)
+        self.assertIn("NEXUS_AIDER_EXECUTABLE=", aider_script)
+        self.assertIn("incomplete; refusing destructive repair", backend_script)
+        self.assertIn("incomplete; refusing destructive repair", aider_script)
         self.assertNotIn("pip install --user", self.source)
         self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/run_development_agent.py", self.source)
         self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/publish_development_reviews.py", self.source)
         self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py", self.source)
+
+    def test_clean_worktree_guard_is_not_weakened_to_accommodate_tooling(self):
+        executor = (ROOT / "backend" / "development_agent_executor.py").read_text(encoding="utf-8")
+        self.assertIn('self._git("status", "--porcelain", "--untracked-files=all", env=env)', executor)
+        self.assertIn("runner worktree is not clean; refusing to mix unrelated changes with this job", executor)
 
     def test_read_only_intake_token_is_separate_from_pr_token(self):
         self.assertIn("GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}", self.source)
