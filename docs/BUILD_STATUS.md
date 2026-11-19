@@ -2677,3 +2677,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve the intended storage-root boundary instead of silently following a symlink to another directory or database file.
 - Add regression coverage for symlinked media, backup output, database and restore roots. Tests skip only on platforms that cannot create symlinks.
 - Exact-head backend validation passed: [run 44502646079](https://github.com/justinhblee-prog/shorts/actions/runs/44502646079), **717 tests**. Exact-head Compose integration passed: [run 44502645766](https://github.com/justinhblee-prog/shorts/actions/runs/44502645766).
+
+
+## BUILD-00348 — compressed backup archive size limits
+
+- Bound compressed plaintext and encrypted archive sizes before tar parsing or AES-GCM decryption writes staging data.
+- Allow a fixed 256 MiB envelope for tar headers, directory entries, compression overhead and the encryption envelope beyond the supported uncompressed database/media payload cap.
+- Add regressions for oversized plaintext and encrypted archives; verify the live database remains unchanged and no restore staging directory is left behind.
+- Exact-head Actions validation pending.
