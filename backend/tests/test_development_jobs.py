@@ -16,6 +16,24 @@ class DevelopmentJobStoreTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_source_ref_is_indexed_and_duplicate_creation_is_rejected(self):
+        first = self.store.create("Imported issue", source_ref="github:acme/app#17")
+        self.assertTrue(self.store.source_ref_exists("github:acme/app#17"))
+        self.assertFalse(self.store.source_ref_exists("github:acme/app#18"))
+        with self.assertRaisesRegex(DevelopmentJobConflict, "source_ref already exists"):
+            self.store.create("Duplicate import", source_ref="github:acme/app#17")
+        with self.store.db() as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM development_jobs WHERE source_ref=?",
+                ("github:acme/app#17",),
+            ).fetchone()[0]
+            indexes = {
+                row["name"] for row in connection.execute("PRAGMA index_list(development_jobs)")
+            }
+        self.assertEqual(count, 1)
+        self.assertIn("idx_development_jobs_source_ref", indexes)
+        self.assertEqual(self.store.get(first["id"])["title"], "Imported issue")
+
     def test_create_and_claim_ready_job(self):
         job = self.store.create("Add job registry", scope=["backend/development_jobs.py"],
                                 acceptance=["persistent", "audited"])
