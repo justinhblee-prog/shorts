@@ -184,13 +184,71 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                 "UPDATE development_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
                 (job["id"],),
             )
+        self.assertIsNone(self.store.claim_ready("worker-b"))
+        expired = self.store.get(job["id"])
+        self.assertEqual(expired["status"], "quarantined")
+        self.assertIsNone(expired["worker_id"])
+        competing = self.store.create("Overlapping work must wait", scope=["backend/file.py"])
+        self.assertIsNone(self.store.claim_ready("worker-c"))
+        self.assertEqual(self.store.get(competing["id"])["status"], "ready")
+        with self.assertRaises(DevelopmentJobConflict):
+            self.store.mark_review_pending(job["id"], "worker-a", first["lease_token"],
+                                ["backend/file.py"], True, "ci://run/stale")
+        with self.assertRaisesRegex(ValueError, "workspace reset confirmation"):
+            self.store.recover_expired_lease(job["id"], "operator", reason="cleanup complete")
+        recovered = self.store.recover_expired_lease(
+            job["id"], "operator", workspace_reset_confirmed=True,
+            reason="Old runner terminated and workspace discarded",
+        )
+        self.assertEqual(recovered["status"], "ready")
         second = self.store.claim_ready("worker-b")
         self.assertEqual(second["id"], job["id"])
+        self.assertIsNone(self.store.claim_ready("worker-c"))
         self.assertNotEqual(first["lease_token"], second["lease_token"])
         with self.assertRaises(DevelopmentJobConflict):
             self.store.mark_review_pending(job["id"], "worker-a", first["lease_token"],
                                 ["backend/file.py"], True, "ci://run/stale")
         self.assertEqual(self.store.get(job["id"])["worker_id"], "worker-b")
+
+    def test_parallel_workers_cannot_claim_the_same_job(self):
+        from concurrent.futures import ThreadPoolExecutor
+        self.store.create("Single lease winner", scope=["backend/single.py"])
+        with ThreadPoolExecutor(max_workers=12) as pool:
+            claimed = list(pool.map(lambda i: self.store.claim_ready("contender-" + str(i)), range(12)))
+        winners = [item for item in claimed if item is not None]
+        self.assertEqual(len(winners), 1)
+        self.assertEqual(winners[0]["status"], "leased")
+
+    def test_expired_lease_recovery_rejects_non_expiry_quarantine(self):
+        job = self.store.create("Non-expiry quarantine", max_attempts=1)
+        claim = self.store.claim_ready("worker-a")
+        self.store.fail(job["id"], "worker-a", claim["lease_token"], "failed", retryable=False)
+        with self.assertRaises(DevelopmentJobConflict):
+            self.store.recover_expired_lease(
+                job["id"], "operator", workspace_reset_confirmed=True, reason="cleaned",
+            )
+
+    def test_expired_lease_recovery_rejects_attempt_exhaustion(self):
+        job = self.store.create("Exhausted lease", max_attempts=1)
+        claim = self.store.claim_ready("worker-a")
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE development_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+                (job["id"],),
+            )
+        self.assertIsNone(self.store.claim_ready("worker-b"))
+        with self.assertRaisesRegex(DevelopmentJobConflict, "attempt limit"):
+            self.store.recover_expired_lease(
+                job["id"], "operator", workspace_reset_confirmed=True, reason="cleaned",
+            )
+
+    def test_same_worker_identity_cannot_hold_two_active_leases(self):
+        first = self.store.create("First same-worker job", scope=["backend/first.py"])
+        second = self.store.create("Second same-worker job", scope=["backend/second.py"])
+        claim = self.store.claim_ready("shared-runner-id")
+        self.assertEqual(claim["id"], first["id"])
+        self.assertIsNone(self.store.claim_ready("shared-runner-id"))
+        self.assertEqual(self.store.get(second["id"])["status"], "ready")
 
     def test_parallel_workers_claim_distinct_jobs(self):
         from concurrent.futures import ThreadPoolExecutor

@@ -297,17 +297,20 @@ class DevelopmentJobStore:
                    WHERE status IN ('leased','running') AND lease_expires_at<=?""", (timestamp,)
             ).fetchall()
             for item in expired:
-                attempts = connection.execute(
-                    "SELECT attempts,max_attempts FROM development_jobs WHERE id=?", (item["id"],)
-                ).fetchone()
-                next_status = "quarantined" if attempts["attempts"] >= attempts["max_attempts"] else "ready"
+                # A database lease fences writes, but cannot terminate a paused
+                # subprocess or prove that its shared worktree is clean. Never
+                # automatically hand the same scope to another worker.
+                next_status = "quarantined"
                 connection.execute(
                     """UPDATE development_jobs SET status=?,worker_id=NULL,lease_token=NULL,
-                       lease_expires_at=NULL,updated_at=? WHERE id=?""",
+                       lease_expires_at=NULL,retry_after=NULL,
+                       result_summary='Worker lease expired; workspace reset required before retry.',
+                       updated_at=? WHERE id=?""",
                     (next_status, timestamp, item["id"]),
                 )
                 self._event(connection, item["id"], "lease_expired", item["status"], next_status,
-                            "system", {"reason": "worker lease expired"}, timestamp)
+                            "system", {"reason": "worker lease expired; manual workspace reset required"},
+                            timestamp)
             # Promote due retries before selecting the next ready job.
             connection.execute(
                 """UPDATE development_jobs SET status='ready',retry_after=NULL,updated_at=?
@@ -328,6 +331,18 @@ class DevelopmentJobStore:
                      WHERE d.job_id=development_jobs.id AND parent.status<>'completed'
                    )""", (timestamp,)
             )
+            # A worker identity represents one active executor/worktree. Reusing
+            # the same identity concurrently would make presence ambiguous and
+            # allow one process to overwrite the other's current-job pointer.
+            owned = connection.execute(
+                """SELECT 1 FROM development_jobs
+                   WHERE worker_id=? AND status IN ('leased','running')
+                     AND lease_expires_at>? LIMIT 1""",
+                (worker_id.strip(), timestamp),
+            ).fetchone()
+            if owned is not None:
+                connection.commit()
+                return None
             candidates = connection.execute(
                 """SELECT * FROM development_jobs
                    WHERE status='ready' AND attempts<max_attempts
@@ -335,7 +350,7 @@ class DevelopmentJobStore:
             ).fetchall()
             active_rows = connection.execute(
                 """SELECT scope_json FROM development_jobs
-                   WHERE status IN ('leased','running','review_pending')"""
+                   WHERE status IN ('leased','running','review_pending','quarantined')"""
             ).fetchall()
             active_scopes = [json.loads(item["scope_json"]) for item in active_rows]
             row = next((candidate for candidate in candidates
@@ -357,6 +372,44 @@ class DevelopmentJobStore:
             claimed = connection.execute("SELECT * FROM development_jobs WHERE id=?", (row["id"],)).fetchone()
             connection.commit()
             return self._decode(claimed)
+
+    def recover_expired_lease(self, job_id, actor, workspace_reset_confirmed=False, reason=""):
+        """Requeue an expired lease only after an operator confirms workspace cleanup."""
+        if not isinstance(actor, str) or not actor.strip() or len(actor.strip()) > 128:
+            raise ValueError("actor must contain 1 to 128 characters")
+        if workspace_reset_confirmed is not True:
+            raise ValueError("workspace reset confirmation is required")
+        if not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > 500:
+            raise ValueError("a recovery reason of 1 to 500 characters is required")
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            timestamp = _stamp(_now())
+            row = connection.execute(
+                """SELECT status,attempts,max_attempts FROM development_jobs WHERE id=?""",
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                raise DevelopmentJobNotFound("job not found")
+            latest = connection.execute(
+                """SELECT event_type,to_status FROM development_job_events
+                   WHERE job_id=? ORDER BY id DESC LIMIT 1""",
+                (job_id,),
+            ).fetchone()
+            if row["status"] != "quarantined" or latest is None or latest["event_type"] != "lease_expired":
+                raise DevelopmentJobConflict("job is not quarantined by an expired worker lease")
+            if row["attempts"] >= row["max_attempts"]:
+                raise DevelopmentJobConflict("job exhausted its configured attempt limit")
+            connection.execute(
+                """UPDATE development_jobs SET status='ready',worker_id=NULL,lease_token=NULL,
+                   lease_expires_at=NULL,retry_after=NULL,
+                   result_summary='Lease recovered after confirmed workspace reset; retry pending.',
+                   updated_at=? WHERE id=? AND status='quarantined'""",
+                (timestamp, job_id),
+            )
+            self._event(connection, job_id, "lease_recovered", "quarantined", "ready", actor.strip(),
+                        {"reason": reason.strip(), "workspace_reset_confirmed": True}, timestamp)
+            connection.commit()
+        return self.get(job_id)
 
     def heartbeat(self, job_id, worker_id, lease_token):
         with self.db() as connection:

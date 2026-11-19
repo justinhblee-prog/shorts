@@ -194,3 +194,14 @@ The read-only intake now validates owner and repository as separate single path 
 
 ### BUILD-00366 — explicit file and directory scope semantics
 Approved existing directory paths are normalized to a trailing slash against the trusted repository root before backlog import. A trailing slash is the only recursive-scope marker at the durable evidence gate; file scopes, including extensionless files such as `LICENSE`, authorize only that exact path. The executor and SQLite `mark_review_pending` gate enforce the same rule. Traversal and symlink escapes remain rejected by executor path validation.
+
+
+### BUILD-00368 — expired lease and worker identity contract
+- Expired leases are quarantined and fenced; they are never automatically reissued to another executor.
+- `recover_expired_lease` requires an operator, a reason, and `workspace_reset_confirmed=True`; it accepts only a quarantine caused by `lease_expired` and rejects exhausted attempt budgets.
+- `claim_ready` allows at most one active lease per worker identity.
+- Host-level process termination and worktree cleanup must be verified before invoking recovery.
+
+
+### BUILD-00368 — CI evidence and scope reservation
+GitHub Actions run [44526419213](https://github.com/justinhblee-prog/shorts/actions/runs/44526419213) passed **799 tests**, `scripts/validate.sh` and `node --check frontend/app.js` for the lease safety changes. All quarantined jobs reserve their declared scopes against conflicting claims until explicit workspace-reset recovery. Hosted Linux CI does not establish host-level runner cleanup.
