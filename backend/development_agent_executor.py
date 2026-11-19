@@ -30,6 +30,11 @@ _SECRET_ENV_MARKERS = (
     "POSTGRES_URL", "MYSQL_URL", "MONGODB_URI", "MONGO_URL",
     "CONNECTION_STRING", "SERVICE_ACCOUNT",
 )
+_WORKFLOW_COMMAND_ENV_KEYS = {
+    "GITHUB_ENV", "GITHUB_OUTPUT", "GITHUB_PATH", "GITHUB_STEP_SUMMARY",
+    "GITHUB_STATE", "GITHUB_EVENT_PATH", "ACTIONS_CACHE_URL",
+    "ACTIONS_RUNTIME_URL", "ACTIONS_RESULTS_URL",
+}
 
 
 def _tail(value, limit=2000):
@@ -58,6 +63,7 @@ class AiderDevelopmentExecutor:
             upper = key.upper()
             if (
                 key in _SECRET_ENV_KEYS
+                or key in _WORKFLOW_COMMAND_ENV_KEYS
                 or any(marker in upper for marker in _SECRET_ENV_MARKERS)
                 or upper.startswith(("AWS_", "AZURE_", "GOOGLE_APPLICATION_CREDENTIALS"))
             ):
