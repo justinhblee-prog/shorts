@@ -38,6 +38,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('"/api/review/" + encodeURIComponent(jobId) + "/history"', browser)
         self.assertIn('approvalHistory.body.items.at(-1).decision, "approved"', browser)
         self.assertIn("const approvalResponse = page.waitForResponse", browser)
+        self.assertIn('dialog.accept("실제 미디어와 정책 경고를 확인한 뒤 승인 메모를 기록했습니다.")', browser)
 
 
     def test_review_queue_has_live_search_for_brand_topic_job_and_status(self):
