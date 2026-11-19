@@ -67,7 +67,7 @@ async function waitForServer() {
         analyticsRequests.push(requestUrl.toString());
       }
     });
-    await page.route("**/api/publishing/analytics-history", async route => {
+    await page.route(url => url.pathname === "/api/publishing/analytics-history", async route => {
       resolveAnalyticsStarted();
       await analyticsGate;
       await route.continue();
