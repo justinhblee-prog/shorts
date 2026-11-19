@@ -426,5 +426,21 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertFalse(list(self.root.glob("nexus-restore-*")))
 
 
+
+    def test_restore_refuses_sqlite_wal_shm_or_journal_sidecars(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        for suffix in ("-wal", "-shm", "-journal"):
+            sidecar = Path(str(self.db) + suffix)
+            sidecar.write_bytes(b"active-or-uncheckpointed-sidecar")
+            with self.subTest(sidecar=suffix):
+                with self.assertRaisesRegex(BackupRestoreError, "SQLite sidecar files are present"):
+                    restore_backup(
+                        backup, self.db, self.media, self.backups,
+                        confirm_restore=True,
+                    )
+                self.assertEqual(self._db_value(), "before")
+            sidecar.unlink()
+
+
 if __name__ == "__main__":
     unittest.main()
