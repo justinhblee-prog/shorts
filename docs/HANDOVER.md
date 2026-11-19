@@ -1366,3 +1366,7 @@ Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions run [
 
 ### BUILD-00368 — Windows/POSIX scope path alias rejection
 The scope validator now accepts only portable repository-relative POSIX paths and rejects Windows drive/UNC roots, backslashes, ADS colons, root scopes, trailing-dot/space segments and reserved device names. Exact-head CI pending; the hosted test contract is not a live Windows runner scan.
+
+
+### BUILD-00370 — sanitize inherited runner environment before checkout
+The first PowerShell preflight clears inherited runtime/provider/credential/Git/SSH/package-manager/loader/TLS overrides through GITHUB_ENV before checkout@v7 and before Python/Node runtime actions. It does not print values and preserves runner-managed GITHUB_* paths. Exact-head CI pending; actual Windows self-hosted execution remains unverified.
