@@ -1511,3 +1511,6 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Allow a fixed 256 MiB envelope for tar headers, directory entries, compression overhead and the encryption envelope beyond the supported uncompressed database/media payload cap.
 - Add regressions for oversized plaintext and encrypted archives; verify the live database remains unchanged and no restore staging directory is left behind.
 - Exact-head Actions validation pending.
+
+
+- Latest exact Core checkpoint `a51a4d43e44a586feb5f1b85cea7bc542d4a0a4e`: 718 backend tests passed; Compose image build, five services, API readiness and encrypted backup/restore smoke passed. BUILD-00348 compressed archive bounds are included.
