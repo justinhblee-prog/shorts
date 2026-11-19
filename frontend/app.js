@@ -378,14 +378,17 @@
         try{
           const exportRows=[];
           const pageSize=500;
+          let exportAsOf=null;
           for(const exportPlatform of (platform==="all"?["youtube","tiktok"]:[platform])){
             let cursor=null;
             while(true){
               const pageParams={days:String(days),platform:exportPlatform,limit:String(pageSize)};
               if(cursor){pageParams.before_collected_at=cursor.collected_at;pageParams.before_id=String(cursor.id);}
+              if(exportAsOf)pageParams.as_of=exportAsOf;
               const pageQuery=new URLSearchParams(pageParams);
               if(videoId)pageQuery.set("video_id",videoId);
               const page=await api("/api/publishing/analytics-history?"+pageQuery.toString());
+              if(!exportAsOf){if(typeof page.as_of!=="string"||!Number.isFinite(Date.parse(page.as_of)))throw new Error("분석 내보내기 기준 시각을 확인할 수 없습니다.");exportAsOf=page.as_of;}
               const pageItems=page.items?.[exportPlatform]||[];
               exportRows.push(...pageItems.map(item=>({...item,platform:exportPlatform})));
               if(pageItems.length<pageSize)break;
