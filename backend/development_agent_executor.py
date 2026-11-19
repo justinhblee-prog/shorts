@@ -88,6 +88,20 @@ class AiderDevelopmentExecutor:
             validated.append(normalized)
         return sorted(set(validated))
 
+    def _resolve_aider_executable(self):
+        configured = os.getenv("NEXUS_AIDER_EXECUTABLE", "").strip()
+        if configured:
+            candidate = Path(configured).expanduser()
+            if not candidate.is_absolute() or not candidate.is_file():
+                raise NonRetryableDevelopmentJobError(
+                    "configured NEXUS_AIDER_EXECUTABLE must be an existing absolute file path"
+                )
+            return str(candidate)
+        aider = shutil.which("aider")
+        if not aider:
+            raise NonRetryableDevelopmentJobError("Aider executable is not installed on this runner")
+        return aider
+
     def _changed_files(self, env):
         tracked = self._git("diff", "--name-only", "HEAD", env=env).splitlines()
         untracked = self._git("ls-files", "--others", "--exclude-standard", env=env).splitlines()
@@ -101,9 +115,7 @@ class AiderDevelopmentExecutor:
 
     def __call__(self, job):
         scope = self._validated_scope(job)
-        aider = shutil.which("aider")
-        if not aider:
-            raise NonRetryableDevelopmentJobError("Aider executable is not installed on this runner")
+        aider = self._resolve_aider_executable()
 
         env = os.environ.copy()
         for key in list(env):
