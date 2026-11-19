@@ -1097,7 +1097,9 @@ class ApiSecurityTests(unittest.TestCase):
         }
         tiktok={
             "platform":"tiktok","status":"not_configured","last_success_at":None,
-            "coverage":{"published_videos":2,"with_snapshot":0,"without_snapshot":2},
+            "latest_snapshot_at":"2026-11-18T10:00:00Z",
+            "coverage":{"published_videos":2,"with_snapshot":1,"without_snapshot":1,
+                        "stale_snapshots":1,"stale_or_missing":2},
             "available_metrics":["view_count"],"unavailable_metrics":["audience_retention"],
             "read_only":True,"last_error":"internal error","access_token":"secret",
         }
@@ -1110,6 +1112,8 @@ class ApiSecurityTests(unittest.TestCase):
         authorize.assert_called_once_with("analytics-token","analytics.read")
         self.assertEqual(result["youtube"]["coverage"]["published_videos"],3)
         self.assertEqual(result["tiktok"]["unavailable_metrics"],["audience_retention"])
+        self.assertEqual(result["tiktok"]["latest_snapshot_at"],"2026-11-18T10:00:00Z")
+        self.assertEqual(result["tiktok"]["coverage"]["stale_or_missing"],2)
         self.assertNotIn("last_error",str(result))
         self.assertNotIn("access_token",str(result))
         self.assertNotIn("token",str(result))
