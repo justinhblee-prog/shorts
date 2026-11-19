@@ -36,7 +36,7 @@ Re-check these sources at upload time and after platform policy updates. Rules c
   - YouTube: `platform_disclosures.youtube_altered_content`
   - TikTok: `platform_disclosures.tiktok_ai_generated_content`
 
-The acknowledgement is an operator attestation. It does not itself apply the platform label. The upload/publishing workflow must still apply the platform's actual disclosure setting.
+The acknowledgement is an operator attestation. It does not itself apply the platform label. The upload/publishing workflow must still apply the platform's actual disclosure setting. The YouTube Data API supports `status.containsSyntheticMedia` on `videos.insert`/`videos.update`; the NEXUS YouTube upload path derives this flag from the human-approved policy artifact and keeps the upload private.
 
 ## Risk review declarations
 
@@ -81,3 +81,11 @@ The generated policy report is stored with the script artifact and included in t
 ## Validation
 
 Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonation flags, unknown/denied rights, platform-specific realistic-AI disclosure, selected-platform scoping, high-impact claim evidence, news source requirements, invalid flag rejection, and non-overridable approval blockers. CI results must be recorded after this branch's workflow completes.
+
+
+## YouTube upload disclosure implementation
+
+- The approved policy artifact is the source of truth for the upload-time synthetic-media flag.
+- `synthetic_media_status` values `ai_generated` and `realistic_alteration` set `status.containsSyntheticMedia=true`; `none` and `ai_assisted_nonrealistic` set it to `false`.
+- Missing/invalid policy reports, non-overridable approval blockers, or missing YouTube disclosure acknowledgement fail closed before upload initialization.
+- Official API reference: https://developers.google.com/youtube/data/reference/rest/v3/videos#status
