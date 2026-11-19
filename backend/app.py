@@ -983,6 +983,7 @@ def publishing_analytics_status(x_review_token:str|None=Header(default=None)):
 @app.get("/api/publishing/analytics-history")
 def publishing_analytics_history(
     platform:str="all",video_id:str|None=None,days:int=30,limit:int=200,offset:int=0,
+    before_collected_at:str|None=None,before_id:int|None=None,
     x_review_token:str|None=Header(default=None),
 ):
     """Return stored, read-only metric snapshots for trend comparison."""
@@ -997,15 +998,25 @@ def publishing_analytics_history(
     bounded_days=max(1,min(days,365))
     bounded_limit=max(1,min(limit,500))
     bounded_offset=max(0,min(offset,10000000))
+    if (before_collected_at is None)!=(before_id is None):
+        raise HTTPException(422,"before_collected_at and before_id must be provided together")
+    if before_collected_at is not None and (
+        not before_collected_at.strip() or len(before_collected_at)>64
+        or any(ord(char)<32 or ord(char)==127 for char in before_collected_at)
+        or before_id is None or before_id<1
+    ):
+        raise HTTPException(422,"history cursor is invalid")
     cutoff=(datetime.now(timezone.utc)-timedelta(days=bounded_days)).isoformat()
     result={}
     if platform in {"all","youtube"}:
         result["youtube"]=youtube_analytics_store.history(
-            video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset
+            video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset,
+            before_collected_at=before_collected_at,before_id=before_id
         )
     if platform in {"all","tiktok"}:
         result["tiktok"]=tiktok_metrics_store.history(
-            tiktok_publish_store,video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset
+            tiktok_publish_store,video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset,
+            before_collected_at=before_collected_at,before_id=before_id
         )
     return {
         "platform":platform,"video_id":video_id,"days":bounded_days,
