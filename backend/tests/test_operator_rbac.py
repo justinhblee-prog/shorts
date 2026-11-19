@@ -57,6 +57,9 @@ class OperatorRoleTests(unittest.TestCase):
         self.assertTrue(has_permission("analyst", "recommendations.read", role_map_json=roles))
         self.assertTrue(has_permission("operator", "queue.read", role_map_json=roles))
         self.assertFalse(has_permission("operator", "review.read", role_map_json=roles))
+        self.assertTrue(has_permission("operator", "operations.manage", role_map_json=roles))
+        self.assertFalse(has_permission("reviewer", "operations.manage", role_map_json=roles))
+        self.assertFalse(has_permission("producer", "operations.manage", role_map_json=roles))
 
     def test_provider_outcome_reconciliation_is_not_granted_to_operational_roles(self):
         roles=json.dumps({

@@ -105,5 +105,98 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["summary"]["online_workers"], 1)
 
 
+    def test_quarantine_recovery_requires_operations_manage_and_records_actor(self):
+        job = {
+            "id": "DEV-ORCH-006", "status": "ready", "attempts": 0,
+            "scope": ["backend/development_jobs.py"],
+        }
+        with (
+            mock.patch.object(app_module, "require_review_permission", return_value="ops-admin") as auth,
+            mock.patch.object(app_module.development_job_store, "recover_quarantined", return_value=job) as recover,
+        ):
+            result = app_module.recover_development_job(
+                "DEV-ORCH-006",
+                app_module.DevelopmentJobRecoveryAction(reason="Reviewed and fixed the failure"),
+                x_review_token="operator-token",
+            )
+        auth.assert_called_once_with("operator-token", "operations.manage")
+        recover.assert_called_once_with(
+            "DEV-ORCH-006", "ops-admin", "Reviewed and fixed the failure"
+        )
+        self.assertEqual(result["job"]["status"], "ready")
+        self.assertNotIn("lease_token", json.dumps(result))
+
+    def test_quarantine_recovery_maps_missing_and_conflicting_jobs(self):
+        with (
+            mock.patch.object(app_module, "require_review_permission", return_value="ops-admin"),
+            mock.patch.object(
+                app_module.development_job_store, "recover_quarantined",
+                side_effect=app_module.DevelopmentJobConflict("only quarantined jobs can be manually recovered"),
+            ),
+        ):
+            with self.assertRaises(app_module.HTTPException) as conflict:
+                app_module.recover_development_job(
+                    "DEV-ORCH-006",
+                    app_module.DevelopmentJobRecoveryAction(reason="Reviewed"),
+                    x_review_token="operator-token",
+                )
+        self.assertEqual(conflict.exception.status_code, 409)
+
+
+    def test_quarantine_recovery_rejects_unauthorized_operator_before_store_mutation(self):
+        with (
+            mock.patch.object(
+                app_module, "require_review_permission",
+                side_effect=app_module.HTTPException(status_code=403, detail="Forbidden"),
+            ) as auth,
+            mock.patch.object(app_module.development_job_store, "recover_quarantined") as recover,
+        ):
+            with self.assertRaises(app_module.HTTPException) as denied:
+                app_module.recover_development_job(
+                    "DEV-ORCH-006",
+                    app_module.DevelopmentJobRecoveryAction(reason="Reviewed and fixed"),
+                    x_review_token="read-only-token",
+                )
+        self.assertEqual(denied.exception.status_code, 403)
+        auth.assert_called_once_with("read-only-token", "operations.manage")
+        recover.assert_not_called()
+
+    def test_quarantine_recovery_maps_missing_job_to_not_found(self):
+        with (
+            mock.patch.object(app_module, "require_review_permission", return_value="ops-admin"),
+            mock.patch.object(
+                app_module.development_job_store, "recover_quarantined",
+                side_effect=app_module.DevelopmentJobNotFound("job not found"),
+            ) as recover,
+        ):
+            with self.assertRaises(app_module.HTTPException) as missing:
+                app_module.recover_development_job(
+                    "DEV-ORCH-MISSING",
+                    app_module.DevelopmentJobRecoveryAction(reason="Reviewed and fixed"),
+                    x_review_token="operator-token",
+                )
+        self.assertEqual(missing.exception.status_code, 404)
+        recover.assert_called_once_with(
+            "DEV-ORCH-MISSING", "ops-admin", "Reviewed and fixed"
+        )
+
+    def test_quarantine_recovery_rejects_blank_reason_without_state_change(self):
+        with (
+            mock.patch.object(app_module, "require_review_permission", return_value="ops-admin"),
+            mock.patch.object(
+                app_module.development_job_store, "recover_quarantined",
+                side_effect=ValueError("reason must contain 1 to 1000 characters"),
+            ) as recover,
+        ):
+            with self.assertRaises(app_module.HTTPException) as invalid:
+                app_module.recover_development_job(
+                    "DEV-ORCH-006",
+                    app_module.DevelopmentJobRecoveryAction(reason="   "),
+                    x_review_token="operator-token",
+                )
+        self.assertEqual(invalid.exception.status_code, 422)
+        recover.assert_called_once_with("DEV-ORCH-006", "ops-admin", "   ")
+
+
 if __name__ == "__main__":
     unittest.main()

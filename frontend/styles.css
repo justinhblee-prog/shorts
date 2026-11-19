@@ -80,3 +80,8 @@
 .development-job-empty{color:var(--muted);padding:18px;text-align:center}
 @media(max-width:1050px){.development-job-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.development-job-layout{grid-template-columns:1fr}}
 @media(max-width:560px){.development-job-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.development-job-item-head{align-items:flex-start;flex-direction:column}}
+
+
+.development-job-card{display:grid;gap:8px;min-width:0}
+.development-job-recover{justify-self:start;padding:7px 11px;font-size:11px}
+.development-job-recover:disabled{opacity:.6;cursor:wait}

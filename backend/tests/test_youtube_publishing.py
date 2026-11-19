@@ -827,7 +827,102 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(result["events"][-1]["attempt_id"],result["attempt_id"])
         self.assertEqual(result["events"][0]["event_type"],"upload_attempt_started")
         self.assertEqual(self.service._videos.body["status"]["privacyStatus"],"private")
+        self.assertIs(self.service._videos.body["status"]["containsSyntheticMedia"],False)
         self.assertEqual(result["snapshots"][0]["view_count"],123)
+
+    def test_upload_applies_approved_realistic_synthetic_media_disclosure(self):
+        history=self.review.history("job-1")
+        report=evaluate_content_policy({
+            "platforms":["youtube"],
+            "rights":{"visuals_cleared":True,"audio_cleared":True,"likeness_authorized":True},
+            "synthetic_media_status":"realistic_alteration",
+            "platform_disclosures":{"youtube_altered_content":True},
+            "factual_claims_verified":True,
+            "originality_notes":"Original narration and editing.",
+        })
+        script=next(item for item in history[-1]["artifact_snapshot"] if item.get("stage")=="script")
+        script["metadata"]["policy_preflight"]=report
+        with patch.object(self.review,"history",return_value=history):
+            self.publisher.upload_approved("job-1",self.media,self.review,"Realistic synthetic short")
+        self.assertIs(self.service._videos.body["status"]["containsSyntheticMedia"],True)
+
+    def test_upload_rejects_blocked_policy_report_even_without_approval_blockers(self):
+        history=self.review.history("job-1")
+        report=evaluate_content_policy({
+            "platforms":["youtube"],
+            "rights":{"visuals_cleared":True,"audio_cleared":True,"likeness_authorized":True},
+            "synthetic_media_status":"none",
+            "policy_flags":{"known_unauthorized_assets":True},
+            "factual_claims_verified":True,
+            "originality_notes":"Original narration and editing.",
+        })
+        self.assertEqual(report["status"],"blocked")
+        self.assertEqual(report["approval_blockers"],[])
+        script=next(item for item in history[-1]["artifact_snapshot"] if item.get("stage")=="script")
+        script["metadata"]["policy_preflight"]=report
+        with patch.object(self.review,"history",return_value=history):
+            with self.assertRaisesRegex(YouTubeUploadError,"blocked or has an unsupported status"):
+                self.publisher.upload_approved("job-1",self.media,self.review,"Blocked policy report")
+
+    def test_upload_rejects_malformed_policy_blockers_and_disclosures(self):
+        for field,value,message in (
+            ("approval_blockers","none","malformed approval blockers"),
+            ("platform_disclosures",None,"malformed platform disclosures"),
+        ):
+            with self.subTest(field=field):
+                history=self.review.history("job-1")
+                report=evaluate_content_policy({
+                    "platforms":["youtube"],
+                    "rights":{"visuals_cleared":True,"audio_cleared":True,"likeness_authorized":True},
+                    "synthetic_media_status":"realistic_alteration",
+                    "platform_disclosures":{"youtube_altered_content":True},
+                    "factual_claims_verified":True,
+                    "originality_notes":"Original narration and editing.",
+                })
+                report[field]=value
+                script=next(item for item in history[-1]["artifact_snapshot"] if item.get("stage")=="script")
+                script["metadata"]["policy_preflight"]=report
+                with patch.object(self.review,"history",return_value=history):
+                    with self.assertRaisesRegex(YouTubeUploadError,message):
+                        self.publisher.upload_approved("job-1",self.media,self.review,"Malformed policy report")
+
+    def test_upload_rejects_policy_report_that_does_not_cover_youtube(self):
+        history=self.review.history("job-1")
+        report=evaluate_content_policy({
+            "platforms":["tiktok"],
+            "rights":{"visuals_cleared":True,"audio_cleared":True,"likeness_authorized":True},
+            "synthetic_media_status":"ai_assisted_nonrealistic",
+            "factual_claims_verified":True,
+            "originality_notes":"Original narration and editing.",
+        })
+        script=next(item for item in history[-1]["artifact_snapshot"] if item.get("stage")=="script")
+        script["metadata"]["policy_preflight"]=report
+        with patch.object(self.review,"history",return_value=history):
+            with self.assertRaisesRegex(YouTubeUploadError,"does not cover YouTube"):
+                self.publisher.upload_approved("job-1",self.media,self.review,"TikTok-only approval")
+
+    def test_upload_rejects_stale_policy_report_when_latest_script_has_none(self):
+        history=self.review.history("job-1")
+        history[-1]["artifact_snapshot"].append({
+            "stage":"script","artifact_type":"text","artifact_url":None,
+            "metadata":{"script":"Revised script without policy preflight"},
+        })
+        with patch.object(self.review,"history",return_value=history):
+            with self.assertRaisesRegex(YouTubeUploadError,"latest approved script has no valid policy report"):
+                self.publisher.upload_approved("job-1",self.media,self.review,"Stale policy report")
+
+    def test_upload_requires_approved_policy_report_for_synthetic_media_flag(self):
+        history=self.review.history("job-1")
+        history[-1]["artifact_snapshot"]=[
+            item for item in history[-1]["artifact_snapshot"]
+            if not (
+                isinstance(item,dict) and isinstance(item.get("metadata"),dict)
+                and "policy_preflight" in item["metadata"]
+            )
+        ]
+        with patch.object(self.review,"history",return_value=history):
+            with self.assertRaisesRegex(YouTubeUploadError,"Approved policy report is missing"):
+                self.publisher.upload_approved("job-1",self.media,self.review,"Missing policy report")
 
     def test_stale_error_cannot_downgrade_confirmed_upload(self):
         uploaded=self.publisher.upload_approved(
