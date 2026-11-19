@@ -113,3 +113,5 @@ Develop the product interface and its runtime independently so both can make pro
 - Browser test verified the delayed analytics `aria-busy` state, visible frozen `as_of` cutoff, a real Chromium download event, a 500-row YouTube first page plus keyset second page and one TikTok page, and the downloaded CSV's 502 data rows (503 lines including the header).
 - Screenshot artifact `nexus-dashboard-browser-screenshots` ID `14516885953` is attached to the same Actions run and expires 2027-02-17.
 - The API responses are deterministic browser fixtures. This verifies frontend pagination/download handling, not live backend completeness or real provider data.
+
+- Desktop screenshot capture now occurs after the authenticated UI fixture loads analytics history, so the visual artifact shows a populated analytics state rather than only the initial unauthenticated screen.
