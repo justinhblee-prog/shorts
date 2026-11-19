@@ -335,20 +335,33 @@
           +'<text class="analytics-chart-axis-label" x="'+(width-padX)+'" y="'+(height-2)+'" text-anchor="end">'+esc(new Date(maxTime).toLocaleDateString())+'</text>';
         const series=chartGroups.map((group,index)=>{
           const coordinates=group.points.map(point=>({x:x(point.time),y:y(point.value),point}));
-          const points=coordinates.map(point=>point.x.toFixed(1)+","+point.y.toFixed(1)).join(" ");
+          const intervals=coordinates.slice(1).map((point,i)=>point.point.time-coordinates[i].point.time).filter(value=>value>0).sort((a,b)=>a-b);
+          const medianInterval=intervals.length?intervals[Math.floor(intervals.length/2)]:0;
+          const gapThreshold=Math.max(48*60*60*1000,medianInterval*3);
+          const segments=[];
+          let segment=[];
+          coordinates.forEach((point,i)=>{
+            if(i>0&&point.point.time-coordinates[i-1].point.time>gapThreshold){
+              if(segment.length)segments.push(segment);
+              segment=[];
+            }
+            segment.push(point);
+          });
+          if(segment.length)segments.push(segment);
+          const lines=segments.filter(points=>points.length>=2).map(points=>'<polyline class="analytics-chart-line analytics-series-'+index+'" points="'+points.map(point=>point.x.toFixed(1)+","+point.y.toFixed(1)).join(" ")+'"></polyline>').join("");
           const markers=coordinates.map(({x:px,y:py,point})=>{
             const deltaValue=chartMetricDeltas.get(point.item);
             const deltaLabel=deltaValue===undefined?"":" · 이전 수집 대비 "+(deltaValue>0?"+":"")+deltaValue.toLocaleString()+ (metricUnits[chartMetric]||"");
             return '<circle class="analytics-chart-point analytics-series-'+index+'" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4"><title>'+esc(new Date(point.time).toLocaleString())+' · '+esc(Number(point.value).toLocaleString())+(metricUnits[chartMetric]||"") +esc(deltaLabel)+'</title></circle>';
           }).join("");
-          return '<polyline class="analytics-chart-line analytics-series-'+index+'" points="'+points+'"></polyline>'+markers;
+          return lines+markers;
         }).join("");
         const legend=chartGroups.map((group,index)=>'<span class="analytics-chart-legend-item"><i class="analytics-series-dot analytics-series-'+index+'"></i>'+esc(group.platform==="youtube"?"YouTube":"TikTok")+" · "+esc(String(group.videoId||"").slice(0,18))+'</span>').join("");
-        return '<section class="analytics-trend-panel" aria-label="영상별 성과 지표 추이"><div class="analytics-trend-heading"><strong>영상별 '+esc(metricLabels[chartMetric]||"성과 지표")+' 추이</strong><span>표본이 2개 이상인 영상 중 최대 4개</span></div><div class="analytics-chart-scroll"><svg class="analytics-trend-chart" viewBox="0 0 '+width+" "+height+'" role="img" aria-label="선택된 영상들의 시간에 따른 성과 스냅샷 추이">'+lines+axisLabels+series+'</svg></div><div class="analytics-chart-legend">'+legend+'</div><p class="analytics-chart-note">각 선은 영상별 실제 수집 스냅샷입니다. 플랫폼별로 제공되는 지표가 다르며, 선택 지표가 없는 플랫폼의 영상은 그래프에서 제외됩니다.</p></section>';
+        return '<section class="analytics-trend-panel" aria-label="영상별 성과 지표 추이"><div class="analytics-trend-heading"><strong>영상별 '+esc(metricLabels[chartMetric]||"성과 지표")+' 추이</strong><span>표본이 2개 이상인 영상 중 최대 4개 · 장기 수집 공백은 선을 끊어 표시</span></div><div class="analytics-chart-scroll"><svg class="analytics-trend-chart" viewBox="0 0 '+width+" "+height+'" role="img" aria-label="선택된 영상들의 시간에 따른 성과 스냅샷 추이">'+lines+axisLabels+series+'</svg></div><div class="analytics-chart-legend">'+legend+'</div><p class="analytics-chart-note">각 선은 영상별 실제 수집 스냅샷입니다. 48시간 및 해당 영상의 일반 수집 간격 대비 3배를 넘는 공백은 선을 끊어 표시합니다. 선이 끊긴 구간은 데이터가 없으며 보간하지 않습니다. 플랫폼별 제공 지표가 다르므로 선택 지표가 없는 영상은 제외됩니다.</p></section>';
       })()
       : '<div class="analytics-chart-empty">선택한 지표의 추이를 표시하려면 동일 영상에 유효한 스냅샷이 최소 2개 필요합니다.</div>';
     $("analyticsHistory").innerHTML=rows.length
-      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개 · 표 최대 200개 표시, CSV는 전체 내보내기</div>'+platformComparison+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>참여 조회수</th><th>참여 조회 비율</th><th>시청자 유지율</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>시청 시간(분)</th><th>평균 시청 시간(초)</th><th>평균 시청 비율</th></tr></thead><tbody>'
+      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개 · 수집 기간 '+esc(rows.length?new Date(Math.min(...rows.map(item=>Date.parse(item.collected_at)).filter(Number.isFinite))).toLocaleDateString()+" ~ "+new Date(Math.max(...rows.map(item=>Date.parse(item.collected_at)).filter(Number.isFinite))).toLocaleDateString():"—")+' · 표 최대 200개 표시, CSV는 전체 내보내기</div>''+platformComparison+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>참여 조회수</th><th>참여 조회 비율</th><th>시청자 유지율</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>시청 시간(분)</th><th>평균 시청 시간(초)</th><th>평균 시청 비율</th></tr></thead><tbody>'
       +rows.slice(0,200).map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+number(item.engaged_views)+'</td><td>'+(item.engaged_view_share===null||item.engaged_view_share===undefined||!Number.isFinite(Number(item.engaged_view_share))?"—":(Number(item.engaged_view_share)*100).toLocaleString()+"%")+'</td><td>'+(item.platform==="youtube"?(Array.isArray(item.retention_curve)&&item.retention_curve.length?retentionSparkline(item.retention_curve)+'<small>'+esc(retentionSummary(item.retention_curve))+'</small>':esc(retentionStatusLabels[item.retention_status]||"상태 미확인")):"—")+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.estimated_minutes_watched)+'</td><td>'+number(item.average_view_duration)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>').join("")
       +'</tbody></table></div>'
       : '<div class="empty-state">선택한 기간에 저장된 성과 스냅샷이 없습니다. 데이터 수집이 완료된 후 다시 조회하세요.</div>';
