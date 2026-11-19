@@ -2708,6 +2708,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ## BUILD-00351 — Compose service health probes
 
+- Compose smoke no longer blocks API/worker/scheduler startup on the duration of the first backup: it waits for core service health, then separately waits up to 15 minutes for the first backup marker and backup health.
 - Add PID-1 command probes for worker, scheduler and metrics collector containers.
 - Add an atomic successful-backup timestamp marker and a freshness health probe for the backup service; failed or overdue backups now make the container unhealthy.
 - Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
