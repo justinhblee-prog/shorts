@@ -304,16 +304,23 @@
         const maxValue=Math.max(1,...allPoints.map(point=>point.value));
         const x=time=>padX+(maxTime===minTime?0.5:(time-minTime)/(maxTime-minTime))*(width-padX*2);
         const y=value=>height-padY-(value/maxValue)*(height-padY*2);
+        const compact=value=>Intl.NumberFormat("en-US",{notation:"compact",maximumFractionDigits:1}).format(value);
         const lines=[0,1,2,3].map(index=>{
           const yy=padY+index*(height-padY*2)/3;
-          return '<line class="analytics-chart-gridline" x1="'+padX+'" y1="'+yy.toFixed(1)+'" x2="'+(width-padX)+'" y2="'+yy.toFixed(1)+'"></line>';
+          const value=maxValue*(1-index/3);
+          return '<line class="analytics-chart-gridline" x1="'+padX+'" y1="'+yy.toFixed(1)+'" x2="'+(width-padX)+'" y2="'+yy.toFixed(1)+'"></line>'
+            +'<text class="analytics-chart-axis-label" x="'+(padX-5)+'" y="'+(yy+3).toFixed(1)+'" text-anchor="end">'+esc(compact(value))+'</text>';
         }).join("");
+        const axisLabels='<text class="analytics-chart-axis-label" x="'+padX+'" y="'+(height-2)+'" text-anchor="start">'+esc(new Date(minTime).toLocaleDateString())+'</text>'
+          +'<text class="analytics-chart-axis-label" x="'+(width-padX)+'" y="'+(height-2)+'" text-anchor="end">'+esc(new Date(maxTime).toLocaleDateString())+'</text>';
         const series=chartGroups.map((group,index)=>{
-          const points=group.points.map(point=>x(point.time).toFixed(1)+","+y(point.value).toFixed(1)).join(" ");
-          return '<polyline class="analytics-chart-line analytics-series-'+index+'" points="'+points+'"></polyline>';
+          const coordinates=group.points.map(point=>({x:x(point.time),y:y(point.value),point}));
+          const points=coordinates.map(point=>point.x.toFixed(1)+","+point.y.toFixed(1)).join(" ");
+          const markers=coordinates.map(({x:px,y:py,point})=>'<circle class="analytics-chart-point analytics-series-'+index+'" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4"><title>'+esc(new Date(point.time).toLocaleString())+' · '+esc(Number(point.value).toLocaleString())+'회</title></circle>').join("");
+          return '<polyline class="analytics-chart-line analytics-series-'+index+'" points="'+points+'"></polyline>'+markers;
         }).join("");
         const legend=chartGroups.map((group,index)=>'<span class="analytics-chart-legend-item"><i class="analytics-series-dot analytics-series-'+index+'"></i>'+esc(group.platform==="youtube"?"YouTube":"TikTok")+" · "+esc(String(group.videoId||"").slice(0,18))+'</span>').join("");
-        return '<section class="analytics-trend-panel" aria-label="영상별 조회수 추이"><div class="analytics-trend-heading"><strong>영상별 조회수 추이</strong><span>표본이 2개 이상인 영상 중 최대 4개</span></div><div class="analytics-chart-scroll"><svg class="analytics-trend-chart" viewBox="0 0 '+width+" "+height+'" role="img" aria-label="선택된 영상들의 시간에 따른 조회수 스냅샷 추이">'+lines+series+'</svg></div><div class="analytics-chart-legend">'+legend+'</div><p class="analytics-chart-note">각 선은 영상별 실제 수집 스냅샷입니다. YouTube와 TikTok의 조회수 집계 기준은 다를 수 있어 플랫폼 간 절대값 비교에는 주의가 필요합니다.</p></section>';
+        return '<section class="analytics-trend-panel" aria-label="영상별 조회수 추이"><div class="analytics-trend-heading"><strong>영상별 조회수 추이</strong><span>표본이 2개 이상인 영상 중 최대 4개</span></div><div class="analytics-chart-scroll"><svg class="analytics-trend-chart" viewBox="0 0 '+width+" "+height+'" role="img" aria-label="선택된 영상들의 시간에 따른 조회수 스냅샷 추이">'+lines+axisLabels+series+'</svg></div><div class="analytics-chart-legend">'+legend+'</div><p class="analytics-chart-note">각 선은 영상별 실제 수집 스냅샷입니다. YouTube와 TikTok의 조회수 집계 기준은 다를 수 있어 플랫폼 간 절대값 비교에는 주의가 필요합니다.</p></section>';
       })()
       : '<div class="analytics-chart-empty">추이 그래프를 표시하려면 동일 영상의 유효한 조회수 스냅샷이 최소 2개 필요합니다.</div>';
     $("analyticsHistory").innerHTML=rows.length
