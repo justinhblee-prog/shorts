@@ -2752,3 +2752,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ### BUILD-00385 — exact-head validation
 - Final head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). The isolated HOME fixture was moved outside the temporary Git worktree. Hosted Linux only; Windows self-hosted runner/Ollama execution remains unverified.
+
+
+## BUILD-00386 — audited operator recovery from quarantine
+- Add an authenticated `operations.manage` endpoint to requeue only quarantined development jobs after an operator supplies a recovery reason.
+- Reset the retry counter and stale execution evidence for the new attempt; preserve the prior failure and append an immutable recovery event with actor, reason and previous attempt count.
+- Add store, API and role authorization regressions. Exact-head validation pending.
