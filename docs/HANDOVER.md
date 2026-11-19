@@ -1319,3 +1319,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 The analytics history endpoint now accepts bounded `offset` alongside the existing maximum 500-row page size. YouTube and TikTok stores paginate deterministically by `collected_at DESC,id DESC`. TikTok history now joins publication records directly rather than preloading a capped list of video IDs. The dashboard CSV action fetches sequential pages for each selected platform until a short page is returned, then exports the complete result set for the selected date/video filters. The visible preview remains bounded. Validation is pending exact-head GitHub Actions.
 
 - BUILD-00328 implementation checkpoint `90086f4b051ff70718a5d15c1a870932016fe269` passed two exact-head GitHub Actions runs, each with 700 backend tests. A final UI wording and duplicate-publication join hardening follow-up is committed afterward and its CI is pending.
+
+
+## BUILD-00329 — stable analytics export pagination
+
+CSV export now uses a per-platform composite keyset cursor (`collected_at,id`) instead of offset paging. This avoids page shifts and skipped/duplicated older rows when new snapshots are inserted at the front during a long export. The API and both stores retain bounded offset support for compatibility. Cursor validation and regression tests are included; exact-head CI is pending.
