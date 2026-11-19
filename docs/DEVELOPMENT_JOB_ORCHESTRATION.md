@@ -181,3 +181,8 @@ The fix returns the flattened rows directly. Regression coverage uses two realis
 ### BUILD-00355 — global GitHub issue deduplication
 
 The intake no longer derives global idempotency from `store.list(limit=500)`, which was only a bounded display/queue page. The job store now has a partial index on non-null `source_ref`, an indexed lookup method, and a duplicate check for `github:issue:` references inside the `BEGIN IMMEDIATE` job-creation transaction. Seeded documentation references retain their existing non-unique semantics. The intake checks the full store and treats a conflict discovered after its preflight read as a duplicate skip. Tests cover an imported issue outside the first 500 ordered jobs and a simulated concurrent insertion between preflight and create. Exact-head backend CI passed run [44510490935](https://github.com/justinhblee-prog/shorts/actions/runs/44510490935) with 768 tests; live runner operation is not claimed.
+
+
+### BUILD-00356 — bounded GitHub backlog pagination
+
+The read-only intake client now caps each Issues, PR and Actions feed at five 100-record pages. This avoids fetching thousands of historical Actions runs on every scheduled cycle. The snapshot records a per-feed truncation flag and the backlog sync response exposes it; operators can distinguish a complete snapshot from a capped one. Tests cover the five-page stop and metadata propagation. Exact-head CI is pending; no live GitHub rate-limit or self-hosted runner execution is claimed.
