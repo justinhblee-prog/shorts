@@ -8,8 +8,10 @@ import ipaddress
 import os
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -63,6 +65,9 @@ class AiderDevelopmentExecutor:
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or not 60 <= timeout_seconds <= 7200:
             raise ValueError("timeout_seconds must be between 60 and 7200")
         self.timeout_seconds = timeout_seconds
+        self._cancel_requested = threading.Event()
+        self._active_process_lock = threading.Lock()
+        self._active_process = None
 
     @staticmethod
     def _local_ollama_api_base():
@@ -161,15 +166,84 @@ class AiderDevelopmentExecutor:
             env["HOMEPATH"] = tail
         return env
 
-    def _run(self, args, env, timeout):
+    def cancel(self):
+        """Stop the active child process after lease ownership becomes uncertain."""
+        self._cancel_requested.set()
+        with self._active_process_lock:
+            process = self._active_process
+        if process is not None and process.poll() is None:
+            self._terminate_process(process)
+
+    @staticmethod
+    def _terminate_process(process):
         try:
-            return subprocess.run(
-                args, cwd=self.repo_root, env=env, text=True,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                timeout=timeout, check=False,
-            )
-        except subprocess.TimeoutExpired as error:
-            raise RuntimeError(f"command timed out after {timeout} seconds") from error
+            if os.name == "nt":
+                process.terminate()
+            else:
+                os.killpg(process.pid, signal.SIGTERM)
+        except (OSError, ProcessLookupError):
+            try:
+                process.terminate()
+            except OSError:
+                pass
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            try:
+                if os.name == "nt":
+                    process.kill()
+                else:
+                    os.killpg(process.pid, signal.SIGKILL)
+            except (OSError, ProcessLookupError):
+                process.kill()
+            process.wait()
+
+    def _run(self, args, env, timeout):
+        if self._cancel_requested.is_set():
+            raise RuntimeError("command cancelled because worker lease ownership is uncertain")
+        options = {
+            "cwd": self.repo_root,
+            "env": env,
+            "text": True,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+        }
+        if os.name == "nt":
+            options["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        else:
+            options["start_new_session"] = True
+        process = subprocess.Popen(args, **options)
+        with self._active_process_lock:
+            self._active_process = process
+        try:
+            if self._cancel_requested.is_set():
+                self._terminate_process(process)
+                raise RuntimeError("command cancelled because worker lease ownership is uncertain")
+            deadline = time.monotonic() + timeout
+            while True:
+                if self._cancel_requested.is_set():
+                    self._terminate_process(process)
+                    output, _ = process.communicate()
+                    raise RuntimeError(
+                        "command cancelled because worker lease ownership is uncertain: "
+                        + _tail(output)
+                    )
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    self._terminate_process(process)
+                    output, _ = process.communicate()
+                    raise RuntimeError(
+                        f"command timed out after {timeout} seconds: " + _tail(output)
+                    )
+                try:
+                    output, _ = process.communicate(timeout=min(0.25, remaining))
+                    return subprocess.CompletedProcess(args, process.returncode, output)
+                except subprocess.TimeoutExpired:
+                    continue
+        finally:
+            with self._active_process_lock:
+                if self._active_process is process:
+                    self._active_process = None
 
     def _git(self, *args, env):
         result = self._run(["git", *args], env, 120)
