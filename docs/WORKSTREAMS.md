@@ -281,3 +281,14 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - `scripts/ui_recovery_browser_smoke.mjs`: passed authenticated quarantine state, operator reason + confirmation, recovery endpoint HTTP 200, ready state, and immutable audit attribution.
 - Browser artifact: [nexus-integrated-dashboard-browser-artifacts](https://github.com/justinhblee-prog/shorts/actions/runs/44582779913/artifacts/14558714645) (4.94 MB).
 - PR #407 remains Draft/unmerged; no production deployment or live provider/OAuth action was tested.
+
+
+### Analytics history regression hardening — exact-head PASS
+
+- Added four YouTube analytics history tests covering append-only snapshots, malformed retention JSON fail-safe behavior, global/video indexes, and date/keyset cursor filtering.
+- Added four TikTok analytics history tests covering lookup beyond recent metrics, global/video-time indexes, bounded query-plan behavior, and date/keyset cursor filtering.
+- Added the global TikTok metrics time index, composite `(video_id,collected_at,id)` history index, and publication `(video_id,status)` join index. The SQLite query-plan regression accepts either valid video-time index selected by the runtime planner.
+- Exact final candidate head: `36aba5119b55fd6bcff9946164a1f2d1b94cb91d`.
+- Hosted workflow [44583842741](https://github.com/justinhblee-prog/shorts/actions/runs/44583842741): **success**; `scripts/validate.sh` reports **876 tests passed**; JS syntax check, analytics browser smoke, recovery browser smoke, and artifact upload all passed.
+- Browser artifact: [nexus-integrated-dashboard-browser-artifacts](https://github.com/justinhblee-prog/shorts/actions/runs/44583842741/artifacts/14560517101) (4.93 MB).
+- PR #407 remains Draft/unmerged; no production deployment or live provider action.
