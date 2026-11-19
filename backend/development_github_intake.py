@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from development_jobs import DevelopmentJobConflict
+
 JOB_LABELS = frozenset({"development-job", "nexus:development-job"})
 DEFAULT_SCOPE: list[str] = []
 
@@ -110,33 +112,39 @@ def summarize_workflow_run(run: dict[str, Any]) -> dict[str, Any] | None:
 
 def sync_labeled_issues(store: Any, issues: Iterable[dict[str, Any]], scope_resolver: Any = None) -> dict[str, Any]:
     """Idempotently import only labeled open issues into the local job store."""
-    existing = {
-        job.get("source_ref")
-        for job in store.list(limit=500)
-        if isinstance(job, dict) and job.get("source_ref")
-    }
+    # Track this batch locally and query the indexed source identity across the
+    # entire store. A bounded UI/list page must never be used as a dedupe index.
+    existing: set[str] = set()
     created, skipped = [], []
     for issue in issues:
         candidate = normalize_issue(issue)
         if candidate is None:
             skipped.append({"reason": "not_an_open_opted_in_issue"})
             continue
-        if candidate["source_ref"] in existing:
-            skipped.append({"source_ref": candidate["source_ref"], "reason": "duplicate"})
+        source_ref = candidate["source_ref"]
+        if source_ref in existing or store.source_ref_exists(source_ref):
+            skipped.append({"source_ref": source_ref, "reason": "duplicate"})
             continue
         scope = scope_resolver(candidate) if callable(scope_resolver) else []
         if not isinstance(scope, list) or not scope or not all(isinstance(path, str) and path.strip() for path in scope):
             skipped.append({"source_ref": candidate["source_ref"], "reason": "scope_not_configured"})
             continue
-        job = store.create(
-            title=candidate["title"],
-            description=candidate["description"],
-            priority=candidate["priority"],
-            scope=scope,
-            acceptance=candidate["acceptance"],
-            source_ref=candidate["source_ref"],
-        )
-        existing.add(candidate["source_ref"])
+        try:
+            job = store.create(
+                title=candidate["title"],
+                description=candidate["description"],
+                priority=candidate["priority"],
+                scope=scope,
+                acceptance=candidate["acceptance"],
+                source_ref=source_ref,
+            )
+        except DevelopmentJobConflict:
+            # Another sync may have inserted the same source after the read.
+            # The store repeats the identity check under BEGIN IMMEDIATE.
+            skipped.append({"source_ref": source_ref, "reason": "duplicate"})
+            existing.add(source_ref)
+            continue
+        existing.add(source_ref)
         created.append(job)
     return {"created": created, "skipped": skipped, "created_count": len(created)}
 
