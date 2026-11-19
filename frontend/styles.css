@@ -131,3 +131,126 @@
 .review-search input{width:100%;min-height:44px;padding:10px 13px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft);color:var(--text);font:inherit;font-weight:500}
 .review-search-status{min-height:18px;margin:4px 0 12px;color:var(--muted);font-size:12px}
 .review-card[hidden]{display:none}
+
+
+/* UI-00013 — NEXUS visual system: purple/blue cinematic dashboard.
+   Layout and API-bound controls remain unchanged; this layer upgrades presentation only. */
+:root{
+  --bg:#080d1d;
+  --panel:#111a32;
+  --panel2:#172342;
+  --line:#2a3a65;
+  --text:#f4f6ff;
+  --muted:#9aa9ca;
+  --cyan:#9b7bff;
+  --blue:#398cff;
+  --amber:#f6b94b;
+  --red:#ff647c;
+  --radius:18px;
+}
+body{
+  background:
+    radial-gradient(ellipse at 78% 0%,rgba(67,85,210,.25),transparent 32%),
+    radial-gradient(ellipse at 12% 30%,rgba(117,48,220,.13),transparent 28%),
+    linear-gradient(145deg,#080d1d 0%,#0b1228 48%,#080d1a 100%);
+}
+.topbar{
+  background:rgba(8,13,29,.9);
+  border-bottom-color:#29345b;
+  box-shadow:0 10px 40px #02061755;
+}
+.brand-symbol{
+  color:#b79cff;
+  border-color:#6954ce;
+  background:linear-gradient(145deg,#39228c,#152a70);
+  box-shadow:0 0 24px #7548ff55;
+}
+.brandmark b,.eyebrow,.panel-kicker,.hero-footnote,.section-index{color:#a88cff}
+.status-pill.connected i,.eyebrow-dot{background:#47e4b2;box-shadow:0 0 12px #47e4b2}
+.hero{
+  position:relative;
+  background:
+    radial-gradient(ellipse at 83% 42%,rgba(40,103,255,.24),transparent 35%),
+    linear-gradient(110deg,rgba(15,22,49,.35),rgba(37,25,91,.18));
+}
+.hero:after{
+  content:"";
+  position:absolute;inset:0;pointer-events:none;opacity:.24;
+  background-image:linear-gradient(rgba(137,155,255,.11) 1px,transparent 1px),linear-gradient(90deg,rgba(137,155,255,.11) 1px,transparent 1px);
+  background-size:42px 42px;
+  mask-image:linear-gradient(90deg,transparent 15%,#000 100%);
+}
+.hero-copy,.hero-visual{position:relative;z-index:1}
+h1 em{color:#a88cff;text-shadow:0 0 30px #8855ff66}
+.orbit{border-color:#654dca;box-shadow:0 0 28px #654dca24}
+.orbit-one{border-color:#398cff}
+.orbit-two{border-color:#8a55ff}
+.orbit-core{
+  border-color:#9574ff;
+  background:radial-gradient(circle at 34% 25%,#43358f,#101a38 72%);
+  box-shadow:0 0 65px #7548ff55,inset 0 0 32px #8d75ff38;
+}
+.orbit-core b{color:#a88cff;text-shadow:0 0 24px #8b5cf6}
+.orbit-node{border-color:#514a9a;background:linear-gradient(145deg,#1c2850,#111a33);box-shadow:0 12px 35px #0008,0 0 18px #7654ff22}
+.orbit-node span{color:#62b5ff}
+.metrics-grid{background:rgba(9,15,33,.42)}
+.metric-card{
+  position:relative;overflow:hidden;
+  background:linear-gradient(145deg,rgba(30,42,82,.94),rgba(15,24,48,.96));
+  border-color:#354777;
+  box-shadow:0 14px 34px #02061744,inset 0 1px #ffffff0c;
+}
+.metric-card:after{
+  content:"";position:absolute;right:-28px;top:-38px;width:120px;height:120px;border-radius:50%;
+  background:radial-gradient(circle,#805cff35,transparent 68%);pointer-events:none
+}
+.metric-card strong{color:#fff;text-shadow:0 0 22px #8c6bff35}
+.section{border-bottom-color:#263252}
+.panel{
+  position:relative;overflow:hidden;
+  background:linear-gradient(145deg,rgba(23,34,68,.97),rgba(12,20,42,.98));
+  border-color:#304273;
+  box-shadow:0 18px 44px #02061755,inset 0 1px #ffffff0c;
+}
+.panel:before{
+  content:"";position:absolute;left:0;right:0;top:0;height:1px;
+  background:linear-gradient(90deg,transparent,#8d6bff99,#45a9ff88,transparent);
+  pointer-events:none
+}
+.panel-title h3,.section-heading h2{color:#f6f5ff}
+.panel-kicker{color:#9f8aff}
+.tag{border-color:#46528b;color:#c3caff;background:#1a2450}
+.tag-live{color:#55e4b4;border-color:#277b73;background:#123a3b}
+.button-primary{
+  color:#fff;
+  background:linear-gradient(110deg,#793cff,#4d5dff 62%,#2379ff);
+  box-shadow:0 8px 25px #673cff55,inset 0 1px #ffffff40;
+}
+.button-secondary{background:linear-gradient(135deg,#27376b,#26315a);border-color:#46558f;color:#e5eaff}
+.button-outline{border-color:#6256a4;background:#171f40;color:#f1edff}
+.button-quiet{border-color:#35436d;color:#c0c9e6}
+input,select,textarea{
+  background:#0b1430;border-color:#344474;color:#f4f6ff;
+}
+input:focus,select:focus,textarea:focus{border-color:#9b7bff;box-shadow:0 0 0 3px #8b5cf626}
+.pipeline-step{border-bottom-color:#2b3962}
+.step-number{color:#a88cff}
+.step-required{color:#ffc45c}
+.notice{background:linear-gradient(135deg,#29254c,#172442);border-color:#574b89}
+.notice b{color:#ffc45c}
+.icon-chip{border-color:#6856b6;color:#a88cff;background:#30265e}
+.data-list{border-top-color:#34416a}
+.data-item{border-bottom-color:#29385e}
+.data-item small,.empty-state{color:#a0aed0}
+.review-card{border-color:#3b4b78;background:linear-gradient(135deg,#1a274d,#111b36);box-shadow:0 8px 24px #02061744}
+.finance-summary div{background:#0b1430;border-color:#344474}
+.settings-dialog{background:#111a32;border-color:#574b89}
+.floating-settings{border-color:#7862c9;background:linear-gradient(145deg,#37256f,#172d66);color:#d5c8ff;box-shadow:0 8px 30px #0008,0 0 22px #7654ff55}
+.toast{background:linear-gradient(100deg,#c4b5fd,#93c5fd);color:#10132c}
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{outline-color:#b69cff}
+.skip-link{border-color:#a88cff}
+@media(max-width:760px){
+  .hero{background:radial-gradient(ellipse at 50% 55%,rgba(85,65,200,.22),transparent 55%)}
+  .metric-card{padding:15px}
+  .panel{box-shadow:0 10px 28px #02061766}
+}
