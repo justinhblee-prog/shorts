@@ -97,3 +97,12 @@ Develop the product interface and its runtime independently so both can make pro
 - Browser checks passed at desktop, 390px and 320px widths; verified no horizontal page overflow, 48px navigation touch targets, section navigation, keyboard skip-link focus, reduced-motion behavior, and no uncaught page errors.
 - Desktop/mobile full-page screenshots are available in the `nexus-dashboard-browser-screenshots` artifact attached to that Actions run (artifact ID `14516156531`, expires 2027-02-17).
 - API calls in the browser smoke are intentionally intercepted as unauthenticated responses. This is real browser rendering/navigation evidence, not live authenticated API/provider validation or real CSV download proof.
+
+
+## UI-00007 — browser-level paginated CSV download
+
+- Extend the Playwright browser smoke with authenticated-session simulation and deterministic API fixtures.
+- Exercise the analytics loading/busy state and visible `as_of` cutoff, then trigger the real Chromium download event from the Blob-generated CSV.
+- Simulate a 500-row YouTube page, a second keyset-cursor page, and a TikTok page; assert the downloaded CSV contains the header plus all 502 rows and the first/last/platform-specific video IDs.
+- The API/provider data is mocked; this validates browser download and pagination logic, not live backend completeness or real provider data.
+- Exact-head browser CI validation pending.
