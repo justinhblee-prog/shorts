@@ -21,10 +21,10 @@ class DevelopmentDiagnosticRedactionTests(unittest.TestCase):
 
     def test_multiline_service_account_redaction_preserves_following_context(self):
         value = (
-            'FIREBASE_SERVICE_ACCOUNT={\\n'
-            '  "type": "service_account",\\n'
-            '  "private_key": "firebase-private-secret"\\n'
-            '}\\nstage=validation-failed'
+            'FIREBASE_SERVICE_ACCOUNT={\n'
+            '  "type": "service_account",\n'
+            '  "private_key": "firebase-private-secret"\n'
+            '}\nstage=validation-failed'
         )
         safe = redact_sensitive_text(value)
         self.assertNotIn("firebase-private-secret", safe)
