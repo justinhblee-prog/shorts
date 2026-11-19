@@ -1428,3 +1428,7 @@ Exact PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Acti
 
 ### BUILD-00372 — backlog text persistence sanitization
 Job creation now redacts credential-bearing content from titles, descriptions and acceptance criteria before writing to SQLite. This protects the durable backlog even when issue text is imported from GitHub or a caller bypasses other intake-layer sanitization. Regression coverage verifies token/password values are absent while ordinary acceptance text remains. Exact-head hosted CI pending.
+
+
+### BUILD-00372 — exact-head CI result
+Code head `43b223c49f4e95f4bb830476b259bebcbb16e6df` passed GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/actions/runs/44533179406): **803 tests**, repository validation and frontend syntax check. Backlog title, description and acceptance text are sanitized before durable persistence.
