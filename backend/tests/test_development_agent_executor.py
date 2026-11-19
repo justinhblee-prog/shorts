@@ -93,6 +93,22 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
             "FIREBASE_SERVICE_ACCOUNT": "service-account-sensitive",
             "AWS_ACCESS_KEY_ID": "aws-access-sensitive",
             "AZURE_CLIENT_SECRET": "azure-secret-sensitive",
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "credential.helper",
+            "GIT_CONFIG_VALUE_0": "malicious-helper",
+            "GIT_CONFIG_PARAMETERS": "'credential.helper=malicious-helper'",
+            "GIT_ASKPASS": "C:/attacker/askpass.exe",
+            "GIT_SSH_COMMAND": "C:/attacker/ssh.exe",
+            "SSH_AUTH_SOCK": "C:/runner/ssh-agent.sock",
+            "SSH_AGENT_PID": "1234",
+            "NPM_CONFIG_REGISTRY": "https://user:token@registry.example",
+            "PIP_INDEX_URL": "https://user:token@packages.example/simple",
+            "DOCKER_CONFIG": "C:/runner/.docker",
+            "NETRC": "C:/runner/.netrc",
+            "AIDER_MODEL": "openai/attacker-model",
+            "OPENAI_BASE_URL": "https://attacker.example/v1",
+            "LITELLM_LOG": "DEBUG",
+            "OLLAMA_HOST": "https://attacker.example",
             "GITHUB_ENV": "C:/runner/_temp/env-file",
             "GITHUB_OUTPUT": "C:/runner/_temp/output-file",
             "GITHUB_PATH": "C:/runner/_temp/path-file",
@@ -112,12 +128,16 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
             "NEXUS_DEV_AGENT_MODEL": "ollama_chat/qwen2.5-coder:7b",
         }
         with patch.dict(os.environ, values):
-            child_env = self.executor._child_environment()
+            child_env = self.executor._child_environment(self.root / "isolated-home")
 
         for key in (
             "GITHUB_TOKEN", "NEXUS_BACKUP_ENCRYPTION_KEY", "DATABASE_URL",
             "REDIS_URL", "SUPABASE_SERVICE_ROLE_KEY", "FIREBASE_SERVICE_ACCOUNT",
             "AWS_ACCESS_KEY_ID", "AZURE_CLIENT_SECRET", "GITHUB_ENV", "GITHUB_OUTPUT",
+            "GIT_CONFIG_PARAMETERS", "GIT_ASKPASS", "GIT_SSH_COMMAND",
+            "SSH_AUTH_SOCK", "SSH_AGENT_PID", "NPM_CONFIG_REGISTRY",
+            "PIP_INDEX_URL", "NETRC", "AIDER_MODEL",
+            "OPENAI_BASE_URL", "LITELLM_LOG", "OLLAMA_HOST",
             "GITHUB_PATH", "GITHUB_STEP_SUMMARY", "GITHUB_STATE",
             "GITHUB_EVENT_PATH", "ACTIONS_CACHE_URL", "ACTIONS_RESULTS_URL",
             "RUNNER_TEMP", "RUNNER_WORKSPACE", "RUNNER_TOOL_CACHE",
@@ -127,9 +147,52 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
                 self.assertNotIn(key, child_env)
 
         self.assertEqual(child_env["OLLAMA_API_BASE"], "http://127.0.0.1:11434")
+        self.assertEqual(child_env["HOME"], str((self.root / "isolated-home").resolve()))
+        self.assertEqual(child_env["USERPROFILE"], str((self.root / "isolated-home").resolve()))
+        self.assertEqual(child_env["APPDATA"], str((self.root / "isolated-home" / "AppData" / "Roaming").resolve()))
+        self.assertEqual(child_env["LOCALAPPDATA"], str((self.root / "isolated-home" / "AppData" / "Local").resolve()))
+        self.assertEqual(child_env["GIT_CONFIG_NOSYSTEM"], "1")
+        self.assertEqual(child_env["GIT_CONFIG_COUNT"], "2")
+        self.assertEqual(child_env["GIT_CONFIG_KEY_0"], "credential.helper")
+        self.assertEqual(child_env["GIT_CONFIG_VALUE_0"], "")
+        self.assertEqual(child_env["GIT_CONFIG_KEY_1"], "credential.interactive")
+        self.assertEqual(child_env["GIT_CONFIG_VALUE_1"], "false")
+        self.assertEqual(child_env["GIT_TERMINAL_PROMPT"], "0")
+        self.assertEqual(child_env["GCM_INTERACTIVE"], "Never")
+        self.assertEqual(Path(child_env["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8"), "")
+        self.assertEqual(Path(child_env["NPM_CONFIG_USERCONFIG"]).read_text(encoding="utf-8"), "")
+        self.assertEqual(child_env["PIP_CONFIG_FILE"], os.devnull)
+        self.assertEqual(Path(child_env["NPM_CONFIG_GLOBALCONFIG"]).read_text(encoding="utf-8"), "")
+        self.assertEqual(child_env["DOCKER_CONFIG"], str((self.root / "isolated-home" / ".config" / "docker").resolve()))
+        self.assertEqual(child_env["NPM_CONFIG_USERCONFIG"], str((self.root / "isolated-home" / ".npmrc").resolve()))
+        self.assertEqual(child_env["NPM_CONFIG_GLOBALCONFIG"], str((self.root / "isolated-home" / "npm-globalrc").resolve()))
         self.assertEqual(child_env["GITHUB_WORKSPACE"], str(self.root))
         self.assertEqual(child_env["NEXUS_APPROVED_SCOPES"], "{}")
         self.assertEqual(child_env["NEXUS_DEV_AGENT_MODEL"], "ollama_chat/qwen2.5-coder:7b")
+
+    def test_ollama_endpoint_rejects_non_loopback_overrides(self):
+        with patch.dict(os.environ, {"OLLAMA_API_BASE": "https://remote.example/v1"}):
+            self.assertEqual(
+                self.executor._local_ollama_api_base(),
+                "http://127.0.0.1:11434",
+            )
+        with patch.dict(os.environ, {"OLLAMA_API_BASE": "http://127.0.0.2:11434/"}):
+            self.assertEqual(
+                self.executor._local_ollama_api_base(),
+                "http://127.0.0.2:11434",
+            )
+
+    def test_child_environment_uses_private_empty_user_config_directories(self):
+        home = self.root / "private-home"
+        env = self.executor._child_environment(home)
+        for key in ("HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA",
+                    "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME"):
+            self.assertTrue(Path(env[key]).is_relative_to(home.resolve()))
+        self.assertTrue(Path(env["DOCKER_CONFIG"]).is_dir())
+        self.assertEqual(Path(env["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8"), "")
+        self.assertEqual(Path(env["NPM_CONFIG_USERCONFIG"]).read_text(encoding="utf-8"), "")
+        self.assertEqual(env["PIP_CONFIG_FILE"], os.devnull)
+        self.assertEqual(Path(env["NPM_CONFIG_GLOBALCONFIG"]).read_text(encoding="utf-8"), "")
 
     def test_diagnostic_redaction_removes_bearer_and_common_api_tokens(self):
         message = (
