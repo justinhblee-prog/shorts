@@ -2638,3 +2638,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Restore the encrypted archive into isolated temporary database/media paths using the same ephemeral key and verify SQLite integrity.
 - The key exists only for this disposable CI job. Production key custody, off-host retention, key rotation, and recovery-time objectives remain external release gates.
 - Exact-head validation pending.
+
+
+## BUILD-00344 — encrypted backup wrong-key fail-closed test
+
+- Extend the Compose backup/restore smoke to attempt restore with a syntactically valid but incorrect AES-256 key.
+- Require authentication failure and verify the target database SHA-256 is unchanged before performing the successful restore with the ephemeral CI key.
+- This validates wrong-key fail-closed behavior on a real generated archive in a disposable container environment; it does not prove production key custody or disaster recovery.
+- Exact-head validation pending.
