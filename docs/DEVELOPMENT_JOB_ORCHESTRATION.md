@@ -141,3 +141,82 @@ Validation:
 - An earlier CI attempt failed due to dynamically generated IDs being absent from static HTML and a stale test expectation. The implementation now uses scoped data attributes for generated controls and the frontend regression assertion was updated. Do not count the failed attempts as validation.
 
 Next gate: confirm latest-head Chromium smoke and inspect the refreshed screenshot artifact. Keep PR #395 Draft and do not merge it independently of PR #394.
+
+
+## Verification refresh — 2026-11-20 02:10 KST
+
+Exact-head hosted workflow state was re-queried from GitHub for the active stacks:
+
+| PR | Head | Latest observed result |
+|---|---|---|
+| #384 BUILD-00386 | `6f8f378b8e8e343919af3a4aaba585c90ae6f00d` | Backend tests passed — run [44557449271](https://github.com/justinhblee-prog/shorts/actions/runs/44557449271) |
+| #385 BUILD-00387 | `151ee074d8116e12759a6dc46e734cf84f52c2d4` | Backend tests passed — run [44563227397](https://github.com/justinhblee-prog/shorts/actions/runs/44563227397) |
+| #386 POLICY-00001 | `7a83fe9960c3581ad18ddd25805c5f3aa35afc03` | Backend tests passed — run [44550380614](https://github.com/justinhblee-prog/shorts/actions/runs/44550380614) |
+| #387 UI-00012 | `13ab5be32c108118aa57512bce1ac1bd17726ae8` | Backend tests passed — run [44555664708](https://github.com/justinhblee-prog/shorts/actions/runs/44555664708) |
+| #388 BUILD-00388 | `f55030dab87cbcb8a1fa1a015a74db87961496f4` | Backend validation and frontend syntax passed — run [44558169681](https://github.com/justinhblee-prog/shorts/actions/runs/44558169681) |
+| #389 POLICY-00002 | `d38bca36389c439d4cf37de31d9dfc4d72d53780` | Backend tests passed — run [44552071509](https://github.com/justinhblee-prog/shorts/actions/runs/44552071509) |
+| #390 POLICY-00003 | `cc29af580467e6b261fa724aad99a976eedb5552` | Backend tests passed — run [44560114906](https://github.com/justinhblee-prog/shorts/actions/runs/44560114906) |
+| #394 UI-00014 | `b098826455150fefe4a8def6377bf77630a1ad7f` | Two hosted validation/browser runs passed — [44565614418](https://github.com/justinhblee-prog/shorts/actions/runs/44565614418), [44565685710](https://github.com/justinhblee-prog/shorts/actions/runs/44565685710) |
+| #395 UI-00015 | `bd2926c981c44398465994d4825d981729bf4e13` | Backend/browser and Compose integration passed — [44570606677](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677), [44570606778](https://github.com/justinhblee-prog/shorts/actions/runs/44570606778) |
+
+PR #388's workflow job was separately inspected: dependency setup, `scripts/validate.sh`, and `node --check frontend/app.js` all completed successfully. All listed PRs remain Draft/unmerged. A green exact-head workflow is a source-revision validation checkpoint only; it does not satisfy live OAuth, production provider upload, Windows runner, or deployment gates.
+
+### Integration gate decision
+
+The current repository already has a mocked lifecycle contract test in `backend/tests/test_end_to_end_lifecycle.py` covering queue submission, worker claim, script/voice/render pipeline, human review, staged-media reapproval, private YouTube upload, analytics snapshot, and ledger records. It explicitly does not represent live provider validation. Policy-specific tests in `backend/tests/test_review_workflow.py` and `backend/tests/test_youtube_publishing.py` separately exercise non-overridable approval blockers and YouTube synthetic-media disclosure mapping.
+
+Do not duplicate these isolated fixtures and call them cross-stack integration. The next integration job must run against a single candidate commit that actually contains the dependency stack, then add any missing cross-boundary assertion (especially worker quarantine recovery → authorized UI/API action and immutable audit evidence). Until those dependencies are available together on a candidate branch, keep integration status as BLOCKED_BY_STACK_INTEGRATION rather than claiming a full end-to-end pass.
+
+
+### Integration job update — INT-00002 quarantine recovery contract
+
+PR #397 adds API-handler regressions for authorization ordering (403 before store mutation), missing-job mapping (404), and blank-reason rejection (422) on top of UI-00012 / PR #387. Exact head `f0c2ff4d0e8a27494cf48e6be2333808e0997e5c` passed hosted backend validation in [run 44573305813](https://github.com/justinhblee-prog/shorts/actions/runs/44573305813), including the repository validation script and frontend syntax check. The test invokes the route function directly with a mocked store; it is not a live HTTP/browser or real operator recovery test. PR #397 remains Draft and depends on #387, which depends on BUILD-00386 / #384.
+
+The broader cross-lane gate remains BLOCKED_BY_STACK_INTEGRATION: no single candidate commit currently contains and validates the full Core + Policy + UI dependency set. Preserve Draft status and do not merge/deploy. Next bounded action is to assemble/validate an isolated candidate stack or continue closing specific contract seams without altering dependency order.
+
+
+### UI-00016 — analytics pagination accessibility and boundary regression
+
+PR #398 adds a named navigation landmark for the analytics pagination controls and real-browser assertions for keyboard activation, final-page row rendering, next-button disabled state at the upper boundary, and navigation back to the first page. Exact head `0d9db34cc5969f277c1174f7092e7d4907f957af` passed the full hosted backend/browser workflow [44573923657](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657). The run completed `scripts/validate.sh` and the full browser smoke: mobile 320px, page navigation, full 502-row CSV export, review approval/audit history, partial API failure feedback, keyboard navigation, browser history, and no page errors. Screenshots are retained as artifact [14555931151](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657/artifacts/14555931151).
+
+PR #398 is Draft/unmerged, based on UI-00015 / PR #395. The exact-head hosted test is a CI/browser fixture result, not a production deployment or live provider validation.
+
+
+### UI-00017 — analytics table column header semantics
+
+PR #399 adds `scope="col"` to all 14 analytics history table headers and adds browser assertions for the semantics. The initial run failed only because an existing frontend source test asserted the former unscoped literal `<th>시청자 유지율</th>`; the regression assertion was updated to require `<th scope="col">시청자 유지율</th>`. On the corrected exact head, `scripts/validate.sh` passed. Browser smoke [44574846265](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265) and Compose validation [44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267) were still completing at the time of this update. PR #399 is Draft/unmerged and depends on #398; no production deployment or live provider action was performed.
+
+
+UI-00017 final evidence: corrected exact head `16d4964dcf2472f47c0b1dd1fbd890e2d46750c1` passed [backend/browser workflow 44574846265](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265), including all 14 table header semantics assertions, and [Compose workflow 44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267), including backup/restore and cleanup. Screenshot artifact [14556945683](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265/artifacts/14556945683). PR #399 remains Draft/unmerged on #398. These are hosted CI/disposable environment checks, not production validation.
+
+
+### BUILD-00388 — GitHub feed pagination base repair
+
+The original PR #388 had a stale base and was five commits behind the current quarantine-recovery branch. A clean successor, PR #400, was created on the current BUILD-00386 base, carrying only the intake implementation and its tests while retaining all current base commits. Exact head `272d5efc9564b9d4dca6fa4bff187579a3911adb` compares ahead by two commits, behind by zero, and is mergeable. Backend workflow [44575404874](https://github.com/justinhblee-prog/shorts/actions/runs/44575404874) was in progress at this checkpoint. Preserve Draft status; do not merge before exact-head validation.
+
+
+BUILD-00388 exact-head evidence: PR #400 at `272d5efc9564b9d4dca6fa4bff187579a3911adb` passed backend workflow [44575404874](https://github.com/justinhblee-prog/shorts/actions/runs/44575404874), including repository validation and frontend syntax validation. It remains Draft/unmerged on the current BUILD-00386 base; no live GitHub intake or production action was exercised.
+
+
+### Policy dependency chain — stale-base repair
+
+The original POLICY-00001 / #386, POLICY-00002 / #389 and POLICY-00003 / #390 branches were diverged from their intended bases. Rebuilt a clean sequential successor chain: #401 (POLICY-00001) on the current YouTube disclosure base / #385; #402 (POLICY-00002) on #401; #403 (POLICY-00003) on #402. All three successor branches compare ahead of their bases with zero commits behind and are reported mergeable. #401 exact-head backend workflows [44575712933](https://github.com/justinhblee-prog/shorts/actions/runs/44575712933) and [44575735946](https://github.com/justinhblee-prog/shorts/actions/runs/44575735946) passed. #402 run [44575784946](https://github.com/justinhblee-prog/shorts/actions/runs/44575784946) passed while [44575810640](https://github.com/justinhblee-prog/shorts/actions/runs/44575810640) was still running. #403 runs [44575901354](https://github.com/justinhblee-prog/shorts/actions/runs/44575901354) and [44575928560](https://github.com/justinhblee-prog/shorts/actions/runs/44575928560) were in progress/queued. Keep all Draft and unmerged until exact-head checks complete and dependency review is performed.
+
+
+### Quarantine recovery UI/API successor chain
+
+Rebased the UI-00012 recovery controls onto current BUILD-00386 / PR #384 as successor PR #404; it is mergeable and has one passed exact-head backend check [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819), while second run [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665) remained in progress. Rebased the API contract test-only change onto #404 as successor PR #405; it is mergeable and exact-head workflow [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441) remained in progress. Preserve #404 → #405 dependency order; original #387/#397 remain unchanged. Draft only, no production recovery.
+
+
+Quarantine recovery successor validation is complete at hosted CI level: PR #404 passed both [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819) and [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665); API successor PR #405 passed [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441). Keep the branches Draft/unmerged and preserve #404 → #405. Tests are synthetic/handler-level and do not validate production recovery.
+
+
+### Core + Policy + UI candidate assembly
+
+Draft PR #406 assembles one integration commit `96f59cc8b19792602f03eafd1c1138bde5c7b138` on the current BUILD-00385 base, overlaying 20 source/test files from dependency-aligned Core, Policy and UI successor branches (#400–#405 plus #384/#385). Compare is ahead 1 / behind 0 and mergeable. Hosted workflows [44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216) were queued/in progress. The cross-stack gate is not complete until exact-head validation succeeds; do not merge/deploy.
+
+
+PR #406 exact candidate head `96f59cc8b19792602f03eafd1c1138bde5c7b138` passed both hosted backend runs [44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216). The latter reports 854 tests passed in `scripts/validate.sh` plus `node --check frontend/app.js`. This confirms the combined backend/source contracts, not browser interaction on the unified candidate: the branch workflow has no Playwright smoke step. Keep the combined browser and production/provider gates open.
+
+
+PR #406 corrected exact head `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0` passed both [44577763179](https://github.com/justinhblee-prog/shorts/actions/runs/44577763179) and [44577785714](https://github.com/justinhblee-prog/shorts/actions/runs/44577785714). The run reports 854 tests, frontend syntax validation, and Chromium recovery UI coverage: authenticated dashboard, quarantine visibility, operator-confirmed recovery, ready-state transition and immutable audit attribution. Playwright runner pinned to Ubuntu 24.04 after 26.04 incompatibility. Full analytics browser integration and production/provider gates remain open; PR stays Draft/unmerged.
