@@ -2661,6 +2661,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ## BUILD-00346 — backup database/media path-overlap protection
 
+- Preserve symlink rejection before resolving the archive path and add a regression proving a symlinked archive cannot bypass the regular-file check.
+
 - Reject backup and restore layouts where the SQLite database resides inside the media tree; replacing the media directory in such a layout could move or delete the live database.
 - Reject restore archives stored inside the media directory because a successful media replacement would remove the source archive.
 - Add regressions verifying both unsafe layouts fail before changing live database or archive contents.
