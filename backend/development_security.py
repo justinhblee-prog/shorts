@@ -7,7 +7,10 @@ def redact_sensitive_text(value, limit=2000):
     if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
         raise ValueError("limit must be a positive integer")
     text = (value or "").strip()
+    text = re.sub(r"(?is)-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
+                  "[REDACTED PRIVATE KEY]", text)
     text = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/-]+=*", "Bearer [REDACTED]", text)
+    text = re.sub(r"(?i)(?:basic)\s+[A-Za-z0-9+/]{12,}={0,2}", "Basic [REDACTED]", text)
     text = re.sub(
         r"(?i)([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTHORIZATION|COOKIE|SESSION|API[_-]?KEY|ENCRYPTION[_-]?KEY|"
         r"PRIVATE[_-]?KEY|SIGNING[_-]?KEY|ACCESS[_-]?KEY|SERVICE[_-]?ROLE[_-]?KEY|"
