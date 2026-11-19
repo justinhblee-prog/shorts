@@ -2587,3 +2587,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Signal cancellable executors immediately; the Aider executor now polls a cancellation event, terminates the active process group, and refuses to launch later commands after cancellation.
 - Add worker regression coverage proving heartbeat database failure cancels execution and cannot advance the job to review_pending, plus subprocess cancellation coverage.
 - Exact-head hosted CI pending. Hosted CI does not prove Windows process-tree behavior or live runner recovery.
+
+
+### BUILD-00368 — exact-head hosted validation
+- Code head `f6c69af52204ebfccce88a48114291c4fb6946e8` passed GitHub Actions Backend tests run [44530628392](https://github.com/justinhblee-prog/shorts/actions/runs/44530628392): **797 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Both regressions passed: heartbeat transport failure cancels the executor without advancing the job, and active child-process cancellation terminates the process group.
+- Hosted Linux only; Windows self-hosted process-tree behavior and live runner recovery remain separate integration gates.
