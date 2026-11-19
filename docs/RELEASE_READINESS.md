@@ -203,4 +203,4 @@ These are additional readiness constraints documented by the project, not comple
 
 
 ### BUILD-00342 — CI backup/restore evidence
-- The Compose workflow now verifies that the backup container creates a tar archive and restores it into isolated temporary paths with SQLite integrity verification. This does not satisfy the production backup/restore gate; production data, off-host retention, encryption-key custody, and recovery-time objectives remain pending.
+- Compose workflow run [44498381444](https://github.com/justinhblee-prog/shorts/actions/runs/44498381444) verified a generated tar archive and restored it into isolated temporary paths with SQLite integrity verification. This does not satisfy the production backup/restore gate; production data, off-host retention, encryption-key custody, and recovery-time objectives remain pending.

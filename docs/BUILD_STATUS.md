@@ -2596,7 +2596,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 - Add tests for the default encrypted TikTok OAuth token-provider wiring and injected collector behavior.
 - Verify that results are discarded when the collector loses its lease after the provider call, failures are recorded only while lease ownership remains valid, and every path releases the lease.
-- Exact-head validation pending.
+- Exact-head validation passed.
+
+- Exact-head Compose workflow run [44498381444](https://github.com/justinhblee-prog/shorts/actions/runs/44498381444) passed: all five services started, API readiness returned HTTP 200, backup service created `nexus-backup-20261119T093959928736Z.tar.gz`, and the archive restored successfully to isolated temporary paths with SQLite integrity check `ok`. This remains synthetic CI evidence, not a production-data disaster-recovery drill.
 
 
 ## BUILD-00340 — synthetic 10,000-row TikTok collector scan smoke test
