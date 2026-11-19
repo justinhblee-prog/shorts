@@ -131,3 +131,13 @@ This snapshot is a repository coordination record, not a claim that independent 
 - UI-00015 / PR #395: exact head `bd2926c981c44398465994d4825d981729bf4e13`, backend/browser and Compose integration passed ([44570606677](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677), [44570606778](https://github.com/justinhblee-prog/shorts/actions/runs/44570606778)).
 
 PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js` succeeded. All PRs remain Draft/unmerged. Full integration is not yet complete: current lifecycle tests use mocked providers and the independently stacked Core/Policy/UI branches have not been tested together on one candidate commit. The next integration job must preserve stack dependencies and explicitly cover audited quarantine recovery through the UI/API boundary.
+
+
+## Integration checkpoint — quarantine recovery contract (2026-11-20 02:05 KST)
+
+- PR #397 adds three API-handler regressions on top of UI-00012 / PR #387: reject read-only operators before store mutation (403), map missing jobs to 404, and reject blank recovery reasons as 422.
+- Exact head `f0c2ff4d0e8a27494cf48e6be2333808e0997e5c` passed hosted backend validation in [run 44573305813](https://github.com/justinhblee-prog/shorts/actions/runs/44573305813), including `scripts/validate.sh` and `node --check frontend/app.js`.
+- The tests call the FastAPI route function with the store mocked. This is handler-contract coverage, not a live HTTP/browser interaction or a real operator recovery.
+- PR #397 is Draft, unmerged, and based on PR #387; preserve the #384 → #387 → #397 dependency order.
+- PR #385 remains at exact head `151ee074d8116e12759a6dc46e734cf84f52c2d4`; its hosted backend run [44563227397](https://github.com/justinhblee-prog/shorts/actions/runs/44563227397) passed. Do not substitute an uncommitted or historical hardening head for the actual PR head.
+- Cross-lane integration remains blocked until the dependency-ordered Core, Policy and UI branches are assembled on one candidate commit and tested together. No merge/deployment or live provider action is authorized.
