@@ -423,3 +423,20 @@ class AnalyticsFreshnessPresentationTests(unittest.TestCase):
         self.assertIn('api("/api/development/jobs/"+encodeURIComponent(jobId)+"/recover"', app_js)
         self.assertIn('JSON.stringify({reason:reason.trim()})', app_js)
         self.assertIn('if(!requireToken())return;', app_js)
+
+
+class DevelopmentWorkstreamPresentationTests(unittest.TestCase):
+    def test_dashboard_groups_real_development_jobs_by_scope_and_renders_dag_dependencies(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        css = (frontend / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('const laneForJob=job=>', app_js)
+        self.assertIn('job.dependencies', app_js)
+        self.assertIn('data-workstream="\'+lane+\'"', app_js)
+        self.assertIn('선행 작업', app_js)
+        self.assertIn('UI · 화면', app_js)
+        self.assertIn('CORE · 백엔드', app_js)
+        self.assertIn('작업 흐름과 선행 작업 관계를 서버 저장소 데이터로 구분합니다.', html)
+        self.assertIn('.development-workstream-group', css)
+        self.assertIn('.development-job-dependency', css)
