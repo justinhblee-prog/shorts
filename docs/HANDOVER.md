@@ -1332,4 +1332,4 @@ The Aider scope validator now rejects SSH private identities/authorized-key file
 
 
 ### BUILD-00361 — per-job user home and tool config isolation
-The local Aider executor now creates a temporary home for each job and redirects HOME/USERPROFILE, XDG, Windows app-data, Docker, npm, pip and Git global config to empty private locations. Inherited SSH/Git credential overrides and Aider/LiteLLM/provider endpoint settings are stripped; Git system/global config and interactive credential prompts are disabled. Exact-head CI pending; this is not evidence of live Windows runner/Aider execution.
+The local Aider executor now creates a temporary home for each job and redirects HOME/USERPROFILE, XDG, Windows roaming/local app-data, Docker, npm and Git global config to private isolated locations, and disables pip config-file loading entirely. Inherited SSH/Git credential overrides and Aider/LiteLLM/provider endpoint settings are stripped; Git system/global config and interactive credential prompts are disabled. Exact-head CI pending; this is not evidence of live Windows runner/Aider execution.
