@@ -1406,3 +1406,18 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Add an `EXPLAIN QUERY PLAN` regression for the bounded due-video CTE/window query.
 - Require the publication due-scan composite index to participate in selecting the bounded candidate set.
 - Exact-head Actions run above includes the query-plan regression and passed. Production-sized latency and database growth benchmarks remain outstanding.
+
+
+## BUILD-00338 — indexed, bounded TikTok metrics due-candidate query
+
+- Replace the window-ranked publication CTE and full snapshot aggregation with an ordered publication scan, `NOT EXISTS` latest-publication de-duplication, and an indexed per-video latest-snapshot lookup.
+- Add `idx_tiktok_publications_due_order(status,updated_at DESC,job_id DESC,video_id)`; reuse the existing `(video_id,collected_at DESC,id DESC)` metric index and the due-scan index for per-video de-duplication.
+- Preserve deterministic newest-first selection, retry backoff, and a hard maximum of 20 returned candidates.
+- Add an EXPLAIN QUERY PLAN regression requiring the ordered publication index, duplicate-check index, and per-video latest-snapshot index.
+- Exact-head Actions run [44495796084](https://github.com/justinhblee-prog/shorts/actions/runs/44495796084) passed `scripts/validate.sh` with **706 tests** on code/test checkpoint `9d8e44d3ba100e718e2e257124ad68cbedfeeac9`.
+
+## BUILD-00339 — TikTok collector OAuth and lease-fencing coverage
+
+- Add tests for the default encrypted TikTok OAuth token-provider wiring and injected collector behavior.
+- Verify that results are discarded when the collector loses its lease after the provider call, failures are recorded only while lease ownership remains valid, and every path releases the lease.
+- Exact-head validation pending.
