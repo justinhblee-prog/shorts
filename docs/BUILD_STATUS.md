@@ -2434,3 +2434,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Explicitly select the backend interpreter and Aider executable so repository validation and model execution use their intended environments.
 - Declare PyYAML in backend requirements because the validation script parses the Docker Compose YAML.
 - Add regressions for toolchain preflight, isolated environments, and explicit Aider executable resolution. Draft PR #328 exact head `d91bab89b2659b2080c7f0749291fbee240b2ccd` passed GitHub Actions run [44472930435](https://github.com/justinhblee-prog/shorts/actions/runs/44472930435): **764 backend tests**, `scripts/validate.sh`, and `node --check frontend/app.js` succeeded. This is hosted CI only; Windows runner/Ollama execution and persistent database reuse remain unverified.
+
+
+## BUILD-00321 — preserve paginated GitHub Actions run intake
+- Fix the read-only development backlog client: GitHub's Actions runs endpoint returns an object envelope containing `workflow_runs`, while the shared pagination helper already unwraps that envelope into individual run records. The previous second unwrap silently returned an empty Actions history.
+- Add an HTTP-response regression with two Link-paginated Actions response envelopes; assert both run records and conclusions are preserved and both requests use GET.
+- Correct the prior fixture so it models the actual flattened return contract rather than a nested envelope.
+- Validation: exact PR-head CI pending. No live Windows runner/Ollama execution is implied.

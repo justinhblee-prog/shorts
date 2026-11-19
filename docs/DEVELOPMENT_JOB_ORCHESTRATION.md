@@ -169,3 +169,10 @@ Implemented on `build/build-00320-windows-validation-shell-preflight` (Draft PR 
 - Pass the backend interpreter explicitly through `NEXUS_BACKEND_PYTHON` and the Aider executable through `NEXUS_AIDER_EXECUTABLE`; repository validation therefore uses the backend dependency environment while Aider remains isolated.
 - Add PyYAML as an explicit backend validation dependency because `scripts/validate.sh` parses `compose.yaml`.
 - Add workflow-contract tests and executor tests for the explicit Aider path. Draft PR #328 initial implementation head `d91bab89b2659b2080c7f0749291fbee240b2ccd` passed run [44472930435](https://github.com/justinhblee-prog/shorts/actions/runs/44472930435) (764 tests). The later code/test head `0e66b04125709c73e415e71c6e2e7a11c2c91fb2` passed exact-head run [44473385233](https://github.com/justinhblee-prog/shorts/actions/runs/44473385233) (765 tests). This is hosted CI only; it does not prove the owner's Windows runner, Ollama model, or local disk persistence.
+
+
+### BUILD-00321 — preserve paginated GitHub Actions run intake
+
+A code audit found that `GitHubReadOnlyClient._get_pages` already unwraps the Actions API response envelope and flattens paginated workflow-run rows. `list_workflow_runs` then attempted to unwrap `workflow_runs` a second time, silently dropping every real workflow run from the development-agent intake snapshot. This hid failed/in-progress Actions evidence from the job orchestrator.
+
+The fix returns the flattened rows directly. Regression coverage uses two realistic GitHub Actions response envelopes connected by a Link `rel="next"` header, verifies both workflow runs/conclusions are retained, and asserts both HTTP requests are GET-only. The previous unit fixture was corrected to match the shared helper's real return contract. This does not change issue import rules or allow workflow runs to become executable jobs; they remain evidence context only. Exact-head CI is pending, and live self-hosted-runner behavior remains unverified.
