@@ -92,7 +92,6 @@ async function waitForServer() {
 
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     fs.mkdirSync("artifacts", { recursive: true });
-    await page.screenshot({ path: "artifacts/nexus-dashboard-desktop.png", fullPage: true });
     assert.match(await page.title(), /NEXUS STUDIO PRO/);
     assert.equal(await page.locator(".main-nav a").count(), 5);
     assert.equal(await page.locator("#studio").count(), 1);
@@ -115,6 +114,7 @@ async function waitForServer() {
       document.querySelector("#analyticsHistoryStatus").textContent.includes("기준 시각")
     );
     assert.equal(await page.locator("#exportAnalyticsHistory").isDisabled(), false);
+    await page.screenshot({ path: "artifacts/nexus-dashboard-desktop.png", fullPage: true });
     const downloadPromise = page.waitForEvent("download");
     await page.locator("#exportAnalyticsHistory").click();
     const download = await downloadPromise;
