@@ -85,3 +85,13 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Source regression coverage added. Browser test with intentionally mixed endpoint responses remains to be added.
 
 - Browser smoke now injects a queue-statistics HTTP 503 while other API fixtures remain healthy; it verifies the UI reports partial API connectivity and names the failed refresh rather than masking successful workspaces.
+
+
+## UI-00008 — real FastAPI/SQLite browser integration
+
+- Replace the static-only smoke server and mocked analytics responses with the actual FastAPI app backed by a disposable SQLite database.
+- Seed 501 YouTube analytics history rows and one completed TikTok publication/metrics snapshot using the real stores.
+- Authenticate through the UI's review-token flow; exercise the real analytics-history endpoint, frozen `as_of`, keyset cursor pagination, and Chromium CSV download.
+- Inject a single controlled HTTP 503 for `/api/queue/stats` to verify partial API failure feedback while all other API requests remain real.
+- External YouTube/TikTok provider calls are not made; this is local API/database integration, not live provider validation.
+- Exact-head CI validation pending.
