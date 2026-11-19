@@ -106,3 +106,13 @@ This snapshot is a repository coordination record, not a claim that independent 
 - Added browser smoke assertions for 25-row rendering, page 1 → 2 → 1 navigation, disabled previous control on the first page, and preservation of the complete 502-row CSV export.
 - Latest-head hosted repository validation is passing through `scripts/validate.sh` in [run 44567584068](https://github.com/justinhblee-prog/shorts/actions/runs/44567584068); full Compose image build, service startup/readiness, scheduled backup and isolated restore passed in [run 44567584065](https://github.com/justinhblee-prog/shorts/actions/runs/44567584065). A follow-up browser run initially exposed that the API returns 501 snapshots while the legacy table intentionally caps visible rows at 200; the current head restores that 200-row cap and paginates those rows. The browser smoke now also reloads the analytics history and verifies 25-row pagination controls fit and navigate at a 320px viewport. The latest exact-head repository and Chromium browser checks are running. An earlier validation failure from a stale source assertion was corrected and is not the current head.
 - Do not merge PR #395 independently. Keep the UI-00013 → UI-00014 → UI-00015 stack intact until browser validation and cross-lane integration review pass.
+
+
+## UI-00015 exact-head completion — 2026-11-20
+
+- PR #395 remains Draft/unmerged, head `bd2926c981c44398465994d4825d981729bf4e13`, stacked on #394.
+- Backend + Chromium browser smoke passed in [run 44570606677](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677). The log confirms dashboard/API authentication, review approval/audit history, analytics pagination at desktop and 320px mobile, complete 502-row CSV download, partial API failure feedback, browser history, responsive and keyboard checks.
+- Compose integration passed in [run 44570606778](https://github.com/justinhblee-prog/shorts/actions/runs/44570606778), including service readiness, encrypted scheduled backup, isolated restore and SQLite integrity check.
+- Screenshot artifact [14554042466](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677/artifacts/14554042466) contains 1440px desktop and 320px mobile captures; both were downloaded and visually inspected. The browser log independently confirms mobile pagination fit/navigation.
+- Apt font installation was removed from the workflow in the exact head to eliminate a network-dependent CI stall. PR description and DEVELOPMENT_AND_VALIDATION.md now record exact-head evidence.
+- Preserve the UI-00013 → UI-00014 → UI-00015 Draft stack. Do not merge or deploy without review/approval. Live OAuth/provider publishing remains unverified.
