@@ -1,3 +1,14 @@
+        page=self.store.history(self.publications,limit=2,since="2026-11-01T00:00:00+00:00")
+        self.assertEqual(len(page),2)
+        cursor=page[-1]
+        next_page=self.store.history(
+            self.publications,limit=2,since="2026-11-01T00:00:00+00:00",
+            before_collected_at=cursor["collected_at"],before_id=cursor["id"],
+        )
+        self.assertTrue(all(
+            (row["collected_at"],row["id"])<(cursor["collected_at"],cursor["id"])
+            for row in next_page
+        ))
 import json
 import tempfile
 import unittest
