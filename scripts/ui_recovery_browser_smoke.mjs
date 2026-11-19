@@ -80,7 +80,7 @@ async function waitForServer() {
     assert.equal(events.status, 200);
     const recovery = events.body.events.find(event => event.event_type === "quarantine_recovered");
     assert.ok(recovery, "immutable quarantine recovery event must be present");
-    assert.equal(recovery.actor, "recovery-smoke-operator");
+    assert.equal(recovery.actor, "legacy-operator", "legacy shared-token authentication must own the immutable recovery event");
     assert.equal(recovery.details.reason, "Reviewed the quarantined job and corrected its source scope.");
     assert.deepEqual(pageErrors, []);
     process.stdout.write("UI recovery browser smoke passed: authenticated dashboard, quarantine state, operator-confirmed recovery, ready state, immutable audit attribution.\n");
