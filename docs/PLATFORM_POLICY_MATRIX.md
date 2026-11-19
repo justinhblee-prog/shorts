@@ -117,4 +117,4 @@ Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonatio
 - Require each supplied evidence URL to be an absolute HTTPS URL with a hostname and valid port; reject whitespace/control characters and embedded URL credentials.
 - Preserve valid query and fragment references for source citations.
 - Reject unknown rights-attestation keys so unsupported declarations cannot be mistaken for recognized clearance evidence.
-- Bump the policy pack to `2026-11-20.1`. Exact-head CI pending.
+- Bump the policy pack to `2026-11-16.2`. Exact-head CI pending.
