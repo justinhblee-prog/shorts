@@ -198,3 +198,12 @@ The PR #388 job log confirms `scripts/validate.sh` and `node --check frontend/ap
 The existing `backend/tests/test_end_to_end_lifecycle.py` is a mocked-provider lifecycle contract test: it covers queue → worker → production artifacts → human review → staged-media reapproval → private YouTube upload → analytics snapshot → finance ledger. The test file itself explicitly states that this is not live provider validation. Policy review and disclosure gates are also covered in dedicated review/publishing tests.
 
 This is not yet a cross-branch integration result. The worker-recovery, GitHub intake, policy, and UI changes remain in dependency-ordered Draft PRs. A single candidate commit containing those dependencies must be assembled and validated before reporting cross-lane integration as passed. The required missing seam to prioritize is the authenticated UI/API quarantine-recovery action with authorization, reason validation, state transition, and immutable audit event assertions.
+
+
+### Quarantine recovery API contract follow-up — PR #397
+
+- Exact head: `f0c2ff4d0e8a27494cf48e6be2333808e0997e5c`.
+- Hosted backend workflow: [44573305813 — success](https://github.com/justinhblee-prog/shorts/actions/runs/44573305813); `scripts/validate.sh` and `node --check frontend/app.js` completed.
+- Added regressions: read-only authorization rejected before store mutation (403), missing job maps to 404, and blank recovery reason maps to 422. Existing coverage retains successful operator attribution/state transition and conflict mapping; store tests cover the immutable recovery event.
+- Test boundary: direct FastAPI handler invocation with a mocked store. No live HTTP server, browser-driven recovery, or production operator workflow was exercised.
+- PR #397 remains Draft/unmerged on the #387 base; #387 depends on #384. Cross-stack integration remains unverified.
