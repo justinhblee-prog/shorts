@@ -266,6 +266,23 @@ class AiderDevelopmentExecutor:
             for item in scope
         )
 
+    @staticmethod
+    def _is_test_path(path):
+        candidate = Path(path.replace("\\", "/"))
+        parts = {part.lower() for part in candidate.parts}
+        name = candidate.name.lower()
+        return bool(
+            parts & {"test", "tests", "__tests__", "__snapshots__"}
+            or name.startswith("test_")
+            or name.endswith("_test.py")
+            or ".test." in name
+            or ".spec." in name
+        )
+
+    @classmethod
+    def _has_non_test_source_change(cls, changed_files):
+        return any(not cls._is_test_path(path) for path in changed_files)
+
     def __call__(self, job):
         scope = self._validated_scope(job)
         aider = self._resolve_aider_executable()
@@ -346,6 +363,34 @@ class AiderDevelopmentExecutor:
             if validation.returncode:
                 raise RuntimeError("repository validation failed: " + _tail(validation.stdout))
     
+            # Validation can create, stage, or modify files. Recompute the
+            # complete worktree diff after it finishes and re-apply scope rules.
+            validated_changed_files = self._changed_files(env)
+            if not validated_changed_files:
+                return {
+                    "changed_files": [],
+                    "tests_passed": False,
+                    "validation_ref": "",
+                    "result_summary": "Validation completed but left no source diff; job is not complete.",
+                }
+            outside_scope = [
+                path for path in validated_changed_files
+                if not self._matches_scope(path, scope)
+            ]
+            if outside_scope:
+                raise NonRetryableDevelopmentJobError(
+                    "Validation modified files outside the declared scope: "
+                    + ", ".join(outside_scope[:20])
+                )
+            if not self._has_non_test_source_change(validated_changed_files):
+                return {
+                    "changed_files": validated_changed_files,
+                    "tests_passed": False,
+                    "validation_ref": "",
+                    "result_summary": "Test-only changes cannot complete a development job.",
+                }
+            changed_files = validated_changed_files
+
             run_id = env.get("GITHUB_RUN_ID")
             repository = env.get("GITHUB_REPOSITORY")
             server = env.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
