@@ -23,6 +23,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('"/api/review/pending?limit=100"', script)
         self.assertIn('"/api/publishing/analytics-status"', script)
         self.assertIn('assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200])', script)
+        self.assertIn("liveApiChecks[1].body.total", script)
         self.assertIn("app.youtube_analytics_store.save(", server)
         self.assertIn("app.tiktok_metrics_store.save_snapshot(", server)
 
