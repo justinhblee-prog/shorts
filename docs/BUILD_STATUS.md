@@ -2627,3 +2627,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Make `stop_worker` preserve online presence while an active lease exists and refuse to clear a lease-expired identity.
 - Restore the identity to offline only when the expired job is explicitly recovered after workspace reset; add worker/store regressions for duplicate process, stale identity and lifecycle transitions.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00371 — exact-head hosted validation
+- Code head `e219560b26a74ffea9e883ec3e3de8226644f385` passed GitHub Actions run [44528766250](https://github.com/justinhblee-prog/shorts/actions/runs/44528766250): **803 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Hosted Linux only; this does not verify real Windows runner process termination or workspace reset.
