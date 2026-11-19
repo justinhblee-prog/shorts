@@ -2449,4 +2449,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Enforce duplicate rejection for `github:issue:` source refs inside the same `BEGIN IMMEDIATE` transaction as job creation, preventing concurrent sync workers from racing past the preflight read. Other seeded/documentation source refs retain their existing non-unique semantics.
 - Update the GitHub intake to use the indexed lookup, preserve batch-level deduplication, and classify a transaction-level duplicate conflict as a skipped duplicate rather than a new job.
 - Add regression coverage for a pre-existing source beyond the first 500 listed jobs and for a simulated race after preflight.
-- Exact-head CI pending. No live Windows runner/Ollama execution is implied.
+- Exact-head backend Actions run [44510490935](https://github.com/justinhblee-prog/shorts/actions/runs/44510490935) passed **768 tests** on `743a10762fa57a49afee5d681d0899579ce93721`. This is hosted CI only; no live Windows runner/Ollama execution is implied.
