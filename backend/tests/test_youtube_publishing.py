@@ -908,7 +908,7 @@ class YouTubePublishingTests(unittest.TestCase):
             "metadata":{"script":"Revised script without policy preflight"},
         })
         with patch.object(self.review,"history",return_value=history):
-            with self.assertRaisesRegex(YouTubeUploadError,"Latest approved script has no valid policy report"):
+            with self.assertRaisesRegex(YouTubeUploadError,"latest approved script has no valid policy report"):
                 self.publisher.upload_approved("job-1",self.media,self.review,"Stale policy report")
 
     def test_upload_requires_approved_policy_report_for_synthetic_media_flag(self):
