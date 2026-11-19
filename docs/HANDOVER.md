@@ -1421,3 +1421,11 @@ Worker presence updates are now tied to the active lease. A duplicate process ca
 
 ### BUILD-00371 — exact-head CI result
 Code head `e219560b26a74ffea9e883ec3e3de8226644f385` passed GitHub Actions run [44528766250](https://github.com/justinhblee-prog/shorts/actions/runs/44528766250): **803 tests**, repository validation and frontend syntax check. Duplicate worker identities cannot clear active presence; expired identities remain fenced until explicit workspace-reset recovery. Hosted Linux only.
+
+
+### BUILD-00372 — durable source-change requirement
+The SQLite completion gate now independently rejects test-only changed-file evidence, even if a caller supplies `tests_passed=True`. A valid review-pending transition must include at least one non-test source path; source-plus-test changes remain accepted. Exact-head hosted CI pending.
+
+
+### BUILD-00372 — exact-head CI result
+Code head `3664b352d1d10da5d4f0a84beb6f81327f73bc5c` passed GitHub Actions run [44529199064](https://github.com/justinhblee-prog/shorts/actions/runs/44529199064): **804 tests**, repository validation and frontend syntax check. The final store gate rejects test-only evidence and accepts source-plus-test evidence. Hosted Linux only.

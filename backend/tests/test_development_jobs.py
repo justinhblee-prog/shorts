@@ -85,6 +85,27 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                                 ["backend/file.py"], False, "ci://run/1")
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
+    def test_completion_gate_rejects_test_only_changed_file_evidence(self):
+        job = self.store.create("Test-only evidence is insufficient", scope=["backend/"])
+        claim = self.store.claim_ready("worker-a")
+        test_only = [
+            "backend/tests/test_feature.py",
+            "backend/__tests__/feature.spec.js",
+            "backend/feature_test.py",
+        ]
+        with self.assertRaisesRegex(ValueError, "non-test source file"):
+            self.store.mark_review_pending(
+                job["id"], "worker-a", claim["lease_token"],
+                test_only, True, "ci://run/test-only",
+            )
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+        accepted = self.store.mark_review_pending(
+            job["id"], "worker-a", claim["lease_token"],
+            ["backend/feature.py", "backend/tests/test_feature.py"],
+            True, "ci://run/source-and-tests",
+        )
+        self.assertEqual(accepted["status"], "review_pending")
+
     def test_completion_requires_evidence_and_valid_fence(self):
         job = self.store.create("Completion", scope=["backend/file.py"])
         claim = self.store.claim_ready("worker-a")
