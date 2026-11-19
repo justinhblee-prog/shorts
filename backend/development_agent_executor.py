@@ -178,7 +178,7 @@ class AiderDevelopmentExecutor:
                 process.send_signal(getattr(subprocess, "CTRL_BREAK_EVENT", signal.SIGTERM))
             else:
                 os.killpg(process.pid, signal.SIGTERM)
-        except (OSError, ProcessLookupError):
+        except (OSError, ProcessLookupError, ValueError):
             try:
                 process.terminate()
             except OSError:
