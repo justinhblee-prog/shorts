@@ -165,3 +165,11 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - Compose workflow [44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267) passed service readiness, scheduled backup, isolated restore, log collection and cleanup.
 - Desktop/mobile screenshots artifact: [14556945683](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265/artifacts/14556945683).
 - PR #399 remains Draft/unmerged and based on UI-00016 / PR #398. Hosted CI and disposable Compose evidence only; no production deployment, real OAuth, or live provider publishing was exercised.
+
+
+## BUILD-00388 — feed-scoped GitHub pagination rebased (2026-11-20)
+
+- Original PR #388 was based on a stale BUILD-00386 ancestry and had diverged from the current quarantine-recovery base by five commits; GitHub reported it non-mergeable.
+- Created successor PR #400 on `build/build-00386-quarantine-operator-recovery`, retaining the current base and transplanting only `backend/development_github_intake.py` plus `backend/tests/test_development_github_intake.py` from the original change.
+- PR #400 exact head: `272d5efc9564b9d4dca6fa4bff187579a3911adb`; compare is cleanly ahead by two commits with zero behind and GitHub reports mergeable.
+- Exact-head backend workflow [44575404874](https://github.com/justinhblee-prog/shorts/actions/runs/44575404874) was running at this checkpoint. Keep PR #400 Draft/unmerged until it passes. Original PR #388 is retained unchanged for traceability.
