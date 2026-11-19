@@ -1527,3 +1527,11 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - BUILD-00349 regression checkpoint: backend run [44504236299](https://github.com/justinhblee-prog/shorts/actions/runs/44504236299) passed 719 tests after ensuring the injected rollback-journal fixture is removed before reopening the SQLite database for assertions. Matching Compose validation is in progress.
 
 - BUILD-00349 exact docs-inclusive checkpoint `6fae9f8c6e57e5406b2d3834355821a730eea280` passed 719 backend tests and Compose five-service encrypted backup/restore integration: runs [44504465148](https://github.com/justinhblee-prog/shorts/actions/runs/44504465148) and [44504465052](https://github.com/justinhblee-prog/shorts/actions/runs/44504465052). The rollback-journal fixture is removed before checking live DB contents to avoid self-induced SQLite locking.
+
+
+## BUILD-00350 — report post-restore cleanup failures
+
+- Preserve successful restore status while explicitly returning `cleanup_warnings` when pre-restore database or media copies cannot be removed.
+- Include only the retained path and exception type; do not silently swallow disk-usage cleanup failures.
+- Add failure-injection coverage for both old database and media cleanup paths while verifying the restored database remains valid.
+- Exact-head Actions validation pending.
