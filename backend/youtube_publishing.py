@@ -702,12 +702,23 @@ class YouTubePublisher:
             raise YouTubeUploadError(
                 "Approved synthetic-media status is missing or invalid; obtain a new policy review"
             )
-        if policy_report.get("approval_blockers"):
+        approval_blockers=policy_report.get("approval_blockers")
+        if (not isinstance(approval_blockers,list)
+                or any(not isinstance(item,str) or not item.strip() for item in approval_blockers)):
+            raise YouTubeUploadError(
+                "Approved policy report has malformed approval blockers; obtain a new policy review"
+            )
+        if approval_blockers:
             raise YouTubeUploadError(
                 "Approved policy report contains non-overridable blockers"
             )
         contains_synthetic_media=synthetic_status in ("ai_generated","realistic_alteration")
-        if contains_synthetic_media and policy_report.get("platform_disclosures",{}).get(
+        platform_disclosures=policy_report.get("platform_disclosures",{})
+        if not isinstance(platform_disclosures,dict):
+            raise YouTubeUploadError(
+                "Approved policy report has malformed platform disclosures; obtain a new policy review"
+            )
+        if contains_synthetic_media and platform_disclosures.get(
             "youtube_altered_content"
         ) is not True:
             raise YouTubeUploadError(
