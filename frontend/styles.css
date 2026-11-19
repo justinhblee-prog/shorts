@@ -91,6 +91,9 @@
 .analytics-trend-heading span,.analytics-chart-note{font-size:10px;color:#93a3bd}
 .analytics-chart-scroll{overflow-x:auto}
 .analytics-trend-chart{display:block;width:100%;min-width:420px;height:auto;max-height:250px}
+
+.analytics-chart-axis-label{fill:#91a2bc;font-size:9px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.analytics-chart-point{stroke:#101829;stroke-width:1.5}
 .analytics-chart-gridline{stroke:#2b3a53;stroke-width:1;stroke-dasharray:3 5}
 .analytics-chart-line{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .analytics-series-0{stroke:#63b3ed;color:#63b3ed}
