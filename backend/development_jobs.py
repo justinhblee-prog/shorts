@@ -331,6 +331,18 @@ class DevelopmentJobStore:
                      WHERE d.job_id=development_jobs.id AND parent.status<>'completed'
                    )""", (timestamp,)
             )
+            # A worker identity represents one active executor/worktree. Reusing
+            # the same identity concurrently would make presence ambiguous and
+            # allow one process to overwrite the other's current-job pointer.
+            owned = connection.execute(
+                """SELECT 1 FROM development_jobs
+                   WHERE worker_id=? AND status IN ('leased','running')
+                     AND lease_expires_at>? LIMIT 1""",
+                (worker_id.strip(), timestamp),
+            ).fetchone()
+            if owned is not None:
+                connection.commit()
+                return None
             candidates = connection.execute(
                 """SELECT * FROM development_jobs
                    WHERE status='ready' AND attempts<max_attempts
@@ -389,7 +401,9 @@ class DevelopmentJobStore:
                 raise DevelopmentJobConflict("job exhausted its configured attempt limit")
             connection.execute(
                 """UPDATE development_jobs SET status='ready',worker_id=NULL,lease_token=NULL,
-                   lease_expires_at=NULL,retry_after=NULL,updated_at=? WHERE id=? AND status='quarantined'""",
+                   lease_expires_at=NULL,retry_after=NULL,
+                   result_summary='Lease recovered after confirmed workspace reset; retry pending.',
+                   updated_at=? WHERE id=? AND status='quarantined'""",
                 (timestamp, job_id),
             )
             self._event(connection, job_id, "lease_recovered", "quarantined", "ready", actor.strip(),
