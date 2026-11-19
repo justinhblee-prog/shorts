@@ -159,6 +159,26 @@ async function waitForServer() {
     await page.locator('[data-analytics-page="-1"]').click();
     assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "1 / 8 · 200개");
     assert.equal(await page.locator('[data-analytics-page="-1"]').isDisabled(), true);
+    const paginationNav = page.getByRole("navigation", { name: "성과 이력 페이지 이동" });
+    assert.equal(await paginationNav.count(), 1, "pagination must expose a named navigation landmark");
+    await page.locator('[data-analytics-page="1"]').focus();
+    await page.keyboard.press("Enter");
+    assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "2 / 8 · 200개",
+      "pagination must support keyboard activation");
+    for (let pageNumber = 3; pageNumber <= 8; pageNumber += 1) {
+      await page.locator('[data-analytics-page="1"]').click();
+    }
+    assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "8 / 8 · 200개");
+    assert.equal(await page.locator("[data-analytics-table-body] tr").count(), 25,
+      "the final full page must render all remaining capped rows");
+    assert.equal(await page.locator('[data-analytics-page="1"]').isDisabled(), true,
+      "next must be disabled on the final page");
+    await page.locator('[data-analytics-page="-1"]').click();
+    assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "7 / 8 · 200개");
+    for (let pageNumber = 6; pageNumber >= 1; pageNumber -= 1) {
+      await page.locator('[data-analytics-page="-1"]').click();
+    }
+    assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "1 / 8 · 200개");
     await page.screenshot({ path: "artifacts/nexus-dashboard-desktop.png", fullPage: true });
     await page.setViewportSize({ width: 320, height: 844 });
     assert.equal(await page.locator("[data-analytics-table-body] tr").count(), 25);
