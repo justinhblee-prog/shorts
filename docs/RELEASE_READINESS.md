@@ -297,3 +297,7 @@ The durable store now applies the same explicit directory-marker rule as the Aid
 
 ### BUILD-00366 — durable scope gate CI evidence
 GitHub Actions run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254) passed **785 backend tests**, repository validation and frontend JavaScript syntax validation for the explicit directory-scope and durable evidence-gate changes. This is hosted Linux evidence only.
+
+
+### BUILD-00367 — worker diagnostic secret containment
+Retryable and non-retryable worker exceptions are passed through a shared redactor before persistence. The same helper sanitizes Aider subprocess output. Exact-head CI pending; this is a code-level redaction contract, not a production log inventory.
