@@ -380,9 +380,10 @@ class ReviewStore:
                 metadata = json.loads(artifact["metadata_json"])
                 if artifact["stage"] == "script" and artifact["artifact_type"] == "text":
                     has_script_artifact = True
-                    candidate = metadata.get("policy_preflight")
-                    if isinstance(candidate, dict):
-                        policy_report = candidate
+                    candidate = metadata.get("policy_preflight") if isinstance(metadata, dict) else None
+                    # The newest script artifact supersedes all earlier preflight reports.
+                    # Never let a stale report authorize a revised script.
+                    policy_report = candidate if isinstance(candidate, dict) else None
                 if artifact["stage"] == "quality_check" and artifact["artifact_type"] == "report":
                     if isinstance(metadata, dict):
                         quality_report = metadata
