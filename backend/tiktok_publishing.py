@@ -551,21 +551,24 @@ class TikTokPublishStore:
                   message[:1000], stamp, row["policy_version"]))
             return True
 
-    def list_metrics_eligible(self, limit=None):
-        """Return published video identities without loading full audit histories."""
+    def list_metrics_eligible(self, limit=None, video_id=None):
+        """Return published video identities, optionally scoped to one exact video."""
         query = """
             SELECT job_id,video_id,status,privacy_level,updated_at
             FROM tiktok_publications
             WHERE status='publish_complete' AND video_id IS NOT NULL
-            ORDER BY updated_at DESC,job_id
         """
-        params = ()
+        params = []
+        if video_id is not None:
+            query += " AND video_id=?"
+            params.append(video_id)
+        query += " ORDER BY updated_at DESC,job_id"
         if limit is not None:
-            bounded = max(1, min(int(limit), 200))
+            bounded = max(1, min(int(limit), 500))
             query += " LIMIT ?"
-            params = (bounded,)
+            params.append(bounded)
         with self.db() as c:
-            rows = c.execute(query, params).fetchall()
+            rows = c.execute(query, tuple(params)).fetchall()
         return [dict(row) for row in rows]
 
     def list_recent(self, limit=100):
