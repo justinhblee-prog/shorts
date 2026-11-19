@@ -2493,7 +2493,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Strip inherited SSH agent/askpass, Git configuration and transport overrides, npm/pip configuration, Docker/cloud credentials, Aider/LiteLLM/provider endpoint overrides and other tool-specific injection variables; accept OLLAMA_API_BASE only for loopback hosts and fall back to the local default for remote/invalid endpoints.
 - Disable system/global Git configuration, interactive credential prompts and inherited credential helpers; supply only an empty isolated global config and explicit noninteractive credential policy.
 - Add regressions for isolated home/config paths, empty config files, blocked environment overrides and preserved required local execution context.
-- Exact-head CI pending. Hosted tests validate the environment contract only; no real Windows runner or Aider/Ollama invocation is claimed.
+- Code head `7d55d319ad512f885f7a12dccae315c34766e44f` passed GitHub Actions run [44537566649](https://github.com/justinhblee-prog/shorts/actions/runs/44537566649): **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`. Hosted Linux only; Windows local-runner and production execution remain unverified. Hosted tests validate the environment contract only; no real Windows runner or Aider/Ollama invocation is claimed.
 
 
 ## BUILD-00362 — scrub runtime and shell startup injection variables

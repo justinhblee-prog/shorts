@@ -268,4 +268,4 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 ## BUILD-00379 — validate imported repository identity
 - Reject malformed repository owner/name values in `normalize_issue` before constructing a durable source reference or fallback GitHub URL.
 - Reuse the same owner/repository segment rules as the read-only GitHub API path validator.
-- Add regressions for traversal, extra path segments, query injection, empty segments and newline injection. Exact-head CI pending.
+- Add regressions for traversal, extra path segments, query injection, empty segments and newline injection. Code head `7d55d319ad512f885f7a12dccae315c34766e44f` passed GitHub Actions run [44537566649](https://github.com/justinhblee-prog/shorts/actions/runs/44537566649): **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`. Hosted Linux only; Windows local-runner and production execution remain unverified.

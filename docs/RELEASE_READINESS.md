@@ -384,4 +384,4 @@ The source-reference existence preflight now normalizes credential-bearing value
 
 
 ### BUILD-00379 — GitHub source identity validation
-Malformed repository identities are rejected at issue normalization before they can become durable source references or fallback URLs. Hosted CI evidence is pending; the read-only API path validator remains the upstream control.
+Malformed repository identities are rejected at issue normalization before they can become durable source references or fallback URLs. Code head `7d55d319ad512f885f7a12dccae315c34766e44f` passed GitHub Actions run [44537566649](https://github.com/justinhblee-prog/shorts/actions/runs/44537566649): **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`. Hosted Linux only; Windows local-runner and production execution remain unverified. The read-only API path validator remains the upstream control.
