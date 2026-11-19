@@ -375,9 +375,11 @@ class ReviewStore:
             """, (job_id,)).fetchall()
             policy_report = None
             quality_report = None
+            has_script_artifact = False
             for artifact in artifacts:
                 metadata = json.loads(artifact["metadata_json"])
                 if artifact["stage"] == "script" and artifact["artifact_type"] == "text":
+                    has_script_artifact = True
                     candidate = metadata.get("policy_preflight")
                     if isinstance(candidate, dict):
                         policy_report = candidate
@@ -395,7 +397,7 @@ class ReviewStore:
                     raise ValueError(
                         "Quality warnings require an explicit reviewer confirmation note"
                     )
-            if decision == "approved":
+            if decision == "approved" and has_script_artifact:
                 if not isinstance(policy_report, dict):
                     raise ReviewConflict(
                         "Policy preflight report is required before production approval"
