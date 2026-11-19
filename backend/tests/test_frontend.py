@@ -146,7 +146,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('if(/^[\\u0000-\\u0020]*[=+\\-@]/.test(cell))', app_js)
         self.assertIn("Number.isFinite(numeric)?numeric.toLocaleString():\"—\"", app_js)
         self.assertIn("Number.isFinite(numericValue)&&numericValue>=0", app_js)
-        self.assertIn("선택 지표가 없는 플랫폼의 영상은 그래프에서 제외됩니다", app_js)
+        self.assertIn("선택 지표가 없는 영상은 제외됩니다", app_js)
         self.assertIn(".analytics-trend-chart", css)
         self.assertIn(".analytics-history-controls{display:grid;grid-template-columns:1fr 1fr 1.5fr auto auto", css)
         self.assertIn('id="analyticsHistory"', html)
