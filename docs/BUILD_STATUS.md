@@ -2758,3 +2758,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add an authenticated `operations.manage` endpoint to requeue only quarantined development jobs after an operator supplies a recovery reason.
 - Reset the retry counter and stale execution evidence for the new attempt; preserve the prior failure and append an immutable recovery event with actor, reason and previous attempt count.
 - Add store, API and role authorization regressions. Code head `628d5d1e22a56bbb58642e27530722d4d67e8992` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44548442047](https://github.com/justinhblee-prog/shorts/actions/runs/44548442047). Subsequent commits on this branch are documentation-only.
+
+
+## UI-00012 — audited quarantine recovery control
+- The development-job dashboard now renders a recovery action only for jobs whose live status is `quarantined`.
+- Recovery requires an operator-entered reason and explicit confirmation, then calls the authenticated `POST /api/development/jobs/{job_id}/recover` endpoint and refreshes the job and audit history.
+- The action is separate from job selection, is disabled while the request is in flight, and does not expose completion, merge, or deployment controls.
+- Added frontend contract coverage for the visibility condition, reason capture, confirmation, endpoint call and dashboard disclosure. Exact-head CI pending.
+- Dependency: BUILD-00386 / PR #384 supplies the backend recovery endpoint and `operations.manage` authorization. This UI change must not be enabled against a deployment that lacks that endpoint.
