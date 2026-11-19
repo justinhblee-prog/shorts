@@ -345,3 +345,7 @@ A stale lease rejection at the durable completion/evidence gate must not be repo
 
 ### BUILD-00370 — durable evidence sanitization
 The final SQLite persistence methods now redact credential-bearing content even when called outside the Worker: validation references, result summaries, failure summaries and immutable event details are sanitized before commit. Direct-store regression validation is pending.
+
+
+### BUILD-00370 — durable redaction validation evidence
+GitHub Actions run [44532160221](https://github.com/justinhblee-prog/shorts/actions/runs/44532160221) passed **800 backend tests**, repository validation and frontend syntax validation. Direct-store tests verify successful and failed evidence plus event history are sanitized before SQLite commit.
