@@ -285,6 +285,16 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(self.store.get("history-video")["views"],150)
         self.assertEqual(len(self.store.history("other-video")),0)
 
+    def test_history_has_global_time_index(self):
+        with self.store.db() as connection:
+            indexes={
+                row["name"] for row in connection.execute(
+                    "PRAGMA index_list(youtube_analytics_history)"
+                ).fetchall()
+            }
+        self.assertIn("idx_youtube_analytics_history_time",indexes)
+        self.assertIn("idx_youtube_analytics_history_video_time",indexes)
+
     def test_history_since_filters_before_applying_limit(self):
         for views, collected_at in (
             (10,"2026-11-01T00:00:00+00:00"),
