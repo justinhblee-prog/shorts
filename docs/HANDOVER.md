@@ -1341,3 +1341,10 @@ The analytics history API now returns a normalized UTC `as_of` timestamp and acc
 ## BUILD-00331 — TikTok history query indexes
 
 Added composite indexes for publication video/status lookups and metric video/timestamp/ID ordering to support the new history join and cursor query. Existing indexes are retained. Schema regression tests added; production-scale query-plan/latency benchmark remains outstanding.
+
+
+### BUILD-00331 validation
+
+- TikTok composite index schema regressions passed in Actions runs [44490415081](https://github.com/justinhblee-prog/shorts/actions/runs/44490415081) and [44490415183](https://github.com/justinhblee-prog/shorts/actions/runs/44490415183), each with 700 backend tests.
+- BUILD-00329/00330 stable keyset pagination and frozen date-window checkpoint passed runs [44490155724](https://github.com/justinhblee-prog/shorts/actions/runs/44490155724) and [44490164457](https://github.com/justinhblee-prog/shorts/actions/runs/44490164457), each with 700 backend tests.
+- Production-sized SQLite query-plan and latency benchmark remains outstanding; CI does not substitute for production workload measurement.
