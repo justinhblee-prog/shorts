@@ -338,3 +338,16 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - Added a focused regression in `backend/tests/test_api_security.py` asserting HTTP 403 and proving both media staging and the TikTok publisher remain untouched for a spoofed actor.
 - Source commit: `65d76bf69a4239d6e8c411ac5320bfec497f8f95` on PR #407's integration branch. Exact-head hosted validation has not yet been observed; do not count this test as passing until its workflow completes.
 - PR #407 remains Draft/unmerged. No live TikTok API or provider account was contacted.
+
+
+### Authenticated operator identity and session binding — final exact-head PASS
+
+- Added protected GET /api/session, guarded by session.read. All least-privilege roles can read only their own token-resolved operator ID; the portal no longer accepts manually typed operator identities.
+- The UI fills its read-only operator identity from the server session. Queue controls, production retry reconciliation, TikTok publishing and provider-attempt reconciliation now require any submitted operator_id to match the authenticated principal and reject mismatches with HTTP 403 before side effects.
+- Added deterministic staged-media path validation for TikTok publishing: only the job-bound media filename is accepted, and the server fingerprints the canonical file before handing it to the provider.
+- Added tests for server-resolved identity, role session.read coverage, queue/production/TikTok/provider actor spoofing, canonical media path enforcement, and read-only UI identity fields.
+- Updated the recovery browser smoke to use the server-resolved legacy identity instead of trying to fill a read-only identity input.
+- Final exact PR #407 head `6dd0824c7bc7450a8f485f5cc5797200d1d09858` passed [workflow 44592048648](https://github.com/justinhblee-prog/shorts/actions/runs/44592048648): **888 tests passed**, JavaScript syntax, analytics Chromium smoke, audited recovery Chromium smoke, and artifact upload.
+- The analytics browser smoke verified all 19 modules connected, session identity returned as legacy-operator, 25-row history pagination, full 502-row CSV export, 320px mobile behavior, keyboard navigation, and partial failure feedback. Recovery smoke verified the same authenticated principal is recorded in immutable recovery audit events.
+- Final browser artifact [14564023636](https://github.com/justinhblee-prog/shorts/actions/runs/44592048648/artifacts/14564023636).
+- PR #407 remains Draft/unmerged. No production deployment, live provider publishing, OAuth account access or live recovery was performed.
