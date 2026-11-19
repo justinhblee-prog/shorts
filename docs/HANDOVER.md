@@ -1346,3 +1346,6 @@ The worker now exits its bounded run after any claimed job attempt, including re
 
 ### BUILD-00364 — explicit directory-only recursive scope
 Recursive changed-file matching now requires an explicit directory marker produced by validating an existing directory. Extensionless file scopes match only the exact file and cannot authorize nested paths. Regression coverage checks both directory recursion and extensionless-file containment. Exact-head CI pending.
+
+
+BUILD-00364 validation note: the first hosted run used a stale stacked base snapshot and failed on runtime environment scrubbing inherited from the preceding workstream. The preceding branch has since been corrected; rerun this PR against the refreshed stack before marking it validated.
