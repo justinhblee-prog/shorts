@@ -210,3 +210,13 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - Exact head `ae7ed6574a4a3eaac306215d9702e2f33c4f0fd4` is now attached to two GitHub Actions test runs: [44597011173](https://github.com/justinhblee-prog/shorts/actions/runs/44597011173) and [44596966746](https://github.com/justinhblee-prog/shorts/actions/runs/44596966746).
 - At the latest check both jobs were still `in_progress` (one in dependency installation, one in repository validation); neither had reported a failure. This is **VERIFYING**, not PASS.
 - PR #415 remains Draft and GitHub currently reports it mergeable. No merge or deployment.
+
+
+## 19. Automation integrity transplanted into aggregate candidate — 2026-11-20
+
+- Transplanted the final Automation integrity state from PR #414 (which includes the #409 baseline) into aggregate branch `integration/nexus-aggregate-ui-core-2026-11-20`.
+- Updated `.github/workflows/nexus-development-job-worker.yml` and `backend/tests/test_development_worker_workflow_contract.py` to keep backend/Aider virtual environments under persistent LocalAppData, reject tool roots inside the checkout, refuse destructive repair of incomplete environments, and verify the Aider Python interpreter before launcher use.
+- Aggregate head after the two file updates: `75ef3329f8f2e85b2cf09879902ed285e8d64de1`. PR #415 now contains 72 commits and 24 changed files (2,593 additions / 205 deletions).
+- Exact-head hosted CI was automatically triggered for this new SHA: run [44600985186](https://github.com/justinhblee-prog/shorts/actions/runs/44600985186) and run [44600976216](https://github.com/justinhblee-prog/shorts/actions/runs/44600976216). Both were **in progress** at the time of this update; aggregate Automation integration remains VERIFYING until both complete successfully.
+- The prior aggregate UI+Core head `ae7ed6574a4a3eaac306215d9702e2f33c4f0fd4` passed both hosted checks (runs [44597011173](https://github.com/justinhblee-prog/shorts/actions/runs/44597011173) and [44596966746](https://github.com/justinhblee-prog/shorts/actions/runs/44596966746)); each completed all 17 steps. Artifacts: [14565152825](https://github.com/justinhblee-prog/shorts/actions/runs/44597011173/artifacts/14565152825) and [14566382219](https://github.com/justinhblee-prog/shorts/actions/runs/44596966746/artifacts/14566382219). This prior PASS does not certify the new SHA.
+- Trusted Windows self-hosted execution, two-run LocalAppData persistence, and live Ollama generation remain BLOCKED / unverified. PR #415 remains Draft; no merge or deployment.
