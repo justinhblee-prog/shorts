@@ -2464,4 +2464,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Validate owner and repository names as separate bounded GitHub path segments before constructing API paths; reject slashes, query/fragment delimiters, whitespace and traversal-like values.
 - Apply the same validation in snapshot intake and each direct Issues/PR/Actions client method so callers cannot bypass the boundary.
 - Add regressions for malformed owner/repository inputs being rejected before any API call and for valid hyphen/underscore/dot names.
-- Exact-head CI pending. This protects read-only API path construction; no live token or remote GitHub rate-limit behavior is claimed.
+- Exact-head backend Actions run [44511457164](https://github.com/justinhblee-prog/shorts/actions/runs/44511457164) passed **773 tests** on `b3de0e02310ccb353d07b6032dfa6620dd0b4a14`. This protects read-only API path construction; no live token or remote GitHub rate-limit behavior is claimed.
