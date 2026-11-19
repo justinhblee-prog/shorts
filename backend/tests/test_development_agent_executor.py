@@ -28,6 +28,13 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
     def test_scope_rejects_traversal_and_environment_files(self):
         for path in (
             "../outside.py", ".env", ".env.production",
+            "..\\outside.py", "backend\\..\\outside.py",
+            "C:\\Windows\\win.ini", "C:/Windows/win.ini", "C:relative.txt",
+            "//server/share/private.txt", "backend/file.txt:secret-stream",
+            ".", "./", "backend/CON.txt", "backend/aux", "backend/COM1.log",
+            "backend/COM¹.log", "backend/LPT³.txt", "backend/CONIN$",
+            "backend/CON .txt",
+            "backend/name.", "backend/name ",
             "backend/credentials.json", "config/client_credential.json",
             "backend/private_config.py", "id_rsa", "id_ed25519_work",
             ".ssh/id_ed25519", ".aws/credentials", ".azure/client_secret.json",

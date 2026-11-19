@@ -2539,3 +2539,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions Backend tests run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254): **785 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - A subsequent documentation-only update records the scope semantics; no application code changed after the validated code head.
 - Hosted Linux only; Windows self-hosted runner and live Aider/Ollama behavior remain separate integration gates.
+
+
+## BUILD-00368 — reject cross-platform path aliases in file scopes
+- Validate scope paths as portable repository-relative POSIX paths before converting them to the host Path type.
+- Reject Windows drive/drive-relative and UNC roots, backslash separators, alternate data stream colons, root scopes, trailing-dot/space segments and reserved device names (CON/PRN/AUX/NUL/COM/LPT).
+- Add regression coverage for Windows-style traversal and aliases while preserving valid repository-relative paths.
+- Exact PR head `0414d43ebf24b9b5eadc728a5f92fd86006af090` passed backend Actions run [44519037430](https://github.com/justinhblee-prog/shorts/actions/runs/44519037430): **785 tests**. This is a cross-platform path-validation contract; no live Windows runner filesystem access is claimed.

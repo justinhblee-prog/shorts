@@ -1288,7 +1288,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 | #337 | BUILD-00358 Node 24 self-hosted runner preflight and action upgrades | Open Draft; 774 backend tests passed on exact head |
 | #338 | BUILD-00359 local model secret and workflow-command environment isolation | Open Draft; 775 backend tests passed on exact head |
 | #339 | BUILD-00360 secret-file scope denylist and symlink-target protection | Open Draft; 776 backend tests passed on exact head |
-| #340 | BUILD-00361 isolated Aider home, tool configuration and noninteractive Git credentials | Open Draft; exact-head CI pending |
+| #340 | BUILD-00361 isolated Aider home, tool configuration and noninteractive Git credentials | Open Draft; 778 backend tests passed on exact head |
+| #349 | BUILD-00368 portable Windows/POSIX scope path validation | Open Draft; 785 backend tests passed on exact head |
 
 PR #340 is stacked on PR #339. PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #334; #336 is stacked on #335. PRs #331–#333 are independent follow-ups based on the core PR #323. PR #329 is the separate UI branch. PRs #311–#315 remain protected and unmerged.
 
@@ -1361,3 +1362,7 @@ The final `mark_review_pending` gate no longer treats every extensionless scope 
 
 ### BUILD-00366 — exact-head CI result
 Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254): **785 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. A later docs-only commit records this result; no application code changed after the validated head. Live Windows runner/Aider/Ollama behavior remains unverified.
+
+
+### BUILD-00368 — Windows/POSIX scope path alias rejection
+The scope validator now accepts only portable repository-relative POSIX paths and rejects Windows drive/UNC roots, backslashes, ADS colons, root scopes, trailing-dot/space segments and reserved device names. Exact-head CI pending; the hosted test contract is not a live Windows runner scan.
