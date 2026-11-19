@@ -116,3 +116,8 @@
 .analytics-platform-card>strong{font-size:22px;line-height:1.2;color:#e6edf8;font-variant-numeric:tabular-nums}
 .analytics-platform-card>small{font-size:10px;color:#a9b8ce}
 @media(max-width:520px){.analytics-platform-grid{grid-template-columns:1fr}.analytics-platform-card>strong{font-size:19px}}
+
+/* Keyboard access: keep the skip link available without changing the visual layout. */
+.skip-link{position:fixed;left:16px;top:8px;z-index:1000;transform:translateY(-160%);padding:10px 14px;border:1px solid var(--cyan);border-radius:10px;background:#111a2e;color:var(--text);font-weight:700;box-shadow:0 8px 24px #0008}
+.skip-link:focus{transform:translateY(0);outline:3px solid #fff;outline-offset:3px}
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
