@@ -221,3 +221,7 @@ Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actio
 - Apply the shared redactor within `DevelopmentJobStore.mark_review_pending` and `fail`, not only in the Worker wrapper.
 - Sanitize validation references, successful result summaries, failure summaries and immutable event payloads before they are committed to SQLite.
 - Add direct-store tests that inject token and database credential strings and verify neither job records nor event history retain the values. Exact-head hosted CI pending.
+
+
+### BUILD-00370 — direct persistence validation
+Code head `d6af913a2325a4a390f9bcb788f473670cf018b4` passed GitHub Actions run [44532160221](https://github.com/justinhblee-prog/shorts/actions/runs/44532160221): **800 tests**, `scripts/validate.sh` and frontend syntax validation. Direct-store tests confirm redaction at the final SQLite write boundary for successful evidence, failure evidence and immutable event details. Hosted Linux only.
