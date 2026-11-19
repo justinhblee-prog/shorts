@@ -1431,3 +1431,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Verify the indexed due-candidate query returns exactly the newest 20 stale videos in deterministic order, with no duplicates.
 - This is a synthetic bounded-volume smoke test, not a production latency benchmark or a claim about deployed database performance.
 - Exact-head GitHub Actions run [44496875265](https://github.com/justinhblee-prog/shorts/actions/runs/44496875265) passed `scripts/validate.sh` with **712 tests**. Synthetic 10k-row candidate scan measured **0.50 ms** on that runner; this is not production benchmarking.
+
+
+## BUILD-00341 — Docker Compose service integration smoke
+
+- Add a dedicated GitHub Actions workflow that builds the actual Compose image and starts API, worker, scheduler, metrics collector, and backup services with the non-production `.env.example` configuration.
+- Verify all expected processes remain running, `/api/ready` returns HTTP 200, and worker/scheduler containers can access the shared data volume.
+- Always collect service logs and tear down the containers and test volumes.
+- This is CI container integration evidence only; it does not replace deployment-host HTTPS, persistent-volume, backup/restore, real-provider, or production operations validation.
+- Exact-head Compose workflow validation pending.
