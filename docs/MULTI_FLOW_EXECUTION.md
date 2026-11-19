@@ -108,3 +108,11 @@ Do not label several lanes as simultaneously ACTIVE unless separate operations a
 | FLOW-INTEGRATION | READY | Wait for PR #412 exact-head CI, then review the UI/API contract and integration diff; no merge/deploy |
 
 PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at checkpoint: `150fdc86c9a2a7519ea406c7d4fb2d1bdb87f871`. These are lane states, not claims of separate autonomous agents running in the background.
+
+
+## 9. Updated parallel validation checkpoint — 2026-11-20
+
+- FLOW-UI / FLOW-QA: the initial implementation head `150fdc86c9a2a7519ea406c7d4fb2d1bdb87f871` passed full hosted validation and both Chromium smoke suites in run [44594354319](https://github.com/justinhblee-prog/shorts/actions/runs/44594354319), artifact [14564847559](https://github.com/justinhblee-prog/shorts/actions/runs/44594354319/artifacts/14564847559). A follow-up 320px mobile overflow assertion is now included in head `cf6b727252c8f33b3e90722d05cebef1bd40fe23`; runs [44594797445](https://github.com/justinhblee-prog/shorts/actions/runs/44594797445) and [44594782147](https://github.com/justinhblee-prog/shorts/actions/runs/44594782147) are in progress.
+- FLOW-CORE: DAG mutation guard and three regression cases are in PR #413 at head `a80bff7f9dc3c4b7a5d5399008e76680802aebaf`; exact-head run [44594717811](https://github.com/justinhblee-prog/shorts/actions/runs/44594717811) is in progress.
+- PR #412 UI implementation: https://github.com/justinhblee-prog/shorts/pull/412. PR #413 Core implementation: https://github.com/justinhblee-prog/shorts/pull/413.
+- Only the runs listed as completed above are PASS. In-progress runs remain VERIFYING; Windows/Ollama remains BLOCKED pending the trusted runner.
