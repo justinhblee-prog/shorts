@@ -2648,3 +2648,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Require authentication failure and verify the target database SHA-256 is unchanged before performing the successful restore with the ephemeral CI key.
 - This validates wrong-key fail-closed behavior on a real generated archive in a disposable container environment; it does not prove production key custody or disaster recovery.
 - Exact-head validation pending.
+
+
+## BUILD-00345 — restore rollback after media installation failure
+
+- Add a failure-injection regression at the point where the restored database has been installed but the staged media directory cannot be installed.
+- Verify rollback restores the original live database and complete media tree, including files absent from the backup being restored.
+- Verify no `.restore-*` or `.pre-restore-*` staging/rollback paths remain after recovery.
+- This validates the local rollback branch under a deterministic filesystem failure; it does not establish crash-consistency across power loss or a live multi-process restore.
+- Exact-head Actions validation pending.
