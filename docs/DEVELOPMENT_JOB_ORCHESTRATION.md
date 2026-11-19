@@ -245,3 +245,9 @@ PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Actions ru
 
 ### BUILD-00372 — exact-head backlog sanitization result
 Code head `43b223c49f4e95f4bb830476b259bebcbb16e6df` passed GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/actions/runs/44533179406): **803 tests**, `scripts/validate.sh` and frontend syntax validation. Imported titles, descriptions and acceptance criteria are redacted before SQLite persistence.
+
+
+### BUILD-00372 — preserve leading backlog context
+- Redact the complete description/acceptance value before applying storage bounds.
+- Keep the leading 8,000 description characters and 2,000 characters per acceptance item so issue summaries and initial requirements remain visible.
+- Add tests for the bounded prefix behavior. Updated exact-head hosted CI pending.
