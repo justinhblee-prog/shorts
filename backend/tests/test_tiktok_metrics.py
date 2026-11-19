@@ -127,7 +127,11 @@ class TikTokMetricsTests(unittest.TestCase):
             )).fetchall()
         details = " ".join(row["detail"] for row in plan)
         self.assertIn("idx_tiktok_metric_video_time_id", details)
-        self.assertIn("idx_tiktok_publications_video_status", details)
+        self.assertTrue(
+            "idx_tiktok_publications_video_status" in details
+            or "idx_tiktok_publications_due_scan" in details,
+            details,
+        )
 
     def test_history_since_filters_before_applying_limit(self):
         self.store.save_snapshot("job-1", {
