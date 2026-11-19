@@ -79,8 +79,10 @@ class AiderDevelopmentExecutor:
         config = home / ".config"
         cache = home / ".cache"
         data = home / ".local" / "share"
+        appdata = home / "AppData" / "Roaming"
+        local_appdata = home / "AppData" / "Local"
         docker = config / "docker"
-        for directory in (home, config, cache, data, docker):
+        for directory in (home, config, cache, data, appdata, local_appdata, docker):
             directory.mkdir(parents=True, exist_ok=True)
 
         gitconfig = home / ".gitconfig"
@@ -115,8 +117,8 @@ class AiderDevelopmentExecutor:
         env.update({
             "HOME": str(home),
             "USERPROFILE": str(home),
-            "APPDATA": str(config),
-            "LOCALAPPDATA": str(data),
+            "APPDATA": str(appdata),
+            "LOCALAPPDATA": str(local_appdata),
             "XDG_CONFIG_HOME": str(config),
             "XDG_CACHE_HOME": str(cache),
             "XDG_DATA_HOME": str(data),
@@ -134,6 +136,10 @@ class AiderDevelopmentExecutor:
             "GCM_INTERACTIVE": "Never",
             "OLLAMA_API_BASE": os.environ.get("OLLAMA_API_BASE", "http://127.0.0.1:11434"),
         })
+        drive, tail = os.path.splitdrive(str(home))
+        if drive:
+            env["HOMEDRIVE"] = drive
+            env["HOMEPATH"] = tail
         return env
 
     def _run(self, args, env, timeout):
