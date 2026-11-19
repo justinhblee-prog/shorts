@@ -226,3 +226,12 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - `scripts/validate.sh`: **854 tests passed**; `node --check frontend/app.js` passed; Chromium recovery smoke passed authenticated dashboard load, quarantine state, operator prompt/confirmation, recovery to ready state, and immutable audit attribution.
 - The browser runner is pinned to Ubuntu 24.04 because Playwright 1.56.1 does not support the GitHub Ubuntu 26.04 runner image. An initial 26.04 browser-install attempt failed before the smoke test; the pinned 24.04 exact-head runs passed.
 - This closes the unified candidate's backend + targeted recovery-browser gate only. It does not validate the full analytics browser flow on this candidate, live YouTube/TikTok OAuth/publishing, production recovery, or deployment. PR #406 remains Draft/unmerged.
+
+
+### UI-00017 + unified Core/Policy candidate integration audit (2026-11-20)
+
+- Re-fetched the exact source files from UI-00017 / PR #399 (16d4964dcf2472f47c0b1dd1fbd890e2d46750c1), unified candidate PR #406 (04e52a4c6c06687b11ea17c7c45a2f9b561eeee0), and quarantine UI successor PR #404.
+- Confirmed the two frontends are not interchangeable: PR #399 frontend/app.js and backend/tests/test_frontend.py contain analytics pagination/table semantics but no quarantine-recovery controls; PR #406/#404 contain recovery controls but not the UI-00017 analytics changes. The HTML/CSS files also differ materially.
+- The branch comparison between UI-00017 and PR #406 reports diverged with 534 commits ahead and 519 behind, while PR #406's own dependency-base comparison is clean (ahead 7 / behind 0). Therefore a direct branch merge or wholesale copy of PR #404 frontend files would risk losing the analytics dashboard work and is explicitly rejected.
+- No integration commit is claimed from this audit. Safe next implementation path: create a successor on the dependency-aligned UI stack base, transplant only PR #406's backend/Core/Policy file deltas, then perform a deliberate three-way frontend merge that preserves analytics pagination and adds recovery controls; retain both browser smoke scripts and execute both on the resulting exact head.
+- Current verified evidence remains separate: PR #399 exact-head browser/Compose validation and PR #406 exact-head 854-test + recovery Chromium validation. They are not combined evidence. All feature PRs remain Draft/unmerged; no deployment or live provider operation.
