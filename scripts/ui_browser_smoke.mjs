@@ -91,17 +91,23 @@ async function waitForServer() {
     assert.ok(Array.isArray(liveApiChecks[0].body.brands));
     assert.ok(Number.isFinite(Number(liveApiChecks[1].body.total)));
     assert.ok(Array.isArray(liveApiChecks[2].body.items));
-    assert.ok(liveApiChecks[2].body.items.some(item => item.job_id === "browser-smoke-review-ready"));
+    const reviewJob = liveApiChecks[2].body.items.find(item =>
+      item.brand === "Browser Smoke" && item.topic === "A review-ready browser integration fixture"
+    );
+    assert.ok(reviewJob, "the real API must return the seeded review-ready job");
     assert.ok(liveApiChecks[3].body.youtube && liveApiChecks[3].body.tiktok);
-    const reviewCard = page.locator('#reviewList .review-card').filter({ hasText: "browser-smoke-review-ready" });
+    const reviewCard = page.locator("#reviewList .review-card").filter({ hasText: reviewJob.job_id });
     await reviewCard.waitFor({ state: "visible" });
     await reviewCard.locator('button[data-action="approve"]').click();
-    const approvalHistory = await page.evaluate(async token => {
-      const response = await fetch("/api/review/browser-smoke-review-ready/history", {
+    const approvalHistory = await page.evaluate(async ({ token, jobId }) => {
+      const response = await fetch("/api/review/" + encodeURIComponent(jobId) + "/history", {
         headers: { "X-Review-Token": token },
       });
       return { status: response.status, body: await response.json() };
-    }, "nexus-ui-browser-smoke-token-2026-11-19-32chars");
+    }, {
+      token: "nexus-ui-browser-smoke-token-2026-11-19-32chars",
+      jobId: reviewJob.job_id,
+    });
     assert.equal(approvalHistory.status, 200);
     assert.equal(approvalHistory.body.items.at(-1).decision, "approved");
     await page.locator("#loadAnalyticsHistory").click();
