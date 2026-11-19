@@ -130,6 +130,7 @@ class DevelopmentJobWorker:
                 # Any attempted job can leave partial or validated changes in
                 # the shared worktree. Never claim another job in this runner
                 # cycle; the next workflow checkout owns workspace cleanup.
+                break
         finally:
             self.store.stop_worker(self.worker_id)
         return {"processed": processed, "outcomes": outcomes, "summary": self.store.summary()}
