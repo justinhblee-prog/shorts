@@ -91,9 +91,10 @@ class DevelopmentJobWorker:
             )
             return completed["status"]
         except DevelopmentJobConflict:
-            if lease_lost.is_set():
-                return "lease_lost"
-            raise
+            # The durable evidence gate rejected this worker's fence. Treat it
+            # as lease loss rather than failing the entire runner invocation.
+            lease_lost.set()
+            return "lease_lost"
         except NonRetryableDevelopmentJobError as error:
             if lease_lost.is_set():
                 return "lease_lost"
