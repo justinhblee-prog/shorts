@@ -1420,4 +1420,4 @@ Code head `19df9dc3240ee98f11cb7d2d7dc15536e8d57305` passed GitHub Actions run [
 
 
 ### BUILD-00371 — case-insensitive scope locks
-The durable scheduler now treats case-only path aliases as overlapping, normalizes slash direction, and preserves parent/child conflict checks. This matches the Windows self-hosted runner's case-insensitive filesystem and prevents concurrent workers from editing the same files through different path casing. Exact-head CI pending.
+The durable scheduler now treats case-only path aliases as overlapping, normalizes slash direction, repeated separators and dot segments, and preserves parent/child conflict checks. This matches the Windows self-hosted runner's case-insensitive filesystem and prevents concurrent workers from editing the same files through different path casing. Exact-head CI pending.
