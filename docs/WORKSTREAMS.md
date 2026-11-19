@@ -116,3 +116,18 @@ This snapshot is a repository coordination record, not a claim that independent 
 - Screenshot artifact [14554042466](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677/artifacts/14554042466) contains 1440px desktop and 320px mobile captures; both were downloaded and visually inspected. The browser log independently confirms mobile pagination fit/navigation.
 - Apt font installation was removed from the workflow in the exact head to eliminate a network-dependent CI stall. PR description and DEVELOPMENT_AND_VALIDATION.md now record exact-head evidence.
 - Preserve the UI-00013 → UI-00014 → UI-00015 Draft stack. Do not merge or deploy without review/approval. Live OAuth/provider publishing remains unverified.
+
+
+## Exact-head validation refresh — 2026-11-20 02:10 KST
+
+- BUILD-00386 / PR #384: exact head `6f8f378b8e8e343919af3a4aaba585c90ae6f00d`, backend CI passed ([44557449271](https://github.com/justinhblee-prog/shorts/actions/runs/44557449271)).
+- BUILD-00387 / PR #385: exact head `151ee074d8116e12759a6dc46e734cf84f52c2d4`, backend CI passed ([44563227397](https://github.com/justinhblee-prog/shorts/actions/runs/44563227397)).
+- POLICY-00001 / PR #386: exact head `7a83fe9960c3581ad18ddd25805c5f3aa35afc03`, backend CI passed ([44550380614](https://github.com/justinhblee-prog/shorts/actions/runs/44550380614)).
+- UI-00012 / PR #387: exact head `13ab5be32c108118aa57512bce1ac1bd17726ae8`, backend CI passed ([44555664708](https://github.com/justinhblee-prog/shorts/actions/runs/44555664708)).
+- BUILD-00388 / PR #388: exact head `f55030dab87cbcb8a1fa1a015a74db87961496f4`, repository validation and frontend syntax passed ([44558169681](https://github.com/justinhblee-prog/shorts/actions/runs/44558169681)).
+- POLICY-00002 / PR #389: exact head `d38bca36389c439d4cf37de31d9dfc4d72d53780`, backend CI passed ([44552071509](https://github.com/justinhblee-prog/shorts/actions/runs/44552071509)).
+- POLICY-00003 / PR #390: exact head `cc29af580467e6b261fa724aad99a976eedb5552`, backend CI passed ([44560114906](https://github.com/justinhblee-prog/shorts/actions/runs/44560114906)).
+- UI-00014 / PR #394: exact head `b098826455150fefe4a8def6377bf77630a1ad7f`, both full validation/browser runs passed ([44565614418](https://github.com/justinhblee-prog/shorts/actions/runs/44565614418), [44565685710](https://github.com/justinhblee-prog/shorts/actions/runs/44565685710)).
+- UI-00015 / PR #395: exact head `bd2926c981c44398465994d4825d981729bf4e13`, backend/browser and Compose integration passed ([44570606677](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677), [44570606778](https://github.com/justinhblee-prog/shorts/actions/runs/44570606778)).
+
+PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js` succeeded. All PRs remain Draft/unmerged. Full integration is not yet complete: current lifecycle tests use mocked providers and the independently stacked Core/Policy/UI branches have not been tested together on one candidate commit. The next integration job must preserve stack dependencies and explicitly cover audited quarantine recovery through the UI/API boundary.
