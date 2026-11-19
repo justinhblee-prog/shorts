@@ -1288,9 +1288,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 | #337 | BUILD-00358 Node 24 self-hosted runner preflight and action upgrades | Open Draft; 774 backend tests passed on exact head |
 | #338 | BUILD-00359 local model secret and workflow-command environment isolation | Open Draft; 775 backend tests passed on exact head |
 | #339 | BUILD-00360 secret-file scope denylist and symlink-target protection | Open Draft; 776 backend tests passed on exact head |
-| #340 | BUILD-00361 isolated Aider home, tool configuration and noninteractive Git credentials | Open Draft; exact-head CI pending |
+| #340 | BUILD-00361 isolated Aider home, tool configuration and noninteractive Git credentials | Open Draft; 778 backend tests passed on exact head |
+| #342 | BUILD-00362 runtime, shell and language startup injection isolation | Open Draft; 778 backend tests passed on exact head |
+| #345 | BUILD-00363/00364 one-attempt worker isolation and explicit directory scope | Open Draft; exact-head CI pending |
 
-PR #340 is stacked on PR #339. PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #334; #336 is stacked on #335. PRs #331–#333 are independent follow-ups based on the core PR #323. PR #329 is the separate UI branch. PRs #311–#315 remain protected and unmerged.
+PR #340 is stacked on PR #339. PR #342 is stacked on PR #340; PR #345 is stacked on PR #342. PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #334; #336 is stacked on #335. PRs #331–#333 are independent follow-ups based on the core PR #323. PR #329 is the separate UI branch. PRs #311–#315 remain protected and unmerged.
 
 ## Latest engineering changes
 - GitHub Actions workflow intake now preserves real paginated workflow-run rows instead of unwrapping the API envelope twice.
