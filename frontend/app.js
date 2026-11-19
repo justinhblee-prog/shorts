@@ -1225,7 +1225,7 @@
   function setActiveWorkspace(targetId){
     workspaceLinks.forEach(link=>{
       const active=link.getAttribute("href")==="#"+targetId;
-      if(active){link.setAttribute("aria-current","page");link.classList.add("is-active");}
+      if(active){link.setAttribute("aria-current","location");link.classList.add("is-active");}
       else{link.removeAttribute("aria-current");link.classList.remove("is-active");}
     });
   }

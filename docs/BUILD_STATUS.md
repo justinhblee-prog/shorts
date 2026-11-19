@@ -2648,3 +2648,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Require authentication failure and verify the target database SHA-256 is unchanged before performing the successful restore with the ephemeral CI key.
 - This validates wrong-key fail-closed behavior on a real generated archive in a disposable container environment; it does not prove production key custody or disaster recovery.
 - Exact-head validation pending.
+
+
+## UI-00010 — use location semantics for active in-page navigation
+- The single-page workspace navigation now exposes its active section with `aria-current="location"`, matching the current in-page location rather than incorrectly announcing it as a separate page.
+- Update active-link styling and source regression coverage to the same token. Browser/screen-reader verification remains outstanding.
