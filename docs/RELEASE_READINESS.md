@@ -356,3 +356,7 @@ GitHub Actions run [44532360324](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00371 — diagnostic context preservation
 The redactor now targets only the credential value and preserves unrelated diagnostic context following it, including text after a multiline service-account JSON object. Exact-head hosted validation pending.
+
+
+### BUILD-00371 — value-aware redaction validation
+GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391) passed **802 backend tests**, repository validation and frontend syntax validation. Inline and multiline credential redaction both preserve trailing safe diagnostic context.
