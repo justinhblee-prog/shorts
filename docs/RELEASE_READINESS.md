@@ -212,3 +212,7 @@ These are additional readiness constraints documented by the project, not comple
 
 ### BUILD-00353 — GitHub Actions Node 24 runtime
 The repository CI workflows now use `actions/checkout@v7` and `actions/setup-python@v7`, replacing the deprecated Node 20-era action majors that emitted runner migration warnings. A regression test protects both workflow files. Exact-head CI is pending; this affects CI tooling only, not the product runtime or Windows local runner.
+
+
+### BUILD-00353 — exact-head CI result
+Exact head `f60504183b07e6d7118d7995a5a855eb4a1f885a` passed backend run [44509178372](https://github.com/justinhblee-prog/shorts/actions/runs/44509178372) with 726 tests and Compose run [44509177970](https://github.com/justinhblee-prog/shorts/actions/runs/44509177970) with all five services healthy and encrypted backup/restore smoke. The logs show checkout v7 and setup-python v7 with no Node 20 deprecation warning. This is CI tooling evidence only; it does not validate the separate Windows self-hosted Ollama runner.
