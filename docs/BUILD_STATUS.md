@@ -2418,3 +2418,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Prevent snapshots collected at the same timestamp from appearing in inconsistent order or selecting a non-deterministic latest value.
 - Add frontend regression assertions for both descending history order and chronological chart point order.
 - Validation: included in GitHub Actions runs #44447186007 and #44447192379, both successful with 698 backend tests on code checkpoint `5793823`.
+
+
+## BUILD-00320 — clarify audience-retention collection coverage
+
+- Distinguish a successful retention report with no points (`no_data`) from unavailable/permission-limited collection (`unavailable`) and not-yet-eligible videos (`pending_availability`).
+- Show the retention collection status separately from the 25%/50%/75% checkpoint summary in the history table and CSV.
+- Do not present missing retention curves as zero retention or as a successful collection.
+- Validation: exact-head GitHub Actions pending. Frontend status-label regression assertions are included; real account permission/coverage combinations remain unverified.
