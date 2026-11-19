@@ -688,7 +688,7 @@ class YouTubePublisher:
                        if isinstance(latest_script_metadata,dict) else None)
         if not isinstance(policy_report,dict):
             raise YouTubeUploadError(
-                "Latest approved script has no valid policy report; run policy preflight and obtain a new human approval"
+                "Approved policy report is missing; latest approved script has no valid policy report. Run policy preflight and obtain a new human approval"
             )
         if policy_report.get("status") not in ("review_required","ready_for_human_review"):
             raise YouTubeUploadError(
