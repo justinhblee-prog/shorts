@@ -542,10 +542,6 @@ class DevelopmentJobStoreTests(unittest.TestCase):
             )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class DependencyMutationGuardTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -596,3 +592,7 @@ class DependencyMutationGuardTests(unittest.TestCase):
             self.store.add_dependency(child["id"], parent["id"])
         self.assertEqual(self.store.get(child["id"])["status"], "ready")
         self.assertEqual(self.store.get(child["id"])["dependencies"], [])
+
+
+if __name__ == "__main__":
+    unittest.main()
