@@ -277,5 +277,39 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertEqual(len(result["sha256"]), 64)
 
 
+
+    def test_restore_rolls_back_database_and_media_when_media_install_fails(self):
+        (self.media / "clip.mp4").write_bytes(b"live-media-before-restore")
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        self._create_db("live-state-to-preserve")
+        (self.media / "clip.mp4").write_bytes(b"live-media-to-preserve")
+        (self.media / "extra.txt").write_text("keep", encoding="utf-8")
+
+        real_replace = os.replace
+
+        def fail_media_install(source, destination):
+            source_path = Path(source)
+            destination_path = Path(destination)
+            if destination_path == self.media and ".restore-" in source_path.name:
+                raise OSError("simulated media installation failure")
+            return real_replace(source, destination)
+
+        with patch("backup_restore.os.replace", side_effect=fail_media_install):
+            with self.assertRaisesRegex(OSError, "simulated media installation failure"):
+                restore_backup(
+                    backup, self.db, self.media, self.backups, confirm_restore=True
+                )
+
+        self.assertEqual(self._db_value(), "live-state-to-preserve")
+        self.assertEqual(
+            (self.media / "clip.mp4").read_bytes(), b"live-media-to-preserve"
+        )
+        self.assertEqual((self.media / "extra.txt").read_text(encoding="utf-8"), "keep")
+        self.assertFalse(list(self.db.parent.glob(self.db.name + ".pre-restore-*")))
+        self.assertFalse(list(self.db.parent.glob(self.db.name + ".restore-*")))
+        self.assertFalse(list(self.media.parent.glob(self.media.name + ".pre-restore-*")))
+        self.assertFalse(list(self.media.parent.glob(self.media.name + ".restore-*")))
+
+
 if __name__ == "__main__":
     unittest.main()
