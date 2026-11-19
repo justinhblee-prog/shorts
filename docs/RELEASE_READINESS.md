@@ -369,3 +369,7 @@ Dependency additions after claim/finalization are rejected; pre-existing duplica
 
 ### BUILD-00372 — dependency immutability validation evidence
 GitHub Actions run [44522908956](https://github.com/justinhblee-prog/shorts/actions/runs/44522908956) passed **803 backend tests**, repository validation and frontend JavaScript syntax validation, including late-edge rejection and idempotent existing-edge coverage.
+
+
+### BUILD-00372 — dependency race validation evidence
+GitHub Actions run [44523330129](https://github.com/justinhblee-prog/shorts/actions/runs/44523330129) passed **804 backend tests**, repository validation and frontend JavaScript syntax validation, including concurrent dependency insertion versus claim.
