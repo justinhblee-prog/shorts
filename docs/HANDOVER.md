@@ -1442,3 +1442,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact-head Compose workflow validation passed.
 
 - Exact-head validation: Compose workflow run [44497681238](https://github.com/justinhblee-prog/shorts/actions/runs/44497681238) passed (image build, five service processes running, API readiness HTTP 200, shared data volume checks, teardown). Backend tests run [44497681456](https://github.com/justinhblee-prog/shorts/actions/runs/44497681456) passed **712 tests**. This is CI integration evidence, not deployment-host evidence.
+
+
+## BUILD-00342 — Compose backup archive and isolated restore smoke
+
+- Extend the Compose integration workflow to wait for the backup service's first archive.
+- Verify that an archive is created, restore it into isolated temporary database/media paths, and run SQLite `PRAGMA integrity_check` on the restored database.
+- The restore operates only on a disposable copy and never overwrites the running service database.
+- This is a CI restore smoke against synthetic container data, not a production backup retention or disaster-recovery drill.
+- Exact-head validation pending.
