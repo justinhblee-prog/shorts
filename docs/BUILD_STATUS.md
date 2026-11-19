@@ -2430,7 +2430,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ## BUILD-00321 — analytics chart gaps and coverage visibility
 
-- Stop drawing a continuous trend line across long periods without analytics snapshots. For each video series, split the polyline when a sampling gap exceeds both a 48-hour floor and three times that series' median observed sampling interval.
+- Stop drawing a continuous trend line across long periods without analytics snapshots. For each video series, split the polyline when a sampling gap exceeds both a 48-hour floor and three times that series' lower-median observed sampling interval, making isolated long gaps detectable even with an even number of intervals.
 - Keep every actual snapshot marker and tooltip; do not interpolate missing values or synthesize a trend through an unobserved period.
 - Display the actual first-to-last collection date range for the returned history result alongside snapshot counts.
 - Validation: frontend regression assertions cover the gap threshold, non-interpolation explanation and coverage-range label. Exact-head GitHub Actions pending; real browser rendering and live account sampling cadence remain unverified.
