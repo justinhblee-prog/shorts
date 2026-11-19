@@ -1409,3 +1409,7 @@ Code head `d802ff98a8e7ab5fed3cfdf37aca38ff5ece9ce4` passed GitHub Actions run [
 
 ### BUILD-00370 — GitHub API token redirect boundary
 The read-only GitHub client now uses a dedicated redirect handler. Authenticated requests may follow HTTPS redirects only to the exact `api.github.com` origin; off-host, HTTP, credential-bearing and nonstandard-port redirects are rejected. Exact-head hosted CI pending.
+
+
+### BUILD-00370 — exact-head CI result
+Code head `036676fb4d468f23882df857bd6aac9d640d351a` passed GitHub Actions run [44527844531](https://github.com/justinhblee-prog/shorts/actions/runs/44527844531): **802 tests**, repository validation and frontend syntax check. Redirect tests cover off-host, insecure, credential-bearing and alternate-port URLs, while preserving same-origin GitHub redirects. Hosted Linux only.
