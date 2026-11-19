@@ -323,6 +323,43 @@ class TikTokMetricsStore:
                       last_missing_at=excluded.last_missing_at
                 """, (video_id, attempts, retry_at, stamp))
 
+    def due_videos(self, limit=20, min_age_seconds=21600, now=None):
+        """Select a bounded set of stale published videos in SQLite."""
+        limit = max(1, min(int(limit), 20))
+        min_age_seconds = max(0, int(min_age_seconds))
+        current = now or _now()
+        if isinstance(current, (int, float)):
+            current = datetime.fromtimestamp(float(current), timezone.utc)
+        stamp = _stamp(current)
+        cutoff = _stamp(current - timedelta(seconds=min_age_seconds))
+        with self.db() as c:
+            rows = c.execute("""
+              WITH ranked_publications AS (
+                SELECT job_id,video_id,updated_at,
+                       ROW_NUMBER() OVER (
+                         PARTITION BY video_id
+                         ORDER BY updated_at DESC,job_id
+                       ) AS publication_rank
+                FROM tiktok_publications
+                WHERE status='publish_complete' AND video_id IS NOT NULL
+              ),
+              latest_snapshots AS (
+                SELECT video_id,MAX(collected_at) AS collected_at
+                FROM tiktok_video_metric_snapshots
+                GROUP BY video_id
+              )
+              SELECT p.job_id,p.video_id
+              FROM ranked_publications AS p
+              LEFT JOIN latest_snapshots AS s ON s.video_id=p.video_id
+              LEFT JOIN tiktok_metrics_missing_retry AS r ON r.video_id=p.video_id
+              WHERE p.publication_rank=1
+                AND (s.collected_at IS NULL OR s.collected_at<?)
+                AND (r.next_retry_at IS NULL OR r.next_retry_at<=?)
+              ORDER BY p.updated_at,p.job_id
+              LIMIT ?
+            """, (cutoff, stamp, limit)).fetchall()
+        return [dict(row) for row in rows]
+
     def latest_snapshot_times(self):
         with self.db() as c:
             rows = c.execute("""
