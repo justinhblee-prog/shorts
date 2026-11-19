@@ -2634,3 +2634,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Exact code head `78a0a488ad8c7d4358c57accb772ba12effe2359` passed GitHub Actions run [44522472503](https://github.com/justinhblee-prog/shorts/actions/runs/44522472503): **801 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
 - Coverage includes case-only aliases, repeated separators, dot segments, backslash aliases and scheduler-level serialization.
 - Hosted Linux only; Windows filesystem integration remains a separate gate.
+
+
+## BUILD-00372 — dependency graph immutability after claim
+- Reject new dependency edges once a job leaves ready/blocked, preventing late prerequisites from being bypassed by already-claimed work.
+- Keep duplicate edge insertion idempotent, including after claim.
+- Serialize dependency mutation against claims using the existing immediate SQLite transaction.
+- Add regressions for late-edge rejection and duplicate-edge idempotency after claim.
+- Exact-head hosted CI pending.
