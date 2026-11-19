@@ -1,7 +1,7 @@
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const { spawn } = require("node:child_process");
-const { chromium } = require("playwright");
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { spawn } from "node:child_process";
+import { chromium } from "playwright";
 
 const port = Number(process.env.UI_SMOKE_PORT || 8765);
 const baseUrl = "http://127.0.0.1:" + port;
