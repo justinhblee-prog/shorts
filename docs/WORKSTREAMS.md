@@ -89,3 +89,11 @@ Develop the product interface and its runtime independently so both can make pro
 - Initial browser smoke runner failed before launching Chromium because the `.mjs` file used CommonJS `require`; converted the runner to native ESM imports. Revalidation pending.
 
 - To avoid a slow/blocked apt dependency-install step on hosted Ubuntu 24.04 runners, the browser workflow now installs only the Chromium binary and uses the runner's preinstalled system libraries. The next exact-head run verifies that those libraries are sufficient.
+
+
+## UI-00006 — browser smoke verified
+
+- Exact UI head `bcd8109e5af663222a706605a3761ae8867cddad` passed [Actions run 44498245718](https://github.com/justinhblee-prog/shorts/actions/runs/44498245718): **717 tests** plus Playwright Chromium browser smoke.
+- Browser checks passed at desktop, 390px and 320px widths; verified no horizontal page overflow, 48px navigation touch targets, section navigation, keyboard skip-link focus, reduced-motion behavior, and no uncaught page errors.
+- Desktop/mobile full-page screenshots are available in the `nexus-dashboard-browser-screenshots` artifact attached to that Actions run (artifact ID `14516156531`, expires 2027-02-17).
+- API calls in the browser smoke are intentionally intercepted as unauthenticated responses. This is real browser rendering/navigation evidence, not live authenticated API/provider validation or real CSV download proof.
