@@ -2646,3 +2646,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Code head `43b223c49f4e95f4bb830476b259bebcbb16e6df` passed GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/actions/runs/44533179406): **803 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Regression confirms credentials from imported title, description and acceptance criteria are absent from persisted job rows and creation events while ordinary task text remains.
 - Hosted Linux only.
+
+
+### BUILD-00372 — preserve task prefixes under field limits
+- Backlog descriptions and acceptance criteria are now redacted in full before truncation, then bounded from the beginning so the issue summary and first acceptance steps are not discarded.
+- Added regressions for prefix preservation and the 8,000/2,000-character persisted field limits. Updated exact-head hosted validation pending.
