@@ -56,7 +56,7 @@ uvicorn app:app --host 0.0.0.0 --port 8502
 - Retryable jobs are claimable again until max_attempts is exhausted.
 - Completion leads to review_pending, not public publishing.
 - SQLite is the current local foundation; PostgreSQL migration is not implemented.
-- Do not report tests as passing: CI has not reached a runner/job step yet, and no local runtime execution has been performed in this environment.
+- GitHub Actions is now allocating runners and executing the full validation workflow. The latest validated code checkpoint before the current documentation updates passed 697 backend tests and the complete `scripts/validate.sh`; local execution in this environment and live provider/browser validation are still not claimed.
 
 ## BUILD-00002 status
 
@@ -70,14 +70,16 @@ Scenario-based opportunity scoring accepts explicit low/high view forecasts, RPM
 
 YouTube channel search, channel snapshots and recent public video statistics are implemented in `backend/youtube_intel.py`. Set `YOUTUBE_DATA_API_KEY` in the runtime environment. The provider has fake-transport unit tests only; live API and quota behavior remain unverified. Search.list consumes substantial quota, so prefer known channel IDs.
 
-## Immediate next task
+## Current handover state — 2026-11-19
 
-Continue with BUILD-00007: explicit human review and approval workflow, including approve/reject/revision actions and immutable audit events. Preserve the hard rule that rendered media cannot be published publicly without an explicit human approval decision.
-
-GitHub Actions remains blocked before runner allocation (latest inspected job had runner_id=0 and no steps). The source and mock tests for BUILD-00005 and BUILD-00006 are committed but have not been executed in a Python runtime. Do not report runtime or live-provider success until verified.
-
-Resolve GitHub Actions runner/job initialization. Latest run is https://github.com/justinhblee-prog/shorts/actions/runs/43653621860; it reports a failed job with no step summaries and no logs, so the Python tests did not execute. Then run the documented Python 3.11+ unittest command, fix failures, and only then close BUILD-00001.
-
+- Continue product development on branch `build/build-00315-harden-tiktok-aigc-disclosure` and PR #323. Keep the PR Draft and do not merge it without an explicit user request.
+- The user has authorized routine product implementation, tests, fixes and documentation to proceed without asking for per-task approval. Do not pause for confirmation on ordinary implementation choices.
+- PR #323 began as BUILD-00315 TikTok AI-generated-content disclosure hardening. The branch also contains the publishing analytics follow-up recorded in `docs/BUILD_STATUS.md`.
+- Latest validated code checkpoint `a25ef1f76e3c30922831f3dcfa0f9bcce3373235`: GitHub Actions runs #44444899292 and #44444907713 completed successfully. The full validation workflow passed 697 backend tests.
+- Current PR head at this handover update is a documentation-only checkpoint after the validated code. Check its exact-head CI status before claiming the entire current head is green.
+- Recent analytics work: platform-specific view field mapping (YouTube `views`, TikTok `view_count`); selectable metrics; chart refresh on metric selection; watch-time and average-duration table columns; API bounds/platform-isolation regressions.
+- Continue with the next highest-value product task after confirming exact-head CI. Preserve human approval gates, private-only upload constraints, token/lease fencing, fail-closed behavior and data provenance.
+- CI/unit tests do not prove live AI generation, external provider idempotency, OAuth connectivity, real YouTube/TikTok account behavior, browser usability or production restore readiness. Keep those items explicitly pending until performed in a real integrated environment.
 
 ## BUILD-00005 — production pipeline
 
