@@ -368,3 +368,7 @@ Titles, descriptions and acceptance criteria are sanitized at the durable job-cr
 
 ### BUILD-00372 — backlog persistence validation
 GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/actions/runs/44533179406) passed **803 backend tests**, repository validation and frontend syntax validation. The direct store regression verifies credential values are absent from imported job text and creation history.
+
+
+### BUILD-00372 — field-boundary behavior
+Backlog text sanitization preserves the beginning of descriptions and acceptance criteria when enforcing storage limits, while scanning the full input for credentials before truncation. Updated exact-head hosted validation pending.
