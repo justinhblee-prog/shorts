@@ -77,7 +77,8 @@ This snapshot is a repository coordination record, not a claim that independent 
 
 ### Core worker / orchestration lane
 - PR #381 BUILD-00384 → #383 BUILD-00385 → #384 BUILD-00386 form the worker-safety chain: durable scope semantics, worktree-diff verification, then audited operator recovery.
-- PR #388 BUILD-00387 is a sibling follow-up on #384, constraining GitHub intake pagination to the original HTTPS API host and collection path.
+- PR #385 BUILD-00387 adds approved YouTube synthetic-media disclosure mapping on the #383 base.
+- PR #388 BUILD-00388 is a sibling follow-up on #384, constraining GitHub intake pagination to the original HTTPS API host and collection path.
 - PR #385 adds approved YouTube synthetic-media disclosure mapping on the #383 base.
 
 ### Policy lane
