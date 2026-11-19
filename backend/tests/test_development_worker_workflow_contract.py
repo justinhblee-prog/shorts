@@ -66,7 +66,9 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         backend_script = self.source[backend:aider]
         aider_script = self.source[aider:recovery]
         for script in (backend_script, aider_script):
-            self.assertIn('$env:LOCALAPPDATA "NexusStudioPro\\tooling"', script)
+            self.assertIn('$stateRoot "NexusStudioPro\\tooling"', script)
+            self.assertIn("$env:USERPROFILE", script)
+            self.assertIn("AppData\\Local", script)
             self.assertNotIn("$env:GITHUB_WORKSPACE", script)
         self.assertIn('"backend-venv"', backend_script)
         self.assertIn('"aider-venv"', aider_script)
