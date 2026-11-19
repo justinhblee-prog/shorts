@@ -353,3 +353,7 @@ POSIX cancellation now escalates against the whole process group after SIGTERM, 
 
 ### BUILD-00370 — descendant termination validation evidence
 GitHub Actions run [44521675405](https://github.com/justinhblee-prog/shorts/actions/runs/44521675405) passed **800 backend tests**, repository validation and frontend JavaScript syntax validation, including the SIGTERM-resistant orphan-descendant regression. Hosted Linux only; Windows `taskkill /T /F` remains an integration gate.
+
+
+### BUILD-00371 — Windows path scope serialization
+Case-insensitive scope overlap enforcement and regression coverage are implemented. Exact-head hosted validation pending; hosted Linux cannot itself demonstrate Windows filesystem behavior.
