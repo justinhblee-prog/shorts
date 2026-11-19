@@ -1065,6 +1065,7 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(yt_history.call_args.kwargs["offset"],500)
         self.assertEqual(yt_history.call_args.kwargs["before_collected_at"],"2026-11-18T00:00:00+00:00")
         self.assertEqual(yt_history.call_args.kwargs["before_id"],17)
+        self.assertEqual(result["as_of"],result["as_of"])
         self.assertIsNotNone(yt_history.call_args.kwargs["since"])
         tt_history.assert_called_once()
         self.assertIs(tt_history.call_args.args[0],app_module.tiktok_publish_store)
@@ -1190,3 +1191,19 @@ if __name__ == "__main__":
                     with self.assertRaises(HTTPException) as caught:
                         publishing_analytics_history(**kwargs,x_review_token="analytics-token")
                     self.assertEqual(caught.exception.status_code,422)
+
+    def test_publishing_analytics_history_freezes_as_of_window(self):
+        from app import publishing_analytics_history
+        fixed="2026-11-19T10:00:00+09:00"
+        with (
+            mock.patch.object(app_module,"require_review_permission"),
+            mock.patch.object(app_module.youtube_analytics_store,"history",return_value=[]) as history,
+        ):
+            result=publishing_analytics_history(platform="youtube",days=30,as_of=fixed,x_review_token="token")
+        self.assertEqual(result["as_of"],"2026-11-19T01:00:00+00:00")
+        cutoff=history.call_args.kwargs["since"]
+        self.assertEqual(cutoff,"2026-10-20T01:00:00+00:00")
+        with mock.patch.object(app_module,"require_review_permission"):
+            with self.assertRaises(HTTPException) as caught:
+                publishing_analytics_history(platform="youtube",as_of="2026-11-19T10:00:00",x_review_token="token")
+        self.assertEqual(caught.exception.status_code,422)
