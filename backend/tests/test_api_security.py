@@ -707,6 +707,31 @@ class ApiSecurityTests(unittest.TestCase):
         auth.assert_called_once_with("admin-token","queue.control")
         reconcile.assert_not_called()
 
+    def test_canonical_staged_media_rejects_noncanonical_client_path(self):
+        from pathlib import Path
+        from app import require_canonical_staged_media
+        canonical=Path("/tmp/nexus-media/expected.mp4")
+        with (
+            mock.patch.object(app_module.media_stager,"staged_path",return_value=canonical),
+            mock.patch.object(app_module.media_stager,"fingerprint") as fingerprint,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                require_canonical_staged_media("job-1","../expected.mp4")
+        self.assertEqual(caught.exception.status_code,409)
+        fingerprint.assert_not_called()
+
+    def test_canonical_staged_media_fingerprints_the_job_bound_file(self):
+        from pathlib import Path
+        from app import require_canonical_staged_media
+        canonical=Path("/tmp/nexus-media/expected.mp4")
+        with (
+            mock.patch.object(app_module.media_stager,"staged_path",return_value=canonical),
+            mock.patch.object(app_module.media_stager,"fingerprint",return_value={"sha256":"a"*64}) as fingerprint,
+        ):
+            result=require_canonical_staged_media("job-1","expected.mp4")
+        self.assertEqual(result,canonical)
+        fingerprint.assert_called_once_with(canonical)
+
     def test_tiktok_publish_rejects_operator_id_spoofing(self):
         from app import TikTokPublishRequest,publish_tiktok_video
         body=TikTokPublishRequest(
@@ -1113,34 +1138,6 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["tiktok"]["processing"],1)
         self.assertEqual(result["tiktok"]["pending"],2)
         self.assertNotIn("access_token",str(result))
-
-
-    def test_tiktok_publish_rejects_operator_id_spoofing_before_media_or_provider_access(self):
-        from app import TikTokPublishRequest, publish_tiktok_video
-        body = TikTokPublishRequest(
-            media_path="staged/job/video.mp4",
-            title="Approved private draft",
-            operator_id="forged-operator",
-            privacy_level="SELF_ONLY",
-            explicit_consent=True,
-            brand_content_toggle=False,
-            brand_organic_toggle=False,
-        )
-        with (
-            mock.patch.object(
-                app_module, "require_review_permission",
-                return_value="authenticated-operator",
-            ) as authorize,
-            mock.patch.object(app_module, "require_canonical_staged_media") as staged,
-            mock.patch.object(app_module.tiktok_publisher, "publish_private_approved") as publish,
-        ):
-            with self.assertRaises(HTTPException) as caught:
-                publish_tiktok_video("job-1", body, x_review_token="valid-review-token")
-        self.assertEqual(caught.exception.status_code, 403)
-        authorize.assert_called_once_with("valid-review-token", "publish.execute")
-        staged.assert_not_called()
-        publish.assert_not_called()
-
 
 if __name__ == "__main__":
     unittest.main()
