@@ -1304,4 +1304,4 @@ The latest workflow run observed during this update was [run 43662557760](https:
 ## BUILD-00326 — analytics history query input hardening
 
 - The analytics history API rejects video IDs with leading/trailing whitespace and ASCII DEL, in addition to blank, overlong, and C0 control-character values.
-- Regression tests cover invalid identifiers, 365-day maximum window, and minimum limit clamping for YouTube and TikTok. Await exact-head CI before marking validated.
+- Regression tests cover invalid identifiers, 365-day maximum window, and minimum limit clamping for YouTube and TikTok. GitHub Actions passed on the combined code/test checkpoint `012654685d868451f68d52ebdbdb450871ac750d` (run `44487580908`, 700 backend tests). Documentation-only commits follow this validated checkpoint.
