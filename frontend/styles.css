@@ -286,3 +286,15 @@ input:focus,select:focus,textarea:focus{border-color:#9b7bff;box-shadow:0 0 0 3p
 .development-job-card{display:grid;gap:8px;min-width:0}
 .development-job-recover{justify-self:start;padding:7px 11px;font-size:11px}
 .development-job-recover:disabled{opacity:.6;cursor:wait}
+
+
+/* Multi-flow development board: source-backed workstream lanes and DAG links */
+.development-workstream-group{display:grid;gap:9px;min-width:0}
+.development-workstream-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:linear-gradient(90deg,#10243b,#0b1729)}
+.development-workstream-heading b{font-size:11px;letter-spacing:.04em;color:var(--cyan)}
+.development-workstream-heading span{font:10px var(--mono);color:var(--muted)}
+.development-job-dependencies{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0}
+.development-job-dependencies>small{color:var(--muted);font-size:10px;margin-right:3px}
+.development-job-dependency{display:inline-flex;max-width:100%;padding:4px 7px;border:1px solid #35516e;border-radius:7px;background:#0a1a2d;color:#c9d8ed;font-size:10px;overflow-wrap:anywhere}
+.development-job-dependency-none{border-style:dashed;color:var(--muted)}
+@media(max-width:560px){.development-workstream-heading{align-items:flex-start;flex-direction:column}.development-job-dependencies{align-items:flex-start}}
