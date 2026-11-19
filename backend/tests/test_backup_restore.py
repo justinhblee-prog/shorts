@@ -311,5 +311,40 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertFalse(list(self.media.parent.glob(self.media.name + ".restore-*")))
 
 
+
+    def test_backup_and_restore_reject_database_nested_inside_media_directory(self):
+        nested_db = self.media / "nested.sqlite3"
+        with sqlite3.connect(nested_db) as connection:
+            connection.execute("CREATE TABLE nested(value TEXT)")
+            connection.execute("INSERT INTO nested(value) VALUES('preserve')")
+
+        with self.assertRaisesRegex(BackupRestoreError, "Database path must be outside"):
+            create_backup(nested_db, self.media, self.backups)
+
+        valid_backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        with self.assertRaisesRegex(BackupRestoreError, "Database path must be outside"):
+            restore_backup(
+                valid_backup, nested_db, self.media, self.backups,
+                confirm_restore=True,
+            )
+        with sqlite3.connect(nested_db) as connection:
+            self.assertEqual(
+                connection.execute("SELECT value FROM nested").fetchone()[0],
+                "preserve",
+            )
+
+    def test_restore_rejects_archive_inside_media_directory(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        embedded_archive = self.media / "backup.tar.gz"
+        Path(backup).replace(embedded_archive)
+        with self.assertRaisesRegex(BackupRestoreError, "Backup archive must be outside"):
+            restore_backup(
+                embedded_archive, self.db, self.media, self.backups,
+                confirm_restore=True,
+            )
+        self.assertEqual(self._db_value(), "before")
+        self.assertTrue(embedded_archive.is_file())
+
+
 if __name__ == "__main__":
     unittest.main()
