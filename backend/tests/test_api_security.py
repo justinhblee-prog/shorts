@@ -1070,6 +1070,15 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertIsNotNone(tt_history.call_args.kwargs["since"])
         self.assertEqual(result["counts"],{"youtube":1,"tiktok":1})
         self.assertTrue(result["read_only"])
+        yt_history.reset_mock()
+        tt_history.reset_mock()
+        bounded=publishing_analytics_history(
+            platform="youtube",days=-30,limit=999,x_review_token="analytics-token"
+        )
+        self.assertEqual(bounded["days"],1)
+        yt_history.assert_called_once()
+        self.assertEqual(yt_history.call_args.kwargs["limit"],500)
+        tt_history.assert_not_called()
         with self.assertRaises(HTTPException):
             publishing_analytics_history(platform="unknown",x_review_token="analytics-token")
         with self.assertRaises(HTTPException):
