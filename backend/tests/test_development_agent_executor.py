@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -21,6 +22,31 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_changed_files_includes_tracked_diff_and_untracked_files_from_git(self):
+        home = self.root / "isolated-home"
+        env = self.executor._child_environment(home)
+
+        def git(*args):
+            subprocess.run(
+                ["git", *args], cwd=self.root, env=env, check=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+
+        git("init")
+        git("config", "user.name", "NEXUS Test")
+        git("config", "user.email", "nexus-test@example.invalid")
+        tracked = self.root / "backend" / "tracked.py"
+        tracked.write_text("value = 1\n", encoding="utf-8")
+        git("add", "backend/tracked.py")
+        git("commit", "-m", "initial")
+        tracked.write_text("value = 2\n", encoding="utf-8")
+        (self.root / "backend" / "untracked.py").write_text("value = 3\n", encoding="utf-8")
+
+        self.assertEqual(
+            self.executor._changed_files(env),
+            ["backend/tracked.py", "backend/untracked.py"],
+        )
 
     def test_worktree_verifier_requires_exact_git_changed_file_match(self):
         job = {"scope": ["backend/"]}
