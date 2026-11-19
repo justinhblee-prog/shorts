@@ -273,4 +273,4 @@ Aider now runs with a per-job temporary user home and isolated XDG/Windows roami
 
 
 ### BUILD-00362 — subprocess runtime injection isolation
-The local Aider executor removes inherited Python import/startup settings, dynamic-loader injection variables, Bash/sh/Zsh startup hooks, Node/Ruby/Perl preload/module paths, and Java agent/classpath overrides before launching the model and validation commands. Regression coverage injects hostile values and verifies they do not reach the child environment. Exact-head CI pending; actual Windows runner and local model execution remain separate launch gates.
+The local Aider executor removes inherited Python import/startup settings, dynamic-loader injection variables, Bash/sh/Zsh startup hooks, Node/Ruby/Perl preload/module paths, and Java agent/classpath overrides before launching the model and validation commands. Regression coverage injects hostile values and verifies they do not reach the child environment. Exact-head backend Actions run [44516499054](https://github.com/justinhblee-prog/shorts/actions/runs/44516499054) passed 778 tests; actual Windows runner and local model execution remain separate launch gates.
