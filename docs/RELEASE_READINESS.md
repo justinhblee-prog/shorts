@@ -250,3 +250,7 @@ Owner and repository inputs are validated as individual path segments before any
 
 ### BUILD-00357 — exact-head CI result
 Exact head `b3de0e02310ccb353d07b6032dfa6620dd0b4a14` passed backend Actions run [44511457164](https://github.com/justinhblee-prog/shorts/actions/runs/44511457164) with 773 tests. Malformed repository path segments are rejected before API access while supported valid names remain accepted. Live GitHub authentication/rate-limit behavior remains unverified.
+
+
+### BUILD-00358 — Windows runner Node 24 compatibility
+The self-hosted development workflow now uses Node 24-compatible checkout v7 and create-pull-request v8. A PowerShell step runs before checkout and requires the active self-hosted runner to be version 2.327.1 or newer. Hosted CI can verify the workflow contract but cannot establish the user's actual Windows runner version; that remains a live-runner gate.
