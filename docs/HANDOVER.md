@@ -1430,4 +1430,4 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Add a SQLite regression fixture with 10,000 published-video identities and 10,000 historical metric snapshots.
 - Verify the indexed due-candidate query returns exactly the newest 20 stale videos in deterministic order, with no duplicates.
 - This is a synthetic bounded-volume smoke test, not a production latency benchmark or a claim about deployed database performance.
-- Exact-head GitHub Actions validation pending.
+- Exact-head GitHub Actions run [44496875265](https://github.com/justinhblee-prog/shorts/actions/runs/44496875265) passed `scripts/validate.sh` with **712 tests**. Synthetic 10k-row candidate scan measured **0.50 ms** on that runner; this is not production benchmarking.
