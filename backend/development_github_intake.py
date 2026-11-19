@@ -52,9 +52,18 @@ def normalize_issue(issue: dict[str, Any]) -> dict[str, Any] | None:
         return None
     if not (_labels(issue) & JOB_LABELS):
         return None
-    repository = issue.get("repository") or ""
-    if not isinstance(repository, str) or not repository.strip():
-        repository = "unknown/unknown"
+    repository = issue.get("repository")
+    if not isinstance(repository, str):
+        return None
+    owner, separator, repository_name = repository.partition("/")
+    if (
+        not separator
+        or "/" in repository_name
+        or not _OWNER_SEGMENT.fullmatch(owner)
+        or not _REPOSITORY_SEGMENT.fullmatch(repository_name)
+    ):
+        return None
+    repository = f"{owner}/{repository_name}"
     body = issue.get("body")
     body = body.strip() if isinstance(body, str) else ""
     url = issue.get("html_url")

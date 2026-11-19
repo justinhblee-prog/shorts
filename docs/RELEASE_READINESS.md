@@ -381,3 +381,16 @@ GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/acti
 ### BUILD-00378 — source-reference data minimization
 Credential-bearing source references are redacted at the durable store boundary and in the creation event. Deduplication uses the sanitized value to avoid comparing a different representation from the one persisted. Draft PR #374's exact code head passed hosted validation: Code head `2c1342338cd6a0cb978cd8e575fc3eb18dd4f2d4` passed GitHub Actions runs [44535753188](https://github.com/justinhblee-prog/shorts/actions/runs/44535753188) and [44535765648](https://github.com/justinhblee-prog/shorts/actions/runs/44535765648): backend validation, `scripts/validate.sh`, and `node --check frontend/app.js` all passed. Hosted Linux only; Windows local-runner and production execution remain unverified. Live runner and production checks remain unverified.
 The source-reference existence preflight now normalizes credential-bearing values with the same redactor used by creation, keeping lookup and persistence consistent.
+
+
+### BUILD-00379 — GitHub source identity validation
+Malformed repository identities are rejected at issue normalization before they can become durable source references or fallback URLs. Code head `7d55d319ad512f885f7a12dccae315c34766e44f` passed GitHub Actions run [44537566649](https://github.com/justinhblee-prog/shorts/actions/runs/44537566649): **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`. Hosted Linux only; Windows local-runner and production execution remain unverified. The read-only API path validator remains the upstream control.
+
+
+### CI reliability follow-up
+The TikTok status-poll backoff regression now uses timestamps with safe margins from its 60s/120s thresholds to avoid wall-clock scheduling flakiness in hosted CI.
+
+
+### BUILD-00379 — final exact-head validation
+- Final head `42d29e6d438c97da338764de72149ebbacf69151` passed **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538127436](https://github.com/justinhblee-prog/shorts/actions/runs/44538127436) and [44538117994](https://github.com/justinhblee-prog/shorts/actions/runs/44538117994).
+- Both exact-head runs passed after stabilizing the TikTok poll-backoff test's time-boundary fixtures. Hosted Linux only; Windows local-runner and production execution remain unverified.

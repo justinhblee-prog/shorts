@@ -2493,7 +2493,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Strip inherited SSH agent/askpass, Git configuration and transport overrides, npm/pip configuration, Docker/cloud credentials, Aider/LiteLLM/provider endpoint overrides and other tool-specific injection variables; accept OLLAMA_API_BASE only for loopback hosts and fall back to the local default for remote/invalid endpoints.
 - Disable system/global Git configuration, interactive credential prompts and inherited credential helpers; supply only an empty isolated global config and explicit noninteractive credential policy.
 - Add regressions for isolated home/config paths, empty config files, blocked environment overrides and preserved required local execution context.
-- Exact-head CI pending. Hosted tests validate the environment contract only; no real Windows runner or Aider/Ollama invocation is claimed.
+- Code head `7d55d319ad512f885f7a12dccae315c34766e44f` passed GitHub Actions run [44537566649](https://github.com/justinhblee-prog/shorts/actions/runs/44537566649): **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`. Hosted Linux only; Windows local-runner and production execution remain unverified. Hosted tests validate the environment contract only; no real Windows runner or Aider/Ollama invocation is claimed.
 
 
 ## BUILD-00362 — scrub runtime and shell startup injection variables
@@ -2666,3 +2666,16 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Code head `2c1342338cd6a0cb978cd8e575fc3eb18dd4f2d4` passed GitHub Actions runs [44535753188](https://github.com/justinhblee-prog/shorts/actions/runs/44535753188) and [44535765648](https://github.com/justinhblee-prog/shorts/actions/runs/44535765648): backend validation, `scripts/validate.sh`, and `node --check frontend/app.js` all passed. Hosted Linux only; Windows local-runner and production execution remain unverified.
 
 - Align `source_ref_exists` with the same redaction rule so preflight lookups and durable deduplication use one canonical sanitized value.
+
+
+## BUILD-00379 — validate imported repository identity
+- Reject malformed repository owner/name values in `normalize_issue` before constructing a durable source reference or fallback GitHub URL.
+- Reuse the same owner/repository segment rules as the read-only GitHub API path validator.
+- Add regressions for traversal, extra path segments, query injection, empty segments and newline injection. Exact-head CI pending.
+
+- Stabilize the existing TikTok poll-backoff regression by using 30/65-second and 90/125-second test timestamps around the 60/120-second thresholds, avoiding a wall-clock scheduling race caused by second-resolution SQLite timestamps.
+
+
+### BUILD-00379 — final exact-head validation
+- Final head `42d29e6d438c97da338764de72149ebbacf69151` passed **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538127436](https://github.com/justinhblee-prog/shorts/actions/runs/44538127436) and [44538117994](https://github.com/justinhblee-prog/shorts/actions/runs/44538117994).
+- Both exact-head runs passed after stabilizing the TikTok poll-backoff test's time-boundary fixtures. Hosted Linux only; Windows local-runner and production execution remain unverified.

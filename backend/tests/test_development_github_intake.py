@@ -94,6 +94,27 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
             "labels": ["development-job"], "pull_request": {"url": "https://api.github.com/..."}
         }))
 
+    def test_normalize_issue_rejects_invalid_repository_identity(self):
+        invalid_repositories = (
+            "../acme/app",
+            "acme/../app",
+            "acme/app?state=all",
+            "acme/app/extra",
+            "acme/",
+            "/app",
+            "acme/app\\nmalicious",
+        )
+        for repository in invalid_repositories:
+            with self.subTest(repository=repository):
+                candidate = normalize_issue({
+                    "number": 9,
+                    "title": "Untrusted repository identity",
+                    "state": "open",
+                    "labels": ["development-job"],
+                    "repository": repository,
+                })
+                self.assertIsNone(candidate)
+
     def test_sync_is_idempotent_and_does_not_import_prs(self):
         issue = {"number": 4, "title": "Fix render", "state": "open",
                  "labels": ["development-job"], "repository": "acme/app"}
