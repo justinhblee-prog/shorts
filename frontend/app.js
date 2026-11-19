@@ -296,7 +296,8 @@
       });
       if(latest)platformLatest[latest.platform].push(Number(latest[latest.platform==="youtube"?"views":"view_count"]));
     });
-    const platformSummary=["youtube","tiktok"].map(platform=>{
+    const summaryPlatforms=platform==="all"?["youtube","tiktok"]:[platform];
+    const platformSummary=summaryPlatforms.map(platform=>{
       const values=platformLatest[platform];
       const total=values.reduce((sum,value)=>sum+value,0);
       const average=values.length?Math.round(total/values.length):null;
