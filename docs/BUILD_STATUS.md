@@ -2628,3 +2628,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Prevent case-only aliases from bypassing write-scope serialization on the Windows production runner.
 - Add direct and claim-scheduler regression coverage for `Backend/` versus `backend/api.py`.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00371 — exact-head hosted validation
+- Exact code head `78a0a488ad8c7d4358c57accb772ba12effe2359` passed GitHub Actions run [44522472503](https://github.com/justinhblee-prog/shorts/actions/runs/44522472503): **801 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
+- Coverage includes case-only aliases, repeated separators, dot segments, backslash aliases and scheduler-level serialization.
+- Hosted Linux only; Windows filesystem integration remains a separate gate.
