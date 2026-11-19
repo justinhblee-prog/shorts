@@ -267,3 +267,5 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - Backend workflow now runs `scripts/validate.sh`, `node --check frontend/app.js`, analytics Chromium smoke, and recovery Chromium smoke on the same exact PR head; screenshots are uploaded as an artifact.
 - Exact-head hosted workflow run `44581865675` is **in progress**. Do not mark the integrated candidate validated until all steps pass, especially both browser smoke commands.
 - PR #407 remains Draft/unmerged. No deployment or live external provider action.
+
+- First integrated browser run `44581865675` exposed one expected UI assertion mismatch: adding the Engineering navigation group increased the navigation count from five to six. The analytics smoke assertion and frontend navigation regression were corrected to assert six links and the `#development` panel; the modern cyber-magic stylesheet now includes the sixth navigation item. The corrected exact-head run `44582200007` is in progress; no passing result is claimed yet.
