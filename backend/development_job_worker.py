@@ -111,7 +111,7 @@ class DevelopmentJobWorker:
 
 
     def run_until_idle(self, idle_seconds=60):
-        """Process ready jobs until no work arrives for the configured idle window."""
+        """Process at most one claimed job per workspace, then leave the runner idle."""
         if isinstance(idle_seconds, bool) or not isinstance(idle_seconds, (int, float)) or idle_seconds < 1:
             raise ValueError("idle_seconds must be at least one second")
         last_activity = time.monotonic()
@@ -127,10 +127,9 @@ class DevelopmentJobWorker:
                 processed += 1
                 outcomes[status] = outcomes.get(status, 0) + 1
                 last_activity = time.monotonic()
-                # A validated diff remains in the worktree until the workflow
-                # publishes its Draft PR. Do not try another job against it.
-                if status == "review_pending":
-                    break
+                # Any attempted job can leave partial or validated changes in
+                # the shared worktree. Never claim another job in this runner
+                # cycle; the next workflow checkout owns workspace cleanup.
         finally:
             self.store.stop_worker(self.worker_id)
         return {"processed": processed, "outcomes": outcomes, "summary": self.store.summary()}
