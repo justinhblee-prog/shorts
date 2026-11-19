@@ -1,14 +1,3 @@
-        page=self.store.history(self.publications,limit=2,since="2026-11-01T00:00:00+00:00")
-        self.assertEqual(len(page),2)
-        cursor=page[-1]
-        next_page=self.store.history(
-            self.publications,limit=2,since="2026-11-01T00:00:00+00:00",
-            before_collected_at=cursor["collected_at"],before_id=cursor["id"],
-        )
-        self.assertTrue(all(
-            (row["collected_at"],row["id"])<(cursor["collected_at"],cursor["id"])
-            for row in next_page
-        ))
 import json
 import tempfile
 import unittest
@@ -148,6 +137,18 @@ class TikTokMetricsTests(unittest.TestCase):
         recent=self.store.history(self.publications,limit=1,since="2026-11-02T00:00:00+00:00")
         self.assertEqual(len(recent),1)
         self.assertGreaterEqual(recent[0]["collected_at"],"2026-11-02T00:00:00+00:00")
+        page=self.store.history(self.publications,limit=2,since="2026-11-01T00:00:00+00:00")
+        self.assertEqual(len(page),2)
+        cursor=page[-1]
+        next_page=self.store.history(
+            self.publications,limit=2,since="2026-11-01T00:00:00+00:00",
+            before_collected_at=cursor["collected_at"],before_id=cursor["id"],
+        )
+        self.assertTrue(all(
+            (row["collected_at"],row["id"])<(cursor["collected_at"],cursor["id"])
+            for row in next_page
+        ))
+
 
     def test_stale_lease_is_rejected_before_oauth_token_provider(self):
         token = self.store.acquire_lease("worker-old", 300)
