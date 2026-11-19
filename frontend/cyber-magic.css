@@ -321,3 +321,6 @@ code{font-family:var(--mono);color:#b7a2ff}
 .analytics-table-pagination span{min-width:120px;text-align:center;font-variant-numeric:tabular-nums}
 .analytics-table-pagination button:disabled{opacity:.42;cursor:not-allowed}
 @media(max-width:760px){.analytics-table-pagination{justify-content:space-between}.analytics-table-pagination span{min-width:0}}
+
+/* Sixth workspace item: engineering control plane */
+.main-nav a:nth-child(6):before{content:""}
