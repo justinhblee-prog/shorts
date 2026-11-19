@@ -546,7 +546,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class DependencyMutationGuardTests(unittest.TestCase):
+class DependencyMutationGuardTests(DevelopmentJobStoreTests):
     def test_cannot_add_dependency_after_child_has_been_claimed(self):
         child = self.store.create("Claimed child")
         parent = self.store.create("Late prerequisite")
