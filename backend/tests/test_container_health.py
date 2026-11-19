@@ -41,12 +41,12 @@ class ContainerHealthTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             archive = root / "nexus-backup-20261119T100000Z.tar.gz.enc"
-            archive.write_bytes(b"encrypted")
+            archive.write_bytes(b"NEXUSBK1encrypted")
             os.utime(archive, (990, 990))
             self.assertTrue(backup_archive_is_fresh(root, 20, now=1000))
             archive.unlink()
             self.assertFalse(backup_archive_is_fresh(root, 20, now=1000))
-            archive.write_bytes(b"old")
+            archive.write_bytes(b"NEXUSBK1old")
             os.utime(archive, (900, 900))
             self.assertFalse(backup_archive_is_fresh(root, 20, now=1000))
 
@@ -54,7 +54,7 @@ class ContainerHealthTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             target = root / "target"
-            target.write_bytes(b"encrypted")
+            target.write_bytes(b"NEXUSBK1encrypted")
             archive = root / "nexus-backup-20261119T100000Z.tar.gz.enc"
             try:
                 archive.symlink_to(target)
@@ -62,7 +62,7 @@ class ContainerHealthTests(unittest.TestCase):
                 self.skipTest("symlinks are not supported in this environment")
             self.assertFalse(backup_archive_is_fresh(root, 200, now=1000))
             archive.unlink()
-            archive.write_bytes(b"future")
+            archive.write_bytes(b"NEXUSBK1future")
             os.utime(archive, (1100, 1100))
             self.assertFalse(backup_archive_is_fresh(root, 200, now=1000))
 
@@ -70,14 +70,14 @@ class ContainerHealthTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             plain = root / "nexus-backup-20261119T100000Z.tar.gz"
-            plain.write_bytes(b"plaintext")
+            plain.write_bytes(b"\\x1f\\x8bplaintext")
             os.utime(plain, (990, 990))
             self.assertTrue(backup_archive_is_fresh(root, 20, now=1000))
             self.assertFalse(
                 backup_archive_is_fresh(root, 20, now=1000, encryption_required=True)
             )
             encrypted = root / "nexus-backup-20261119T100001Z.tar.gz.enc"
-            encrypted.write_bytes(b"encrypted")
+            encrypted.write_bytes(b"NEXUSBK1encrypted")
             os.utime(encrypted, (990, 990))
             self.assertTrue(
                 backup_archive_is_fresh(root, 20, now=1000, encryption_required=True)
@@ -97,7 +97,7 @@ class ContainerHealthTests(unittest.TestCase):
                 self.assertEqual(main(["backup", str(marker)]), 0)
                 archive.unlink()
                 self.assertEqual(main(["backup", str(marker)]), 1)
-                archive.write_bytes(b"plaintext")
+                archive.write_bytes(b"\\x1f\\x8bplaintext")
                 self.assertEqual(main(["backup", str(marker)]), 1)
                 archive.unlink()
                 archive = root / "nexus-backup-current.tar.gz.enc"
