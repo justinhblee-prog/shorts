@@ -43,13 +43,38 @@ async function waitForServer() {
       const pathname = new URL(route.request().url()).pathname;
       if (pathname === "/api/publishing/analytics-history") {
         await new Promise(resolve => setTimeout(resolve, 350));
+        const url = new URL(route.request().url());
+        const platform = url.searchParams.get("platform") || "all";
+        const hasCursor = url.searchParams.has("before_id");
+        const asOf = "2026-11-19T09:00:00+00:00";
+        const makeRow = (id, videoId, collectedAt, kind) => ({
+          id, video_id: videoId, collected_at: collectedAt,
+          views: kind === "youtube" ? 1000 - id : undefined,
+          view_count: kind === "tiktok" ? 2000 - id : undefined,
+          like_count: 10, comment_count: 2, share_count: 1,
+          retention_status: "no_data", retention_curve: [],
+        });
+        let items;
+        if (platform === "all") {
+          items = {
+            youtube: [makeRow(1, "video-yt-preview", "2026-11-18T10:00:00+00:00", "youtube")],
+            tiktok: [makeRow(2, "video-tt-preview", "2026-11-18T11:00:00+00:00", "tiktok")],
+          };
+        } else if (platform === "youtube" && !hasCursor) {
+          items = { youtube: Array.from({ length: 500 }, (_, index) =>
+            makeRow(1000 - index, "video-yt-" + (index + 1), "2026-11-18T" +
+              String(Math.floor(index / 60)).padStart(2, "0") + ":" +
+              String(index % 60).padStart(2, "0") + ":00+00:00", "youtube")
+          ) };
+        } else if (platform === "youtube") {
+          items = { youtube: [makeRow(500, "video-yt-501", "2026-11-17T00:00:00+00:00", "youtube")] };
+        } else {
+          items = { tiktok: [makeRow(1, "video-tt-1", "2026-11-16T00:00:00+00:00", "tiktok")] };
+        }
         return route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({
-            items: { youtube: [], tiktok: [] },
-            as_of: "2026-11-19T09:00:00+00:00",
-          }),
+          body: JSON.stringify({ items, counts: { youtube: items.youtube?.length || 0, tiktok: items.tiktok?.length || 0 }, as_of: asOf }),
         });
       }
       return route.fulfill({
@@ -81,7 +106,19 @@ async function waitForServer() {
       document.querySelector("#analyticsHistory").getAttribute("aria-busy") === "false" &&
       document.querySelector("#analyticsHistoryStatus").textContent.includes("기준 시각")
     );
-    assert.equal(await page.locator("#exportAnalyticsHistory").isDisabled(), true);
+    assert.equal(await page.locator("#exportAnalyticsHistory").isDisabled(), false);
+    const downloadPromise = page.waitForEvent("download");
+    await page.locator("#exportAnalyticsHistory").click();
+    const download = await downloadPromise;
+    assert.match(download.suggestedFilename(), /\.csv$/);
+    const downloadPath = await download.path();
+    const csv = fs.readFileSync(downloadPath, "utf8");
+    assert.equal(csv.split(/\r?\n/).length, 503);
+    assert.ok(csv.includes("video-yt-1"));
+    assert.ok(csv.includes("video-yt-500"));
+    assert.ok(csv.includes("video-yt-501"));
+    assert.ok(csv.includes("video-tt-1"));
+    assert.match(await page.locator("#analyticsHistoryStatus").textContent(), /CSV 다운로드 요청 완료/);
 
     await page.keyboard.press("Tab");
     assert.equal(await page.evaluate(() => document.activeElement.classList.contains("skip-link")), true);
