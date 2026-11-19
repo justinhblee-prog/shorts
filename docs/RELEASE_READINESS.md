@@ -333,3 +333,7 @@ The lease expiry path is fail-closed: an expired lease is quarantined and its fe
 
 ### BUILD-00368 — hosted lease safety validation
 GitHub Actions run [44526419213](https://github.com/justinhblee-prog/shorts/actions/runs/44526419213) passed **799 backend tests**, repository validation and frontend syntax validation for expired-lease quarantine, explicit workspace-reset recovery, reserved quarantined scopes and single-active-lease worker identity. This does not verify Windows host process termination or workspace cleanup.
+
+
+### BUILD-00369 — final source diff validation
+Job completion evidence now uses the post-validation Git state rather than a pre-test snapshot. Tracked, staged and untracked files are included, scope is rechecked after tests, and at least one non-test source path is required. Hosted CI pending.
