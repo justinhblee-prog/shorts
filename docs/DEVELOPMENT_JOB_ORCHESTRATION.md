@@ -101,7 +101,7 @@ All listed PRs are Draft and unmerged in this snapshot. Their base/head relation
 - PR #385 BUILD-00387 YouTube disclosure mapping: 823-test hosted validation passed; no live platform upload performed.
 - PR #386 POLICY-00001: 825-test hosted validation passed.
 - PR #387 UI-00012: exact-head hosted repository and frontend syntax validation passed; live authenticated browser/API interaction remains unverified.
-- PR #388 BUILD-00388: exact-head hosted repository and frontend syntax validation passed; live GitHub API pagination remains unverified.
+- PR #388 BUILD-00388: exact head `f55030dab87cbcb8a1fa1a015a74db87961496f4` passed 829 tests, `scripts/validate.sh`, and `node --check frontend/app.js` in [run 44558169681](https://github.com/justinhblee-prog/shorts/actions/runs/44558169681); live GitHub API pagination remains unverified.
 - PR #389 POLICY-00002: exact-head hosted repository and frontend syntax validation passed.
 - PR #390 POLICY-00003: exact-head `a89dd228f924bf6f7cb8bd7d441c6733851c1acf` passed `scripts/validate.sh` and `node --check frontend/app.js` in runs [44554183308](https://github.com/justinhblee-prog/shorts/actions/runs/44554183308) and [44554192636](https://github.com/justinhblee-prog/shorts/actions/runs/44554192636).
 
