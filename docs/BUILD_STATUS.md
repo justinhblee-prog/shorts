@@ -2565,3 +2565,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00375 — exact-head hosted validation
 - Exact code head `3b10a656924e3b93e2a4ff2cbe000be514d46380` passed GitHub Actions run [44525189997](https://github.com/justinhblee-prog/shorts/actions/runs/44525189997): **785 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
 - Coverage rejects leading-dot, repeated-separator, interior-dot and file-as-directory aliases while preserving valid directory scopes.
+
+
+## BUILD-00376 — reject Windows-invalid scope filename characters
+- Reject Windows-forbidden filename characters `< > " | ? *` and ASCII control characters in portable scope paths.
+- Add regression cases for wildcard, quote, angle-bracket, pipe and control-character paths.
+- Exact-head hosted CI pending.
