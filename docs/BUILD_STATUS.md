@@ -2781,3 +2781,16 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Validate source evidence URLs as absolute HTTPS references with a hostname and valid port; reject credentials, malformed authority, whitespace and control characters while preserving valid query/fragment references.
 - Reject unsupported rights-attestation keys; only the documented visual, audio and likeness clearances are recognized.
 - Add focused policy-engine regressions and bump the policy pack to `2026-11-16.2`. Exact-head CI pending.
+
+
+## POLICY-00003 — fail-closed production review approval
+- Require a script-level policy preflight report before approving a production run that contains a script artifact; preserve legacy no-script review fixtures.
+- Accept only recognized policy statuses and a well-formed list of approval blockers; reject missing reports, unknown statuses and malformed blocker collections.
+- Preserve existing behavior: explicit blockers cannot be overridden, and `review_required` still requires a reviewer confirmation note.
+- Add dedicated review-workflow regressions. Exact-head CI pending.
+
+
+## POLICY-00004 — require preflight for the latest script artifact
+- Production approval now resets the candidate policy report for each script artifact; a newer script without a valid preflight report invalidates any older report.
+- Added a regression proving stale policy approval cannot authorize a revised script.
+- Exact-head CI pending.

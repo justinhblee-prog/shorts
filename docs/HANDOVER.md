@@ -1546,3 +1546,9 @@ The final store transition now applies the same case-insensitive, separator-norm
 - Source URLs now require absolute HTTPS URLs with a valid hostname/port and no embedded credentials or whitespace/control characters. Query and fragment references remain supported.
 - Rights objects now reject unknown keys instead of silently ignoring unsupported attestations.
 - Added policy-engine regressions and updated the policy pack version to `2026-11-16.2`. Exact-head CI pending.
+
+
+## POLICY-00003 — require policy preflight at approval
+- Production review approval now fails closed if a script artifact exists but has no policy report, an unsupported status, or a malformed blocker collection.
+- Recognized statuses are `blocked`, `review_required`, and `ready_for_human_review`; explicit blockers remain non-overridable and review-required reports still need a reviewer note.
+- Added dedicated regression coverage. Exact-head CI pending.

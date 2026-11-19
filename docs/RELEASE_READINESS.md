@@ -476,3 +476,8 @@ The durable review-pending gate is aligned with scheduler and executor path matc
 ### POLICY-00001 — exact-head validation
 - Code head `dcb959f32a5c93fd80f957c5b37525eac0cede74` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44550031926](https://github.com/justinhblee-prog/shorts/actions/runs/44550031926).
 - Regressions confirmed that falsey non-object declarations and non-boolean rights attestations are rejected. Hosted CI only; no external platform actions were performed.
+
+
+## POLICY-00003 — policy gate at production approval
+- [x] Require a recognized script-level policy preflight report before approving script-bearing production runs; missing or malformed reports are rejected. Legacy no-script review records remain compatible.
+- [ ] Verify the approval gate with real production artifacts and operator workflow in the target deployment.
