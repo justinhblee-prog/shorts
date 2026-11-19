@@ -348,6 +348,33 @@
       +rows.slice(0,200).map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.estimated_minutes_watched)+'</td><td>'+number(item.average_view_duration)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>').join("")
       +'</tbody></table></div>'
       : '<div class="empty-state">선택한 기간에 저장된 성과 스냅샷이 없습니다. 데이터 수집이 완료된 후 다시 조회하세요.</div>';
+    const exportButton=$("exportAnalyticsHistory");
+    if(exportButton){
+      exportButton.disabled=rows.length===0;
+      exportButton.onclick=rows.length?()=>{
+        const headers=["수집 시각","플랫폼","영상 ID","조회수","이전 수집 대비 조회수","좋아요","댓글","공유","시청 시간(분)","평균 시청 시간(초)","평균 시청 비율(%)"];
+        const csvCell=value=>{
+          let cell=value===null||value===undefined?"":String(value);
+          if(/^[\\u0000-\\u0020]*[=+\\-@]/.test(cell))cell="'"+cell;
+          return '"'+cell.replace(/"/g,'""')+'"';
+        };
+        const csv=[headers,...rows.map(item=>[
+          item.collected_at,item.platform==="youtube"?"YouTube":"TikTok",item.video_id,
+          item.views??item.view_count,deltaFor(item),item.like_count,item.comment_count,
+          item.share_count,item.estimated_minutes_watched,item.average_view_duration,
+          item.average_view_percentage
+        ])].map(record=>record.map(csvCell).join(",")).join("\\r\\n");
+        const blob=new Blob(["\\uFEFF",csv],{type:"text/csv;charset=utf-8"});
+        const url=URL.createObjectURL(blob);
+        const link=document.createElement("a");
+        link.href=url;
+        link.download="nexus-analytics-"+new Date().toISOString().slice(0,10)+".csv";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+      }:null;
+    }
     $("analyticsHistory").dataset.loaded="true";
   }
 
