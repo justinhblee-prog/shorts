@@ -2481,3 +2481,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Tighten optional video ID validation: reject leading/trailing whitespace and ASCII DEL in addition to empty, oversized, and C0 control-character values. This avoids ambiguous identifiers being silently passed to storage queries.
 - Add endpoint regression tests for whitespace and DEL rejection, maximum 365-day window, and lower-bound limit clamping on both platform branches.
 - Validation: GitHub Actions passed on final code/test checkpoint `012654685d868451f68d52ebdbdb450871ac750d` (run `44487580908`, 700 backend tests). The API-only predecessor checkpoint `1b01f6d1bac61bb591866007e5b81b7ce1ce55b7` also has a validation run in progress; the final combined code/test checkpoint above passed. Documentation-only commits follow the validated checkpoint.
+
+
+## BUILD-00327 — analytics CSV export limit transparency
+
+- Correct the analytics history summary: the API applies a maximum of 500 snapshots independently to each selected platform, so the all-platform response can contain at most 1,000 rows. The prior UI wording incorrectly implied the CSV always exported the complete history.
+- The summary now explicitly states the 200-row on-screen table limit and the 1,000-row CSV ceiling (500 per platform), preventing users from interpreting a bounded export as an exhaustive archive.
+- Add a frontend regression assertion for the explicit limits. Validation: pending GitHub Actions.
