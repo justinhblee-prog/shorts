@@ -127,6 +127,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("Number.isFinite(numericValue)&&numericValue>=0", app_js)
         self.assertIn("선택 지표가 없는 플랫폼의 영상은 그래프에서 제외됩니다", app_js)
         self.assertIn(".analytics-trend-chart", css)
+        self.assertIn(".analytics-history-controls{display:grid;grid-template-columns:1fr 1fr 1.5fr auto auto", css)
         self.assertIn('id="analyticsHistory"', html)
 
     def test_dashboard_has_single_page_workspaces(self):
