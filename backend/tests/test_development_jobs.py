@@ -62,6 +62,13 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         )
         next_job = self.store.claim_ready("worker-b")
         self.assertEqual(next_job["id"], child["id"])
+        child_events = self.store.events(child["id"])
+        self.assertTrue(any(
+            event["event_type"] == "dependencies_satisfied"
+            and event["from_status"] == "blocked"
+            and event["to_status"] == "ready"
+            for event in child_events
+        ))
 
     def test_dependency_changes_are_rejected_after_job_is_claimed(self):
         child = self.store.create("Claimed child", priority=1, scope=["backend/child.py"])
@@ -208,6 +215,45 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                                       "permanent validation error", retryable=False)
         self.assertEqual(quarantined["status"], "quarantined")
         self.assertIsNone(self.store.claim_ready("worker-c"))
+
+    def test_retry_scheduler_transitions_are_recorded(self):
+        ready_job = self.store.create("Retry becomes ready", max_attempts=3, scope=["backend/retry-ready.py"])
+        first = self.store.claim_ready("worker-retry-ready")
+        self.store.fail(
+            ready_job["id"], "worker-retry-ready", first["lease_token"],
+            "temporary", retry_delay_seconds=0,
+        )
+        second = self.store.claim_ready("worker-retry-ready-again")
+        self.assertEqual(second["id"], ready_job["id"])
+        ready_events = self.store.events(ready_job["id"])
+        self.assertTrue(any(
+            event["event_type"] == "retry_ready"
+            and event["from_status"] == "retry_wait"
+            and event["to_status"] == "ready"
+            for event in ready_events
+        ))
+
+        exhausted = self.store.create("Retry becomes quarantined", max_attempts=2, priority=10, scope=["backend/retry-exhausted.py"])
+        claim = self.store.claim_ready("worker-exhausted")
+        self.assertEqual(claim["id"], exhausted["id"])
+        self.store.fail(
+            exhausted["id"], "worker-exhausted", claim["lease_token"],
+            "temporary", retry_delay_seconds=0,
+        )
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE development_jobs SET attempts=max_attempts,retry_after='2000-01-01T00:00:00+00:00' WHERE id=?",
+                (exhausted["id"],),
+            )
+        self.assertIsNone(self.store.claim_ready("worker-exhausted-again"))
+        self.assertEqual(self.store.get(exhausted["id"])["status"], "quarantined")
+        quarantine_events = self.store.events(exhausted["id"])
+        self.assertTrue(any(
+            event["event_type"] == "retry_quarantined"
+            and event["from_status"] == "retry_wait"
+            and event["to_status"] == "quarantined"
+            for event in quarantine_events
+        ))
 
     def test_overlapping_file_scope_serializes_jobs(self):
         first = self.store.create("Writer A", scope=["backend/shared.py"])

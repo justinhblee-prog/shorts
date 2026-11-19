@@ -228,3 +228,9 @@ Scope-lock comparison now normalizes slash direction, repeated separators and do
 ### BUILD-00372 — freeze dependency graph after claim
 
 New dependency edges may be added only while a job is `ready` or `blocked`. The store uses `BEGIN IMMEDIATE` to serialize dependency mutation against claims: if the claim wins first, a late new edge is rejected; if the edge wins first, the job is blocked before it can be claimed. Re-adding an already-existing edge remains idempotent even after execution starts. This prevents a running job from bypassing a prerequisite added concurrently and avoids retroactively changing completed-job history.
+
+
+
+### BUILD-00373 — append scheduler promotion events
+
+Scheduler-driven state changes are now written to the immutable event stream inside the same `BEGIN IMMEDIATE` transaction as the status update. This includes `retry_wait → ready`, exhausted `retry_wait → quarantined`, and `blocked → ready` when all prerequisites complete. The event history therefore remains consistent with the current job state even when a claim operation performs several promotions before selecting work.

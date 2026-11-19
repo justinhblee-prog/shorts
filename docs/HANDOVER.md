@@ -1437,3 +1437,11 @@ Code head `b2c74c47ee95c59544ea5fea12ff2fbbd456ef0a` passed GitHub Actions run [
 
 ### BUILD-00372 — dependency/claim race CI result
 Updated head `148025eba9939f1c86488ddc705fa36632e942bd` passed GitHub Actions run [44523330129](https://github.com/justinhblee-prog/shorts/actions/runs/44523330129): **804 tests**, repository validation and frontend syntax check. The threaded claim/dependency race regression passed.
+
+
+### BUILD-00373 — scheduler transition audit completeness
+claim_ready now appends immutable events for retry_wait→ready, retry_wait→quarantined, and blocked→ready transitions in the same transaction as each update. This closes gaps where persisted state changed without corresponding event history. Exact-head CI pending.
+
+
+### BUILD-00373 — exact-head CI result
+Head `f1408abd9fd878c9c06e3f5ceb9448e7e9a27b85` passed GitHub Actions run [44523925899](https://github.com/justinhblee-prog/shorts/actions/runs/44523925899): **805 tests**, repository validation and frontend syntax check. Scheduler transition event regressions passed.
