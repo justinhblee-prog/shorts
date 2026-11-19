@@ -157,3 +157,11 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - The first hosted run [44574589707](https://github.com/justinhblee-prog/shorts/actions/runs/44574589707) exposed one stale source regression assertion expecting the old unscoped header markup. Updated that assertion to match the explicit column scope; the subsequent exact-head run is [44574846265](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265) (backend validation passed; browser smoke was still running at documentation update time).
 - Compose integration run [44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267) passed service readiness and isolated backup/restore checks; final cleanup was still running at documentation update time.
 - PR #399 remains Draft/unmerged and is stacked on UI-00016 / PR #398. Do not mark complete until exact-head browser and Compose workflows finish successfully.
+
+
+### UI-00017 final verification
+
+- Corrected exact head `16d4964dcf2472f47c0b1dd1fbd890e2d46750c1` passed the complete hosted backend/browser workflow [44574846265](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265), including `scripts/validate.sh`, Chromium browser smoke, and all 14 analytics column-header scope assertions.
+- Compose workflow [44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267) passed service readiness, scheduled backup, isolated restore, log collection and cleanup.
+- Desktop/mobile screenshots artifact: [14556945683](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265/artifacts/14556945683).
+- PR #399 remains Draft/unmerged and based on UI-00016 / PR #398. Hosted CI and disposable Compose evidence only; no production deployment, real OAuth, or live provider publishing was exercised.
