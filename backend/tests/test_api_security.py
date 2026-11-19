@@ -624,6 +624,15 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 500)
         fail.assert_called_once()
         pause.assert_called_once()
+    def test_session_endpoint_returns_server_resolved_operator_identity(self):
+        from app import get_operator_session
+        with mock.patch.object(
+            app_module,"require_review_access",return_value="legacy-operator"
+        ) as authenticate:
+            result=get_operator_session(x_review_token="legacy-token")
+        authenticate.assert_called_once_with("legacy-token")
+        self.assertEqual(result,{"operator_id":"legacy-operator"})
+
     def test_queue_control_endpoints_are_authenticated_and_audited(self):
         body = QueueControlAction(operator_id="operator-1", note="Reviewed worker state")
         control = {"paused": True, "pause_reason": body.note, "paused_job_id": "job-1"}
