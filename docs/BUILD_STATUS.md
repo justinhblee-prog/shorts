@@ -2605,3 +2605,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Prevent concurrent/retried processes on one self-hosted host from overwriting worker presence or incorrectly marking another process offline.
 - Add regression coverage for uniqueness across invocations and attempts plus the 128-character bound.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00369 — exact-head hosted validation
+- Exact code head `5b20520ca125c080407b3b3ccb57bb94b42a4637` passed GitHub Actions run [44521107433](https://github.com/justinhblee-prog/shorts/actions/runs/44521107433): **799 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
