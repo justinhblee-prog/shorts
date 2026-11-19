@@ -2669,3 +2669,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject restore archives stored inside the media directory because a successful media replacement would remove the source archive.
 - Add regressions verifying both unsafe layouts fail before changing live database or archive contents.
 - Exact-head Actions validation pending.
+
+
+## BUILD-00347 — reject symlinked backup storage roots
+
+- Reject symbolic-link database, media-root, backup-output and restore-backup directories before resolving paths.
+- Preserve the intended storage-root boundary instead of silently following a symlink to another directory or database file.
+- Add regression coverage for symlinked media, backup output, database and restore roots. Tests skip only on platforms that cannot create symlinks.
+- Exact-head Actions validation pending.
