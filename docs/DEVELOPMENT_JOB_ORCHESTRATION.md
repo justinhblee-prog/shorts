@@ -194,3 +194,9 @@ The read-only intake now validates owner and repository as separate single path 
 
 ### BUILD-00366 — explicit file and directory scope semantics
 Approved existing directory paths are normalized to a trailing slash against the trusted repository root before backlog import. A trailing slash is the only recursive-scope marker at the durable evidence gate; file scopes, including extensionless files such as `LICENSE`, authorize only that exact path. The executor and SQLite `mark_review_pending` gate enforce the same rule. Traversal and symlink escapes remain rejected by executor path validation.
+
+
+
+### BUILD-00374 — validate environment names before writing GITHUB_ENV
+
+The startup scrub writes inherited variable names into the line-oriented `GITHUB_ENV` command file. Before serializing any blocked name, the workflow now requires the conservative identifier form `^[A-Za-z_][A-Za-z0-9_]*$` and fails closed without printing the malformed name. This prevents an unusual inherited variable name containing newline/control characters from injecting additional workflow-environment commands.
