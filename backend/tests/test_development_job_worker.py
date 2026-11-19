@@ -129,12 +129,12 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
 
     def test_worker_stops_executor_when_heartbeat_call_blocks_past_lease_budget(self):
         job = self.store.create("Heartbeat storage stall", scope=["backend/example.py"])
-        self.store.lease_seconds = 1
+        self.store.lease_seconds = 4
         heartbeat_started = threading.Event()
 
         def stalled_heartbeat(*args, **kwargs):
             heartbeat_started.set()
-            threading.Event().wait(timeout=1.5)
+            threading.Event().wait(timeout=3.5)
             raise OSError("database busy timeout")
 
         def wait_for_fence(claimed):
