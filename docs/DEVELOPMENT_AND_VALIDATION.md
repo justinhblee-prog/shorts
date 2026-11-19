@@ -241,3 +241,11 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - PR #400 head `272d5efc9564b9d4dca6fa4bff187579a3911adb`: hosted backend workflow [44575404874](https://github.com/justinhblee-prog/shorts/actions/runs/44575404874) SUCCESS. `scripts/validate.sh` and `node --check frontend/app.js` passed.
 - The successor branch is based on current BUILD-00386 / PR #384 and has zero commits behind its base. Original PR #388 remains unchanged for traceability.
 - PR #400 remains Draft/unmerged. Hosted CI does not validate live GitHub provider access or production feed intake.
+
+
+### Policy stack successor branches — validation checkpoint
+
+- POLICY-00001 successor PR #401, head `24fbb2fad9b5433dc6923b4894d659f75028d07c`, is based on current PR #385 head and is mergeable. Hosted exact-head workflows [44575712933](https://github.com/justinhblee-prog/shorts/actions/runs/44575712933) and [44575735946](https://github.com/justinhblee-prog/shorts/actions/runs/44575735946) passed.
+- POLICY-00002 successor PR #402, head `9e4f42746a2fdd5ec66f855725ad00b999a1b18f`, is based on #401 and mergeable. Workflow [44575784946](https://github.com/justinhblee-prog/shorts/actions/runs/44575784946) passed; [44575810640](https://github.com/justinhblee-prog/shorts/actions/runs/44575810640) was still running at checkpoint.
+- POLICY-00003 successor PR #403, head `70260b8c8ace86deb194802b531e262eec3c2bf2`, is based on #402 and mergeable. Workflows [44575901354](https://github.com/justinhblee-prog/shorts/actions/runs/44575901354) and [44575928560](https://github.com/justinhblee-prog/shorts/actions/runs/44575928560) were in progress/queued.
+- These are hosted backend checks. They do not constitute production deployment, live provider publishing, or external OAuth validation. Original stale-base PRs #386/#389/#390 remain untouched; successor PRs remain Draft/unmerged.
