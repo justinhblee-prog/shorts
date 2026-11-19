@@ -2770,3 +2770,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - YouTube upload now rejects an otherwise valid policy report unless its approved `platforms` list explicitly includes `youtube`; a TikTok-only preflight cannot authorize a YouTube upload.
 - Added a regression using a valid TikTok-only report and verified the upload is rejected before the provider request.
 - Exact-head CI pending. No live YouTube API upload was performed.
+
+
+### BUILD-00390 — reject blocked policy reports at the upload boundary
+- Defense in depth: the YouTube uploader now accepts only `review_required` or `ready_for_human_review` policy statuses; `blocked` and unknown statuses are rejected even if the blocker list is empty.
+- Added a regression for a blocked unauthorized-assets report with an empty `approval_blockers` list, which must not reach the provider upload call.
+- Exact-head CI pending. No real YouTube upload was performed.
