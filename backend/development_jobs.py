@@ -612,6 +612,21 @@ class DevelopmentJobStore:
             )
         return self.get_worker(worker_id)
 
+    def heartbeat_worker(self, worker_id, current_job_id):
+        """Refresh presence only while this worker still owns the active job context."""
+        if not isinstance(worker_id, str) or not worker_id.strip():
+            raise ValueError("worker_id is required")
+        if not isinstance(current_job_id, str) or not current_job_id.strip():
+            raise ValueError("current_job_id is required")
+        timestamp = _stamp(_now())
+        with self.db() as connection:
+            cursor = connection.execute(
+                """UPDATE development_workers SET last_seen_at=?
+                   WHERE worker_id=? AND status='online' AND current_job_id=?""",
+                (timestamp, worker_id.strip(), current_job_id.strip()),
+            )
+            return cursor.rowcount > 0
+
     def stop_worker(self, worker_id):
         timestamp = _stamp(_now())
         with self.db() as connection:

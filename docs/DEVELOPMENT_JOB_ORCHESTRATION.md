@@ -276,3 +276,9 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 ### BUILD-00379 — final exact-head validation
 - Final head `42d29e6d438c97da338764de72149ebbacf69151` passed **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538127436](https://github.com/justinhblee-prog/shorts/actions/runs/44538127436) and [44538117994](https://github.com/justinhblee-prog/shorts/actions/runs/44538117994).
 - Both exact-head runs passed after stabilizing the TikTok poll-backoff test's time-boundary fixtures. Hosted Linux only; Windows local-runner and production execution remain unverified.
+
+
+## BUILD-00380 — fence worker-presence heartbeats after shutdown
+- Add a presence heartbeat update that succeeds only while the worker remains online with the same active job ID.
+- Prevent a delayed heartbeat thread from resurrecting an offline worker or restoring a stale `current_job_id` after the worker has cleared its job and stopped.
+- Add a regression that blocks a heartbeat across shutdown and verifies the late completion cannot reactivate presence. Exact-head CI pending.

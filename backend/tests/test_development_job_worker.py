@@ -239,6 +239,53 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         self.assertIsNone(presence["current_job_id"])
         self.assertEqual(self.store.summary()["online_workers"], 1)
 
+    def test_late_heartbeat_cannot_resurrect_worker_presence_after_shutdown(self):
+        self.store.lease_seconds = 3
+        self.store.create("Late worker heartbeat", scope=["backend/example.py"])
+        heartbeat_started = threading.Event()
+        release_heartbeat = threading.Event()
+        heartbeat_finished = threading.Event()
+        original_heartbeat_worker = self.store.heartbeat_worker
+
+        def delayed_heartbeat(*_args):
+            heartbeat_started.set()
+            if not release_heartbeat.wait(5):
+                raise RuntimeError("test heartbeat release timed out")
+            return True
+
+        def tracked_heartbeat_worker(worker_id, current_job_id):
+            try:
+                return original_heartbeat_worker(worker_id, current_job_id)
+            finally:
+                heartbeat_finished.set()
+
+        def execute(_job):
+            self.assertTrue(heartbeat_started.wait(3))
+            return {
+                "changed_files": ["backend/example.py"],
+                "tests_passed": True,
+                "validation_ref": "ci://worker-presence-race",
+            }
+
+        worker = DevelopmentJobWorker(
+            self.store, "runner-late-heartbeat", execute, poll_seconds=1
+        )
+        with patch.object(self.store, "heartbeat", side_effect=delayed_heartbeat), patch.object(
+            self.store, "heartbeat_worker", side_effect=tracked_heartbeat_worker
+        ):
+            result = worker.run_until_idle(idle_seconds=1)
+            self.assertEqual(result["processed"], 1)
+            stopped = self.store.get_worker("runner-late-heartbeat")
+            self.assertEqual(stopped["status"], "offline")
+            self.assertIsNone(stopped["current_job_id"])
+
+            release_heartbeat.set()
+            self.assertTrue(heartbeat_finished.wait(2))
+
+        final = self.store.get_worker("runner-late-heartbeat")
+        self.assertEqual(final["status"], "offline")
+        self.assertIsNone(final["current_job_id"])
+
     def test_run_until_idle_stops_after_one_review_pending_diff(self):
         first = self.store.create("First diff", scope=["backend/first.py"])
         second = self.store.create("Second diff", scope=["backend/second.py"])

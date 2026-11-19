@@ -59,7 +59,8 @@ class DevelopmentJobWorker:
             while not heartbeat_stop.wait(interval):
                 try:
                     self.store.heartbeat(job["id"], self.worker_id, job["lease_token"])
-                    self.store.touch_worker(self.worker_id, current_job_id=job["id"])
+                    if not self.store.heartbeat_worker(self.worker_id, job["id"]):
+                        return
                 except DevelopmentJobConflict:
                     # A rejected fencing token is definitive lease loss.
                     cancel_for_lease_loss()
