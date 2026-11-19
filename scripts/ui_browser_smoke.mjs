@@ -31,13 +31,33 @@ async function waitForServer() {
     await page.route("https://fonts.googleapis.com/**", route =>
       route.fulfill({ status: 200, contentType: "text/css", body: "" })
     );
-    await page.route("**/api/**", route =>
-      route.fulfill({
-        status: 401,
+    let authenticated = false;
+    await page.route("**/api/**", async route => {
+      if (!authenticated) {
+        return route.fulfill({
+          status: 401,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "Authentication required" }),
+        });
+      }
+      const pathname = new URL(route.request().url()).pathname;
+      if (pathname === "/api/publishing/analytics-history") {
+        await new Promise(resolve => setTimeout(resolve, 350));
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            items: { youtube: [], tiktok: [] },
+            as_of: "2026-11-19T09:00:00+00:00",
+          }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ detail: "Authentication required" }),
-      })
-    );
+        body: JSON.stringify({}),
+      });
+    });
 
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     fs.mkdirSync("artifacts", { recursive: true });
@@ -49,6 +69,19 @@ async function waitForServer() {
     assert.equal(await page.locator("#review").count(), 1);
     assert.equal(await page.locator("#operations").count(), 1);
     assert.equal(await page.locator("#connection").getAttribute("role"), "status");
+
+    await page.locator("#openSettings").click();
+    await page.locator("#tokenInput").fill("browser-smoke-token");
+    authenticated = true;
+    await page.locator("#saveToken").click();
+    await page.locator("#settingsDialog").waitFor({ state: "hidden" });
+    await page.locator("#loadAnalyticsHistory").click();
+    assert.equal(await page.locator("#analyticsHistory").getAttribute("aria-busy"), "true");
+    await page.waitForFunction(() =>
+      document.querySelector("#analyticsHistory").getAttribute("aria-busy") === "false" &&
+      document.querySelector("#analyticsHistoryStatus").textContent.includes("기준 시각")
+    );
+    assert.equal(await page.locator("#exportAnalyticsHistory").isDisabled(), true);
 
     await page.keyboard.press("Tab");
     assert.equal(await page.evaluate(() => document.activeElement.classList.contains("skip-link")), true);
