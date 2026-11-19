@@ -26,6 +26,17 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("app.youtube_analytics_store.save(", server)
         self.assertIn("app.tiktok_metrics_store.save_snapshot(", server)
 
+
+    def test_browser_smoke_seeds_and_approves_a_real_review_queue_job(self):
+        server = (ROOT / "scripts" / "ui_api_smoke_server.py").read_text(encoding="utf-8")
+        browser = (ROOT / "scripts" / "ui_browser_smoke.mjs").read_text(encoding="utf-8")
+        self.assertIn("app.submit_production(app.queue, app.production_store, review_brief)", server)
+        self.assertIn('app.queue.finish(', server)
+        self.assertIn('app.production_store.stage(', server)
+        self.assertIn('button[data-action="approve"]', browser)
+        self.assertIn('/api/review/browser-smoke-review-ready/history', browser)
+        self.assertIn('approvalHistory.body.items.at(-1).decision, "approved"', browser)
+
     def test_dashboard_assets_are_packaged(self):
         frontend = ROOT / "frontend"
         self.assertTrue((frontend / "index.html").is_file())
