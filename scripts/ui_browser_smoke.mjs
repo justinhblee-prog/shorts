@@ -9,6 +9,16 @@ const server = spawn(process.env.PYTHON || "python", [
   "scripts/ui_api_smoke_server.py", "--port", String(port),
 ], { stdio: "ignore" });
 
+function waitForSignal(promise, label, timeoutMs = 15000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(
+      () => reject(new Error(label + " timed out after " + timeoutMs + "ms")),
+      timeoutMs,
+    )),
+  ]);
+}
+
 async function waitForServer() {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     try {
@@ -114,7 +124,7 @@ async function waitForServer() {
       response.request().method() === "POST"
     );
     await reviewCard.locator('button[data-action="approve"]').click();
-    assert.equal((await approvalResponse).status(), 200);
+    assert.equal((await waitForSignal(approvalResponse, "review approval response")).status(), 200);
     const approvalHistory = await page.evaluate(async ({ token, jobId }) => {
       const response = await fetch("/api/review/" + encodeURIComponent(jobId) + "/history", {
         headers: { "X-Review-Token": token },
@@ -128,7 +138,7 @@ async function waitForServer() {
     assert.equal(approvalHistory.body.items.at(-1).decision, "approved");
     checkpoint("real review approval and audit history verified");
     await page.locator("#loadAnalyticsHistory").click();
-    await analyticsStarted;
+    await waitForSignal(analyticsStarted, "analytics history request");
     assert.equal(await page.locator("#analyticsHistory").getAttribute("aria-busy"), "true");
     releaseAnalytics();
     await page.waitForFunction(() =>
