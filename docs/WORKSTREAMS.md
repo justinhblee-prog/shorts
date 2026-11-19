@@ -86,7 +86,7 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Exercise the actual review approval button and verify append-only review history records the decision.
 - Exercise real SQLite keyset pagination and actual Chromium CSV download; inject one controlled 503 to verify partial API failure handling.
 - External YouTube/TikTok provider calls, production credentials, and deployed environment remain outside this local integration test.
-- Exact-head validation passed: backend [run 44504876001](https://github.com/justinhblee-prog/shorts/actions/runs/44504876001), 729 tests plus Playwright Chromium; Compose [run 44504875848](https://github.com/justinhblee-prog/shorts/actions/runs/44504875848).
+- Exact-head validation passed: backend [run 44505738015](https://github.com/justinhblee-prog/shorts/actions/runs/44505738015), 730 tests plus Playwright Chromium; Compose [run 44505738207](https://github.com/justinhblee-prog/shorts/actions/runs/44505738207).
 
 
 ## UI-00009 — searchable review queue
@@ -95,4 +95,4 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Keep the search client-side over the already-authorized pending-review response; it does not expand API access or change approval semantics.
 - Announce result counts through a polite status region and retain the query across queue refreshes.
 - Add source and Chromium browser regressions for zero-result and matching-result behavior.
-- Exact-head validation passed in the same UI checkpoint: [run 44504876001](https://github.com/justinhblee-prog/shorts/actions/runs/44504876001), 729 tests and Playwright Chromium.
+- Exact-head validation passed in the same UI checkpoint: [run 44505738015](https://github.com/justinhblee-prog/shorts/actions/runs/44505738015), 730 tests and Playwright Chromium.
