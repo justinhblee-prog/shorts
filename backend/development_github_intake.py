@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from typing import Any, Iterable
+from urllib.request import HTTPRedirectHandler
 
 from development_jobs import DevelopmentJobConflict
 
@@ -208,7 +209,7 @@ def normalize_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     }
 
     
-class _GitHubAPIOnlyRedirectHandler:
+class _GitHubAPIOnlyRedirectHandler(HTTPRedirectHandler):
     """Reject redirects that could forward the GitHub bearer token off-host."""
 
     def redirect_request(self, request, response, code, message, headers, new_url):
@@ -223,8 +224,7 @@ class _GitHubAPIOnlyRedirectHandler:
             or target.password is not None
         ):
             raise ValueError("refusing redirect outside the trusted GitHub API origin")
-        from urllib.request import HTTPRedirectHandler
-        return HTTPRedirectHandler.redirect_request(
+        return super().redirect_request(
             self, request, response, code, message, headers, target.geturl(),
         )
 
