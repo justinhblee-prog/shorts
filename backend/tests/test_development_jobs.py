@@ -178,7 +178,9 @@ class DevelopmentJobStoreTests(unittest.TestCase):
 
     def test_expired_lease_is_reclaimed_and_old_worker_is_fenced(self):
         job = self.store.create("Lease recovery")
+        self.store.touch_worker("worker-a")
         first = self.store.claim_ready("worker-a")
+        self.store.touch_worker("worker-a", current_job_id=job["id"])
         with self.store.db() as connection:
             connection.execute(
                 "UPDATE development_jobs SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
@@ -187,6 +189,12 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertIsNone(self.store.claim_ready("worker-b"))
         expired = self.store.get(job["id"])
         self.assertEqual(expired["status"], "quarantined")
+        presence = self.store.get_worker("worker-a")
+        self.assertEqual(presence["status"], "lease_expired")
+        self.assertEqual(presence["current_job_id"], job["id"])
+        with self.assertRaisesRegex(DevelopmentJobConflict, "fenced until"):
+            self.store.touch_worker("worker-a")
+        self.assertFalse(self.store.stop_worker("worker-a"))
         self.assertIsNone(expired["worker_id"])
         competing = self.store.create("Overlapping work must wait", scope=["backend/file.py"])
         self.assertIsNone(self.store.claim_ready("worker-c"))
@@ -201,6 +209,8 @@ class DevelopmentJobStoreTests(unittest.TestCase):
             reason="Old runner terminated and workspace discarded",
         )
         self.assertEqual(recovered["status"], "ready")
+        self.assertEqual(self.store.get_worker("worker-a")["status"], "offline")
+        self.store.touch_worker("worker-a")
         second = self.store.claim_ready("worker-b")
         self.assertEqual(second["id"], job["id"])
         self.assertIsNone(self.store.claim_ready("worker-c"))
@@ -301,14 +311,26 @@ class DevelopmentJobStoreTests(unittest.TestCase):
 
 
     def test_worker_presence_lifecycle_and_summary(self):
-        worker = self.store.touch_worker("runner-a", hostname="WINNER", current_job_id="DEV-1")
+        job = self.store.create("Worker presence lifecycle", scope=["backend/presence.py"])
+        self.store.touch_worker("runner-a", hostname="WINNER")
+        claim = self.store.claim_ready("runner-a")
+        worker = self.store.touch_worker("runner-a", hostname="WINNER", current_job_id=job["id"])
         self.assertEqual(worker["status"], "online")
         self.assertEqual(worker["hostname"], "WINNER")
-        self.assertEqual(worker["current_job_id"], "DEV-1")
+        self.assertEqual(worker["current_job_id"], job["id"])
         listed = self.store.list_workers()
         self.assertEqual(len(listed), 1)
         self.assertTrue(listed[0]["is_online"])
         self.assertEqual(self.store.summary()["online_workers"], 1)
+        with self.assertRaises(DevelopmentJobConflict):
+            self.store.touch_worker("runner-a", current_job_id=None)
+        self.assertFalse(self.store.stop_worker("runner-a"))
+        self.assertEqual(self.store.get_worker("runner-a")["current_job_id"], job["id"])
+        self.store.mark_review_pending(
+            job["id"], "runner-a", claim["lease_token"],
+            ["backend/presence.py"], True, "ci://run/presence",
+        )
+        self.store.touch_worker("runner-a", current_job_id=None)
         self.assertTrue(self.store.stop_worker("runner-a"))
         stopped = self.store.get_worker("runner-a")
         self.assertEqual(stopped["status"], "offline")

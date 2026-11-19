@@ -1413,3 +1413,11 @@ The read-only GitHub client now uses a dedicated redirect handler. Authenticated
 
 ### BUILD-00370 — exact-head CI result
 Code head `036676fb4d468f23882df857bd6aac9d640d351a` passed GitHub Actions run [44527844531](https://github.com/justinhblee-prog/shorts/actions/runs/44527844531): **802 tests**, repository validation and frontend syntax check. Redirect tests cover off-host, insecure, credential-bearing and alternate-port URLs, while preserving same-origin GitHub redirects. Hosted Linux only.
+
+
+### BUILD-00371 — worker identity/presence fencing
+Worker presence updates are now tied to the active lease. A duplicate process cannot clear another process's current-job pointer, and its shutdown cannot mark the active worker offline. When a lease expires, the worker identity is fenced as `lease_expired` and cannot be reused until the operator confirms workspace reset through the explicit recovery gate. Exact-head hosted CI pending.
+
+
+### BUILD-00371 — exact-head CI result
+Code head `e219560b26a74ffea9e883ec3e3de8226644f385` passed GitHub Actions run [44528766250](https://github.com/justinhblee-prog/shorts/actions/runs/44528766250): **803 tests**, repository validation and frontend syntax check. Duplicate worker identities cannot clear active presence; expired identities remain fenced until explicit workspace-reset recovery. Hosted Linux only.

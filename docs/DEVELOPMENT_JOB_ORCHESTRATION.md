@@ -221,3 +221,15 @@ The GET-only intake client installs a custom redirect handler that permits only 
 
 ### BUILD-00370 — exact-head redirect validation
 GitHub Actions run [44527844531](https://github.com/justinhblee-prog/shorts/actions/runs/44527844531) passed **802 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. The client rejects off-origin, HTTP, userinfo-bearing and nonstandard-port redirects before a redirected request is issued.
+
+
+### BUILD-00371 — worker presence fencing contract
+- A worker identity cannot register or clear its current job while another active lease is owned by that identity.
+- A duplicate process returns without claiming work; its cleanup cannot mark the real worker offline while an active lease remains.
+- Expiry marks the worker identity `lease_expired`; it cannot be reused until the corresponding expired job is recovered after workspace-reset confirmation.
+- Recovery restores the worker identity to offline, after which a new cycle may register it normally.
+- Exact-head hosted CI pending.
+
+
+### BUILD-00371 — exact-head validation
+GitHub Actions run [44528766250](https://github.com/justinhblee-prog/shorts/actions/runs/44528766250) passed **803 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Worker identity registration and shutdown are now fenced against active leases; expired identities require explicit workspace-reset recovery before reuse.

@@ -36,7 +36,12 @@ class DevelopmentJobWorker:
 
     def run_once(self):
         """Claim and execute at most one eligible job; return its resulting status."""
-        self.store.touch_worker(self.worker_id, hostname=self.hostname)
+        try:
+            self.store.touch_worker(self.worker_id, hostname=self.hostname)
+        except DevelopmentJobConflict:
+            # A duplicate or expired worker identity must not overwrite the
+            # active runner's presence or begin another execution cycle.
+            return None
         job = self.store.claim_ready(self.worker_id)
         if job is None:
             return None
