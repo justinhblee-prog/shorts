@@ -458,4 +458,4 @@ The durable review-pending gate is aligned with scheduler and executor path matc
 ## BUILD-00386 — quarantine recovery control
 - Operator recovery is explicit, reason-bearing and audited; only quarantined jobs can be requeued. Recovery resets attempts and stale evidence before a fresh bounded execution.
 - API access requires `operations.manage`; the operator role receives the permission and reviewer/producer roles do not.
-- Exact-head validation pending. Production role-map configuration and live Windows worker operation remain unverified.
+- Code head `628d5d1e22a56bbb58642e27530722d4d67e8992` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44548442047](https://github.com/justinhblee-prog/shorts/actions/runs/44548442047). Subsequent commits on this branch are documentation-only. Production role-map configuration and live Windows worker operation remain unverified.
