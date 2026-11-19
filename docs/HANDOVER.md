@@ -1349,3 +1349,7 @@ Recursive changed-file matching requires an explicit directory marker produced b
 
 ### BUILD-00365 — daemon worktree recycling boundary
 The worker and backlog-service daemon loops now poll while idle but return after the first claimed job attempt. This aligns their behavior with the shared-worktree isolation rule and prevents a second job from running against leftover validated or partial edits. Regression tests cover both daemon entry points. Exact-head CI pending; actual host checkout/recycle behavior remains an integration check.
+
+
+### BUILD-00363–00365 — combined hosted validation
+The combined worker-attempt isolation, explicit file-scope matching and daemon workspace-recycling changes passed GitHub Actions Backend tests run [44516995900](https://github.com/justinhblee-prog/shorts/actions/runs/44516995900): **782 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. This is hosted Linux evidence only; Windows self-hosted runner and live Aider/Ollama execution remain unverified.
