@@ -325,3 +325,7 @@ GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00367 — final validation checkpoint
 - Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
+
+
+### BUILD-00368 — lease heartbeat cancellation gate
+A Worker must not continue modifying a shared worktree when heartbeat persistence fails and lease ownership can no longer be confirmed. The implementation fails closed, signals executor cancellation and terminates the active child process group. Hosted regression tests are pending; Windows self-hosted process-tree termination and lease-expiry recovery remain unverified.
