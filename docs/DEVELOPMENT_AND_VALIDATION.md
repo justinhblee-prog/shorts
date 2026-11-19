@@ -386,3 +386,10 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - Latest PR #407 head `77333d264a123d80c87e6ca13f1edfc0282be06a` passed [workflow 44589059999](https://github.com/justinhblee-prog/shorts/actions/runs/44589059999): **880 tests passed**, frontend syntax, analytics Chromium smoke, quarantine recovery Chromium smoke, and artifact upload.
 - Final artifact [14564045600](https://github.com/justinhblee-prog/shorts/actions/runs/44589059999/artifacts/14564045600) includes the refreshed desktop/mobile browser screenshots.
 - The documentation-only commit clarifies that the provider-attempt reconciliation operator ID must match the token-authenticated principal. Exact-head validation is complete; PR #407 remains Draft/unmerged.
+
+
+## 2026-11-20 — TikTok publish actor-spoofing regression
+
+- Added a regression for `POST /api/tiktok/publish/{job_id}`: a body-supplied operator ID that differs from the token-authenticated principal must return HTTP 403.
+- The test asserts the guard runs before canonical staged-media resolution and before the TikTok publisher is called, preventing both filesystem/provider side effects for spoofed identities.
+- Commit: `bd3592951ae359fee7272e7b04951409960579f7` (PR #407 integration branch). Exact-head CI status pending at documentation time; no pass is claimed.
