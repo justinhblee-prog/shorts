@@ -676,6 +676,33 @@ class YouTubePublisher:
         if size>max_bytes:
             raise YouTubeUploadError("Rendered video exceeds NEXUS_MAX_MEDIA_BYTES")
         approved_artifacts=history[-1].get("artifact_snapshot") or []
+        policy_reports=[
+            item.get("metadata",{}).get("policy_preflight")
+            for item in approved_artifacts
+            if isinstance(item,dict) and isinstance(item.get("metadata"),dict)
+            and isinstance(item.get("metadata",{}).get("policy_preflight"),dict)
+        ]
+        if not policy_reports:
+            raise YouTubeUploadError(
+                "Approved policy report is missing; run policy preflight and obtain a new human approval"
+            )
+        policy_report=policy_reports[-1]
+        synthetic_status=policy_report.get("synthetic_media_status")
+        if synthetic_status not in ("none","ai_assisted_nonrealistic","ai_generated","realistic_alteration"):
+            raise YouTubeUploadError(
+                "Approved synthetic-media status is missing or invalid; obtain a new policy review"
+            )
+        if policy_report.get("approval_blockers"):
+            raise YouTubeUploadError(
+                "Approved policy report contains non-overridable blockers"
+            )
+        contains_synthetic_media=synthetic_status in ("ai_generated","realistic_alteration")
+        if contains_synthetic_media and policy_report.get("platform_disclosures",{}).get(
+            "youtube_altered_content"
+        ) is not True:
+            raise YouTubeUploadError(
+                "YouTube altered/synthetic media disclosure is not acknowledged in the approved policy report"
+            )
         approved_video=next((
             item for item in approved_artifacts
             if isinstance(item,dict) and item.get("stage")=="rendering"
@@ -715,7 +742,8 @@ class YouTubePublisher:
             body={
                 "snippet":{"title":title,"description":description,
                            "tags":list(tags or []),"categoryId":str(category_id)},
-                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False}
+                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False,
+                         "containsSyntheticMedia":contains_synthetic_media}
             }
             request=service.videos().insert(
                 part="snippet,status",body=body,
