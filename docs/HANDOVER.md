@@ -1363,3 +1363,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Require the planner to use `idx_tiktok_metric_video_time_id` for snapshot filtering/order and `idx_tiktok_publications_video_status` for publication eligibility lookup.
 - This is a deterministic index-usage regression, not a production-scale latency benchmark. Representative-volume performance and browser/provider validation remain separate checks.
 - - Exact-head GitHub Actions validation: run [44492971072](https://github.com/justinhblee-prog/shorts/actions/runs/44492971072) passed `scripts/validate.sh` with **701 backend tests** on `05bbf26363cc786f771c2b59fe8ac00f74ec7cfa`.
+
+
+## BUILD-00334 — SQL aggregate TikTok analytics coverage
+
+- `TikTokMetricsStore.status()` now computes published-video coverage, latest snapshot timestamps, stale counts, and missing counts with a SQLite CTE aggregate rather than loading all eligible IDs and all snapshot timestamps into Python.
+- The eligible set is distinct by `video_id`, so multiple publication records for the same video do not inflate coverage. Historical snapshots belonging to no currently published video do not affect the status timestamp.
+- Regression test covers duplicate publication rows, stale and missing snapshots, and latest timestamp.
+- Code/test commits: `50b310c589378ad9a319ae5f4ae1802063e1f046` / `2b1bbb80f17059920180192059f4761c2daa05a0`.
+- Exact-head CI: pending. Production-sized latency benchmark and live provider validation remain outstanding.
