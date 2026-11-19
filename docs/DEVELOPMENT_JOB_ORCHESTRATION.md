@@ -213,3 +213,11 @@ The executor captures the final changed-file set only after repository validatio
 
 ### BUILD-00369 — exact-head validation
 GitHub Actions run [44527024967](https://github.com/justinhblee-prog/shorts/actions/runs/44527024967) passed **801 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. The executor now verifies the final Git diff after tests, re-applies file-scope constraints and refuses no-op/test-only completion.
+
+
+### BUILD-00370 — GitHub API redirect validation
+The GET-only intake client installs a custom redirect handler that permits only HTTPS redirects to `api.github.com` on the default port. Redirects to other hosts, insecure schemes, userinfo-bearing URLs or alternate ports fail closed before any redirected request is issued. Exact-head CI pending.
+
+
+### BUILD-00370 — exact-head redirect validation
+GitHub Actions run [44527844531](https://github.com/justinhblee-prog/shorts/actions/runs/44527844531) passed **802 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. The client rejects off-origin, HTTP, userinfo-bearing and nonstandard-port redirects before a redirected request is issued.
