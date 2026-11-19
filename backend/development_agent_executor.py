@@ -223,7 +223,9 @@ class AiderDevelopmentExecutor:
         for raw in scope:
             if not isinstance(raw, str) or not raw.strip():
                 raise NonRetryableDevelopmentJobError("job scope contains an invalid path")
-            raw_path = raw.strip()
+            if raw != raw.strip():
+                raise NonRetryableDevelopmentJobError("job scope contains leading or trailing whitespace")
+            raw_path = raw
             windows_path = PureWindowsPath(raw_path)
             windows_reserved = {"CON", "PRN", "AUX", "NUL"}
             for segment in raw_path.replace("\\", "/").split("/"):
