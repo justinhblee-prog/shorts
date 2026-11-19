@@ -324,4 +324,4 @@ GitHub Actions run [44525610403](https://github.com/justinhblee-prog/shorts/acti
 
 
 ### BUILD-00377 — symlink scope validation
-Symlink components are rejected before execution to preserve write-scope isolation. Hosted validation pending.
+Symlink and Windows reparse-point components are rejected before execution to preserve write-scope isolation. Hosted validation pending.
