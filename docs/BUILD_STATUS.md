@@ -2591,6 +2591,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Exact-head Actions run [44495796084](https://github.com/justinhblee-prog/shorts/actions/runs/44495796084) passed `scripts/validate.sh` with **706 tests** on code/test checkpoint `9d8e44d3ba100e718e2e257124ad68cbedfeeac9`.
 
 ## BUILD-00339 — TikTok collector OAuth and lease-fencing coverage
+- Initial BUILD-00339 test run caught unnecessary TikTok OAuth manager construction when a collector was injected. Aligned TikTok initialization with the YouTube path: construct OAuth storage/manager only when the default collector must be created. Revalidation is running on the fix.
+
 
 - Add tests for the default encrypted TikTok OAuth token-provider wiring and injected collector behavior.
 - Verify that results are discarded when the collector loses its lease after the provider call, failures are recorded only while lease ownership remains valid, and every path releases the lease.
