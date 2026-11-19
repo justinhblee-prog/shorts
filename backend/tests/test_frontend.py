@@ -118,6 +118,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('dataset.loaded="true"', app_js)
         self.assertIn('id="exportAnalyticsHistory"', html)
         self.assertIn('exportButton.disabled=rows.length===0', app_js)
+        self.assertIn('if($("exportAnalyticsHistory"))$("exportAnalyticsHistory").disabled=true', app_js)
         self.assertIn('new Blob(["\\uFEFF",csv]', app_js)
         self.assertIn('cell.replace(/"/g,\'""\')', app_js)
         self.assertIn('if(/^[\\u0000-\\u0020]*[=+\\-@]/.test(cell))', app_js)
