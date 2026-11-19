@@ -360,3 +360,12 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - Exact source head `b9b375a3ea9f95ef7ab4b18210ec43f474824fb4` passed [workflow 44586621312](https://github.com/justinhblee-prog/shorts/actions/runs/44586621312): **879 tests passed**, frontend syntax, analytics browser smoke, recovery browser smoke, and artifact upload.
 - A subsequent API documentation-only update created PR #407 head `323ad6c5ad7d6ef7d0301fbb8655f3d7a4b355dc`; its exact-head workflow is running separately. Do not label the newer head passed until that run completes.
 - PR #407 remains Draft/unmerged. No production deployment, live OAuth/provider action, or live operator recovery was performed.
+
+
+### PR #407 final documentation-inclusive exact-head PASS
+
+- Final candidate head `323ad6c5ad7d6ef7d0301fbb8655f3d7a4b355dc` passed [workflow 44587081054](https://github.com/justinhblee-prog/shorts/actions/runs/44587081054): **879 tests passed**, frontend JavaScript syntax, analytics Chromium smoke, quarantine recovery Chromium smoke, and artifact upload.
+- The run verified the dashboard's initial state reaches API connected across all 19 modules, the restored publishing overview API returns successfully, and the intentional partial-failure path remains visible and recoverable.
+- Both browser smoke suites passed on the exact final head. Final artifact [14561965386](https://github.com/justinhblee-prog/shorts/actions/runs/44587081054/artifacts/14561965386) contains refreshed desktop/mobile screenshots.
+- Backend README now documents GET /api/publishing/overview and POST /api/production/jobs/{job_id}/provider-attempts/{provider_attempt_id}/reconcile.
+- PR #407 remains Draft/unmerged; no production deployment or live provider/OAuth operation was performed.
