@@ -64,6 +64,11 @@ class DevelopmentBacklogService:
         while not self._stop_event.is_set():
             last_result = self.run_cycle()
             cycles += 1
+            # A claimed attempt may leave unvalidated changes in the shared
+            # checkout. Never start another cycle against that same worktree.
+            execution = last_result.get("execution", {}) if isinstance(last_result, dict) else {}
+            if execution.get("processed", 0) > 0:
+                break
             if not self._stop_event.is_set():
                 self._stop_event.wait(self.poll_seconds)
         return {"cycles": cycles, "last_result": last_result}
