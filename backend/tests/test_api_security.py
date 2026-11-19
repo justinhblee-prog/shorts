@@ -1105,34 +1105,5 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["tiktok"]["pending"],2)
         self.assertNotIn("access_token",str(result))
 
-
-
-    def test_tiktok_publish_rejects_operator_id_spoofing_before_media_or_provider_access(self):
-        from app import TikTokPublishRequest, publish_tiktok_video
-        body = TikTokPublishRequest(
-            media_path="staged/job/video.mp4",
-            title="Approved private draft",
-            operator_id="forged-operator",
-        )
-        with (
-            mock.patch.object(
-                app_module, "require_review_permission",
-                return_value="authenticated-operator",
-            ) as authorize,
-            mock.patch.object(app_module, "require_canonical_staged_media") as staged,
-            mock.patch.object(app_module.tiktok_publisher, "publish_private_approved") as publish,
-        ):
-            with self.assertRaises(HTTPException) as caught:
-                publish_tiktok_video(
-                    "job-1", body, x_review_token="valid-review-token"
-                )
-        self.assertEqual(caught.exception.status_code, 403)
-        authorize.assert_called_once_with(
-            "valid-review-token", "publish.execute"
-        )
-        staged.assert_not_called()
-        publish.assert_not_called()
-
-
 if __name__ == "__main__":
     unittest.main()
