@@ -96,9 +96,8 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
 
         def execute(job):
             calls.append(job["id"])
-            (self.root if hasattr(self, "root") else Path(self.tmp.name) / "partial.py").write_text(
-                "unvalidated partial change", encoding="utf-8"
-            )
+            with open(os.path.join(self.tmp.name, "partial.py"), "w", encoding="utf-8") as partial:
+                partial.write("unvalidated partial change")
             raise RuntimeError("validation failed after partial edit")
 
         worker = DevelopmentJobWorker(self.store, "runner-failed-once", execute, poll_seconds=1)
