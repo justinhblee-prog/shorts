@@ -97,6 +97,6 @@ Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonatio
 - Official API reference: https://developers.tiktok.com/docs/en/content-posting-api-reference-direct-post
 
 
-### BUILD-00386 — exact-head validation
+### BUILD-00387 — exact-head validation
 - Code head `09351f5704c3cd89a79d30f79d92956477942806` passed **823 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44549002097](https://github.com/justinhblee-prog/shorts/actions/runs/44549002097).
 - The upload-body tests confirmed `containsSyntheticMedia=false` for non-synthetic media, `true` for approved realistic alteration, and fail-closed behavior when the policy report is missing. No real platform upload was performed.
