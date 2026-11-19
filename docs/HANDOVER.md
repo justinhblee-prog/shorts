@@ -1329,3 +1329,7 @@ The local model subprocess no longer inherits backup encryption keys, database/R
 
 ### BUILD-00360 — immutable secret-file scope denylist
 The Aider scope validator now rejects SSH private identities/authorized-key files, cloud credential directories, Kubernetes/Docker/GnuPG configuration, Terraform/Pulumi state, package-manager credential files, service-account JSON and private-key/keystore formats. Sensitive subdirectories under `.config` are blocked. The validator checks resolved symlink targets as well as original scope names. Exact-head backend Actions run [44513787916](https://github.com/justinhblee-prog/shorts/actions/runs/44513787916) passed 776 tests; this is a code-level denylist, not a scan of the user's Windows runner.
+
+
+### BUILD-00361 — per-job user home and tool config isolation
+The local Aider executor now creates a temporary home for each job and redirects HOME/USERPROFILE, XDG, Windows app-data, Docker, npm, pip and Git global config to empty private locations. Inherited SSH/Git credential overrides and Aider/LiteLLM/provider endpoint settings are stripped; Git system/global config and interactive credential prompts are disabled. Exact-head CI pending; this is not evidence of live Windows runner/Aider execution.
