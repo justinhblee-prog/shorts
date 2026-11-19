@@ -2624,7 +2624,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 
 ## BUILD-00371 — case-insensitive scope lock enforcement
-- Normalize slash direction and case-fold declared scopes before exact and parent/child overlap comparisons.
+- Normalize slash direction, repeated separators, dot segments and casing before exact and parent/child overlap comparisons.
 - Prevent case-only aliases from bypassing write-scope serialization on the Windows production runner.
 - Add direct and claim-scheduler regression coverage for `Backend/` versus `backend/api.py`.
 - Exact-head hosted CI pending.
