@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from development_backlog_service import DevelopmentBacklogService
 from development_jobs import DevelopmentJobStore
@@ -53,6 +54,28 @@ class DevelopmentBacklogServiceTests(unittest.TestCase):
         jobs = self.store.list()
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0]["status"], "review_pending")
+
+    def test_run_forever_stops_after_any_claimed_attempt(self):
+        service = DevelopmentBacklogService(
+            store=self.store,
+            github_client=FakeGitHub(),
+            owner="acme",
+            repository="app",
+            executor=lambda job: {},
+            worker_id="test-worker",
+            approved_scopes={},
+            poll_seconds=0.01,
+            idle_seconds=1,
+        )
+        with patch.object(
+            service, "run_cycle",
+            return_value={"execution": {"processed": 1, "outcomes": {"retry_wait": 1}}},
+        ) as run_cycle:
+            result = service.run_forever()
+
+        self.assertEqual(run_cycle.call_count, 1)
+        self.assertEqual(result["cycles"], 1)
+        self.assertEqual(result["last_result"]["execution"]["processed"], 1)
 
     def test_cycle_does_not_import_issue_without_scope_approval(self):
         service = DevelopmentBacklogService(
