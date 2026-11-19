@@ -94,6 +94,7 @@ async function waitForServer() {
         "/api/brands",
         "/api/queue/stats",
         "/api/review/pending?limit=100",
+        "/api/publishing/overview",
         "/api/publishing/analytics-status",
       ];
       return Promise.all(paths.map(async path => {
@@ -102,7 +103,7 @@ async function waitForServer() {
         return { path, status: response.status, body };
       }));
     }, "nexus-ui-browser-smoke-token-2026-11-19-32chars");
-    assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200]);
+    assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200, 200]);
     assert.ok(Array.isArray(liveApiChecks[0].body.brands));
     assert.ok(Number.isFinite(Number(liveApiChecks[1].body.total)));
     assert.ok(Array.isArray(liveApiChecks[2].body.items));
@@ -110,7 +111,9 @@ async function waitForServer() {
       item.brand === "Browser Smoke" && item.topic === "A review-ready browser integration fixture"
     );
     assert.ok(reviewJob, "the real API must return the seeded review-ready job");
+    assert.ok(Number.isFinite(Number(liveApiChecks[3].body.total)));
     assert.ok(liveApiChecks[3].body.youtube && liveApiChecks[3].body.tiktok);
+    assert.ok(liveApiChecks[4].body.youtube && liveApiChecks[4].body.tiktok);
     checkpoint("authenticated core API endpoints verified");
     const reviewCard = page.locator("#reviewList .review-card").filter({ hasText: reviewJob.job_id });
     await reviewCard.waitFor({ state: "visible" });
