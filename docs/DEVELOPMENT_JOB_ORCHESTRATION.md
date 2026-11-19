@@ -127,3 +127,16 @@ The UI lane now extends beyond the earlier UI-00011/UI-00012 snapshot:
 - Next UI verification: inspect the uploaded desktop/mobile screenshots, complete the duplicate CI run, then perform a focused visual/accessibility review while confirming all existing IDs, forms, API-bound controls and navigation behavior remain intact.
 
 Integration scheduling: keep UI-00014 dependent on UI-00013; do not rebase it onto main independently. Once the UI stack and Core/Policy stacks are ready for review, run cross-lane contract tests for navigation, authenticated API loading/error states, review approval policy preflight, synthetic-media disclosure and the audited quarantine recovery action. Production OAuth, AI provider, Windows runner and publishing gates remain separate and unverified.
+
+## UI-00015 — analytics history pagination (2026-11-20)
+
+PR #395 is a Draft follow-up stacked on UI-00014 (#394), currently at head `f64553264638464debbe9b427a10fa5313062e9a`.
+
+The browser capture showed that up to 200 analytics snapshot rows were rendered in a single long table. UI-00015 changes the visible table to 25 rows per page with accessible previous/next controls and a live page/count status. It retains full-history aggregation, chart rendering, and the separate cursor-paginated CSV export.
+
+Validation:
+- Exact-head hosted repository validation passed in [run 44567167733](https://github.com/justinhblee-prog/shorts/actions/runs/44567167733), including the full `scripts/validate.sh` test suite.
+- Chromium browser smoke is still running at the Korean font fallback step in this snapshot; page navigation and full 502-row CSV export assertions are included but not yet confirmed.
+- An earlier CI attempt failed due to dynamically generated IDs being absent from static HTML and a stale test expectation. The implementation now uses scoped data attributes for generated controls and the frontend regression assertion was updated. Do not count the failed attempts as validation.
+
+Next gate: confirm latest-head Chromium smoke and inspect the refreshed screenshot artifact. Keep PR #395 Draft and do not merge it independently of PR #394.
