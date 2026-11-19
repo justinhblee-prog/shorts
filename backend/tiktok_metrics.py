@@ -329,10 +329,11 @@ class TikTokMetricsStore:
             """).fetchall()
         return {row["video_id"]: row["collected_at"] for row in rows}
 
-    def history(self, publication_store, video_id=None, limit=100, since=None):
+    def history(self, publication_store, video_id=None, limit=100, since=None, offset=0):
         limit=max(1,min(int(limit),500))
+        offset=max(0,min(int(offset),10000000))
         eligible=publication_store.list_metrics_eligible(
-            limit=500 if video_id is None else 1,video_id=video_id
+            limit=1 if video_id is not None else None,video_id=video_id
         )
         allowed={item["video_id"]:item for item in eligible}
         if video_id:
@@ -350,8 +351,8 @@ class TikTokMetricsStore:
             rows=c.execute(f"""
               SELECT * FROM tiktok_video_metric_snapshots
               WHERE video_id IN ({placeholders}){date_clause}
-              ORDER BY collected_at DESC,id DESC LIMIT ?
-            """,params).fetchall()
+              ORDER BY collected_at DESC,id DESC LIMIT ? OFFSET ?
+            """,(*params,offset)).fetchall()
         result=[]
         for row in rows:
             item=dict(row)
