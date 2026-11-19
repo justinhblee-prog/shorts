@@ -1495,3 +1495,11 @@ Added composite indexes for publication video/status lookups and metric video/ti
 
 
 - Latest exact Core checkpoint `5898d0de5ab3b29799b83d78d1c91fa1f38e4745`: 716 backend tests passed; Compose five-service integration and encrypted backup/restore workflow passed. BUILD-00345 rollback-failure and BUILD-00346 path-overlap/symlink regressions are included.
+
+
+## BUILD-00347 — reject symlinked backup storage roots
+
+- Reject symbolic-link database, media-root, backup-output and restore-backup directories before resolving paths.
+- Preserve the intended storage-root boundary instead of silently following a symlink to another directory or database file.
+- Add regression coverage for symlinked media, backup output, database and restore roots. Tests skip only on platforms that cannot create symlinks.
+- Exact-head Actions validation pending.
