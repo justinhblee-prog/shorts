@@ -676,17 +676,20 @@ class YouTubePublisher:
         if size>max_bytes:
             raise YouTubeUploadError("Rendered video exceeds NEXUS_MAX_MEDIA_BYTES")
         approved_artifacts=history[-1].get("artifact_snapshot") or []
-        policy_reports=[
-            item.get("metadata",{}).get("policy_preflight")
-            for item in approved_artifacts
-            if isinstance(item,dict) and isinstance(item.get("metadata"),dict)
-            and isinstance(item.get("metadata",{}).get("policy_preflight"),dict)
+        script_artifacts=[
+            item for item in approved_artifacts
+            if isinstance(item,dict) and item.get("stage")=="script"
+            and item.get("artifact_type")=="text"
         ]
-        if not policy_reports:
+        latest_script=script_artifacts[-1] if script_artifacts else None
+        latest_script_metadata=(latest_script.get("metadata")
+                                if isinstance(latest_script,dict) else None)
+        policy_report=(latest_script_metadata.get("policy_preflight")
+                       if isinstance(latest_script_metadata,dict) else None)
+        if not isinstance(policy_report,dict):
             raise YouTubeUploadError(
-                "Approved policy report is missing; run policy preflight and obtain a new human approval"
+                "Latest approved script has no valid policy report; run policy preflight and obtain a new human approval"
             )
-        policy_report=policy_reports[-1]
         if policy_report.get("status") not in ("review_required","ready_for_human_review"):
             raise YouTubeUploadError(
                 "Approved policy report is blocked or has an unsupported status; obtain a valid human policy review"
