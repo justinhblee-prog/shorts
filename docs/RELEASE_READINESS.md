@@ -356,4 +356,4 @@ GitHub Actions run [44521675405](https://github.com/justinhblee-prog/shorts/acti
 
 
 ### BUILD-00371 — Windows path scope serialization
-Case-insensitive scope overlap enforcement and regression coverage are implemented. Exact-head hosted validation pending; hosted Linux cannot itself demonstrate Windows filesystem behavior.
+Case-insensitive scope overlap enforcement, separator/dot alias normalization and regression coverage are implemented. Exact-head hosted validation pending; hosted Linux cannot itself demonstrate Windows filesystem behavior.
