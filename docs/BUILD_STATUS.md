@@ -2775,3 +2775,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### POLICY-00001 — exact-head validation
 - Code head `dcb959f32a5c93fd80f957c5b37525eac0cede74` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44550031926](https://github.com/justinhblee-prog/shorts/actions/runs/44550031926).
 - Regressions confirmed that falsey non-object declarations and non-boolean rights attestations are rejected. Hosted CI only; no external platform actions were performed.
+
+
+## POLICY-00002 — validate source URL structure and rights attestations
+- Validate source evidence URLs as absolute HTTPS references with a hostname and valid port; reject credentials, malformed authority, whitespace and control characters while preserving valid query/fragment references.
+- Reject unsupported rights-attestation keys; only the documented visual, audio and likeness clearances are recognized.
+- Add focused policy-engine regressions and bump the policy pack to `2026-11-20.1`. Exact-head CI pending.
