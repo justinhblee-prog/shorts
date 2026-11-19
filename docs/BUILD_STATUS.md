@@ -2613,3 +2613,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject off-host, insecure, credential-bearing and nonstandard-port redirects before forwarding the bearer token.
 - Update pagination tests for the controlled opener and add same-origin vs off-origin redirect regressions.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00370 — exact-head hosted validation
+- Code head `036676fb4d468f23882df857bd6aac9d640d351a` passed GitHub Actions run [44527844531](https://github.com/justinhblee-prog/shorts/actions/runs/44527844531): **802 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Redirect regression covers off-host, insecure, credential-bearing and alternate-port targets.
+- Hosted Linux validation only.
