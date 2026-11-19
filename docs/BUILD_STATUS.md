@@ -2576,3 +2576,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Updated code head `ba03a9997693b7bb77137fcd18b028f5e784fee9` passed GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/actions/runs/44518919606): **795 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - The top-level workflow runner now redacts exceptions before writing them to Actions stderr; regression coverage checks that a GitHub token is not emitted.
 - Hosted Linux only; no production log inventory is implied.
+
+
+### BUILD-00367 — final redaction and scope-normalization validation
+- Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
