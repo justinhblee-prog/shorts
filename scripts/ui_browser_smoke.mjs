@@ -6,7 +6,7 @@ import { chromium } from "playwright";
 const port = Number(process.env.UI_SMOKE_PORT || 8765);
 const baseUrl = "http://127.0.0.1:" + port;
 const server = spawn(process.env.PYTHON || "python", [
-  "scripts/ui_smoke_server.py", "--port", String(port),
+  "scripts/ui_api_smoke_server.py", "--port", String(port),
 ], { stdio: "ignore" });
 
 async function waitForServer() {
@@ -32,70 +32,21 @@ async function waitForServer() {
     await page.route("https://fonts.googleapis.com/**", route =>
       route.fulfill({ status: 200, contentType: "text/css", body: "" })
     );
-    let authenticated = false;
-    let failQueueStats = false;
     let resolveAnalyticsStarted;
     let releaseAnalytics;
     const analyticsStarted = new Promise(resolve => { resolveAnalyticsStarted = resolve; });
     const analyticsGate = new Promise(resolve => { releaseAnalytics = resolve; });
-    await page.route("**/api/**", async route => {
-      if (!authenticated) {
-        return route.fulfill({
-          status: 401,
-          contentType: "application/json",
-          body: JSON.stringify({ detail: "Authentication required" }),
-        });
+    const analyticsRequests = [];
+    page.on("request", request => {
+      const requestUrl = new URL(request.url());
+      if (requestUrl.pathname === "/api/publishing/analytics-history") {
+        analyticsRequests.push(requestUrl.toString());
       }
-      const pathname = new URL(route.request().url()).pathname;
-      if (failQueueStats && pathname === "/api/queue/stats") {
-        return route.fulfill({
-          status: 503,
-          contentType: "application/json",
-          body: JSON.stringify({ detail: "Synthetic queue stats outage" }),
-        });
-      }
-      if (pathname === "/api/publishing/analytics-history") {
-        resolveAnalyticsStarted();
-        await analyticsGate;
-        const url = new URL(route.request().url());
-        const platform = url.searchParams.get("platform") || "all";
-        const hasCursor = url.searchParams.has("before_id");
-        const asOf = "2026-11-19T09:00:00+00:00";
-        const makeRow = (id, videoId, collectedAt, kind) => ({
-          id, video_id: videoId, collected_at: collectedAt,
-          views: kind === "youtube" ? 1000 - id : undefined,
-          view_count: kind === "tiktok" ? 2000 - id : undefined,
-          like_count: 10, comment_count: 2, share_count: 1,
-          retention_status: "no_data", retention_curve: [],
-        });
-        let items;
-        if (platform === "all") {
-          items = {
-            youtube: [makeRow(1, "video-yt-preview", "2026-11-18T10:00:00+00:00", "youtube")],
-            tiktok: [makeRow(2, "video-tt-preview", "2026-11-18T11:00:00+00:00", "tiktok")],
-          };
-        } else if (platform === "youtube" && !hasCursor) {
-          items = { youtube: Array.from({ length: 500 }, (_, index) =>
-            makeRow(1000 - index, "video-yt-" + (index + 1), "2026-11-18T" +
-              String(Math.floor(index / 60)).padStart(2, "0") + ":" +
-              String(index % 60).padStart(2, "0") + ":00+00:00", "youtube")
-          ) };
-        } else if (platform === "youtube") {
-          items = { youtube: [makeRow(500, "video-yt-501", "2026-11-17T00:00:00+00:00", "youtube")] };
-        } else {
-          items = { tiktok: [makeRow(1, "video-tt-1", "2026-11-16T00:00:00+00:00", "tiktok")] };
-        }
-        return route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ items, counts: { youtube: items.youtube?.length || 0, tiktok: items.tiktok?.length || 0 }, as_of: asOf }),
-        });
-      }
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({}),
-      });
+    });
+    await page.route("**/api/publishing/analytics-history", async route => {
+      resolveAnalyticsStarted();
+      await analyticsGate;
+      await route.continue();
     });
 
     await page.goto(baseUrl, { waitUntil: "networkidle" });
@@ -109,8 +60,7 @@ async function waitForServer() {
     assert.equal(await page.locator("#connection").getAttribute("role"), "status");
 
     await page.locator("#openSettings").click();
-    await page.locator("#tokenInput").fill("browser-smoke-token");
-    authenticated = true;
+    await page.locator("#tokenInput").fill("nexus-ui-browser-smoke-token-2026-11-19-32chars");
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
     await page.locator("#loadAnalyticsHistory").click();
@@ -130,10 +80,11 @@ async function waitForServer() {
     const downloadPath = await download.path();
     const csv = fs.readFileSync(downloadPath, "utf8");
     assert.equal(csv.split(/\r?\n/).length, 503);
-    assert.ok(csv.includes("video-yt-1"));
-    assert.ok(csv.includes("video-yt-500"));
-    assert.ok(csv.includes("video-yt-501"));
-    assert.ok(csv.includes("video-tt-1"));
+    assert.ok(csv.includes("browser-yt-001"));
+    assert.ok(csv.includes("browser-yt-500"));
+    assert.ok(csv.includes("browser-yt-501"));
+    assert.ok(csv.includes("browser-tt-001"));
+    assert.ok(analyticsRequests.some(url => new URL(url).searchParams.has("before_id")), "CSV export must request a real keyset-cursor page");
     await page.waitForFunction(() => document.querySelector("#analyticsHistoryStatus").textContent.includes("CSV 다운로드 요청 완료"));
     assert.match(await page.locator("#analyticsHistoryStatus").textContent(), /CSV 다운로드 요청 완료/);
 
