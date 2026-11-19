@@ -162,6 +162,20 @@
         : '';
       return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+recoverySummary+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
+    filterReviewCards();
+  }
+  function filterReviewCards(){
+    const query=$("reviewSearch").value.trim().toLocaleLowerCase();
+    const cards=Array.from($("reviewList").querySelectorAll(".review-card"));
+    let visible=0;
+    cards.forEach(card=>{
+      const matches=!query||card.textContent.toLocaleLowerCase().includes(query);
+      card.hidden=!matches;
+      if(matches)visible+=1;
+    });
+    $("reviewSearchStatus").textContent=query
+      ? "검색 결과 "+visible+" / "+cards.length+"건"
+      : "전체 "+cards.length+"건 표시";
   }
 
   async function loadPublishingOverview(){
@@ -815,6 +829,7 @@
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
+  $("reviewSearch").addEventListener("input",filterReviewCards);
   $("youtubeConnect").addEventListener("click",async()=>{
     if(!requireToken())return;
     try{
