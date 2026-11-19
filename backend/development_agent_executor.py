@@ -129,7 +129,7 @@ class AiderDevelopmentExecutor:
                 ))
             )
             config_credentials = ".config" in parts and bool(
-                parts & {"gcloud", "gh", "pip", "containers"}
+                parts & {"aws", "azure", "gcloud", "gh", "pip", "containers", "kube", "docker", "npm"}
             )
             if (parts & _FORBIDDEN_PARTS or protected_name or config_credentials
                     or name.startswith(".env")
