@@ -2474,3 +2474,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Raise the bounded bulk identity window to 500 to match the analytics-history API/export limit; keep the per-video lookup bounded to one eligible publication.
 - Add a regression test with more than 200 published videos and an older video whose snapshot must remain queryable.
 - Validation: GitHub Actions passed on the code/test checkpoint `2d81a86594a1b3d0c1bb9831a988225729da63b5` (run `44486853576`: 700 tests; run `44486850076`: 699 tests). Earlier sequential commits also passed (runs `44486846374` and `44486840647`, 699 tests each). The later documentation-only commits do not change executable code.
+
+
+## BUILD-00326 — analytics history query input hardening
+
+- Tighten optional video ID validation: reject leading/trailing whitespace and ASCII DEL in addition to empty, oversized, and C0 control-character values. This avoids ambiguous identifiers being silently passed to storage queries.
+- Add endpoint regression tests for whitespace and DEL rejection, maximum 365-day window, and lower-bound limit clamping on both platform branches.
+- Validation: pending exact-head GitHub Actions.
