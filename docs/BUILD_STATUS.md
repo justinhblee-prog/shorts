@@ -2776,3 +2776,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Defense in depth: the YouTube uploader now accepts only `review_required` or `ready_for_human_review` policy statuses; `blocked` and unknown statuses are rejected even if the blocker list is empty.
 - Added a regression for a blocked unauthorized-assets report with an empty `approval_blockers` list, which must not reach the provider upload call.
 - Exact-head CI pending. No real YouTube upload was performed.
+
+
+### BUILD-00391 — validate policy report structure at upload
+- Upload preflight now requires `approval_blockers` to be a list of non-empty strings and `platform_disclosures` to be an object before evaluating the YouTube disclosure flag.
+- Malformed structures fail closed with a controlled `YouTubeUploadError`; regression coverage exercises malformed blocker and disclosure fields.
+- Exact-head CI pending. No real YouTube API upload was performed.
