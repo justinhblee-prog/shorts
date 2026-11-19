@@ -2415,3 +2415,22 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Draft PR: https://github.com/justinhblee-prog/shorts/pull/325 — GitHub Actions run [44258464733](https://github.com/justinhblee-prog/shorts/actions/runs/44258464733) passed on exact code/test head `3ac4800227e05129fddfd824a51d3b1cca28cdde`: 754 backend tests, `scripts/validate.sh`, and `node --check frontend/app.js`. The first run exposed a seeded dependency test that still assumed direct completion; the test was updated to require review-artifact publication. The subsequent documentation-only checkpoints are covered by the final exact-head PR check recorded in PR #325. The tests use temporary SQLite databases and a fixture-backed GitHub client; no real Windows self-hosted runner, Ollama-generated edit, repeated-run persistence, live provider, OAuth, public post, deployment or production recovery is claimed.
 - Safety: no PR was merged, no main push was made, and no existing user data or credentials were deleted or overwritten.
 - Next code priority: add an audited recovery path for orphaned review_pending jobs. First look for the stable automation branch/open PR and retry only artifact read-back when present; only an explicit operator-approved requeue may regenerate a diff when no branch/PR contains it. Preserve event history and retry limits; never auto-reset because PR outputs are empty.
+
+
+## BUILD-00318 — recover orphaned review-pending jobs without destructive requeue
+- Add paginated, read-only discovery of open PRs and recover a pending job only when exactly one matching open, unmerged Draft PR exists on the expected stable automation branch and default base.
+- Re-read the exact candidate and verify repository identity, full head SHA, and all changed files through the existing publication gate.
+- Zero or multiple candidates leave the job and append-only event history unchanged. Recovery never requeues, creates, updates, closes, approves, merges, or deploys a PR.
+- Draft PR #326: https://github.com/justinhblee-prog/shorts/pull/326. Its code-level validation is recorded in the PR; a live Windows runner recovery has not been observed.
+
+## BUILD-00319 — bounded autonomous continuation
+- After a meaningful scoped diff is published and the exact Draft PR URL/head SHA is verified, the worker workflow dispatches another bounded run with a decremented remaining-cycle budget (default 5, hard maximum 10).
+- No-op, missing publication evidence, failed verification, and recovery-only runs do not continue. The workflow remains serialized and Draft-only.
+- Draft PR #327 exact head `95844080e8635354ab8f8e2511c4b64b5bfe91ae` passed GitHub Actions run [44437965780](https://github.com/justinhblee-prog/shorts/actions/runs/44437965780). This is hosted CI; no subsequent Windows runner dispatch or real local-model diff is claimed.
+
+## BUILD-00320 — Windows runner toolchain preflight and Python isolation
+- Require Python 3.11+, Git Bash/POSIX sh, Node.js 18+, a healthy loopback Ollama API, and the exact `qwen2.5-coder:7b` model tag before development-mode execution.
+- Install backend requirements and Aider into separate per-run workspace virtual environments; avoid modifying the runner user's global/user Python installation.
+- Explicitly select the backend interpreter and Aider executable so repository validation and model execution use their intended environments.
+- Declare PyYAML in backend requirements because the validation script parses the Docker Compose YAML.
+- Add regressions for toolchain preflight, isolated environments, and explicit Aider executable resolution. Exact PR-head CI is pending; Windows runner/Ollama execution and persistent database reuse remain unverified.
