@@ -123,7 +123,7 @@ class AiderDevelopmentExecutor:
         blocked_prefixes = (
             "GIT_", "SSH_", "NPM_CONFIG_", "PIP_", "DOCKER_", "AWS_",
             "AZURE_", "GCLOUD_", "GOOGLE_", "AIDER_", "LITELLM_",
-            "OPENAI_", "ANTHROPIC_", "GEMINI_", "OLLAMA_", "PYTHON_",
+            "OPENAI_", "ANTHROPIC_", "GEMINI_", "OLLAMA_", "PYTHON",
             "LD_", "DYLD_",
         )
         for key in tuple(env):
