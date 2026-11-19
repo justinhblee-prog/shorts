@@ -1517,3 +1517,10 @@ The final store transition now applies the same case-insensitive, separator-norm
 - The trusted local runner enables strict mode; missing verifier, mismatched claims, or out-of-scope changes are quarantined rather than advanced to `review_pending`.
 - Add worker, executor, service and runner regressions.
 - Exact-head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and frontend syntax validation in [run 44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). Hosted Linux only; Windows self-hosted execution remains unverified.
+
+
+## BUILD-00386 — operator recovery for quarantined development jobs
+- Added `DevelopmentJobStore.recover_quarantined`, restricted to the quarantined state, with actor/reason validation and sensitive-text redaction.
+- Recovery resets attempts and stale validation evidence, returns the job to ready, and appends an immutable `quarantine_recovered` event with the prior attempt count.
+- Added the `POST /api/development/jobs/{job_id}/recover` endpoint under the new `operations.manage` permission; operator role is granted this permission, while reviewer/producer roles are not.
+- Exact-head backend validation pending.
