@@ -104,6 +104,20 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertFalse(self.executor._matches_scope("backend/Makefile/generated.py", ["backend/Makefile"]))
         self.assertFalse(self.executor._matches_scope("frontend/a.js", ["backend/"]))
 
+    def test_changed_file_scope_matching_is_case_and_separator_insensitive(self):
+        self.assertTrue(
+            self.executor._matches_scope("backend/export.py", ["Backend/Export.py"])
+        )
+        self.assertTrue(
+            self.executor._matches_scope("backend/api.py", ["BACKEND/"])
+        )
+        self.assertTrue(
+            self.executor._matches_scope(r"backend\\export.py", [r"Backend/Export.py"])
+        )
+        self.assertFalse(
+            self.executor._matches_scope("backend/api.py", ["Backend"])
+        )
+
     def test_scope_marks_existing_directories_as_recursive(self):
         scope = self.executor._validated_scope({"scope": ["backend"]})
         self.assertEqual(scope, ["backend/"])

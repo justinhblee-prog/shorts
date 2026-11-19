@@ -2721,3 +2721,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00382 — final exact-head validation
 - Final head `dbcbf2d54a21ae78380b282faaeeb213eed76c3d` passed **810 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44541640154](https://github.com/justinhblee-prog/shorts/actions/runs/44541640154) and [44541653671](https://github.com/justinhblee-prog/shorts/actions/runs/44541653671).
 - Both the approved symlink-alias canonicalization test and concurrent worker scope-alias claim regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.
+
+
+## BUILD-00383 — align executor scope matching with Windows path semantics
+- Normalize path separators and case before checking whether a changed file is within its declared scope.
+- Keep explicit directory markers mandatory for recursive matching.
+- Add regressions for case-only file names, case-insensitive directories, backslash input and extensionless file containment. Exact-head CI pending.
