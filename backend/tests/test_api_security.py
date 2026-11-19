@@ -600,7 +600,7 @@ class ApiSecurityTests(unittest.TestCase):
                "lease_token": "lease-1", "payload": {"topic": "test"}}
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="worker-1"),
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=ProviderError("script", "provider timeout", True)),
@@ -625,7 +625,7 @@ class ApiSecurityTests(unittest.TestCase):
                "lease_token": "lease-1", "payload": {"topic": "test"}}
         body = ProductionExecute(worker_id="worker-1", lease_token="lease-1")
         with (
-            mock.patch("app.require_review_access"),
+            mock.patch("app.require_review_permission",return_value="worker-1"),
             mock.patch.object(app_module.queue, "get", return_value=job),
             mock.patch.object(app_module.production_pipeline, "execute",
                               side_effect=RuntimeError("unexpected")),
