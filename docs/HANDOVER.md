@@ -1342,3 +1342,6 @@ The Aider child environment now strips inherited Python import/runtime overrides
 
 ### BUILD-00363 — one claimed job per shared worktree cycle
 The worker now exits its bounded run after any claimed job attempt, including retryable failures and lease loss, because an unsuccessful executor can leave partial files in the shared worktree. A regression confirms a second ready job is not claimed after the first job leaves an unvalidated partial edit. Exact-head CI pending; actual Windows workflow checkout cleanup remains an integration gate.
+
+
+BUILD-00363 validation note: the first hosted run used the earlier base snapshot and exposed missing runtime-variable scrubbing from the preceding stack. The current branch now carries the corrected environment policy; exact-head CI must be rerun before this item is considered validated.
