@@ -1265,3 +1265,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **466 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully.
 - This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
+
+
+## Current handover — 2026-11-19
+
+- Active branch: `build/build-00315-harden-tiktok-aigc-disclosure`.
+- Active PR: [#323](https://github.com/justinhblee-prog/shorts/pull/323), remains **Open / Draft**. Do not merge without explicit user approval.
+- Latest validated checkpoint: `fe7b2e462663c7f21fd51cd753daa581405a50f9` (BUILD-00323).
+- BUILD-00322 YouTube audience-watch-ratio validation correction and BUILD-00323 TikTok analytics freshness/coverage visibility are included.
+- Exact-head GitHub Actions runs [44485474387](https://github.com/justinhblee-prog/shorts/actions/runs/44485474387) and [44485467845](https://github.com/justinhblee-prog/shorts/actions/runs/44485467845) both passed; full validation completed with **698 backend tests**.
+- TikTok analytics status now reports `latest_snapshot_at` and `coverage.stale_or_missing`; existing `stale_snapshots` remains backward-compatible.
+- Remaining external validation: live YouTube/TikTok OAuth and provider API behavior, scheduled production collection, and browser-level dashboard rendering. CI does not claim these have been exercised.
+- Next development focus: verify analytics-history filter/bounds and export integrity end-to-end, then improve analytics freshness presentation in the dashboard without inventing a collection cadence.
