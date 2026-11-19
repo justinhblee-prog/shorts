@@ -321,3 +321,7 @@ Windows-invalid filename characters and control characters are rejected before s
 
 ### BUILD-00376 — portable filename validation evidence
 GitHub Actions run [44525610403](https://github.com/justinhblee-prog/shorts/actions/runs/44525610403) passed **785 backend tests**, repository validation and frontend JavaScript syntax validation, including Windows-invalid filename character rejection.
+
+
+### BUILD-00377 — symlink scope validation
+Symlink components are rejected before execution to preserve write-scope isolation. Hosted validation pending.
