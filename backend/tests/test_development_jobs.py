@@ -175,6 +175,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertTrue(self.store._scopes_conflict(["BACKEND/API.py"], ["backend/api.py"]))
         self.assertTrue(self.store._scopes_conflict(["backend//api.py"], ["backend/api.py"]))
         self.assertTrue(self.store._scopes_conflict(["./backend/api.py"], ["backend/api.py"]))
+        self.assertTrue(self.store._scopes_conflict(["backend\\\\api.py"], ["backend/api.py"]))
         self.assertFalse(self.store._scopes_conflict(["Backend/"], ["frontend/app.js"]))
 
         self.store.create("Uppercase directory writer", priority=1, scope=["Backend/"])
