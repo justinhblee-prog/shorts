@@ -264,24 +264,49 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                   video_id,start_date,end_date,views,estimated_minutes_watched,
                   average_view_duration,average_view_percentage,retention_json,
                   analytics_status,retention_status,retention_error,collected_at
-                ) VALUES('legacy-video','2026-11-01','2026-11-14',77,5,4,60,'[]',
+                ) VALUES('legacy-video','2026-11-01','2026-11-14',77,5,4,60,
+                         '[{"elapsed_video_time_ratio":0.5,"audience_watch_ratio":0.4,"relative_retention_performance":-0.1}]',
                          'available','available',NULL,'2026-11-15T00:00:00+00:00')
+            """)
+            connection.execute("""
+                CREATE TABLE youtube_analytics_history(
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  video_id TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,
+                  views REAL,engaged_views REAL,engaged_view_share REAL,
+                  estimated_minutes_watched REAL,average_view_duration REAL,
+                  average_view_percentage REAL,analytics_status TEXT NOT NULL,
+                  retention_status TEXT NOT NULL,collected_at TEXT NOT NULL
+                )
+            """)
+            connection.execute("""
+                INSERT INTO youtube_analytics_history(
+                  video_id,start_date,end_date,views,engaged_views,engaged_view_share,
+                  estimated_minutes_watched,average_view_duration,average_view_percentage,
+                  analytics_status,retention_status,collected_at
+                ) VALUES('legacy-video','2026-11-01','2026-11-14',77,NULL,NULL,5,4,60,
+                         'available','available','2026-11-15T00:00:00+00:00')
             """)
         migrated=YouTubeAnalyticsStore(legacy_db)
         history=migrated.history("legacy-video")
         self.assertEqual(len(history),1)
         self.assertEqual(history[0]["views"],77)
+        self.assertEqual(history[0]["retention_curve"][0]["audience_watch_ratio"],0.4)
 
     def test_analytics_history_appends_snapshots_while_latest_remains_current(self):
         first={"views":100,"engagedViews":60,"estimatedMinutesWatched":10,
                "averageViewDuration":6,"averageViewPercentage":50}
         second={"views":150,"engagedViews":90,"estimatedMinutesWatched":15,
                 "averageViewDuration":7,"averageViewPercentage":55}
-        self.store.save("history-video","2026-11-01","2026-11-14",first,[])
-        self.store.save("history-video","2026-11-01","2026-11-15",second,[])
+        first_curve=[{"elapsedVideoTimeRatio":0.25,"audienceWatchRatio":0.8,"relativeRetentionPerformance":0.1}]
+        second_curve=[{"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.45,"relativeRetentionPerformance":-0.2}]
+        self.store.save("history-video","2026-11-01","2026-11-14",first,first_curve)
+        self.store.save("history-video","2026-11-01","2026-11-15",second,second_curve)
         history=self.store.history("history-video")
         self.assertEqual(len(history),2)
         self.assertEqual({row["views"] for row in history},{100,150})
+        by_views={row["views"]:row["retention_curve"] for row in history}
+        self.assertEqual(by_views[100][0]["audience_watch_ratio"],0.8)
+        self.assertEqual(by_views[150][0]["relative_retention_performance"],-0.2)
         self.assertEqual(self.store.get("history-video")["views"],150)
         self.assertEqual(len(self.store.history("other-video")),0)
 
