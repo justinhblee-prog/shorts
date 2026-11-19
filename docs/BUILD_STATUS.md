@@ -2757,4 +2757,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ## BUILD-00386 — audited operator recovery from quarantine
 - Add an authenticated `operations.manage` endpoint to requeue only quarantined development jobs after an operator supplies a recovery reason.
 - Reset the retry counter and stale execution evidence for the new attempt; preserve the prior failure and append an immutable recovery event with actor, reason and previous attempt count.
-- Add store, API and role authorization regressions. Exact-head validation pending.
+- Add store, API and role authorization regressions. Code head `628d5d1e22a56bbb58642e27530722d4d67e8992` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44548442047](https://github.com/justinhblee-prog/shorts/actions/runs/44548442047). Subsequent commits on this branch are documentation-only.
