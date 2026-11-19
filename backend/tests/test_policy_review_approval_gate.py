@@ -40,8 +40,8 @@ class PolicyReviewApprovalGateTests(unittest.TestCase):
     def test_approval_rejects_missing_policy_report(self):
         with self.review.db() as connection:
             connection.execute(
-                "DELETE FROM production_artifacts WHERE job_id=?",
-                ("job-policy-gate",),
+                "UPDATE production_artifacts SET metadata_json=? WHERE job_id=?",
+                (json.dumps({"script": "Test script"}), "job-policy-gate"),
             )
         with self.assertRaisesRegex(ReviewConflict, "Policy preflight report is required"):
             self.review.decide("job-policy-gate", "approved", "operator", "Reviewed")
