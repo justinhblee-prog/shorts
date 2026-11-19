@@ -2454,7 +2454,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ## BUILD-00356 — bound GitHub backlog pagination and expose truncation
 - Cap each read-only GitHub Issues, PRs and Actions feed at five pages (maximum 500 records per feed) to prevent a scheduled sync from traversing the repository's entire historical Actions run list and exhausting API rate limits.
-- Preserve Link-header pagination within the cap and record per-feed truncation metadata when additional pages remain.
+- Preserve Link-header pagination within the cap, reject any `rel=next` URL outside `api.github.com`, and record per-feed truncation metadata when additional pages remain.
 - Return truncation metadata through snapshot normalization and the backlog sync result so an incomplete snapshot is never silently presented as complete.
 - Add regressions for the five-page hard cap, retained next-page detection, and per-feed truncation propagation.
 - Exact-head CI pending. No live GitHub token rate-limit or Windows runner execution is claimed.
