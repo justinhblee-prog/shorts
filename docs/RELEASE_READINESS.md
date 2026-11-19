@@ -337,3 +337,11 @@ GitHub Actions run [44520050960](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00368 — independent watchdog validation evidence
 GitHub Actions run [44520547849](https://github.com/justinhblee-prog/shorts/actions/runs/44520547849) passed **797 backend tests**, repository validation and frontend syntax validation, including a deliberately blocked heartbeat call that exceeds the watchdog budget. Hosted Linux does not validate Windows `taskkill /T /F` behavior.
+
+
+### BUILD-00369 — worker presence isolation
+Worker presence records now use unique per-process session IDs so concurrent or retried processes on one host cannot overwrite one another's status. Hosted validation pending.
+
+
+### BUILD-00369 — worker session identity validation evidence
+GitHub Actions run [44521107433](https://github.com/justinhblee-prog/shorts/actions/runs/44521107433) passed **799 backend tests**, repository validation and frontend JavaScript syntax validation, including unique worker-session IDs across attempts and the 128-character bound.

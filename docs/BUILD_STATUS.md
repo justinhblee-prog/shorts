@@ -2598,3 +2598,14 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Exact code head `9711e03cdfabff72c73d3adbe2aa05a1b88d6e99` passed GitHub Actions run [44520547849](https://github.com/justinhblee-prog/shorts/actions/runs/44520547849): **797 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
 - Regression holds the heartbeat database call beyond the lease watchdog budget and confirms the executor is fenced without saving success evidence.
 - Hosted Linux only; Windows process-tree termination remains a trusted-runner integration gate.
+
+
+## BUILD-00369 — unique worker process identity
+- Generate a distinct bounded worker ID per process, retaining runner hostname and GitHub run/attempt context when available.
+- Prevent concurrent/retried processes on one self-hosted host from overwriting worker presence or incorrectly marking another process offline.
+- Add regression coverage for uniqueness across invocations and attempts plus the 128-character bound.
+- Exact-head hosted CI pending.
+
+
+### BUILD-00369 — exact-head hosted validation
+- Exact code head `5b20520ca125c080407b3b3ccb57bb94b42a4637` passed GitHub Actions run [44521107433](https://github.com/justinhblee-prog/shorts/actions/runs/44521107433): **799 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.

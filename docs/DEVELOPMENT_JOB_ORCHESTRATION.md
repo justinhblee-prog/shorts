@@ -204,3 +204,9 @@ The worker now tracks the last successful heartbeat and runs an independent watc
 The Aider executor polls that signal while waiting for each child command. Commands run in an isolated process group; lease loss terminates the process tree (Windows uses `taskkill /T /F`, POSIX uses process-group TERM/KILL) and prevents the executor from continuing into diff inspection or validation. The durable job remains leased until the store can safely observe expiry; the stale worker does not write failure or success evidence.
 
 Regression coverage simulates prolonged heartbeat storage errors and verifies the worker returns `lease_lost` without persisting success evidence, and verifies active command termination on a lost lease. Hosted CI does not prove Windows taskkill behavior or real runner interruption; that remains a Windows integration gate.
+
+
+
+### BUILD-00369 — unique worker session identity
+
+Worker presence is keyed by a process-session identity rather than the static self-hosted runner hostname. The identity retains the host name and, when present, GitHub workflow run ID/attempt, and adds a random suffix; local invocations use the process ID plus a random suffix. This prevents concurrent or retried worker processes on one host from overwriting each other's `development_workers` row or marking another live process offline during shutdown. The identity is bounded to the store's 128-character limit.
