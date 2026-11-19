@@ -78,6 +78,8 @@ class YouTubeAnalyticsStore:
             );
             CREATE INDEX IF NOT EXISTS idx_youtube_analytics_history_video_time
               ON youtube_analytics_history(video_id,collected_at DESC,id DESC);
+            CREATE INDEX IF NOT EXISTS idx_youtube_analytics_history_time
+              ON youtube_analytics_history(collected_at DESC,id DESC);
             CREATE TABLE IF NOT EXISTS youtube_analytics_collector_lease(
               id INTEGER PRIMARY KEY CHECK(id=1),
               owner_id TEXT NOT NULL,
