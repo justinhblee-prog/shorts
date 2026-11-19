@@ -103,6 +103,12 @@ async function waitForServer() {
     checkpoint("authenticated core API endpoints verified");
     const reviewCard = page.locator("#reviewList .review-card").filter({ hasText: reviewJob.job_id });
     await reviewCard.waitFor({ state: "visible" });
+    await page.locator("#reviewSearch").fill("no-such-review-item");
+    await page.waitForFunction(() => document.querySelector("#reviewSearchStatus").textContent.includes("0 / 1"));
+    assert.equal(await reviewCard.isVisible(), false);
+    await page.locator("#reviewSearch").fill("Browser Smoke");
+    await page.waitForFunction(() => document.querySelector("#reviewSearchStatus").textContent.includes("1 / 1"));
+    assert.equal(await reviewCard.isVisible(), true);
     const approvalResponse = page.waitForResponse(response =>
       response.url().includes("/api/review/" + encodeURIComponent(reviewJob.job_id) + "/approve") &&
       response.request().method() === "POST"
