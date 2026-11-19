@@ -846,6 +846,24 @@ class YouTubePublishingTests(unittest.TestCase):
             self.publisher.upload_approved("job-1",self.media,self.review,"Realistic synthetic short")
         self.assertIs(self.service._videos.body["status"]["containsSyntheticMedia"],True)
 
+    def test_upload_rejects_blocked_policy_report_even_without_approval_blockers(self):
+        history=self.review.history("job-1")
+        report=evaluate_content_policy({
+            "platforms":["youtube"],
+            "rights":{"visuals_cleared":True,"audio_cleared":True,"likeness_authorized":True},
+            "synthetic_media_status":"none",
+            "policy_flags":{"known_unauthorized_assets":True},
+            "factual_claims_verified":True,
+            "originality_notes":"Original narration and editing.",
+        })
+        self.assertEqual(report["status"],"blocked")
+        self.assertEqual(report["approval_blockers"],[])
+        script=next(item for item in history[-1]["artifact_snapshot"] if item.get("stage")=="script")
+        script["metadata"]["policy_preflight"]=report
+        with patch.object(self.review,"history",return_value=history):
+            with self.assertRaisesRegex(YouTubeUploadError,"blocked or has an unsupported status"):
+                self.publisher.upload_approved("job-1",self.media,self.review,"Blocked policy report")
+
     def test_upload_rejects_policy_report_that_does_not_cover_youtube(self):
         history=self.review.history("job-1")
         report=evaluate_content_policy({
