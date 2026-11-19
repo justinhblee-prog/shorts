@@ -2657,7 +2657,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Verify rollback restores the original live database and complete media tree, including files absent from the backup being restored.
 - Verify no `.restore-*` or `.pre-restore-*` staging/rollback paths remain after recovery.
 - This validates the local rollback branch under a deterministic filesystem failure; it does not establish crash-consistency across power loss or a live multi-process restore.
-- Exact-head Actions validation pending.
+- Exact-head backend validation passed: [run 44501997095](https://github.com/justinhblee-prog/shorts/actions/runs/44501997095), 716 tests; Compose integration passed: [run 44501997029](https://github.com/justinhblee-prog/shorts/actions/runs/44501997029).
 
 
 ## BUILD-00346 — backup database/media path-overlap protection
@@ -2668,7 +2668,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject backup and restore layouts where the SQLite database resides inside the media tree; replacing the media directory in such a layout could move or delete the live database.
 - Reject restore archives stored inside the media directory because a successful media replacement would remove the source archive.
 - Add regressions verifying both unsafe layouts fail before changing live database or archive contents.
-- Exact-head Actions validation pending.
+- Exact-head backend validation passed: [run 44504236299](https://github.com/justinhblee-prog/shorts/actions/runs/44504236299), 719 tests. Compose validation for the same head is running.
 
 
 ## BUILD-00347 — reject symlinked backup storage roots
@@ -2685,7 +2685,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Bound compressed plaintext and encrypted archive sizes before tar parsing or AES-GCM decryption writes staging data.
 - Allow a fixed 256 MiB envelope for tar headers, directory entries, compression overhead and the encryption envelope beyond the supported uncompressed database/media payload cap.
 - Add regressions for oversized plaintext and encrypted archives; verify the live database remains unchanged and no restore staging directory is left behind.
-- Exact-head Actions validation pending.
+- Exact-head backend validation passed: [run 44503388858](https://github.com/justinhblee-prog/shorts/actions/runs/44503388858), 718 tests; Compose integration passed: [run 44503388809](https://github.com/justinhblee-prog/shorts/actions/runs/44503388809).
 
 
 ## BUILD-00349 — offline SQLite restore guard
