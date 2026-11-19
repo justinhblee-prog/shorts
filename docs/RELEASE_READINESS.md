@@ -328,7 +328,7 @@ GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/acti
 
 
 ### BUILD-00368 — stale worker process termination
-Lease-loss signals are propagated to the Aider executor, which terminates the active command process tree. Hosted CI regression coverage is pending; Windows runner integration is still required to verify `taskkill /T /F` behavior. No live runner claim is made.
+An independent watchdog detects a lease deadline even while a heartbeat database call is blocked. Lease-loss signals are propagated to the Aider executor, which terminates the active command process tree. Hosted CI regression coverage is pending; Windows runner integration is still required to verify `taskkill /T /F` behavior. No live runner claim is made.
 
 
 ### BUILD-00368 — lease-loss fencing validation evidence
