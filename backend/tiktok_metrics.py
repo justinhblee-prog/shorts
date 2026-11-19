@@ -53,6 +53,8 @@ class TikTokMetricsStore:
               ON tiktok_video_metric_snapshots(video_id,collected_at DESC,id DESC);
             CREATE INDEX IF NOT EXISTS idx_tiktok_metric_time
               ON tiktok_video_metric_snapshots(collected_at DESC,id DESC);
+            CREATE INDEX IF NOT EXISTS idx_tiktok_metrics_video_latest
+              ON tiktok_video_metric_snapshots(video_id,collected_at DESC,id DESC);
             CREATE TABLE IF NOT EXISTS tiktok_metrics_collection_state(
               id INTEGER PRIMARY KEY CHECK(id=1), status TEXT NOT NULL,
               last_attempt_at TEXT, last_success_at TEXT, last_error TEXT,
@@ -334,26 +336,24 @@ class TikTokMetricsStore:
         cutoff = _stamp(current - timedelta(seconds=min_age_seconds))
         with self.db() as c:
             rows = c.execute("""
-              WITH ranked_publications AS (
-                SELECT job_id,video_id,updated_at,
-                       ROW_NUMBER() OVER (
-                         PARTITION BY video_id
-                         ORDER BY updated_at DESC,job_id DESC
-                       ) AS publication_rank
-                FROM tiktok_publications
-                WHERE status='publish_complete' AND video_id IS NOT NULL
-              ),
-              latest_snapshots AS (
-                SELECT video_id,MAX(collected_at) AS collected_at
-                FROM tiktok_video_metric_snapshots
-                GROUP BY video_id
-              )
               SELECT p.job_id,p.video_id
-              FROM ranked_publications AS p
-              LEFT JOIN latest_snapshots AS s ON s.video_id=p.video_id
+              FROM tiktok_publications AS p
               LEFT JOIN tiktok_metrics_missing_retry AS r ON r.video_id=p.video_id
-              WHERE p.publication_rank=1
-                AND (s.collected_at IS NULL OR s.collected_at<?)
+              WHERE p.status='publish_complete' AND p.video_id IS NOT NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM tiktok_publications AS newer
+                  WHERE newer.status='publish_complete'
+                    AND newer.video_id=p.video_id
+                    AND (newer.updated_at>p.updated_at
+                         OR (newer.updated_at=p.updated_at AND newer.job_id>p.job_id))
+                )
+                AND COALESCE((
+                  SELECT s.collected_at
+                  FROM tiktok_video_metric_snapshots AS s
+                  WHERE s.video_id=p.video_id
+                  ORDER BY s.collected_at DESC,s.id DESC
+                  LIMIT 1
+                ),'')<?
                 AND (r.next_retry_at IS NULL OR r.next_retry_at<=?)
               ORDER BY p.updated_at DESC,p.job_id DESC
               LIMIT ?
