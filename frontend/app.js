@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   let token = "";
-  let reviewer = "operator";
+  let reviewer = "";
   let brands = [];
   let toastTimer;
   const analyticsHistoryPageSize = 25;
@@ -886,11 +886,25 @@
   });
   $("openSettings").addEventListener("click",()=>$("settingsDialog").showModal());
   $("saveToken").addEventListener("click",async()=>{
-    token=$("tokenInput").value.trim();reviewer=$("reviewerInput").value.trim()||"operator";
-    try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await refreshAll();}
-    catch(e){token="";msg("tokenMessage",e.message,true);}
+    token=$("tokenInput").value.trim();
+    try{
+      const session=await api("/api/session");
+      reviewer=String(session.operator_id||"").trim();
+      if(!reviewer)throw new Error("인증된 운영자 ID를 확인할 수 없습니다.");
+      $("reviewerInput").value=reviewer;
+      $("queueOperator").value=reviewer;
+      $("settingsDialog").close();
+      msg("tokenMessage","인증 성공 · "+reviewer);
+      await refreshAll();
+    }catch(e){
+      token="";
+      reviewer="";
+      $("reviewerInput").value="";
+      $("queueOperator").value="";
+      msg("tokenMessage",e.message,true);
+    }
   });
-  $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
+  $("clearToken").addEventListener("click",()=>{token="";reviewer="";$("tokenInput").value="";$("reviewerInput").value="";$("queueOperator").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadDevelopmentJobs").addEventListener("click",()=>loadDevelopmentJobs().catch(e=>toast(e.message)));
   $("developmentJobList").addEventListener("click",async event=>{
