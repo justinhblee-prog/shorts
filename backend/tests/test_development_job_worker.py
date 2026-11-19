@@ -26,6 +26,43 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         self.assertEqual(worker.run_once(), "review_pending")
         self.assertEqual(self.store.get(job["id"])["status"], "review_pending")
 
+    def test_worker_strict_mode_quarantines_mismatched_worktree_evidence(self):
+        job = self.store.create("Mismatched worktree evidence", scope=["backend/example.py"])
+
+        class VerifiedExecutor:
+            def __call__(self, _):
+                return {
+                    "changed_files": ["backend/example.py"],
+                    "tests_passed": True,
+                    "validation_ref": "ci://run/verified",
+                }
+
+            def verify_execution_evidence(self, _job, _result):
+                return ["backend/other.py"]
+
+        worker = DevelopmentJobWorker(
+            self.store, "worker-verified", VerifiedExecutor(),
+            require_execution_verifier=True,
+        )
+        self.assertEqual(worker.run_once(), "quarantined")
+        saved = self.store.get(job["id"])
+        self.assertEqual(saved["status"], "quarantined")
+        self.assertIn("do not match", saved["result_summary"])
+
+    def test_worker_strict_mode_rejects_executor_without_verifier(self):
+        job = self.store.create("Missing worktree verifier", scope=["backend/example.py"])
+        worker = DevelopmentJobWorker(
+            self.store, "worker-no-verifier",
+            lambda _: {
+                "changed_files": ["backend/example.py"],
+                "tests_passed": True,
+                "validation_ref": "ci://run/unverified",
+            },
+            require_execution_verifier=True,
+        )
+        self.assertEqual(worker.run_once(), "quarantined")
+        self.assertEqual(self.store.get(job["id"])["status"], "quarantined")
+
     def test_worker_rejects_noop_and_schedules_retry(self):
         job = self.store.create("No-op must not pass", scope=["backend/example.py"])
         worker = DevelopmentJobWorker(

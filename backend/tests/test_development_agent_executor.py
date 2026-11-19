@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -21,6 +22,59 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_changed_files_includes_tracked_diff_and_untracked_files_from_git(self):
+        env = os.environ.copy()
+
+        def git(*args):
+            subprocess.run(
+                ["git", *args], cwd=self.root, env=env, check=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+
+        git("init")
+        git("config", "user.name", "NEXUS Test")
+        git("config", "user.email", "nexus-test@example.invalid")
+        tracked = self.root / "backend" / "tracked.py"
+        tracked.write_text("value = 1\n", encoding="utf-8")
+        git("add", "backend/tracked.py")
+        git("commit", "-m", "initial")
+        tracked.write_text("value = 2\n", encoding="utf-8")
+        (self.root / "backend" / "untracked.py").write_text("value = 3\n", encoding="utf-8")
+
+        self.assertEqual(
+            self.executor._changed_files(env),
+            ["backend/tracked.py", "backend/untracked.py"],
+        )
+
+    def test_worktree_verifier_requires_exact_git_changed_file_match(self):
+        job = {"scope": ["backend/"]}
+        result = {"changed_files": ["backend/claimed.py"]}
+        with patch.object(self.executor, "_validated_scope", return_value=["backend/"]), \
+             patch.object(self.executor, "_child_environment", return_value={}), \
+             patch.object(self.executor, "_changed_files", return_value=["backend/actual.py"]):
+            with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "do not match"):
+                self.executor.verify_execution_evidence(job, result)
+
+    def test_worktree_verifier_rejects_changes_outside_declared_scope(self):
+        job = {"scope": ["backend/"]}
+        result = {"changed_files": ["backend/allowed.py", "frontend/outside.js"]}
+        with patch.object(self.executor, "_validated_scope", return_value=["backend/"]), \
+             patch.object(self.executor, "_child_environment", return_value={}), \
+             patch.object(self.executor, "_changed_files", return_value=["backend/allowed.py", "frontend/outside.js"]):
+            with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "outside the declared scope"):
+                self.executor.verify_execution_evidence(job, result)
+
+    def test_worktree_verifier_returns_actual_changed_files_when_claim_matches(self):
+        job = {"scope": ["backend/"]}
+        result = {"changed_files": ["backend/actual.py"]}
+        with patch.object(self.executor, "_validated_scope", return_value=["backend/"]), \
+             patch.object(self.executor, "_child_environment", return_value={}), \
+             patch.object(self.executor, "_changed_files", return_value=["backend/actual.py"]):
+            self.assertEqual(
+                self.executor.verify_execution_evidence(job, result),
+                ["backend/actual.py"],
+            )
 
     def test_cancel_terminates_active_child_process(self):
         finished = threading.Event()

@@ -341,3 +341,9 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 ### BUILD-00384 — exact-head validation
 - Code head `58034c67387c5fb648623603c40320582a2aa95e` passed **814 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44544093165](https://github.com/justinhblee-prog/shorts/actions/runs/44544093165) and [44544133397](https://github.com/justinhblee-prog/shorts/actions/runs/44544133397).
 - Case-insensitive file and directory completion-scope regressions passed in both runs. Hosted Linux only; Windows local-runner execution remains unverified.
+
+
+### DEV-ORCH-005 implementation follow-up — BUILD-00385
+The trusted runner now requires a second worktree read after executor completion. The worker requires an executor verification hook, compares its actual tracked/untracked Git paths with the claimed list, and quarantines missing or mismatched evidence before review-pending.
+
+Exact-head validation: head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and frontend syntax validation in [run 44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). Hosted Linux only; Windows local runner and live autonomous continuation remain unverified.
