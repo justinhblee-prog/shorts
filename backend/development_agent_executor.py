@@ -215,6 +215,20 @@ class AiderDevelopmentExecutor:
             or candidate.suffix.lower() in _FORBIDDEN_SUFFIXES
         )
 
+    @staticmethod
+    def _is_scope_reparse_point(path):
+        if path.is_symlink():
+            return True
+        is_junction = getattr(path, "is_junction", None)
+        if callable(is_junction) and is_junction():
+            return True
+        try:
+            metadata = path.lstat()
+        except OSError:
+            return False
+        reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        return bool(getattr(metadata, "st_file_attributes", 0) & reparse_flag)
+
     def _validated_scope(self, job):
         scope = job.get("scope")
         if not isinstance(scope, list) or not scope:
@@ -255,8 +269,8 @@ class AiderDevelopmentExecutor:
             cursor = self.repo_root
             for part in candidate.parts:
                 cursor = cursor / part
-                if cursor.is_symlink():
-                    raise NonRetryableDevelopmentJobError("job scope contains a symbolic link")
+                if self._is_scope_reparse_point(cursor):
+                    raise NonRetryableDevelopmentJobError("job scope contains a symbolic link or reparse point")
             normalized = candidate.as_posix()
             expected_path = normalized + ("/" if raw_path.endswith("/") else "")
             if raw_path != expected_path:
