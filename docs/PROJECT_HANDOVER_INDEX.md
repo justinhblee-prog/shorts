@@ -35,12 +35,13 @@
 
 ## 최신 확인 기준선
 
-- UI-00015: PR #395, Draft, UI-00014 (#394)에 스택됨.
-- 최신 UI-00015 head: `6afe85c0e31cb0a478fe1159c10d303f75800535`.
-- 해당 head의 `scripts/validate.sh`: CI에서 통과 기록 확인.
-- Compose 통합 빌드·서비스 readiness·예약 백업·격리 복원: run [44568430260](https://github.com/justinhblee-prog/shorts/actions/runs/44568430260) 통과.
-- 브라우저 smoke: run [44568430230](https://github.com/justinhblee-prog/shorts/actions/runs/44568430230)은 Korean font fallback 설치 단계에서 진행 중으로 확인됨. 최신 head의 Chromium 데스크톱/모바일 검증은 미확인.
-- UI-00015는 위 브라우저 검증 전까지 완료로 처리하지 않습니다.
+- 통합 후보: PR #407 — [Modern analytics dashboard with audited quarantine recovery](https://github.com/justinhblee-prog/shorts/pull/407), Draft/unmerged.
+- PR #407 source head `b9b375a3ea9f95ef7ab4b18210ec43f474824fb4` passed hosted run [44586621312](https://github.com/justinhblee-prog/shorts/actions/runs/44586621312): **879 tests**, frontend syntax, authenticated dashboard with all 19 modules connected, analytics Chromium smoke, quarantine recovery Chromium smoke.
+- This candidate includes UI-00013/00014 visual system, UI-00015–00017 analytics pagination/semantics, Core/Policy controls and Engineering quarantine recovery workspace.
+- Actual browser visual review found and corrected missing Korean font fallback and full-page screenshot scroll positioning. The final artifact [14559944009](https://github.com/justinhblee-prog/shorts/actions/runs/44586621312/artifacts/14559944009) contains desktop 1440px and mobile 320px screenshots with readable Korean text, visible desktop rail, and API connected state.
+- API contract closure: restored bounded `GET /api/publishing/overview`; implemented audited provider-attempt reconciliation endpoint; activated two previously undiscovered API security tests by moving the unittest main guard to the file end.
+- Latest PR #407 commit after backend API documentation update: `323ad6c5ad7d6ef7d0301fbb8655f3d7a4b355dc`. Its exact-head CI is pending; do not reuse the preceding source-head pass as evidence for this newer head.
+- Handover docs are maintained on Draft PR #396. All PRs remain unmerged; no production deployment, real OAuth/provider publishing, or live production recovery is claimed.
 
 ## 변경 이력
 
