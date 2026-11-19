@@ -373,3 +373,11 @@ GitHub backlog reads now have bounded retry handling for transient failures and 
 
 ### BUILD-00373 — bounded GitHub retry validation
 GitHub Actions run [44529902141](https://github.com/justinhblee-prog/shorts/actions/runs/44529902141) passed **806 backend tests**, repository validation and frontend syntax validation. Retry behavior is unit-tested; no live GitHub rate-limit response was triggered.
+
+
+### BUILD-00374 — authenticated review API safety
+Both authenticated GitHub read clients now share the same HTTPS API-origin redirect restriction. Review artifact file lists and recovery PR lists are bounded to five pages and fail closed on unsafe links or incomplete pagination. Hosted CI pending; no live credential redirect test is claimed.
+
+
+### BUILD-00374 — review artifact client validation
+GitHub Actions run [44530524384](https://github.com/justinhblee-prog/shorts/actions/runs/44530524384) passed **812 backend tests**, repository validation and frontend syntax validation for authenticated review API redirects and bounded PR pagination. Live credential forwarding was not tested.

@@ -2657,3 +2657,17 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00373 — exact-head hosted validation
 - Code head `ff9228ed4bcc3a021fa1383862feaf7a4c866dd8` passed GitHub Actions run [44529902141](https://github.com/justinhblee-prog/shorts/actions/runs/44529902141): **806 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Hosted Linux only; no live GitHub rate-limit response was exercised.
+
+
+## BUILD-00374 — secure review-artifact GitHub API client
+- Apply the same strict HTTPS `api.github.com` redirect handler to authenticated PR verification reads; the review-artifact client no longer uses urllib's unrestricted default redirect behavior.
+- Validate exact API origin, scheme, port and userinfo for initial URLs and same-resource pagination links.
+- Bound PR-file and open-PR recovery pagination to five pages and fail closed if the snapshot remains incomplete.
+- Reuse the bounded transient retry policy from the read-only intake client.
+- Add client-level tests for bearer-authenticated GET, unsafe origins/links, page limits and complete same-endpoint pagination.
+- Exact-head hosted CI pending.
+
+
+### BUILD-00374 — exact-head hosted validation
+- Code head `7ad1bde4314ee76057fdb81428584eab243df0da` passed GitHub Actions run [44530524384](https://github.com/justinhblee-prog/shorts/actions/runs/44530524384): **812 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Hosted Linux only; no live credential redirect or GitHub pagination scenario was exercised.
