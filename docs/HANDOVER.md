@@ -1366,3 +1366,7 @@ Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions run [
 
 ### BUILD-00368 — Windows/POSIX scope path alias rejection
 The scope validator now accepts only portable repository-relative POSIX paths and rejects Windows drive/UNC roots, backslashes, ADS colons, root scopes, trailing-dot/space segments and reserved device names. Exact-head CI pending; the hosted test contract is not a live Windows runner scan.
+
+
+### BUILD-00369 — deterministic scheduler backoff test
+The status-poll backoff test now uses wide time margins instead of 59/61 and 119/121 second boundaries, eliminating a runner scheduling race. No production code changed. Exact-head CI pending.
