@@ -149,3 +149,11 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - Exact head `0d9db34cc5969f277c1174f7092e7d4907f957af` passed the complete hosted backend/browser workflow [44573923657](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657). The run completed `scripts/validate.sh` and the browser smoke, including 320px mobile navigation, the 25-row page behavior, full 502-row CSV export, review approval/audit history, and no browser page errors.
 - Browser screenshots artifact: [14555931151](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657/artifacts/14555931151).
 - PR #398 remains Draft/unmerged and is stacked on UI-00015 / PR #395. No production deployment or live provider publishing was exercised.
+
+
+## UI-00017 analytics table header semantics (2026-11-20)
+
+- PR #399 adds explicit `scope="col"` semantics to all 14 analytics history table headers and checks all 14 in the Chromium browser smoke test.
+- The first hosted run [44574589707](https://github.com/justinhblee-prog/shorts/actions/runs/44574589707) exposed one stale source regression assertion expecting the old unscoped header markup. Updated that assertion to match the explicit column scope; the subsequent exact-head run is [44574846265](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265) (backend validation passed; browser smoke was still running at documentation update time).
+- Compose integration run [44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267) passed service readiness and isolated backup/restore checks; final cleanup was still running at documentation update time.
+- PR #399 remains Draft/unmerged and is stacked on UI-00016 / PR #398. Do not mark complete until exact-head browser and Compose workflows finish successfully.
