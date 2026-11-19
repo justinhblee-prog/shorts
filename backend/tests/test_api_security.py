@@ -1087,6 +1087,21 @@ class ApiSecurityTests(unittest.TestCase):
             publishing_analytics_history(platform="unknown",x_review_token="analytics-token")
         with self.assertRaises(HTTPException):
             publishing_analytics_history(video_id="bad\\nvideo",x_review_token="analytics-token")
+        with self.assertRaises(HTTPException):
+            publishing_analytics_history(video_id=" padded ",x_review_token="analytics-token")
+        with self.assertRaises(HTTPException):
+            publishing_analytics_history(video_id="bad\\x7fvideo",x_review_token="analytics-token")
+        with (
+            mock.patch.object(app_module,"require_review_permission"),
+            mock.patch.object(app_module.youtube_analytics_store,"history",return_value=[]) as max_days_youtube,
+            mock.patch.object(app_module.tiktok_metrics_store,"history",return_value=[]) as max_days_tiktok,
+        ):
+            maximum=publishing_analytics_history(
+                platform="all",days=9999,limit=0,x_review_token="analytics-token"
+            )
+        self.assertEqual(maximum["days"],365)
+        self.assertEqual(max_days_youtube.call_args.kwargs["limit"],1)
+        self.assertEqual(max_days_tiktok.call_args.kwargs["limit"],1)
 
     def test_publishing_analytics_status_requires_analytics_permission_and_limits_fields(self):
         from app import publishing_analytics_status
