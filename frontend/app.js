@@ -347,15 +347,15 @@
       })()
       : '<div class="analytics-chart-empty">선택한 지표의 추이를 표시하려면 동일 영상에 유효한 스냅샷이 최소 2개 필요합니다.</div>';
     $("analyticsHistory").innerHTML=rows.length
-      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개 · 표 최대 200개 표시, CSV는 전체 내보내기</div>'+platformComparison+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>참여 조회수</th><th>참여 조회 비율</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>시청 시간(분)</th><th>평균 시청 시간(초)</th><th>평균 시청 비율</th></tr></thead><tbody>'
-      +rows.slice(0,200).map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+number(item.engaged_views)+'</td><td>'+(item.engaged_view_share===null||item.engaged_view_share===undefined||!Number.isFinite(Number(item.engaged_view_share))?"—":(Number(item.engaged_view_share)*100).toLocaleString()+"%")+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.estimated_minutes_watched)+'</td><td>'+number(item.average_view_duration)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>').join("")
+      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개 · 표 최대 200개 표시, CSV는 전체 내보내기</div>'+platformComparison+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>참여 조회수</th><th>참여 조회 비율</th><th>시청자 유지율</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>시청 시간(분)</th><th>평균 시청 시간(초)</th><th>평균 시청 비율</th></tr></thead><tbody>'
+      +rows.slice(0,200).map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+number(item.engaged_views)+'</td><td>'+(item.engaged_view_share===null||item.engaged_view_share===undefined||!Number.isFinite(Number(item.engaged_view_share))?"—":(Number(item.engaged_view_share)*100).toLocaleString()+"%")+'</td><td>'+(item.platform==="youtube"?(Array.isArray(item.retention_curve)&&item.retention_curve.length?retentionSparkline(item.retention_curve)+'<small>'+esc(retentionSummary(item.retention_curve))+'</small>':"데이터 없음"):"—")+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.estimated_minutes_watched)+'</td><td>'+number(item.average_view_duration)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>').join("")
       +'</tbody></table></div>'
       : '<div class="empty-state">선택한 기간에 저장된 성과 스냅샷이 없습니다. 데이터 수집이 완료된 후 다시 조회하세요.</div>';
     const exportButton=$("exportAnalyticsHistory");
     if(exportButton){
       exportButton.disabled=rows.length===0;
       exportButton.onclick=rows.length?()=>{
-        const headers=["수집 시각","플랫폼","영상 ID","조회수","참여 조회수","참여 조회 비율(%)","이전 수집 대비 조회수","좋아요","댓글","공유","시청 시간(분)","평균 시청 시간(초)","평균 시청 비율(%)"];
+        const headers=["수집 시각","플랫폼","영상 ID","조회수","참여 조회수","참여 조회 비율(%)","시청자 유지율 (25/50/75%)","이전 수집 대비 조회수","좋아요","댓글","공유","시청 시간(분)","평균 시청 시간(초)","평균 시청 비율(%)"];
         const csvCell=value=>{
           let cell=value===null||value===undefined?"":String(value);
           if(/^[\u0000-\u0020]*[=+\-@]/.test(cell))cell="'"+cell;
@@ -363,7 +363,7 @@
         };
         const csv=[headers,...rows.map(item=>[
           item.collected_at,item.platform==="youtube"?"YouTube":"TikTok",item.video_id,
-          item.views??item.view_count,item.engaged_views,item.engaged_view_share===null||item.engaged_view_share===undefined?null:Number(item.engaged_view_share)*100,deltaFor(item),item.like_count,item.comment_count,
+          item.views??item.view_count,item.engaged_views,item.engaged_view_share===null||item.engaged_view_share===undefined?null:Number(item.engaged_view_share)*100,item.platform==="youtube"?retentionSummary(item.retention_curve):null,deltaFor(item),item.like_count,item.comment_count,
           item.share_count,item.estimated_minutes_watched,item.average_view_duration,
           item.average_view_percentage
         ])].map(record=>record.map(csvCell).join(",")).join("\r\n");
