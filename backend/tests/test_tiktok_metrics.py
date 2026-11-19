@@ -692,7 +692,6 @@ class TikTokMetricsTests(unittest.TestCase):
             """, snapshot_rows)
             connection.commit()
 
-        started = datetime.now(timezone.utc)
         due = self.store.due_videos(
             limit=20, min_age_seconds=0, now=query_now,
         )
