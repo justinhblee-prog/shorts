@@ -98,7 +98,12 @@ async function waitForServer() {
     assert.ok(liveApiChecks[3].body.youtube && liveApiChecks[3].body.tiktok);
     const reviewCard = page.locator("#reviewList .review-card").filter({ hasText: reviewJob.job_id });
     await reviewCard.waitFor({ state: "visible" });
+    const approvalResponse = page.waitForResponse(response =>
+      response.url().includes("/api/review/" + encodeURIComponent(reviewJob.job_id) + "/approve") &&
+      response.request().method() === "POST"
+    );
     await reviewCard.locator('button[data-action="approve"]').click();
+    assert.equal((await approvalResponse).status(), 200);
     const approvalHistory = await page.evaluate(async ({ token, jobId }) => {
       const response = await fetch("/api/review/" + encodeURIComponent(jobId) + "/history", {
         headers: { "X-Review-Token": token },
