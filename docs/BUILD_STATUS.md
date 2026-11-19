@@ -2668,7 +2668,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject backup and restore layouts where the SQLite database resides inside the media tree; replacing the media directory in such a layout could move or delete the live database.
 - Reject restore archives stored inside the media directory because a successful media replacement would remove the source archive.
 - Add regressions verifying both unsafe layouts fail before changing live database or archive contents.
-- Exact-head backend validation passed: [run 44504236299](https://github.com/justinhblee-prog/shorts/actions/runs/44504236299), 719 tests. Compose validation for the same head is running.
+- Exact-head backend validation passed: [run 44504465148](https://github.com/justinhblee-prog/shorts/actions/runs/44504465148), 719 tests. Exact-head Compose integration passed: [run 44504465052](https://github.com/justinhblee-prog/shorts/actions/runs/44504465052).
 
 
 ## BUILD-00347 — reject symlinked backup storage roots
