@@ -2703,7 +2703,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve successful restore status while explicitly returning `cleanup_warnings` when pre-restore database or media copies cannot be removed.
 - Include only the retained path and exception type; do not silently swallow disk-usage cleanup failures.
 - Add failure-injection coverage for both old database and media cleanup paths while verifying the restored database remains valid.
-- Exact-head Actions validation pending.
+- Exact-head validation passed: backend [run 44506538368](https://github.com/justinhblee-prog/shorts/actions/runs/44506538368), **725 tests**; Compose [run 44506538484](https://github.com/justinhblee-prog/shorts/actions/runs/44506538484), all five services healthy and encrypted backup/restore smoke passed.
 
 
 ## BUILD-00351 — Compose service health probes
