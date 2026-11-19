@@ -333,3 +333,7 @@ An independent watchdog detects a lease deadline even while a heartbeat database
 
 ### BUILD-00368 — lease-loss fencing validation evidence
 GitHub Actions run [44520050960](https://github.com/justinhblee-prog/shorts/actions/runs/44520050960) passed **797 backend tests**, repository validation and frontend JavaScript syntax validation. This includes the prolonged heartbeat failure and active POSIX process-tree termination regressions. Windows `taskkill /T /F` behavior is not validated by hosted Linux CI.
+
+
+### BUILD-00368 — independent watchdog validation evidence
+GitHub Actions run [44520547849](https://github.com/justinhblee-prog/shorts/actions/runs/44520547849) passed **797 backend tests**, repository validation and frontend syntax validation, including a deliberately blocked heartbeat call that exceeds the watchdog budget. Hosted Linux does not validate Windows `taskkill /T /F` behavior.
