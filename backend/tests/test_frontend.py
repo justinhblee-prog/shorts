@@ -37,6 +37,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('button[data-action="approve"]', browser)
         self.assertIn('"/api/review/" + encodeURIComponent(jobId) + "/history"', browser)
         self.assertIn('approvalHistory.body.items.at(-1).decision, "approved"', browser)
+        self.assertIn("const approvalResponse = page.waitForResponse", browser)
 
     def test_dashboard_assets_are_packaged(self):
         frontend = ROOT / "frontend"
