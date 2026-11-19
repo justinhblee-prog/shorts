@@ -2471,4 +2471,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Upgrade the self-hosted Windows development workflow from `actions/checkout@v5` to v7 and `peter-evans/create-pull-request@v7` to v8; both current releases execute on Node 24.
 - Add a PowerShell preflight before checkout that reads the active `Runner.Listener` executable version and fails with an actionable message unless the runner is at least 2.327.1, the documented minimum for Node 24 actions.
 - Add workflow-contract coverage for the preflight order, runner version floor and action majors.
-- Exact-head CI pending. No Windows self-hosted runner version or live Ollama execution is claimed.
+- Exact-head backend Actions run [44512423036](https://github.com/justinhblee-prog/shorts/actions/runs/44512423036) passed **774 tests** on `5ae4fbfdc3e33f12236aa9b68b11b78cc5f04956`. No actual Windows self-hosted runner version or live Ollama execution is claimed.
