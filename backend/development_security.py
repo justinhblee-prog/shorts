@@ -14,7 +14,7 @@ def redact_sensitive_text(value, limit=2000):
         r"DATABASE[_-]?URL|DB[_-]?URL|REDIS[_-]?URL|POSTGRES[_-]?URL|MYSQL[_-]?URL|"
         r"MONGODB[_-]?URI|MONGO[_-]?URL|SUPABASE[_-]?URL|SERVICE[_-]?ACCOUNT|"
         r"CONNECTION[_-]?STRING)[A-Z0-9_]*)"
-        r"\s*[=:]\s*[^\r\n]*",
+        r"\s*[=:]\s*[\s\S]*",
         r"\1=[REDACTED]", text,
     )
     text = re.sub(
