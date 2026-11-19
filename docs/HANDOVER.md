@@ -1436,3 +1436,7 @@ Code head `43b223c49f4e95f4bb830476b259bebcbb16e6df` passed GitHub Actions run [
 
 ### BUILD-00372 — preserve task-leading context
 The backlog sanitizer now processes the full description/acceptance string for secrets, then applies field limits from the beginning of the text. This preserves issue summaries and the first acceptance criteria rather than retaining only the tail. Regression coverage checks the 8,000-character description and 2,000-character acceptance bounds. Updated exact-head CI pending.
+
+
+### BUILD-00372 — final exact-head CI result
+Final code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519): **804 tests**, repository validation and frontend syntax check. The credential redaction and prefix-preservation regressions both passed.
