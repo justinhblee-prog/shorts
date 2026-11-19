@@ -285,3 +285,7 @@ The Aider executor no longer infers recursive scope from a missing filename suff
 
 ### BUILD-00365 — long-lived worker workspace safety
 Long-lived worker/service loops no longer continue claiming jobs in a worktree after one job attempt. They remain idle-polling until work appears, then return after the attempt so the host can clean or replace the workspace. Tests confirm no second job is claimed. Exact-head CI pending.
+
+
+### BUILD-00363–00365 — combined exact-head CI evidence
+GitHub Actions run [44516995900](https://github.com/justinhblee-prog/shorts/actions/runs/44516995900) passed **782 backend tests**, repository validation and frontend JavaScript syntax validation for the combined worker, scope and daemon lifecycle changes. Hosted Linux does not prove Windows self-hosted runner or live local-model behavior.
