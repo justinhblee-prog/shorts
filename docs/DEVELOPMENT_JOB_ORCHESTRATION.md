@@ -351,3 +351,7 @@ Exact-head validation: head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **
 
 ### DEV-ORCH-006 implementation follow-up — BUILD-00386
 Quarantined jobs can now be requeued only through an authenticated operator action. The action requires `operations.manage`, a non-empty reason, and records an immutable event containing the operator identity, redacted reason and previous attempt count. The new attempt starts with a reset retry budget and cleared stale execution evidence. Code head `628d5d1e22a56bbb58642e27530722d4d67e8992` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44548442047](https://github.com/justinhblee-prog/shorts/actions/runs/44548442047). Subsequent commits on this branch are documentation-only.
+
+
+### DEV-ORCH-008 implementation follow-up — UI-00012
+The development-job dashboard now exposes a guarded operator recovery action for quarantined jobs. The control is visible only for the quarantined state, requires an operator-entered reason and explicit confirmation, invokes the authenticated `operations.manage` endpoint, and refreshes the live job/event view. It remains separate from job selection and does not expose completion, merge or deployment controls. Frontend contract tests passed in exact-head runs [44550294588](https://github.com/justinhblee-prog/shorts/actions/runs/44550294588) and [44550326827](https://github.com/justinhblee-prog/shorts/actions/runs/44550326827). Live browser/API interaction with a real quarantined job remains unverified.
