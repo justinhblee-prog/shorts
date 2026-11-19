@@ -1338,3 +1338,7 @@ The local Aider executor now creates a temporary home for each job and redirects
 
 ### BUILD-00362 — runtime and shell startup injection isolation
 The Aider child environment now strips inherited Python import/runtime overrides, dynamic-loader injection variables, non-interactive shell startup hooks, and Node/Ruby/Perl preload settings. Regression tests inject hostile values for these variables and assert they are absent from the child process environment. Exact-head CI is pending; this does not claim live Windows runner or Ollama execution.
+
+
+### BUILD-00363 — one claimed job per shared worktree cycle
+The worker now exits its bounded run after any claimed job attempt, including retryable failures and lease loss, because an unsuccessful executor can leave partial files in the shared worktree. A regression confirms a second ready job is not claimed after the first job leaves an unvalidated partial edit. Exact-head CI pending; actual Windows workflow checkout cleanup remains an integration gate.
