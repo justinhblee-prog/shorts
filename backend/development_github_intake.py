@@ -43,6 +43,32 @@ def _positive_int(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
 
 
+def _canonical_issue_url(value: Any, owner: str, repository: str, number: int) -> str | None:
+    """Accept only the canonical HTTPS URL for this exact GitHub issue."""
+    if not isinstance(value, str) or not value or any(
+        character.isspace() or ord(character) < 32 or ord(character) == 127
+        for character in value
+    ):
+        return None
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return None
+    expected_path = f"/{owner}/{repository}/issues/{number}"
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc.lower() != "github.com"
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.port not in (None, 443)
+        or parsed.query
+        or parsed.fragment
+        or parsed.path != expected_path
+    ):
+        return None
+    return value
+
+
 def normalize_issue(issue: dict[str, Any]) -> dict[str, Any] | None:
     """Return a job candidate only for open, explicitly labeled issues."""
     if not isinstance(issue, dict) or issue.get("state") != "open" or "pull_request" in issue:
@@ -67,8 +93,8 @@ def normalize_issue(issue: dict[str, Any]) -> dict[str, Any] | None:
     repository = f"{owner}/{repository_name}"
     body = issue.get("body")
     body = body.strip() if isinstance(body, str) else ""
-    url = issue.get("html_url")
-    if not isinstance(url, str) or not url.startswith("https://github.com/"):
+    url = _canonical_issue_url(issue.get("html_url"), owner, repository_name, number)
+    if url is None:
         url = f"https://github.com/{repository}/issues/{number}"
     return {
         "source_ref": f"github:issue:{repository}#{number}",
