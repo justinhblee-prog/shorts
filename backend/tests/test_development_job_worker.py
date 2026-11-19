@@ -108,6 +108,26 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         self.assertEqual(self.store.get(first["id"])["status"], "retry_wait")
         self.assertEqual(self.store.get(second["id"])["status"], "ready")
 
+    def test_run_forever_returns_after_one_claimed_job(self):
+        first = self.store.create("First daemon job", scope=["backend/first.py"])
+        second = self.store.create("Second daemon job", scope=["backend/second.py"])
+        calls = []
+
+        def execute(job):
+            calls.append(job["id"])
+            return {
+                "changed_files": [job["scope"][0]],
+                "tests_passed": True,
+                "validation_ref": "ci://run/daemon",
+            }
+
+        worker = DevelopmentJobWorker(self.store, "runner-daemon", execute, poll_seconds=1)
+        worker.run_forever()
+        self.assertEqual(calls, [first["id"]])
+        self.assertEqual(self.store.get(first["id"])["status"], "review_pending")
+        self.assertEqual(self.store.get(second["id"])["status"], "ready")
+        self.assertEqual(self.store.get_worker("runner-daemon")["status"], "offline")
+
     def test_run_until_idle_marks_worker_offline_on_exit(self):
         worker = DevelopmentJobWorker(self.store, "runner-idle", lambda _: {})
         result = worker.run_until_idle(idle_seconds=1)
