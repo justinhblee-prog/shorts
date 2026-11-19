@@ -2557,3 +2557,5 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - The collector no longer materializes the full publication ledger, all snapshot timestamps, or the complete retry set in Python on every collection cycle.
 - Add regression tests for bounded result size, duplicate publication identities, retry eligibility, and ensuring the collector does not call the full-ledger/full-snapshot methods.
 - Production-scale latency and query-plan measurements remain outstanding. Exact-head CI pending.
+
+- Follow-up optimization: add `idx_tiktok_publications_due_scan(status,video_id,updated_at DESC,job_id)` to support the bounded due-video scan's filter, partition/order keys; add a schema regression assertion. This index complements the existing video/status lookup index. Exact-head CI pending.
