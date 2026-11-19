@@ -614,16 +614,21 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
                 os.replace(old_db, db_path)
             raise
         else:
+            cleanup_warnings = []
             if old_db.exists():
                 try:
                     old_db.unlink()
-                except OSError:
-                    pass
+                except OSError as exc:
+                    cleanup_warnings.append({
+                        "path": str(old_db), "error": type(exc).__name__,
+                    })
             if old_media.exists():
                 try:
                     shutil.rmtree(old_media)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    cleanup_warnings.append({
+                        "path": str(old_media), "error": type(exc).__name__,
+                    })
         finally:
             if new_db.exists():
                 new_db.unlink()
@@ -637,6 +642,7 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
         "pre_restore_backup": pre_restore,
         "backup_created_at": manifest.get("created_at"),
         "media_file_count": len(manifest.get("media_files", [])),
+        "cleanup_warnings": cleanup_warnings,
     }
 
 
