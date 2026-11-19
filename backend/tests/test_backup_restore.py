@@ -278,5 +278,207 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertEqual(len(result["sha256"]), 64)
 
 
+
+    def test_restore_rolls_back_database_and_media_when_media_install_fails(self):
+        (self.media / "clip.mp4").write_bytes(b"live-media-before-restore")
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        self._create_db("live-state-to-preserve")
+        (self.media / "clip.mp4").write_bytes(b"live-media-to-preserve")
+        (self.media / "extra.txt").write_text("keep", encoding="utf-8")
+
+        real_replace = os.replace
+
+        def fail_media_install(source, destination):
+            source_path = Path(source)
+            destination_path = Path(destination)
+            if destination_path == self.media and ".restore-" in source_path.name:
+                raise OSError("simulated media installation failure")
+            return real_replace(source, destination)
+
+        with patch("backup_restore.os.replace", side_effect=fail_media_install):
+            with self.assertRaisesRegex(OSError, "simulated media installation failure"):
+                restore_backup(
+                    backup, self.db, self.media, self.backups, confirm_restore=True
+                )
+
+        self.assertEqual(self._db_value(), "live-state-to-preserve")
+        self.assertEqual(
+            (self.media / "clip.mp4").read_bytes(), b"live-media-to-preserve"
+        )
+        self.assertEqual((self.media / "extra.txt").read_text(encoding="utf-8"), "keep")
+        self.assertFalse(list(self.db.parent.glob(self.db.name + ".pre-restore-*")))
+        self.assertFalse(list(self.db.parent.glob(self.db.name + ".restore-*")))
+        self.assertFalse(list(self.media.parent.glob(self.media.name + ".pre-restore-*")))
+        self.assertFalse(list(self.media.parent.glob(self.media.name + ".restore-*")))
+
+
+
+    def test_backup_and_restore_reject_database_nested_inside_media_directory(self):
+        nested_db = self.media / "nested.sqlite3"
+        with sqlite3.connect(nested_db) as connection:
+            connection.execute("CREATE TABLE nested(value TEXT)")
+            connection.execute("INSERT INTO nested(value) VALUES('preserve')")
+
+        with self.assertRaisesRegex(BackupRestoreError, "Database path must be outside"):
+            create_backup(nested_db, self.media, self.backups)
+
+        valid_backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        with self.assertRaisesRegex(BackupRestoreError, "Database path must be outside"):
+            restore_backup(
+                valid_backup, nested_db, self.media, self.backups,
+                confirm_restore=True,
+            )
+        with sqlite3.connect(nested_db) as connection:
+            self.assertEqual(
+                connection.execute("SELECT value FROM nested").fetchone()[0],
+                "preserve",
+            )
+
+    def test_restore_rejects_archive_inside_media_directory(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        embedded_archive = self.media / "backup.tar.gz"
+        Path(backup).replace(embedded_archive)
+        with self.assertRaisesRegex(BackupRestoreError, "Backup archive must be outside"):
+            restore_backup(
+                embedded_archive, self.db, self.media, self.backups,
+                confirm_restore=True,
+            )
+        self.assertEqual(self._db_value(), "before")
+        self.assertTrue(embedded_archive.is_file())
+
+
+
+    def test_restore_rejects_symbolic_link_archive(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        link = self.backups / "linked-backup.tar.gz"
+        try:
+            link.symlink_to(backup)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are not supported in this environment")
+        with self.assertRaisesRegex(BackupRestoreError, "not a regular file"):
+            restore_backup(
+                link, self.db, self.media, self.backups, confirm_restore=True
+            )
+        self.assertEqual(self._db_value(), "before")
+
+
+
+    def test_backup_and_restore_reject_symlink_storage_roots(self):
+        outside_media = self.root / "real-media"
+        outside_media.mkdir()
+        media_link = self.root / "media-link"
+        backup_link = self.root / "backup-link"
+        db_link = self.root / "database-link.sqlite3"
+        try:
+            media_link.symlink_to(outside_media, target_is_directory=True)
+            backup_link.symlink_to(self.backups, target_is_directory=True)
+            db_link.symlink_to(self.db)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are not supported in this environment")
+
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            create_backup(self.db, media_link, self.backups)
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            create_backup(self.db, self.media, backup_link)
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            create_backup(db_link, self.media, self.backups)
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            restore_backup(
+                backup, db_link, self.media, self.backups, confirm_restore=True
+            )
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            restore_backup(
+                backup, self.db, media_link, self.backups, confirm_restore=True
+            )
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            restore_backup(
+                backup, self.db, self.media, backup_link, confirm_restore=True
+            )
+
+
+
+    def test_restore_rejects_oversized_plaintext_and_encrypted_archives_before_staging(self):
+        plain_backup = Path(create_backup(
+            self.db, self.media, self.backups
+        )["backup_path"])
+        encrypted_key = base64.urlsafe_b64encode(b"z" * 32).decode("ascii")
+        with patch.dict(os.environ, {
+            "NEXUS_BACKUP_ENCRYPTION_KEY": encrypted_key,
+            "NEXUS_BACKUP_ENCRYPTION_REQUIRED": "true",
+        }):
+            encrypted_backup = Path(create_backup(
+                self.db, self.media, self.backups
+            )["backup_path"])
+            with patch.dict(os.environ, {"NEXUS_BACKUP_ENCRYPTION_REQUIRED": "false"}):
+                with patch("backup_restore.MAX_COMPRESSED_ARCHIVE_BYTES", plain_backup.stat().st_size - 1):
+                    with self.assertRaisesRegex(BackupRestoreError, "compressed archive size"):
+                        restore_backup(
+                            plain_backup, self.db, self.media, self.backups,
+                            confirm_restore=True,
+                        )
+            with patch("backup_restore.MAX_COMPRESSED_ARCHIVE_BYTES", encrypted_backup.stat().st_size - 1):
+                with self.assertRaisesRegex(BackupRestoreError, "compressed archive size"):
+                    restore_backup(
+                        encrypted_backup, self.db, self.media, self.backups,
+                        confirm_restore=True,
+                    )
+        self.assertEqual(self._db_value(), "before")
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
+
+
+
+    def test_restore_refuses_sqlite_wal_shm_or_journal_sidecars(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        for suffix in ("-wal", "-shm", "-journal"):
+            sidecar = Path(str(self.db) + suffix)
+            sidecar.write_bytes(b"active-or-uncheckpointed-sidecar")
+            with self.subTest(sidecar=suffix):
+                try:
+                    with self.assertRaisesRegex(BackupRestoreError, "SQLite sidecar files are present"):
+                        restore_backup(
+                            backup, self.db, self.media, self.backups,
+                            confirm_restore=True,
+                        )
+                finally:
+                    sidecar.unlink(missing_ok=True)
+                self.assertEqual(self._db_value(), "before")
+
+
+
+    def test_restore_reports_old_database_and_media_cleanup_failures(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        (self.media / "new-in-live-state.txt").write_text("keep in pre-restore copy")
+        real_unlink = Path.unlink
+        real_rmtree = shutil.rmtree
+
+        def fail_old_database_cleanup(path, *args, **kwargs):
+            if Path(path).name.startswith(self.db.name + ".pre-restore-"):
+                raise PermissionError("simulated database cleanup denial")
+            return real_unlink(path, *args, **kwargs)
+
+        def fail_old_media_cleanup(path, *args, **kwargs):
+            if ".pre-restore-" in Path(path).name:
+                raise PermissionError("simulated media cleanup denial")
+            return real_rmtree(path, *args, **kwargs)
+
+        with (
+            patch("backup_restore.Path.unlink", new=fail_old_database_cleanup),
+            patch("backup_restore.shutil.rmtree", side_effect=fail_old_media_cleanup),
+        ):
+            result = restore_backup(
+                backup, self.db, self.media, self.backups, confirm_restore=True
+            )
+
+        self.assertTrue(result["restored"])
+        self.assertEqual(
+            {warning["error"] for warning in result["cleanup_warnings"]},
+            {"PermissionError"},
+        )
+        self.assertEqual(len(result["cleanup_warnings"]), 2)
+        self.assertTrue(all(".pre-restore-" in warning["path"] for warning in result["cleanup_warnings"]))
+        self.assertEqual(self._db_value(), "before")
+
+
 if __name__ == "__main__":
     unittest.main()
