@@ -176,7 +176,7 @@ def read_github_snapshot(client: Any, owner: str, repository: str) -> dict[str, 
     }
 
 
-def normalize_snapshot(snapshot: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+def normalize_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     """Normalize all three read-only feeds without conflating their semantics."""
     return {
         "job_candidates": [
@@ -243,7 +243,9 @@ class GitHubReadOnlyClient:
             for part in link.split(","):
                 if 'rel="next"' in part:
                     candidate = part[part.find("<") + 1:part.find(">")]
-                    next_url = candidate if candidate.startswith(self.API_ROOT + "/") else None
+                    if not candidate.startswith(self.API_ROOT + "/"):
+                        raise ValueError("refusing non-GitHub pagination URL")
+                    next_url = candidate
                     break
             url = next_url
         self.pagination_truncated[path] = bool(url)
