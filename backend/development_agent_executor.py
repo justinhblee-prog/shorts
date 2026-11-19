@@ -97,7 +97,8 @@ class AiderDevelopmentExecutor:
         }
         blocked_prefixes = (
             "GIT_", "SSH_", "NPM_CONFIG_", "PIP_", "DOCKER_", "AWS_",
-            "AZURE_", "GCLOUD_", "GOOGLE_",
+            "AZURE_", "GCLOUD_", "GOOGLE_", "AIDER_", "LITELLM_",
+            "OPENAI_", "ANTHROPIC_", "GEMINI_", "OLLAMA_",
         )
         for key in tuple(env):
             upper = key.upper()
@@ -124,6 +125,11 @@ class AiderDevelopmentExecutor:
             "PIP_CONFIG_FILE": str(pip_config),
             "GIT_CONFIG_GLOBAL": str(gitconfig),
             "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_COUNT": "2",
+            "GIT_CONFIG_KEY_0": "credential.helper",
+            "GIT_CONFIG_VALUE_0": "",
+            "GIT_CONFIG_KEY_1": "credential.interactive",
+            "GIT_CONFIG_VALUE_1": "false",
             "GIT_TERMINAL_PROMPT": "0",
             "GCM_INTERACTIVE": "Never",
             "OLLAMA_API_BASE": os.environ.get("OLLAMA_API_BASE", "http://127.0.0.1:11434"),
