@@ -2666,3 +2666,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Code head `2c1342338cd6a0cb978cd8e575fc3eb18dd4f2d4` passed GitHub Actions runs [44535753188](https://github.com/justinhblee-prog/shorts/actions/runs/44535753188) and [44535765648](https://github.com/justinhblee-prog/shorts/actions/runs/44535765648): backend validation, `scripts/validate.sh`, and `node --check frontend/app.js` all passed. Hosted Linux only; Windows local-runner and production execution remain unverified.
 
 - Align `source_ref_exists` with the same redaction rule so preflight lookups and durable deduplication use one canonical sanitized value.
+
+
+## BUILD-00379 — validate imported repository identity
+- Reject malformed repository owner/name values in `normalize_issue` before constructing a durable source reference or fallback GitHub URL.
+- Reuse the same owner/repository segment rules as the read-only GitHub API path validator.
+- Add regressions for traversal, extra path segments, query injection, empty segments and newline injection. Exact-head CI pending.
