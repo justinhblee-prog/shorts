@@ -1363,5 +1363,5 @@ The final `mark_review_pending` gate no longer treats every extensionless scope 
 Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254): **785 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. A later docs-only commit records this result; no application code changed after the validated head. Live Windows runner/Aider/Ollama behavior remains unverified.
 
 
-### BUILD-00367 — Windows/POSIX scope path alias rejection
+### BUILD-00368 — Windows/POSIX scope path alias rejection
 The scope validator now accepts only portable repository-relative POSIX paths and rejects Windows drive/UNC roots, backslashes, ADS colons, root scopes, trailing-dot/space segments and reserved device names. Exact-head CI pending; the hosted test contract is not a live Windows runner scan.
