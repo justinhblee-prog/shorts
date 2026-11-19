@@ -113,3 +113,9 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Keep the active workspace indicator synchronized with both hash navigation and browser history (`popstate`).
 - Add a Chromium back/forward regression that checks the active `aria-current` workspace after history traversal.
 - Desktop/mobile and browser validation remain part of the existing UI lane; exact-head CI pending.
+
+
+### UI-00011 — exact-head validation
+- Code head `5e7a4599723b3fac84597f5c273c1bed4857a03b` passed **736 tests** and the Chromium UI smoke workflow in [run 44544886940](https://github.com/justinhblee-prog/shorts/actions/runs/44544886940).
+- Browser history back/forward restored the matching active workspace; desktop/mobile layout, keyboard navigation, analytics pagination and 502-row CSV download, and partial API failure feedback also passed.
+- Docker Compose validation in [run 44544886875](https://github.com/justinhblee-prog/shorts/actions/runs/44544886875) passed service startup, API readiness HTTP 200, encrypted backup creation and isolated restore smoke checks. Hosted CI only; production/OAuth/provider behavior remains separate.
