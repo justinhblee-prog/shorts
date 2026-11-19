@@ -10,7 +10,7 @@
 | UI / Dashboard | Analytics history, responsive navigation, development-job monitor, quarantine recovery controls | PR #407 exact-head browser smoke passed; all 19 modules connected; artifact 14564045600 | Review visual artifact and dependency-preserving diff |
 | Core / Policy | Durable queue, worker fencing, policy validation, synthetic-media disclosure, intake isolation | Included from aligned PR #406 stack; combined PR #407 exact-head CI passed | Review integration diff and API compatibility |
 | Analytics | YouTube/TikTok history, freshness, bounded queries, pagination/export | PR #407 exact-head tests and Chromium smoke passed | Validate against real provider data after credentials/operator approval |
-| Engineering automation | Persistent job graph, safe scopes, local Aider/Ollama executor, Draft PR evidence gate | Hosted regressions pass; real Windows runner cycle not proven | Windows preflight, persistent DB proof, real Ollama cycle |
+| Engineering automation | Persistent job graph, safe scopes, local Aider/Ollama executor, Draft PR evidence gate | PR #409 moves backend/Aider venvs outside the clean worktree; exact-head hosted CI + both Chromium smoke suites passed (run 44592757768); Windows/Ollama still unverified | Windows runner preflight, two-run LocalAppData persistence proof, real Ollama cycle |
 | QA / Integration | Backend suite, frontend syntax, analytics and recovery Chromium smoke | 880 tests; all hosted exact-head checks passed | Preserve exact-head gate on every subsequent change |
 | Release / Operations | OAuth, provider publishing, storage/media staging, production deployment | Not validated in live environment | Keep blocked until explicit operator-approved integration tests |
 
