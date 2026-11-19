@@ -355,7 +355,7 @@
         const headers=["수집 시각","플랫폼","영상 ID","조회수","이전 수집 대비 조회수","좋아요","댓글","공유","시청 시간(분)","평균 시청 시간(초)","평균 시청 비율(%)"];
         const csvCell=value=>{
           let cell=value===null||value===undefined?"":String(value);
-          if(/^[\\u0000-\\u0020]*[=+\\-@]/.test(cell))cell="'"+cell;
+          if(/^[\u0000-\u0020]*[=+\-@]/.test(cell))cell="'"+cell;
           return '"'+cell.replace(/"/g,'""')+'"';
         };
         const csv=[headers,...rows.map(item=>[
@@ -363,8 +363,8 @@
           item.views??item.view_count,deltaFor(item),item.like_count,item.comment_count,
           item.share_count,item.estimated_minutes_watched,item.average_view_duration,
           item.average_view_percentage
-        ])].map(record=>record.map(csvCell).join(",")).join("\\r\\n");
-        const blob=new Blob(["\\uFEFF",csv],{type:"text/csv;charset=utf-8"});
+        ])].map(record=>record.map(csvCell).join(",")).join("\r\n");
+        const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});
         const url=URL.createObjectURL(blob);
         const link=document.createElement("a");
         link.href=url;
