@@ -264,6 +264,28 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
         self.assertEqual(request.call_count, client.MAX_PAGES)
         self.assertTrue(client.pagination_truncated["/repos/acme/app/actions/runs"])
 
+    def test_rest_client_rejects_non_github_pagination_link(self):
+        import json
+        from unittest.mock import patch
+        from development_github_intake import GitHubReadOnlyClient
+
+        class Response:
+            headers = {"Link": '<https://example.invalid/steal-token>; rel="next"'}
+
+            def read(self):
+                return json.dumps({"workflow_runs": [{"id": 1}]}).encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with patch("urllib.request.urlopen", return_value=Response()):
+            client = GitHubReadOnlyClient("test-token")
+            with self.assertRaisesRegex(ValueError, "non-GitHub pagination URL"):
+                client.list_workflow_runs("acme", "app")
+
     def test_snapshot_exposes_per_feed_truncation_metadata(self):
         client = FakeReadOnlyGitHub()
         client.pagination_truncated = {
