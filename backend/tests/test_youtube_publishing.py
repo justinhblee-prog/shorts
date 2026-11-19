@@ -846,6 +846,21 @@ class YouTubePublishingTests(unittest.TestCase):
             self.publisher.upload_approved("job-1",self.media,self.review,"Realistic synthetic short")
         self.assertIs(self.service._videos.body["status"]["containsSyntheticMedia"],True)
 
+    def test_upload_rejects_policy_report_that_does_not_cover_youtube(self):
+        history=self.review.history("job-1")
+        report=evaluate_content_policy({
+            "platforms":["tiktok"],
+            "rights":{"visuals_cleared":True,"audio_cleared":True,"likeness_authorized":True},
+            "synthetic_media_status":"ai_assisted_nonrealistic",
+            "factual_claims_verified":True,
+            "originality_notes":"Original narration and editing.",
+        })
+        script=next(item for item in history[-1]["artifact_snapshot"] if item.get("stage")=="script")
+        script["metadata"]["policy_preflight"]=report
+        with patch.object(self.review,"history",return_value=history):
+            with self.assertRaisesRegex(YouTubeUploadError,"does not cover YouTube"):
+                self.publisher.upload_approved("job-1",self.media,self.review,"TikTok-only approval")
+
     def test_upload_requires_approved_policy_report_for_synthetic_media_flag(self):
         history=self.review.history("job-1")
         history[-1]["artifact_snapshot"]=[
