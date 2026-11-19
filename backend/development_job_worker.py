@@ -16,7 +16,7 @@ class NonRetryableDevelopmentJobError(Exception):
 
 
 class DevelopmentJobWorker:
-    def __init__(self, store, worker_id, executor, poll_seconds=5):
+    def __init__(self, store, worker_id, executor, poll_seconds=5, require_execution_verifier=False):
         if not callable(executor):
             raise ValueError("executor must be callable")
         if not isinstance(worker_id, str) or not worker_id.strip():
@@ -28,6 +28,7 @@ class DevelopmentJobWorker:
         self.hostname = os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME")
         self.executor = executor
         self.poll_seconds = poll_seconds
+        self.require_execution_verifier = bool(require_execution_verifier)
         self._stop = threading.Event()
 
     def stop(self):
@@ -78,6 +79,28 @@ class DevelopmentJobWorker:
                 return "lease_lost"
             if not isinstance(result, dict):
                 raise ValueError("executor must return an evidence dictionary")
+            claimed_files = result.get("changed_files")
+            verifier = getattr(self.executor, "verify_execution_evidence", None)
+            if self.require_execution_verifier and not callable(verifier):
+                raise NonRetryableDevelopmentJobError(
+                    "trusted executor does not provide worktree change verification"
+                )
+            verified_files = claimed_files
+            if callable(verifier):
+                verified_files = verifier(job, result)
+                if not isinstance(verified_files, list) or not verified_files or not all(
+                    isinstance(path, str) and path.strip() for path in verified_files
+                ):
+                    raise NonRetryableDevelopmentJobError(
+                        "worktree verification did not return meaningful changed files"
+                    )
+                normalize = lambda values: sorted(
+                    {path.replace("\\\\", "/") for path in values}
+                )
+                if not isinstance(claimed_files, list) or normalize(verified_files) != normalize(claimed_files):
+                    raise NonRetryableDevelopmentJobError(
+                        "executor changed_files do not match the current Git worktree"
+                    )
             result_summary = result.get("result_summary", "")
             if not isinstance(result_summary, str):
                 result_summary = str(result_summary)
@@ -87,7 +110,7 @@ class DevelopmentJobWorker:
                 validation_ref = redact_sensitive_text(validation_ref, limit=1000)
             completed = self.store.mark_review_pending(
                 job["id"], self.worker_id, job["lease_token"],
-                result.get("changed_files"), result.get("tests_passed"),
+                verified_files, result.get("tests_passed"),
                 validation_ref, safe_summary,
             )
             return completed["status"]
