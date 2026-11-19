@@ -1383,3 +1383,5 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Regression coverage includes bounded results, duplicate publication rows, and guards proving the collector no longer calls the full-scan APIs.
 - Code commit: `792b284ebe1e62c3c8a15635a82383aa0df85790`; collector/test commits: `de5fc5ee7e5def0041f31f7d4f70a442371348bf` / `3f8f09f06623ce2205854e95027e5c1cf82dbc96`.
 - Exact-head CI pending; production-scale benchmark remains outstanding.
+
+- Follow-up optimization: add `idx_tiktok_publications_due_scan(status,video_id,updated_at DESC,job_id)` to support the bounded due-video scan's filter, partition/order keys; add a schema regression assertion. This index complements the existing video/status lookup index. Exact-head CI pending.
