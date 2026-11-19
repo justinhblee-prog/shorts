@@ -249,3 +249,10 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - POLICY-00002 successor PR #402, head `9e4f42746a2fdd5ec66f855725ad00b999a1b18f`, is based on #401 and mergeable. Workflow [44575784946](https://github.com/justinhblee-prog/shorts/actions/runs/44575784946) passed; [44575810640](https://github.com/justinhblee-prog/shorts/actions/runs/44575810640) was still running at checkpoint.
 - POLICY-00003 successor PR #403, head `70260b8c8ace86deb194802b531e262eec3c2bf2`, is based on #402 and mergeable. Workflows [44575901354](https://github.com/justinhblee-prog/shorts/actions/runs/44575901354) and [44575928560](https://github.com/justinhblee-prog/shorts/actions/runs/44575928560) were in progress/queued.
 - These are hosted backend checks. They do not constitute production deployment, live provider publishing, or external OAuth validation. Original stale-base PRs #386/#389/#390 remain untouched; successor PRs remain Draft/unmerged.
+
+
+### Quarantine recovery UI/API successor validation checkpoint
+
+- UI successor PR #404 head `ee6a1113ce280c49c0a65c31e3555cf5a61de6d4`, based on current BUILD-00386 / #384: compare ahead 4, behind 0, mergeable. Workflow [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819) passed; [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665) was in progress.
+- API contract successor PR #405 head `5dcfc199cd4d719b03601e1a3507f83689a7bbd0`, based on #404: compare ahead 1, behind 0, mergeable. Workflow [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441) was in progress.
+- Both are Draft/unmerged. API coverage is route-handler testing with mocked storage, not live production recovery.
