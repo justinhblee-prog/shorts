@@ -355,7 +355,7 @@ class TikTokMetricsStore:
               WHERE p.publication_rank=1
                 AND (s.collected_at IS NULL OR s.collected_at<?)
                 AND (r.next_retry_at IS NULL OR r.next_retry_at<=?)
-              ORDER BY p.updated_at,p.job_id
+              ORDER BY p.updated_at DESC,p.job_id
               LIMIT ?
             """, (cutoff, stamp, limit)).fetchall()
         return [dict(row) for row in rows]
