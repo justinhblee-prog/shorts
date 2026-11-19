@@ -15,8 +15,11 @@ class FakeStore:
 
 
 class FakeService:
+    last_kwargs = None
+
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        FakeService.last_kwargs = kwargs
 
     def run_cycle(self):
         return {"intake": {"import": {"created_count": 0}},
@@ -51,6 +54,7 @@ class RunDevelopmentAgentTests(unittest.TestCase):
         self.assertEqual(result["seeded_job_count"], 2)
         self.assertEqual(result["execution"]["processed"], 0)
         self.assertEqual(result["database_summary"]["ready"], 0)
+        self.assertTrue(FakeService.last_kwargs["require_execution_verifier"])
 
     def test_approved_scope_symlink_aliases_resolve_to_canonical_targets(self):
         with tempfile.TemporaryDirectory() as temp:
