@@ -14,6 +14,18 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('["검수 대기열",loadReviews]', app_js)
         self.assertIn('["작업 큐",loadQueue]', app_js)
 
+
+    def test_browser_smoke_exercises_real_authenticated_api_endpoints(self):
+        script = (ROOT / "scripts" / "ui_browser_smoke.mjs").read_text(encoding="utf-8")
+        server = (ROOT / "scripts" / "ui_api_smoke_server.py").read_text(encoding="utf-8")
+        self.assertIn('"/api/brands"', script)
+        self.assertIn('"/api/queue/stats"', script)
+        self.assertIn('"/api/review/pending?limit=100"', script)
+        self.assertIn('"/api/publishing/analytics-status"', script)
+        self.assertIn('assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200])', script)
+        self.assertIn("app.youtube_analytics_store.save(", server)
+        self.assertIn("app.tiktok_metrics_store.save_snapshot(", server)
+
     def test_dashboard_assets_are_packaged(self):
         frontend = ROOT / "frontend"
         self.assertTrue((frontend / "index.html").is_file())
