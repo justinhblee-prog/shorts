@@ -53,6 +53,8 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("$blockedPrefixes", step)
         self.assertIn("$credentialPattern", step)
         self.assertIn("GIT_CONFIG_COUNT=0", step)
+        self.assertIn('"NEXUS_APPROVED_SCOPES"', step)
+        self.assertIn('"GITHUB_TOKEN"', step)
         for prefix in (
             '"PYTHON"', '"NODE_"', '"RUBY"', '"PERL"', '"JAVA_"',
             '"GIT_"', '"SSH_"', '"LD_"', '"DYLD_"', '"AIDER_"',
