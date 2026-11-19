@@ -219,10 +219,19 @@ class DevelopmentJobStore:
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
             rows = connection.execute(
-                "SELECT id FROM development_jobs WHERE id IN (?,?)", (job_id, depends_on_id)
+                "SELECT id,status FROM development_jobs WHERE id IN (?,?)", (job_id, depends_on_id)
             ).fetchall()
             if len(rows) != 2:
                 raise DevelopmentJobNotFound("job or dependency not found")
+            by_id = {row["id"]: row["status"] for row in rows}
+            child_status = by_id[job_id]
+            parent_status = by_id[depends_on_id]
+            if child_status not in {"ready", "blocked"}:
+                raise DevelopmentJobConflict(
+                    "dependencies can only be changed while a job is ready or blocked"
+                )
+            if parent_status == "cancelled":
+                raise DevelopmentJobConflict("a job cannot depend on a cancelled prerequisite")
             # Adding job -> parent is invalid if parent already depends (transitively) on job.
             cycle = connection.execute(
                 """WITH RECURSIVE ancestors(id) AS (
@@ -242,12 +251,14 @@ class DevelopmentJobStore:
                 (job_id, depends_on_id, timestamp),
             ).rowcount
             if inserted:
-                row = connection.execute("SELECT status FROM development_jobs WHERE id=?", (job_id,)).fetchone()
-                connection.execute(
-                    "UPDATE development_jobs SET status='blocked',updated_at=? WHERE id=? AND status='ready'",
-                    (timestamp, job_id),
-                )
-                self._event(connection, job_id, "dependency_added", row["status"], "blocked",
+                next_status = child_status
+                if parent_status != "completed" and child_status == "ready":
+                    connection.execute(
+                        "UPDATE development_jobs SET status='blocked',updated_at=? WHERE id=? AND status='ready'",
+                        (timestamp, job_id),
+                    )
+                    next_status = "blocked"
+                self._event(connection, job_id, "dependency_added", child_status, next_status,
                             "system", {"depends_on": depends_on_id}, timestamp)
             connection.commit()
         return self.get(job_id)
