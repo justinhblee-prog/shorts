@@ -64,10 +64,16 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         with self.assertRaises(NonRetryableDevelopmentJobError):
             self.executor._validated_scope({"scope": ["backend/ordinary_module.py"]})
 
-    def test_changed_file_must_be_inside_declared_scope(self):
-        self.assertTrue(self.executor._matches_scope("backend/a.py", ["backend"]))
+    def test_changed_file_must_be_inside_explicit_directory_scope(self):
         self.assertTrue(self.executor._matches_scope("backend/a.py", ["backend/"]))
-        self.assertFalse(self.executor._matches_scope("frontend/a.js", ["backend"]))
+        self.assertFalse(self.executor._matches_scope("backend/a.py", ["backend"]))
+        self.assertFalse(self.executor._matches_scope("backend/Makefile/generated.py", ["backend/Makefile"]))
+        self.assertFalse(self.executor._matches_scope("frontend/a.js", ["backend/"]))
+
+    def test_scope_marks_existing_directories_as_recursive(self):
+        scope = self.executor._validated_scope({"scope": ["backend"]})
+        self.assertEqual(scope, ["backend/"])
+        self.assertTrue(self.executor._matches_scope("backend/new_module.py", scope))
 
     def test_explicit_aider_executable_is_used_without_path_lookup(self):
         executable = self.root / "aider.exe"
