@@ -207,3 +207,13 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - Added regressions: read-only authorization rejected before store mutation (403), missing job maps to 404, and blank recovery reason maps to 422. Existing coverage retains successful operator attribution/state transition and conflict mapping; store tests cover the immutable recovery event.
 - Test boundary: direct FastAPI handler invocation with a mocked store. No live HTTP server, browser-driven recovery, or production operator workflow was exercised.
 - PR #397 remains Draft/unmerged on the #387 base; #387 depends on #384. Cross-stack integration remains unverified.
+
+
+### UI-00016 — exact-head browser validation
+
+- PR #398 exact head: `0d9db34cc5969f277c1174f7092e7d4907f957af`.
+- Hosted workflow [44573923657](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657): success. Repository validation (`scripts/validate.sh`) and browser smoke both completed successfully.
+- Added named navigation landmark and browser assertions for keyboard activation, page 8 boundary behavior, 25-row final page, next disabled at final page, and return to page 1.
+- Existing smoke also passed: mobile 320px, 502-row full CSV export, review approval/audit history, partial API failure handling, browser back/forward, reduced motion, and zero page errors.
+- Screenshot artifact: [14555931151](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657/artifacts/14555931151).
+- PR remains Draft/unmerged on the UI-00015 base. No production deployment/live provider publishing was performed.
