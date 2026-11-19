@@ -2694,7 +2694,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Document restore as an offline maintenance operation: stop API, worker, scheduler, metrics collector and backup processes; close/checkpoint the DB; restore and verify; then restart.
 - Add regressions for all three sidecar types and verify live DB contents remain unchanged.
 - The sidecar check is a fail-closed safeguard, not proof that no process has an open database handle; operator shutdown remains mandatory.
-- Exact-head Actions validation pending.
+- Exact-head validation passed: backend [run 44505492687](https://github.com/justinhblee-prog/shorts/actions/runs/44505492687), **720 tests**; Compose [run 44505492612](https://github.com/justinhblee-prog/shorts/actions/runs/44505492612), five-service backup/restore smoke.
 
 
 ## BUILD-00350 — report post-restore cleanup failures
