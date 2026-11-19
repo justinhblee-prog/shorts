@@ -203,3 +203,10 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - PRs #407, #412, and #413 remain Draft/unmerged; #415 is the combined review candidate. Keep them all unmerged until #415 exact-head CI passes and the aggregate diff is reviewed.
 - Automation (#409 -> #414) and documentation (#410 -> #411) are still separate stacks and have not yet been transplanted into #415. Do not mark integration complete.
 - No merge, deployment, rebase, or force-push was performed.
+
+
+### PR #415 exact-head CI tracking update
+
+- Exact head `ae7ed6574a4a3eaac306215d9702e2f33c4f0fd4` is now attached to two GitHub Actions test runs: [44597011173](https://github.com/justinhblee-prog/shorts/actions/runs/44597011173) and [44596966746](https://github.com/justinhblee-prog/shorts/actions/runs/44596966746).
+- At the latest check both jobs were still `in_progress` (one in dependency installation, one in repository validation); neither had reported a failure. This is **VERIFYING**, not PASS.
+- PR #415 remains Draft and GitHub currently reports it mergeable. No merge or deployment.
