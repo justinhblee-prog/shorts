@@ -687,6 +687,12 @@ class YouTubePublisher:
                 "Approved policy report is missing; run policy preflight and obtain a new human approval"
             )
         policy_report=policy_reports[-1]
+        approved_platforms=policy_report.get("platforms")
+        if (not isinstance(approved_platforms,list)
+                or "youtube" not in approved_platforms):
+            raise YouTubeUploadError(
+                "Approved policy report does not cover YouTube; run YouTube policy preflight and obtain a new human approval"
+            )
         synthetic_status=policy_report.get("synthetic_media_status")
         if synthetic_status not in ("none","ai_assisted_nonrealistic","ai_generated","realistic_alteration"):
             raise YouTubeUploadError(
