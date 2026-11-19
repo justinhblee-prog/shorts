@@ -310,14 +310,18 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertEqual(by_id["video-1"]["privacy_level"], "SELF_ONLY")
         self.assertEqual(by_id["video-2"]["view_count"], 5)
 
-    def test_status_reports_coverage_and_never_claims_unavailable_metrics(self):
+    def test_status_reports_latest_snapshot_and_stale_or_missing_coverage(self):
+        self._publish("job-2", "video-2")
         self.store.save_snapshot("job-1", {
             "id": "video-1", "view_count": 10, "like_count": 1,
             "comment_count": 0, "share_count": 0,
         })
         status = self.store.status(self.publications)
-        self.assertEqual(status["coverage"]["published_videos"], 1)
+        self.assertEqual(status["coverage"]["published_videos"], 2)
         self.assertEqual(status["coverage"]["with_snapshot"], 1)
+        self.assertEqual(status["coverage"]["without_snapshot"], 1)
+        self.assertEqual(status["coverage"]["stale_or_missing"], 1)
+        self.assertIsNotNone(status["latest_snapshot_at"])
         self.assertIn("share_count", status["available_metrics"])
         self.assertIn("audience_retention", status["unavailable_metrics"])
         self.assertTrue(status["read_only"])
