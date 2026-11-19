@@ -149,6 +149,8 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertEqual(child_env["OLLAMA_API_BASE"], "http://127.0.0.1:11434")
         self.assertEqual(child_env["HOME"], str((self.root / "isolated-home").resolve()))
         self.assertEqual(child_env["USERPROFILE"], str((self.root / "isolated-home").resolve()))
+        self.assertEqual(child_env["APPDATA"], str((self.root / "isolated-home" / "AppData" / "Roaming").resolve()))
+        self.assertEqual(child_env["LOCALAPPDATA"], str((self.root / "isolated-home" / "AppData" / "Local").resolve()))
         self.assertEqual(child_env["GIT_CONFIG_NOSYSTEM"], "1")
         self.assertEqual(child_env["GIT_CONFIG_COUNT"], "2")
         self.assertEqual(child_env["GIT_CONFIG_KEY_0"], "credential.helper")
