@@ -330,3 +330,11 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - Latest PR #407 head `77333d264a123d80c87e6ca13f1edfc0282be06a` passed [workflow 44589059999](https://github.com/justinhblee-prog/shorts/actions/runs/44589059999): **880 tests passed**, frontend syntax, analytics Chromium smoke, quarantine recovery Chromium smoke, and artifact upload.
 - Final artifact [14564045600](https://github.com/justinhblee-prog/shorts/actions/runs/44589059999/artifacts/14564045600) includes the refreshed desktop/mobile browser screenshots.
 - The documentation-only commit clarifies that the provider-attempt reconciliation operator ID must match the token-authenticated principal. Exact-head validation is complete; PR #407 remains Draft/unmerged.
+
+
+### Integration security regression — TikTok publish actor binding (2026-11-20)
+
+- Audited publishing/reconciliation route identity handling on the integrated candidate. TikTok publish already rejects a request whose body `operator_id` differs from the principal authenticated by `publish.execute`, before staged-media lookup or provider access.
+- Added a focused regression in `backend/tests/test_api_security.py` asserting HTTP 403 and proving both media staging and the TikTok publisher remain untouched for a spoofed actor.
+- Source commit: `bd3592951ae359fee7272e7b04951409960579f7` on PR #407's integration branch. Exact-head hosted validation has not yet been observed; do not count this test as passing until its workflow completes.
+- PR #407 remains Draft/unmerged. No live TikTok API or provider account was contacted.
