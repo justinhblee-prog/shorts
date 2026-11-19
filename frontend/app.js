@@ -238,7 +238,7 @@
     for(const [key,items] of Object.entries(data.items||{})){
       for(const item of items)rows.push({...item,platform:key});
     }
-    rows.sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||"")));
+    rows.sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||""))||Number(b.id||0)-Number(a.id||0));
     const grouped={};
     rows.forEach(item=>{
       const key=item.platform+":"+item.video_id;
@@ -290,7 +290,7 @@
     };
     const platformLatest={youtube:[],tiktok:[]};
     Object.entries(grouped).forEach(([key,items])=>{
-      const chronological=[...items].sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||"")));
+      const chronological=[...items].sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||""))||Number(b.id||0)-Number(a.id||0));
       const latest=chronological.find(item=>{
         const metric=item.platform==="youtube"?"views":"view_count";
         return item[metric]!==null&&item[metric]!==undefined&&Number.isFinite(Number(item[metric]))&&Number(item[metric])>=0;
@@ -310,7 +310,7 @@
         time:Date.parse(item.collected_at),value:chartMetricValue(item),item
       }))
         .filter(point=>Number.isFinite(point.time)&&Number.isFinite(point.value)&&point.value>=0)
-        .sort((a,b)=>a.time-b.time);
+        .sort((a,b)=>a.time-b.time||Number(a.item.id||0)-Number(b.item.id||0));
       return {key,platform:items[0]?.platform,videoId:items[0]?.video_id,points};
     }).filter(group=>group.points.length>=2)
       .sort((a,b)=>b.points.length-a.points.length).slice(0,4);
