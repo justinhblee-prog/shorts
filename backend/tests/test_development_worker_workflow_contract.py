@@ -63,6 +63,23 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("python backend/recover_development_reviews.py", self.source[recovery:execute])
         self.assertIn("no job was requeued", self.source[recovery:execute])
         self.assertIn("if: github.event.inputs.mode != 'recover'", self.source[create_pr:])
+    def test_verified_pr_update_triggers_bounded_self_continuation(self):
+        self.assertIn("remaining_cycles:", self.source)
+        self.assertIn('default: "5"', self.source)
+        self.assertIn("actions: write", self.source)
+        continuation = self.source.index("name: Continue bounded autonomous development after verified PR update")
+        publish = self.source.index("name: Record exact Draft PR review artifact")
+        self.assertGreater(continuation, publish)
+        step = self.source[continuation:]
+        self.assertIn("pull-request-operation == 'created'", step)
+        self.assertIn("pull-request-operation == 'updated'", step)
+        self.assertIn("GH_WORKFLOW: nexus-development-job-worker.yml", step)
+        self.assertIn("actions/workflows/$env:GH_WORKFLOW/dispatches", step)
+        self.assertIn("remaining - 1", step)
+        self.assertIn("$remaining -gt 10", step)
+        self.assertIn("Bounded continuation limit reached", step)
+        self.assertIn("Never auto-merge", self.source)
+
     def test_approved_scope_is_explicitly_required_by_environment_contract(self):
         self.assertIn("NEXUS_APPROVED_SCOPES", self.source)
         self.assertIn("NEXUS_GITHUB_READ_TOKEN", self.source)
