@@ -31,6 +31,23 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("ollama list", self.source)
         self.assertIn("qwen2.5-coder:7b", self.source)
 
+    def test_windows_runner_preflights_python_git_bash_node_and_exact_ollama_model(self):
+        self.assertIn("Python 3.11 or newer is required", self.source)
+        self.assertIn("Get-Command bash.exe", self.source)
+        self.assertIn("Node.js 18 or newer is required", self.source)
+        self.assertIn('if ($apiModelNames -notcontains $modelTag)', self.source)
+        self.assertIn('qwen2.5-coder:7b', self.source)
+
+    def test_runtime_dependencies_use_separate_workspace_virtual_environments(self):
+        self.assertIn(".nexus-backend-venv", self.source)
+        self.assertIn(".nexus-aider-venv", self.source)
+        self.assertIn("NEXUS_BACKEND_PYTHON=", self.source)
+        self.assertIn("NEXUS_AIDER_EXECUTABLE=", self.source)
+        self.assertNotIn("pip install --user", self.source)
+        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/run_development_agent.py", self.source)
+        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/publish_development_reviews.py", self.source)
+        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py", self.source)
+
     def test_read_only_intake_token_is_separate_from_pr_token(self):
         self.assertIn("GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}", self.source)
         self.assertIn("token: ${{ secrets.GITHUB_TOKEN }}", self.source)
