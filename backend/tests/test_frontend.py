@@ -194,7 +194,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('dataset.loaded="true"', app_js)
         self.assertIn('id="exportAnalyticsHistory"', html)
         self.assertIn('exportButton.disabled=rows.length===0', app_js)
-        self.assertIn("화면 "+ "analyticsHistoryPageSize" + "개씩 표시 · CSV 전체 내보내기(페이지 단위)", app_js)
+        self.assertIn("화면 '+analyticsHistoryPageSize+'개씩 표시 · CSV 전체 내보내기(페이지 단위)", app_js)
         self.assertIn("const analyticsHistoryPageSize = 25", app_js)
         self.assertIn("renderAnalyticsHistoryTablePage()", app_js)
         self.assertIn("data-analytics-page", app_js)
