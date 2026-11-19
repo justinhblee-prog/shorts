@@ -104,6 +104,30 @@ class AiderDevelopmentExecutor:
             raise RuntimeError("git command failed: " + _tail(result.stdout))
         return result.stdout.strip()
 
+    @staticmethod
+    def _is_protected_scope_path(path):
+        candidate = Path(path)
+        parts = {part.lower() for part in candidate.parts}
+        name = candidate.name.lower()
+        protected_name = (
+            any(marker in name for marker in ("credential", "secret", "private"))
+            or name in _FORBIDDEN_NAMES
+            or name.startswith((
+                "id_rsa_", "id_dsa_", "id_ecdsa_", "id_ed25519_",
+                "id_xmss_", "id_sk_",
+            ))
+        )
+        config_credentials = ".config" in parts and bool(
+            parts & {"aws", "azure", "gcloud", "gh", "pip", "containers", "kube", "docker", "npm"}
+        )
+        return bool(
+            parts & _FORBIDDEN_PARTS
+            or protected_name
+            or config_credentials
+            or name.startswith(".env")
+            or candidate.suffix.lower() in _FORBIDDEN_SUFFIXES
+        )
+
     def _validated_scope(self, job):
         scope = job.get("scope")
         if not isinstance(scope, list) or not scope:
@@ -118,28 +142,17 @@ class AiderDevelopmentExecutor:
             normalized = candidate.as_posix()
             if normalized.startswith("./"):
                 normalized = normalized[2:]
-            parts = {part.lower() for part in Path(normalized).parts}
-            name = Path(normalized).name.lower()
-            protected_name = (
-                any(marker in name for marker in ("credential", "secret", "private"))
-                or name in _FORBIDDEN_NAMES
-                or name.startswith((
-                    "id_rsa_", "id_dsa_", "id_ecdsa_", "id_ed25519_",
-                    "id_xmss_", "id_sk_",
-                ))
-            )
-            config_credentials = ".config" in parts and bool(
-                parts & {"aws", "azure", "gcloud", "gh", "pip", "containers", "kube", "docker", "npm"}
-            )
-            if (parts & _FORBIDDEN_PARTS or protected_name or config_credentials
-                    or name.startswith(".env")
-                    or Path(normalized).suffix.lower() in _FORBIDDEN_SUFFIXES):
+            if self._is_protected_scope_path(normalized):
                 raise NonRetryableDevelopmentJobError("job scope includes a protected secret or data path")
             resolved = (self.repo_root / normalized).resolve()
             try:
-                resolved.relative_to(self.repo_root)
+                resolved_relative = resolved.relative_to(self.repo_root)
             except ValueError as error:
                 raise NonRetryableDevelopmentJobError("job scope escapes the repository") from error
+            # Check the resolved target as well as the user-supplied alias: an
+            # innocuous-looking symlink must not expose a private key or secret file.
+            if self._is_protected_scope_path(resolved_relative):
+                raise NonRetryableDevelopmentJobError("job scope resolves to a protected secret or data path")
             if not resolved.parent.exists():
                 raise NonRetryableDevelopmentJobError("job scope parent directory does not exist")
             validated.append(normalized)
