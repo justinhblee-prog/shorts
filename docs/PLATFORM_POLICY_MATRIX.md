@@ -1,7 +1,7 @@
 # Platform Policy Preflight Matrix
 
 **Version:** 0.2  
-**Policy pack:** `2026-11-16.1`  
+**Policy pack:** `2026-11-16.2`  
 **Checked:** 2026-11-16  
 **Scope:** YouTube Shorts and TikTok short-form production
 
@@ -118,3 +118,7 @@ Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonatio
 - Preserve valid query and fragment references for source citations.
 - Reject unknown rights-attestation keys so unsupported declarations cannot be mistaken for recognized clearance evidence.
 - Bump the policy pack to `2026-11-16.2`. Exact-head CI pending.
+
+
+## POLICY-00003 — approval requires a valid policy preflight
+Every production approval must have a script-level policy preflight report with a recognized status (`blocked`, `review_required`, or `ready_for_human_review`) and a well-formed blocker list. Missing or malformed reports fail closed; reviewer comments cannot substitute for the report. This gate verifies the report's presence and structure, not the truth of operator attestations or the actual media bytes.
