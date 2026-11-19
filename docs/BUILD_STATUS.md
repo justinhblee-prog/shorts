@@ -2588,3 +2588,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Enforce one active lease per worker identity so duplicate processes cannot claim multiple jobs under one presence record.
 - Add concurrency, stale-token, recovery-gate, attempt-limit and same-worker identity regressions.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00368 — exact-head hosted validation
+- Code head `923a4bd36ad3f7e5bf36c271c07f20b45c8642ef` passed GitHub Actions Backend tests run [44526419213](https://github.com/justinhblee-prog/shorts/actions/runs/44526419213): **799 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Quarantined scopes remain reserved against conflicting jobs until explicit workspace-reset recovery.
+- Hosted Linux only; host-level Windows process termination and workspace cleanup remain operational checks.
