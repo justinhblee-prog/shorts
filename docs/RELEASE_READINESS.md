@@ -325,3 +325,7 @@ GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00367 — final validation checkpoint
 - Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
+
+
+### BUILD-00368 — lease expiry recovery gate
+The lease expiry path is fail-closed: an expired lease is quarantined and its fencing token revoked. It is not automatically reassigned to another worker until an explicit recovery operation confirms workspace cleanup. This prevents two executors from writing the same worktree after a paused or partitioned worker resumes. Hosted CI pending; Windows runner termination/workspace reset remains an operational integration check.
