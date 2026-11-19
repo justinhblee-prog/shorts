@@ -2617,3 +2617,14 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Code head `d6af913a2325a4a390f9bcb788f473670cf018b4` passed GitHub Actions Backend tests run [44532160221](https://github.com/justinhblee-prog/shorts/actions/runs/44532160221): **800 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Direct-store success/failure redaction tests verify secrets are absent from persisted job rows and immutable event history.
 - Hosted Linux only; this validates the SQLite persistence boundary in the test environment, not a production database inventory.
+
+
+### BUILD-00370 — final durable-store validation checkpoint
+- Final PR head `07896636170c92a1ed497ed097f0d9a0aa245e7f` passed GitHub Actions run [44532360324](https://github.com/justinhblee-prog/shorts/actions/runs/44532360324): **800 tests**, repository validation and frontend syntax check.
+- The initial direct-store test fixture was corrected to use a non-overlapping scope; the final exact-head run passed.
+
+
+## BUILD-00371 — preserve safe diagnostic context during redaction
+- Replace the credential assignment redaction's greedy-to-end behavior with value-aware matching for quoted strings, unquoted tokens and structured JSON objects.
+- Preserve unrelated diagnostic context after a secret assignment while still redacting multiline service-account payloads.
+- Add regressions for trailing safe context and multiline service-account redaction. Exact-head hosted CI pending.
