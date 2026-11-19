@@ -94,6 +94,32 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
             "labels": ["development-job"], "pull_request": {"url": "https://api.github.com/..."}
         }))
 
+    def test_normalize_issue_accepts_only_its_canonical_github_url(self):
+        base = {
+            "number": 4, "title": "Issue link", "state": "open",
+            "labels": ["development-job"], "repository": "acme/app",
+        }
+        valid = normalize_issue({**base, "html_url": "https://github.com/acme/app/issues/4"})
+        self.assertEqual(valid["url"], "https://github.com/acme/app/issues/4")
+
+        invalid_urls = (
+            "https://github.com.evil.test/acme/app/issues/4",
+            "https://evil.test/acme/app/issues/4",
+            "http://github.com/acme/app/issues/4",
+            "https://user@github.com/acme/app/issues/4",
+            "https://github.com:444/acme/app/issues/4",
+            "https://github.com/acme/other/issues/4",
+            "https://github.com/acme/app/pull/4",
+            "https://github.com/acme/app/issues/4?redirect=evil",
+            "https://github.com/acme/app/issues/4#fragment",
+            "https://github.com/acme/app/issues/4\\n",
+        )
+        expected = "https://github.com/acme/app/issues/4"
+        for url in invalid_urls:
+            with self.subTest(url=url):
+                candidate = normalize_issue({**base, "html_url": url})
+                self.assertEqual(candidate["url"], expected)
+
     def test_normalize_issue_rejects_invalid_repository_identity(self):
         invalid_repositories = (
             "../acme/app",
