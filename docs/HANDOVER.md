@@ -1423,3 +1423,11 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact-head validation pending.
 
 - Initial BUILD-00339 test run caught unnecessary TikTok OAuth manager construction when a collector was injected. Aligned TikTok initialization with the YouTube path: construct OAuth storage/manager only when the default collector must be created. Revalidation is running on the fix.
+
+
+## BUILD-00340 — synthetic 10,000-row TikTok collector scan smoke test
+
+- Add a SQLite regression fixture with 10,000 published-video identities and 10,000 historical metric snapshots.
+- Verify the indexed due-candidate query returns exactly the newest 20 stale videos in deterministic order, with no duplicates.
+- This is a synthetic bounded-volume smoke test, not a production latency benchmark or a claim about deployed database performance.
+- Exact-head GitHub Actions validation pending.
