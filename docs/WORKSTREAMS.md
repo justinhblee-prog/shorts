@@ -83,3 +83,5 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Keep successful module data available when an unrelated API endpoint fails; report the number and names of failed modules in the connection indicator and toast.
 - Distinguish full connection failure from partial API availability rather than marking every workspace disconnected after one endpoint error.
 - Source regression coverage added. Browser test with intentionally mixed endpoint responses remains to be added.
+
+- Browser smoke now injects a queue-statistics HTTP 503 while other API fixtures remain healthy; it verifies the UI reports partial API connectivity and names the failed refresh rather than masking successful workspaces.
