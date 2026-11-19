@@ -93,6 +93,46 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(unchanged["status"], "leased")
         self.assertEqual(unchanged["dependencies"], [parent["id"]])
 
+    def test_dependency_insertion_racing_claim_is_serialized(self):
+        gate = self.store.create("Unfinished gate", priority=3, scope=["backend/gate.py"])
+        parent = self.store.create("Blocked prerequisite", priority=2, scope=["backend/parent.py"])
+        self.store.add_dependency(parent["id"], gate["id"])
+        child = self.store.create("Racing child", priority=1, scope=["backend/child.py"])
+        barrier = threading.Barrier(3)
+        outcomes = {}
+
+        def add_edge():
+            barrier.wait()
+            try:
+                outcomes["dependency"] = ("added", self.store.add_dependency(child["id"], parent["id"]))
+            except DevelopmentJobConflict:
+                outcomes["dependency"] = ("rejected", None)
+
+        def claim_job():
+            barrier.wait()
+            outcomes["claim"] = self.store.claim_ready("worker-race")
+
+        threads = [
+            threading.Thread(target=add_edge),
+            threading.Thread(target=claim_job),
+        ]
+        for thread in threads:
+            thread.start()
+        barrier.wait()
+        for thread in threads:
+            thread.join(timeout=5)
+            self.assertFalse(thread.is_alive(), "dependency/claim race did not finish")
+
+        saved = self.store.get(child["id"])
+        if outcomes["claim"] is not None:
+            self.assertEqual(outcomes["dependency"][0], "rejected")
+            self.assertEqual(saved["status"], "leased")
+            self.assertEqual(saved["dependencies"], [])
+        else:
+            self.assertEqual(outcomes["dependency"][0], "added")
+            self.assertEqual(saved["status"], "blocked")
+            self.assertEqual(saved["dependencies"], [parent["id"]])
+
     def test_dependency_cycle_is_rejected(self):
         first = self.store.create("First")
         second = self.store.create("Second")
