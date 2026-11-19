@@ -19,8 +19,17 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare non-production environment
-        run: cp .env.example .env
+      - name: Prepare encrypted non-production backup environment
+        run: |
+          cp .env.example .env
+          python - <<'PY'
+          import base64
+          import secrets
+          key = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii")
+          with open(".env", "a", encoding="utf-8") as env_file:
+              env_file.write("NEXUS_BACKUP_ENCRYPTION_KEY=" + key + "\n")
+              env_file.write("NEXUS_BACKUP_ENCRYPTION_REQUIRED=true\n")
+          PY
       - name: Verify Compose configuration
         run: docker compose config --quiet
       - name: Build all service images
@@ -41,7 +50,7 @@ jobs:
         run: |
           set -eu
           for attempt in $(seq 1 30); do
-            if docker compose exec -T backup sh -c 'find /backups -maxdepth 1 -type f -name "nexus-backup-*.tar.gz" -print -quit | grep -q .' ; then
+            if docker compose exec -T backup sh -c 'find /backups -maxdepth 1 -type f -name "nexus-backup-*.tar.gz.enc" -print -quit | grep -q .' ; then
               break
             fi
             sleep 1
@@ -53,8 +62,9 @@ jobs:
           from pathlib import Path
           from backup_restore import restore_backup
 
-          archives = sorted(Path("/backups").glob("nexus-backup-*.tar.gz"))
-          assert archives, "backup service did not create an archive"
+          archives = sorted(Path("/backups").glob("nexus-backup-*.tar.gz.enc"))
+          assert archives, "backup service did not create an encrypted archive"
+          assert not list(Path("/backups").glob("nexus-backup-*.tar.gz")), "plaintext backup must not be present"
           source_db = Path("/app/data/nexus.sqlite3")
           source_media = Path("/app/data/media")
           with tempfile.TemporaryDirectory(prefix="nexus-compose-restore-") as temp:
