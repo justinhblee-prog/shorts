@@ -9,12 +9,44 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 
 from development_agent_executor import AiderDevelopmentExecutor
 from development_backlog_service import DevelopmentBacklogService
 from development_github_intake import GitHubReadOnlyClient
 from development_jobs import DevelopmentJobStore
 from seed_development_jobs import seed_development_jobs
+
+
+def _normalize_approved_scopes(scopes, repo_root):
+    """Mark existing directory scopes explicitly before they enter the durable store."""
+    root = Path(repo_root).resolve()
+    normalized = {}
+    for source_ref, paths in scopes.items():
+        if not isinstance(paths, list):
+            normalized[source_ref] = paths
+            continue
+        entries = []
+        for raw in paths:
+            if not isinstance(raw, str) or not raw.strip():
+                entries.append(raw)
+                continue
+            candidate = Path(raw.strip())
+            if candidate.is_absolute() or ".." in candidate.parts:
+                entries.append(raw)
+                continue
+            resolved = (root / candidate).resolve()
+            try:
+                resolved.relative_to(root)
+            except ValueError:
+                entries.append(raw)
+                continue
+            path = candidate.as_posix()
+            if resolved.is_dir():
+                path = path.rstrip("/") + "/"
+            entries.append(path)
+        normalized[source_ref] = entries
+    return normalized
 
 
 def _json_env(name, default, environ=None):
@@ -39,13 +71,16 @@ def run_once(environ=None):
         raise ValueError("GITHUB_REPOSITORY must be owner/repo")
 
     # Validate configuration before opening the database or making network calls.
-    approved_scopes = _json_env("NEXUS_APPROVED_SCOPES", "{}", env)
+    repo_root = env.get("GITHUB_WORKSPACE", os.getcwd())
+    approved_scopes = _normalize_approved_scopes(
+        _json_env("NEXUS_APPROVED_SCOPES", "{}", env), repo_root,
+    )
     db_path = env.get("NEXUS_DEVELOPMENT_DB", "data/nexus-development.sqlite3")
     store = DevelopmentJobStore(db_path)
     seeded = seed_development_jobs(store)
     github = GitHubReadOnlyClient(token)
     executor = AiderDevelopmentExecutor(
-        repo_root=env.get("GITHUB_WORKSPACE", os.getcwd()),
+        repo_root=repo_root,
         model=env.get("NEXUS_DEV_AGENT_MODEL", "ollama_chat/qwen2.5-coder:7b"),
         timeout_seconds=int(env.get("NEXUS_DEV_AGENT_TIMEOUT", "2700")),
     )
