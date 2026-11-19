@@ -155,3 +155,21 @@ CI 통과는 live provider 성공, 실제 수익, 게시 정책 승인, 운영 �
 - Removed this network-dependent font installation step from `.github/workflows/backend-tests.yml` in commit `bd2926c981c44398465994d4825d981729bf4e13`. The browser smoke still runs; system font fallbacks remain defined in CSS and browser assertions are unchanged.
 - The new exact-head workflow attempts are run [44570606677](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677) (Backend tests) and [44570606778](https://github.com/justinhblee-prog/shorts/actions/runs/44570606778) (Compose integration). At last inspection, backend dependency installation and Compose image build were in progress. No new browser artifact had been produced yet.
 - Do not mark UI-00015 complete until both exact-head validation jobs finish successfully and the uploaded desktop/mobile artifact is inspected.
+
+
+## UI-00015 exact-head verification — 2026-11-20
+
+- Exact head: `bd2926c981c44398465994d4825d981729bf4e13` on PR #395.
+- Backend/browser workflow [44570606677](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677): **success**. The job log confirms authenticated dashboard and core API checks, review approval/audit history, mobile analytics pagination, 25-row history pagination, full 502-row CSV download, partial API failure feedback, browser back/forward, responsive desktop/mobile and keyboard checks.
+- Compose workflow [44570606778](https://github.com/justinhblee-prog/shorts/actions/runs/44570606778): **success**. Compose services started and readiness checks passed; encrypted scheduled backup and isolated restore passed, including SQLite `PRAGMA integrity_check`.
+- Browser artifact [14554042466](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677/artifacts/14554042466) contains desktop 1440px and mobile 320px screenshots. Both files were downloaded and visually inspected; the mobile capture is 320px wide and the full dashboard remains within the viewport. The browser log explicitly reports mobile analytics pagination fit/navigation.
+- Network-dependent apt font installation was removed in commit `bd2926c...`; Chromium and browser smoke now complete successfully.
+- PR #395 remains Draft/unmerged and stacked on #394. Hosted CI evidence does not establish production deployment or live OAuth/provider publishing.
+
+### Next Flow actions
+1. Continue the independent Core and Policy lanes from the current orchestration graph; retain one-owner-per-file and PR dependency ordering.
+2. In the UI lane, review the next outstanding dashboard usability/accessibility issue and implement it as a separate stacked Draft PR, preserving the existing app behavior.
+3. Integration lane must later exercise real API contracts and the end-to-end create → review → approve → publish → analytics workflow; live provider behavior remains an external gate.
+
+## Change log
+- 2026-11-20: UI-00015 exact-head backend/browser and Compose checks passed; desktop/mobile screenshot artifact inspected; PR description and handover state synchronized.
