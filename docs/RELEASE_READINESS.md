@@ -361,3 +361,7 @@ Case-insensitive scope overlap enforcement, separator/dot alias normalization an
 
 ### BUILD-00371 — normalized scope lock validation evidence
 GitHub Actions run [44522472503](https://github.com/justinhblee-prog/shorts/actions/runs/44522472503) passed **801 backend tests**, repository validation and frontend JavaScript syntax validation, including Windows-style case and separator aliases on the scheduler contract. Actual Windows filesystem behavior remains a trusted-runner gate.
+
+
+### BUILD-00372 — dependency mutation gate
+Dependency additions after claim/finalization are rejected; pre-existing duplicate edges remain idempotent. Hosted validation pending.
