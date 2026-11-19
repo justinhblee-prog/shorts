@@ -238,6 +238,14 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                 job["id"], "operator", workspace_reset_confirmed=True, reason="cleaned",
             )
 
+    def test_same_worker_identity_cannot_hold_two_active_leases(self):
+        first = self.store.create("First same-worker job", scope=["backend/first.py"])
+        second = self.store.create("Second same-worker job", scope=["backend/second.py"])
+        claim = self.store.claim_ready("shared-runner-id")
+        self.assertEqual(claim["id"], first["id"])
+        self.assertIsNone(self.store.claim_ready("shared-runner-id"))
+        self.assertEqual(self.store.get(second["id"])["status"], "ready")
+
     def test_parallel_workers_claim_distinct_jobs(self):
         from concurrent.futures import ThreadPoolExecutor
         jobs = [self.store.create("Job " + str(i), scope=["backend/module_" + str(i) + ".py"]) for i in range(4)]
