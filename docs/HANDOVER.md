@@ -1439,4 +1439,6 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Verify all expected processes remain running, `/api/ready` returns HTTP 200, and worker/scheduler containers can access the shared data volume.
 - Always collect service logs and tear down the containers and test volumes.
 - This is CI container integration evidence only; it does not replace deployment-host HTTPS, persistent-volume, backup/restore, real-provider, or production operations validation.
-- Exact-head Compose workflow validation pending.
+- Exact-head Compose workflow validation passed.
+
+- Exact-head validation: Compose workflow run [44497681238](https://github.com/justinhblee-prog/shorts/actions/runs/44497681238) passed (image build, five service processes running, API readiness HTTP 200, shared data volume checks, teardown). Backend tests run [44497681456](https://github.com/justinhblee-prog/shorts/actions/runs/44497681456) passed **712 tests**. This is CI integration evidence, not deployment-host evidence.
