@@ -530,7 +530,7 @@ def require_review_permission(token, permission):
 @app.get("/api/session")
 def get_operator_session(x_review_token:str|None=Header(default=None)):
     """Return the principal bound to the supplied operator credential."""
-    return {"operator_id":require_review_access(x_review_token)}
+    return {"operator_id":require_review_permission(x_review_token,"session.read")}
 
 
 @app.get("/api/review/pending")
