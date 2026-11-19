@@ -151,3 +151,23 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - Regression tests cover both containment guards and the Aider interpreter check.
 - Exact-head CI for `8bb993a084b1f6b78730e78a49e943166f4f5e17` is running as of this checkpoint (workflow runs [44595671151](https://github.com/justinhblee-prog/shorts/actions/runs/44595671151) and [44595698428](https://github.com/justinhblee-prog/shorts/actions/runs/44595698428)). FLOW-AUTO remains VERIFYING until exact-head validation completes.
 - This is hosted validation only; trusted Windows self-hosted execution and two-run LocalAppData persistence remain unverified.
+
+
+## 14. Automation integrity exact-head PASS — 2026-11-20
+
+- FLOW-AUTO / FLOW-QA hosted validation is **PASS** at exact head `8bb993a084b1f6b78730e78a49e943166f4f5e17` in both independent workflow runs [44595671151](https://github.com/justinhblee-prog/shorts/actions/runs/44595671151) and [44595698428](https://github.com/justinhblee-prog/shorts/actions/runs/44595698428). Each run completed all 17 steps successfully.
+- Browser evidence artifacts: [14566421219](https://github.com/justinhblee-prog/shorts/actions/runs/44595671151/artifacts/14566421219) and [14564399810](https://github.com/justinhblee-prog/shorts/actions/runs/44595698428/artifacts/14564399810).
+- The tested workflow now keeps both persistent virtual environments outside the checkout, rejects a misconfigured tool root inside `GITHUB_WORKSPACE`, refuses destructive repair of incomplete existing environments, and verifies the Aider Python interpreter before trusting its launcher.
+- PR #414 remains Draft/unmerged: https://github.com/justinhblee-prog/shorts/pull/414.
+- **Validation boundary:** these hosted runs exercise workflow contracts and hosted Chromium fixtures. They do not prove actual Windows self-hosted runner execution, persistence across two real runner jobs, or a live Ollama generation cycle. Those remain BLOCKED pending trusted runner evidence.
+
+## 15. Current lane state after PR #414 validation — 2026-11-20
+
+| Lane | State | Evidence / remaining gate |
+|---|---|---|
+| FLOW-UI | PASS | PR #412 exact tested head `cf6b727252c8f33b3e90722d05cebef1bd40fe23`, hosted run 44594782147 |
+| FLOW-CORE | PASS | PR #413 exact tested head `5d3e7447d72788b8802dfe8c4bcdfd3de76b4ff8`, hosted run 44595023343 |
+| FLOW-AUTO | PASS / BLOCKED | PR #414 exact tested head `8bb993a084b1f6b78730e78a49e943166f4f5e17`, hosted runs 44595671151 and 44595698428; trusted Windows/Ollama runtime remains unverified |
+| FLOW-QA | PASS | Exact-head hosted validation and Chromium smoke evidence recorded for PRs #412–#414 |
+| FLOW-DOCS | ACTIVE | This handover updated with exact-head evidence and remaining external gates |
+| FLOW-INTEGRATION | READY | Review cross-PR base compatibility and aggregate changes; keep all PRs Draft and do not merge/deploy |
