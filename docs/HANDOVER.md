@@ -1523,4 +1523,4 @@ The final store transition now applies the same case-insensitive, separator-norm
 - Added `DevelopmentJobStore.recover_quarantined`, restricted to the quarantined state, with actor/reason validation and sensitive-text redaction.
 - Recovery resets attempts and stale validation evidence, returns the job to ready, and appends an immutable `quarantine_recovered` event with the prior attempt count.
 - Added the `POST /api/development/jobs/{job_id}/recover` endpoint under the new `operations.manage` permission; operator role is granted this permission, while reviewer/producer roles are not.
-- Exact-head backend validation pending.
+- Code head `628d5d1e22a56bbb58642e27530722d4d67e8992` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44548442047](https://github.com/justinhblee-prog/shorts/actions/runs/44548442047). Subsequent commits on this branch are documentation-only.
