@@ -15,7 +15,7 @@ on:
       - ".github/workflows/backend-tests.yml"
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,3 +23,15 @@ jobs:
           python-version: "3.11"
       - run: pip install -r backend/requirements.txt
       - run: sh scripts/validate.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install chromium
+      - run: node scripts/ui_browser_smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nexus-dashboard-browser-screenshots
+          path: artifacts/*.png
+          if-no-files-found: ignore

@@ -75,6 +75,8 @@
 .analytics-history-controls input,.analytics-history-controls select{font-size:10px;padding:9px 10px}
 .analytics-history{min-width:0}
 .analytics-history-summary{font-size:10px;color:#93a3bd;padding:10px 0}
+.analytics-history-status{margin:0 0 12px;padding:9px 12px;border:1px solid #2d3d58;border-radius:9px;background:#111d31;color:#a9bfd4;font-size:10px;line-height:1.5}
+.analytics-history-status:empty{display:none}
 .analytics-table-wrap{overflow:auto;border:1px solid #2d3d58;border-radius:10px}
 .analytics-table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:10px}
 .analytics-table th,.analytics-table td{padding:10px 12px;text-align:right;border-bottom:1px solid #293750}
@@ -114,3 +116,18 @@
 .analytics-platform-card>strong{font-size:22px;line-height:1.2;color:#e6edf8;font-variant-numeric:tabular-nums}
 .analytics-platform-card>small{font-size:10px;color:#a9b8ce}
 @media(max-width:520px){.analytics-platform-grid{grid-template-columns:1fr}.analytics-platform-card>strong{font-size:19px}}
+
+/* Keyboard access: keep the skip link available without changing the visual layout. */
+.skip-link{position:fixed;left:16px;top:8px;z-index:1000;transform:translateY(-160%);padding:10px 14px;border:1px solid var(--cyan);border-radius:10px;background:#111a2e;color:var(--text);font-weight:700;box-shadow:0 8px 24px #0008}
+.skip-link:focus{transform:translateY(0);outline:3px solid #fff;outline-offset:3px}
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+
+
+/* Keep the last complete result visible while clearly announcing a refresh. */
+.analytics-history[aria-busy="true"]{opacity:.72;cursor:progress}
+
+
+.review-search{display:grid;gap:7px;margin:14px 0 4px;max-width:560px;color:var(--muted);font-size:12px;font-weight:700}
+.review-search input{width:100%;min-height:44px;padding:10px 13px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft);color:var(--text);font:inherit;font-weight:500}
+.review-search-status{min-height:18px;margin:4px 0 12px;color:var(--muted);font-size:12px}
+.review-card[hidden]{display:none}
