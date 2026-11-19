@@ -452,7 +452,7 @@ class BackupRestoreTests(unittest.TestCase):
         real_rmtree = shutil.rmtree
 
         def fail_old_database_cleanup(path, *args, **kwargs):
-            if ".pre-restore-" in Path(path).name and Path(path).suffix == self.db.suffix:
+            if Path(path).name.startswith(self.db.name + ".pre-restore-"):
                 raise PermissionError("simulated database cleanup denial")
             return real_unlink(path, *args, **kwargs)
 
