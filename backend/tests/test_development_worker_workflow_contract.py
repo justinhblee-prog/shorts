@@ -78,7 +78,7 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("remaining - 1", step)
         self.assertIn("$remaining -gt 10", step)
         self.assertIn("Bounded continuation limit reached", step)
-        self.assertIn("Never auto-merge", self.source)
+        self.assertIn("No automatic merge or deployment is permitted.", self.source)
 
     def test_approved_scope_is_explicitly_required_by_environment_contract(self):
         self.assertIn("NEXUS_APPROVED_SCOPES", self.source)
