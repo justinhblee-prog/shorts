@@ -37,6 +37,15 @@ class PolicyReviewApprovalGateTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_approval_rejects_stale_report_when_latest_script_has_none(self):
+        self.production.artifact(
+            "job-policy-gate", "script", "text", None,
+            {"script": "Revised script without a policy preflight"},
+        )
+        with self.assertRaisesRegex(ReviewConflict, "Policy preflight report is required"):
+            self.review.decide("job-policy-gate", "approved", "operator", "Reviewed")
+        self.assertEqual(self.production.get("job-policy-gate")["status"], "review_pending")
+
     def test_approval_rejects_missing_policy_report(self):
         with self.review.db() as connection:
             connection.execute(
