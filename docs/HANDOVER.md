@@ -1374,3 +1374,7 @@ The status-poll backoff test now uses wide time margins instead of 59/61 and 119
 
 ### BUILD-00375 — canonical scope path strings
 Scope validation now rejects noncanonical aliases (leading ./, repeated separators, interior dot segments) and rejects a recursive trailing slash on a non-directory file. Only canonical relative POSIX paths, with an optional directory marker, proceed to execution and the durable evidence gate. Exact-head CI pending.
+
+
+### BUILD-00375 — exact-head CI result
+Code head `3b10a656924e3b93e2a4ff2cbe000be514d46380` passed GitHub Actions run [44525189997](https://github.com/justinhblee-prog/shorts/actions/runs/44525189997): **785 tests**, repository validation and frontend syntax check. Canonical path alias regressions passed.
