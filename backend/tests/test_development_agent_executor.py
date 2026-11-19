@@ -70,6 +70,18 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
 
         self.assertTrue(self.executor._is_scope_reparse_point(ReparsePath()))
 
+        class UnreadablePath:
+            def is_symlink(self):
+                return False
+
+            def is_junction(self):
+                return False
+
+            def lstat(self):
+                raise PermissionError("metadata denied")
+
+        self.assertTrue(self.executor._is_scope_reparse_point(UnreadablePath()))
+
     def test_scope_rejects_symlink_aliases_to_internal_secret_files(self):
         ssh_dir = self.root / ".ssh"
         ssh_dir.mkdir()
