@@ -1286,6 +1286,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 | #335 | BUILD-00356 bounded GitHub API pagination (500 records/feed) with truncation reporting and host validation | Open Draft; 771 backend tests passed |
 | #336 | BUILD-00357 GitHub owner/repository path-segment validation | Open Draft; 773 backend tests passed |
 | #337 | BUILD-00358 Node 24 self-hosted runner preflight and action upgrades | Open Draft; 774 backend tests passed on exact head |
+| #338 | BUILD-00359 local model secret and workflow-command environment isolation | Open Draft; 775 backend tests passed on exact head |
 
 PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #334; #336 is stacked on #335. PRs #331–#333 are independent follow-ups based on the core PR #323. PR #329 is the separate UI branch. PRs #311–#315 remain protected and unmerged.
 
@@ -1319,3 +1320,7 @@ Continue from the latest open Draft chain, starting with any failing or unverifi
 
 ### BUILD-00358 — Windows worker Node 24 action runtime
 The local Windows worker workflow now upgrades `actions/checkout` to v7 and `peter-evans/create-pull-request` to v8, both Node 24 actions. Before checkout, it reads the active `Runner.Listener` file version and fails if it is below 2.327.1. This avoids silently starting a Node 24 action on an unsupported old runner. The actual local runner version still needs to be observed during a real self-hosted cycle.
+
+
+### BUILD-00359 — Aider child environment secret scrub
+The local model subprocess no longer inherits backup encryption keys, database/Redis URLs, Supabase service-role keys, service-account values, access/private/signing keys, or GitHub workflow command-file variables that could write environment/output files for later steps, plus runner temp/workspace/tool-cache paths. Existing API/provider/GitHub tokens remain stripped. The Ollama endpoint, workspace, approved path scopes and model name remain available. Regression tests cover both removed and preserved variables, plus diagnostic redaction for encryption, database, service-role and private-key values. Exact-head backend CI passed run [44513202976](https://github.com/justinhblee-prog/shorts/actions/runs/44513202976) with 775 tests; no live Aider/Ollama execution is claimed.

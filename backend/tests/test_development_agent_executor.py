@@ -50,12 +50,72 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
                 with self.assertRaises(NonRetryableDevelopmentJobError):
                     self.executor._resolve_aider_executable()
 
+    def test_child_environment_strips_encryption_database_and_service_credentials(self):
+        values = {
+            "GITHUB_TOKEN": "ghp_sensitive",
+            "NEXUS_BACKUP_ENCRYPTION_KEY": "backup-key-sensitive",
+            "DATABASE_URL": "postgres://user:password@db.example/nexus",
+            "REDIS_URL": "redis://:password@cache.example/0",
+            "SUPABASE_SERVICE_ROLE_KEY": "service-role-sensitive",
+            "FIREBASE_SERVICE_ACCOUNT": "service-account-sensitive",
+            "AWS_ACCESS_KEY_ID": "aws-access-sensitive",
+            "AZURE_CLIENT_SECRET": "azure-secret-sensitive",
+            "GITHUB_ENV": "C:/runner/_temp/env-file",
+            "GITHUB_OUTPUT": "C:/runner/_temp/output-file",
+            "GITHUB_PATH": "C:/runner/_temp/path-file",
+            "GITHUB_STEP_SUMMARY": "C:/runner/_temp/summary-file",
+            "GITHUB_STATE": "C:/runner/_temp/state-file",
+            "GITHUB_EVENT_PATH": "C:/runner/_temp/event.json",
+            "ACTIONS_CACHE_URL": "https://cache.example",
+            "ACTIONS_RESULTS_URL": "https://results.example",
+            "RUNNER_TEMP": "C:/runner/_temp",
+            "RUNNER_WORKSPACE": "C:/runner/_work",
+            "RUNNER_TOOL_CACHE": "C:/runner/_tool",
+            "RUNNER_TRACKING_ID": "runner-tracking-sensitive",
+            "RUNNER_NAME": "private-runner-name",
+            "OLLAMA_API_BASE": "http://127.0.0.1:11434",
+            "GITHUB_WORKSPACE": str(self.root),
+            "NEXUS_APPROVED_SCOPES": "{}",
+            "NEXUS_DEV_AGENT_MODEL": "ollama_chat/qwen2.5-coder:7b",
+        }
+        with patch.dict(os.environ, values):
+            child_env = self.executor._child_environment()
+
+        for key in (
+            "GITHUB_TOKEN", "NEXUS_BACKUP_ENCRYPTION_KEY", "DATABASE_URL",
+            "REDIS_URL", "SUPABASE_SERVICE_ROLE_KEY", "FIREBASE_SERVICE_ACCOUNT",
+            "AWS_ACCESS_KEY_ID", "AZURE_CLIENT_SECRET", "GITHUB_ENV", "GITHUB_OUTPUT",
+            "GITHUB_PATH", "GITHUB_STEP_SUMMARY", "GITHUB_STATE",
+            "GITHUB_EVENT_PATH", "ACTIONS_CACHE_URL", "ACTIONS_RESULTS_URL",
+            "RUNNER_TEMP", "RUNNER_WORKSPACE", "RUNNER_TOOL_CACHE",
+            "RUNNER_TRACKING_ID", "RUNNER_NAME",
+        ):
+            with self.subTest(secret=key):
+                self.assertNotIn(key, child_env)
+
+        self.assertEqual(child_env["OLLAMA_API_BASE"], "http://127.0.0.1:11434")
+        self.assertEqual(child_env["GITHUB_WORKSPACE"], str(self.root))
+        self.assertEqual(child_env["NEXUS_APPROVED_SCOPES"], "{}")
+        self.assertEqual(child_env["NEXUS_DEV_AGENT_MODEL"], "ollama_chat/qwen2.5-coder:7b")
+
     def test_diagnostic_redaction_removes_bearer_and_common_api_tokens(self):
-        message = "Bearer abc.def token=private123 ghp_123456789012345678901234567890"
+        message = (
+            "Bearer abc.def token=private123 "
+            "NEXUS_BACKUP_ENCRYPTION_KEY=backup-secret "
+            "DATABASE_URL=postgres://user:password@db.example/nexus "
+            "SUPABASE_SERVICE_ROLE_KEY=service-role-secret "
+            "PRIVATE_KEY=private-key-secret "
+            "ghp_123456789012345678901234567890"
+        )
         safe = _tail(message)
-        self.assertNotIn("abc.def", safe)
-        self.assertNotIn("private123", safe)
-        self.assertNotIn("ghp_123456789012345678901234567890", safe)
+        for secret in (
+            "abc.def", "private123", "backup-secret",
+            "postgres://user:password@db.example/nexus",
+            "service-role-secret", "private-key-secret",
+            "ghp_123456789012345678901234567890",
+        ):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, safe)
         self.assertIn("[REDACTED]", safe)
 
 

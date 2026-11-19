@@ -2472,3 +2472,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add a PowerShell preflight before checkout that reads the active `Runner.Listener` executable version and fails with an actionable message unless the runner is at least 2.327.1, the documented minimum for Node 24 actions.
 - Add workflow-contract coverage for the preflight order, runner version floor and action majors.
 - Exact-head backend Actions run [44512423036](https://github.com/justinhblee-prog/shorts/actions/runs/44512423036) passed **774 tests** on `5ae4fbfdc3e33f12236aa9b68b11b78cc5f04956`. No actual Windows self-hosted runner version or live Ollama execution is claimed.
+
+
+## BUILD-00359 — strip encryption and database credentials from local model environment
+- Extend the Aider child-process environment scrubber to remove the backup encryption key, database/Redis connection URLs, Supabase service-role keys, service-account credentials, access/private/signing keys and existing provider/GitHub secrets. Also remove GitHub workflow command-file variables (GITHUB_ENV, GITHUB_OUTPUT, GITHUB_PATH, GITHUB_STEP_SUMMARY, GITHUB_STATE) and runner cache/results endpoints so untrusted model output cannot alter later workflow steps or inspect runner temp/tool-cache paths.
+- Extract environment construction into a separately testable least-privilege helper while preserving the local Ollama endpoint, repository workspace, approved scope mapping and selected local model settings.
+- Add regression coverage proving secret-bearing variables are absent while required local execution context remains available.
+- Exact-head backend Actions run [44513202976](https://github.com/justinhblee-prog/shorts/actions/runs/44513202976) passed **775 tests** on `81281194dc3ce043957708b090ad99d131df5021`. This validates environment filtering only; no actual model execution or production secret exposure test is claimed.

@@ -21,14 +21,33 @@ _FORBIDDEN_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".sqlite", ".sqlite3", ".
 _SECRET_ENV_KEYS = {
     "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GITHUB_TOKEN", "GH_TOKEN",
     "NEXUS_REVIEW_TOKEN", "NEXUS_REVIEW_CREDENTIALS_JSON",
+    "NEXUS_BACKUP_ENCRYPTION_KEY",
+}
+_SECRET_ENV_MARKERS = (
+    "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "API_KEY",
+    "ENCRYPTION_KEY", "PRIVATE_KEY", "SIGNING_KEY", "ACCESS_KEY",
+    "SERVICE_ROLE_KEY", "DATABASE_URL", "DB_URL", "REDIS_URL",
+    "POSTGRES_URL", "MYSQL_URL", "MONGODB_URI", "MONGO_URL",
+    "CONNECTION_STRING", "SERVICE_ACCOUNT",
+)
+_WORKFLOW_COMMAND_ENV_KEYS = {
+    "GITHUB_ENV", "GITHUB_OUTPUT", "GITHUB_PATH", "GITHUB_STEP_SUMMARY",
+    "GITHUB_STATE", "GITHUB_EVENT_PATH", "ACTIONS_CACHE_URL",
+    "ACTIONS_RUNTIME_URL", "ACTIONS_RESULTS_URL", "RUNNER_TEMP",
+    "RUNNER_WORKSPACE", "RUNNER_TOOL_CACHE", "RUNNER_TRACKING_ID", "RUNNER_NAME",
 }
 
 
 def _tail(value, limit=2000):
     text = (value or "").strip()
     text = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/-]+=*", "Bearer [REDACTED]", text)
-    text = re.sub(r"(?i)(token|api[_-]?key|secret|password)\s*[=:]\s*[^\s,;]+",
-                  r"\1=[REDACTED]", text)
+    text = re.sub(
+        r"(?i)([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API[_-]?KEY|ENCRYPTION[_-]?KEY|"
+        r"PRIVATE[_-]?KEY|SIGNING[_-]?KEY|ACCESS[_-]?KEY|SERVICE[_-]?ROLE[_-]?KEY|"
+        r"DATABASE[_-]?URL|DB[_-]?URL|REDIS[_-]?URL|CONNECTION[_-]?STRING)[A-Z0-9_]*)"
+        r"\s*[=:]\s*[^\s,;]+",
+        r"\1=[REDACTED]", text,
+    )
     text = re.sub(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b",
                   "[REDACTED]", text)
     return text[-limit:]
@@ -41,6 +60,22 @@ class AiderDevelopmentExecutor:
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or not 60 <= timeout_seconds <= 7200:
             raise ValueError("timeout_seconds must be between 60 and 7200")
         self.timeout_seconds = timeout_seconds
+
+    @staticmethod
+    def _child_environment():
+        """Build a least-privilege environment for the local model subprocess."""
+        env = os.environ.copy()
+        for key in tuple(env):
+            upper = key.upper()
+            if (
+                key in _SECRET_ENV_KEYS
+                or key in _WORKFLOW_COMMAND_ENV_KEYS
+                or any(marker in upper for marker in _SECRET_ENV_MARKERS)
+                or upper.startswith(("AWS_", "AZURE_", "GOOGLE_APPLICATION_CREDENTIALS"))
+            ):
+                env.pop(key, None)
+        env["OLLAMA_API_BASE"] = env.get("OLLAMA_API_BASE", "http://127.0.0.1:11434")
+        return env
 
     def _run(self, args, env, timeout):
         try:
@@ -117,14 +152,7 @@ class AiderDevelopmentExecutor:
         scope = self._validated_scope(job)
         aider = self._resolve_aider_executable()
 
-        env = os.environ.copy()
-        for key in list(env):
-            upper = key.upper()
-            if (key in _SECRET_ENV_KEYS or any(marker in upper for marker in
-                    ("TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "API_KEY"))
-                    or upper.startswith(("AWS_", "AZURE_", "GOOGLE_APPLICATION_CREDENTIALS"))):
-                env.pop(key, None)
-        env["OLLAMA_API_BASE"] = env.get("OLLAMA_API_BASE", "http://127.0.0.1:11434")
+        env = self._child_environment()
 
         if self._git("status", "--porcelain", "--untracked-files=all", env=env):
             raise NonRetryableDevelopmentJobError(
