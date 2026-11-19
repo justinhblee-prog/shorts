@@ -69,7 +69,7 @@ def backup_archive_is_fresh(
                         continue
             elif archive.name.endswith(".tar.gz"):
                 with archive.open("rb") as stream:
-                    if stream.read(2) != b"\\x1f\\x8b":
+                    if stream.read(2) != b"\x1f\x8b":
                         continue
             age = current - archive.stat().st_mtime
             if -60 <= age <= max_age:
