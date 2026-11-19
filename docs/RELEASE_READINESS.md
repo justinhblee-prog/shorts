@@ -317,3 +317,7 @@ The shared redactor now handles PEM/OpenSSH private-key blocks, Basic authorizat
 
 ### BUILD-00367 — credential-format validation evidence
 GitHub Actions run [44518688714](https://github.com/justinhblee-prog/shorts/actions/runs/44518688714) passed **794 backend tests**, repository validation and frontend syntax validation, including quoted JSON credential keys, Basic auth, URL credentials, multiline PEM keys and provider token formats. This is not a production log inventory.
+
+
+### BUILD-00367 — Actions log redaction evidence
+GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/actions/runs/44518919606) passed **795 backend tests**, repository validation and frontend syntax validation, including a regression proving a token-bearing top-level workflow exception is redacted before stderr output. This is not a production log inventory.
