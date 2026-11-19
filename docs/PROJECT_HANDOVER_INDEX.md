@@ -40,7 +40,7 @@
 - This candidate includes UI-00013/00014 visual system, UI-00015–00017 analytics pagination/semantics, Core/Policy controls and Engineering quarantine recovery workspace.
 - Actual browser visual review found and corrected missing Korean font fallback and full-page screenshot scroll positioning. The final artifact [14559944009](https://github.com/justinhblee-prog/shorts/actions/runs/44586621312/artifacts/14559944009) contains desktop 1440px and mobile 320px screenshots with readable Korean text, visible desktop rail, and API connected state.
 - API contract closure: restored bounded `GET /api/publishing/overview`; implemented audited provider-attempt reconciliation endpoint; activated two previously undiscovered API security tests by moving the unittest main guard to the file end.
-- Latest PR #407 commit after backend API documentation update: `323ad6c5ad7d6ef7d0301fbb8655f3d7a4b355dc`. Its exact-head CI is pending; do not reuse the preceding source-head pass as evidence for this newer head.
+- Final PR #407 head after backend API documentation update: `323ad6c5ad7d6ef7d0301fbb8655f3d7a4b355dc` passed [workflow 44587081054](https://github.com/justinhblee-prog/shorts/actions/runs/44587081054): 879 tests, frontend syntax, both Chromium browser suites, and artifact upload. Final artifact: [14561965386](https://github.com/justinhblee-prog/shorts/actions/runs/44587081054/artifacts/14561965386).
 - Handover docs are maintained on Draft PR #396. All PRs remain unmerged; no production deployment, real OAuth/provider publishing, or live production recovery is claimed.
 
 ## 변경 이력
