@@ -232,3 +232,11 @@ The read-only backlog sync now deduplicates by indexed `source_ref` across the c
 
 ### BUILD-00355 — exact-head CI result
 Exact head `743a10762fa57a49afee5d681d0899579ce93721` passed backend Actions run [44510490935](https://github.com/justinhblee-prog/shorts/actions/runs/44510490935) with 768 tests, including the beyond-500-row and transaction-race deduplication regressions. This is hosted CI only; Windows self-hosted runner and live Ollama execution remain unverified.
+
+
+### BUILD-00356 — bounded GitHub API intake
+Each GitHub backlog feed is now capped at five pages (500 records) per sync. Per-feed truncation metadata is returned with the snapshot and sync result, avoiding silent partial reads while preventing a routine cycle from scanning the repository's entire Actions history. Pagination links are restricted to the GitHub API host. Exact-head CI is pending; live token rate-limit behavior remains unverified.
+
+
+### BUILD-00356 — exact-head CI result
+Exact head `7c48c967eca8460378ffa9dc5ea13cacdfd89a16` passed backend Actions run [44511056511](https://github.com/justinhblee-prog/shorts/actions/runs/44511056511) with 771 tests, including the five-page cap, truncation propagation and rejection of non-GitHub pagination links. This is hosted CI only; live GitHub token rate-limit and Windows runner behavior remain unverified.
