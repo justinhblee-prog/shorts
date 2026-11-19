@@ -64,7 +64,7 @@ class DevelopmentBacklogServiceTests(unittest.TestCase):
             executor=lambda job: {},
             worker_id="test-worker",
             approved_scopes={},
-            poll_seconds=0.01,
+            poll_seconds=1,
             idle_seconds=1,
         )
         with patch.object(
