@@ -255,3 +255,10 @@ Code head `43b223c49f4e95f4bb830476b259bebcbb16e6df` passed GitHub Actions run [
 
 ### BUILD-00372 — final exact-head result
 Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519): **804 tests**, `scripts/validate.sh` and frontend syntax validation. Backlog credentials are redacted and field bounds preserve the leading issue summary and acceptance context.
+
+
+### BUILD-00378 — redact imported source references
+- Sanitize `source_ref` before SQLite persistence and before writing the immutable creation event.
+- Use the sanitized value for GitHub issue source-reference duplicate checks so the persisted identity and deduplication identity match.
+- Add regression coverage for secret removal from both the job row and event history, plus duplicate handling.
+- Draft PR #374: https://github.com/justinhblee-prog/shorts/pull/374. Exact-head hosted CI is pending; no Windows local-runner execution is claimed.

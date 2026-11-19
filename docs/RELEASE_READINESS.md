@@ -376,3 +376,7 @@ Backlog text sanitization preserves the beginning of descriptions and acceptance
 
 ### BUILD-00372 — final backlog sanitization evidence
 GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519) passed **804 backend tests**, repository validation and frontend syntax validation, including credential removal and leading-context preservation under field limits.
+
+
+### BUILD-00378 — source-reference data minimization
+Credential-bearing source references are redacted at the durable store boundary and in the creation event. Deduplication uses the sanitized value to avoid comparing a different representation from the one persisted. Draft PR #374 is awaiting exact-head hosted validation; live runner and production checks remain unverified.

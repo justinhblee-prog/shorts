@@ -2657,3 +2657,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Final code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519): **804 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Credential redaction and prefix-preserving 8,000/2,000-character backlog bounds both passed.
 - Hosted Linux only.
+
+
+## BUILD-00378 — redact imported source references
+- Extend the durable backlog persistence redaction boundary to `source_ref`, including the immutable job-created event payload.
+- Use the sanitized reference consistently for GitHub issue deduplication and stored identity.
+- Add a regression proving source-reference credentials are absent from the persisted job and event history.
+- Exact-head hosted CI is running; do not treat this checkpoint as validated until it completes.
