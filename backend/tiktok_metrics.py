@@ -327,6 +327,32 @@ class TikTokMetricsStore:
             """).fetchall()
         return {row["video_id"]: row["collected_at"] for row in rows}
 
+    def history(self, publication_store, video_id=None, limit=100, since=None, offset=0, before_collected_at=None, before_id=None):
+        limit=max(1,min(int(limit),500))
+        offset=max(0,min(int(offset),10000000))
+        clauses=["p.status='publish_complete'","p.video_id IS NOT NULL"]
+        params=[]
+        if video_id:
+            clauses.append("p.video_id=?")
+            params.append(video_id)
+        if since:
+            clauses.append("s.collected_at>=?")
+            params.append(since)
+        if before_collected_at is not None and before_id is not None:
+            clauses.append("(s.collected_at<? OR (s.collected_at=? AND s.id<?))")
+            params.extend((before_collected_at,before_collected_at,int(before_id)))
+        where=" AND ".join(clauses)
+        with self.db() as c:
+            rows=c.execute(f"""
+              SELECT DISTINCT s.*,p.status AS publication_status,
+                     COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
+              FROM tiktok_video_metric_snapshots s
+              JOIN tiktok_publications p ON p.video_id=s.video_id
+              WHERE {where}
+              ORDER BY s.collected_at DESC,s.id DESC LIMIT ? OFFSET ?
+            """,(*params,limit,offset)).fetchall()
+        return [dict(row) for row in rows]
+
     def recent_metrics(self, publication_store, limit=100):
         limit = max(1, min(int(limit), 200))
         eligible = publication_store.list_metrics_eligible(limit=limit)
