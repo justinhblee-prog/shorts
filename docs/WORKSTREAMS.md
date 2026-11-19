@@ -101,3 +101,9 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 ## UI-00010 — active section semantics
 - Use `aria-current="location"` for the selected section in the single-page workspace navigation. This communicates the user's current in-page location to assistive technology while preserving the existing visual active state.
 - Source regression coverage checks the JavaScript state update and matching CSS selector. Actual browser and screen-reader verification remain outstanding.
+
+
+### UI-00010 — exact-head validation
+- Integrated UI/Core head `f0cd22c11169378efeedf7fac593f0bcd7b0490c` passed **735 tests**, `scripts/validate.sh`, frontend syntax validation and Playwright Chromium browser smoke in [run 44537041759](https://github.com/justinhblee-prog/shorts/actions/runs/44537041759).
+- Compose service startup, API readiness, scheduled backup, isolated restore and cleanup passed in [run 44537041818](https://github.com/justinhblee-prog/shorts/actions/runs/44537041818).
+- Browser smoke verified active in-page navigation, desktop/mobile layout, keyboard navigation, review approval/history, analytics pagination and CSV download. Actual assistive-technology testing remains outstanding.
