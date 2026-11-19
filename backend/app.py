@@ -990,8 +990,8 @@ def publishing_analytics_history(
     if platform not in {"all","youtube","tiktok"}:
         raise HTTPException(422,"platform must be all, youtube, or tiktok")
     if video_id is not None and (
-        not video_id.strip() or len(video_id)>256
-        or any(ord(char)<32 for char in video_id)
+        not video_id.strip() or video_id != video_id.strip() or len(video_id)>256
+        or any(ord(char)<32 or ord(char)==127 for char in video_id)
     ):
         raise HTTPException(422,"video_id is invalid")
     bounded_days=max(1,min(days,365))
