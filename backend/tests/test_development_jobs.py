@@ -41,6 +41,20 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertIn("Keep normal acceptance criteria visible", persisted)
         self.assertIn("[REDACTED]", persisted)
 
+    def test_create_preserves_backlog_text_prefix_when_enforcing_field_limits(self):
+        description = "Issue summary must remain first. " + ("detail " * 1200)
+        acceptance = ["Acceptance begins here. " + ("criterion " * 300)]
+        job = self.store.create(
+            "Bounded backlog text",
+            description=description,
+            acceptance=acceptance,
+            scope=["backend/bounded.py"],
+        )
+        self.assertTrue(job["description"].startswith("Issue summary must remain first."))
+        self.assertEqual(len(job["description"]), 8000)
+        self.assertTrue(job["acceptance"][0].startswith("Acceptance begins here."))
+        self.assertEqual(len(job["acceptance"][0]), 2000)
+
     def test_source_ref_is_indexed_and_duplicate_creation_is_rejected(self):
         first = self.store.create("Imported issue", source_ref="github:issue:acme/app#17")
         self.assertTrue(self.store.source_ref_exists("github:issue:acme/app#17"))
