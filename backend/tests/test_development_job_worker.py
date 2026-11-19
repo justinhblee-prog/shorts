@@ -55,7 +55,7 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
                 "Bearer abc.def GITHUB_TOKEN=ghp_123456789012345678901234567890 "
                 "DATABASE_URL=postgres://user:password@db.example/nexus "
                 "PRIVATE_KEY=private-key-material "
-                'FIREBASE_SERVICE_ACCOUNT={"type": "service_account", "private_key": "firebase-private-secret"}'
+                'FIREBASE_SERVICE_ACCOUNT={\\n  "type": "service_account",\\n  "private_key": "firebase-private-secret"\\n}'
             )
 
         worker = DevelopmentJobWorker(self.store, "worker-redaction", broken)
