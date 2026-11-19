@@ -1290,7 +1290,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 | #339 | BUILD-00360 secret-file scope denylist and symlink-target protection | Open Draft; 776 backend tests passed on exact head |
 | #340 | BUILD-00361 isolated Aider home, tool configuration and noninteractive Git credentials | Open Draft; 778 backend tests passed on exact head |
 | #342 | BUILD-00362 runtime, shell and language startup injection isolation | Open Draft; 778 backend tests passed on exact head |
-| #345 | BUILD-00363/00364 one-attempt worker isolation and explicit directory scope | Open Draft; exact-head CI pending |
+| #345 | BUILD-00363/00364 one-attempt worker isolation and explicit directory scope | Open Draft; 781 backend tests passed on exact head |
 
 PR #340 is stacked on PR #339. PR #342 is stacked on PR #340; PR #345 is stacked on PR #342. PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #334; #336 is stacked on #335. PRs #331–#333 are independent follow-ups based on the core PR #323. PR #329 is the separate UI branch. PRs #311–#315 remain protected and unmerged.
 
@@ -1343,7 +1343,7 @@ The Aider child environment now strips inherited Python import/runtime overrides
 
 
 ### BUILD-00363 — one claimed job per shared worktree cycle
-The bounded worker and the continuous development service exit after any claimed job attempt, including retryable failures and lease loss, because an unsuccessful executor can leave partial files in the shared worktree. Regressions confirm a second ready job is not claimed after a partial edit and run_forever does not start another worker cycle. Exact-head CI pending; actual Windows workflow checkout cleanup remains an integration gate.
+The bounded worker and the continuous development service exit after any claimed job attempt, including retryable failures and lease loss, because an unsuccessful executor can leave partial files in the shared worktree. Regressions confirm a second ready job is not claimed after a partial edit and run_forever does not start another worker cycle. Exact-head backend Actions run [44517445750](https://github.com/justinhblee-prog/shorts/actions/runs/44517445750) passed 781 tests; actual Windows workflow checkout cleanup remains an integration gate.
 
 ### BUILD-00364 — explicit directory-only recursive scope
-Recursive changed-file matching requires an explicit directory marker produced by validating an existing directory. Extensionless file scopes match only the exact file and cannot authorize nested paths. Regression coverage checks both directory recursion and extensionless-file containment. Exact-head CI pending.
+Recursive changed-file matching requires an explicit directory marker produced by validating an existing directory. Extensionless file scopes match only the exact file and cannot authorize nested paths. Regression coverage checks both directory recursion and extensionless-file containment. Exact-head backend Actions run [44517445750](https://github.com/justinhblee-prog/shorts/actions/runs/44517445750) passed 781 tests.
