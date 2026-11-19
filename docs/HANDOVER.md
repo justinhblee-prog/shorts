@@ -72,14 +72,15 @@ YouTube channel search, channel snapshots and recent public video statistics are
 
 ## Current handover state — 2026-11-19
 
-- Continue product development on branch `build/build-00315-harden-tiktok-aigc-disclosure` and PR #323. Keep the PR Draft and do not merge it without an explicit user request.
-- The user has authorized routine product implementation, tests, fixes and documentation to proceed without asking for per-task approval. Do not pause for confirmation on ordinary implementation choices.
-- PR #323 began as BUILD-00315 TikTok AI-generated-content disclosure hardening. The branch also contains the publishing analytics follow-up recorded in `docs/BUILD_STATUS.md`.
-- Latest validated code checkpoint `a25ef1f76e3c30922831f3dcfa0f9bcce3373235`: GitHub Actions runs #44444899292 and #44444907713 completed successfully. The full validation workflow passed 697 backend tests.
-- Current PR head at this handover update is a documentation-only checkpoint after the validated code. Check its exact-head CI status before claiming the entire current head is green.
-- Recent analytics work: platform-specific view field mapping (YouTube `views`, TikTok `view_count`); selectable metrics; chart refresh on metric selection; watch-time and average-duration table columns; API bounds/platform-isolation regressions.
-- Continue with the next highest-value product task after confirming exact-head CI. Preserve human approval gates, private-only upload constraints, token/lease fencing, fail-closed behavior and data provenance.
-- CI/unit tests do not prove live AI generation, external provider idempotency, OAuth connectivity, real YouTube/TikTok account behavior, browser usability or production restore readiness. Keep those items explicitly pending until performed in a real integrated environment.
+- Continue product development on branch `build/build-00315-harden-tiktok-aigc-disclosure` and PR #323. Keep the PR Draft; do not merge without an explicit user request.
+- The user has authorized routine product implementation, tests, fixes and documentation to proceed without per-task approval. Do not pause for confirmation on ordinary implementation choices.
+- PR #323 began as BUILD-00315 TikTok AI-generated-content disclosure hardening. It now also contains the publishing analytics follow-up and BUILD-00316 CSV export work.
+- Analytics history supports platform-specific view fields, selectable metrics, immediate chart refresh, watch-time/average-duration columns, platform-filtered summaries, and CSV export of all fetched rows (not only the 200-row visible table).
+- CSV output includes UTF-8 BOM, escaped quoted cells, formula-like text prefixing, and is disabled during refresh/when no rows are available. A browser download/spreadsheet import has not yet been exercised.
+- GitHub Actions run #44445767691 passed the full validation workflow with 697 backend tests on the CSV implementation checkpoint. Run #44445841885 also passed with 697 tests after stabilizing a pre-existing TikTok status-poll backoff test whose 59/119-second boundaries could race against SQLite's clock precision.
+- A subsequent documentation checkpoint was committed after those validated code checkpoints; check exact-head CI before claiming the latest branch head is green.
+- Preserve human approval gates, private-only upload constraints, token/lease fencing, fail-closed behavior and source provenance.
+- Automated tests do not prove live AI generation, external provider idempotency, OAuth connectivity, real YouTube/TikTok account behavior, browser usability or production restore readiness. Keep those explicitly pending until validated in an integrated environment.
 
 ## BUILD-00005 — production pipeline
 
