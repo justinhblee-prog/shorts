@@ -546,7 +546,14 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class DependencyMutationGuardTests(DevelopmentJobStoreTests):
+class DependencyMutationGuardTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = DevelopmentJobStore(os.path.join(self.tmp.name, "jobs.sqlite3"), lease_seconds=30)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
     def test_cannot_add_dependency_after_child_has_been_claimed(self):
         child = self.store.create("Claimed child")
         parent = self.store.create("Late prerequisite")
