@@ -184,6 +184,8 @@ async function waitForServer() {
       await page.locator('[data-analytics-page="-1"]').click();
     }
     assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "1 / 8 · 200개");
+    await page.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
+    await page.waitForTimeout(100);
     await page.screenshot({ path: "artifacts/nexus-dashboard-desktop.png", fullPage: true });
     await page.setViewportSize({ width: 320, height: 844 });
     assert.equal(await page.locator("[data-analytics-table-body] tr").count(), 25);
@@ -271,6 +273,8 @@ async function waitForServer() {
         "compact navigation touch targets must be at least 48px");
     }
 
+    await page.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
+    await page.waitForTimeout(100);
     await page.screenshot({ path: "artifacts/nexus-dashboard-mobile.png", fullPage: true });
     checkpoint("responsive desktop/mobile and keyboard checks verified");
     await page.emulateMedia({ reducedMotion: "reduce" });
