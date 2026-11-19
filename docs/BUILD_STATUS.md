@@ -2514,3 +2514,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add regression coverage for UTC normalization, fixed cutoff calculation, and rejection of timezone-naive timestamps. Exact-head CI validation pending.
 
 - BUILD-00329 / BUILD-00330 combined code-and-test checkpoint `deae2f0451b56e2bb4839a5cee2959db15504817`: Actions run [44490155724](https://github.com/justinhblee-prog/shorts/actions/runs/44490155724) passed the full validation workflow with **700 backend tests**. A second exact-head run was still in progress at documentation time. Live provider and browser-download behavior remain unverified.
+
+
+## BUILD-00331 — index TikTok analytics history joins and cursors
+
+- Add a composite publication `(video_id,status)` index for the analytics-history join, avoiding repeated scans of publication rows when reading snapshots.
+- Add a composite metric `(video_id,collected_at DESC,id DESC)` index aligned with targeted history filtering and deterministic keyset ordering.
+- Preserve existing indexes for compatibility and add schema regression checks. Exact-head CI validation pending; performance impact on production-sized databases remains to be benchmarked.
