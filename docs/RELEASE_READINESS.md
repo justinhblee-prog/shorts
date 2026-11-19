@@ -255,3 +255,7 @@ Exact head `b3de0e02310ccb353d07b6032dfa6620dd0b4a14` passed backend Actions run
 
 ### BUILD-00358 — Windows runner Node 24 compatibility
 The self-hosted development workflow now uses Node 24-compatible checkout v7 and create-pull-request v8. A PowerShell step runs before checkout and requires the active self-hosted runner to be version 2.327.1 or newer. Hosted CI can verify the workflow contract but cannot establish the user's actual Windows runner version; that remains a live-runner gate.
+
+
+### BUILD-00359 — local model subprocess secret isolation
+The constrained Aider executor now removes backup-encryption keys, database/Redis connection URLs, Supabase service-role credentials, service-account credentials and access/private/signing keys from the child environment, in addition to existing API/provider/GitHub secrets. Required local context (Ollama endpoint, workspace, approved scope mapping and model selection) remains available. Exact-head CI is pending; this is a local environment-filter contract, not a live model execution.
