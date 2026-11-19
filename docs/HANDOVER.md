@@ -1392,7 +1392,7 @@ Updated code head `ba03a9997693b7bb77137fcd18b028f5e784fee9` passed GitHub Actio
 
 
 ### BUILD-00368 — lease-loss process fencing
-The worker now signals lease loss after prolonged heartbeat storage failure (75% of the lease window, minimum one second) or immediately on fencing conflict. The Aider executor receives the signal in memory and terminates the active child process tree before it can continue to inspect or validate a stale worktree. A stale worker does not persist success/failure evidence; the lease remains for store-side expiry recovery. Regression tests cover heartbeat outage and subprocess termination. Exact-head CI pending; Windows process-tree behavior remains to be verified on the trusted runner.
+An independent watchdog signals lease loss after prolonged heartbeat storage failure (75% of the lease window, minimum one second), even if the heartbeat database call itself is blocked; fencing conflicts signal immediate loss. The Aider executor receives the signal in memory and terminates the active child process tree before it can continue to inspect or validate a stale worktree. A stale worker does not persist success/failure evidence; the lease remains for store-side expiry recovery. Regression tests cover heartbeat outage and subprocess termination. Exact-head CI pending; Windows process-tree behavior remains to be verified on the trusted runner.
 
 
 ### BUILD-00368 — exact-head CI result
