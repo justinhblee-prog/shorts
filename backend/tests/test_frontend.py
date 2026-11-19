@@ -237,7 +237,7 @@ class FrontendPortalTests(unittest.TestCase):
         css = (ROOT / "frontend" / "cyber-magic.css").read_text(encoding="utf-8")
         self.assertIn('/assets/cyber-magic.css', html)
         self.assertLess(html.index('/assets/styles.css'), html.index('/assets/cyber-magic.css'))
-        self.assertIn('Workspace navigation', html)
+        self.assertIn('aria-label="작업공간 메뉴"', html)
         self.assertIn('AI Content Studio', html)
         self.assertIn('Approvals & Publishing', html)
         self.assertIn('position:fixed', css)
@@ -272,7 +272,7 @@ class FrontendPortalTests(unittest.TestCase):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for title in ("대시보드", "AI 콘텐츠 제작", "콘텐츠 기획 및 시장 분석", "검수 및 게시", "분석 및 운영"):
             self.assertIn(f'title="{title}"', html)
-        self.assertIn('<main id="home" aria-label="주요 콘텐츠">', html)
+        self.assertIn('<main id="home" aria-label="주요 콘텐츠" tabindex="-1">', html)
 
 
     def test_dashboard_connection_status_and_skip_target_are_accessible(self):
