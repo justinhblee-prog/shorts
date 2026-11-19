@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Updated:** 2026-11-17
+**Updated:** 2026-11-19
 
 ## Business objective
 
@@ -2371,3 +2371,14 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Persist each core-stage artifact and its provider-attempt adoption in the same `BEGIN IMMEDIATE` transaction and worker-lease fencing decision; remove the separate adoption writes.
 - Add regression coverage for script, voice and rendering adoption, including rollback when the matching attempt cannot be adopted.
 - Validation: exact final PR-head CI pending. These are local SQLite transaction tests; remote provider execution remains non-transactional and live provider idempotency is not established.
+
+
+## Current working branch — publishing analytics follow-up (2026-11-19)
+
+- Correct the analytics history trend selector so the default views metric maps to YouTube `views` and TikTok `view_count`; do not assume both provider schemas use the same field.
+- Add selectable likes, comments, shares, estimated watch time and average view percentage where the platform actually supplies those fields. Unsupported platform/metric combinations are omitted from the chart rather than synthesized.
+- Refresh the chart when the metric selector changes after an initial history query.
+- Extend the history table with estimated watch time and average view duration, preserving null values as unavailable.
+- Add regression coverage for the platform-specific view mapping, selector refresh, additional metrics and API platform/limit bounds.
+- Relevant commits: `42c9b4b` (platform metric mapping), `9f40cab` (history table and selector refresh), `10d18a4` (frontend regressions), `c1d2ee1` / `a25ef1f` (API bounds regression and test isolation fix).
+- Validation: `42c9b4b` passed both CI checks; the latest exact-head run for `a25ef1f` is in progress. Live YouTube/TikTok account data and deployed browser behavior remain unverified.
