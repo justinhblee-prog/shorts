@@ -271,3 +271,11 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - One integration commit contains 20 implementation/test files from BUILD-00386 recovery, BUILD-00387 disclosure, BUILD-00388 feed pagination, POLICY-00001–00003 and UI-00012 quarantine recovery/API contract changes.
 - Compare: ahead 1, behind 0; mergeable. Hosted workflows [44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216) were pending at checkpoint.
 - The cross-stack gate remains pending until both workflows pass. Draft/unmerged; no production deployment or live provider validation.
+
+
+### PR #406 — exact-head unified candidate backend result
+
+- Exact head `96f59cc8b19792602f03eafd1c1138bde5c7b138` passed [workflow 44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [workflow 44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216).
+- Full repository validation: **854 tests passed**; frontend JavaScript syntax check passed.
+- The combined candidate did not run Playwright browser smoke because its workflow on this base has no browser-smoke step and the browser smoke script is not present on the candidate base. UI PRs have separate branch-level browser evidence, but unified browser verification remains open.
+- Draft/unmerged. No production deployment, live OAuth/provider publishing or production operator recovery was performed.
