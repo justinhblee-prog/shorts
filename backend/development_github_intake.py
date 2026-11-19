@@ -225,7 +225,7 @@ class _GitHubAPIOnlyRedirectHandler(HTTPRedirectHandler):
         ):
             raise ValueError("refusing redirect outside the trusted GitHub API origin")
         return super().redirect_request(
-            self, request, response, code, message, headers, target.geturl(),
+            request, response, code, message, headers, target.geturl(),
         )
 
 
