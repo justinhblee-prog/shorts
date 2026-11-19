@@ -1537,3 +1537,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact-head Actions validation pending.
 
 - BUILD-00350 exact checkpoint `fc77c904e72cc2e4f05972a5492a0f10566d0d05` passed 720 backend tests and five-service Compose integration: [backend 44505492687](https://github.com/justinhblee-prog/shorts/actions/runs/44505492687), [Compose 44505492612](https://github.com/justinhblee-prog/shorts/actions/runs/44505492612). Restore results now expose retained pre-restore cleanup paths instead of silently swallowing filesystem cleanup failures.
+
+
+## BUILD-00351 — Compose service health probes
+
+- Add PID-1 command probes for worker, scheduler and metrics collector containers.
+- Add an atomic successful-backup timestamp marker and a freshness health probe for the backup service; failed or overdue backups now make the container unhealthy.
+- Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
+- Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
+- Exact-head Actions validation pending.
