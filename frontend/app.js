@@ -430,6 +430,8 @@
           link.click();
           link.remove();
           setTimeout(()=>URL.revokeObjectURL(url),1000);
+        }catch(err){
+          toast("CSV 내보내기 실패: "+err.message);
         }finally{
           exportButton.disabled=false;
         }
