@@ -679,6 +679,7 @@ class DevelopmentJobStore:
                      last_seen_at=excluded.last_seen_at,stopped_at=NULL""",
                 (worker_id, hostname, current_job_id, timestamp, timestamp),
             )
+            connection.commit()
         return self.get_worker(worker_id)
 
     def stop_worker(self, worker_id):
@@ -696,6 +697,7 @@ class DevelopmentJobStore:
                      )""",
                 (timestamp, timestamp, worker_id, worker_id, timestamp),
             )
+            connection.commit()
             return cursor.rowcount > 0
 
     def get_worker(self, worker_id):
