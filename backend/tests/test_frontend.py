@@ -118,6 +118,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('dataset.loaded="true"', app_js)
         self.assertIn('id="exportAnalyticsHistory"', html)
         self.assertIn('exportButton.disabled=rows.length===0', app_js)
+        self.assertIn("표 최대 200개 표시, CSV는 전체 내보내기", app_js)
         self.assertIn('if($("exportAnalyticsHistory"))$("exportAnalyticsHistory").disabled=true', app_js)
         self.assertIn('summaryPlatforms=platform==="all"?["youtube","tiktok"]:[platform]', app_js)
         self.assertIn('new Blob(["\\uFEFF",csv]', app_js)
