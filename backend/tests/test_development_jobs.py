@@ -583,7 +583,8 @@ class DependencyMutationGuardTests(unittest.TestCase):
     def test_cannot_add_cancelled_prerequisite(self):
         parent = self.store.create("Cancelled prerequisite")
         child = self.store.create("Dependent child")
-        self.store.cancel(parent["id"], "operator", "No longer required")
+        with self.store.db() as connection:
+            connection.execute("UPDATE development_jobs SET status='cancelled' WHERE id=?", (parent["id"],))
         with self.assertRaisesRegex(DevelopmentJobConflict, "cancelled prerequisite"):
             self.store.add_dependency(child["id"], parent["id"])
         self.assertEqual(self.store.get(child["id"])["status"], "ready")
