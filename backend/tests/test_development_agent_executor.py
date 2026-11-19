@@ -1,5 +1,7 @@
+import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from development_agent_executor import AiderDevelopmentExecutor, _tail
@@ -33,6 +35,20 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertTrue(self.executor._matches_scope("backend/a.py", ["backend"]))
         self.assertTrue(self.executor._matches_scope("backend/a.py", ["backend/"]))
         self.assertFalse(self.executor._matches_scope("frontend/a.js", ["backend"]))
+
+    def test_explicit_aider_executable_is_used_without_path_lookup(self):
+        executable = self.root / "aider.exe"
+        executable.write_text("test executable", encoding="utf-8")
+        with patch.dict(os.environ, {"NEXUS_AIDER_EXECUTABLE": str(executable)}):
+            with patch("development_agent_executor.shutil.which", return_value=None):
+                self.assertEqual(self.executor._resolve_aider_executable(), str(executable))
+
+    def test_invalid_explicit_aider_executable_fails_closed(self):
+        missing = self.root / "missing-aider.exe"
+        with patch.dict(os.environ, {"NEXUS_AIDER_EXECUTABLE": str(missing)}):
+            with patch("development_agent_executor.shutil.which", return_value="aider"):
+                with self.assertRaises(NonRetryableDevelopmentJobError):
+                    self.executor._resolve_aider_executable()
 
     def test_diagnostic_redaction_removes_bearer_and_common_api_tokens(self):
         message = "Bearer abc.def token=private123 ghp_123456789012345678901234567890"
