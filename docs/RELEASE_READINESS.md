@@ -361,3 +361,7 @@ GitHub Actions run [44528766250](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00372 — durable completion evidence
 The final store transition now independently requires at least one non-test source file in the recorded diff. This closes the gap where a caller could bypass the executor's test-only classification and directly mark a test-only job review_pending. Hosted CI pending.
+
+
+### BUILD-00372 — durable source evidence CI
+GitHub Actions run [44529199064](https://github.com/justinhblee-prog/shorts/actions/runs/44529199064) passed **804 backend tests**, repository validation and frontend syntax validation for the store-level non-test source requirement. Hosted Linux only.
