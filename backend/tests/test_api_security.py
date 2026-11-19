@@ -1048,7 +1048,7 @@ class ApiSecurityTests(unittest.TestCase):
 
     def test_publishing_analytics_history_enforces_scope_platform_and_limits(self):
         from app import publishing_analytics_history
-        youtube=[{"video_id":"yt-1","views":150,"collected_at":"2099-01-01T00:00:00+00:00"}]
+        youtube=[{"video_id":"yt-1","views":150,"collected_at":"2099-01-01T00:00:00+00:00","retention_curve":[{"elapsed_video_time_ratio":0.5,"audience_watch_ratio":0.4}]}]
         tiktok=[{"video_id":"tt-1","view_count":250,"collected_at":"2099-01-01T00:00:00+00:00"}]
         with (
             mock.patch.object(app_module,"require_review_permission") as authorize,
@@ -1069,6 +1069,7 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(tt_history.call_args.kwargs["limit"],200)
         self.assertIsNotNone(tt_history.call_args.kwargs["since"])
         self.assertEqual(result["counts"],{"youtube":1,"tiktok":1})
+        self.assertEqual(result["items"]["youtube"][0]["retention_curve"][0]["audience_watch_ratio"],0.4)
         self.assertTrue(result["read_only"])
         with (
             mock.patch.object(app_module,"require_review_permission"),
