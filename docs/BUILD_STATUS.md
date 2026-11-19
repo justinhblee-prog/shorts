@@ -2626,7 +2626,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Verify that an archive is created, restore it into isolated temporary database/media paths, and run SQLite `PRAGMA integrity_check` on the restored database.
 - The restore operates only on a disposable copy and never overwrites the running service database.
 - This is a CI restore smoke against synthetic container data, not a production backup retention or disaster-recovery drill.
-- Exact-head validation pending.
+- Exact-head validation passed.
+
+- Exact-head Compose workflow run [44499051491](https://github.com/justinhblee-prog/shorts/actions/runs/44499051491) passed: generated an AES-256-GCM `.tar.gz.enc` archive, confirmed no plaintext archive exists, restored the encrypted archive to isolated temporary paths, and verified SQLite integrity. Backend run [44499051722](https://github.com/justinhblee-prog/shorts/actions/runs/44499051722) passed **712 tests**; synthetic 10k-row due scan measured **0.50 ms**.
 
 
 ## BUILD-00343 — encrypted Compose backup and restore smoke
