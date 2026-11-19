@@ -479,5 +479,5 @@ The durable review-pending gate is aligned with scheduler and executor path matc
 
 
 ## POLICY-00003 — policy gate at production approval
-- [x] Require a recognized script-level policy preflight report before production approval; missing or malformed reports are rejected.
+- [x] Require a recognized script-level policy preflight report before approving script-bearing production runs; missing or malformed reports are rejected. Legacy no-script review records remain compatible.
 - [ ] Verify the approval gate with real production artifacts and operator workflow in the target deployment.
