@@ -3,7 +3,7 @@
 **Checkpoint:** BUILD-00320 (Windows local-runner toolchain and Python isolation)  
 **Updated:** 2026-11-19  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Status:** BUILD-00319 exact PR head `95844080e8635354ab8f8e2511c4b64b5bfe91ae` passed GitHub Actions run [44437965780](https://github.com/justinhblee-prog/shorts/actions/runs/44437965780). BUILD-00320 adds Windows toolchain preflight and isolated backend/Aider virtual environments; exact-head CI is pending. Live Windows runner/Ollama execution remains unverified.
+**Status:** BUILD-00319 exact PR head `95844080e8635354ab8f8e2511c4b64b5bfe91ae` passed GitHub Actions run [44437965780](https://github.com/justinhblee-prog/shorts/actions/runs/44437965780). BUILD-00320 exact PR head `d91bab89b2659b2080c7f0749291fbee240b2ccd` passed GitHub Actions run [44472930435](https://github.com/justinhblee-prog/shorts/actions/runs/44472930435): 764 backend tests, repository validation, and frontend syntax check. Live Windows runner/Ollama execution remains unverified.
 
 ## 1. Why this exists
 
@@ -165,6 +165,7 @@ Implemented on `build/build-00320-windows-validation-shell-preflight`.
 - Fail fast before model execution unless the trusted Windows runner has Python 3.11+, Git Bash/POSIX sh, Node.js 18+, a responding loopback Ollama API, and the exact `qwen2.5-coder:7b` model tag.
 - Replace substring model matching with exact CLI/API tag checks so similarly named variants cannot satisfy the runtime gate.
 - Create separate per-run workspace virtual environments for backend requirements and Aider. Do not install backend or Aider packages into the runner user's global/user Python site-packages.
+- Add both ephemeral virtual-environment folders to `.gitignore`; this is required so the worker's clean-worktree guard and changed-file scope check do not treat installed packages as model-generated changes.
 - Pass the backend interpreter explicitly through `NEXUS_BACKEND_PYTHON` and the Aider executable through `NEXUS_AIDER_EXECUTABLE`; repository validation therefore uses the backend dependency environment while Aider remains isolated.
 - Add PyYAML as an explicit backend validation dependency because `scripts/validate.sh` parses `compose.yaml`.
-- Add workflow-contract tests and executor tests for the explicit Aider path. This is source/CI validation only; it does not prove the owner's Windows runner, Ollama model, or local disk persistence.
+- Add workflow-contract tests and executor tests for the explicit Aider path. Draft PR #328 exact head `d91bab89b2659b2080c7f0749291fbee240b2ccd` passed run [44472930435](https://github.com/justinhblee-prog/shorts/actions/runs/44472930435): 764 backend tests, repository validation, and frontend syntax check. This is hosted CI only; it does not prove the owner's Windows runner, Ollama model, or local disk persistence.
