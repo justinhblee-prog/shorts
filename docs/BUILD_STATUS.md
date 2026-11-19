@@ -2696,3 +2696,5 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Compare normalized scope paths with `casefold()` before detecting equal, parent/child and directory/file conflicts.
 - This prevents parallel job leases from treating differently cased Windows paths as disjoint when they refer to the same physical file.
 - Add regression coverage for case-only file differences, directory casing and independent paths. Exact-head CI pending.
+
+- Normalize slash direction, repeated separators and `.` segments, then compare scope paths with `casefold()` before checking exact, parent/child and directory/file conflicts. Unsafe/absolute/traversal scopes conservatively conflict with every other scope.

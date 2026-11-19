@@ -292,17 +292,29 @@ class DevelopmentJobStore:
             return [self._decode(row) for row in rows]
 
     @staticmethod
+    def _scope_key(scope):
+        if not isinstance(scope, str):
+            return ""
+        normalized = scope.strip().replace("\\", "/")
+        if not normalized or normalized.startswith("/") or ":" in normalized:
+            return ""
+        parts = normalized.split("/")
+        if any(part == ".." for part in parts):
+            return ""
+        segments = [part for part in parts if part not in ("", ".")]
+        return "/".join(segments).casefold()
+
+    @staticmethod
     def _scopes_conflict(left, right):
-        # Empty scope means unknown write set: serialize conservatively.
+        # Empty or unsafe scopes mean an unknown write set: serialize conservatively.
         if not left or not right:
             return True
         for first in left:
-            # The trusted development runner targets Windows, where paths are
-            # case-insensitive. Compare folded paths so parallel leases cannot
-            # reserve the same physical file under different casing.
-            a = first.rstrip("/").casefold()
+            a = DevelopmentJobStore._scope_key(first)
             for second in right:
-                b = second.rstrip("/").casefold()
+                b = DevelopmentJobStore._scope_key(second)
+                if not a or not b:
+                    return True
                 if a == b or a.startswith(b + "/") or b.startswith(a + "/"):
                     return True
         return False

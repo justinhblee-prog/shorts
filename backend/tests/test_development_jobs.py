@@ -269,6 +269,21 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                 ["Backend/"], ["backend/api.py"]
             )
         )
+        self.assertTrue(
+            self.store._scopes_conflict(
+                ["backend\\\\Export.py"], ["backend/export.py"]
+            )
+        )
+        self.assertTrue(
+            self.store._scopes_conflict(
+                ["./Backend//"], ["backend/api.py"]
+            )
+        )
+        self.assertTrue(
+            self.store._scopes_conflict(
+                ["../outside.py"], ["frontend/app.js"]
+            )
+        )
         self.assertFalse(
             self.store._scopes_conflict(
                 ["backend/export.py"], ["frontend/app.js"]
