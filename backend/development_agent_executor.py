@@ -238,6 +238,10 @@ class AiderDevelopmentExecutor:
                 raise NonRetryableDevelopmentJobError("job scope resolves to a protected secret or data path")
             if not resolved.parent.exists():
                 raise NonRetryableDevelopmentJobError("job scope parent directory does not exist")
+            # Preserve directory intent explicitly. A file without an extension
+            # must never gain recursive scope merely because its suffix is empty.
+            if resolved.is_dir():
+                normalized = normalized.rstrip("/") + "/"
             validated.append(normalized)
         return sorted(set(validated))
 
@@ -262,9 +266,11 @@ class AiderDevelopmentExecutor:
 
     @staticmethod
     def _matches_scope(path, scope):
-        return any(path == item or item.endswith("/") and path.startswith(item)
-                   or path.startswith(item.rstrip("/") + "/") and Path(item).suffix == ""
-                   for item in scope)
+        return any(
+            path == item.rstrip("/")
+            or item.endswith("/") and path.startswith(item)
+            for item in scope
+        )
 
     def __call__(self, job):
         scope = self._validated_scope(job)
