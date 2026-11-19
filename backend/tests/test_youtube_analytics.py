@@ -644,11 +644,11 @@ class YouTubeAnalyticsTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            saved["retention_curve"][1],
+            saved["retention_curve"][3],
             {
                 "elapsed_video_time_ratio": 0.9,
                 "audience_watch_ratio": 0.7,
-                "relative_retention_performance": None,
+                "relative_retention_performance": 0.25,
             },
         )
 
