@@ -2549,3 +2549,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Validation: pending exact-head GitHub Actions.
 
 - Initial exact-head CI caught a stale Python variable reference in the new response mapping (3 errors); corrected it to return the SQL aggregate's `published` count. Revalidation is running on the corrected code checkpoint.
+
+
+## BUILD-00335 — bounded TikTok metrics candidate selection
+
+- Move due-video selection into one bounded SQLite query. It deduplicates multiple publication rows per video, joins latest snapshot timestamps and missing-video retry deadlines, and returns at most 20 candidates.
+- The collector no longer materializes the full publication ledger, all snapshot timestamps, or the complete retry set in Python on every collection cycle.
+- Add regression tests for bounded result size, duplicate publication identities, retry eligibility, and ensuring the collector does not call the full-ledger/full-snapshot methods.
+- Production-scale latency and query-plan measurements remain outstanding. Exact-head CI pending.
