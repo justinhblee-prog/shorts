@@ -329,7 +329,7 @@ class TikTokMetricsStore:
             """).fetchall()
         return {row["video_id"]: row["collected_at"] for row in rows}
 
-    def history(self, publication_store, video_id=None, limit=100, since=None, offset=0):
+    def history(self, publication_store, video_id=None, limit=100, since=None, offset=0, before_collected_at=None, before_id=None):
         limit=max(1,min(int(limit),500))
         offset=max(0,min(int(offset),10000000))
         clauses=["p.status='publish_complete'","p.video_id IS NOT NULL"]
@@ -340,6 +340,9 @@ class TikTokMetricsStore:
         if since:
             clauses.append("s.collected_at>=?")
             params.append(since)
+        if before_collected_at is not None and before_id is not None:
+            clauses.append("(s.collected_at<? OR (s.collected_at=? AND s.id<?))")
+            params.extend((before_collected_at,before_collected_at,int(before_id)))
         where=" AND ".join(clauses)
         with self.db() as c:
             rows=c.execute(f"""
