@@ -243,19 +243,20 @@
       const key=item.platform+":"+item.video_id;
       (grouped[key]||(grouped[key]=[])).push(item);
     });
-    const previous={};
-    const deltas={};
-    Object.entries(grouped).forEach(([key,items])=>{
-      const chronological=[...items].sort((a,b)=>String(a.collected_at||"").localeCompare(String(b.collected_at||"")));
+    const deltas=new WeakMap();
+    Object.entries(grouped).forEach(([,items])=>{
+      const chronological=[...items].sort((a,b)=>
+        String(a.collected_at||"").localeCompare(String(b.collected_at||""))
+        || Number(a.id||0)-Number(b.id||0)
+      );
+      let previous;
       chronological.forEach(item=>{
         const metric=item.platform==="youtube"?"views":"view_count";
         const value=item[metric];
         const numericValue=value===null||value===undefined||value===""?null:Number(value);
         if(Number.isFinite(numericValue)&&numericValue>=0){
-          if(previous[key]!==undefined){
-            deltas[item.platform+":"+item.video_id+":"+item.collected_at]=numericValue-previous[key];
-          }
-          previous[key]=numericValue;
+          if(previous!==undefined)deltas.set(item,numericValue-previous);
+          previous=numericValue;
         }
       });
     });
@@ -265,7 +266,7 @@
       return Number.isFinite(numeric)?numeric.toLocaleString():"—";
     };
     const deltaFor=item=>{
-      const value=deltas[item.platform+":"+item.video_id+":"+item.collected_at];
+      const value=deltas.get(item);
       return value===undefined?"—":(value>0?"+":"")+value.toLocaleString();
     };
     const platformLatest={youtube:[],tiktok:[]};
