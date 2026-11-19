@@ -1420,3 +1420,7 @@ Final PR head `07896636170c92a1ed497ed097f0d9a0aa245e7f` passed GitHub Actions r
 
 ### BUILD-00371 — value-aware diagnostic redaction
 Credential assignment redaction now replaces only the matched value instead of consuming the remainder of the diagnostic. It supports quoted values, plain tokens and multiline JSON objects, preserving later safe context. Regression coverage added; exact-head CI pending.
+
+
+### BUILD-00371 — exact-head CI result
+Exact PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391): **802 tests**, repository validation and frontend syntax check. Tests confirm redaction preserves safe text after inline credentials and multiline service-account JSON.
