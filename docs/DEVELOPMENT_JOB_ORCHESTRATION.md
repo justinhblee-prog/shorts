@@ -210,3 +210,9 @@ Regression coverage simulates prolonged heartbeat storage errors and verifies th
 ### BUILD-00369 — unique worker session identity
 
 Worker presence is keyed by a process-session identity rather than the static self-hosted runner hostname. The identity retains the host name and, when present, GitHub workflow run ID/attempt, and adds a random suffix; local invocations use the process ID plus a random suffix. This prevents concurrent or retried worker processes on one host from overwriting each other's `development_workers` row or marking another live process offline during shutdown. The identity is bounded to the store's 128-character limit.
+
+
+
+### BUILD-00370 — force-kill residual POSIX descendants
+
+A follow-up process-tree audit found that waiting only for the command-group leader after SIGTERM was insufficient: the leader could exit while a descendant ignored SIGTERM, leaving that child alive. POSIX cancellation now escalates to SIGKILL against the process group after the grace wait regardless of whether the leader has already exited. A regression launches a child that ignores SIGTERM and verifies it cannot write its post-cancellation marker. Windows continues to use `taskkill /T /F`.
