@@ -2564,3 +2564,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Sanitize successful executor result summaries and validation references as well as retryable/non-retryable exception messages before durable persistence.
 - Add regressions for PEM/database URL failures and secret-bearing success evidence.
 - Exact-head CI pending.
+
+
+### BUILD-00367 — complete credential-format regression validation
+- Updated code head `11126bb8261e5a3d49625bd65a8ad75b1ffaf6d5` passed GitHub Actions run [44518688714](https://github.com/justinhblee-prog/shorts/actions/runs/44518688714): **794 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Added direct tests for quoted JSON keys, Basic auth, URL credentials, multiline PEM keys and common provider token formats.
+- Hosted Linux only; no production log inventory is implied.
