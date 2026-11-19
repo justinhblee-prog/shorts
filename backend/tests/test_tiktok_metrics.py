@@ -105,6 +105,30 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertIn("idx_tiktok_metric_video_time",indexes)
         self.assertIn("idx_tiktok_metric_video_time_id",indexes)
 
+    def test_history_query_plan_uses_video_time_and_publication_composite_indexes(self):
+        with self.store.db() as connection:
+            plan = connection.execute("""
+                EXPLAIN QUERY PLAN
+                SELECT DISTINCT s.*,p.status AS publication_status,
+                       COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
+                FROM tiktok_video_metric_snapshots s
+                JOIN tiktok_publications p ON p.video_id=s.video_id
+                WHERE p.status='publish_complete'
+                  AND p.video_id IS NOT NULL
+                  AND p.video_id=?
+                  AND s.collected_at>=?
+                  AND (s.collected_at<? OR (s.collected_at=? AND s.id<?))
+                ORDER BY s.collected_at DESC,s.id DESC
+                LIMIT ? OFFSET ?
+            """, (
+                "video-1", "2026-11-01T00:00:00+00:00",
+                "2026-11-19T00:00:00+00:00",
+                "2026-11-19T00:00:00+00:00", 999, 500, 0,
+            )).fetchall()
+        details = " ".join(row["detail"] for row in plan)
+        self.assertIn("idx_tiktok_metric_video_time_id", details)
+        self.assertIn("idx_tiktok_publications_video_status", details)
+
     def test_history_since_filters_before_applying_limit(self):
         self.store.save_snapshot("job-1", {
             "id": "video-1", "view_count": 10, "like_count": 1,
