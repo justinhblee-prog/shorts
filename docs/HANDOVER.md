@@ -1549,6 +1549,6 @@ The final store transition now applies the same case-insensitive, separator-norm
 
 
 ## POLICY-00003 — require policy preflight at approval
-- Production review approval now fails closed if the script artifact has no policy report, an unsupported status, or a malformed blocker collection.
+- Production review approval now fails closed if a script artifact exists but has no policy report, an unsupported status, or a malformed blocker collection.
 - Recognized statuses are `blocked`, `review_required`, and `ready_for_human_review`; explicit blockers remain non-overridable and review-required reports still need a reviewer note.
 - Added dedicated regression coverage. Exact-head CI pending.
