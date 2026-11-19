@@ -52,6 +52,7 @@ This runs Python bytecode compilation, unittest discovery, and (when Node.js is 
 
 - [Build status](docs/BUILD_STATUS.md)
 - [Technical handover](docs/HANDOVER.md)
+- [Parallel UI/Core workstreams](docs/WORKSTREAMS.md)
 - [Operator runbook](docs/OPERATOR_RUNBOOK.md)
 - [Backend/API reference](backend/README.md)
 
