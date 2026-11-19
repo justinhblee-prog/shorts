@@ -77,6 +77,18 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         with self.assertRaises(NonRetryableDevelopmentJobError):
             self.executor._validated_scope({"scope": ["backend/ordinary_module.py"]})
 
+        alias.unlink()
+        ordinary_target = self.root / "backend" / "ordinary_target.py"
+        ordinary_target.write_text("print('target')", encoding="utf-8")
+        alias.symlink_to(ordinary_target)
+        with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "symbolic link"):
+            self.executor._validated_scope({"scope": ["backend/ordinary_module.py"]})
+
+        linked_directory = self.root / "backend" / "linked"
+        linked_directory.symlink_to(self.root / "backend", target_is_directory=True)
+        with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "symbolic link"):
+            self.executor._validated_scope({"scope": ["backend/linked/ordinary_target.py"]})
+
     def test_changed_file_must_be_inside_explicit_directory_scope(self):
         self.assertTrue(self.executor._matches_scope("backend/a.py", ["backend/"]))
         self.assertFalse(self.executor._matches_scope("backend/a.py", ["backend"]))
