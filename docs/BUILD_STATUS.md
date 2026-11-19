@@ -2439,7 +2439,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ## BUILD-00322 — preserve valid YouTube audience-watch ratios above 1.0
 
 - Correct validation for YouTube `audienceWatchRatio`: it is an absolute ratio of segment views to total video views and can legitimately exceed 1.0 when viewers replay a segment.
-- Keep `elapsedVideoTimeRatio` bounded to 0..1 and `relativeRetentionPerformance` bounded to 0..1 (while preserving documented negative values if returned); do not apply the relative metric's bound to the absolute audience-watch ratio.
+- Keep `elapsedVideoTimeRatio` and `relativeRetentionPerformance` bounded to 0..1; invalid relative-retention values are stored as unavailable while the valid audience-watch point is preserved. Do not apply the relative metric's bound to the absolute audience-watch ratio.
 - Add regression coverage for an audience-watch ratio of 1.2 and rejection of an out-of-range relative-retention value.
 - Source: [YouTube Analytics API metrics](https://developers.google.com/youtube/analytics/metrics).
 - Validation: exact-head GitHub Actions pending.
