@@ -35,7 +35,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('app.queue.finish(', server)
         self.assertIn('app.production_store.stage(', server)
         self.assertIn('button[data-action="approve"]', browser)
-        self.assertIn('/api/review/browser-smoke-review-ready/history', browser)
+        self.assertIn('"/api/review/" + encodeURIComponent(jobId) + "/history"', browser)
         self.assertIn('approvalHistory.body.items.at(-1).decision, "approved"', browser)
 
     def test_dashboard_assets_are_packaged(self):
