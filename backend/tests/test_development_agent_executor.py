@@ -112,7 +112,7 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
             self.executor._matches_scope("backend/api.py", ["BACKEND/"])
         )
         self.assertTrue(
-            self.executor._matches_scope(r"backend\\export.py", [r"Backend/Export.py"])
+            self.executor._matches_scope("backend\\export.py", [r"Backend/Export.py"])
         )
         self.assertFalse(
             self.executor._matches_scope("backend/api.py", ["Backend"])
