@@ -2601,3 +2601,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Require at least one non-test source change before reporting successful job evidence. Test-only and no-op results cannot transition to review_pending.
 - Add tests for staged/unstaged/untracked change discovery and source-vs-test-only classification.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00369 — exact-head hosted validation
+- Code head `d802ff98a8e7ab5fed3cfdf37aca38ff5ece9ce4` passed GitHub Actions Backend tests run [44527024967](https://github.com/justinhblee-prog/shorts/actions/runs/44527024967): **801 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Hosted Linux validation only; this does not claim that a live Windows/Aider execution has occurred.
