@@ -191,3 +191,15 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - FLOW-INTEGRATION is now **BLOCKED / review required**: do not merge #407 or child PRs in an arbitrary order. First reconcile the parent/child branch stack and overlapping UI changes, then run full validation on one aggregate exact head. Automation ancestry still requires #409 before #414; docs ancestry still requires #410 before #411.
 - The integration branch is also 5 commits behind `main` and 1,243 commits ahead according to GitHub comparison. This is recorded as a branch-divergence fact, not a recommendation to merge into main. Mainline promotion remains out of scope and requires a separate review.
 - No branches were force-pushed, rebased, merged, or deployed during this review.
+
+
+## 18. Aggregate UI + Core integration candidate created — 2026-11-20
+
+- Created Draft PR #415: https://github.com/justinhblee-prog/shorts/pull/415.
+- Aggregate branch: `integration/nexus-aggregate-ui-core-2026-11-20`; base: `integration/core-policy-ui-candidate-2026-11-20`; exact head at creation: `ae7ed6574a4a3eaac306215d9702e2f33c4f0fd4`.
+- This candidate starts from PR #407's integration head and transplants the independent UI lane/dependency presentation from #412 and Core DAG mutation guards from #413. It therefore resolves the earlier parent/child ordering ambiguity by carrying one combined change set rather than asking reviewers to merge overlapping PRs independently.
+- Combined change surface: 22 files, 2,523 additions, 188 deletions at PR creation. It includes the parent dashboard/API hardening, UI workstream board and responsive dependency display, Core DAG state guards, focused unit tests, and a browser fixture that exercises a completed UI prerequisite plus a dependent quarantined Core job.
+- PR #415 reports mergeable=true after creation. No workflow run was visible for its exact head at the first check; aggregate validation remains **PENDING**, and no individual PR PASS is being reused as aggregate PASS.
+- PRs #407, #412, and #413 remain Draft/unmerged; #415 is the combined review candidate. Keep them all unmerged until #415 exact-head CI passes and the aggregate diff is reviewed.
+- Automation (#409 -> #414) and documentation (#410 -> #411) are still separate stacks and have not yet been transplanted into #415. Do not mark integration complete.
+- No merge, deployment, rebase, or force-push was performed.
