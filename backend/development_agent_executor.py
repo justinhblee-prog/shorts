@@ -8,8 +8,10 @@ import ipaddress
 import os
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -63,6 +65,7 @@ class AiderDevelopmentExecutor:
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or not 60 <= timeout_seconds <= 7200:
             raise ValueError("timeout_seconds must be between 60 and 7200")
         self.timeout_seconds = timeout_seconds
+        self._lease_lost_event = None
 
     @staticmethod
     def _local_ollama_api_base():
@@ -161,15 +164,58 @@ class AiderDevelopmentExecutor:
             env["HOMEPATH"] = tail
         return env
 
-    def _run(self, args, env, timeout):
+    @staticmethod
+    def _terminate_process_tree(process):
+        """Stop the complete command group so a fenced worker leaves no child running."""
+        if process.poll() is not None:
+            return
         try:
-            return subprocess.run(
-                args, cwd=self.repo_root, env=env, text=True,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                timeout=timeout, check=False,
-            )
-        except subprocess.TimeoutExpired as error:
-            raise RuntimeError(f"command timed out after {timeout} seconds") from error
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=5, check=False,
+                )
+            else:
+                os.killpg(process.pid, signal.SIGTERM)
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+        except (OSError, subprocess.SubprocessError):
+            try:
+                process.kill()
+            except OSError:
+                pass
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+    def _run(self, args, env, timeout):
+        creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
+        process = subprocess.Popen(
+            args, cwd=self.repo_root, env=env, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            start_new_session=(os.name != "nt"), creationflags=creationflags,
+        )
+        deadline = time.monotonic() + timeout
+        while True:
+            if self._lease_lost_event is not None and self._lease_lost_event.is_set():
+                self._terminate_process_tree(process)
+                output, _ = process.communicate()
+                raise RuntimeError("development job lease lost; command process tree terminated")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self._terminate_process_tree(process)
+                output, _ = process.communicate()
+                raise RuntimeError(f"command timed out after {timeout} seconds")
+            try:
+                output, _ = process.communicate(timeout=min(0.25, remaining))
+                return subprocess.CompletedProcess(args, process.returncode, output, None)
+            except subprocess.TimeoutExpired:
+                continue
 
     def _git(self, *args, env):
         result = self._run(["git", *args], env, 120)
@@ -267,6 +313,7 @@ class AiderDevelopmentExecutor:
         )
 
     def __call__(self, job):
+        self._lease_lost_event = job.get("_lease_lost_event")
         scope = self._validated_scope(job)
         aider = self._resolve_aider_executable()
 
