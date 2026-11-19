@@ -1389,4 +1389,4 @@ Code head `68c654594eb4de57e3cdd4f3aae3f17037079320` passed GitHub Actions run [
 
 
 ### BUILD-00377 — symlink-safe scope locking
-The executor now rejects every symbolic-link component before resolving a declared scope. This prevents distinct lexical paths from aliasing one writable target and bypassing the scheduler's path-based locks. File and directory symlink regressions are included. Exact-head CI pending.
+The executor now rejects every symbolic-link or Windows reparse-point component (including junctions) before resolving a declared scope; metadata inspection errors fail closed. This prevents distinct lexical paths from aliasing one writable target and bypassing the scheduler's path-based locks. File and directory symlink regressions are included. Exact-head CI pending.
