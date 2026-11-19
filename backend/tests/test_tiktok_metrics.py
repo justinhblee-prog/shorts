@@ -659,7 +659,7 @@ class TikTokMetricsTests(unittest.TestCase):
         details = " ".join(row["detail"] for row in plan)
         self.assertIn("idx_tiktok_publications_due_order", details)
         self.assertIn("idx_tiktok_publications_due_scan", details)
-        self.assertIn("idx_tiktok_metrics_video_latest", details)
+        self.assertIn("idx_tiktok_metric_video_time_id", details)
 
     def test_due_video_selection_is_bounded_and_deduplicates_publications(self):
         for index in range(2, 32):
