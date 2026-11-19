@@ -612,7 +612,9 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                 {"elapsedVideoTimeRatio": True, "audienceWatchRatio": 0.5},
                 {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": False},
                 {"elapsedVideoTimeRatio": 1.01, "audienceWatchRatio": 0.5},
-                {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": 1.01},
+                {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": 1.2},
+                {"elapsedVideoTimeRatio": 0.75, "audienceWatchRatio": 0.9,
+                 "relativeRetentionPerformance": 1.01},
                 {"elapsedVideoTimeRatio": -0.01, "audienceWatchRatio": 0.5},
                 {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": -0.01},
                 {"elapsedVideoTimeRatio": 0.0, "audienceWatchRatio": 1.0,
@@ -628,7 +630,8 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertIsNone(saved["estimated_minutes_watched"])
         self.assertEqual(saved["average_view_duration"], 12.5)
         self.assertEqual(saved["average_view_percentage"], 125.0)
-        self.assertEqual(len(saved["retention_curve"]), 2)
+        self.assertEqual(len(saved["retention_curve"]), 3)
+        self.assertEqual(saved["retention_curve"][1]["audience_watch_ratio"], 1.2)
         self.assertEqual(
             saved["retention_curve"][0],
             {
