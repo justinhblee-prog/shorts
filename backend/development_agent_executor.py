@@ -227,13 +227,13 @@ class AiderDevelopmentExecutor:
                 raise NonRetryableDevelopmentJobError("job scope contains leading or trailing whitespace")
             raw_path = raw
             windows_path = PureWindowsPath(raw_path)
-            windows_reserved = {"CON", "PRN", "AUX", "NUL"}
+            windows_reserved = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$", "CLOCK$"}
             for segment in raw_path.replace("\\", "/").split("/"):
-                stem = segment.split(".", 1)[0].upper()
+                stem = segment.split(".", 1)[0].rstrip(" .").upper()
                 if (
                     segment != segment.rstrip(" .")
                     or stem in windows_reserved
-                    or re.fullmatch(r"(?:COM|LPT)[1-9]", stem)
+                    or re.fullmatch(r"(?:COM|LPT)(?:[1-9]|[¹²³])", stem)
                 ):
                     raise NonRetryableDevelopmentJobError("job scope contains a Windows-reserved path segment")
             if (
