@@ -155,6 +155,24 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('격리된 작업만 운영자 권한과 복구 사유를 확인한 뒤 재대기', html)
         self.assertIn('.development-job-recover', css)
 
+    def test_quarantine_recovery_ui_matches_backend_api_contract(self):
+        path = "/api/development/jobs/{job_id}/recover"
+        route = next((item for item in app.routes if getattr(item, "path", None) == path), None)
+        self.assertIsNotNone(route)
+        self.assertIn("POST", route.methods)
+        operation = app.openapi()["paths"][path]["post"]
+        schema_ref = operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        schema_name = schema_ref.rsplit("/", 1)[-1]
+        reason_schema = app.openapi()["components"]["schemas"][schema_name]["properties"]["reason"]
+        self.assertIn("reason", app.openapi()["components"]["schemas"][schema_name]["required"])
+        self.assertEqual(reason_schema["minLength"], 1)
+        self.assertEqual(reason_schema["maxLength"], 1000)
+
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('api("/api/development/jobs/"+encodeURIComponent(jobId)+"/recover"', app_js)
+        self.assertIn('JSON.stringify({reason:reason.trim()})', app_js)
+        self.assertIn('if(!requireToken())return;', app_js)
+
     def test_cyber_magic_theme_is_loaded_after_base_styles(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         css = (ROOT / "frontend" / "cyber-magic.css").read_text(encoding="utf-8")
