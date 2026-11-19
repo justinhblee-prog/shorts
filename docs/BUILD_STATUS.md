@@ -2664,3 +2664,5 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Use the sanitized reference consistently for GitHub issue deduplication and stored identity.
 - Add a regression proving source-reference credentials are absent from the persisted job and event history.
 - Exact-head hosted CI is running; do not treat this checkpoint as validated until it completes.
+
+- Align `source_ref_exists` with the same redaction rule so preflight lookups and durable deduplication use one canonical sanitized value.

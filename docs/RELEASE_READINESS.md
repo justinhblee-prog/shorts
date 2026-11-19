@@ -380,3 +380,4 @@ GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00378 — source-reference data minimization
 Credential-bearing source references are redacted at the durable store boundary and in the creation event. Deduplication uses the sanitized value to avoid comparing a different representation from the one persisted. Draft PR #374 is awaiting exact-head hosted validation; live runner and production checks remain unverified.
+The source-reference existence preflight now normalizes credential-bearing values with the same redactor used by creation, keeping lookup and persistence consistent.

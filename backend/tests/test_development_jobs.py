@@ -64,6 +64,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertNotIn(secret, persisted)
         self.assertIn("[REDACTED]", job["source_ref"])
         self.assertEqual(events[0]["details"]["source_ref"], job["source_ref"])
+        self.assertTrue(self.store.source_ref_exists(source_ref))
         with self.assertRaisesRegex(DevelopmentJobConflict, "source_ref already exists"):
             self.store.create("Duplicate import", source_ref=source_ref)
 

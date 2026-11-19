@@ -1444,3 +1444,4 @@ Final code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions
 
 ### BUILD-00378 — source-reference persistence redaction
 The development-job store now redacts credential-bearing `source_ref` values before persisting either the job row or its immutable creation event. GitHub issue deduplication uses the same sanitized value. Regression coverage checks both durable representations and duplicate handling. Draft PR #374: https://github.com/justinhblee-prog/shorts/pull/374. Exact-head hosted CI is pending; no local Windows runner or production validation is claimed.
+The `source_ref_exists` preflight lookup also applies the same redactor, keeping caller-side duplicate checks consistent with the stored value.

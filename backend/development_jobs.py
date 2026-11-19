@@ -267,10 +267,11 @@ class DevelopmentJobStore:
     def source_ref_exists(self, source_ref):
         if not isinstance(source_ref, str) or not source_ref:
             return False
+        safe_source_ref = redact_sensitive_text(source_ref, limit=500)
         with self.db() as connection:
             return connection.execute(
                 "SELECT 1 FROM development_jobs WHERE source_ref=? LIMIT 1",
-                (source_ref,),
+                (safe_source_ref,),
             ).fetchone() is not None
 
     def list(self, statuses=None, limit=100):

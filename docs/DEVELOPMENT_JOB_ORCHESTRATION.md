@@ -262,3 +262,4 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 - Use the sanitized value for GitHub issue source-reference duplicate checks so the persisted identity and deduplication identity match.
 - Add regression coverage for secret removal from both the job row and event history, plus duplicate handling.
 - Draft PR #374: https://github.com/justinhblee-prog/shorts/pull/374. Exact-head hosted CI is pending; no Windows local-runner execution is claimed.
+- Apply the same sanitization in `source_ref_exists` so preflight duplicate checks compare against the stored canonical value.
