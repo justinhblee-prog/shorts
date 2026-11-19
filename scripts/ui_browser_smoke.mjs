@@ -186,7 +186,7 @@ async function waitForServer() {
     for (const section of ["studio", "discovery", "review", "operations"]) {
       const link = page.locator('.main-nav a[href="#' + section + '"]');
       await link.click();
-      assert.equal(await link.getAttribute("aria-current"), "page");
+      assert.equal(await link.getAttribute("aria-current"), "location");
     }
 
     for (const width of [390, 320]) {
