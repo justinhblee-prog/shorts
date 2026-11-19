@@ -2666,3 +2666,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reuse the bounded transient retry policy from the read-only intake client.
 - Add client-level tests for bearer-authenticated GET, unsafe origins/links, page limits and complete same-endpoint pagination.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00374 — exact-head hosted validation
+- Code head `7ad1bde4314ee76057fdb81428584eab243df0da` passed GitHub Actions run [44530524384](https://github.com/justinhblee-prog/shorts/actions/runs/44530524384): **812 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Hosted Linux only; no live credential redirect or GitHub pagination scenario was exercised.
