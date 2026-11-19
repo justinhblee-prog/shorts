@@ -100,12 +100,14 @@ class DevelopmentJobWorker:
                 pass
 
     def run_forever(self):
-        """Poll until stop() is called; returns after the current job completes."""
+        """Poll for work, then return after one claimed job so the workspace can be recycled."""
         try:
             while not self._stop.is_set():
                 status = self.run_once()
                 if status is None:
                     self._stop.wait(self.poll_seconds)
+                else:
+                    break
         finally:
             self.store.stop_worker(self.worker_id)
 

@@ -54,6 +54,36 @@ class DevelopmentBacklogServiceTests(unittest.TestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0]["status"], "review_pending")
 
+    def test_run_forever_returns_after_first_job_attempt(self):
+        first = self.store.create("First daemon job", scope=["backend/first.py"])
+        second = self.store.create("Second daemon job", scope=["backend/second.py"])
+        calls = []
+
+        def execute(job):
+            calls.append(job["id"])
+            return {
+                "changed_files": [job["scope"][0]],
+                "tests_passed": True,
+                "validation_ref": "ci://run/service-daemon",
+            }
+
+        service = DevelopmentBacklogService(
+            store=self.store,
+            github_client=FakeGitHub(),
+            owner="acme",
+            repository="app",
+            executor=execute,
+            worker_id="service-daemon",
+            approved_scopes={},
+            poll_seconds=1,
+            idle_seconds=1,
+        )
+        result = service.run_forever()
+        self.assertEqual(result["cycles"], 1)
+        self.assertEqual(calls, [first["id"]])
+        self.assertEqual(self.store.get(first["id"])["status"], "review_pending")
+        self.assertEqual(self.store.get(second["id"])["status"], "ready")
+
     def test_cycle_does_not_import_issue_without_scope_approval(self):
         service = DevelopmentBacklogService(
             store=self.store,

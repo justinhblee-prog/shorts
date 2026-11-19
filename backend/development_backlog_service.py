@@ -58,12 +58,14 @@ class DevelopmentBacklogService:
         return {"intake": intake, "execution": execution}
 
     def run_forever(self):
-        """Run sync/worker cycles until stop() is requested."""
+        """Poll while idle, but return after one claimed job so the host can recycle the worktree."""
         cycles = 0
         last_result = None
         while not self._stop_event.is_set():
             last_result = self.run_cycle()
             cycles += 1
+            if last_result.get("execution", {}).get("processed", 0) > 0:
+                break
             if not self._stop_event.is_set():
                 self._stop_event.wait(self.poll_seconds)
         return {"cycles": cycles, "last_result": last_result}

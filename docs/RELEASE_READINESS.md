@@ -281,3 +281,7 @@ The bounded worker does not claim a second job after a failed or successful firs
 
 ### BUILD-00364 — exact file versus directory scope boundary
 The Aider executor no longer infers recursive scope from a missing filename suffix. Existing directories are normalized with a trailing slash; ordinary file scopes are exact-match only. This prevents an extensionless file from being replaced by a directory tree that passes the scope check. Exact-head CI pending.
+
+
+### BUILD-00365 — long-lived worker workspace safety
+Long-lived worker/service loops no longer continue claiming jobs in a worktree after one job attempt. They remain idle-polling until work appears, then return after the attempt so the host can clean or replace the workspace. Tests confirm no second job is claimed. Exact-head CI pending.

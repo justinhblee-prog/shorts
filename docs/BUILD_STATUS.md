@@ -2513,3 +2513,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Normalize existing directory scopes with an explicit trailing slash and allow descendant changes only for those directory scopes; file scopes now match only the exact file.
 - Add regressions for extensionless file boundaries and existing-directory normalization.
 - Exact-head hosted CI pending.
+
+
+## BUILD-00365 — stop long-lived worker cycles after one claimed job
+- Make both worker and backlog-service daemon loops return after a claimed job attempt, while continuing to poll during idle periods.
+- This prevents a long-lived process from reusing a worktree containing validated or partial edits from a previous job; the host must recycle/clean the workspace before another job.
+- Add worker and service regressions proving the second ready job remains untouched after the first job is handled.
+- Exact-head hosted CI pending.
