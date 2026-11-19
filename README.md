@@ -140,3 +140,9 @@ Latest verified validation: GitHub Actions run [43798901325](https://github.com/
 
 - UI-00002 adds a main-content skip link and visible keyboard focus styles.
 - Source-level regression coverage is included. Live browser and assistive-technology checks are not yet claimed.
+
+
+### UI workstream checkpoint — UI-00003
+
+- Workspace navigation now has localized tooltips, a labeled main landmark, and refined touch target sizing at compact/mobile breakpoints.
+- Source regression tests cover the navigation labels and landmark. Real-device browser validation remains outstanding.
