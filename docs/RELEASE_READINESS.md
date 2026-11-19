@@ -345,3 +345,11 @@ Worker presence records now use unique per-process session IDs so concurrent or 
 
 ### BUILD-00369 — worker session identity validation evidence
 GitHub Actions run [44521107433](https://github.com/justinhblee-prog/shorts/actions/runs/44521107433) passed **799 backend tests**, repository validation and frontend JavaScript syntax validation, including unique worker-session IDs across attempts and the 128-character bound.
+
+
+### BUILD-00370 — command descendant termination
+POSIX cancellation now escalates against the whole process group after SIGTERM, not only the group leader. A SIGTERM-resistant descendant regression is pending hosted validation. Windows `taskkill /T /F` remains an integration gate.
+
+
+### BUILD-00370 — descendant termination validation evidence
+GitHub Actions run [44521675405](https://github.com/justinhblee-prog/shorts/actions/runs/44521675405) passed **800 backend tests**, repository validation and frontend JavaScript syntax validation, including the SIGTERM-resistant orphan-descendant regression. Hosted Linux only; Windows `taskkill /T /F` remains an integration gate.

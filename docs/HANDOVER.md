@@ -1409,3 +1409,11 @@ The runner now creates a unique worker-session ID instead of using the static RU
 
 ### BUILD-00369 — exact-head CI result
 Code head `5b20520ca125c080407b3b3ccb57bb94b42a4637` passed GitHub Actions run [44521107433](https://github.com/justinhblee-prog/shorts/actions/runs/44521107433): **799 tests**, repository validation and frontend syntax check. Worker session identity uniqueness and maximum-length regressions passed.
+
+
+### BUILD-00370 — residual process-tree cleanup
+The POSIX process terminator now sends SIGKILL to the original process group after the grace wait even if the parent has exited, preventing a SIGTERM-resistant descendant from continuing to modify the worktree. A regression checks that such a child cannot write its post-cancellation marker. Exact-head CI pending; Windows taskkill behavior remains unverified.
+
+
+### BUILD-00370 — exact-head CI result
+Code head `19df9dc3240ee98f11cb7d2d7dc15536e8d57305` passed GitHub Actions run [44521675405](https://github.com/justinhblee-prog/shorts/actions/runs/44521675405): **800 tests**, repository validation and frontend syntax check. The POSIX regression proves a SIGTERM-resistant child cannot survive even after the command-group leader exits. Windows process-tree behavior remains unverified on the trusted runner.

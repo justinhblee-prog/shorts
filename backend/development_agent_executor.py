@@ -167,8 +167,6 @@ class AiderDevelopmentExecutor:
     @staticmethod
     def _terminate_process_tree(process):
         """Stop the complete command group so a fenced worker leaves no child running."""
-        if process.poll() is not None:
-            return
         try:
             if os.name == "nt":
                 subprocess.run(
@@ -181,7 +179,13 @@ class AiderDevelopmentExecutor:
                 try:
                     process.wait(timeout=3)
                 except subprocess.TimeoutExpired:
+                    pass
+                # The group leader may exit while a descendant ignores SIGTERM.
+                # Always escalate against the process group, not just the parent.
+                try:
                     os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
         except (OSError, subprocess.SubprocessError):
             try:
                 process.kill()
