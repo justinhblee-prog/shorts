@@ -2764,3 +2764,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00387 — exact-head validation
 - Code head `09351f5704c3cd89a79d30f79d92956477942806` passed **823 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44549002097](https://github.com/justinhblee-prog/shorts/actions/runs/44549002097).
 - The upload-body tests confirmed `containsSyntheticMedia=false` for non-synthetic media, `true` for approved realistic alteration, and fail-closed behavior when the policy report is missing. No real platform upload was performed.
+
+
+### BUILD-00389 — require platform-scoped policy approval for upload
+- YouTube upload now rejects an otherwise valid policy report unless its approved `platforms` list explicitly includes `youtube`; a TikTok-only preflight cannot authorize a YouTube upload.
+- Added a regression using a valid TikTok-only report and verified the upload is rejected before the provider request.
+- Exact-head CI pending. No live YouTube API upload was performed.
