@@ -1491,3 +1491,4 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Reject restore archives stored inside the media directory because a successful media replacement would remove the source archive.
 - Add regressions verifying both unsafe layouts fail before changing live database or archive contents.
 - Exact-head Actions validation pending.
+- Preserve symlink rejection before resolving the archive path and add a regression proving a symlinked archive cannot bypass the regular-file check.
