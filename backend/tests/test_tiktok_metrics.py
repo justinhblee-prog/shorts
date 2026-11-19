@@ -76,6 +76,24 @@ class TikTokMetricsTests(unittest.TestCase):
             [1200, 80, 12, 5],
         )
 
+    def test_history_can_find_a_published_video_outside_the_recent_500(self):
+        self.store.save_snapshot("job-1", {
+            "id": "video-1", "view_count": 123, "like_count": 4,
+            "comment_count": 2, "share_count": 1,
+        })
+        for index in range(2, 207):
+            self._publish("job-" + str(index), "video-" + str(index))
+        with self.publications.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_publications SET updated_at=? WHERE video_id=?",
+                ("2000-01-01T00:00:00+00:00", "video-1"),
+            )
+        history = self.store.history(
+            self.publications, video_id="video-1", limit=500
+        )
+        self.assertEqual([item["video_id"] for item in history], ["video-1"])
+        self.assertEqual(history[0]["view_count"], 123)
+
     def test_metrics_history_has_global_time_index(self):
         with self.store.db() as connection:
             indexes={
