@@ -35,7 +35,7 @@ jobs:
       - name: Build all service images
         run: docker compose build
       - name: Start API, worker, scheduler, metrics collector and backup
-        run: docker compose up -d --wait --wait-timeout 180
+        run: docker compose up -d --wait --wait-timeout 600
       - name: Verify service processes and API readiness
         run: |
           set -eu
@@ -46,6 +46,12 @@ jobs:
           docker compose exec -T api python -c "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8502/api/ready',timeout=5); assert r.status == 200"
           docker compose exec -T worker python -c "import os; assert os.path.exists('/app/data')"
           docker compose exec -T scheduler python -c "import os; assert os.path.exists('/app/data')"
+          for service in api worker scheduler metrics-collector backup; do
+            cid="$(docker compose ps -q "$service")"
+            health="$(docker inspect --format '{{.State.Health.Status}}' "$cid")"
+            test "$health" = "healthy"
+          done
+          docker compose exec -T backup test -s /backups/.last-success
       - name: Verify scheduled backup and isolated restore
         run: |
           set -eu
