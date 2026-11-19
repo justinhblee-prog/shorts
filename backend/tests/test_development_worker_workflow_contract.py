@@ -43,6 +43,8 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn(".nexus-aider-venv", self.source)
         self.assertIn("NEXUS_BACKEND_PYTHON=", self.source)
         self.assertIn("NEXUS_AIDER_EXECUTABLE=", self.source)
+        self.assertIn(".nexus-backend-venv/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+        self.assertIn(".nexus-aider-venv/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
         self.assertNotIn("pip install --user", self.source)
         self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/run_development_agent.py", self.source)
         self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/publish_development_reviews.py", self.source)
@@ -64,7 +66,7 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertLess(create, publish)
         self.assertIn("pull-request-head-sha", self.source[publish:])
         self.assertIn("NEXUS_REVIEW_HEAD_SHA", self.source[publish:])
-        self.assertIn("python backend/publish_development_reviews.py", self.source[publish:])
+        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/publish_development_reviews.py", self.source[publish:])
         self.assertIn("draft: true", self.source)
         self.assertIn("review_pending", self.source)
 
@@ -77,7 +79,7 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertLess(recovery, execute)
         self.assertIn("if: github.event.inputs.mode == 'recover'", self.source[recovery:execute])
         self.assertIn("if: github.event.inputs.mode != 'recover'", self.source[execute:create_pr])
-        self.assertIn("python backend/recover_development_reviews.py", self.source[recovery:execute])
+        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py", self.source[recovery:execute])
         self.assertIn("no job was requeued", self.source[recovery:execute])
         self.assertIn("if: github.event.inputs.mode != 'recover'", self.source[create_pr:])
     def test_verified_pr_update_triggers_bounded_self_continuation(self):
