@@ -208,6 +208,27 @@ def normalize_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     }
 
     
+class _GitHubAPIOnlyRedirectHandler:
+    """Reject redirects that could forward the GitHub bearer token off-host."""
+
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        from urllib.parse import urljoin, urlsplit
+
+        target = urlsplit(urljoin(request.full_url, new_url))
+        if (
+            target.scheme != "https"
+            or target.hostname != "api.github.com"
+            or target.port not in (None, 443)
+            or target.username is not None
+            or target.password is not None
+        ):
+            raise ValueError("refusing redirect outside the trusted GitHub API origin")
+        from urllib.request import HTTPRedirectHandler
+        return HTTPRedirectHandler.redirect_request(
+            self, request, response, code, message, headers, target.geturl(),
+        )
+
+
 class GitHubReadOnlyClient:
     """Minimal GitHub REST client exposing GET operations only."""
     API_ROOT = "https://api.github.com"
@@ -225,8 +246,9 @@ class GitHubReadOnlyClient:
     def _get_pages(self, path: str, params: str = "") -> list[dict[str, Any]]:
         import json
         from urllib.error import HTTPError, URLError
-        from urllib.request import Request, urlopen
+        from urllib.request import Request, build_opener
         url = f"{self.API_ROOT}{path}?{params}" if params else f"{self.API_ROOT}{path}"
+        opener = build_opener(_GitHubAPIOnlyRedirectHandler())
         results: list[dict[str, Any]] = []
         pages_fetched = 0
         while url and pages_fetched < self.MAX_PAGES:
@@ -239,7 +261,7 @@ class GitHubReadOnlyClient:
                 "User-Agent": "nexus-development-backlog-sync",
             }, method="GET")
             try:
-                with urlopen(request, timeout=self._timeout) as response:
+                with opener.open(request, timeout=self._timeout) as response:
                     payload = json.loads(response.read().decode("utf-8"))
                     link = response.headers.get("Link", "")
             except (HTTPError, URLError, TimeoutError, ValueError) as error:
