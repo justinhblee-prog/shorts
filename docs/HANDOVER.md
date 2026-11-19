@@ -1433,3 +1433,7 @@ Code head `3664b352d1d10da5d4f0a84beb6f81327f73bc5c` passed GitHub Actions run [
 
 ### BUILD-00373 — bounded GitHub API retry policy
 The read-only intake now retries transient network failures and HTTP 408/425/429/5xx up to two times. It respects Retry-After and primary-rate-limit reset metadata only for waits of five seconds or less; long waits and auth/permission errors fail fast rather than stalling a worker cycle. Exact-head hosted CI pending.
+
+
+### BUILD-00373 — exact-head CI result
+Code head `ff9228ed4bcc3a021fa1383862feaf7a4c866dd8` passed GitHub Actions run [44529902141](https://github.com/justinhblee-prog/shorts/actions/runs/44529902141): **806 tests**, repository validation and frontend syntax check. Retry coverage is fixture-backed for 429, 403 reset metadata, excessive delays and 401. Hosted Linux only.
