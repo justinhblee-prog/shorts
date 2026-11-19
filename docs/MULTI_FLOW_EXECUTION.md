@@ -228,3 +228,11 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - Aggregate branch now carries UI, Core, Automation integrity, and documentation lanes in one review candidate. PR #415 remains Draft; the documentation stack PRs #410/#411 remain open and unmerged as source records.
 - Exact current branch head must be taken from PR #415; hosted checks are re-triggered by the documentation commits and must pass on that final SHA before the aggregate can be marked PASS.
 - External gate remains unchanged: trusted Windows self-hosted runner, two-run persistent LocalAppData proof, and live Ollama generation are not verified by hosted Linux checks.
+
+
+### Latest exact-head CI checkpoint — 2026-11-20
+
+- Final documented aggregate head: `2493d08fa13bb02326f1220bc43929f56ba9414f`.
+- Two exact-head hosted validation runs are active: [44601181264](https://github.com/justinhblee-prog/shorts/actions/runs/44601181264) and [44601169889](https://github.com/justinhblee-prog/shorts/actions/runs/44601169889). Both have passed initial setup/dependency steps and are executing `scripts/validate.sh`; no failures have been reported.
+- Earlier Automation-head run [44600976216](https://github.com/justinhblee-prog/shorts/actions/runs/44600976216) completed successfully (17 steps). The companion browser run [44600985186](https://github.com/justinhblee-prog/shorts/actions/runs/44600985186) is still progressing through Chromium/browser smoke. These runs target the earlier Automation-only SHA and are not substitutes for final aggregate validation.
+- Current aggregate state: **VERIFYING**. Do not mark PASS until both checks for `2493d08...` complete successfully.
