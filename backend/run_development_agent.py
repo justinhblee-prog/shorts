@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 
 from development_agent_executor import AiderDevelopmentExecutor
@@ -48,6 +49,20 @@ def _normalize_approved_scopes(scopes, repo_root):
             entries.append(path)
         normalized[source_ref] = entries
     return normalized
+
+
+def _worker_session_id(environ=None):
+    """Give each worker process a distinct identity while retaining host/run context."""
+    source = os.environ if environ is None else environ
+    hostname = str(source.get("RUNNER_NAME") or "nexus-local-agent").strip()
+    run_id = str(source.get("GITHUB_RUN_ID") or "").strip()
+    attempt = str(source.get("GITHUB_RUN_ATTEMPT") or "1").strip()
+    if run_id.isdigit() and attempt.isdigit():
+        suffix = f":run-{run_id}:attempt-{attempt}"
+    else:
+        suffix = f":pid-{os.getpid()}"
+    suffix += ":" + uuid.uuid4().hex[:8]
+    return hostname[:max(1, 128 - len(suffix))] + suffix
 
 
 def _json_env(name, default, environ=None):
@@ -91,7 +106,7 @@ def run_once(environ=None):
         owner=owner,
         repository=name,
         executor=executor,
-        worker_id=env.get("RUNNER_NAME", "nexus-local-agent"),
+        worker_id=_worker_session_id(env),
         approved_scopes=approved_scopes,
         poll_seconds=2,
         idle_seconds=int(env.get("NEXUS_AGENT_IDLE_SECONDS", "5")),
