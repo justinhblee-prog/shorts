@@ -92,7 +92,7 @@ All state changes must be append-only in the job event history and guarded by co
 The current Draft PR #321 contains the following prototype components:
 
 - `backend/development_jobs.py`: SQLite-backed job graph, dependency checks, leases, heartbeat/fencing, append-only events, retry/quarantine, and completion evidence gate.
-- `backend/development_job_worker.py`: bounded worker lifecycle, heartbeat, retries, and idle draining; a cycle stops after its first review_pending diff so a second task cannot run against an uncommitted worktree.
+- `backend/development_job_worker.py`: bounded worker lifecycle, heartbeat, retries, and idle polling; a cycle stops after any claimed job attempt so a second task cannot run against validated or partial worktree changes.
 - `backend/tests/test_development_worker_workflow_contract.py`: regression checks for the two-hour schedule, manual dispatch, trusted runner/model, split GitHub credentials, and stable Draft PR branch.
 - `backend/development_github_intake.py`: read-only GitHub Issues/PR/Actions intake, deduplication, and explicit per-issue file-scope approval.
 - `backend/development_backlog_service.py`: sync → register → worker cycle coordinator.
@@ -190,3 +190,7 @@ The read-only intake client now caps each Issues, PR and Actions feed at five 10
 
 ### BUILD-00357 — GitHub repository path validation
 The read-only intake now validates owner and repository as separate single path segments before constructing GitHub API URLs. Traversal-like segments, slashes, whitespace, query and fragment delimiters are rejected before network access; valid organization/repository names containing supported hyphens, underscores and dots remain accepted. Exact-head backend CI passed run [44511457164](https://github.com/justinhblee-prog/shorts/actions/runs/44511457164) with 773 tests.
+
+
+### BUILD-00366 — explicit file and directory scope semantics
+Approved existing directory paths are normalized to a trailing slash against the trusted repository root before backlog import. A trailing slash is the only recursive-scope marker at the durable evidence gate; file scopes, including extensionless files such as `LICENSE`, authorize only that exact path. The executor and SQLite `mark_review_pending` gate enforce the same rule. Traversal and symlink escapes remain rejected by executor path validation.
