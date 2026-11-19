@@ -1545,4 +1545,4 @@ The final store transition now applies the same case-insensitive, separator-norm
 ## POLICY-00002 — strict evidence URL and rights-key validation
 - Source URLs now require absolute HTTPS URLs with a valid hostname/port and no embedded credentials or whitespace/control characters. Query and fragment references remain supported.
 - Rights objects now reject unknown keys instead of silently ignoring unsupported attestations.
-- Added policy-engine regressions and updated the policy pack version to `2026-11-20.1`. Exact-head CI pending.
+- Added policy-engine regressions and updated the policy pack version to `2026-11-16.2`. Exact-head CI pending.
