@@ -1319,3 +1319,7 @@ Continue from the latest open Draft chain, starting with any failing or unverifi
 
 ### BUILD-00358 — Windows worker Node 24 action runtime
 The local Windows worker workflow now upgrades `actions/checkout` to v7 and `peter-evans/create-pull-request` to v8, both Node 24 actions. Before checkout, it reads the active `Runner.Listener` file version and fails if it is below 2.327.1. This avoids silently starting a Node 24 action on an unsupported old runner. The actual local runner version still needs to be observed during a real self-hosted cycle.
+
+
+### BUILD-00359 — Aider child environment secret scrub
+The local model subprocess no longer inherits backup encryption keys, database/Redis URLs, Supabase service-role keys, service-account values, or access/private/signing keys. Existing API/provider/GitHub tokens remain stripped. The Ollama endpoint, workspace, approved path scopes and model name remain available. Regression tests cover both removed and preserved variables. Exact-head CI pending; no live Aider/Ollama execution is claimed.
