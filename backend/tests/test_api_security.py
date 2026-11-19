@@ -1065,6 +1065,26 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(yt_history.call_args.kwargs["offset"],500)
         self.assertEqual(yt_history.call_args.kwargs["before_collected_at"],"2026-11-18T00:00:00+00:00")
         self.assertEqual(yt_history.call_args.kwargs["before_id"],17)
+        # Keyset cursors must be parseable, timezone-aware timestamps.
+        for invalid_cursor in ("not-a-timestamp", "2026-11-18T00:00:00", "2026-11-18"):
+            with self.subTest(before_collected_at=invalid_cursor):
+                with self.assertRaises(HTTPException):
+                    publishing_analytics_history(
+                        platform="youtube",before_collected_at=invalid_cursor,
+                        before_id=1,x_review_token="analytics-token"
+                    )
+        with (
+            mock.patch.object(app_module,"require_review_permission"),
+            mock.patch.object(app_module.youtube_analytics_store,"history",return_value=[]) as z_cursor_history,
+        ):
+            publishing_analytics_history(
+                platform="youtube",before_collected_at="2026-11-18T00:00:00Z",
+                before_id=1,x_review_token="analytics-token"
+            )
+        self.assertEqual(
+            z_cursor_history.call_args.kwargs["before_collected_at"],
+            "2026-11-18T00:00:00Z"
+        )
         self.assertTrue(result["as_of"].endswith("+00:00"))
         self.assertIsNotNone(yt_history.call_args.kwargs["since"])
         tt_history.assert_called_once()
