@@ -323,3 +323,10 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - The browser workflow's Korean font installation now uses cached apt packages first and bounded repository retries; exact source-head workflow passed.
 - Backend README was clarified to state that provider-reconciliation operator IDs must match the token-authenticated principal. The resulting documentation-only candidate head `77333d264a123d80c87e6ca13f1edfc0282be06a` is awaiting its own exact-head CI.
 - PR #407 remains Draft/unmerged; no production deployment or live provider/OAuth action.
+
+
+### Final exact-head verification after authenticated identity documentation — PASS
+
+- Latest PR #407 head `77333d264a123d80c87e6ca13f1edfc0282be06a` passed [workflow 44589059999](https://github.com/justinhblee-prog/shorts/actions/runs/44589059999): **880 tests passed**, frontend syntax, analytics Chromium smoke, quarantine recovery Chromium smoke, and artifact upload.
+- Final artifact [14564045600](https://github.com/justinhblee-prog/shorts/actions/runs/44589059999/artifacts/14564045600) includes the refreshed desktop/mobile browser screenshots.
+- The documentation-only commit clarifies that the provider-attempt reconciliation operator ID must match the token-authenticated principal. Exact-head validation is complete; PR #407 remains Draft/unmerged.
