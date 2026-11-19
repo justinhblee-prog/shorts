@@ -274,3 +274,10 @@ Aider now runs with a per-job temporary user home and isolated XDG/Windows roami
 
 ### BUILD-00362 — subprocess runtime injection isolation
 The local Aider executor removes inherited Python import/startup settings, dynamic-loader injection variables, shell startup hooks, and Node/Ruby/Perl preload settings before launching the model and validation commands. Regression coverage injects hostile values and verifies they do not reach the child environment. Exact-head CI pending; actual Windows runner and local model execution remain separate launch gates.
+
+
+### BUILD-00363 — worker workspace isolation between job attempts
+The bounded worker does not claim a second job after a failed or successful first attempt in the same workspace cycle. This prevents partial unvalidated edits from one Aider job contaminating the next job. Regression coverage verifies the second job remains ready after the first attempt fails with a partial edit. Exact-head CI pending; hosted tests do not establish Windows runner workspace cleanup.
+
+### BUILD-00364 — exact file versus directory scope boundary
+The Aider executor no longer infers recursive scope from a missing filename suffix. Existing directories are normalized with a trailing slash; ordinary file scopes are exact-match only. This prevents an extensionless file from being replaced by a directory tree that passes the scope check. Exact-head CI pending.
