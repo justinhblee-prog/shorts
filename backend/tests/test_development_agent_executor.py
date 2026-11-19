@@ -161,9 +161,11 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertEqual(child_env["GCM_INTERACTIVE"], "Never")
         self.assertEqual(Path(child_env["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8"), "")
         self.assertEqual(Path(child_env["NPM_CONFIG_USERCONFIG"]).read_text(encoding="utf-8"), "")
-        self.assertEqual(Path(child_env["PIP_CONFIG_FILE"]).read_text(encoding="utf-8"), "")
+        self.assertEqual(child_env["PIP_CONFIG_FILE"], os.devnull)
+        self.assertEqual(Path(child_env["NPM_CONFIG_GLOBALCONFIG"]).read_text(encoding="utf-8"), "")
         self.assertEqual(child_env["DOCKER_CONFIG"], str((self.root / "isolated-home" / ".config" / "docker").resolve()))
         self.assertEqual(child_env["NPM_CONFIG_USERCONFIG"], str((self.root / "isolated-home" / ".npmrc").resolve()))
+        self.assertEqual(child_env["NPM_CONFIG_GLOBALCONFIG"], str((self.root / "isolated-home" / "npm-globalrc").resolve()))
         self.assertEqual(child_env["PIP_CONFIG_FILE"], str((self.root / "isolated-home" / "pip.ini").resolve()))
         self.assertEqual(child_env["GITHUB_WORKSPACE"], str(self.root))
         self.assertEqual(child_env["NEXUS_APPROVED_SCOPES"], "{}")
@@ -178,7 +180,8 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertTrue(Path(env["DOCKER_CONFIG"]).is_dir())
         self.assertEqual(Path(env["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8"), "")
         self.assertEqual(Path(env["NPM_CONFIG_USERCONFIG"]).read_text(encoding="utf-8"), "")
-        self.assertEqual(Path(env["PIP_CONFIG_FILE"]).read_text(encoding="utf-8"), "")
+        self.assertEqual(env["PIP_CONFIG_FILE"], os.devnull)
+        self.assertEqual(Path(env["NPM_CONFIG_GLOBALCONFIG"]).read_text(encoding="utf-8"), "")
 
     def test_diagnostic_redaction_removes_bearer_and_common_api_tokens(self):
         message = (
