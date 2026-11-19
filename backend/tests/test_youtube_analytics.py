@@ -286,9 +286,18 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(len(self.store.history("other-video")),0)
 
     def test_history_since_filters_before_applying_limit(self):
-        self.store.save("range-video","2026-11-01","2026-11-01",{"views":10},[])
-        self.store.save("range-video","2026-11-02","2026-11-02",{"views":20},[])
-        self.store.save("range-video","2026-11-03","2026-11-03",{"views":30},[])
+        for views, collected_at in (
+            (10,"2026-11-01T00:00:00+00:00"),
+            (20,"2026-11-02T00:00:00+00:00"),
+            (30,"2026-11-03T00:00:00+00:00"),
+        ):
+            self.store.save("range-video","2026-11-01","2026-11-03",{"views":views},[])
+            with self.store.db() as connection:
+                connection.execute(
+                    "UPDATE youtube_analytics_history SET collected_at=? "
+                    "WHERE id=(SELECT MAX(id) FROM youtube_analytics_history WHERE video_id=?)",
+                    (collected_at,"range-video"),
+                )
         recent=self.store.history("range-video",limit=1,since="2026-11-02")
         self.assertEqual(len(recent),1)
         self.assertEqual(recent[0]["views"],30)
