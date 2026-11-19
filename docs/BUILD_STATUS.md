@@ -2521,3 +2521,5 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add a composite publication `(video_id,status)` index for the analytics-history join, avoiding repeated scans of publication rows when reading snapshots.
 - Add a composite metric `(video_id,collected_at DESC,id DESC)` index aligned with targeted history filtering and deterministic keyset ordering.
 - Preserve existing indexes for compatibility and add schema regression checks. Exact-head CI validation pending; performance impact on production-sized databases remains to be benchmarked.
+
+- BUILD-00331 validation: GitHub Actions runs [44490415081](https://github.com/justinhblee-prog/shorts/actions/runs/44490415081) and [44490415183](https://github.com/justinhblee-prog/shorts/actions/runs/44490415183) passed with **700 backend tests** each. The preceding stable-pagination/date-window checkpoint also passed twice (runs [44490155724](https://github.com/justinhblee-prog/shorts/actions/runs/44490155724) and [44490164457](https://github.com/justinhblee-prog/shorts/actions/runs/44490164457), 700 tests each). Production-scale query latency still needs benchmarking.
