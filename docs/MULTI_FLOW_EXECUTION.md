@@ -126,3 +126,10 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - Screenshot artifact: [14564938001](https://github.com/justinhblee-prog/shorts/actions/runs/44594782147/artifacts/14564938001).
 - PR #412 remains Draft/unmerged: https://github.com/justinhblee-prog/shorts/pull/412.
 - FLOW-CORE remains VERIFYING at head `5d3e7447d72788b8802dfe8c4bcdfd3de76b4ff8`; run [44595023343](https://github.com/justinhblee-prog/shorts/actions/runs/44595023343) is still running. Do not mark it PASS until completion.
+
+
+## 11. Core lane validation checkpoint — 2026-11-20
+
+- FLOW-CORE implementation PR #413 is at exact head `5d3e7447d72788b8802dfe8c4bcdfd3de76b4ff8`: https://github.com/justinhblee-prog/shorts/pull/413.
+- `scripts/validate.sh` and frontend syntax passed at this exact head in hosted run [44595023343](https://github.com/justinhblee-prog/shorts/actions/runs/44595023343).
+- Chromium setup/browser smoke and artifact upload are still in progress. FLOW-CORE remains VERIFYING until the entire run succeeds.
