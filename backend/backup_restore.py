@@ -510,7 +510,10 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
     db_path = Path(db_path).resolve()
     media_dir = Path(media_dir).resolve()
     backup_dir = Path(backup_dir).resolve()
-    archive_path = Path(archive_path).resolve()
+    archive_path = Path(archive_path)
+    if archive_path.is_symlink():
+        raise BackupRestoreError("Backup archive does not exist or is not a regular file")
+    archive_path = archive_path.resolve()
     _validate_database_media_paths(db_path, media_dir)
     if media_dir == archive_path or media_dir in archive_path.parents:
         raise BackupRestoreError("Backup archive must be outside the media directory")
