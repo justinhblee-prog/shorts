@@ -309,3 +309,7 @@ The TikTok polling backoff regression now uses wider timestamp margins to avoid 
 
 ### BUILD-00375 — canonical path validation
 Noncanonical scope aliases and directory markers on files are rejected before execution. Hosted validation pending.
+
+
+### BUILD-00375 — canonical path validation evidence
+GitHub Actions run [44525189997](https://github.com/justinhblee-prog/shorts/actions/runs/44525189997) passed **785 backend tests**, repository validation and frontend JavaScript syntax validation, including noncanonical scope alias rejection.
