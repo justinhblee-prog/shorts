@@ -2559,3 +2559,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Production-scale latency and query-plan measurements remain outstanding. Exact-head CI pending.
 
 - Follow-up optimization: add `idx_tiktok_publications_due_scan(status,video_id,updated_at DESC,job_id)` to support the bounded due-video scan's filter, partition/order keys; add a schema regression assertion. This index complements the existing video/status lookup index. Exact-head CI pending.
+
+
+## BUILD-00336 — fair bounded TikTok metrics retry ordering
+
+- Resolve tied publication timestamps with a descending job ID tie-breaker in both the per-video ranking and final due-candidate ordering. This makes the bounded 20-video window deterministic and prevents recently inserted records from being starved when timestamp precision ties.
+- Update the EXPLAIN QUERY PLAN regression to accept either the dedicated video/status index or the newer due-scan composite index for the publication side; the planner correctly prefers the latter when available.
+- Triggered by exact-head CI failures: the bounded scan selected the wrong 20 tied records, so missing-video retry backoff could not expose the previously excluded video. The test no longer over-constrains a valid index choice.
+- Validation: pending exact-head GitHub Actions.
