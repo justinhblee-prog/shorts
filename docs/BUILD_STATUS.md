@@ -2553,4 +2553,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Run this step before actions/checkout@v7 and any Python/Node setup or execution; set GIT_CONFIG_COUNT=0 after clearing inherited config injection entries.
 - Preserve runner-managed GITHUB_* workflow paths and later step-scoped tokens/model settings; do not print environment values.
 - Add workflow-contract tests asserting the scrub occurs before checkout and covers Python, Node, shell, Git, SSH, loader, provider and credential variable families.
-- Exact-head CI pending. Hosted Linux validates workflow text only; Windows self-hosted execution remains an integration gate.
+- Exact code/test head `f8033fb17c9067a9f87e6fa5966a15f4641e3f08` passed backend Actions run [44520580445](https://github.com/justinhblee-prog/shorts/actions/runs/44520580445): **786 tests**. Hosted Linux validates workflow text only; Windows self-hosted execution remains an integration gate.
