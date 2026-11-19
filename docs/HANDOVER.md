@@ -1540,3 +1540,9 @@ The final store transition now applies the same case-insensitive, separator-norm
 ### POLICY-00001 — exact-head validation
 - Code head `dcb959f32a5c93fd80f957c5b37525eac0cede74` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44550031926](https://github.com/justinhblee-prog/shorts/actions/runs/44550031926).
 - Regressions confirmed that falsey non-object declarations and non-boolean rights attestations are rejected. Hosted CI only; no external platform actions were performed.
+
+
+## POLICY-00002 — strict evidence URL and rights-key validation
+- Source URLs now require absolute HTTPS URLs with a valid hostname/port and no embedded credentials or whitespace/control characters. Query and fragment references remain supported.
+- Rights objects now reject unknown keys instead of silently ignoring unsupported attestations.
+- Added policy-engine regressions and updated the policy pack version to `2026-11-20.1`. Exact-head CI pending.
