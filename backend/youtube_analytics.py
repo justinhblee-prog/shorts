@@ -147,8 +147,9 @@ class YouTubeAnalyticsStore:
                   WHERE snapshots.video_id=youtube_analytics_history.video_id
                 ),'[]')
                 WHERE id=(
-                  SELECT MAX(latest.id) FROM youtube_analytics_history AS latest
+                  SELECT latest.id FROM youtube_analytics_history AS latest
                   WHERE latest.video_id=youtube_analytics_history.video_id
+                  ORDER BY latest.collected_at DESC,latest.id DESC LIMIT 1
                 )
             """)
             lease_columns = {
