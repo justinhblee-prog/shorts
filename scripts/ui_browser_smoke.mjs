@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const { chromium } = require("playwright");
 
@@ -39,6 +40,8 @@ async function waitForServer() {
     );
 
     await page.goto(baseUrl, { waitUntil: "networkidle" });
+    fs.mkdirSync("artifacts", { recursive: true });
+    await page.screenshot({ path: "artifacts/nexus-dashboard-desktop.png", fullPage: true });
     assert.match(await page.title(), /NEXUS STUDIO PRO/);
     assert.equal(await page.locator(".main-nav a").count(), 5);
     assert.equal(await page.locator("#studio").count(), 1);
@@ -79,6 +82,7 @@ async function waitForServer() {
         "compact navigation touch targets must be at least 48px");
     }
 
+    await page.screenshot({ path: "artifacts/nexus-dashboard-mobile.png", fullPage: true });
     await page.emulateMedia({ reducedMotion: "reduce" });
     assert.equal(await page.locator("html").evaluate(el => getComputedStyle(el).scrollBehavior), "auto");
     assert.deepEqual(pageErrors, []);
