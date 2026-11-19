@@ -16,7 +16,7 @@ ROLE_PERMISSIONS = {
     "analyst": {"analytics.read", "finance.read", "trends.read", "intelligence.read",
         "recommendations.read", "publishing.read", "opportunities.manage"},
     "operator": {
-        "operations.read", "queue.control", "queue.enqueue", "production.create",
+        "operations.read", "operations.manage", "queue.control", "queue.enqueue", "production.create",
         "production.execute", "trends.collect", "schedules.manage", "brand.manage",
         "media.manage", "recommendations.manage", "queue.read", "publishing.read",
         "trends.read", "intelligence.read", "recommendations.read", "production.read",

@@ -127,6 +127,56 @@ class PolicyEngineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluate_content_policy({"risk_flags": {"health_or_medical_claims": "yes"}})
 
+    def test_structured_declarations_reject_falsey_non_object_values(self):
+        malformed = (
+            ("policy_flags", []),
+            ("rights", []),
+            ("platform_disclosures", ""),
+            ("risk_flags", False),
+        )
+        for field, value in malformed:
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, field):
+                    evaluate_content_policy({field: value})
+
+    def test_rights_declarations_require_boolean_values(self):
+        with self.assertRaisesRegex(ValueError, "rights fields must be boolean"):
+            evaluate_content_policy({"rights": {"visuals_cleared": "true"}})
+
+    def test_rights_declarations_reject_unknown_attestation_fields(self):
+        with self.assertRaisesRegex(ValueError, "unsupported attestation field"):
+            evaluate_content_policy({
+                "rights": {
+                    "visuals_cleared": True,
+                    "audio_cleared": True,
+                    "likeness_authorized": True,
+                    "fake_platform_approval": True,
+                }
+            })
+
+    def test_source_urls_require_absolute_https_urls_without_credentials(self):
+        invalid_urls = (
+            "https://",
+            "https:///missing-host",
+            "https://user:password@example.com/policy",
+            "https://example.com:invalid/policy",
+            "https://exa mple.com/policy",
+            "https://example.com/line\nbreak",
+        )
+        for url in invalid_urls:
+            with self.subTest(url=url):
+                with self.assertRaisesRegex(ValueError, "valid absolute HTTPS URLs"):
+                    evaluate_content_policy({"source_urls": [url]})
+
+    def test_source_urls_preserve_valid_query_and_fragment_references(self):
+        report = evaluate_content_policy({
+            "source_urls": ["https://example.com/policy?region=us#disclosure"],
+        })
+        self.assertEqual(
+            report["evidence"]["source_urls"],
+            ["https://example.com/policy?region=us#disclosure"],
+        )
+
     def test_invalid_platform_or_media_status_rejected(self):
         with self.assertRaises(ValueError):
             evaluate_content_policy({"platforms": ["youtube", "unknown"]})

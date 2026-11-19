@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from typing import Any, Iterable
+from urllib.parse import urlsplit
 
 from development_jobs import DevelopmentJobConflict
 
@@ -42,6 +43,33 @@ def _positive_int(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
 
 
+def _canonical_issue_url(value: Any, owner: str, repository: str, number: int) -> str | None:
+    """Accept only the canonical HTTPS URL for this exact GitHub issue."""
+    if not isinstance(value, str) or not value or any(
+        character.isspace() or ord(character) < 32 or ord(character) == 127
+        for character in value
+    ):
+        return None
+    try:
+        parsed = urlsplit(value)
+        parsed_port = parsed.port
+    except ValueError:
+        return None
+    expected_path = f"/{owner}/{repository}/issues/{number}"
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc.lower() != "github.com"
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed_port not in (None, 443)
+        or parsed.query
+        or parsed.fragment
+        or parsed.path != expected_path
+    ):
+        return None
+    return value
+
+
 def normalize_issue(issue: dict[str, Any]) -> dict[str, Any] | None:
     """Return a job candidate only for open, explicitly labeled issues."""
     if not isinstance(issue, dict) or issue.get("state") != "open" or "pull_request" in issue:
@@ -66,8 +94,8 @@ def normalize_issue(issue: dict[str, Any]) -> dict[str, Any] | None:
     repository = f"{owner}/{repository_name}"
     body = issue.get("body")
     body = body.strip() if isinstance(body, str) else ""
-    url = issue.get("html_url")
-    if not isinstance(url, str) or not url.startswith("https://github.com/"):
+    url = _canonical_issue_url(issue.get("html_url"), owner, repository_name, number)
+    if url is None:
         url = f"https://github.com/{repository}/issues/{number}"
     return {
         "source_ref": f"github:issue:{repository}#{number}",
@@ -235,12 +263,23 @@ class GitHubReadOnlyClient:
         import json
         from urllib.error import HTTPError, URLError
         from urllib.request import Request, urlopen
+        if not isinstance(path, str) or not path.startswith("/") or "?" in path or "#" in path:
+            raise ValueError("refusing invalid GitHub API collection path")
+        api_root = urlsplit(self.API_ROOT)
         url = f"{self.API_ROOT}{path}?{params}" if params else f"{self.API_ROOT}{path}"
         results: list[dict[str, Any]] = []
         pages_fetched = 0
         while url and pages_fetched < self.MAX_PAGES:
-            if not url.startswith(self.API_ROOT + "/"):
-                raise ValueError("refusing non-GitHub API URL")
+            parsed_url = urlsplit(url)
+            if (
+                parsed_url.scheme != "https"
+                or parsed_url.netloc != api_root.netloc
+                or parsed_url.username is not None
+                or parsed_url.password is not None
+                or parsed_url.path != path
+                or parsed_url.fragment
+            ):
+                raise ValueError("refusing non-GitHub API pagination URL")
             request = Request(url, headers={
                 "Accept": "application/vnd.github+json",
                 "Authorization": f"Bearer {self._token}",
@@ -265,7 +304,15 @@ class GitHubReadOnlyClient:
             for part in link.split(","):
                 if 'rel="next"' in part:
                     candidate = part[part.find("<") + 1:part.find(">")]
-                    if not candidate.startswith(self.API_ROOT + "/"):
+                    parsed_next = urlsplit(candidate)
+                    if (
+                        parsed_next.scheme != "https"
+                        or parsed_next.netloc != api_root.netloc
+                        or parsed_next.username is not None
+                        or parsed_next.password is not None
+                        or parsed_next.path != path
+                        or parsed_next.fragment
+                    ):
                         raise ValueError("refusing non-GitHub pagination URL")
                     next_url = candidate
                     break

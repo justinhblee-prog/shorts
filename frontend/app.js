@@ -477,7 +477,8 @@
       const changed=Array.isArray(job.changed_files)&&job.changed_files.length?job.changed_files.join(", "):"아직 기록된 변경 파일 없음";
       const evidence=job.validation_ref?"검증 증거: "+job.validation_ref:"검증 증거 대기";
       const review=job.review_url?"Draft PR: "+job.review_url+" · "+String(job.review_head_sha||"").slice(0,12):"Draft PR 검토 증거 대기";
-      return '<button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p><small>'+esc(lease)+' · '+esc(updated)+'</small><p>변경 파일: '+esc(changed)+'</p><small>'+esc(evidence)+'</small><small>'+esc(review)+'</small></button>';
+      const recovery=status==="quarantined"?'<button type="button" class="button button-outline development-job-recover" data-recover-development-job="'+esc(job.id)+'">격리 작업 복구</button>':"";
+      return '<div class="development-job-card"><button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p><small>'+esc(lease)+' · '+esc(updated)+'</small><p>변경 파일: '+esc(changed)+'</p><small>'+esc(evidence)+'</small><small>'+esc(review)+'</small></button>'+recovery+'</div>';
     }).join(""):'<div class="empty-state">등록된 개발 잡이 없습니다. 현재 화면은 실제 저장소의 개발 잡 데이터만 표시합니다.</div>';
     document.querySelectorAll("[data-development-job]").forEach(item=>item.setAttribute("aria-pressed",String(item.getAttribute("data-development-job")===hostDevelopmentJobSelected)));
   }
@@ -524,6 +525,27 @@
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadDevelopmentJobs").addEventListener("click",()=>loadDevelopmentJobs().catch(e=>toast(e.message)));
   $("developmentJobList").addEventListener("click",async event=>{
+    const recoveryButton=event.target.closest("[data-recover-development-job]");
+    if(recoveryButton){
+      event.preventDefault();
+      event.stopPropagation();
+      if(!requireToken())return;
+      const jobId=recoveryButton.getAttribute("data-recover-development-job");
+      const reason=window.prompt("격리된 작업을 다시 실행해야 하는 사유를 입력하세요.");
+      if(!reason||!reason.trim())return;
+      if(!window.confirm("운영자 복구 사유를 감사 기록에 남기고 이 작업의 재시도 횟수를 초기화하시겠습니까?"))return;
+      recoveryButton.disabled=true;
+      try{
+        await api("/api/development/jobs/"+encodeURIComponent(jobId)+"/recover",{method:"POST",body:JSON.stringify({reason:reason.trim()})});
+        toast("격리 작업이 운영자 감사 기록과 함께 다시 대기 상태로 전환되었습니다.");
+        await loadDevelopmentJobs();
+        if(hostDevelopmentJobSelected===jobId)await loadDevelopmentJobEvents(jobId);
+      }catch(error){
+        toast(error.message);
+        recoveryButton.disabled=false;
+      }
+      return;
+    }
     const button=event.target.closest("[data-development-job]");
     if(!button)return;
     const jobId=button.getAttribute("data-development-job");

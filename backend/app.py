@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from pydantic import BaseModel, Field, StrictInt
 from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflict
-from development_jobs import DevelopmentJobStore, DevelopmentJobNotFound
+from development_jobs import DevelopmentJobStore, DevelopmentJobNotFound, DevelopmentJobConflict
 from seed_development_jobs import seed_development_jobs
 from trends import TrendStore, TrendIngestor
 from youtube_intel import CompetitorStore, CompetitorIntelligence
@@ -150,6 +150,9 @@ class Fail(Lease):
     error_code:str="worker_error"
     error_message:str="Worker failed"
     retryable:bool=True
+
+class DevelopmentJobRecoveryAction(BaseModel):
+    reason:str=Field(min_length=1,max_length=1000)
 
 class ReviewDecision(BaseModel):
     reviewer_id:str=Field(min_length=1,max_length=128)
@@ -1424,6 +1427,24 @@ def development_job_events(
         return {"events":[_public_development_event(event) for event in development_job_store.events(job_id,limit)]}
     except DevelopmentJobNotFound:
         raise HTTPException(404,"Development job not found")
+
+
+@app.post("/api/development/jobs/{job_id}/recover")
+def recover_development_job(
+    job_id:str,
+    body:DevelopmentJobRecoveryAction,
+    x_review_token:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"operations.manage")
+    try:
+        job=development_job_store.recover_quarantined(job_id,operator_id,body.reason)
+        return {"job":_public_development_job(job)}
+    except DevelopmentJobNotFound:
+        raise HTTPException(404,"Development job not found")
+    except DevelopmentJobConflict as error:
+        raise HTTPException(409,str(error))
+    except ValueError as error:
+        raise HTTPException(422,str(error))
 
 
 @app.get("/api/development/jobs/{job_id}")
