@@ -127,6 +127,22 @@ class PolicyEngineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluate_content_policy({"risk_flags": {"health_or_medical_claims": "yes"}})
 
+    def test_structured_declarations_reject_falsey_non_object_values(self):
+        malformed = (
+            ("policy_flags", []),
+            ("rights", []),
+            ("platform_disclosures", ""),
+            ("risk_flags", False),
+        )
+        for field, value in malformed:
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, field):
+                    evaluate_content_policy({field: value})
+
+    def test_rights_declarations_require_boolean_values(self):
+        with self.assertRaisesRegex(ValueError, "rights fields must be boolean"):
+            evaluate_content_policy({"rights": {"visuals_cleared": "true"}})
+
     def test_invalid_platform_or_media_status_rejected(self):
         with self.assertRaises(ValueError):
             evaluate_content_policy({"platforms": ["youtube", "unknown"]})
