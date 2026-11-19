@@ -2525,3 +2525,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00363–00365 — stacked exact-head validation
 - GitHub Actions Backend tests run [44516995900](https://github.com/justinhblee-prog/shorts/actions/runs/44516995900) passed **782 tests**, `scripts/validate.sh` and `node --check frontend/app.js` for the combined worker workspace, file-scope and daemon-cycle changes.
 - Hosted Linux validation only; the Windows self-hosted runner, real Aider/Ollama execution and host workspace recycling remain separate launch gates.
+
+
+## BUILD-00366 — align durable store scope enforcement with executor
+- Remove the store's suffix-based recursive scope inference so an extensionless file cannot authorize nested paths at the final evidence gate.
+- Require an explicit trailing slash for recursive directory scopes in the durable store.
+- Normalize approved existing directory paths against the trusted repository root before importing them into the job store; traversal/out-of-root inputs remain unchanged for the executor's fail-closed validation.
+- Add store regressions for extensionless files and explicit directories, plus runner normalization tests.
+- Exact-head hosted CI pending.
