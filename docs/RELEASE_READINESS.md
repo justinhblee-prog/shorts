@@ -446,3 +446,9 @@ The durable review-pending gate is aligned with scheduler and executor path matc
 ### BUILD-00384 — exact-head validation
 - Code head `58034c67387c5fb648623603c40320582a2aa95e` passed **814 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44544093165](https://github.com/justinhblee-prog/shorts/actions/runs/44544093165) and [44544133397](https://github.com/justinhblee-prog/shorts/actions/runs/44544133397).
 - Case-insensitive file and directory completion-scope regressions passed in both runs. Hosted Linux only; Windows local-runner execution remains unverified.
+
+
+## BUILD-00385 — verify actual Git worktree evidence before review-pending
+- Add a post-execution verifier that re-reads tracked and untracked Git changes, compares the exact list to the executor claim, and rechecks the declared scope.
+- The trusted local runner enables strict mode; missing verifier, mismatched claims, or out-of-scope changes are quarantined rather than advanced to `review_pending`.
+- Add worker, executor, service and runner regressions. Exact-head CI pending.
