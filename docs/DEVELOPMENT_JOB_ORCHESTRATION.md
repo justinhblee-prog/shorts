@@ -196,3 +196,8 @@ The original PR #388 had a stale base and was five commits behind the current qu
 
 
 BUILD-00388 exact-head evidence: PR #400 at `272d5efc9564b9d4dca6fa4bff187579a3911adb` passed backend workflow [44575404874](https://github.com/justinhblee-prog/shorts/actions/runs/44575404874), including repository validation and frontend syntax validation. It remains Draft/unmerged on the current BUILD-00386 base; no live GitHub intake or production action was exercised.
+
+
+### Policy dependency chain — stale-base repair
+
+The original POLICY-00001 / #386, POLICY-00002 / #389 and POLICY-00003 / #390 branches were diverged from their intended bases. Rebuilt a clean sequential successor chain: #401 (POLICY-00001) on the current YouTube disclosure base / #385; #402 (POLICY-00002) on #401; #403 (POLICY-00003) on #402. All three successor branches compare ahead of their bases with zero commits behind and are reported mergeable. #401 exact-head backend workflows [44575712933](https://github.com/justinhblee-prog/shorts/actions/runs/44575712933) and [44575735946](https://github.com/justinhblee-prog/shorts/actions/runs/44575735946) passed. #402 run [44575784946](https://github.com/justinhblee-prog/shorts/actions/runs/44575784946) passed while [44575810640](https://github.com/justinhblee-prog/shorts/actions/runs/44575810640) was still running. #403 runs [44575901354](https://github.com/justinhblee-prog/shorts/actions/runs/44575901354) and [44575928560](https://github.com/justinhblee-prog/shorts/actions/runs/44575928560) were in progress/queued. Keep all Draft and unmerged until exact-head checks complete and dependency review is performed.
