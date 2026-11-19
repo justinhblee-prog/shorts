@@ -73,6 +73,7 @@ All state changes must be append-only in the job event history and guarded by co
 ## 6. Parallelism rules
 
 - Parallelize only jobs with satisfied dependencies and disjoint declared write/resource scopes.
+- Canonicalize approved symlink targets and compare scopes using normalized separators, dot segments and case-folding; unsafe, absolute or traversal scopes conflict conservatively with all other scopes.
 - Serialize changes to shared schemas, migrations, central API contracts, workflow files, and the same feature module unless an explicit integration plan exists.
 - Reserve an integration job to reconcile parallel outputs and run the full validation suite.
 - Limit concurrency by available trusted workers and resource budget; never equate multiple agent invocations with useful parallel progress.
