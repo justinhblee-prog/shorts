@@ -18,14 +18,16 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 
 ## Current checkpoint
 
-- Repository default branch remains `main`; current main head is `5558c058f09bc09d15f5d13fd3746eb9cc76f630`. Development branches and Draft PRs are not integrated into main.
-- PRs #311–#328 were checked in GitHub: all remain Open, Draft and unmerged. This includes the user's specifically protected PRs #311–#315. No merge or main push was performed.
-- PR #327 (BUILD-00319) exact head `95844080e8635354ab8f8e2511c4b64b5bfe91ae` passed GitHub Actions run [44437965780](https://github.com/justinhblee-prog/shorts/actions/runs/44437965780). The run executed repository validation and frontend JavaScript syntax checks. It validates hosted CI only, not the Windows runner or local Ollama.
-- PR #326 adds read-only recovery for orphaned review-pending jobs. PR #327 adds bounded self-dispatch after a changed Draft PR is read back and verified. Both remain Draft/Open.
-- BUILD-00320 (Draft PR #328) initial implementation head `d91bab89b2659b2080c7f0749291fbee240b2ccd` passed run [44472930435](https://github.com/justinhblee-prog/shorts/actions/runs/44472930435) (764 tests). The later code/test head `0e66b04125709c73e415e71c6e2e7a11c2c91fb2`, which also adds CI path filters for docs/README/ignore changes, passed exact-head run [44473385233](https://github.com/justinhblee-prog/shorts/actions/runs/44473385233) (**765 tests**, `scripts/validate.sh`, frontend syntax check). Hosted Linux CI only; Windows runner/Ollama execution is not proven.
+- Repository default branch remains `main`; current main head is `851b414262cc6bef8ec374ed0e7a25921521b295`. All development work below remains on Draft branches and is not integrated into main.
+- PRs #311–#336 remain Open, Draft and unmerged. This includes the specifically protected PRs #311–#315. No merge or main push was performed.
+- PRs #321–#328 (BUILD-00313 through BUILD-00320) have successful exact-head GitHub Actions checks. They form the development-control-plane chain for job orchestration, persistent runner state, verified Draft-PR completion, orphan recovery, bounded self-dispatch and Windows runner preflight.
+- PR #329 is the separate UI workstream (UI-00001–00009). PR #330 is BUILD-00321, fixing paginated GitHub Actions intake; exact head `9195a6bddce5bef58f6ffd9bed17beb0be2b3818` passed run [44508180651](https://github.com/justinhblee-prog/shorts/actions/runs/44508180651).
+- PR #323 is the core/backend workstream BUILD-00315–00351. Exact core head `59ec8286f6c216345955593dd82a1047851fad4d` passed 725 backend tests and the five-service Compose/backup/restore smoke; this is synthetic CI evidence only.
+- Parallel core follow-ups: PR #331 BUILD-00352 encrypted restore runbook passed 726 backend tests and Compose smoke; PR #332 BUILD-00353 upgraded CI actions to Node 24 and passed 726 backend tests plus Compose smoke; PR #333 BUILD-00354 strengthened retained-archive health and format validation, passing 729 backend tests plus Compose smoke.
+- Stacked control-plane follow-ups: PR #334 BUILD-00355 global GitHub issue deduplication passed 768 backend tests; PR #335 BUILD-00356 bounded GitHub pagination passed 771; PR #336 BUILD-00357 repository path validation passed 773. These are hosted CI results on their exact Draft PR heads, not proof of a live token or self-hosted runner.
 - The user reported Ollama installed and 64 GB RAM. This does not establish that the GitHub self-hosted runner is registered, online, running under the Ollama account, or able to access the local model.
 - The default-branch schedules are not active until their reviewed workflows are integrated into `main`. No live local-model generation, real Draft-PR publication by the user's PC, or repeated LocalAppData persistence has been observed.
-- The launch-gate score remains **1/8**. Hosted CI is the only verified mandatory gate; Compose deployment, real AI/media providers, renderer playback, OAuth/private test upload, financial reconciliation, security/backup/restore operations, and ROI cohort evidence remain pending.
+- The launch-gate score remains **1/8**. Hosted CI is the only verified mandatory gate; Compose deployment on the intended host, real AI/media providers, renderer playback, OAuth/private test upload, financial reconciliation, security/backup/restore operations, and ROI cohort evidence remain pending.
 
 ## Phase 1 — Engineering closure (rolling)
 
@@ -69,7 +71,7 @@ Source: `docs/OPERATOR_RUNBOOK.md`, section 8.
 
 | # | Required evidence | Status |
 |---:|---|---|
-| 1 | `sh scripts/validate.sh` passes on Python 3.11+ | Verified in GitHub Actions for PR #293 head; CI only |
+| 1 | `sh scripts/validate.sh` passes on Python 3.11+ | Verified on exact Draft PR #336 head `771a81f1a14808a0793d3a52d1acf857e28655bc` (773 tests); hosted CI only |
 | 2 | Docker Compose build/start; all three services healthy | Pending deployment evidence |
 | 3 | Real script, voice and video generation; vendor compatibility, rights/licensing and costs checked | Pending real provider credentials and media review |
 | 4 | Renderer CDN allowlist and staged MP4 playback verified | Pending real renderer artifact and playback |
