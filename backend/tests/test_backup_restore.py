@@ -379,6 +379,8 @@ class BackupRestoreTests(unittest.TestCase):
             create_backup(self.db, media_link, self.backups)
         with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
             create_backup(self.db, self.media, backup_link)
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            create_backup(db_link, self.media, self.backups)
         backup = create_backup(self.db, self.media, self.backups)["backup_path"]
         with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
             restore_backup(
@@ -387,6 +389,10 @@ class BackupRestoreTests(unittest.TestCase):
         with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
             restore_backup(
                 backup, self.db, media_link, self.backups, confirm_restore=True
+            )
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            restore_backup(
+                backup, self.db, self.media, backup_link, confirm_restore=True
             )
 
 
