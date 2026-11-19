@@ -336,7 +336,7 @@
         const series=chartGroups.map((group,index)=>{
           const coordinates=group.points.map(point=>({x:x(point.time),y:y(point.value),point}));
           const intervals=coordinates.slice(1).map((point,i)=>point.point.time-coordinates[i].point.time).filter(value=>value>0).sort((a,b)=>a-b);
-          const medianInterval=intervals.length?intervals[Math.floor(intervals.length/2)]:0;
+          const medianInterval=intervals.length?intervals[Math.floor((intervals.length-1)/2)]:0;
           const gapThreshold=Math.max(48*60*60*1000,medianInterval*3);
           const segments=[];
           let segment=[];
