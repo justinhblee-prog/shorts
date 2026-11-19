@@ -1288,7 +1288,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 | #337 | BUILD-00358 Node 24 self-hosted runner preflight and action upgrades | Open Draft; 774 backend tests passed on exact head |
 | #338 | BUILD-00359 local model secret and workflow-command environment isolation | Open Draft; 775 backend tests passed on exact head |
 | #339 | BUILD-00360 secret-file scope denylist and symlink-target protection | Open Draft; 776 backend tests passed on exact head |
-| #340 | BUILD-00361 isolated Aider home, tool configuration and noninteractive Git credentials | Open Draft; exact-head CI pending |
+| #340 | BUILD-00361 isolated Aider home, tool configuration and noninteractive Git credentials | Open Draft; 778 backend tests passed on exact head |
 
 PR #340 is stacked on PR #339. PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #334; #336 is stacked on #335. PRs #331–#333 are independent follow-ups based on the core PR #323. PR #329 is the separate UI branch. PRs #311–#315 remain protected and unmerged.
 
@@ -1333,4 +1333,4 @@ The Aider scope validator now rejects SSH private identities/authorized-key file
 
 
 ### BUILD-00361 — per-job user home and tool config isolation
-The local Aider executor now creates a temporary home for each job and redirects HOME/USERPROFILE, XDG, Windows roaming/local app-data, Docker, npm and Git global config to private isolated locations, and disables pip config-file loading entirely. Inherited SSH/Git credential overrides and Aider/LiteLLM/provider endpoint settings are stripped; Git system/global config and interactive credential prompts are disabled; OLLAMA_API_BASE is restricted to loopback hosts to prevent source/context forwarding to a remote model endpoint. Exact-head CI pending; this is not evidence of live Windows runner/Aider execution.
+The local Aider executor now creates a temporary home for each job and redirects HOME/USERPROFILE, XDG, Windows roaming/local app-data, Docker, npm and Git global config to private isolated locations, and disables pip config-file loading entirely. Inherited SSH/Git credential overrides and Aider/LiteLLM/provider endpoint settings are stripped; Git system/global config and interactive credential prompts are disabled; OLLAMA_API_BASE is restricted to loopback hosts to prevent source/context forwarding to a remote model endpoint. Exact-head backend Actions run [44515727156](https://github.com/justinhblee-prog/shorts/actions/runs/44515727156) passed 778 tests; this is not evidence of live Windows runner/Aider execution.
