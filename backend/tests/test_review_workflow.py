@@ -42,6 +42,13 @@ class ReviewWorkflowTests(unittest.TestCase):
             )
         self.production.artifact("job-1", "rendering", "video",
                                   "https://media.example/video.mp4", {"duration": 30})
+        self.production.artifact("job-1", "script", "text", None, {
+            "script": "Baseline test script",
+            "policy_preflight": {
+                "status": "ready_for_human_review",
+                "approval_blockers": [],
+            },
+        })
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -106,6 +113,10 @@ class ReviewWorkflowTests(unittest.TestCase):
                 "error": "raw-provider-error",
                 "safe_metric": 0.97,
             },
+            "policy_preflight": {
+                "status": "ready_for_human_review",
+                "approval_blockers": [],
+            },
         })
 
         pending = self.review.list_pending()[0]
@@ -159,7 +170,8 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.production.artifact("job-1", "script", "text", None, {
             "script": "Example", "policy_preflight": {
                 "status": "review_required",
-                "required_confirmations": ["rights.visuals_cleared", "factual_claims_verified"]
+                "required_confirmations": ["rights.visuals_cleared", "factual_claims_verified"],
+                "approval_blockers": [],
             }
         })
         with self.assertRaisesRegex(ValueError, "explicit reviewer confirmation"):
