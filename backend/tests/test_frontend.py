@@ -15,6 +15,14 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('["작업 큐",loadQueue]', app_js)
 
 
+    def test_operator_identity_is_resolved_by_server_and_read_only_in_ui(self):
+        html=(ROOT/"frontend/index.html").read_text(encoding="utf-8")
+        script=(ROOT/"frontend/app.js").read_text(encoding="utf-8")
+        self.assertRegex(html,r'id="reviewerInput"[^>]*readonly')
+        self.assertRegex(html,r'id="queueOperator"[^>]*readonly')
+        self.assertIn('api("/api/session")',script)
+        self.assertIn('$("queueOperator").value=reviewer',script)
+
     def test_browser_smoke_exercises_real_authenticated_api_endpoints(self):
         script = (ROOT / "scripts" / "ui_browser_smoke.mjs").read_text(encoding="utf-8")
         server = (ROOT / "scripts" / "ui_api_smoke_server.py").read_text(encoding="utf-8")
