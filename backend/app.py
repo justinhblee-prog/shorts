@@ -2,6 +2,7 @@ import os
 import logging
 import secrets
 from typing import Any, Literal
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException, Header, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -494,6 +495,39 @@ def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None)):
 
 
 
+@app.get("/api/publishing/overview")
+def publishing_overview(x_review_token:str|None=Header(default=None)):
+    """Return a bounded cross-platform publication status summary."""
+    require_review_permission(x_review_token,"review.read")
+    items=review_store.list_approved(200)
+    summary={
+        "total":len(items),
+        "youtube":{"uploaded":0,"processing":0,"failed":0,"pending":0,"uncertain":0},
+        "tiktok":{"published":0,"processing":0,"failed":0,"pending":0,"uncertain":0},
+    }
+    for item in items:
+        job_id=item["job_id"]
+        yt=youtube_upload_store.get(job_id)
+        yt=review_store.sanitize_production_record(yt) if yt else None
+        ys=yt.get("status") if yt else "pending"
+        if ys=="uploaded": summary["youtube"]["uploaded"]+=1
+        elif ys in ("uploading","processing"): summary["youtube"]["processing"]+=1
+        elif ys=="failed": summary["youtube"]["failed"]+=1
+        elif ys in ("reconciliation_required","late_success_review_required"):
+            summary["youtube"]["uncertain"]+=1
+        else: summary["youtube"]["pending"]+=1
+        tt=tiktok_publish_store.get(job_id)
+        tt=review_store.sanitize_production_record(tt) if tt else None
+        ts=tt.get("status") if tt else "pending"
+        if ts=="publish_complete": summary["tiktok"]["published"]+=1
+        elif ts in ("initializing","uploading","processing","send_to_inbox"):
+            summary["tiktok"]["processing"]+=1
+        elif ts=="failed": summary["tiktok"]["failed"]+=1
+        elif ts=="reconciliation_required": summary["tiktok"]["uncertain"]+=1
+        else: summary["tiktok"]["pending"]+=1
+    return summary
+
+
 @app.get("/api/review/approved")
 def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"review.read")
@@ -899,6 +933,121 @@ def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(
         return tiktok_publisher.refresh_status(job_id)
     except TikTokPublishError as e:
         raise HTTPException(409,str(e))
+
+
+@app.post("/api/tiktok/publications/refresh-due")
+def refresh_due_tiktok_publications(
+    limit:int=Query(default=5,ge=1,le=20),
+    min_age_seconds:int=Query(default=60,ge=0,le=86400),
+    x_review_token:str|None=Header(default=None),
+):
+    """Refresh a bounded batch of pending TikTok uploads without retrying uploads."""
+    require_review_permission(x_review_token,"publish.reconcile")
+    try:
+        result=tiktok_publisher.refresh_due_statuses(
+            limit=limit,min_age_seconds=min_age_seconds
+        )
+        # Keep the operational response bounded and avoid returning provider payloads.
+        return {
+            "skipped":bool(result.get("skipped",False)),
+            "checked":int(result.get("checked",0)),
+            "updated":int(result.get("updated",0)),
+            "results":[
+                {"job_id":item["job_id"],"status":item["status"]}
+                for item in result.get("results",[])
+            ],
+            "errors":[
+                {"job_id":item["job_id"],"error":item["error"][:300]}
+                for item in result.get("errors",[])
+            ],
+        }
+    except TikTokPublishError as e:
+        raise HTTPException(502,str(e))
+
+
+@app.get("/api/publishing/analytics-status")
+def publishing_analytics_status(x_review_token:str|None=Header(default=None)):
+    """Summarize analytics freshness and coverage without exposing provider credentials."""
+    require_review_permission(x_review_token,"analytics.read")
+    youtube=youtube_analytics_store.status()
+    tiktok=tiktok_metrics_store.status(tiktok_publish_store)
+    safe_fields=("platform","status","last_attempt_at","last_success_at",
+                 "latest_snapshot_at","last_batch","coverage",
+                 "available_metrics","unavailable_metrics","read_only")
+    return {
+        "youtube":{key:youtube[key] for key in safe_fields if key in youtube},
+        "tiktok":{key:tiktok[key] for key in safe_fields if key in tiktok},
+    }
+
+
+@app.get("/api/publishing/analytics-history")
+def publishing_analytics_history(
+    platform:str="all",video_id:str|None=None,days:int=30,limit:int=200,offset:int=0,
+    before_collected_at:str|None=None,before_id:int|None=None,
+    as_of:str|None=None,
+    x_review_token:str|None=Header(default=None),
+):
+    """Return stored, read-only metric snapshots for trend comparison."""
+    require_review_permission(x_review_token,"analytics.read")
+    if platform not in {"all","youtube","tiktok"}:
+        raise HTTPException(422,"platform must be all, youtube, or tiktok")
+    if video_id is not None and (
+        not video_id.strip() or video_id != video_id.strip() or len(video_id)>256
+        or any(ord(char)<32 or ord(char)==127 for char in video_id)
+    ):
+        raise HTTPException(422,"video_id is invalid")
+    bounded_days=max(1,min(days,365))
+    bounded_limit=max(1,min(limit,500))
+    bounded_offset=max(0,min(offset,10000000))
+    if (before_collected_at is None)!=(before_id is None):
+        raise HTTPException(422,"before_collected_at and before_id must be provided together")
+    if before_collected_at is not None:
+        if (
+            not before_collected_at.strip() or len(before_collected_at)>64
+            or any(ord(char)<32 or ord(char)==127 for char in before_collected_at)
+            or before_id is None or before_id<1
+        ):
+            raise HTTPException(422,"history cursor is invalid")
+        try:
+            cursor_time=datetime.fromisoformat(before_collected_at.replace("Z","+00:00"))
+            if cursor_time.tzinfo is None or cursor_time.utcoffset() is None:
+                raise ValueError("timezone required")
+        except (TypeError,ValueError,OverflowError):
+            raise HTTPException(
+                422,"before_collected_at must be a timezone-aware ISO-8601 timestamp"
+            )
+    if as_of is None:
+        as_of_time=datetime.now(timezone.utc)
+    else:
+        if len(as_of)>64 or any(ord(char)<32 or ord(char)==127 for char in as_of):
+            raise HTTPException(422,"as_of is invalid")
+        try:
+            as_of_time=datetime.fromisoformat(as_of.replace("Z","+00:00"))
+            if as_of_time.tzinfo is None or as_of_time.utcoffset() is None:
+                raise ValueError("timezone required")
+            as_of_time=as_of_time.astimezone(timezone.utc)
+        except (TypeError,ValueError,OverflowError):
+            raise HTTPException(422,"as_of must be a timezone-aware ISO-8601 timestamp")
+    normalized_as_of=as_of_time.isoformat()
+    cutoff=(as_of_time-timedelta(days=bounded_days)).isoformat()
+    result={}
+    if platform in {"all","youtube"}:
+        result["youtube"]=youtube_analytics_store.history(
+            video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset,
+            before_collected_at=before_collected_at,before_id=before_id
+        )
+    if platform in {"all","tiktok"}:
+        result["tiktok"]=tiktok_metrics_store.history(
+            tiktok_publish_store,video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset,
+            before_collected_at=before_collected_at,before_id=before_id
+        )
+    return {
+        "platform":platform,"video_id":video_id,"days":bounded_days,"as_of":normalized_as_of,
+        "limit":bounded_limit,"offset":bounded_offset,
+        "items":result,
+        "counts":{key:len(value) for key,value in result.items()},
+        "read_only":True,
+    }
 
 
 @app.get("/api/tiktok/metrics")

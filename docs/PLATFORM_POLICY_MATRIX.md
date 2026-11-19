@@ -81,3 +81,11 @@ The generated policy report is stored with the script artifact and included in t
 ## Validation
 
 Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonation flags, unknown/denied rights, platform-specific realistic-AI disclosure, selected-platform scoping, high-impact claim evidence, news source requirements, invalid flag rejection, and non-overridable approval blockers. CI results must be recorded after this branch's workflow completes.
+
+
+## TikTok AI-generated-content disclosure enforcement
+
+- Direct Post maps only explicit none and ai_assisted_nonrealistic declarations to is_aigc=false, and ai_generated / realistic_alteration to is_aigc=true.
+- Unknown or malformed classifications fail closed before any provider request.
+- AI-generated/realistically altered media requires the approved TikTok-specific acknowledgement in the current, non-blocked policy evidence. Missing acknowledgement prevents the upload attempt from being reserved.
+- This field is the platform disclosure signal; it does not replace human review of the actual media or operator consent.

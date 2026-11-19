@@ -67,6 +67,12 @@ class TikTokPublishStore:
               note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
               policy_version TEXT, policy_checked_on TEXT
             );
+            CREATE INDEX IF NOT EXISTS idx_tiktok_publications_video_status
+              ON tiktok_publications(video_id,status);
+            CREATE INDEX IF NOT EXISTS idx_tiktok_publications_due_scan
+              ON tiktok_publications(status,video_id,updated_at DESC,job_id);
+            CREATE INDEX IF NOT EXISTS idx_tiktok_publications_due_order
+              ON tiktok_publications(status,updated_at DESC,job_id DESC,video_id);
             CREATE INDEX IF NOT EXISTS idx_tiktok_publication_events_job
               ON tiktok_publication_events(job_id,id);
             CREATE TRIGGER IF NOT EXISTS tiktok_publication_events_no_update
@@ -551,21 +557,24 @@ class TikTokPublishStore:
                   message[:1000], stamp, row["policy_version"]))
             return True
 
-    def list_metrics_eligible(self, limit=None):
-        """Return published video identities without loading full audit histories."""
+    def list_metrics_eligible(self, limit=None, video_id=None):
+        """Return published video identities, optionally scoped to one exact video."""
         query = """
             SELECT job_id,video_id,status,privacy_level,updated_at
             FROM tiktok_publications
             WHERE status='publish_complete' AND video_id IS NOT NULL
-            ORDER BY updated_at DESC,job_id
         """
-        params = ()
+        params = []
+        if video_id is not None:
+            query += " AND video_id=?"
+            params.append(video_id)
+        query += " ORDER BY updated_at DESC,job_id"
         if limit is not None:
-            bounded = max(1, min(int(limit), 200))
+            bounded = max(1, min(int(limit), 500))
             query += " LIMIT ?"
-            params = (bounded,)
+            params.append(bounded)
         with self.db() as c:
-            rows = c.execute(query, params).fetchall()
+            rows = c.execute(query, tuple(params)).fetchall()
         return [dict(row) for row in rows]
 
     def list_recent(self, limit=100):

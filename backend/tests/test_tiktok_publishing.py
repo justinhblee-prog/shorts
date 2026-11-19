@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from production_pipeline import ProductionStore
 from queue_store import JobQueue
-from review_workflow import ReviewStore
+from review_workflow import ReviewStore, ReviewConflict
 from policy_engine import evaluate_content_policy, POLICY_VERSION, POLICY_CHECKED_ON
 from tiktok_publishing import TikTokPublishStore, TikTokPublisher, TikTokPublishError, CHUNK_SIZE, _NoRedirectHandler
 
@@ -689,6 +689,70 @@ class TikTokPublishingTests(unittest.TestCase):
                          "bytes 0-15/16")
         self.assertEqual(result["events"][0]["event_type"], "operator_consent_recorded")
 
+    def test_tiktok_disclosure_mapping_rejects_malformed_types(self):
+        from tiktok_disclosure import build_tiktok_disclosure, TikTokDisclosureError
+
+        for invalid in (None, True, 0, [], {}, "UNKNOWN", " ai_generated "):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(TikTokDisclosureError):
+                    build_tiktok_disclosure(invalid)
+
+    def test_missing_tiktok_disclosure_acknowledgement_blocks_before_network(self):
+        policy = evaluate_content_policy({
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "synthetic_media_status": "ai_generated",
+            "platforms": ["tiktok"],
+            "platform_disclosures": {"tiktok_ai_generated_content": False},
+            "factual_claims_verified": True,
+            "originality_notes": "Original animation.",
+        })
+        self.assertIn(
+            "platform_disclosures.tiktok_ai_generated_content",
+            policy["approval_blockers"],
+        )
+        self.prod.artifact("job-1", "script", "text", None, {
+            "script": "Approved test script", "policy_preflight": policy
+        })
+        self.prod.stage("job-1", "rendered", "review_pending")
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                ("job-1",),
+            )
+        with self.assertRaisesRegex(ReviewConflict, "Policy approval blockers"):
+            self.review.decide("job-1", "approved", "reviewer-1")
+        self.assertEqual(self.transport.calls, [])
+        self.assertIsNone(self.store.get("job-1"))
+
+    def test_tiktok_non_ai_content_uses_false_aigc_field(self):
+        policy = evaluate_content_policy({
+            "rights": {"visuals_cleared": True, "audio_cleared": True,
+                       "likeness_authorized": True},
+            "synthetic_media_status": "none",
+            "platforms": ["tiktok"],
+            "factual_claims_verified": True,
+            "originality_notes": "Original filmed footage.",
+        })
+        self.prod.artifact("job-1", "script", "text", None, {
+            "script": "Approved test script", "policy_preflight": policy
+        })
+        self.prod.stage("job-1", "rendered", "review_pending")
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE pipeline_jobs SET status='review_pending' WHERE id=?",
+                ("job-1",),
+            )
+        self.review.decide("job-1", "approved", "reviewer-1")
+        self.transport.calls.clear()
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "Filmed short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        init = next(call for call in self.transport.calls if "/video/init/" in call[0])
+        body = json.loads(init[2].decode("utf-8"))
+        self.assertIs(body["post_info"]["is_aigc"], False)
+
     def test_explicit_consent_is_required_before_any_network_request(self):
         with self.assertRaisesRegex(TikTokPublishError, "Explicit operator consent"):
             self.publisher.publish_private_approved(
@@ -1105,7 +1169,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.store.record_status_poll_error("job-1", attempt_id, "temporary error")
         with self.store.db() as connection:
             connection.execute(
-                "UPDATE tiktok_publications SET updated_at=datetime('now','-59 seconds') WHERE job_id='job-1'"
+                "UPDATE tiktok_publications SET updated_at=datetime('now','-30 seconds') WHERE job_id='job-1'"
             )
         self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=0), [])
         with self.store.db() as connection:
@@ -1117,7 +1181,7 @@ class TikTokPublishingTests(unittest.TestCase):
         self.store.record_status_poll_error("job-1", attempt_id, "second temporary error")
         with self.store.db() as connection:
             connection.execute(
-                "UPDATE tiktok_publications SET updated_at=datetime('now','-119 seconds') WHERE job_id='job-1'"
+                "UPDATE tiktok_publications SET updated_at=datetime('now','-90 seconds') WHERE job_id='job-1'"
             )
         self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=0), [])
         with self.store.db() as connection:
@@ -1135,7 +1199,7 @@ class TikTokPublishingTests(unittest.TestCase):
             connection.execute(
                 "UPDATE tiktok_publications SET updated_at=datetime('now','-1 seconds') WHERE job_id='job-1'"
             )
-        self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=0), ["job-1"])
+        self.assertEqual(self.store.due_status_job_ids(limit=5, min_age_seconds=60), [])
 
     def test_media_path_must_be_inside_media_root(self):
         outside = os.path.join(self.tmp.name, "..", "outside.mp4")
@@ -1155,5 +1219,22 @@ class TikTokPublishingTests(unittest.TestCase):
                 )
 
 
+    def test_due_video_order_index_supports_global_candidate_recency(self):
+        with self.store.db() as connection:
+            indexes = {row["name"] for row in connection.execute("PRAGMA index_list(tiktok_publications)")}
+        self.assertIn("idx_tiktok_publications_due_order", indexes)
+
+
+
 if __name__ == "__main__":
     unittest.main()
+
+    def test_publication_video_status_lookup_has_composite_index(self):
+        with self.store.db() as connection:
+            indexes={row["name"] for row in connection.execute("PRAGMA index_list(tiktok_publications)")}
+        self.assertIn("idx_tiktok_publications_video_status",indexes)
+
+    def test_due_video_scan_has_status_video_and_recency_index(self):
+        with self.store.db() as connection:
+            indexes = {row["name"] for row in connection.execute("PRAGMA index_list(tiktok_publications)")}
+        self.assertIn("idx_tiktok_publications_due_scan", indexes)

@@ -975,6 +975,192 @@ class ApiSecurityTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 422)
         mutation.assert_not_called()
 
+    def test_tiktok_due_status_refresh_requires_reconciliation_permission(self):
+        from app import refresh_due_tiktok_publications
+        with (
+            mock.patch.object(
+                app_module, "require_review_permission", return_value="operator-1"
+            ) as authorize,
+            mock.patch.object(
+                app_module.tiktok_publisher, "refresh_due_statuses",
+                return_value={
+                    "skipped": False, "checked": 1, "updated": 1,
+                    "results": [{"job_id": "job-1", "status": "processing"}],
+                    "errors": [],
+                },
+            ) as refresh,
+        ):
+            result = refresh_due_tiktok_publications(
+                limit=5, min_age_seconds=60, x_review_token="review-token"
+            )
+        authorize.assert_called_once_with("review-token", "publish.reconcile")
+        refresh.assert_called_once_with(limit=5, min_age_seconds=60)
+        self.assertEqual(result["checked"], 1)
+        self.assertEqual(result["results"], [
+            {"job_id": "job-1", "status": "processing"}
+        ])
+
+    def test_tiktok_due_status_refresh_bounds_provider_error_output(self):
+        from app import refresh_due_tiktok_publications
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(
+                app_module.tiktok_publisher, "refresh_due_statuses",
+                return_value={
+                    "skipped": False, "checked": 1, "updated": 0,
+                    "results": [],
+                    "errors": [{"job_id": "job-1", "error": "x" * 500}],
+                },
+            ),
+        ):
+            result = refresh_due_tiktok_publications(
+                limit=5, min_age_seconds=60, x_review_token="review-token"
+            )
+        self.assertEqual(len(result["errors"][0]["error"]), 300)
+
+    def test_publishing_overview_summarizes_both_platforms_without_provider_secrets(self):
+        from app import publishing_overview
+        approved=[{"job_id":"yt-ok"},{"job_id":"tt-ok"},{"job_id":"yt-failed"},{"job_id":"tt-processing"}]
+        yt_records={
+            "yt-ok":{"status":"uploaded","access_token":"do-not-return"},
+            "yt-failed":{"status":"failed","error":"upload rejected"},
+        }
+        tt_records={
+            "tt-ok":{"status":"publish_complete","access_token":"do-not-return"},
+            "tt-processing":{"status":"processing"},
+        }
+        with (
+            mock.patch.object(app_module,"require_review_permission") as authorize,
+            mock.patch.object(app_module.review_store,"list_approved",return_value=approved),
+            mock.patch.object(app_module.youtube_upload_store,"get",side_effect=lambda key:yt_records.get(key)),
+            mock.patch.object(app_module.tiktok_publish_store,"get",side_effect=lambda key:tt_records.get(key)),
+        ):
+            result=publishing_overview(x_review_token="review-token")
+        authorize.assert_called_once_with("review-token","review.read")
+        self.assertEqual(result["total"],4)
+        self.assertEqual(result["youtube"]["uploaded"],1)
+        self.assertEqual(result["youtube"]["failed"],1)
+        self.assertEqual(result["youtube"]["pending"],2)
+        self.assertEqual(result["tiktok"]["published"],1)
+        self.assertEqual(result["tiktok"]["processing"],1)
+        self.assertEqual(result["tiktok"]["pending"],2)
+        self.assertNotIn("access_token",str(result))
+
+    def test_publishing_analytics_history_enforces_scope_platform_and_limits(self):
+        from app import publishing_analytics_history
+        youtube=[{"video_id":"yt-1","views":150,"collected_at":"2099-01-01T00:00:00+00:00","retention_curve":[{"elapsed_video_time_ratio":0.5,"audience_watch_ratio":0.4}]}]
+        tiktok=[{"video_id":"tt-1","view_count":250,"collected_at":"2099-01-01T00:00:00+00:00"}]
+        with (
+            mock.patch.object(app_module,"require_review_permission") as authorize,
+            mock.patch.object(app_module.youtube_analytics_store,"history",return_value=youtube) as yt_history,
+            mock.patch.object(app_module.tiktok_metrics_store,"history",return_value=tiktok) as tt_history,
+        ):
+            result=publishing_analytics_history(
+                platform="all",days=30,limit=200,offset=500,before_collected_at="2026-11-18T00:00:00+00:00",before_id=17,x_review_token="analytics-token"
+            )
+        authorize.assert_called_once_with("analytics-token","analytics.read")
+        yt_history.assert_called_once()
+        self.assertEqual(yt_history.call_args.kwargs["video_id"],None)
+        self.assertEqual(yt_history.call_args.kwargs["limit"],200)
+        self.assertEqual(yt_history.call_args.kwargs["offset"],500)
+        self.assertEqual(yt_history.call_args.kwargs["before_collected_at"],"2026-11-18T00:00:00+00:00")
+        self.assertEqual(yt_history.call_args.kwargs["before_id"],17)
+        # Keyset cursors must be parseable, timezone-aware timestamps.
+        for invalid_cursor in ("not-a-timestamp", "2026-11-18T00:00:00", "2026-11-18"):
+            with self.subTest(before_collected_at=invalid_cursor):
+                with self.assertRaises(HTTPException):
+                    publishing_analytics_history(
+                        platform="youtube",before_collected_at=invalid_cursor,
+                        before_id=1,x_review_token="analytics-token"
+                    )
+        with (
+            mock.patch.object(app_module,"require_review_permission"),
+            mock.patch.object(app_module.youtube_analytics_store,"history",return_value=[]) as z_cursor_history,
+        ):
+            publishing_analytics_history(
+                platform="youtube",before_collected_at="2026-11-18T00:00:00Z",
+                before_id=1,x_review_token="analytics-token"
+            )
+        self.assertEqual(
+            z_cursor_history.call_args.kwargs["before_collected_at"],
+            "2026-11-18T00:00:00Z"
+        )
+        self.assertTrue(result["as_of"].endswith("+00:00"))
+        self.assertIsNotNone(yt_history.call_args.kwargs["since"])
+        tt_history.assert_called_once()
+        self.assertIs(tt_history.call_args.args[0],app_module.tiktok_publish_store)
+        self.assertEqual(tt_history.call_args.kwargs["video_id"],None)
+        self.assertEqual(tt_history.call_args.kwargs["limit"],200)
+        self.assertEqual(tt_history.call_args.kwargs["offset"],500)
+        self.assertEqual(tt_history.call_args.kwargs["before_collected_at"],"2026-11-18T00:00:00+00:00")
+        self.assertEqual(tt_history.call_args.kwargs["before_id"],17)
+        self.assertIsNotNone(tt_history.call_args.kwargs["since"])
+        self.assertEqual(result["counts"],{"youtube":1,"tiktok":1})
+        self.assertEqual(result["items"]["youtube"][0]["retention_curve"][0]["audience_watch_ratio"],0.4)
+        self.assertTrue(result["read_only"])
+        with (
+            mock.patch.object(app_module,"require_review_permission"),
+            mock.patch.object(app_module.youtube_analytics_store,"history",return_value=youtube) as bounded_youtube,
+            mock.patch.object(app_module.tiktok_metrics_store,"history",return_value=tiktok) as bounded_tiktok,
+        ):
+            bounded=publishing_analytics_history(
+                platform="youtube",days=-30,limit=999,x_review_token="analytics-token"
+            )
+        self.assertEqual(bounded["days"],1)
+        self.assertEqual(bounded["offset"],0)
+        bounded_youtube.assert_called_once()
+        self.assertEqual(bounded_youtube.call_args.kwargs["limit"],500)
+        bounded_tiktok.assert_not_called()
+        with self.assertRaises(HTTPException):
+            publishing_analytics_history(platform="unknown",x_review_token="analytics-token")
+        with self.assertRaises(HTTPException):
+            publishing_analytics_history(video_id="bad\\nvideo",x_review_token="analytics-token")
+        with self.assertRaises(HTTPException):
+            publishing_analytics_history(video_id=" padded ",x_review_token="analytics-token")
+        with self.assertRaises(HTTPException):
+            publishing_analytics_history(video_id="bad\\x7fvideo",x_review_token="analytics-token")
+        with (
+            mock.patch.object(app_module,"require_review_permission"),
+            mock.patch.object(app_module.youtube_analytics_store,"history",return_value=[]) as max_days_youtube,
+            mock.patch.object(app_module.tiktok_metrics_store,"history",return_value=[]) as max_days_tiktok,
+        ):
+            maximum=publishing_analytics_history(
+                platform="all",days=9999,limit=0,x_review_token="analytics-token"
+            )
+        self.assertEqual(maximum["days"],365)
+        self.assertEqual(max_days_youtube.call_args.kwargs["limit"],1)
+        self.assertEqual(max_days_tiktok.call_args.kwargs["limit"],1)
+
+    def test_publishing_analytics_status_requires_analytics_permission_and_limits_fields(self):
+        from app import publishing_analytics_status
+        youtube={
+            "platform":"youtube","status":"succeeded","last_success_at":"2026-11-17T10:00:00Z",
+            "latest_snapshot_at":"2026-11-17T10:00:00Z","coverage":{"published_videos":3,"with_snapshot":2,"without_snapshot":1},
+            "available_metrics":["views"],"read_only":True,"last_error":"internal error","token":"secret",
+        }
+        tiktok={
+            "platform":"tiktok","status":"not_configured","last_success_at":None,
+            "latest_snapshot_at":"2026-11-18T10:00:00Z",
+            "coverage":{"published_videos":2,"with_snapshot":1,"without_snapshot":1,
+                        "stale_snapshots":1,"stale_or_missing":2},
+            "available_metrics":["view_count"],"unavailable_metrics":["audience_retention"],
+            "read_only":True,"last_error":"internal error","access_token":"secret",
+        }
+        with (
+            mock.patch.object(app_module,"require_review_permission") as authorize,
+            mock.patch.object(app_module.youtube_analytics_store,"status",return_value=youtube),
+            mock.patch.object(app_module.tiktok_metrics_store,"status",return_value=tiktok),
+        ):
+            result=publishing_analytics_status(x_review_token="analytics-token")
+        authorize.assert_called_once_with("analytics-token","analytics.read")
+        self.assertEqual(result["youtube"]["coverage"]["published_videos"],3)
+        self.assertEqual(result["tiktok"]["unavailable_metrics"],["audience_retention"])
+        self.assertEqual(result["tiktok"]["latest_snapshot_at"],"2026-11-18T10:00:00Z")
+        self.assertEqual(result["tiktok"]["coverage"]["stale_or_missing"],2)
+        self.assertNotIn("last_error",str(result))
+        self.assertNotIn("access_token",str(result))
+        self.assertNotIn("token",str(result))
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -1011,3 +1197,33 @@ if __name__ == "__main__":
                     "job-1",body,provider_attempt_id="attempt-1")
         self.assertEqual(caught.exception.status_code,422)
 
+
+    def test_publishing_analytics_history_rejects_incomplete_or_invalid_cursor(self):
+        from app import publishing_analytics_history
+        with mock.patch.object(app_module,"require_review_permission"):
+            for kwargs in (
+                {"before_collected_at":"2026-11-18T00:00:00+00:00"},
+                {"before_id":4},
+                {"before_collected_at":"bad\\nvalue","before_id":4},
+                {"before_collected_at":"2026-11-18T00:00:00+00:00","before_id":0},
+            ):
+                with self.subTest(kwargs=kwargs):
+                    with self.assertRaises(HTTPException) as caught:
+                        publishing_analytics_history(**kwargs,x_review_token="analytics-token")
+                    self.assertEqual(caught.exception.status_code,422)
+
+    def test_publishing_analytics_history_freezes_as_of_window(self):
+        from app import publishing_analytics_history
+        fixed="2026-11-19T10:00:00+09:00"
+        with (
+            mock.patch.object(app_module,"require_review_permission"),
+            mock.patch.object(app_module.youtube_analytics_store,"history",return_value=[]) as history,
+        ):
+            result=publishing_analytics_history(platform="youtube",days=30,as_of=fixed,x_review_token="token")
+        self.assertEqual(result["as_of"],"2026-11-19T01:00:00+00:00")
+        cutoff=history.call_args.kwargs["since"]
+        self.assertEqual(cutoff,"2026-10-20T01:00:00+00:00")
+        with mock.patch.object(app_module,"require_review_permission"):
+            with self.assertRaises(HTTPException) as caught:
+                publishing_analytics_history(platform="youtube",as_of="2026-11-19T10:00:00",x_review_token="token")
+        self.assertEqual(caught.exception.status_code,422)

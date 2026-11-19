@@ -164,6 +164,289 @@
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
 
+  async function loadPublishingOverview(){
+    const data=await api("/api/publishing/overview");
+    const labels=[
+      ["youtube","YouTube Shorts","uploaded","게시 완료"],
+      ["youtube","YouTube Shorts","processing","처리 중"],
+      ["youtube","YouTube Shorts","failed","실패"],
+      ["youtube","YouTube Shorts","uncertain","결과 확인 필요"],
+      ["youtube","YouTube Shorts","pending","게시 대기"],
+      ["tiktok","TikTok","published","게시 완료"],
+      ["tiktok","TikTok","processing","처리 중"],
+      ["tiktok","TikTok","failed","실패"],
+      ["tiktok","TikTok","uncertain","결과 확인 필요"],
+      ["tiktok","TikTok","pending","게시 대기"]
+    ];
+    $("publishingOverview").innerHTML=labels.map(([key,name,status,label])=>{
+      const value=Number(data[key]?.[status]||0);
+      const warning=["failed","uncertain"].includes(status)&&value>0;
+      return '<div class="metric-card"><span>'+name+' · '+label+'</span><strong class="'+(warning?"missing-text":"")+'">'+value+'</strong></div>';
+    }).join("")+'<div class="metric-card"><span>승인 콘텐츠</span><strong>'+Number(data.total||0)+'</strong></div>';
+  }
+
+  async function loadPublishingAnalytics(){
+    const data=await api("/api/publishing/analytics-status");
+    const platforms=[
+      ["youtube","YouTube Shorts"],
+      ["tiktok","TikTok"]
+    ];
+    const statusLabels={
+      succeeded:"수집 성공",running:"수집 중",failed:"수집 실패",
+      not_configured:"계정 미연결",scope_missing:"권한 범위 부족",
+      not_started:"수집 전"
+    };
+    const metricLabels={
+      views:"조회수",engaged_views:"참여 조회수",
+      engaged_view_share:"참여 조회 비율",estimated_minutes_watched:"시청 시간(분)",
+      average_view_duration:"평균 시청 시간",average_view_percentage:"평균 시청 비율",
+      audience_retention_curve:"시청자 유지율 곡선",view_count:"조회수",
+      like_count:"좋아요",comment_count:"댓글",share_count:"공유"
+    };
+    const stamp=value=>value?new Date(value).toLocaleString():"기록 없음";
+    $("publishingAnalytics").innerHTML=platforms.map(([key,name])=>{
+      const item=data[key]||{};
+      const coverage=item.coverage||{};
+      const available=Array.isArray(item.available_metrics)?item.available_metrics:[];
+      const unavailable=Array.isArray(item.unavailable_metrics)?item.unavailable_metrics:[];
+      const metricNames=available.map(x=>metricLabels[x]||x);
+      const unavailableNames=unavailable.map(x=>metricLabels[x]||x);
+      const total=Number(coverage.published_videos||0);
+      const collected=Number(coverage.with_snapshot||0);
+      const missing=Number(coverage.stale_or_missing??(Number(coverage.without_snapshot||0)+Number(coverage.stale_snapshots||0)));
+      const coverageText=total?collected+" / "+total+"개 영상":"대상 영상 없음";
+      const batch=item.last_batch||{};
+      return '<article class="analytics-card"><div class="analytics-card-head"><strong>'+name+'</strong><span class="analytics-status">'+esc(statusLabels[item.status]||item.status||"상태 미확인")+'</span></div>'
+        +'<div class="analytics-coverage"><b>'+esc(coverageText)+'</b><small>데이터 누락·갱신 필요 '+missing+'개</small></div>'
+        +'<div class="analytics-meta"><span>최근 스냅샷</span><b>'+esc(stamp(item.latest_snapshot_at))+'</b></div>'
+        +'<div class="analytics-meta"><span>최근 수집 성공</span><b>'+esc(stamp(item.last_success_at))+'</b></div>'
+        +'<div class="analytics-meta"><span>최근 수집 시도</span><b>'+esc(stamp(item.last_attempt_at))+'</b></div>'
+        +'<div class="analytics-meta"><span>최근 배치</span><b>요청 '+Number(batch.requested||0)+' · 수집 '+Number(batch.collected||0)+'</b></div>'
+        +'<div class="analytics-metrics"><small>제공 지표</small><p>'+esc(metricNames.join(" · ")||"아직 확인된 지표 없음")+'</p>'
+        +(unavailableNames.length?'<small>미제공 지표</small><p class="missing-text">'+esc(unavailableNames.join(" · "))+'</p>':'')+'</div></article>';
+    }).join("");
+  }
+
+  async function loadAnalyticsHistory(){
+    if($("exportAnalyticsHistory"))$("exportAnalyticsHistory").disabled=true;
+    const days=Number($("analyticsHistoryDays").value||30);
+    const platform=$("analyticsHistoryPlatform").value||"all";
+    const videoId=$("analyticsHistoryVideoId").value.trim();
+    const query=new URLSearchParams({days:String(days),platform,limit:"500"});
+    if(videoId)query.set("video_id",videoId);
+    const data=await api("/api/publishing/analytics-history?"+query.toString());
+    const rows=[];
+    for(const [key,items] of Object.entries(data.items||{})){
+      for(const item of items)rows.push({...item,platform:key});
+    }
+    rows.sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||""))||Number(b.id||0)-Number(a.id||0));
+    const grouped={};
+    rows.forEach(item=>{
+      const key=item.platform+":"+item.video_id;
+      (grouped[key]||(grouped[key]=[])).push(item);
+    });
+    const chartMetric=$("analyticsHistoryMetric")?.value||"views";
+    const metricLabels={views:"조회수",engaged_views:"참여 조회수",engaged_view_share:"참여 조회 비율(%)",like_count:"좋아요",comment_count:"댓글",share_count:"공유",estimated_minutes_watched:"시청 시간(분)",average_view_duration:"평균 시청 시간(초)",average_view_percentage:"평균 시청 비율(%)"};
+    const metricUnits={views:"회",engaged_views:"회",engaged_view_share:"%",like_count:"개",comment_count:"개",share_count:"개",estimated_minutes_watched:"분",average_view_duration:"초",average_view_percentage:"%"};
+    const retentionStatusLabels={available:"수집됨",no_data:"데이터 없음",unavailable:"미제공/권한 부족",pending_availability:"수집 대기"};
+    const chartMetricValue=item=>{
+      const key=chartMetric==="views"?(item.platform==="youtube"?"views":"view_count"):chartMetric;
+      const raw=item[key];
+      if(raw===null||raw===undefined||raw==="")return null;
+      const value=Number(raw);
+      if(!Number.isFinite(value)||value<0)return null;
+      return chartMetric==="engaged_view_share"?value*100:value;
+    };
+    const chartMetricDeltas=new WeakMap();
+    const deltas=new WeakMap();
+    Object.entries(grouped).forEach(([,items])=>{
+      const chronological=[...items].sort((a,b)=>
+        String(a.collected_at||"").localeCompare(String(b.collected_at||""))
+        || Number(a.id||0)-Number(b.id||0)
+      );
+      let previous;
+      let previousChartMetric;
+      chronological.forEach(item=>{
+        const chartValue=chartMetricValue(item);
+        if(chartValue!==null){
+          if(previousChartMetric!==undefined)chartMetricDeltas.set(item,chartValue-previousChartMetric);
+          previousChartMetric=chartValue;
+        }
+        const metric=item.platform==="youtube"?"views":"view_count";
+        const value=item[metric];
+        const numericValue=value===null||value===undefined||value===""?null:Number(value);
+        if(Number.isFinite(numericValue)&&numericValue>=0){
+          if(previous!==undefined)deltas.set(item,numericValue-previous);
+          previous=numericValue;
+        }
+      });
+    });
+    const number=value=>{
+      if(value===null||value===undefined||value==="")return "—";
+      const numeric=Number(value);
+      return Number.isFinite(numeric)?numeric.toLocaleString():"—";
+    };
+    const deltaFor=item=>{
+      const value=deltas.get(item);
+      return value===undefined?"—":(value>0?"+":"")+value.toLocaleString();
+    };
+    const platformLatest={youtube:[],tiktok:[]};
+    Object.entries(grouped).forEach(([key,items])=>{
+      const chronological=[...items].sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||""))||Number(b.id||0)-Number(a.id||0));
+      const latest=chronological.find(item=>{
+        const metric=item.platform==="youtube"?"views":"view_count";
+        return item[metric]!==null&&item[metric]!==undefined&&Number.isFinite(Number(item[metric]))&&Number(item[metric])>=0;
+      });
+      if(latest)platformLatest[latest.platform].push(Number(latest[latest.platform==="youtube"?"views":"view_count"]));
+    });
+    const summaryPlatforms=platform==="all"?["youtube","tiktok"]:[platform];
+    const platformSummary=summaryPlatforms.map(platform=>{
+      const values=platformLatest[platform];
+      const total=values.reduce((sum,value)=>sum+value,0);
+      const average=values.length?Math.round(total/values.length):null;
+      return '<article class="analytics-platform-card"><span>'+ (platform==="youtube"?"YouTube":"TikTok") +'</span><strong>'+ (values.length?total.toLocaleString():"—") +'</strong><small>영상 '+values.length+'개 · 영상당 평균 '+(average===null?"—":average.toLocaleString())+'</small></article>';
+    }).join("");
+    const platformComparison='<section class="analytics-platform-comparison"><div class="analytics-trend-heading"><strong>플랫폼별 최신 조회수 요약</strong><span>영상별 최신 스냅샷 기준</span></div><div class="analytics-platform-grid">'+platformSummary+'</div><p class="analytics-chart-note">플랫폼별 수집 영상 수와 최신 조회수 합계의 참고 지표입니다. 플랫폼별 조회수 정의·수집 범위가 다르므로 우열이나 성과 순위로 해석하지 마세요.</p></section>';
+    const chartGroups=Object.entries(grouped).map(([key,items])=>{
+      const points=items.map(item=>({
+        time:Date.parse(item.collected_at),value:chartMetricValue(item),item
+      }))
+        .filter(point=>Number.isFinite(point.time)&&Number.isFinite(point.value)&&point.value>=0)
+        .sort((a,b)=>a.time-b.time||Number(a.item.id||0)-Number(b.item.id||0));
+      return {key,platform:items[0]?.platform,videoId:items[0]?.video_id,points};
+    }).filter(group=>group.points.length>=2)
+      .sort((a,b)=>b.points.length-a.points.length).slice(0,4);
+    const allPoints=chartGroups.flatMap(group=>group.points);
+    const chartMarkup=allPoints.length
+      ? (()=>{
+        const width=720,height=220,padX=22,padY=18;
+        const minTime=Math.min(...allPoints.map(point=>point.time));
+        const maxTime=Math.max(...allPoints.map(point=>point.time));
+        const maxValue=Math.max(1,...allPoints.map(point=>point.value));
+        const x=time=>padX+(maxTime===minTime?0.5:(time-minTime)/(maxTime-minTime))*(width-padX*2);
+        const y=value=>height-padY-(value/maxValue)*(height-padY*2);
+        const compact=value=>Intl.NumberFormat("en-US",{notation:"compact",maximumFractionDigits:1}).format(value);
+        const lines=[0,1,2,3].map(index=>{
+          const yy=padY+index*(height-padY*2)/3;
+          const value=maxValue*(1-index/3);
+          return '<line class="analytics-chart-gridline" x1="'+padX+'" y1="'+yy.toFixed(1)+'" x2="'+(width-padX)+'" y2="'+yy.toFixed(1)+'"></line>'
+            +'<text class="analytics-chart-axis-label" x="'+(padX-5)+'" y="'+(yy+3).toFixed(1)+'" text-anchor="end">'+esc(compact(value))+'</text>';
+        }).join("");
+        const axisLabels='<text class="analytics-chart-axis-label" x="'+padX+'" y="'+(height-2)+'" text-anchor="start">'+esc(new Date(minTime).toLocaleDateString())+'</text>'
+          +'<text class="analytics-chart-axis-label" x="'+(width-padX)+'" y="'+(height-2)+'" text-anchor="end">'+esc(new Date(maxTime).toLocaleDateString())+'</text>';
+        const series=chartGroups.map((group,index)=>{
+          const coordinates=group.points.map(point=>({x:x(point.time),y:y(point.value),point}));
+          const intervals=coordinates.slice(1).map((point,i)=>point.point.time-coordinates[i].point.time).filter(value=>value>0).sort((a,b)=>a-b);
+          const medianInterval=intervals.length?intervals[Math.floor((intervals.length-1)/2)]:0;
+          const gapThreshold=Math.max(48*60*60*1000,medianInterval*3);
+          const segments=[];
+          let segment=[];
+          coordinates.forEach((point,i)=>{
+            if(i>0&&point.point.time-coordinates[i-1].point.time>gapThreshold){
+              if(segment.length)segments.push(segment);
+              segment=[];
+            }
+            segment.push(point);
+          });
+          if(segment.length)segments.push(segment);
+          const lines=segments.filter(points=>points.length>=2).map(points=>'<polyline class="analytics-chart-line analytics-series-'+index+'" points="'+points.map(point=>point.x.toFixed(1)+","+point.y.toFixed(1)).join(" ")+'"></polyline>').join("");
+          const markers=coordinates.map(({x:px,y:py,point})=>{
+            const deltaValue=chartMetricDeltas.get(point.item);
+            const deltaLabel=deltaValue===undefined?"":" · 이전 수집 대비 "+(deltaValue>0?"+":"")+deltaValue.toLocaleString()+ (metricUnits[chartMetric]||"");
+            return '<circle class="analytics-chart-point analytics-series-'+index+'" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4"><title>'+esc(new Date(point.time).toLocaleString())+' · '+esc(Number(point.value).toLocaleString())+(metricUnits[chartMetric]||"") +esc(deltaLabel)+'</title></circle>';
+          }).join("");
+          return lines+markers;
+        }).join("");
+        const legend=chartGroups.map((group,index)=>'<span class="analytics-chart-legend-item"><i class="analytics-series-dot analytics-series-'+index+'"></i>'+esc(group.platform==="youtube"?"YouTube":"TikTok")+" · "+esc(String(group.videoId||"").slice(0,18))+'</span>').join("");
+        return '<section class="analytics-trend-panel" aria-label="영상별 성과 지표 추이"><div class="analytics-trend-heading"><strong>영상별 '+esc(metricLabels[chartMetric]||"성과 지표")+' 추이</strong><span>표본이 2개 이상인 영상 중 최대 4개 · 장기 수집 공백은 선을 끊어 표시</span></div><div class="analytics-chart-scroll"><svg class="analytics-trend-chart" viewBox="0 0 '+width+" "+height+'" role="img" aria-label="선택된 영상들의 시간에 따른 성과 스냅샷 추이">'+lines+axisLabels+series+'</svg></div><div class="analytics-chart-legend">'+legend+'</div><p class="analytics-chart-note">각 선은 영상별 실제 수집 스냅샷입니다. 48시간 및 해당 영상의 일반 수집 간격 대비 3배를 넘는 공백은 선을 끊어 표시합니다. 선이 끊긴 구간은 데이터가 없으며 보간하지 않습니다. 플랫폼별 제공 지표가 다르므로 선택 지표가 없는 영상은 제외됩니다.</p></section>';
+      })()
+      : '<div class="analytics-chart-empty">선택한 지표의 추이를 표시하려면 동일 영상에 유효한 스냅샷이 최소 2개 필요합니다.</div>';
+    const collectionTimes=rows.map(item=>Date.parse(item.collected_at)).filter(Number.isFinite);
+    const collectionRange=collectionTimes.length
+      ? new Date(Math.min(...collectionTimes)).toLocaleDateString()+" ~ "+new Date(Math.max(...collectionTimes)).toLocaleDateString()
+      : "—";
+    $("analyticsHistory").innerHTML=rows.length
+      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개 · 수집 기간 '+esc(collectionRange)+' · 표 최대 200개 표시 · CSV 전체 내보내기(페이지 단위)</div>'+platformComparison+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>참여 조회수</th><th>참여 조회 비율</th><th>시청자 유지율</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>시청 시간(분)</th><th>평균 시청 시간(초)</th><th>평균 시청 비율</th></tr></thead><tbody>'
+      +rows.slice(0,200).map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+number(item.engaged_views)+'</td><td>'+(item.engaged_view_share===null||item.engaged_view_share===undefined||!Number.isFinite(Number(item.engaged_view_share))?"—":(Number(item.engaged_view_share)*100).toLocaleString()+"%")+'</td><td>'+(item.platform==="youtube"?(Array.isArray(item.retention_curve)&&item.retention_curve.length?retentionSparkline(item.retention_curve)+'<small>'+esc(retentionSummary(item.retention_curve))+'</small>':esc(retentionStatusLabels[item.retention_status]||"상태 미확인")):"—")+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.estimated_minutes_watched)+'</td><td>'+number(item.average_view_duration)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>').join("")
+      +'</tbody></table></div>'
+      : '<div class="empty-state">선택한 기간에 저장된 성과 스냅샷이 없습니다. 데이터 수집이 완료된 후 다시 조회하세요.</div>';
+    const exportButton=$("exportAnalyticsHistory");
+    if(exportButton){
+      exportButton.disabled=rows.length===0;
+      exportButton.onclick=rows.length?async()=>{
+        exportButton.disabled=true;
+        try{
+          const exportRows=[];
+          const pageSize=500;
+          let exportAsOf=null;
+          for(const exportPlatform of (platform==="all"?["youtube","tiktok"]:[platform])){
+            let cursor=null;
+            while(true){
+              const pageParams={days:String(days),platform:exportPlatform,limit:String(pageSize)};
+              if(cursor){pageParams.before_collected_at=cursor.collected_at;pageParams.before_id=String(cursor.id);}
+              if(exportAsOf)pageParams.as_of=exportAsOf;
+              const pageQuery=new URLSearchParams(pageParams);
+              if(videoId)pageQuery.set("video_id",videoId);
+              const page=await api("/api/publishing/analytics-history?"+pageQuery.toString());
+              if(!exportAsOf){if(typeof page.as_of!=="string"||!Number.isFinite(Date.parse(page.as_of)))throw new Error("분석 내보내기 기준 시각을 확인할 수 없습니다.");exportAsOf=page.as_of;}
+              const pageItems=page.items?.[exportPlatform]||[];
+              exportRows.push(...pageItems.map(item=>({...item,platform:exportPlatform})));
+              if(pageItems.length<pageSize)break;
+              const lastItem=pageItems[pageItems.length-1];
+              if(!lastItem?.collected_at||!Number.isInteger(Number(lastItem.id))||Number(lastItem.id)<1)throw new Error("분석 이력 페이지 커서가 올바르지 않습니다.");
+              cursor={collected_at:lastItem.collected_at,id:Number(lastItem.id)};
+            }
+          }
+          exportRows.sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||""))||Number(b.id||0)-Number(a.id||0));
+          const exportDeltas=new WeakMap();
+          const exportGroups={};
+          exportRows.forEach(item=>{
+            const key=item.platform+":"+item.video_id;
+            (exportGroups[key]||(exportGroups[key]=[])).push(item);
+          });
+          Object.values(exportGroups).forEach(items=>{
+            const chronological=[...items].sort((a,b)=>String(a.collected_at||"").localeCompare(String(b.collected_at||""))||Number(a.id||0)-Number(b.id||0));
+            let previous;
+            chronological.forEach(item=>{
+              const value=item.platform==="youtube"?item.views:item.view_count;
+              const numeric=value===null||value===undefined||value===""?null:Number(value);
+              if(numeric!==null&&Number.isFinite(numeric)&&numeric>=0){
+                if(previous!==undefined)exportDeltas.set(item,numeric-previous);
+                previous=numeric;
+              }
+            });
+          });
+          const headers=["수집 시각","플랫폼","영상 ID","조회수","참여 조회수","참여 조회 비율(%)","유지율 수집 상태","시청자 유지율 (25/50/75%)","이전 수집 대비 조회수","좋아요","댓글","공유","시청 시간(분)","평균 시청 시간(초)","평균 시청 비율(%)"];
+          const csvCell=value=>{
+            let cell=value===null||value===undefined?"":String(value);
+            if(/^[\u0000-\u0020]*[=+\-@]/.test(cell))cell="'"+cell;
+            return '"'+cell.replace(/"/g,'""')+'"';
+          };
+          const csv=[headers,...exportRows.map(item=>[
+            item.collected_at,item.platform==="youtube"?"YouTube":"TikTok",item.video_id,
+            item.views??item.view_count,item.engaged_views,item.engaged_view_share===null||item.engaged_view_share===undefined?null:Number(item.engaged_view_share)*100,item.platform==="youtube"?(retentionStatusLabels[item.retention_status]||"상태 미확인"):null,item.platform==="youtube"?retentionSummary(item.retention_curve):null,exportDeltas.has(item)?exportDeltas.get(item):null,item.like_count,item.comment_count,
+            item.share_count,item.estimated_minutes_watched,item.average_view_duration,
+            item.average_view_percentage
+          ])].map(record=>record.map(csvCell).join(",")).join("\r\n");
+          const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});
+          const url=URL.createObjectURL(blob);
+          const link=document.createElement("a");
+          link.href=url;
+          link.download="nexus-analytics-"+new Date().toISOString().slice(0,10)+".csv";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),1000);
+        }catch(err){
+          toast("CSV 내보내기 실패: "+err.message);
+        }finally{
+          exportButton.disabled=false;
+        }
+      }:null;
+    }
+    $("analyticsHistory").dataset.loaded="true";
+  }
+
   async function loadApproved(){
     const data=await api("/api/review/approved?limit=100");
     const items=data.items||[];
@@ -197,10 +480,23 @@
         (tiktokUncertain?"TikTok 게시 결과 확인 필요":
         (["initializing","uploading","processing"].includes(tiktokStatus)?"TikTok 처리 중":
         (tiktokStatus==="send_to_inbox"?"TikTok 앱에서 게시 완료 필요":
-        (tiktokStatus==="failed"?"TikTok 이전 시도 실패":"TikTok 게시 대기"))));
+        (tiktokStatus==="failed"?"TikTok 게시 실패":"TikTok 게시 대기"))));
+      const tiktokFailure=item.tiktok_last_error||item.tiktok_error||"";
+      const tiktokFailureSummary=tiktokStatus==="failed"
+        ? '<p class="review-warning">실패 사유: '+esc(tiktokFailure||"플랫폼에서 실패 상태를 반환했습니다.")+'</p><p>새 게시 시도 전 TikTok 계정에서 기존 게시 여부를 확인하세요.</p>'
+        : "";
+      const tiktokRetrySummary=item.tiktok_retryable===true
+        ? '<small>재시도 가능 · 게시 결과 중복 여부를 확인한 후 진행하세요.</small>'
+        : (tiktokStatus==="failed"?'<small>재시도 가능 여부 미확인 · 자동 재전송하지 않습니다.</small>':"");
       const tiktokIdSummary=item.tiktok_video_id?'<p>TikTok 영상 ID: '+esc(item.tiktok_video_id)+'</p>':"";
+      const ytEvents=Array.isArray(item.upload_events)?item.upload_events:[];
+      const ttEvents=Array.isArray(item.tiktok_events)?item.tiktok_events:[];
+      const latestYt=ytEvents.length?ytEvents[ytEvents.length-1]:null;
+      const latestTt=ttEvents.length?ttEvents[ttEvents.length-1]:null;
+      const eventTime=event=>event?.created_at||event?.occurred_at||event?.updated_at||"";
+      const historySummary='<div class="review-meta">YouTube 최근 변경: '+esc(eventTime(latestYt)||"기록 없음")+' · TikTok 최근 변경: '+esc(eventTime(latestTt)||"기록 없음")+'</div>';
       const statusText=status==="late_success_review_required"?"늦은 업로드 성공 · 운영자 확인 필요":(uncertain?"업로드 결과 확인 필요":(status==="uploading"?"업로드 진행 중":(status==="failed"?"이전 업로드 실패 · 재시도 가능":(status==="uploaded"?"업로드 완료":"업로드 대기"))));
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><p>'+esc(tiktokStatusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokIdSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><p>'+esc(tiktokStatusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+historySummary+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokIdSummary+tiktokFailureSummary+tiktokRetrySummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
   }
   async function loadYouTubeConnection(){
@@ -443,7 +739,7 @@
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadPublishingOverview(),loadPublishingAnalytics(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -525,6 +821,40 @@
     }catch(err){toast(err.message);}
   });
   $("loadTikTokMetrics").addEventListener("click",()=>loadTikTokMetrics().catch(e=>toast(e.message)));
+  $("refreshPublishingOverview").addEventListener("click",async()=>{
+    const button=$("refreshPublishingOverview");button.disabled=true;
+    try{await loadPublishingOverview();toast("YouTube · TikTok 게시 현황을 갱신했습니다.");}
+    catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
+  $("analyticsHistoryMetric").addEventListener("change",()=>{
+    if($("analyticsHistory").dataset.loaded==="true")loadAnalyticsHistory().catch(e=>toast(e.message));
+  });
+  $("loadAnalyticsHistory").addEventListener("click",async()=>{
+    const button=$("loadAnalyticsHistory");button.disabled=true;
+    try{await loadAnalyticsHistory();}
+    catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
+  $("refreshPublishingAnalytics").addEventListener("click",async()=>{
+    const button=$("refreshPublishingAnalytics");button.disabled=true;
+    try{await loadPublishingAnalytics();toast("플랫폼별 성과 데이터 수집 현황을 갱신했습니다.");}
+    catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
+  $("refreshTikTokDue").addEventListener("click",async()=>{
+    if(!requireToken())return;
+    const button=$("refreshTikTokDue");
+    button.disabled=true;
+    try{
+      const result=await api("/api/tiktok/publications/refresh-due?limit=20&min_age_seconds=60",{method:"POST"});
+      const failures=Array.isArray(result.errors)?result.errors.length:0;
+      toast("TikTok 상태 갱신 완료 · 확인 "+Number(result.checked||0)+"건 · 변경 "+Number(result.updated||0)+"건 · 오류 "+failures+"건");
+      await refreshAll();
+    }catch(err){toast(err.message);}
+    finally{button.disabled=false;}
+  });
+
 
   $("scheduleList").addEventListener("click",async e=>{
     const button=e.target.closest("button[data-schedule-outbox-retry]");

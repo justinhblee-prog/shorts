@@ -1,0 +1,127 @@
+name: Compose integration smoke
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "compose.yaml"
+      - ".env.example"
+      - ".github/workflows/compose-smoke.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "compose.yaml"
+      - ".env.example"
+      - ".github/workflows/compose-smoke.yml"
+jobs:
+  compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare encrypted non-production backup environment
+        run: |
+          cp .env.example .env
+          python - <<'PY'
+          import base64
+          import secrets
+          key = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii")
+          with open(".env", "a", encoding="utf-8") as env_file:
+              env_file.write("NEXUS_BACKUP_ENCRYPTION_KEY=" + key + "\n")
+              env_file.write("NEXUS_BACKUP_ENCRYPTION_REQUIRED=true\n")
+          PY
+      - name: Verify Compose configuration
+        run: docker compose config --quiet
+      - name: Build all service images
+        run: docker compose build
+      - name: Start API, worker, scheduler, metrics collector and backup
+        run: docker compose up -d
+      - name: Verify service processes and API readiness
+        run: |
+          set -eu
+          running="$(docker compose ps --status running --services)"
+          for service in api worker scheduler metrics-collector backup; do
+            printf '%s\n' "$running" | grep -qx "$service"
+          done
+          docker compose exec -T api python -c "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8502/api/ready',timeout=5); assert r.status == 200"
+          docker compose exec -T worker python -c "import os; assert os.path.exists('/app/data')"
+          docker compose exec -T scheduler python -c "import os; assert os.path.exists('/app/data')"
+          for service in api worker scheduler metrics-collector; do
+            healthy=0
+            for attempt in $(seq 1 90); do
+              cid="$(docker compose ps -q "$service")"
+              health="$(docker inspect --format '{{.State.Health.Status}}' "$cid")"
+              if [ "$health" = "healthy" ]; then healthy=1; break; fi
+              sleep 1
+            done
+            test "$healthy" = "1"
+          done
+      - name: Verify scheduled backup and isolated restore
+        run: |
+          set -eu
+          for attempt in $(seq 1 900); do
+            if docker compose exec -T backup sh -c 'find /backups -maxdepth 1 -type f -name "nexus-backup-*.tar.gz.enc" -print -quit | grep -q .' ; then
+              break
+            fi
+            sleep 1
+          done
+          backup_healthy=0
+          for attempt in $(seq 1 180); do
+            backup_cid="$(docker compose ps -q backup)"
+            backup_health="$(docker inspect --format '{{.State.Health.Status}}' "$backup_cid")"
+            if [ "$backup_health" = "healthy" ]; then backup_healthy=1; break; fi
+            sleep 1
+          done
+          test "$backup_healthy" = "1"
+          docker compose exec -T backup test -s /backups/.last-success
+          docker compose exec -T backup python - <<'PY'
+          import base64
+          import hashlib
+          import shutil
+          import sqlite3
+          import tempfile
+          from pathlib import Path
+          from backup_restore import BackupRestoreError, restore_backup
+
+          archives = sorted(Path("/backups").glob("nexus-backup-*.tar.gz.enc"))
+          assert archives, "backup service did not create an encrypted archive"
+          assert not list(Path("/backups").glob("nexus-backup-*.tar.gz")), "plaintext backup must not be present"
+          source_db = Path("/app/data/nexus.sqlite3")
+          source_media = Path("/app/data/media")
+          with tempfile.TemporaryDirectory(prefix="nexus-compose-restore-") as temp:
+              root = Path(temp)
+              target_db = root / "restore.sqlite3"
+              shutil.copy2(source_db, target_db)
+              target_media = root / "media"
+              if source_media.exists():
+                  shutil.copytree(source_media, target_media)
+              else:
+                  target_media.mkdir()
+              backup_dir = root / "pre-restore-backups"
+              original_digest = hashlib.sha256(target_db.read_bytes()).hexdigest()
+              wrong_key = base64.urlsafe_b64encode(bytes(32)).decode("ascii")
+              try:
+                  restore_backup(
+                      archives[-1], target_db, target_media, backup_dir,
+                      confirm_restore=True, encryption_key=wrong_key,
+                  )
+              except BackupRestoreError as error:
+                  assert "authentication failed" in str(error).lower()
+              else:
+                  raise AssertionError("restore unexpectedly accepted the wrong key")
+              assert hashlib.sha256(target_db.read_bytes()).hexdigest() == original_digest
+              result = restore_backup(
+                  archives[-1], target_db, target_media, backup_dir,
+                  confirm_restore=True,
+              )
+              assert result["restored"] is True
+              with sqlite3.connect(target_db) as connection:
+                  assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+              print("compose_backup_restore_smoke passed archive=" + archives[-1].name)
+          PY
+      - name: Collect service logs
+        if: always()
+        run: docker compose logs --no-color || true
+      - name: Stop services and remove test volumes
+        if: always()
+        run: docker compose down -v --remove-orphans

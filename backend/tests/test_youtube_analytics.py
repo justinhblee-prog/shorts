@@ -247,7 +247,127 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(reports.calls, [])
         self.assertIsNone(self.store.get("recent-video")["views"])
 
-    def test_relative_retention_performance_preserves_negative_values(self):
+    def test_legacy_latest_snapshot_is_backfilled_after_schema_migration(self):
+        legacy_db=os.path.join(self.tmp.name,"legacy-history.sqlite3")
+        with sqlite3.connect(legacy_db) as connection:
+            connection.execute("""
+                CREATE TABLE youtube_analytics_snapshots(
+                  video_id TEXT PRIMARY KEY,start_date TEXT NOT NULL,end_date TEXT NOT NULL,
+                  views REAL,estimated_minutes_watched REAL,average_view_duration REAL,
+                  average_view_percentage REAL,retention_json TEXT NOT NULL DEFAULT '[]',
+                  analytics_status TEXT NOT NULL,retention_status TEXT NOT NULL,
+                  retention_error TEXT,collected_at TEXT NOT NULL
+                )
+            """)
+            connection.execute("""
+                INSERT INTO youtube_analytics_snapshots(
+                  video_id,start_date,end_date,views,estimated_minutes_watched,
+                  average_view_duration,average_view_percentage,retention_json,
+                  analytics_status,retention_status,retention_error,collected_at
+                ) VALUES('legacy-video','2026-11-01','2026-11-14',77,5,4,60,
+                         '[{"elapsed_video_time_ratio":0.5,"audience_watch_ratio":0.4,"relative_retention_performance":-0.1}]',
+                         'available','available',NULL,'2026-11-15T00:00:00+00:00')
+            """)
+            connection.execute("""
+                CREATE TABLE youtube_analytics_history(
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  video_id TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,
+                  views REAL,engaged_views REAL,engaged_view_share REAL,
+                  estimated_minutes_watched REAL,average_view_duration REAL,
+                  average_view_percentage REAL,analytics_status TEXT NOT NULL,
+                  retention_status TEXT NOT NULL,collected_at TEXT NOT NULL
+                )
+            """)
+            connection.execute("""
+                INSERT INTO youtube_analytics_history(
+                  video_id,start_date,end_date,views,engaged_views,engaged_view_share,
+                  estimated_minutes_watched,average_view_duration,average_view_percentage,
+                  analytics_status,retention_status,collected_at
+                ) VALUES('legacy-video','2026-11-01','2026-11-14',77,NULL,NULL,5,4,60,
+                         'available','available','2026-11-15T00:00:00+00:00')
+            """)
+            connection.execute("""
+                INSERT INTO youtube_analytics_history(
+                  video_id,start_date,end_date,views,engaged_views,engaged_view_share,
+                  estimated_minutes_watched,average_view_duration,average_view_percentage,
+                  analytics_status,retention_status,collected_at
+                ) VALUES('legacy-video','2026-11-01','2026-11-13',70,NULL,NULL,4,3,55,
+                         'available','available','2026-11-14T00:00:00+00:00')
+            """)
+        migrated=YouTubeAnalyticsStore(legacy_db)
+        history=migrated.history("legacy-video")
+        self.assertEqual(len(history),2)
+        self.assertEqual(history[0]["views"],77)
+        self.assertEqual(history[0]["retention_curve"][0]["audience_watch_ratio"],0.4)
+        self.assertEqual(history[1]["views"],70)
+        self.assertEqual(history[1]["retention_curve"],[])
+
+    def test_analytics_history_appends_snapshots_while_latest_remains_current(self):
+        first={"views":100,"engagedViews":60,"estimatedMinutesWatched":10,
+               "averageViewDuration":6,"averageViewPercentage":50}
+        second={"views":150,"engagedViews":90,"estimatedMinutesWatched":15,
+                "averageViewDuration":7,"averageViewPercentage":55}
+        first_curve=[{"elapsedVideoTimeRatio":0.25,"audienceWatchRatio":0.8,"relativeRetentionPerformance":0.1}]
+        second_curve=[{"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.45,"relativeRetentionPerformance":0.2}]
+        self.store.save("history-video","2026-11-01","2026-11-14",first,first_curve)
+        self.store.save("history-video","2026-11-01","2026-11-15",second,second_curve)
+        history=self.store.history("history-video")
+        self.assertEqual(len(history),2)
+        self.assertEqual({row["views"] for row in history},{100,150})
+        by_views={row["views"]:row["retention_curve"] for row in history}
+        self.assertEqual(by_views[100][0]["audience_watch_ratio"],0.8)
+        self.assertEqual(by_views[150][0]["relative_retention_performance"],0.2)
+        self.assertEqual(self.store.get("history-video")["views"],150)
+        self.assertEqual(len(self.store.history("other-video")),0)
+
+    def test_history_malformed_retention_json_fails_safe(self):
+        self.store.save(
+            "bad-retention-history","2026-11-01","2026-11-14",{"views":10},
+            [{"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.4}],
+        )
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE youtube_analytics_history SET retention_json='{' WHERE video_id=?",
+                ("bad-retention-history",),
+            )
+        history=self.store.history("bad-retention-history")
+        self.assertEqual(history[0]["retention_curve"],[])
+
+    def test_history_has_global_time_index(self):
+        with self.store.db() as connection:
+            indexes={
+                row["name"] for row in connection.execute(
+                    "PRAGMA index_list(youtube_analytics_history)"
+                ).fetchall()
+            }
+        self.assertIn("idx_youtube_analytics_history_time",indexes)
+        self.assertIn("idx_youtube_analytics_history_video_time",indexes)
+
+    def test_history_since_filters_before_applying_limit(self):
+        for views, collected_at in (
+            (10,"2026-11-01T00:00:00+00:00"),
+            (20,"2026-11-02T00:00:00+00:00"),
+            (30,"2026-11-03T00:00:00+00:00"),
+        ):
+            self.store.save("range-video","2026-11-01","2026-11-03",{"views":views},[])
+            with self.store.db() as connection:
+                connection.execute(
+                    "UPDATE youtube_analytics_history SET collected_at=? "
+                    "WHERE id=(SELECT MAX(id) FROM youtube_analytics_history WHERE video_id=?)",
+                    (collected_at,"range-video"),
+                )
+        recent=self.store.history("range-video",limit=1,since="2026-11-02")
+        self.assertEqual(len(recent),1)
+        self.assertEqual(recent[0]["views"],30)
+        older=self.store.history("range-video",limit=5,since="2026-11-02")
+        self.assertEqual({row["views"] for row in older},{20,30})
+        cursor=next(row for row in older if row["views"]==20)
+        stable=self.store.history(
+            "range-video",limit=5,before_collected_at=cursor["collected_at"],before_id=cursor["id"]
+        )
+        self.assertEqual([row["views"] for row in stable],[10])
+
+    def test_relative_retention_performance_rejects_negative_values(self):
         reports = FakeReports(retention={
             "columnHeaders": [
                 {"name": "elapsedVideoTimeRatio"},
@@ -259,8 +379,8 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         collector = YouTubeAnalyticsCollector(self.store, service=FakeService(reports))
         collector.collect_video("negative-retention", "2026-11-01", "2026-11-14")
         saved = self.store.get("negative-retention")
-        self.assertEqual(
-            saved["retention_curve"][0]["relative_retention_performance"], -0.35
+        self.assertIsNone(
+            saved["retention_curve"][0]["relative_retention_performance"]
         )
 
     def test_rejects_invalid_video_ids_and_date_ranges(self):
@@ -497,13 +617,17 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                 {"elapsedVideoTimeRatio": True, "audienceWatchRatio": 0.5},
                 {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": False},
                 {"elapsedVideoTimeRatio": 1.01, "audienceWatchRatio": 0.5},
-                {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": 1.01},
+                {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": 1.2},
+                {"elapsedVideoTimeRatio": 0.75, "audienceWatchRatio": 0.9,
+                 "relativeRetentionPerformance": 1.01},
                 {"elapsedVideoTimeRatio": -0.01, "audienceWatchRatio": 0.5},
                 {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": -0.01},
                 {"elapsedVideoTimeRatio": 0.0, "audienceWatchRatio": 1.0,
                  "relativeRetentionPerformance": True},
+                {"elapsedVideoTimeRatio": 0.9, "audienceWatchRatio": 0.7,
+                 "relativeRetentionPerformance": 0.25},
                 {"elapsedVideoTimeRatio": 1.0, "audienceWatchRatio": 0.0,
-                 "relativeRetentionPerformance": -0.25},
+                 "relativeRetentionPerformance": 0.25},
             ],
         )
         saved = self.store.get("numeric-boundary-video")
@@ -513,7 +637,9 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertIsNone(saved["estimated_minutes_watched"])
         self.assertEqual(saved["average_view_duration"], 12.5)
         self.assertEqual(saved["average_view_percentage"], 125.0)
-        self.assertEqual(len(saved["retention_curve"]), 2)
+        self.assertEqual(len(saved["retention_curve"]), 5)
+        self.assertEqual(saved["retention_curve"][1]["audience_watch_ratio"], 1.2)
+        self.assertIsNone(saved["retention_curve"][2]["relative_retention_performance"])
         self.assertEqual(
             saved["retention_curve"][0],
             {
@@ -523,11 +649,11 @@ class YouTubeAnalyticsTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            saved["retention_curve"][1],
+            saved["retention_curve"][3],
             {
-                "elapsed_video_time_ratio": 1.0,
-                "audience_watch_ratio": 0.0,
-                "relative_retention_performance": -0.25,
+                "elapsed_video_time_ratio": 0.9,
+                "audience_watch_ratio": 0.7,
+                "relative_retention_performance": 0.25,
             },
         )
 

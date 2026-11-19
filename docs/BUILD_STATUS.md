@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Updated:** 2026-11-17
+**Updated:** 2026-11-19
 
 ## Business objective
 
@@ -2371,3 +2371,346 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Persist each core-stage artifact and its provider-attempt adoption in the same `BEGIN IMMEDIATE` transaction and worker-lease fencing decision; remove the separate adoption writes.
 - Add regression coverage for script, voice and rendering adoption, including rollback when the matching attempt cannot be adopted.
 - Validation: exact final PR-head CI pending. These are local SQLite transaction tests; remote provider execution remains non-transactional and live provider idempotency is not established.
+
+
+## Current working branch — publishing analytics follow-up (2026-11-19)
+
+- Correct the analytics history trend selector so the default views metric maps to YouTube `views` and TikTok `view_count`; do not assume both provider schemas use the same field.
+- Add selectable likes, comments, shares, estimated watch time and average view percentage where the platform actually supplies those fields. Unsupported platform/metric combinations are omitted from the chart rather than synthesized.
+- Refresh the chart when the metric selector changes after an initial history query.
+- Extend the history table with estimated watch time and average view duration, preserving null values as unavailable.
+- Add regression coverage for the platform-specific view mapping, selector refresh, additional metrics and API platform/limit bounds.
+- Relevant commits: `42c9b4b` (platform metric mapping), `9f40cab` (history table and selector refresh), `10d18a4` (frontend regressions), `c1d2ee1` / `a25ef1f` (API bounds regression and test isolation fix).
+- Validation: `42c9b4b` passed both CI checks; the latest exact-head run for `a25ef1f` is in progress. Live YouTube/TikTok account data and deployed browser behavior remain unverified.
+
+
+## BUILD-00316 — export filtered cross-platform analytics history
+
+- Add a CSV export action beside the analytics history filters. Export the full currently queried snapshot set (up to the API's bounded result count), not only the first 200 rows rendered in the HTML table.
+- Include collection timestamp, platform, video ID, views, previous-snapshot view delta, likes, comments, shares, estimated watch minutes, average view duration and average view percentage.
+- Quote and escape CSV cells, prefix formula-like text values to reduce spreadsheet formula injection risk, and emit UTF-8 BOM for spreadsheet compatibility.
+- Disable export while a replacement query is loading and when the result set is empty, preventing stale-filter exports after failed requests.
+- Scope the platform summary cards to the selected platform instead of displaying an unqueried platform as an empty result.
+- Validation: GitHub Actions run #44445767691 passed the full validation workflow with 697 backend tests on the CSV/export implementation checkpoint. A subsequent test-only hardening removes a one-second boundary race in the pre-existing TikTok polling backoff test; its exact-head CI is pending. CSV behavior is covered by source regression assertions; a real browser download and spreadsheet import have not been exercised.
+
+
+## BUILD-00317 — expose YouTube engaged-view quality metrics
+
+- Add chart choices for engaged views, engaged-view share and average view duration, alongside the existing cross-platform metrics.
+- Add engaged views and engaged-view share to the analytics history table and CSV export.
+- The stored engaged-view share is a ratio (for example, 0.62); convert it to a percentage (62%) for chart, table and CSV presentation. Chart deltas are therefore percentage-point changes.
+- TikTok has no corresponding engaged-view fields in the current provider contract; those points remain absent rather than being synthesized.
+- Validation: GitHub Actions runs #44446285363 and #44446292661 passed the full validation workflow with 697 backend tests on code checkpoint `fc2ec38`. The ratio conversion and UI assertions are included. Live YouTube Analytics account coverage and browser rendering remain unverified.
+
+
+## BUILD-00318 — preserve audience-retention history per YouTube snapshot
+
+- Extend `youtube_analytics_history` with a JSON retention-curve snapshot so historical rows retain the same audience-retention evidence collected at that point in time.
+- Parse and expose the curve as `retention_curve` from the history store/API; malformed stored JSON fails safely to an empty curve and has a regression test.
+- Migrate existing databases by adding the column with an empty-array default and backfilling the latest history row per video from the current snapshot only. Older snapshots without recorded curves remain unavailable rather than receiving today's curve retroactively.
+- Render the 25%/50%/75% audience-retention checkpoints and sparkline in the history table; include the checkpoint summary in CSV exports.
+- Validation: GitHub Actions runs #44447186007 and #44447192379 passed the full validation workflow with 698 backend tests on code checkpoint `5793823`. Migration ordering, per-snapshot retention isolation, malformed-JSON fallback, API pass-through and frontend rendering assertions passed. Live YouTube account retention coverage and browser rendering remain unverified.
+
+
+## BUILD-00319 — deterministic analytics snapshot ordering
+
+- Apply collection timestamp and stable database ID tie-breakers consistently to history table rows, chart points and latest-per-video summary selection.
+- Prevent snapshots collected at the same timestamp from appearing in inconsistent order or selecting a non-deterministic latest value.
+- Add frontend regression assertions for both descending history order and chronological chart point order.
+- Validation: included in GitHub Actions runs #44447186007 and #44447192379, both successful with 698 backend tests on code checkpoint `5793823`.
+
+
+## BUILD-00320 — clarify audience-retention collection coverage
+
+- Distinguish a successful retention report with no points (`no_data`) from unavailable/permission-limited collection (`unavailable`) and not-yet-eligible videos (`pending_availability`).
+- Show the retention collection status separately from the 25%/50%/75% checkpoint summary in the history table and CSV.
+- Do not present missing retention curves as zero retention or as a successful collection.
+- Validation: GitHub Actions runs #44447418651 and #44447424894 passed the full validation workflow with 698 backend tests on code checkpoint `5e60fe8`. The later README-inclusive checkpoint also passed 698 tests in run #44447642344. Frontend status-label regression assertions passed; real account permission/coverage combinations remain unverified.
+
+
+## BUILD-00321 — analytics chart gaps and coverage visibility
+
+- Stop drawing a continuous trend line across long periods without analytics snapshots. For each video series, split the polyline when a sampling gap exceeds both a 48-hour floor and three times that series' lower-median observed sampling interval, making isolated long gaps detectable even with an even number of intervals.
+- Keep every actual snapshot marker and tooltip; do not interpolate missing values or synthesize a trend through an unobserved period.
+- Display the actual first-to-last collection date range for the returned history result alongside snapshot counts.
+- Validation: frontend regression assertions cover the gap threshold, non-interpolation explanation and coverage-range label. GitHub Actions runs #44449259793 and #44449253573 passed with 698 backend tests on checkpoint `4ddfbad`. Real browser rendering and live account sampling cadence remain unverified.
+
+
+## BUILD-00322 — preserve valid YouTube audience-watch ratios above 1.0
+
+- Correct validation for YouTube `audienceWatchRatio`: it is an absolute ratio of segment views to total video views and can legitimately exceed 1.0 when viewers replay a segment.
+- Keep `elapsedVideoTimeRatio` and `relativeRetentionPerformance` bounded to 0..1; invalid relative-retention values are stored as unavailable while the valid audience-watch point is preserved. Do not apply the relative metric's bound to the absolute audience-watch ratio.
+- Add regression coverage for an audience-watch ratio of 1.2 and rejection of an out-of-range relative-retention value.
+- Source: [YouTube Analytics API metrics](https://developers.google.com/youtube/analytics/metrics).
+- Validation: exact-head GitHub Actions pending.
+
+
+## BUILD-00323 — TikTok analytics freshness and coverage visibility
+
+- Expose the latest stored TikTok metric snapshot timestamp as `latest_snapshot_at`, matching the YouTube analytics-status contract.
+- Extend TikTok coverage with `stale_or_missing`, combining published videos with no snapshot and videos whose latest snapshot is older than the freshness threshold. Preserve the existing `stale_snapshots` field for compatibility.
+- Regression test verifies latest snapshot visibility and that missing published videos are counted without being misreported as collected.
+- Validation: GitHub Actions runs [44485474387](https://github.com/justinhblee-prog/shorts/actions/runs/44485474387) and [44485467845](https://github.com/justinhblee-prog/shorts/actions/runs/44485467845) passed the full validation workflow with **698 backend tests** on exact checkpoint `fe7b2e4`. Live TikTok account collection and browser rendering remain unverified.
+
+
+## BUILD-00324 — surface analytics snapshot freshness in the dashboard
+
+- Display each platform's latest stored snapshot timestamp separately from the last collection attempt/success timestamp.
+- Calculate the dashboard's “data missing / refresh needed” count from the combined `stale_or_missing` field, or from legacy `without_snapshot + stale_snapshots` fields when the combined field is unavailable. This prevents old snapshots from being presented as current coverage.
+- Add frontend source regression coverage for timestamp display and stale/missing count selection.
+- Validation: GitHub Actions runs [44485794642](https://github.com/justinhblee-prog/shorts/actions/runs/44485794642) and [44485787820](https://github.com/justinhblee-prog/shorts/actions/runs/44485787820) passed the full validation workflow with **699 backend tests** on exact checkpoint `df66e52`. Browser rendering and live provider freshness remain unverified.
+
+
+### BUILD-00324 API contract regression
+
+- Extend the protected analytics-status API test to verify that TikTok `latest_snapshot_at` and `coverage.stale_or_missing` pass through the allowlisted response fields, while internal errors and credentials remain excluded.
+- Exact-head GitHub Actions runs [44486123616](https://github.com/justinhblee-prog/shorts/actions/runs/44486123616) and [44486133696](https://github.com/justinhblee-prog/shorts/actions/runs/44486133696) passed with **699 backend tests** on checkpoint `910c521`.
+
+
+## BUILD-00325 — preserve targeted TikTok analytics history lookup
+
+- Fix TikTok analytics history lookup for older published videos: the previous implementation loaded only the newest 200 eligible publication identities before applying the requested video ID, so a specific older video could incorrectly return an empty history even when snapshots existed.
+- Add an exact video ID predicate to the publication identity query, allowing targeted lookup without scanning/truncating the recent-publication window.
+- Raise the bounded bulk identity window to 500 to match the analytics-history API/export limit; keep the per-video lookup bounded to one eligible publication.
+- Add a regression test with more than 200 published videos and an older video whose snapshot must remain queryable.
+- Validation: GitHub Actions passed on the code/test checkpoint `2d81a86594a1b3d0c1bb9831a988225729da63b5` (run `44486853576`: 700 tests; run `44486850076`: 699 tests). Earlier sequential commits also passed (runs `44486846374` and `44486840647`, 699 tests each). The later documentation-only commits do not change executable code.
+
+
+## BUILD-00326 — analytics history query input hardening
+
+- Tighten optional video ID validation: reject leading/trailing whitespace and ASCII DEL in addition to empty, oversized, and C0 control-character values. This avoids ambiguous identifiers being silently passed to storage queries.
+- Add endpoint regression tests for whitespace and DEL rejection, maximum 365-day window, and lower-bound limit clamping on both platform branches.
+- Validation: GitHub Actions passed on final code/test checkpoint `012654685d868451f68d52ebdbdb450871ac750d` (run `44487580908`, 700 backend tests). The API-only predecessor checkpoint `1b01f6d1bac61bb591866007e5b81b7ce1ce55b7` also has a validation run in progress; the final combined code/test checkpoint above passed. Documentation-only commits follow the validated checkpoint.
+
+
+## BUILD-00327 — analytics CSV export limit transparency
+
+- Correct the analytics history summary: the API applies a maximum of 500 snapshots independently to each selected platform, so the all-platform response can contain at most 1,000 rows. The prior UI wording incorrectly implied the CSV always exported the complete history.
+- The summary now explicitly states the 200-row on-screen table limit and the 1,000-row CSV ceiling (500 per platform), preventing users from interpreting a bounded export as an exhaustive archive.
+- Add a frontend regression assertion for the explicit limits. Validation: pending GitHub Actions.
+
+
+## BUILD-00328 — paginated, uncapped analytics CSV export
+
+- Add bounded offset pagination (500 rows per API page, maximum offset 10,000,000) to YouTube and TikTok analytics history storage and the protected history endpoint.
+- Replace TikTok bulk identity preloading with a publication-table join, so older published videos are not silently excluded by a 500-publication lookup cap and large identity lists do not exceed SQLite bind-variable limits.
+- Change CSV export to fetch every page sequentially for each selected platform, then sort the combined snapshots deterministically before generating the spreadsheet-safe CSV. The on-screen table remains limited to 200 rows and the dashboard preview remains a 500-row-per-platform page.
+- Add API offset pass-through and frontend pagination regression assertions. Exact-head CI validation pending; live provider accounts and browser download behavior remain unverified.
+
+- Final exact-head validation: GitHub Actions runs [44488770534](https://github.com/justinhblee-prog/shorts/actions/runs/44488770534) and [44488780671](https://github.com/justinhblee-prog/shorts/actions/runs/44488780671) passed with **700 backend tests** each on checkpoint `90086f4b051ff70718a5d15c1a870932016fe269`. The dashboard now labels CSV as complete paginated export rather than the previous 1,000-row cap. Documentation and wording follow-up validation pending.
+
+
+## BUILD-00329 — stable keyset pagination for analytics export
+
+- Add a composite `collected_at,id` keyset cursor to both analytics history stores and the protected API. Pages now request rows strictly older than the last row returned, preserving deterministic continuation when new snapshots arrive during a long export.
+- Keep bounded offset pagination for existing callers while switching the CSV exporter to keyset cursors. Reject partial, malformed, or non-positive cursor identifiers.
+- Add API pass-through and frontend cursor regression assertions. Exact-head CI validation pending; live provider and browser-download behavior remain unverified.
+
+
+## BUILD-00330 — freeze analytics export date window
+
+- Return a normalized UTC `as_of` timestamp from the analytics-history API and accept a validated timezone-aware ISO-8601 timestamp on subsequent pages.
+- CSV export captures the first page's timestamp and reuses it across every keyset page and both platforms, preventing the rolling `days` cutoff from shifting during long exports.
+- Add regression coverage for UTC normalization, fixed cutoff calculation, and rejection of timezone-naive timestamps. Exact-head CI validation pending.
+
+- BUILD-00329 / BUILD-00330 combined code-and-test checkpoint `deae2f0451b56e2bb4839a5cee2959db15504817`: Actions run [44490155724](https://github.com/justinhblee-prog/shorts/actions/runs/44490155724) passed the full validation workflow with **700 backend tests**. A second exact-head run was still in progress at documentation time. Live provider and browser-download behavior remain unverified.
+
+
+## BUILD-00331 — index TikTok analytics history joins and cursors
+
+- Add a composite publication `(video_id,status)` index for the analytics-history join, avoiding repeated scans of publication rows when reading snapshots.
+- Add a composite metric `(video_id,collected_at DESC,id DESC)` index aligned with targeted history filtering and deterministic keyset ordering.
+- Preserve existing indexes for compatibility and add schema regression checks. Exact-head CI validation pending; performance impact on production-sized databases remains to be benchmarked.
+
+- BUILD-00331 validation: GitHub Actions runs [44490415081](https://github.com/justinhblee-prog/shorts/actions/runs/44490415081) and [44490415183](https://github.com/justinhblee-prog/shorts/actions/runs/44490415183) passed with **700 backend tests** each. The preceding stable-pagination/date-window checkpoint also passed twice (runs [44490155724](https://github.com/justinhblee-prog/shorts/actions/runs/44490155724) and [44490164457](https://github.com/justinhblee-prog/shorts/actions/runs/44490164457), 700 tests each). Production-scale query latency still needs benchmarking.
+
+## BUILD-00332 — validate analytics keyset cursor timestamps
+
+- Require `before_collected_at` to parse as a timezone-aware ISO-8601 timestamp before passing it to either analytics history store. This prevents arbitrary or timezone-naive strings from reaching the SQL keyset comparison.
+- Preserve the original timestamp text for the database cursor comparison; accept the UTC `Z` form used by ISO-8601 clients.
+- Add API regression cases for malformed, date-only, and timezone-naive cursor values, plus a valid UTC-`Z` cursor pass-through case.
+- GitHub Actions validation is running for implementation and tests; no passing result is claimed yet. Live provider and browser behavior remain unverified.
+
+
+## BUILD-00333 — guard TikTok analytics history query plans
+
+- Add a SQLite `EXPLAIN QUERY PLAN` regression for the targeted, date-bounded, keyset-paginated TikTok analytics history query.
+- Require the planner to use `idx_tiktok_metric_video_time_id` for snapshot filtering/order and `idx_tiktok_publications_video_status` for publication eligibility lookup.
+- This is a deterministic index-usage regression, not a production-scale latency benchmark. Representative-volume performance and browser/provider validation remain separate checks.
+- - Exact-head GitHub Actions validation: run [44492971072](https://github.com/justinhblee-prog/shorts/actions/runs/44492971072) passed `scripts/validate.sh` with **701 backend tests** on `05bbf26363cc786f771c2b59fe8ac00f74ec7cfa`.
+
+
+## BUILD-00334 — SQL aggregate TikTok analytics coverage
+
+- Replace Python-side materialization of all eligible publication IDs and all latest snapshot timestamps with a single SQLite CTE aggregate.
+- Count distinct published video identities, snapshot coverage, stale snapshots, and latest snapshot time in the database. Duplicate publication rows for one video no longer inflate coverage; only snapshots for currently published identities contribute.
+- Add regression coverage for duplicate publication identities, one stale snapshot, one missing snapshot, and latest snapshot timestamp.
+- This is a query-volume reduction and correctness improvement. Representative production-sized latency benchmarking remains outstanding.
+- Validation: pending exact-head GitHub Actions.
+
+- Initial exact-head CI caught a stale Python variable reference in the new response mapping (3 errors); corrected it to return the SQL aggregate's `published` count. Revalidation is running on the corrected code checkpoint.
+
+
+## BUILD-00335 — bounded TikTok metrics candidate selection
+
+- Move due-video selection into one bounded SQLite query. It deduplicates multiple publication rows per video, joins latest snapshot timestamps and missing-video retry deadlines, and returns at most 20 candidates.
+- The collector no longer materializes the full publication ledger, all snapshot timestamps, or the complete retry set in Python on every collection cycle.
+- Add regression tests for bounded result size, duplicate publication identities, retry eligibility, and ensuring the collector does not call the full-ledger/full-snapshot methods.
+- Production-scale latency and query-plan measurements remain outstanding. Exact-head CI pending.
+
+- Follow-up optimization: add `idx_tiktok_publications_due_scan(status,video_id,updated_at DESC,job_id)` to support the bounded due-video scan's filter, partition/order keys; add a schema regression assertion. This index complements the existing video/status lookup index. Exact-head CI pending.
+
+
+## BUILD-00336 — fair bounded TikTok metrics retry ordering
+
+- Resolve tied publication timestamps with a descending job ID tie-breaker in both the per-video ranking and final due-candidate ordering. This makes the bounded 20-video window deterministic and prevents recently inserted records from being starved when timestamp precision ties.
+- Update the EXPLAIN QUERY PLAN regression to accept either the dedicated video/status index or the newer due-scan composite index for the publication side; the planner correctly prefers the latter when available.
+- Triggered by exact-head CI failures: the bounded scan selected the wrong 20 tied records, so missing-video retry backoff could not expose the previously excluded video. The test no longer over-constrains a valid index choice.
+- Validation: pending exact-head GitHub Actions.
+
+
+## BUILD-00336 — fair bounded TikTok metrics retry ordering
+
+- Resolve tied publication timestamps with a descending job ID tie-breaker in both per-video ranking and final due-candidate ordering. This makes the bounded 20-video window deterministic and prevents recently inserted records from being starved when timestamps tie.
+- Update the history EXPLAIN regression to accept the dedicated video/status index or the newer due-scan composite index; SQLite correctly prefers the latter when available.
+- Exact-head GitHub Actions run [44495481567](https://github.com/justinhblee-prog/shorts/actions/runs/44495481567) passed `scripts/validate.sh` with **705 tests** on code/test checkpoint `3bc4a826cce64aa6ac7834f2a1c974eddcea80fe`.
+
+## BUILD-00337 — guard bounded TikTok collector query plan
+
+- Add an `EXPLAIN QUERY PLAN` regression for the bounded due-video CTE/window query.
+- Require the publication due-scan composite index to participate in selecting the bounded candidate set.
+- Exact-head Actions run above includes the query-plan regression and passed. Production-sized latency and database growth benchmarks remain outstanding.
+
+
+## BUILD-00338 — indexed, bounded TikTok metrics due-candidate query
+
+- Replace the window-ranked publication CTE and full snapshot aggregation with an ordered publication scan, `NOT EXISTS` latest-publication de-duplication, and an indexed per-video latest-snapshot lookup.
+- Add `idx_tiktok_publications_due_order(status,updated_at DESC,job_id DESC,video_id)`; reuse the existing `(video_id,collected_at DESC,id DESC)` metric index and the due-scan index for per-video de-duplication.
+- Preserve deterministic newest-first selection, retry backoff, and a hard maximum of 20 returned candidates.
+- Add an EXPLAIN QUERY PLAN regression requiring the ordered publication index, duplicate-check index, and per-video latest-snapshot index.
+- Exact-head Actions run [44495796084](https://github.com/justinhblee-prog/shorts/actions/runs/44495796084) passed `scripts/validate.sh` with **706 tests** on code/test checkpoint `9d8e44d3ba100e718e2e257124ad68cbedfeeac9`.
+
+## BUILD-00339 — TikTok collector OAuth and lease-fencing coverage
+- Initial BUILD-00339 test run caught unnecessary TikTok OAuth manager construction when a collector was injected. Aligned TikTok initialization with the YouTube path: construct OAuth storage/manager only when the default collector must be created. Revalidation is running on the fix.
+
+
+- Add tests for the default encrypted TikTok OAuth token-provider wiring and injected collector behavior.
+- Verify that results are discarded when the collector loses its lease after the provider call, failures are recorded only while lease ownership remains valid, and every path releases the lease.
+- Exact-head validation passed.
+
+- Exact-head Compose workflow run [44498381444](https://github.com/justinhblee-prog/shorts/actions/runs/44498381444) passed: all five services started, API readiness returned HTTP 200, backup service created `nexus-backup-20261119T093959928736Z.tar.gz`, and the archive restored successfully to isolated temporary paths with SQLite integrity check `ok`. This remains synthetic CI evidence, not a production-data disaster-recovery drill.
+
+
+## BUILD-00340 — synthetic 10,000-row TikTok collector scan smoke test
+
+- Add a SQLite regression fixture with 10,000 published-video identities and 10,000 historical metric snapshots.
+- Verify the indexed due-candidate query returns exactly the newest 20 stale videos in deterministic order, with no duplicates.
+- This is a synthetic bounded-volume smoke test, not a production latency benchmark or a claim about deployed database performance.
+- Exact-head GitHub Actions run [44496875265](https://github.com/justinhblee-prog/shorts/actions/runs/44496875265) passed `scripts/validate.sh` with **712 tests**. The synthetic 10,000-publication / 10,000-snapshot due scan returned 20 ordered candidates in **0.50 ms** on that CI runner; this is a synthetic CI measurement, not a production latency SLA.
+
+
+## BUILD-00341 — Docker Compose service integration smoke
+
+- Add a dedicated GitHub Actions workflow that builds the actual Compose image and starts API, worker, scheduler, metrics collector, and backup services with the non-production `.env.example` configuration.
+- Verify all expected processes remain running, `/api/ready` returns HTTP 200, and worker/scheduler containers can access the shared data volume.
+- Always collect service logs and tear down the containers and test volumes.
+- This is CI container integration evidence only; it does not replace deployment-host HTTPS, persistent-volume, backup/restore, real-provider, or production operations validation.
+- Exact-head Compose workflow validation passed.
+
+- Exact-head validation: Compose workflow run [44497681238](https://github.com/justinhblee-prog/shorts/actions/runs/44497681238) passed (image build, five service processes running, API readiness HTTP 200, shared data volume checks, teardown). Backend tests run [44497681456](https://github.com/justinhblee-prog/shorts/actions/runs/44497681456) passed **712 tests**. This is CI integration evidence, not deployment-host evidence.
+
+
+## BUILD-00342 — Compose backup archive and isolated restore smoke
+
+- Extend the Compose integration workflow to wait for the backup service's first archive.
+- Verify that an archive is created, restore it into isolated temporary database/media paths, and run SQLite `PRAGMA integrity_check` on the restored database.
+- The restore operates only on a disposable copy and never overwrites the running service database.
+- This is a CI restore smoke against synthetic container data, not a production backup retention or disaster-recovery drill.
+- Exact-head validation passed.
+
+- Exact-head Compose workflow run [44499051491](https://github.com/justinhblee-prog/shorts/actions/runs/44499051491) passed: generated an AES-256-GCM `.tar.gz.enc` archive, confirmed no plaintext archive exists, restored the encrypted archive to isolated temporary paths, and verified SQLite integrity. Backend run [44499051722](https://github.com/justinhblee-prog/shorts/actions/runs/44499051722) passed **712 tests**; synthetic 10k-row due scan measured **0.50 ms**.
+
+
+## BUILD-00343 — encrypted Compose backup and restore smoke
+
+- Generate an ephemeral 256-bit backup key in the CI-only `.env` file and set `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` for the Compose smoke.
+- Require the backup service to create a `.tar.gz.enc` archive and assert that no plaintext `.tar.gz` archive is present.
+- Restore the encrypted archive into isolated temporary database/media paths using the same ephemeral key and verify SQLite integrity.
+- The key exists only for this disposable CI job. Production key custody, off-host retention, key rotation, and recovery-time objectives remain external release gates.
+- Exact-head validation passed.
+
+- Exact-head Compose workflow run [44500032102](https://github.com/justinhblee-prog/shorts/actions/runs/44500032102) passed: AES-256-GCM archive created, wrong-key restore failed authentication without changing the target DB, correct-key restore succeeded, and SQLite integrity passed. Backend run [44500032128](https://github.com/justinhblee-prog/shorts/actions/runs/44500032128) passed **712 tests**; synthetic 10k-row scan measured 0.65 ms on that runner.
+
+
+## BUILD-00344 — encrypted backup wrong-key fail-closed test
+
+- Extend the Compose backup/restore smoke to attempt restore with a syntactically valid but incorrect AES-256 key.
+- Require authentication failure and verify the target database SHA-256 is unchanged before performing the successful restore with the ephemeral CI key.
+- This validates wrong-key fail-closed behavior on a real generated archive in a disposable container environment; it does not prove production key custody or disaster recovery.
+- Exact-head backend validation passed: [run 44501997095](https://github.com/justinhblee-prog/shorts/actions/runs/44501997095), 716 tests. Compose integration passed: [run 44501997029](https://github.com/justinhblee-prog/shorts/actions/runs/44501997029).
+
+
+## BUILD-00345 — restore rollback after media installation failure
+
+- Exact-head validation (combined BUILD-00345/00346 checkpoint) passed: backend [run 44501997095](https://github.com/justinhblee-prog/shorts/actions/runs/44501997095), 716 tests; Compose [run 44501997029](https://github.com/justinhblee-prog/shorts/actions/runs/44501997029).
+- Add a failure-injection regression at the point where the restored database has been installed but the staged media directory cannot be installed.
+- Verify rollback restores the original live database and complete media tree, including files absent from the backup being restored.
+- Verify no `.restore-*` or `.pre-restore-*` staging/rollback paths remain after recovery.
+- This validates the local rollback branch under a deterministic filesystem failure; it does not establish crash-consistency across power loss or a live multi-process restore.
+- Exact-head backend validation passed: [run 44501997095](https://github.com/justinhblee-prog/shorts/actions/runs/44501997095), 716 tests; Compose integration passed: [run 44501997029](https://github.com/justinhblee-prog/shorts/actions/runs/44501997029).
+
+
+## BUILD-00346 — backup database/media path-overlap protection
+
+- Exact-head validation passed in the same combined checkpoint: backend [run 44501997095](https://github.com/justinhblee-prog/shorts/actions/runs/44501997095), 716 tests; Compose [run 44501997029](https://github.com/justinhblee-prog/shorts/actions/runs/44501997029).
+- Preserve symlink rejection before resolving the archive path and add a regression proving a symlinked archive cannot bypass the regular-file check.
+
+- Reject backup and restore layouts where the SQLite database resides inside the media tree; replacing the media directory in such a layout could move or delete the live database.
+- Reject restore archives stored inside the media directory because a successful media replacement would remove the source archive.
+- Add regressions verifying both unsafe layouts fail before changing live database or archive contents.
+- Exact-head backend validation passed: [run 44504465148](https://github.com/justinhblee-prog/shorts/actions/runs/44504465148), 719 tests. Exact-head Compose integration passed: [run 44504465052](https://github.com/justinhblee-prog/shorts/actions/runs/44504465052).
+
+
+## BUILD-00347 — reject symlinked backup storage roots
+
+- Reject symbolic-link database, media-root, backup-output and restore-backup directories before resolving paths.
+- Preserve the intended storage-root boundary instead of silently following a symlink to another directory or database file.
+- Add regression coverage for symlinked media, backup output, database and restore roots. Tests skip only on platforms that cannot create symlinks.
+- Exact-head backend validation passed: [run 44502646079](https://github.com/justinhblee-prog/shorts/actions/runs/44502646079), **717 tests**. Exact-head Compose integration passed: [run 44502645766](https://github.com/justinhblee-prog/shorts/actions/runs/44502645766).
+
+
+## BUILD-00348 — compressed backup archive size limits
+
+- Exact-head validation passed: backend [run 44503388858](https://github.com/justinhblee-prog/shorts/actions/runs/44503388858), **718 tests**; Compose [run 44503388809](https://github.com/justinhblee-prog/shorts/actions/runs/44503388809), five-service encrypted backup/restore smoke.
+- Bound compressed plaintext and encrypted archive sizes before tar parsing or AES-GCM decryption writes staging data.
+- Allow a fixed 256 MiB envelope for tar headers, directory entries, compression overhead and the encryption envelope beyond the supported uncompressed database/media payload cap.
+- Add regressions for oversized plaintext and encrypted archives; verify the live database remains unchanged and no restore staging directory is left behind.
+- Exact-head backend validation passed: [run 44503388858](https://github.com/justinhblee-prog/shorts/actions/runs/44503388858), 718 tests; Compose integration passed: [run 44503388809](https://github.com/justinhblee-prog/shorts/actions/runs/44503388809).
+
+
+## BUILD-00349 — offline SQLite restore guard
+
+- Refuse restore when SQLite `-wal`, `-shm` or `-journal` sidecars are present, preventing the restore flow from replacing the database while uncheckpointed or active sidecar state may exist.
+- Document restore as an offline maintenance operation: stop API, worker, scheduler, metrics collector and backup processes; close/checkpoint the DB; restore and verify; then restart.
+- Add regressions for all three sidecar types and verify live DB contents remain unchanged.
+- The sidecar check is a fail-closed safeguard, not proof that no process has an open database handle; operator shutdown remains mandatory.
+- Exact-head validation passed: backend [run 44505492687](https://github.com/justinhblee-prog/shorts/actions/runs/44505492687), **720 tests**; Compose [run 44505492612](https://github.com/justinhblee-prog/shorts/actions/runs/44505492612), five-service backup/restore smoke.
+
+
+## BUILD-00350 — report post-restore cleanup failures
+
+- Initial exact-head test exposed a missing `shutil` import in the failure-injection fixture; the test import is corrected and revalidation is running.
+- Preserve successful restore status while explicitly returning `cleanup_warnings` when pre-restore database or media copies cannot be removed.
+- Include only the retained path and exception type; do not silently swallow disk-usage cleanup failures.
+- Add failure-injection coverage for both old database and media cleanup paths while verifying the restored database remains valid.
+- Exact-head validation passed: backend [run 44506538368](https://github.com/justinhblee-prog/shorts/actions/runs/44506538368), **725 tests**; Compose [run 44506538484](https://github.com/justinhblee-prog/shorts/actions/runs/44506538484), all five services healthy and encrypted backup/restore smoke passed.
+
+
+## BUILD-00351 — Compose service health probes
+
+- Compose smoke no longer blocks API/worker/scheduler startup on the duration of the first backup: it waits for core service health, then separately waits up to 15 minutes for the first backup marker and backup health.
+- Add PID-1 command probes for worker, scheduler and metrics collector containers.
+- Add an atomic successful-backup timestamp marker and a freshness health probe for the backup service; failed or overdue backups now make the container unhealthy.
+- Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
+- Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
+- Exact-head validation passed on `59ec8286f6c216345955593dd82a1047851fad4d`: backend [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693), **725 tests**; Compose [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702), all five services healthy, fresh successful-backup marker present, encrypted isolated restore passed, wrong-key restore rejected without changing the target DB. CI-only; no production-host or production-data recovery is claimed.

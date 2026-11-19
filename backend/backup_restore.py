@@ -26,6 +26,8 @@ MAX_MANIFEST_BYTES = 16 * 1024 * 1024
 MAX_DATABASE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_MEDIA_BYTES = 200 * 1024 * 1024 * 1024
 MAX_ARCHIVE_BYTES = MAX_MANIFEST_BYTES + MAX_DATABASE_BYTES + MAX_MEDIA_BYTES
+# Allow tar headers, directory entries, gzip overhead and the AES-GCM envelope.
+MAX_COMPRESSED_ARCHIVE_BYTES = MAX_ARCHIVE_BYTES + 256 * 1024 * 1024
 ENCRYPTED_MAGIC = b"NEXUSBK1"
 ENCRYPTED_NONCE_BYTES = 12
 ENCRYPTED_TAG_BYTES = 16
@@ -65,6 +67,30 @@ def _effective_encryption_key(value):
     if value is _USE_ENV_KEY:
         value = os.getenv("NEXUS_BACKUP_ENCRYPTION_KEY", "").strip()
     return value or None
+
+
+def _assert_database_offline(db_path):
+    db_path = Path(db_path)
+    sidecars = [
+        Path(str(db_path) + "-wal"),
+        Path(str(db_path) + "-shm"),
+        Path(str(db_path) + "-journal"),
+    ]
+    present = [path.name for path in sidecars if path.exists()]
+    if present:
+        raise BackupRestoreError(
+            "SQLite sidecar files are present; stop all application services and "
+            "close/checkpoint the database before restore: " + ", ".join(present)
+        )
+
+
+def _validate_database_media_paths(db_path, media_dir):
+    db_path = Path(db_path).resolve()
+    media_dir = Path(media_dir).resolve()
+    if db_path == media_dir or media_dir in db_path.parents:
+        raise BackupRestoreError(
+            "Database path must be outside the media directory"
+        )
 
 
 def _encryption_key_bytes(key):
@@ -141,6 +167,8 @@ def _decrypt_file(source, destination, key):
     size = source.stat().st_size
     if size < minimum_size:
         raise BackupRestoreError("Encrypted backup is truncated")
+    if size > MAX_COMPRESSED_ARCHIVE_BYTES:
+        raise BackupRestoreError("Encrypted backup exceeds the supported compressed archive size")
     created = False
     try:
         with source.open("rb") as input_file:
@@ -266,9 +294,15 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14,
     if encryption_key is not None:
         _encryption_key_bytes(encryption_key)
 
-    db_path = Path(db_path).resolve()
-    media_dir = Path(media_dir).resolve()
-    output_dir = Path(output_dir).resolve()
+    db_path = Path(db_path)
+    media_dir = Path(media_dir)
+    output_dir = Path(output_dir)
+    if db_path.is_symlink() or media_dir.is_symlink() or output_dir.is_symlink():
+        raise BackupRestoreError("Database, media, and backup roots must not be symbolic links")
+    db_path = db_path.resolve()
+    media_dir = media_dir.resolve()
+    output_dir = output_dir.resolve()
+    _validate_database_media_paths(db_path, media_dir)
     if output_dir == media_dir or media_dir in output_dir.parents:
         raise BackupRestoreError("Backup output directory must be outside the media directory")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -395,6 +429,9 @@ def _validate_manifest(manifest):
 
 
 def _extract_and_verify(archive_path, destination):
+    archive_path = Path(archive_path)
+    if archive_path.stat().st_size > MAX_COMPRESSED_ARCHIVE_BYTES:
+        raise BackupRestoreError("Backup exceeds the supported compressed archive size")
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     try:
@@ -497,10 +534,22 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
         raise BackupRestoreError(
             "NEXUS_BACKUP_ENCRYPTION_REQUIRED is enabled but NEXUS_BACKUP_ENCRYPTION_KEY is missing"
         )
-    db_path = Path(db_path).resolve()
-    media_dir = Path(media_dir).resolve()
-    backup_dir = Path(backup_dir).resolve()
+    db_path = Path(db_path)
+    media_dir = Path(media_dir)
+    backup_dir = Path(backup_dir)
     archive_path = Path(archive_path)
+    if db_path.is_symlink() or media_dir.is_symlink() or backup_dir.is_symlink():
+        raise BackupRestoreError("Database, media, and backup roots must not be symbolic links")
+    db_path = db_path.resolve()
+    media_dir = media_dir.resolve()
+    backup_dir = backup_dir.resolve()
+    if archive_path.is_symlink():
+        raise BackupRestoreError("Backup archive does not exist or is not a regular file")
+    archive_path = archive_path.resolve()
+    _validate_database_media_paths(db_path, media_dir)
+    _assert_database_offline(db_path)
+    if media_dir == archive_path or media_dir in archive_path.parents:
+        raise BackupRestoreError("Backup archive must be outside the media directory")
     if not db_path.parent.exists():
         db_path.parent.mkdir(parents=True, exist_ok=True)
     media_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -565,16 +614,21 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
                 os.replace(old_db, db_path)
             raise
         else:
+            cleanup_warnings = []
             if old_db.exists():
                 try:
                     old_db.unlink()
-                except OSError:
-                    pass
+                except OSError as exc:
+                    cleanup_warnings.append({
+                        "path": str(old_db), "error": type(exc).__name__,
+                    })
             if old_media.exists():
                 try:
                     shutil.rmtree(old_media)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    cleanup_warnings.append({
+                        "path": str(old_media), "error": type(exc).__name__,
+                    })
         finally:
             if new_db.exists():
                 new_db.unlink()
@@ -588,6 +642,7 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
         "pre_restore_backup": pre_restore,
         "backup_created_at": manifest.get("created_at"),
         "media_file_count": len(manifest.get("media_files", [])),
+        "cleanup_warnings": cleanup_warnings,
     }
 
 

@@ -2,8 +2,17 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Inventory date:** 2026-11-17  
+**Inventory date:** 2026-11-19  
 **Inventory source:** `docs/BUILD_STATUS.md`, `docs/OPERATOR_RUNBOOK.md`, `docs/HANDOVER.md`, `docs/PLATFORM_POLICY_MATRIX.md`, current Draft PR chain.
+
+## Current checkpoint — 2026-11-19
+
+- Core lane: PR [#323](https://github.com/justinhblee-prog/shorts/pull/323), Open / Draft / Unmerged. Latest Core code checkpoint `59ec8286f6c216345955593dd82a1047851fad4d` passed 725 backend tests [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693) and health-aware five-service Compose integration [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702). Worker, scheduler, metrics collector and backup healthchecks were healthy; the backup marker and encrypted isolated restore passed. BUILD-00345–00351 add restore rollback, path-overlap, symlink-root, archive-size, offline-restore, cleanup-warning and container health protections.
+- Latest Core engineering items: BUILD-00336–00340 (bounded/fair indexed TikTok scan, query-plan guard, collector lease/OAuth coverage, synthetic 10k-row scan); BUILD-00341–00344 (Compose service integration, AES-256-GCM backup, isolated restore, wrong-key failure without DB modification). Synthetic due scan measured 0.65 ms for 10k publications and 10k snapshots on the CI runner.
+- UI lane: PR [#329](https://github.com/justinhblee-prog/shorts/pull/329), Open / Draft / Unmerged. Latest UI code checkpoint `20207d401d9a65a1f3c112dec621174e56917860` passed 730 tests and Playwright Chromium; current docs head `ff77b20ae500e7bb11a40960d86ab9518c2a6585` is documentation-only. UI-00008 exercises the actual FastAPI app/SQLite, authenticated API, review approval, analytics cursor pagination, browser CSV download and partial API outage handling; UI-00009 adds review search.
+- Verified in CI: browser rendering/navigation, authenticated FastAPI/SQLite API requests, real review approval/audit history, keyset-paginated analytics and a 502-row Chromium CSV download; desktop/mobile viewport, keyboard/skip-link, reduced-motion and partial API outage behavior; Docker Compose five-service startup; encrypted synthetic backup and isolated restore; wrong-key restore rejection without changing the target database. BUILD-00351 worker/scheduler/collector/backup health probes and health-aware Compose smoke passed exact PR head `59ec8286f6c216345955593dd82a1047851fad4d`: 725 backend tests [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693), plus all-five-service Compose health, fresh backup marker, encrypted isolated restore and wrong-key fail-closed smoke [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702). This remains CI/synthetic-data evidence, not deployment-host or production-data recovery. Not verified: live authenticated backend/provider data, real YouTube/TikTok OAuth/publishing/analytics, production-host deployment, production-data backup recovery, physical touch-device and assistive-technology validation, and real cohort ROI.
+- Both PRs remain Draft and unmerged. Do not merge without explicit user approval.
+- Launch gate completion remains **1/8 (12.5%)**. Automated CI and synthetic data do not close external/deployment gates.
 
 ## How progress is measured
 
@@ -16,9 +25,9 @@ Track two separate measures:
 
 CI completion does not imply live provider, browser, platform, financial, or production readiness.
 
-## Current checkpoint
+## Historical engineering chain — BUILD-00292–00302
 
-- Latest completed engineering item in the current stacked chain: BUILD-00302 — serialize OAuth state and refresh-lease clocks after the SQLite write lock; CI passed on PR #308.
+- The earlier stacked chain completed the scheduler/OAuth timestamp consistency audit through BUILD-00302. Its historical PR records remain below; the active development tracks are PRs #323 and #329.
 - PR #298 (BUILD-00292): https://github.com/justinhblee-prog/shorts/pull/298 — exact head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`, GitHub Actions passed.
 - PR #299 (BUILD-00293): https://github.com/justinhblee-prog/shorts/pull/299 — exact head `724d4f78425577debc74a7990cf4d34133162390`, GitHub Actions passed.
 - PR #300 (BUILD-00294): https://github.com/justinhblee-prog/shorts/pull/300 — latest docs-inclusive head `00a55e1ae52a102a7eddfa52d3bc65c0b58aa8db`, GitHub Actions run #43990440580 passed.
@@ -51,7 +60,7 @@ Current ordered work:
 11. BUILD-00302: OAuth state creation/consumption and TikTok refresh-lease timestamps after SQLite write-lock acquisition — CI passed on PR #308.
 12. Continue the timestamp/atomicity audit across queue, worker registry, production-run, review, upload and reconciliation transitions.
 13. Audit transaction atomicity, idempotency, lease/generation fencing, ambiguous external outcomes, retry safety and immutable audit records — rolling; BUILD-00303 and BUILD-00304 address append-only review evidence and late-completion retry safety.
-14. Reconcile API authorization and diagnostic redaction with UI actions; identify shared-token/claimed-identity limitations before multi-user deployment.
+14. Reconcile API authorization and diagnostic redaction with UI actions; per-operator credentials and explicit least-privilege role maps are implemented, while legacy shared-token mode remains a migration fallback. Validate production identity-provider/SSO lifecycle, provisioning, rotation and end-to-end audit attribution before multi-user deployment.
 15. Audit dashboard workflows, accessibility, loading/error states and add browser-level checks where a runnable browser environment is available.
 16. Re-run full repository validation after the rolling audit queue is exhausted; fix regressions and publish a verified test inventory.
 
@@ -59,9 +68,9 @@ This is a rolling audit, not a claim that exactly six BUILD items remain. Add ne
 
 ## Phase 2 — Integrated environment verification
 
-**Exit criteria:** all three Compose services start and remain healthy; API, worker and scheduler exercise one complete supervised lifecycle; recovery and backup behavior are demonstrated.
+**Exit criteria:** all five Compose services start and remain healthy; API, worker and scheduler exercise one complete supervised lifecycle; recovery and backup behavior are demonstrated.
 
-- [ ] Build and start Docker Compose; confirm API, worker and scheduler health.
+- [ ] Build and start Docker Compose on the deployment host; confirm API, worker and scheduler health. CI Compose smoke (BUILD-00341–00351) verifies all five service healthchecks, encrypted backup creation, isolated restore and wrong-key fail-closed behavior; this does not count as deployment-host evidence.
 - [ ] Exercise queue → worker → production record → review handoff → recovery on the deployed single-host SQLite volume.
 - [ ] Verify scheduler pause, pending outbox replay, restart behavior and idempotency on the deployed host.
 - [ ] Run a backup and restore drill against a copy of the persistent data volume.
@@ -75,8 +84,8 @@ Source: `docs/OPERATOR_RUNBOOK.md`, section 8.
 
 | # | Required evidence | Status |
 |---:|---|---|
-| 1 | `sh scripts/validate.sh` passes on Python 3.11+ | Verified in GitHub Actions for PR #293 head; CI only |
-| 2 | Docker Compose build/start; all three services healthy | Pending deployment evidence |
+| 1 | `sh scripts/validate.sh` passes on Python 3.11+ | Verified in GitHub Actions for PR #323 checkpoint `1dbd1285`; 725 tests, CI only |
+| 2 | Docker Compose build/start; all five services healthy | Pending deployment evidence |
 | 3 | Real script, voice and video generation; vendor compatibility, rights/licensing and costs checked | Pending real provider credentials and media review |
 | 4 | Renderer CDN allowlist and staged MP4 playback verified | Pending real renderer artifact and playback |
 | 5 | YouTube OAuth scopes and one private test upload on intended channel | Pending channel consent and credentials |
@@ -91,7 +100,7 @@ Source: `docs/OPERATOR_RUNBOOK.md`, section 8.
 These are additional readiness constraints documented by the project, not completed launch gates:
 
 - **Database and distributed execution:** current baseline is single-host SQLite. PostgreSQL migration, multi-host-safe worker/scheduler coordination, and distributed deployment are not verified. Do not scale multiple hosts against shared SQLite.
-- **Identity and access:** current review workflow uses a shared operator secret and caller-asserted reviewer ID. A real identity provider, role-based authorization, and user-level audit attribution are required before multi-user production.
+- **Identity and access:** per-operator review credentials and explicit role-based permissions are supported; legacy shared-token mode remains for migration. Review/evidence decisions and provider reconciliation derive operator identity from the authenticated token rather than trusting body-supplied identity. A production identity provider/SSO, provisioning and rotation lifecycle, and end-to-end user audit attribution still require deployment validation.
 - **Platform policy:** preflight relies on human declarations; it does not inspect full media bytes, independently verify rights/consent, or guarantee policy approval. Verify actual platform disclosure capabilities and apply disclosure metadata where supported.
 - **Real AI/media quality:** validate provider contracts, real generated outputs, licensing, render quality, artifact durability, and per-generation costs.
 - **Financial/business validation:** reconcile actual income and costs; establish positive net ROI and stable cohort evidence before changing recommendation weights or scaling production.
@@ -191,3 +200,11 @@ These are additional readiness constraints documented by the project, not comple
 - Extend atomic artifact/provider-attempt adoption to script, voice-generation and rendering; the previous split writes left a crash window after artifact commit but before attempt adoption.
 - New regression checks paired adoption and rollback for all three stages.
 - Validation pending exact PR-head CI. No live provider or deployed runtime validation is claimed; launch-gate score remains 1/8.
+
+
+### BUILD-00342 — CI backup/restore evidence
+- Compose workflow run [44498381444](https://github.com/justinhblee-prog/shorts/actions/runs/44498381444) verified a generated tar archive and restored it into isolated temporary paths with SQLite integrity verification. This does not satisfy the production backup/restore gate; production data, off-host retention, encryption-key custody, and recovery-time objectives remain pending.
+
+- BUILD-00343 passed Compose run [44499051491](https://github.com/justinhblee-prog/shorts/actions/runs/44499051491): AES-256-GCM encrypted archive creation, plaintext rejection, isolated restore, and SQLite integrity check. Production encryption-key custody and off-host recovery remain pending.
+
+- BUILD-00344 extends the encrypted backup CI smoke with a wrong-key restore attempt; it must fail authentication without changing the target database, before the correct-key restore is allowed.
