@@ -98,12 +98,12 @@ All listed PRs are Draft and unmerged in this snapshot. Their base/head relation
 - PR #382 UI-00011: exact-head hosted backend/browser/Compose validation passed.
 - PR #383 BUILD-00385: exact-head hosted backend validation passed.
 - PR #384 BUILD-00386: 825-test hosted backend validation passed; live Windows worker recovery remains unverified.
-- PR #385 BUILD-00387 YouTube disclosure mapping: earlier code head passed 823 tests; subsequent BUILD-00389–00392 hardening is on a newer head with exact-head CI pending; no live platform upload performed.
+- PR #385 BUILD-00387 YouTube disclosure mapping: BUILD-00389–00392 hardening reached head `287676798112fd8250816dc86986a6dc0c4d604a`, where both validation jobs found one legacy error-message assertion mismatch (827 tests; one failure). A compatibility fix is now at head `3f23c41cc87315cf0e154fee0a487a74d7aadaa0`; exact-head CI is queued. No live platform upload performed.
 - PR #386 POLICY-00001: 825-test hosted validation passed.
 - PR #387 UI-00012: exact-head hosted repository and frontend syntax validation passed; live authenticated browser/API interaction remains unverified.
 - PR #388 BUILD-00388: exact head `f55030dab87cbcb8a1fa1a015a74db87961496f4` passed 829 tests, `scripts/validate.sh`, and `node --check frontend/app.js` in [run 44558169681](https://github.com/justinhblee-prog/shorts/actions/runs/44558169681); live GitHub API pagination remains unverified.
 - PR #389 POLICY-00002: exact-head hosted repository and frontend syntax validation passed.
-- PR #390 POLICY-00003: earlier code head `a89dd228f924bf6f7cb8bd7d441c6733851c1acf` passed `scripts/validate.sh` and `node --check frontend/app.js` in runs [44554183308](https://github.com/justinhblee-prog/shorts/actions/runs/44554183308) and [44554192636](https://github.com/justinhblee-prog/shorts/actions/runs/44554192636). POLICY-00004 latest-script binding changes are on a newer head with exact-head CI pending.
+- PR #390 POLICY-00003 / POLICY-00004: exact head `cc29af580467e6b261fa724aad99a976eedb5552` passed `scripts/validate.sh` and `node --check frontend/app.js` in runs [44560114906](https://github.com/justinhblee-prog/shorts/actions/runs/44560114906) and [44560101223](https://github.com/justinhblee-prog/shorts/actions/runs/44560101223). Latest-script policy binding and its stale-report regression are included. Live production approval remains unverified.
 
 ## Next work selection
 
