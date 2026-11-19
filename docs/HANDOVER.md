@@ -1258,3 +1258,59 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **466 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully.
 - This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
+
+
+---
+
+# Current handoff — 2026-11-19 (NEXUS STUDIO PRO)
+
+## Repository state
+- Repository: `justinhblee-prog/shorts`
+- Default branch: `main`
+- Main head at this checkpoint: `851b414262cc6bef8ec374ed0e7a25921521b295`
+- Project baseline remains v0.1. Do not jump to v1.0 without a reviewed release acceptance specification.
+- All active work below is in open Draft PRs. Do not merge, push to main, deploy, publish, or mutate secrets without explicit authorization.
+
+## Active PR workstreams
+
+| PR | Work | State / validation |
+|---:|---|---|
+| #321–#328 | BUILD-00313–00320 development control plane, persistence, review gate, recovery, bounded continuation and Windows runner preflight | Open Draft; exact-head hosted CI checks passed |
+| #323 | BUILD-00315–00351 core/backend workstream: analytics, collectors, backup/restore and service health | Open Draft; exact core head passed 725 backend tests and five-service Compose/backup/restore smoke |
+| #329 | UI-00001–00009 dashboard and review workspace | Open Draft; separate frontend workstream |
+| #330 | BUILD-00321 GitHub Actions workflow-run intake fix | Open Draft; exact-head backend CI passed |
+| #331 | BUILD-00352 encrypted production restore runbook example | Open Draft; 726 backend tests and Compose smoke passed |
+| #332 | BUILD-00353 GitHub Actions Node 24 migration | Open Draft; 726 backend tests and Compose smoke passed |
+| #333 | BUILD-00354 backup health requires a fresh retained archive with a matching format header | Open Draft; 729 backend tests and Compose smoke passed |
+| #334 | BUILD-00355 global GitHub issue source deduplication | Open Draft; 768 backend tests passed |
+| #335 | BUILD-00356 bounded GitHub API pagination (500 records/feed) with truncation reporting and host validation | Open Draft; 771 backend tests passed |
+| #336 | BUILD-00357 GitHub owner/repository path-segment validation | Open Draft; 773 backend tests passed |
+
+PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #334; #336 is stacked on #335. PRs #331–#333 are independent follow-ups based on the core PR #323. PR #329 is the separate UI branch. PRs #311–#315 remain protected and unmerged.
+
+## Latest engineering changes
+- GitHub Actions workflow intake now preserves real paginated workflow-run rows instead of unwrapping the API envelope twice.
+- Development issue sync no longer treats the first 500 visible jobs as its deduplication index. GitHub issue source identity is checked across the store and enforced under SQLite `BEGIN IMMEDIATE`, including the preflight race window.
+- GitHub Issues, PR and Actions feeds are capped at five 100-record pages each. Per-feed truncation is returned to the operator; non-GitHub pagination URLs are rejected.
+- GitHub owner and repository inputs are validated as separate path segments before any API call.
+- Backup health requires a fresh success marker and a fresh retained archive. It verifies the archive suffix and encrypted/gzip format header; encryption-required mode cannot report healthy from a plaintext archive.
+- Production restore instructions now select `.tar.gz.enc` when encryption-required mode is enabled.
+- CI workflows use maintained Node 24-compatible GitHub Actions majors (`actions/checkout@v7`, `actions/setup-python@v7`).
+
+## What CI does and does not prove
+- Backend test counts above are hosted GitHub Actions results on the listed exact Draft PR heads.
+- Compose smoke validates disposable test services, encrypted backup creation, isolated restore and wrong-key fail-closed behavior.
+- Hosted Linux CI does not prove the user's Windows self-hosted runner is registered/online, that Ollama is reachable under the runner account, that a real local-model diff is produced, or that the LocalAppData job database survives separate Windows workflow runs.
+- No live YouTube/TikTok OAuth, external AI/media provider generation, public posting, renderer/CDN playback, production financial reconciliation, production restore drill or ROI cohort is claimed.
+
+## Remaining ordered gates
+1. Continue the rolling code audit and add regression coverage for each newly discovered defect. Do not treat BUILD numbers as a finite completion denominator.
+2. Review/integrate the stacked Draft PRs in dependency order only after explicit approval; keep PRs #311–#315 protected.
+3. After deliberate integration into `main`, configure a least-privilege `NEXUS_GITHUB_READ_TOKEN` and explicit `NEXUS_APPROVED_SCOPES` mappings.
+4. Verify the trusted Windows self-hosted runner, Git Bash, Python 3.11+, Node 18+, Ollama and exact `qwen2.5-coder:7b` model tag.
+5. Run at least two separate Windows workflow cycles against the persistent LocalAppData SQLite store; verify a real Ollama-generated scoped diff, exact open Draft PR publication, review-artifact read-back and dependent-job advancement.
+6. Complete deployment-host Compose/API/worker/scheduler verification, production backup/restore and security operations.
+7. Complete live AI/media provider, renderer, OAuth/private test upload, financial reconciliation and small-cohort ROI evidence before launch.
+
+## Next continuation target
+Continue from the latest open Draft chain, starting with any failing or unverified exact-head CI checks. Then audit the development worker's real execution/publication lifecycle and the core backup/restore and provider lifecycle boundaries. Never report a mock or hosted-Linux fixture as proof of the Windows local-model execution. Do not ask the user to run commands or supply data already available from repository/CI tools. Stop for explicit approval only where merging, secrets, external contracts, production data, costs or public publishing are involved.
