@@ -66,6 +66,22 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
                 self.assertNotIn(secret, summary)
         self.assertIn("[REDACTED]", summary)
 
+    def test_worker_redacts_multiline_service_account_json(self):
+        job = self.store.create("Service account diagnostic", scope=["backend/example.py"])
+
+        def broken(_):
+            raise RuntimeError(
+                'FIREBASE_SERVICE_ACCOUNT={"type": "service_account", '
+                '"private_key": "firebase-private-secret"}'
+            )
+
+        worker = DevelopmentJobWorker(self.store, "worker-service-account-redaction", broken)
+        self.assertEqual(worker.run_once(), "retry_wait")
+        summary = self.store.get(job["id"])["result_summary"]
+        self.assertNotIn("firebase-private-secret", summary)
+        self.assertNotIn('"type": "service_account"', summary)
+        self.assertIn("[REDACTED]", summary)
+
     def test_non_retryable_worker_error_quarantines_job(self):
         job = self.store.create("Unsafe scope", scope=["backend/example.py"])
         def rejected(_):
