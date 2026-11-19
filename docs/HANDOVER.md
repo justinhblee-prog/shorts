@@ -1524,3 +1524,11 @@ The final store transition now applies the same case-insensitive, separator-norm
 - Recovery resets attempts and stale validation evidence, returns the job to ready, and appends an immutable `quarantine_recovered` event with the prior attempt count.
 - Added the `POST /api/development/jobs/{job_id}/recover` endpoint under the new `operations.manage` permission; operator role is granted this permission, while reviewer/producer roles are not.
 - Code head `628d5d1e22a56bbb58642e27530722d4d67e8992` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44548442047](https://github.com/justinhblee-prog/shorts/actions/runs/44548442047). Subsequent commits on this branch are documentation-only.
+
+
+## UI-00012 — audited quarantine recovery control
+- Added a per-job `격리 작업 복구` action that is rendered only when the job status is `quarantined`.
+- The action collects a reason, requires confirmation, posts to `/api/development/jobs/{job_id}/recover`, and refreshes the job list and selected job's event history.
+- The action remains separate from the job-selection button and does not offer job completion, PR merge or deployment operations.
+- Added static frontend contract coverage. Exact-head CI pending.
+- Backend dependency: BUILD-00386 / PR #384 must be present before this UI action is used in a deployed environment.
