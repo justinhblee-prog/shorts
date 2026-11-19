@@ -2501,3 +2501,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve only the explicitly constructed local model, repository, and isolated tool configuration context.
 - Add regression coverage for PYTHONPATH/PYTHONHOME, LD_PRELOAD, DYLD_INSERT_LIBRARIES, BASH_ENV, ENV, NODE_OPTIONS and related runtime injection variables.
 - Exact-head hosted CI pending. This is environment-contract coverage; no live Windows runner or Aider/Ollama execution is claimed.
+
+
+## BUILD-00363 — prevent worker reuse after a partial job attempt
+- Stop the bounded worker cycle after any claimed job attempt, not only after a successful review-pending result.
+- A failed Aider/validation attempt can leave unvalidated edits in the shared worktree; claiming another job in that same cycle would cause cross-job contamination or quarantine unrelated work.
+- Add a regression where the first job writes a partial change and fails, then assert the second ready job remains untouched.
+- Exact-head hosted CI pending; runner checkout cleanup and persistent Windows workspace behavior remain separate integration checks.
