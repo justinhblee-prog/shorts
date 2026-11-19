@@ -2788,3 +2788,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Accept only recognized policy statuses and a well-formed list of approval blockers; reject missing reports, unknown statuses and malformed blocker collections.
 - Preserve existing behavior: explicit blockers cannot be overridden, and `review_required` still requires a reviewer confirmation note.
 - Add dedicated review-workflow regressions. Exact-head CI pending.
+
+
+## POLICY-00004 — require preflight for the latest script artifact
+- Production approval now resets the candidate policy report for each script artifact; a newer script without a valid preflight report invalidates any older report.
+- Added a regression proving stale policy approval cannot authorize a revised script.
+- Exact-head CI pending.
