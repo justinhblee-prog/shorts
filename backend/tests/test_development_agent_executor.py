@@ -1,5 +1,7 @@
 import os
+import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -229,6 +231,16 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertEqual(Path(env["NPM_CONFIG_USERCONFIG"]).read_text(encoding="utf-8"), "")
         self.assertEqual(env["PIP_CONFIG_FILE"], os.devnull)
         self.assertEqual(Path(env["NPM_CONFIG_GLOBALCONFIG"]).read_text(encoding="utf-8"), "")
+
+    def test_command_process_tree_is_terminated_when_lease_is_lost(self):
+        cancelled = threading.Event()
+        cancelled.set()
+        self.executor._lease_lost_event = cancelled
+        with self.assertRaisesRegex(RuntimeError, "lease lost"):
+            self.executor._run(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                os.environ.copy(), 60,
+            )
 
     def test_diagnostic_redaction_removes_bearer_and_common_api_tokens(self):
         message = (

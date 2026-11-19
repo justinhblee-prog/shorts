@@ -325,3 +325,15 @@ GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00367 — final validation checkpoint
 - Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
+
+
+### BUILD-00368 — stale worker process termination
+An independent watchdog detects a lease deadline even while a heartbeat database call is blocked. Lease-loss signals are propagated to the Aider executor, which terminates the active command process tree. Hosted CI regression coverage is pending; Windows runner integration is still required to verify `taskkill /T /F` behavior. No live runner claim is made.
+
+
+### BUILD-00368 — lease-loss fencing validation evidence
+GitHub Actions run [44520050960](https://github.com/justinhblee-prog/shorts/actions/runs/44520050960) passed **797 backend tests**, repository validation and frontend JavaScript syntax validation. This includes the prolonged heartbeat failure and active POSIX process-tree termination regressions. Windows `taskkill /T /F` behavior is not validated by hosted Linux CI.
+
+
+### BUILD-00368 — independent watchdog validation evidence
+GitHub Actions run [44520547849](https://github.com/justinhblee-prog/shorts/actions/runs/44520547849) passed **797 backend tests**, repository validation and frontend syntax validation, including a deliberately blocked heartbeat call that exceeds the watchdog budget. Hosted Linux does not validate Windows `taskkill /T /F` behavior.
