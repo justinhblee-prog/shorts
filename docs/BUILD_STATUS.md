@@ -2639,3 +2639,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject review-pending transitions unless the validated changed-file evidence includes at least one non-test source path; mixed source-plus-test changes remain valid.
 - Add durable-store regression coverage for Python/JavaScript test path conventions and mixed source/test evidence.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00372 — exact-head hosted validation
+- Code head `3664b352d1d10da5d4f0a84beb6f81327f73bc5c` passed GitHub Actions run [44529199064](https://github.com/justinhblee-prog/shorts/actions/runs/44529199064): **804 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Hosted Linux validation only.
