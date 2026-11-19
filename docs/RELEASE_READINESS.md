@@ -228,3 +228,7 @@ These are additional readiness constraints documented by the project, not comple
 
 ### BUILD-00355 — idempotent GitHub issue intake
 The read-only backlog sync now deduplicates by indexed `source_ref` across the complete development-job store, rather than the first 500 rows returned by the list API. The store enforces uniqueness for `github:issue:` source references under its SQLite write transaction, so concurrent intake runs cannot create duplicate issue jobs after racing preflight checks. Other seeded/documentation source references are unaffected. Exact-head CI is pending; no live Windows runner execution is claimed.
+
+
+### BUILD-00355 — exact-head CI result
+Exact head `743a10762fa57a49afee5d681d0899579ce93721` passed backend Actions run [44510490935](https://github.com/justinhblee-prog/shorts/actions/runs/44510490935) with 768 tests, including the beyond-500-row and transaction-race deduplication regressions. This is hosted CI only; Windows self-hosted runner and live Ollama execution remain unverified.
