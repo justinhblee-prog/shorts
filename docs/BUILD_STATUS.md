@@ -2674,3 +2674,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add regressions for traversal, extra path segments, query injection, empty segments and newline injection. Exact-head CI pending.
 
 - Stabilize the existing TikTok poll-backoff regression by using 30/65-second and 90/125-second test timestamps around the 60/120-second thresholds, avoiding a wall-clock scheduling race caused by second-resolution SQLite timestamps.
+
+
+### BUILD-00379 — final exact-head validation
+- Final head `42d29e6d438c97da338764de72149ebbacf69151` passed **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538127436](https://github.com/justinhblee-prog/shorts/actions/runs/44538127436) and [44538117994](https://github.com/justinhblee-prog/shorts/actions/runs/44538117994).
+- Both exact-head runs passed after stabilizing the TikTok poll-backoff test's time-boundary fixtures. Hosted Linux only; Windows local-runner and production execution remain unverified.

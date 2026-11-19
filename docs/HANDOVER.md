@@ -1453,3 +1453,8 @@ The `source_ref_exists` preflight lookup also applies the same redactor, keeping
 
 ### CI reliability follow-up
 The full-suite run exposed a timing-sensitive TikTok status-poll backoff test that set timestamps only one second below the 60s/120s thresholds. Its fixtures now use wide margins so scheduler delay and SQLite timestamp precision cannot cause a false failure.
+
+
+### BUILD-00379 — final exact-head validation
+- Final head `42d29e6d438c97da338764de72149ebbacf69151` passed **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538127436](https://github.com/justinhblee-prog/shorts/actions/runs/44538127436) and [44538117994](https://github.com/justinhblee-prog/shorts/actions/runs/44538117994).
+- Both exact-head runs passed after stabilizing the TikTok poll-backoff test's time-boundary fixtures. Hosted Linux only; Windows local-runner and production execution remain unverified.

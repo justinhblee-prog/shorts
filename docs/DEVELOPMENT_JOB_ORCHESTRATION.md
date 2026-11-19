@@ -271,3 +271,8 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 - Add regressions for traversal, extra path segments, query injection, empty segments and newline injection. Code head `7d55d319ad512f885f7a12dccae315c34766e44f` passed GitHub Actions run [44537566649](https://github.com/justinhblee-prog/shorts/actions/runs/44537566649): **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`. Hosted Linux only; Windows local-runner and production execution remain unverified.
 
 - Stabilize the existing TikTok poll-backoff regression by using 30/65-second and 90/125-second test timestamps around the 60/120-second thresholds, avoiding a wall-clock scheduling race caused by second-resolution SQLite timestamps.
+
+
+### BUILD-00379 — final exact-head validation
+- Final head `42d29e6d438c97da338764de72149ebbacf69151` passed **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538127436](https://github.com/justinhblee-prog/shorts/actions/runs/44538127436) and [44538117994](https://github.com/justinhblee-prog/shorts/actions/runs/44538117994).
+- Both exact-head runs passed after stabilizing the TikTok poll-backoff test's time-boundary fixtures. Hosted Linux only; Windows local-runner and production execution remain unverified.

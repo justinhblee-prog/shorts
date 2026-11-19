@@ -389,3 +389,8 @@ Malformed repository identities are rejected at issue normalization before they 
 
 ### CI reliability follow-up
 The TikTok status-poll backoff regression now uses timestamps with safe margins from its 60s/120s thresholds to avoid wall-clock scheduling flakiness in hosted CI.
+
+
+### BUILD-00379 — final exact-head validation
+- Final head `42d29e6d438c97da338764de72149ebbacf69151` passed **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538127436](https://github.com/justinhblee-prog/shorts/actions/runs/44538127436) and [44538117994](https://github.com/justinhblee-prog/shorts/actions/runs/44538117994).
+- Both exact-head runs passed after stabilizing the TikTok poll-backoff test's time-boundary fixtures. Hosted Linux only; Windows local-runner and production execution remain unverified.
