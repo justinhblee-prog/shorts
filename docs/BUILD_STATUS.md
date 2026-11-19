@@ -2501,3 +2501,15 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Preserve only the explicitly constructed local model, repository, and isolated tool configuration context.
 - Add regression coverage for PYTHONPATH/PYTHONHOME, LD_PRELOAD, DYLD_INSERT_LIBRARIES, BASH_ENV, ENV, NODE_OPTIONS and related runtime injection variables.
 - Exact-head hosted CI pending. This is environment-contract coverage; no live Windows runner or Aider/Ollama execution is claimed.
+
+
+## BUILD-00363 — prevent worker reuse after a partial job attempt
+- Stop the bounded worker cycle after any claimed job attempt, including retryable failure and lease loss, because a failed executor can leave partial unvalidated changes in the shared worktree.
+- Add a regression where the first job writes a partial change and fails, then assert the second ready job remains untouched.
+- Exact-head hosted CI pending; Windows runner workspace cleanup remains a separate integration check.
+
+## BUILD-00364 — make recursive file scope explicit
+- Remove suffix-based recursive matching, which treated extensionless file scopes as directory scopes.
+- Normalize existing directory scopes with an explicit trailing slash and allow descendant changes only for those directory scopes; file scopes now match only the exact file.
+- Add regressions for extensionless file boundaries and existing-directory normalization.
+- Exact-head hosted CI pending.
