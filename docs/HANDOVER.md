@@ -1292,3 +1292,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - Added an API-level regression assertion for the TikTok latest-snapshot timestamp and combined stale/missing coverage fields, confirming the protected status endpoint exposes them while continuing to exclude internal errors and credentials.
 - Exact-head Actions runs [44486123616](https://github.com/justinhblee-prog/shorts/actions/runs/44486123616) and [44486133696](https://github.com/justinhblee-prog/shorts/actions/runs/44486133696) both passed with **699 backend tests** on `910c521ce53e9a0f5abd249fdae5024ef0b3d085`.
+
+
+## BUILD-00325 — targeted TikTok analytics history lookup
+
+- The TikTok history endpoint now filters the eligible publication identity by exact video ID in SQL before applying any bulk limit. Previously, a requested video outside the newest 200 eligible publications could incorrectly appear to have no history.
+- Bulk history identity selection is bounded to 500, matching the history API and CSV export cap; single-video lookup is bounded to one eligible publication.
+- Regression coverage creates more than 200 published videos and confirms an older video's stored snapshot is returned. Exact-head CI is required before treating this as validated.
