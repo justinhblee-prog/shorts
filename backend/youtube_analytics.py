@@ -224,8 +224,9 @@ class YouTubeAnalyticsStore:
             ratio = _as_number(point.get("elapsedVideoTimeRatio"))
             audience = _as_number(point.get("audienceWatchRatio"))
             relative = _as_number(point.get("relativeRetentionPerformance"))
-            if (ratio is None or audience is None
-                    or ratio > 1 or (relative is not None and relative > 1)):
+            if relative is not None and relative > 1:
+                relative = None
+            if ratio is None or audience is None or ratio > 1:
                 continue
             safe_curve.append({
                 "elapsed_video_time_ratio": ratio,
