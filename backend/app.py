@@ -112,6 +112,18 @@ def initialize_development_job_registry():
 app.router.on_startup.append(initialize_development_job_registry)
 media_stager=MediaStager()
 
+
+def require_canonical_staged_media(job_id, supplied_media_path):
+    """Resolve only this job's deterministic staged file; never trust a client path."""
+    canonical_path=media_stager.staged_path(job_id)
+    if not isinstance(supplied_media_path,str) or supplied_media_path != canonical_path.name:
+        raise HTTPException(409,"Only the canonical staged media for this job may be published")
+    try:
+        media_stager.fingerprint(canonical_path)
+    except MediaStagingError as exc:
+        raise HTTPException(409,str(exc))
+    return canonical_path
+
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
     payload:dict[str,Any]=Field(default_factory=dict)
