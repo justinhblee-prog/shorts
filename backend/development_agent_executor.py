@@ -87,8 +87,8 @@ class AiderDevelopmentExecutor:
 
         gitconfig = home / ".gitconfig"
         npmrc = home / ".npmrc"
-        pip_config = home / "pip.ini"
-        for config_file in (gitconfig, npmrc, pip_config):
+        npm_global = home / "npm-globalrc"
+        for config_file in (gitconfig, npmrc, npm_global):
             config_file.touch(exist_ok=True)
 
         env = os.environ.copy()
@@ -124,7 +124,8 @@ class AiderDevelopmentExecutor:
             "XDG_DATA_HOME": str(data),
             "DOCKER_CONFIG": str(docker),
             "NPM_CONFIG_USERCONFIG": str(npmrc),
-            "PIP_CONFIG_FILE": str(pip_config),
+            "NPM_CONFIG_GLOBALCONFIG": str(npm_global),
+            "PIP_CONFIG_FILE": os.devnull,
             "GIT_CONFIG_GLOBAL": str(gitconfig),
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_COUNT": "2",
