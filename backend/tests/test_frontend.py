@@ -185,7 +185,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('retentionSparkline(item.retention_curve)', app_js)
         self.assertIn('retentionStatusLabels[item.retention_status]', app_js)
         self.assertIn('유지율 수집 상태', app_js)
-        self.assertIn('<th>시청자 유지율</th>', app_js)
+        self.assertIn('<th scope="col">시청자 유지율</th>', app_js)
         self.assertIn('(Number(item.engaged_view_share)*100).toLocaleString()+"%"', app_js)
         self.assertIn("metricLabels[chartMetric]", app_js)
         self.assertIn('estimated_minutes_watched', app_js)

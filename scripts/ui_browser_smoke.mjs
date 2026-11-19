@@ -159,6 +159,10 @@ async function waitForServer() {
     await page.locator('[data-analytics-page="-1"]').click();
     assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "1 / 8 · 200개");
     assert.equal(await page.locator('[data-analytics-page="-1"]').isDisabled(), true);
+    const analyticsHeaders = page.locator("#analyticsHistory .analytics-table thead th");
+    assert.equal(await analyticsHeaders.count(), 14, "analytics table must expose all 14 column headers");
+    assert.equal(await analyticsHeaders.evaluateAll(headers => headers.every(header => header.getAttribute("scope") === "col")), true,
+      "every analytics column header must declare its column scope");
     const paginationNav = page.getByRole("navigation", { name: "성과 이력 페이지 이동" });
     assert.equal(await paginationNav.count(), 1, "pagination must expose a named navigation landmark");
     await page.locator('[data-analytics-page="1"]').focus();
