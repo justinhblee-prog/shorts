@@ -305,3 +305,12 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - Created staging branch `integration/ui-analytics-quarantine-recovery-2026-11-20` from #399 exact head. No source changes were committed to the staging branch in this pass.
 - Manual file-size and feature inspection confirms the #404 recovery frontend is an older portal snapshot. Wholesale replacement would regress the #399 analytics dashboard. The combined UI gate is therefore still open; separate green runs are not combined validation.
 - No merge, deployment, live OAuth, provider publishing, or production recovery was performed.
+
+
+### Recovery UI integration dependency correction
+
+- Verified the current analytics staging branch is UI-only with respect to the recovery action: `backend/app.py` has no `POST /api/development/jobs/{job_id}/recover` route. A UI-only port would fail against the API and must not be represented as integrated.
+- The endpoint depends on BUILD-00386's `DevelopmentJobStore.recover_quarantined`, `DevelopmentJobConflict` handling, and the `operations.manage` RBAC permission. These backend changes are carried by the #406 Core/Policy candidate and its aligned tests.
+- Integration direction is corrected: use #406 as the dependency-aligned backend base and port the full UI-00015–UI-00017 dashboard/frontend work (#395–#399) with a three-way merge that retains #406 recovery markup/handler. Do not replace frontend files wholesale.
+- Scratch branch `integration/ui-analytics-quarantine-recovery-2026-11-20` remains an analytics-only staging branch; no application source change was made in this pass. Its purpose is not an integrated release candidate.
+- Docs update commit: `be65206586ba18cd6ecd30203512bed5a7a2ddf4` (WORKSTREAMS). Combined full-stack browser validation remains open.
