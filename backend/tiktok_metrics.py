@@ -400,12 +400,15 @@ class TikTokMetricsStore:
         cutoff = _stamp(_now() - timedelta(seconds=max(0, freshness_seconds)))
         with_snapshot = sum(1 for x in eligible if x["video_id"] in latest)
         stale = sum(1 for x in eligible if x["video_id"] in latest and latest[x["video_id"]] < cutoff)
+        latest_snapshot_at = max(latest.values()) if latest else None
+        missing = max(0, len(eligible) - with_snapshot)
         state = dict(row) if row else {}
         return {
             "platform": "tiktok",
             "status": state.get("status", "not_started"),
             "last_attempt_at": state.get("last_attempt_at"),
             "last_success_at": state.get("last_success_at"),
+            "latest_snapshot_at": latest_snapshot_at,
             "last_error": state.get("last_error"),
             "last_batch": {"requested": state.get("requested", 0),
                            "collected": state.get("collected", 0),
@@ -414,8 +417,9 @@ class TikTokMetricsStore:
             "available_metrics": ["view_count", "like_count", "comment_count", "share_count"],
             "unavailable_metrics": ["audience_retention", "watch_time", "estimated_revenue"],
             "coverage": {"published_videos": len(eligible), "with_snapshot": with_snapshot,
-                         "without_snapshot": len(eligible)-with_snapshot,
-                         "stale_snapshots": stale},
+                         "without_snapshot": missing,
+                         "stale_snapshots": stale,
+                         "stale_or_missing": missing + stale},
             "read_only": True,
         }
 
