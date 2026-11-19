@@ -349,3 +349,7 @@ GitHub backlog intake now constrains automatic redirects to the trusted HTTPS Gi
 
 ### BUILD-00370 — authenticated redirect validation
 GitHub Actions run [44527844531](https://github.com/justinhblee-prog/shorts/actions/runs/44527844531) passed **802 backend tests**, repository validation and frontend syntax validation for the restricted GitHub API redirect handler. No live GitHub credential forwarding test was performed.
+
+
+### BUILD-00371 — worker identity lifecycle safety
+Worker presence can no longer be overwritten by a concurrent process sharing the same worker ID. Active leases prevent shutdown from marking the worker offline; expired identities remain fenced until the expired job is recovered after confirmed workspace cleanup. Hosted CI pending; live runner process behavior remains an operational gate.
