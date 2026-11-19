@@ -66,6 +66,8 @@ class DevelopmentJobStore:
             );
             CREATE INDEX IF NOT EXISTS idx_development_jobs_ready
               ON development_jobs(status,priority,created_at);
+            CREATE INDEX IF NOT EXISTS idx_development_jobs_source_ref
+              ON development_jobs(source_ref) WHERE source_ref IS NOT NULL;
             CREATE TABLE IF NOT EXISTS development_job_dependencies(
               job_id TEXT NOT NULL REFERENCES development_jobs(id),
               depends_on_id TEXT NOT NULL REFERENCES development_jobs(id),
@@ -169,6 +171,13 @@ class DevelopmentJobStore:
             job_id = job_id.strip()
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if isinstance(source_ref, str) and source_ref.startswith("github:issue:"):
+                duplicate = connection.execute(
+                    "SELECT id FROM development_jobs WHERE source_ref=? LIMIT 1",
+                    (source_ref,),
+                ).fetchone()
+                if duplicate:
+                    raise DevelopmentJobConflict("source_ref already exists")
             timestamp = _stamp(_now())
             connection.execute(
                 """INSERT INTO development_jobs
@@ -235,6 +244,15 @@ class DevelopmentJobStore:
                 (job_id,),
             )]
             return result
+
+    def source_ref_exists(self, source_ref):
+        if not isinstance(source_ref, str) or not source_ref:
+            return False
+        with self.db() as connection:
+            return connection.execute(
+                "SELECT 1 FROM development_jobs WHERE source_ref=? LIMIT 1",
+                (source_ref,),
+            ).fetchone() is not None
 
     def list(self, statuses=None, limit=100):
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:

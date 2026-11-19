@@ -2440,4 +2440,13 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Fix the read-only development backlog client: GitHub's Actions runs endpoint returns an object envelope containing `workflow_runs`, while the shared pagination helper already unwraps that envelope into individual run records. The previous second unwrap silently returned an empty Actions history.
 - Add an HTTP-response regression with two Link-paginated Actions response envelopes; assert both run records and conclusions are preserved and both requests use GET.
 - Correct the prior fixture so it models the actual flattened return contract rather than a nested envelope.
-- Validation: exact PR-head CI pending. No live Windows runner/Ollama execution is implied.
+- Validation: exact PR-head backend Actions run [44508180651](https://github.com/justinhblee-prog/shorts/actions/runs/44508180651) passed. This is hosted CI only; no live Windows runner/Ollama execution is implied.
+
+
+## BUILD-00355 — global GitHub issue source deduplication
+- Fix the development backlog sync's 500-row list-window dedupe bug: an existing imported issue outside the first 500 visible jobs could be imported again on each sync.
+- Add a partial source-ref index and a store-level source identity lookup across all development jobs.
+- Enforce duplicate rejection for `github:issue:` source refs inside the same `BEGIN IMMEDIATE` transaction as job creation, preventing concurrent sync workers from racing past the preflight read. Other seeded/documentation source refs retain their existing non-unique semantics.
+- Update the GitHub intake to use the indexed lookup, preserve batch-level deduplication, and classify a transaction-level duplicate conflict as a skipped duplicate rather than a new job.
+- Add regression coverage for a pre-existing source beyond the first 500 listed jobs and for a simulated race after preflight.
+- Exact-head backend Actions run [44510490935](https://github.com/justinhblee-prog/shorts/actions/runs/44510490935) passed **768 tests** on `743a10762fa57a49afee5d681d0899579ce93721`. This is hosted CI only; no live Windows runner/Ollama execution is implied.
