@@ -2498,3 +2498,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add API offset pass-through and frontend pagination regression assertions. Exact-head CI validation pending; live provider accounts and browser download behavior remain unverified.
 
 - Final exact-head validation: GitHub Actions runs [44488770534](https://github.com/justinhblee-prog/shorts/actions/runs/44488770534) and [44488780671](https://github.com/justinhblee-prog/shorts/actions/runs/44488780671) passed with **700 backend tests** each on checkpoint `90086f4b051ff70718a5d15c1a870932016fe269`. The dashboard now labels CSV as complete paginated export rather than the previous 1,000-row cap. Documentation and wording follow-up validation pending.
+
+
+## BUILD-00329 — stable keyset pagination for analytics export
+
+- Add a composite `collected_at,id` keyset cursor to both analytics history stores and the protected API. Pages now request rows strictly older than the last row returned, preserving deterministic continuation when new snapshots arrive during a long export.
+- Keep bounded offset pagination for existing callers while switching the CSV exporter to keyset cursors. Reject partial, malformed, or non-positive cursor identifiers.
+- Add API pass-through and frontend cursor regression assertions. Exact-head CI validation pending; live provider and browser-download behavior remain unverified.
