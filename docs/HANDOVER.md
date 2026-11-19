@@ -1373,3 +1373,7 @@ Code head `4a987bf76067aaaee19e4fe9f345090cfa53c767` passed GitHub Actions run [
 
 ### BUILD-00367 — expanded redaction CI result
 Updated code head `431155113b1e5e749141333bc139af3b245f4223` passed GitHub Actions run [44518327365](https://github.com/justinhblee-prog/shorts/actions/runs/44518327365): **787 tests**, repository validation and frontend syntax check. The regression includes multiline service-account JSON. Hosted Linux only; no production log inventory is implied.
+
+
+### BUILD-00367 — expanded durable evidence redaction
+Shared redaction covers PEM/OpenSSH private-key blocks, Basic authorization values, authenticated database/AMQP URLs and common provider token formats. Successful executor summaries and validation references are sanitized before persistence as well as retryable/non-retryable exceptions. Exact-head CI pending; no production log inventory is claimed.
