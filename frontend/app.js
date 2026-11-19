@@ -379,15 +379,19 @@
           const exportRows=[];
           const pageSize=500;
           for(const exportPlatform of (platform==="all"?["youtube","tiktok"]:[platform])){
-            let offset=0;
+            let cursor=null;
             while(true){
-              const pageQuery=new URLSearchParams({days:String(days),platform:exportPlatform,limit:String(pageSize),offset:String(offset)});
+              const pageParams={days:String(days),platform:exportPlatform,limit:String(pageSize)};
+              if(cursor){pageParams.before_collected_at=cursor.collected_at;pageParams.before_id=String(cursor.id);}
+              const pageQuery=new URLSearchParams(pageParams);
               if(videoId)pageQuery.set("video_id",videoId);
               const page=await api("/api/publishing/analytics-history?"+pageQuery.toString());
               const pageItems=page.items?.[exportPlatform]||[];
               exportRows.push(...pageItems.map(item=>({...item,platform:exportPlatform})));
               if(pageItems.length<pageSize)break;
-              offset+=pageItems.length;
+              const lastItem=pageItems[pageItems.length-1];
+              if(!lastItem?.collected_at||!Number.isInteger(Number(lastItem.id))||Number(lastItem.id)<1)throw new Error("분석 이력 페이지 커서가 올바르지 않습니다.");
+              cursor={collected_at:lastItem.collected_at,id:Number(lastItem.id)};
             }
           }
           exportRows.sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||""))||Number(b.id||0)-Number(a.id||0));
