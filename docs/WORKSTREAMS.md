@@ -65,3 +65,10 @@ Develop the product interface and its runtime independently so both can make pro
 - Make the main skip-link destination programmatically focusable.
 - Preserve minimum 48px navigation targets and 44px refresh action targets in the icon-only compact layout.
 - Add source-level regression coverage. Actual touch-device and screen-reader verification remain outstanding.
+
+
+## Latest worker tooling checkpoint (2026-11-20)
+
+- PR #409 exact head `4d7286a7a4472736c0c037a34cff36743c54ae69` passed hosted run [44592757768](https://github.com/justinhblee-prog/shorts/actions/runs/44592757768), including both analytics and recovery Chromium smoke tests.
+- Backend and Aider virtual environments are now outside `GITHUB_WORKSPACE` under LocalAppData; Windows runner/Ollama execution remains unverified.
+- Next: Windows preflight, two-run persistent SQLite proof, then one real scoped Ollama cycle.
