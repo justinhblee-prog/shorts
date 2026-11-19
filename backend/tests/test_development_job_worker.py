@@ -42,6 +42,28 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         self.assertEqual(worker.run_once(), "retry_wait")
         self.assertIn("RuntimeError", self.store.get(job["id"])["result_summary"])
 
+    def test_worker_redacts_secrets_before_persisting_executor_errors(self):
+        job = self.store.create("Secret-bearing executor failure", scope=["backend/example.py"])
+        secret_values = (
+            "abc.def", "ghp_123456789012345678901234567890",
+            "postgres://user:password@db.example/nexus", "private-key-material",
+        )
+
+        def broken(_):
+            raise RuntimeError(
+                "Bearer abc.def GITHUB_TOKEN=ghp_123456789012345678901234567890 "
+                "DATABASE_URL=postgres://user:password@db.example/nexus "
+                "PRIVATE_KEY=private-key-material"
+            )
+
+        worker = DevelopmentJobWorker(self.store, "worker-redaction", broken)
+        self.assertEqual(worker.run_once(), "retry_wait")
+        summary = self.store.get(job["id"])["result_summary"]
+        for secret in secret_values:
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, summary)
+        self.assertIn("[REDACTED]", summary)
+
     def test_non_retryable_worker_error_quarantines_job(self):
         job = self.store.create("Unsafe scope", scope=["backend/example.py"])
         def rejected(_):
