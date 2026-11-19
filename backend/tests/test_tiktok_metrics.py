@@ -76,6 +76,40 @@ class TikTokMetricsTests(unittest.TestCase):
             [1200, 80, 12, 5],
         )
 
+    def test_history_since_filters_before_applying_limit(self):
+        self.store.save_snapshot("job-1", {
+            "id": "video-1", "view_count": 10, "like_count": 1,
+            "comment_count": 0, "share_count": 0,
+        })
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_video_metric_snapshots SET collected_at=? WHERE video_id=?",
+                ("2026-11-01T00:00:00+00:00", "video-1"),
+            )
+        self.store.save_snapshot("job-1", {
+            "id": "video-1", "view_count": 20, "like_count": 2,
+            "comment_count": 0, "share_count": 0,
+        })
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_video_metric_snapshots SET collected_at=? "
+                "WHERE video_id=? AND view_count=20",
+                ("2026-11-03T00:00:00+00:00", "video-1"),
+            )
+        self._publish("job-2", "video-2")
+        self.store.save_snapshot("job-2", {
+            "id": "video-2", "view_count": 30, "like_count": 3,
+            "comment_count": 0, "share_count": 0,
+        })
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE tiktok_video_metric_snapshots SET collected_at=? WHERE video_id=?",
+                ("2026-11-02T00:00:00+00:00", "video-2"),
+            )
+        recent=self.store.history(self.publications,limit=1,since="2026-11-02T00:00:00+00:00")
+        self.assertEqual(len(recent),1)
+        self.assertGreaterEqual(recent[0]["collected_at"],"2026-11-02T00:00:00+00:00")
+
     def test_stale_lease_is_rejected_before_oauth_token_provider(self):
         token = self.store.acquire_lease("worker-old", 300)
         with self.store.db() as connection:
