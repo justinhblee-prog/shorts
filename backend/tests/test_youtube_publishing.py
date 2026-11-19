@@ -827,7 +827,37 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(result["events"][-1]["attempt_id"],result["attempt_id"])
         self.assertEqual(result["events"][0]["event_type"],"upload_attempt_started")
         self.assertEqual(self.service._videos.body["status"]["privacyStatus"],"private")
+        self.assertIs(self.service._videos.body["status"]["containsSyntheticMedia"],False)
         self.assertEqual(result["snapshots"][0]["view_count"],123)
+
+    def test_upload_applies_approved_realistic_synthetic_media_disclosure(self):
+        history=self.review.history("job-1")
+        report=evaluate_content_policy({
+            "platforms":["youtube"],
+            "rights":{"visuals_cleared":True,"audio_cleared":True,"likeness_authorized":True},
+            "synthetic_media_status":"realistic_alteration",
+            "platform_disclosures":{"youtube_altered_content":True},
+            "factual_claims_verified":True,
+            "originality_notes":"Original narration and editing.",
+        })
+        script=next(item for item in history[-1]["artifact_snapshot"] if item.get("stage")=="script")
+        script["metadata"]["policy_preflight"]=report
+        with patch.object(self.review,"history",return_value=history):
+            self.publisher.upload_approved("job-1",self.media,self.review,"Realistic synthetic short")
+        self.assertIs(self.service._videos.body["status"]["containsSyntheticMedia"],True)
+
+    def test_upload_requires_approved_policy_report_for_synthetic_media_flag(self):
+        history=self.review.history("job-1")
+        history[-1]["artifact_snapshot"]=[
+            item for item in history[-1]["artifact_snapshot"]
+            if not (
+                isinstance(item,dict) and isinstance(item.get("metadata"),dict)
+                and "policy_preflight" in item["metadata"]
+            )
+        ]
+        with patch.object(self.review,"history",return_value=history):
+            with self.assertRaisesRegex(YouTubeUploadError,"Approved policy report is missing"):
+                self.publisher.upload_approved("job-1",self.media,self.review,"Missing policy report")
 
     def test_stale_error_cannot_downgrade_confirmed_upload(self):
         uploaded=self.publisher.upload_approved(
