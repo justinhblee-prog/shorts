@@ -2512,3 +2512,5 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Return a normalized UTC `as_of` timestamp from the analytics-history API and accept a validated timezone-aware ISO-8601 timestamp on subsequent pages.
 - CSV export captures the first page's timestamp and reuses it across every keyset page and both platforms, preventing the rolling `days` cutoff from shifting during long exports.
 - Add regression coverage for UTC normalization, fixed cutoff calculation, and rejection of timezone-naive timestamps. Exact-head CI validation pending.
+
+- BUILD-00329 / BUILD-00330 combined code-and-test checkpoint `deae2f0451b56e2bb4839a5cee2959db15504817`: Actions run [44490155724](https://github.com/justinhblee-prog/shorts/actions/runs/44490155724) passed the full validation workflow with **700 backend tests**. A second exact-head run was still in progress at documentation time. Live provider and browser-download behavior remain unverified.
