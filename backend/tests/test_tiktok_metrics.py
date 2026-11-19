@@ -76,7 +76,7 @@ class TikTokMetricsTests(unittest.TestCase):
             [1200, 80, 12, 5],
         )
 
-    def test_history_can_find_a_published_video_outside_the_recent_500(self):
+    def test_history_can_find_a_published_video_outside_the_recent_200(self):
         self.store.save_snapshot("job-1", {
             "id": "video-1", "view_count": 123, "like_count": 4,
             "comment_count": 2, "share_count": 1,
