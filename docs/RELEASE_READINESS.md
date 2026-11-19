@@ -357,3 +357,7 @@ GitHub Actions run [44521675405](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00371 — Windows path scope serialization
 Case-insensitive scope overlap enforcement, separator/dot alias normalization and regression coverage are implemented. Exact-head hosted validation pending; hosted Linux cannot itself demonstrate Windows filesystem behavior.
+
+
+### BUILD-00371 — normalized scope lock validation evidence
+GitHub Actions run [44522472503](https://github.com/justinhblee-prog/shorts/actions/runs/44522472503) passed **801 backend tests**, repository validation and frontend JavaScript syntax validation, including Windows-style case and separator aliases on the scheduler contract. Actual Windows filesystem behavior remains a trusted-runner gate.
