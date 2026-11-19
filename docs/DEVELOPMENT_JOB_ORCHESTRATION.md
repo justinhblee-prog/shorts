@@ -115,3 +115,15 @@ After the current policy and worker-safety stacks pass review, prioritize integr
 5. browser workflow and release-readiness evidence.
 
 Do not mark any production gate complete without execution against its actual target environment.
+
+
+## UI design continuation — 2026-11-20 01:24 KST
+
+The UI lane now extends beyond the earlier UI-00011/UI-00012 snapshot:
+
+- PR #392 (UI-00013) is the cinematic visual foundation. Exact head `454698508fbe652a511d2ad1235c274aea3bcd53` passed hosted CI run [44563818798](https://github.com/justinhblee-prog/shorts/actions/runs/44563818798).
+- PR #394 (UI-00014) is stacked on #392 and applies the professional design tokens and information hierarchy. Its six-commit diff is limited to `frontend/cyber-magic.css` and `frontend/index.html`. Exact head `b098826455150fefe4a8def6377bf77630a1ad7f` passed full repository validation and Chromium browser smoke in run [44565614418](https://github.com/justinhblee-prog/shorts/actions/runs/44565614418); screenshot artifact `nexus-dashboard-browser-screenshots` was uploaded. Duplicate run [44565685710](https://github.com/justinhblee-prog/shorts/actions/runs/44565685710) remains in progress at the font setup step in this snapshot.
+- Both PRs remain Draft and unmerged. No merge, deployment, or production browser claim is made.
+- Next UI verification: inspect the uploaded desktop/mobile screenshots, complete the duplicate CI run, then perform a focused visual/accessibility review while confirming all existing IDs, forms, API-bound controls and navigation behavior remain intact.
+
+Integration scheduling: keep UI-00014 dependent on UI-00013; do not rebase it onto main independently. Once the UI stack and Core/Policy stacks are ready for review, run cross-lane contract tests for navigation, authenticated API loading/error states, review approval policy preflight, synthetic-media disclosure and the audited quarantine recovery action. Production OAuth, AI provider, Windows runner and publishing gates remain separate and unverified.
