@@ -119,12 +119,16 @@ class AiderDevelopmentExecutor:
             "NETRC", "CURL_HOME", "WGETRC", "BOTO_CONFIG", "KUBECONFIG",
             "DOCKER_CONFIG", "GIT_ASKPASS", "SSH_ASKPASS", "SSH_AUTH_SOCK",
             "SSH_AGENT_PID", "GIT_SSH", "GIT_SSH_COMMAND",
+            "BASH_ENV", "ENV", "PROMPT_COMMAND", "ZDOTDIR", "ZSHENV",
+            "NODE_OPTIONS", "NODE_PATH", "RUBYOPT", "RUBYLIB",
+            "PERL5OPT", "PERL5LIB", "JAVA_TOOL_OPTIONS",
+            "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS", "CLASSPATH",
         }
         blocked_prefixes = (
             "GIT_", "SSH_", "NPM_CONFIG_", "PIP_", "DOCKER_", "AWS_",
             "AZURE_", "GCLOUD_", "GOOGLE_", "AIDER_", "LITELLM_",
             "OPENAI_", "ANTHROPIC_", "GEMINI_", "OLLAMA_", "PYTHON",
-            "LD_", "DYLD_",
+            "LD_", "DYLD_", "NODE_", "RUBY", "PERL",
         )
         for key in tuple(env):
             upper = key.upper()
