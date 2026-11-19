@@ -229,3 +229,7 @@ GitHub Actions run [44527844531](https://github.com/justinhblee-prog/shorts/acti
 - Expiry marks the worker identity `lease_expired`; it cannot be reused until the corresponding expired job is recovered after workspace-reset confirmation.
 - Recovery restores the worker identity to offline, after which a new cycle may register it normally.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00371 — exact-head validation
+GitHub Actions run [44528766250](https://github.com/justinhblee-prog/shorts/actions/runs/44528766250) passed **803 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Worker identity registration and shutdown are now fenced against active leases; expired identities require explicit workspace-reset recovery before reuse.
