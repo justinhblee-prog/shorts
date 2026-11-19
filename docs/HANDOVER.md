@@ -1483,3 +1483,11 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Verify no `.restore-*` or `.pre-restore-*` staging/rollback paths remain after recovery.
 - This validates the local rollback branch under a deterministic filesystem failure; it does not establish crash-consistency across power loss or a live multi-process restore.
 - Exact-head Actions validation pending.
+
+
+## BUILD-00346 — backup database/media path-overlap protection
+
+- Reject backup and restore layouts where the SQLite database resides inside the media tree; replacing the media directory in such a layout could move or delete the live database.
+- Reject restore archives stored inside the media directory because a successful media replacement would remove the source archive.
+- Add regressions verifying both unsafe layouts fail before changing live database or archive contents.
+- Exact-head Actions validation pending.
