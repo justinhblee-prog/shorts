@@ -11,6 +11,11 @@ on:
         options:
           - develop
           - recover
+      remaining_cycles:
+        description: "Maximum automatic continuation runs after this run (1-10)"
+        required: false
+        default: "5"
+        type: number
   schedule:
     - cron: "17 */2 * * *"
 
@@ -18,7 +23,7 @@ permissions:
   contents: read
   issues: read
   pull-requests: write
-  actions: read
+  actions: write
 
 concurrency:
   group: nexus-development-job-worker
@@ -34,7 +39,7 @@ jobs:
       contents: write
       issues: read
       pull-requests: write
-      actions: read
+      actions: write
     steps:
       - name: Check out default branch
         uses: actions/checkout@v5
@@ -144,8 +149,24 @@ jobs:
           python backend/run_development_agent.py
           if ($LASTEXITCODE -ne 0) { throw "Development agent cycle failed." }
 
-      - name: Create Draft PR for verified changes only
+      - name: Detect generated source changes
         if: github.event.inputs.mode != 'recover'
+        id: detect-changes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $changes = git status --porcelain --untracked-files=all
+          if ($LASTEXITCODE -ne 0) { throw "Unable to inspect generated worktree changes." }
+          if ($changes) {
+            "has_changes=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "Scoped source changes are present; a Draft PR update may run."
+          } else {
+            "has_changes=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "No source changes. Existing Draft PR will be left untouched."
+          }
+
+      - name: Create Draft PR for verified changes only
+        if: github.event.inputs.mode != 'recover' && steps.detect-changes.outputs.has_changes == 'true'
         id: publish-pr
         uses: peter-evans/create-pull-request@v7
         with:
@@ -165,7 +186,7 @@ jobs:
             - External provider integrations and production behavior are not implied.
             
       - name: Record exact Draft PR review artifact
-        if: github.event.inputs.mode != 'recover' && steps.publish-pr.outputs.pull-request-url != '' && steps.publish-pr.outputs.pull-request-head-sha != ''
+        if: github.event.inputs.mode != 'recover' && steps.detect-changes.outputs.has_changes == 'true' && steps.publish-pr.outputs.pull-request-url != '' && steps.publish-pr.outputs.pull-request-head-sha != ''
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -180,7 +201,56 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Draft PR review-artifact verification failed; jobs remain review_pending." }
 
       - name: Leave jobs pending when no Draft PR artifact was published
-        if: github.event.inputs.mode != 'recover' && (steps.publish-pr.outputs.pull-request-url == '' || steps.publish-pr.outputs.pull-request-head-sha == '')
+        if: github.event.inputs.mode != 'recover' && (steps.detect-changes.outputs.has_changes != 'true' || steps.publish-pr.outputs.pull-request-url == '' || steps.publish-pr.outputs.pull-request-head-sha == '')
         shell: powershell
         run: |
           Write-Warning "No exact Draft PR URL/head SHA was returned. Development jobs remain review_pending and are not marked completed."
+
+      - name: Continue bounded autonomous development after verified PR update
+        if: >-
+          github.event.inputs.mode != 'recover' &&
+          steps.detect-changes.outputs.has_changes == 'true' &&
+          steps.publish-pr.outputs.pull-request-url != '' &&
+          steps.publish-pr.outputs.pull-request-head-sha != '' &&
+          (steps.publish-pr.outputs.pull-request-operation == 'created' ||
+           steps.publish-pr.outputs.pull-request-operation == 'updated')
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPOSITORY: ${{ github.repository }}
+          GH_REF: ${{ github.event.repository.default_branch }}
+          GH_WORKFLOW: nexus-development-job-worker.yml
+          GH_REMAINING_CYCLES: ${{ inputs.remaining_cycles }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $remaining = 5
+          if ($env:GH_REMAINING_CYCLES) {
+            $parsed = 0
+            if (-not [int]::TryParse($env:GH_REMAINING_CYCLES, [ref]$parsed)) {
+              throw "remaining_cycles must be an integer from 1 to 10."
+            }
+            $remaining = $parsed
+          }
+          if ($remaining -lt 1 -or $remaining -gt 10) {
+            throw "remaining_cycles must be between 1 and 10."
+          }
+          if ($remaining -le 1) {
+            Write-Host "Bounded continuation limit reached; next scheduled/manual run will resume the queue."
+            exit 0
+          }
+          $next = $remaining - 1
+          $uri = "https://api.github.com/repos/$env:GH_REPOSITORY/actions/workflows/$env:GH_WORKFLOW/dispatches"
+          $headers = @{
+            Accept = "application/vnd.github+json"
+            Authorization = "Bearer $env:GH_TOKEN"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $body = @{
+            ref = $env:GH_REF
+            inputs = @{
+              mode = "develop"
+              remaining_cycles = [string]$next
+            }
+          } | ConvertTo-Json -Depth 5
+          Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType "application/json" -Body $body
+          Write-Host "Queued next autonomous development run; remaining chained runs: $next."

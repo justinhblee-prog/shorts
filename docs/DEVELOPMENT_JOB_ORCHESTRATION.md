@@ -137,6 +137,18 @@ Implemented on `build/build-00318-orphaned-review-pending-recovery`; see [BUILD_
 - No automatic requeue, branch mutation, PR mutation, merge, or deployment is performed. A no-match case requires operator inspection of the persistent runner worktree/branch before any separate requeue decision.
 - Regression tests cover exact recovery, no-match preservation, ambiguous candidates, and no-op when there are no pending jobs. CI and live self-hosted-runner verification remain pending.
 
+### BUILD-00319 — bounded autonomous continuation
+
+Implemented on `build/build-00319-bounded-autonomous-continuation`.
+
+- Added a `remaining_cycles` workflow-dispatch input (default 5, hard maximum 10).
+- After a development run produces or updates the stable Draft PR, and only after the exact PR URL/head SHA review-artifact step succeeds, the workflow dispatches the same workflow again on the default branch with the remaining count decremented.
+- Each invocation remains one bounded development cycle. The worker stops after the first changed job because the worktree must be published and verified before another job can safely use it.
+- A run with no new PR change, missing PR evidence, failed validation, or recovery-only mode does not dispatch another development run.
+- The chain is serialized by the existing workflow concurrency group. It never merges, deploys, or publicly publishes.
+- The scheduled workflow remains a two-hour fallback. This is bounded chained continuation, not an always-on daemon and not proof of a live runner. It still requires this workflow to be merged into `main`, a continuously available trusted Windows runner with Ollama/Aider, and correctly configured GitHub secrets/permissions.
+- The workflow contract test covers the bounded decrement, maximum, verified-PR gating, and dispatch endpoint.
+
 ### Remaining ordered gates
 
 1. Review the stacked control-plane PR chain (#321 → #324 → #325) in dependency order; no PR is merged without explicit user approval.
