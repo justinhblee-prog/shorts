@@ -49,7 +49,7 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         step = self.source[preflight:checkout]
         self.assertLess(preflight, checkout)
         self.assertIn("$env:GITHUB_ENV", step)
-        self.assertIn("[Environment]::GetEnvironmentVariables()", step)
+        self.assertIn("[System.Environment]::GetEnvironmentVariables()", step)
         self.assertIn("$blockedPrefixes", step)
         self.assertIn("$credentialPattern", step)
         self.assertIn("GIT_CONFIG_COUNT=0", step)
