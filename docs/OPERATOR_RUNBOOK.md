@@ -729,3 +729,10 @@ When recovering:
 For the speech-alignment stage, the artifact row and provider-attempt adoption state are committed in one SQLite write transaction. The active worker lease is checked within that transaction. A failed adoption transition rolls back the artifact upsert, leaving the durable provider response available for recovery. A failed artifact write leaves the attempt in `response_received`.
 
 This protects local database consistency only. It does not make the external provider request transactional; retain the provider idempotency and ambiguous-outcome reconciliation procedures described above.
+
+
+### Compose service health
+
+- Check `docker compose ps` and require API, worker, scheduler, metrics collector and backup to report `healthy`.
+- The backup service updates `/backups/.last-success` only after an encrypted archive is successfully created. Set `NEXUS_BACKUP_HEALTH_MAX_AGE_SECONDS` to adjust the maximum acceptable age; default is 48 hours for a daily schedule.
+- A process health probe confirms the expected PID-1 worker/scheduler/collector command is alive; it does not replace operational monitoring of job throughput or provider errors.
