@@ -237,3 +237,7 @@ GitHub Actions run [44528766250](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00372 — store-level source-change gate
 The durable `mark_review_pending` transition enforces that changed-file evidence contains at least one non-test source path. Test-only evidence is rejected even when `tests_passed=True`; mixed source and test changes are valid. The executor applies the same rule before returning its evidence dictionary. Exact-head CI pending.
+
+
+### BUILD-00372 — exact-head validation
+GitHub Actions run [44529199064](https://github.com/justinhblee-prog/shorts/actions/runs/44529199064) passed **804 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Durable job completion now independently rejects test-only changed-file evidence.
