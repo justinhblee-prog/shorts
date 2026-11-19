@@ -2748,4 +2748,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ## BUILD-00385 — verify actual Git worktree evidence before review-pending
 - Add a post-execution verifier that re-reads tracked and untracked Git changes, compares the exact list to the executor claim, and rechecks the declared scope.
 - The trusted local runner enables strict mode; missing verifier, mismatched claims, or out-of-scope changes are quarantined rather than advanced to `review_pending`.
-- Add worker, executor, service and runner regressions. Exact-head CI pending.
+- Add worker, executor, service and runner regressions.
+
+### BUILD-00385 — exact-head validation
+- Final head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). The isolated HOME fixture was moved outside the temporary Git worktree. Hosted Linux only; Windows self-hosted runner/Ollama execution remains unverified.
