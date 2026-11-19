@@ -94,10 +94,14 @@ class DevelopmentJobWorker:
                     raise NonRetryableDevelopmentJobError(
                         "worktree verification did not return meaningful changed files"
                     )
-                normalize = lambda values: sorted(
-                    {path.replace("\\\\", "/") for path in values}
-                )
-                if not isinstance(claimed_files, list) or normalize(verified_files) != normalize(claimed_files):
+                if not isinstance(claimed_files, list) or not claimed_files or not all(
+                    isinstance(path, str) and path.strip() for path in claimed_files
+                ):
+                    raise NonRetryableDevelopmentJobError(
+                        "executor did not report a valid changed-file list"
+                    )
+                normalize = lambda values: sorted(values)
+                if normalize(verified_files) != normalize(claimed_files):
                     raise NonRetryableDevelopmentJobError(
                         "executor changed_files do not match the current Git worktree"
                     )
