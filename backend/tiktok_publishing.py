@@ -60,6 +60,8 @@ class TikTokPublishStore:
               updated_at TEXT NOT NULL, attempt_id TEXT,
               policy_version TEXT NOT NULL, policy_checked_on TEXT
             );
+            CREATE INDEX IF NOT EXISTS idx_tiktok_publications_video_status
+              ON tiktok_publications(video_id,status);
             CREATE TABLE IF NOT EXISTS tiktok_publication_events(
               id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
               attempt_id TEXT, event_type TEXT NOT NULL, outcome TEXT,
