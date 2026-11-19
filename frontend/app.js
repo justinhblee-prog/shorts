@@ -412,7 +412,7 @@
           const headers=["수집 시각","플랫폼","영상 ID","조회수","참여 조회수","참여 조회 비율(%)","유지율 수집 상태","시청자 유지율 (25/50/75%)","이전 수집 대비 조회수","좋아요","댓글","공유","시청 시간(분)","평균 시청 시간(초)","평균 시청 비율(%)"];
           const csvCell=value=>{
             let cell=value===null||value===undefined?"":String(value);
-            if(/^[\u0000-\u0020]*[=+\\-@]/.test(cell))cell="'"+cell;
+            if(/^[\u0000-\u0020]*[=+\-@]/.test(cell))cell="'"+cell;
             return '"'+cell.replace(/"/g,'""')+'"';
           };
           const csv=[headers,...exportRows.map(item=>[
@@ -433,7 +433,7 @@
         }finally{
           exportButton.disabled=false;
         }
-      }:null;;
+      }:null;
     }
     $("analyticsHistory").dataset.loaded="true";
   }
