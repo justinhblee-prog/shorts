@@ -225,3 +225,9 @@ Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actio
 
 ### BUILD-00370 — direct persistence validation
 Code head `d6af913a2325a4a390f9bcb788f473670cf018b4` passed GitHub Actions run [44532160221](https://github.com/justinhblee-prog/shorts/actions/runs/44532160221): **800 tests**, `scripts/validate.sh` and frontend syntax validation. Direct-store tests confirm redaction at the final SQLite write boundary for successful evidence, failure evidence and immutable event details. Hosted Linux only.
+
+
+### BUILD-00371 — preserve safe context after redaction
+- Match only the credential value following a sensitive key; do not redact every subsequent character in the diagnostic.
+- Support quoted JSON strings, unquoted credential tokens and multiline JSON object values.
+- Preserve following workflow-stage/error context while keeping credential values and service-account payloads redacted. Exact-head hosted CI pending.
