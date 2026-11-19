@@ -2505,3 +2505,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add a composite `collected_at,id` keyset cursor to both analytics history stores and the protected API. Pages now request rows strictly older than the last row returned, preserving deterministic continuation when new snapshots arrive during a long export.
 - Keep bounded offset pagination for existing callers while switching the CSV exporter to keyset cursors. Reject partial, malformed, or non-positive cursor identifiers.
 - Add API pass-through and frontend cursor regression assertions. Exact-head CI validation pending; live provider and browser-download behavior remain unverified.
+
+
+## BUILD-00330 — freeze analytics export date window
+
+- Return a normalized UTC `as_of` timestamp from the analytics-history API and accept a validated timezone-aware ISO-8601 timestamp on subsequent pages.
+- CSV export captures the first page's timestamp and reuses it across every keyset page and both platforms, preventing the rolling `days` cutoff from shifting during long exports.
+- Add regression coverage for UTC normalization, fixed cutoff calculation, and rejection of timezone-naive timestamps. Exact-head CI validation pending.
