@@ -42,6 +42,82 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         self.assertEqual(worker.run_once(), "retry_wait")
         self.assertIn("RuntimeError", self.store.get(job["id"])["result_summary"])
 
+    def test_worker_redacts_secrets_before_persisting_executor_errors(self):
+        job = self.store.create("Secret-bearing executor failure", scope=["backend/example.py"])
+        secret_values = (
+            "abc.def", "ghp_123456789012345678901234567890",
+            "postgres://user:password@db.example/nexus", "private-key-material",
+            "firebase-private-secret",
+        )
+
+        def broken(_):
+            raise RuntimeError(
+                "Bearer abc.def GITHUB_TOKEN=ghp_123456789012345678901234567890 "
+                "DATABASE_URL=postgres://user:password@db.example/nexus "
+                "PRIVATE_KEY=private-key-material "
+                'FIREBASE_SERVICE_ACCOUNT={\\n  "type": "service_account",\\n  "private_key": "firebase-private-secret"\\n}'
+            )
+
+        worker = DevelopmentJobWorker(self.store, "worker-redaction", broken)
+        self.assertEqual(worker.run_once(), "retry_wait")
+        summary = self.store.get(job["id"])["result_summary"]
+        for secret in secret_values:
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, summary)
+        self.assertIn("[REDACTED]", summary)
+
+    def test_worker_redacts_pem_and_database_url(self):
+        job = self.store.create("PEM and database diagnostic failure", scope=["backend/example.py"])
+        pem = "-----BEGIN OPENSSH PRIVATE KEY-----\\nprivate-key-body\\n-----END OPENSSH PRIVATE KEY-----"
+        mongo_url = "mongodb://user:password@db.example/nexus"
+
+        def broken(_):
+            raise RuntimeError(f"{pem} {mongo_url}")
+
+        worker = DevelopmentJobWorker(self.store, "worker-pem-redaction", broken)
+        self.assertEqual(worker.run_once(), "retry_wait")
+        summary = self.store.get(job["id"])["result_summary"]
+        for secret in (pem, "private-key-body", mongo_url, "password"):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, summary)
+        self.assertIn("[REDACTED]", summary)
+
+    def test_worker_redacts_successful_summary_and_validation_reference(self):
+        job = self.store.create("Secret in successful evidence", scope=["backend/example.py"])
+        secret = "ghp_123456789012345678901234567890"
+        worker = DevelopmentJobWorker(
+            self.store, "worker-success-redaction",
+            lambda _: {
+                "changed_files": ["backend/example.py"],
+                "tests_passed": True,
+                "validation_ref": f"https://ci.example/run/1?DATABASE_URL=postgres://user:password@db.example/{secret}",
+                "result_summary": f"completed with DATABASE_URL=postgres://user:password@db.example/{secret}",
+            },
+        )
+        self.assertEqual(worker.run_once(), "review_pending")
+        saved = self.store.get(job["id"])
+        self.assertNotIn(secret, saved["result_summary"])
+        self.assertNotIn(secret, saved["validation_ref"])
+        self.assertIn("[REDACTED]", saved["result_summary"])
+        self.assertIn("[REDACTED]", saved["validation_ref"])
+
+    def test_worker_redacts_multiline_service_account_json(self):
+        job = self.store.create("Service account diagnostic", scope=["backend/example.py"])
+
+        def broken(_):
+            raise RuntimeError(
+                'FIREBASE_SERVICE_ACCOUNT={\n'
+                '  "type": "service_account",\n'
+                '  "private_key": "firebase-private-secret"\n}'
+            )
+
+        worker = DevelopmentJobWorker(self.store, "worker-service-account-redaction", broken)
+        self.assertEqual(worker.run_once(), "retry_wait")
+        summary = self.store.get(job["id"])["result_summary"]
+        self.assertNotIn("firebase-private-secret", summary)
+        self.assertNotIn('"type": "service_account"', summary)
+        self.assertIn("[REDACTED]", summary)
+
     def test_non_retryable_worker_error_quarantines_job(self):
         job = self.store.create("Unsafe scope", scope=["backend/example.py"])
         def rejected(_):

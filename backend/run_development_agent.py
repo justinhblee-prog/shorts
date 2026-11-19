@@ -15,6 +15,7 @@ from development_agent_executor import AiderDevelopmentExecutor
 from development_backlog_service import DevelopmentBacklogService
 from development_github_intake import GitHubReadOnlyClient
 from development_jobs import DevelopmentJobStore
+from development_security import redact_sensitive_text
 from seed_development_jobs import seed_development_jobs
 
 
@@ -105,7 +106,8 @@ def main():
     try:
         result = run_once()
     except Exception as error:
-        print(f"NEXUS development cycle failed: {type(error).__name__}: {error}", file=sys.stderr)
+        detail = redact_sensitive_text(f"{type(error).__name__}: {error}", limit=4000)
+        print(f"NEXUS development cycle failed: {detail}", file=sys.stderr)
         return 1
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

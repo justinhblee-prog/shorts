@@ -297,3 +297,31 @@ The durable store now applies the same explicit directory-marker rule as the Aid
 
 ### BUILD-00366 — durable scope gate CI evidence
 GitHub Actions run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254) passed **785 backend tests**, repository validation and frontend JavaScript syntax validation for the explicit directory-scope and durable evidence-gate changes. This is hosted Linux evidence only.
+
+
+### BUILD-00367 — worker diagnostic secret containment
+Retryable and non-retryable worker exceptions are passed through a shared redactor before persistence. The same helper sanitizes Aider subprocess output. Exact-head CI pending; this is a code-level redaction contract, not a production log inventory.
+
+
+### BUILD-00367 — worker diagnostic redaction CI evidence
+GitHub Actions run [44517983256](https://github.com/justinhblee-prog/shorts/actions/runs/44517983256) passed **786 backend tests**, repository validation and frontend JavaScript syntax validation for the shared diagnostic redactor and worker failure-persistence changes. This is a code-level contract, not a production log inventory.
+
+
+### BUILD-00367 — multiline credential redaction evidence
+GitHub Actions run [44518327365](https://github.com/justinhblee-prog/shorts/actions/runs/44518327365) passed **787 backend tests**, repository validation and frontend syntax validation, including multiline service-account JSON redaction. This remains a code-level test contract, not a production log inventory.
+
+
+### BUILD-00367 — expanded worker evidence redaction
+The shared redactor now handles PEM/OpenSSH private-key blocks, Basic authorization values, authenticated MongoDB/MySQL/AMQP URLs and common provider token formats. It sanitizes successful result summaries and validation references in addition to worker exceptions. Exact-head CI pending; no production log inventory is claimed.
+
+
+### BUILD-00367 — credential-format validation evidence
+GitHub Actions run [44518688714](https://github.com/justinhblee-prog/shorts/actions/runs/44518688714) passed **794 backend tests**, repository validation and frontend syntax validation, including quoted JSON credential keys, Basic auth, URL credentials, multiline PEM keys and provider token formats. This is not a production log inventory.
+
+
+### BUILD-00367 — Actions log redaction evidence
+GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/actions/runs/44518919606) passed **795 backend tests**, repository validation and frontend syntax validation, including a regression proving a token-bearing top-level workflow exception is redacted before stderr output. This is not a production log inventory.
+
+
+### BUILD-00367 — final validation checkpoint
+- Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.

@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from development_job_worker import NonRetryableDevelopmentJobError
+from development_security import redact_sensitive_text
 
 
 _FORBIDDEN_PARTS = {
@@ -52,18 +53,7 @@ _WORKFLOW_COMMAND_ENV_KEYS = {
 
 
 def _tail(value, limit=2000):
-    text = (value or "").strip()
-    text = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/-]+=*", "Bearer [REDACTED]", text)
-    text = re.sub(
-        r"(?i)([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API[_-]?KEY|ENCRYPTION[_-]?KEY|"
-        r"PRIVATE[_-]?KEY|SIGNING[_-]?KEY|ACCESS[_-]?KEY|SERVICE[_-]?ROLE[_-]?KEY|"
-        r"DATABASE[_-]?URL|DB[_-]?URL|REDIS[_-]?URL|CONNECTION[_-]?STRING)[A-Z0-9_]*)"
-        r"\s*[=:]\s*[^\s,;]+",
-        r"\1=[REDACTED]", text,
-    )
-    text = re.sub(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b",
-                  "[REDACTED]", text)
-    return text[-limit:]
+    return redact_sensitive_text(value, limit)
 
 
 class AiderDevelopmentExecutor:

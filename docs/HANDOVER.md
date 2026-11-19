@@ -1361,3 +1361,31 @@ The final `mark_review_pending` gate no longer treats every extensionless scope 
 
 ### BUILD-00366 — exact-head CI result
 Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254): **785 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. A later docs-only commit records this result; no application code changed after the validated head. Live Windows runner/Aider/Ollama behavior remains unverified.
+
+
+### BUILD-00367 — redact persisted worker errors
+Worker exception messages are now sanitized before they are written to the durable job result summary, covering bearer tokens, common secret assignments, database URLs, private keys and recognizable GitHub/OpenAI token formats. Aider subprocess diagnostics use the same shared redactor. Regression coverage verifies secret values do not persist. Exact-head CI pending.
+
+
+### BUILD-00367 — exact-head CI result
+Code head `4a987bf76067aaaee19e4fe9f345090cfa53c767` passed GitHub Actions run [44517983256](https://github.com/justinhblee-prog/shorts/actions/runs/44517983256): **786 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Hosted Linux only; no production log inventory is implied.
+
+
+### BUILD-00367 — expanded redaction CI result
+Updated code head `431155113b1e5e749141333bc139af3b245f4223` passed GitHub Actions run [44518327365](https://github.com/justinhblee-prog/shorts/actions/runs/44518327365): **787 tests**, repository validation and frontend syntax check. The regression includes multiline service-account JSON. Hosted Linux only; no production log inventory is implied.
+
+
+### BUILD-00367 — expanded durable evidence redaction
+Shared redaction covers PEM/OpenSSH private-key blocks, Basic authorization values, authenticated database/AMQP URLs and common provider token formats. Successful executor summaries and validation references are sanitized before persistence as well as retryable/non-retryable exceptions. Exact-head CI pending; no production log inventory is claimed.
+
+
+### BUILD-00367 — full redaction-format CI result
+Updated code head `11126bb8261e5a3d49625bd65a8ad75b1ffaf6d5` passed GitHub Actions run [44518688714](https://github.com/justinhblee-prog/shorts/actions/runs/44518688714): **794 tests**, repository validation and frontend syntax check. Tests cover quoted JSON keys, Basic auth, URL credentials, multiline PEM keys and common provider token formats. Hosted Linux only.
+
+
+### BUILD-00367 — workflow-level diagnostic validation
+Updated code head `ba03a9997693b7bb77137fcd18b028f5e784fee9` passed GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/actions/runs/44518919606): **795 tests**, repository validation and frontend syntax check. Top-level runner stderr is now sanitized as well as worker persistence and Aider subprocess diagnostics.
+
+
+### BUILD-00367 — final validation checkpoint
+- Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.

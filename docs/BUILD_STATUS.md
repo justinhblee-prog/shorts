@@ -2539,3 +2539,44 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Code head `147e35446ccb00436465be71494c96dd8f1318e6` passed GitHub Actions Backend tests run [44517570254](https://github.com/justinhblee-prog/shorts/actions/runs/44517570254): **785 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - A subsequent documentation-only update records the scope semantics; no application code changed after the validated code head.
 - Hosted Linux only; Windows self-hosted runner and live Aider/Ollama behavior remain separate integration gates.
+
+
+## BUILD-00367 — redact worker failure evidence before persistence
+- Extract shared diagnostic redaction for bearer tokens, common credential assignments, database URLs, private keys and GitHub/OpenAI token formats.
+- Apply redaction to retryable and non-retryable worker exceptions before storing them in the durable job result summary.
+- Reuse the same redactor for Aider subprocess diagnostics and add a regression proving secrets never reach persisted failure evidence.
+- Exact-head hosted CI pending.
+
+
+### BUILD-00367 — exact-head hosted validation
+- Exact code head `4a987bf76067aaaee19e4fe9f345090cfa53c767` passed GitHub Actions Backend tests run [44517983256](https://github.com/justinhblee-prog/shorts/actions/runs/44517983256): **786 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Hosted Linux only; no production log inventory or live Windows runner behavior is implied.
+
+
+### BUILD-00367 — expanded redaction exact-head validation
+- Updated code head `431155113b1e5e749141333bc139af3b245f4223` passed GitHub Actions run [44518327365](https://github.com/justinhblee-prog/shorts/actions/runs/44518327365): **787 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Coverage includes multiline Firebase service-account JSON redaction before worker failure persistence.
+- Hosted Linux only; no production log inventory is implied.
+
+
+### BUILD-00367 — extended diagnostic and success-evidence redaction
+- Extend shared redaction to PEM/OpenSSH private-key blocks, Basic authorization values, authenticated MongoDB/MySQL/AMQP URLs and common provider token formats.
+- Sanitize successful executor result summaries and validation references as well as retryable/non-retryable exception messages before durable persistence.
+- Add regressions for PEM/database URL failures and secret-bearing success evidence.
+- Exact-head CI pending.
+
+
+### BUILD-00367 — complete credential-format regression validation
+- Updated code head `11126bb8261e5a3d49625bd65a8ad75b1ffaf6d5` passed GitHub Actions run [44518688714](https://github.com/justinhblee-prog/shorts/actions/runs/44518688714): **794 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Added direct tests for quoted JSON keys, Basic auth, URL credentials, multiline PEM keys and common provider token formats.
+- Hosted Linux only; no production log inventory is implied.
+
+
+### BUILD-00367 — workflow-level error redaction validation
+- Updated code head `ba03a9997693b7bb77137fcd18b028f5e784fee9` passed GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/actions/runs/44518919606): **795 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- The top-level workflow runner now redacts exceptions before writing them to Actions stderr; regression coverage checks that a GitHub token is not emitted.
+- Hosted Linux only; no production log inventory is implied.
+
+
+### BUILD-00367 — final redaction and scope-normalization validation
+- Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
