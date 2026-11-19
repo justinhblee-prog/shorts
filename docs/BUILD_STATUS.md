@@ -2681,6 +2681,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ## BUILD-00348 — compressed backup archive size limits
 
+- Exact-head validation passed: backend [run 44503388858](https://github.com/justinhblee-prog/shorts/actions/runs/44503388858), **718 tests**; Compose [run 44503388809](https://github.com/justinhblee-prog/shorts/actions/runs/44503388809), five-service encrypted backup/restore smoke.
 - Bound compressed plaintext and encrypted archive sizes before tar parsing or AES-GCM decryption writes staging data.
 - Allow a fixed 256 MiB envelope for tar headers, directory entries, compression overhead and the encryption envelope beyond the supported uncompressed database/media payload cap.
 - Add regressions for oversized plaintext and encrypted archives; verify the live database remains unchanged and no restore staging directory is left behind.
