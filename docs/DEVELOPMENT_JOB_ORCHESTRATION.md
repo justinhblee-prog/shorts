@@ -189,4 +189,4 @@ The read-only intake client now caps each Issues, PR and Actions feed at five 10
 
 
 ### BUILD-00357 — GitHub repository path validation
-The read-only intake now validates owner and repository as separate single path segments before constructing GitHub API URLs. Traversal-like segments, slashes, whitespace, query and fragment delimiters are rejected before network access; valid organization/repository names containing supported hyphens, underscores and dots remain accepted. Exact-head CI is pending.
+The read-only intake now validates owner and repository as separate single path segments before constructing GitHub API URLs. Traversal-like segments, slashes, whitespace, query and fragment delimiters are rejected before network access; valid organization/repository names containing supported hyphens, underscores and dots remain accepted. Exact-head backend CI passed run [44511457164](https://github.com/justinhblee-prog/shorts/actions/runs/44511457164) with 773 tests.
