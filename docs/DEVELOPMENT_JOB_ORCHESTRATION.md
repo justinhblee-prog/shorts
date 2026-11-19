@@ -353,5 +353,5 @@ Exact-head validation: head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **
 Quarantined jobs can now be requeued only through an authenticated operator action. The action requires `operations.manage`, a non-empty reason, and records an immutable event containing the operator identity, redacted reason and previous attempt count. The new attempt starts with a reset retry budget and cleared stale execution evidence. Code head `628d5d1e22a56bbb58642e27530722d4d67e8992` passed **825 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44548442047](https://github.com/justinhblee-prog/shorts/actions/runs/44548442047). Subsequent commits on this branch are documentation-only.
 
 
-### DEV-ORCH-007 implementation follow-up — BUILD-00387
+### DEV-ORCH-007 implementation follow-up — BUILD-00388
 The read-only GitHub intake client now confines pagination links to the same HTTPS API host and exact collection path as the initial request. A Link header cannot redirect an authenticated follow-up GET to another repository/feed on the same host, a user-info URL, or a URL with a fragment. Initial collection paths are validated before network access. Regressions cover same-host cross-repository links, user-info and malformed paths. Exact-head hosted CI pending.
