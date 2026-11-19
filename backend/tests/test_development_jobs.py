@@ -17,6 +17,30 @@ class DevelopmentJobStoreTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_create_redacts_secrets_from_imported_backlog_text(self):
+        github_token = "ghp_123456789012345678901234567890"
+        database_password = "backlog-db-password-sensitive"
+        job = self.store.create(
+            f"Fix worker GITHUB_TOKEN={github_token}",
+            description=(
+                "Issue details include Bearer abc.def and "
+                f"DATABASE_URL=postgres://user:{database_password}@db.example/nexus"
+            ),
+            acceptance=[
+                f"Never expose API_KEY={github_token}",
+                "Keep normal acceptance criteria visible",
+            ],
+            scope=["backend/worker.py"],
+            source_ref="github:issue:acme/app#42",
+        )
+        events = self.store.events(job["id"])
+        persisted = json.dumps({"job": job, "events": events}, ensure_ascii=False)
+        for secret in (github_token, database_password, "abc.def"):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, persisted)
+        self.assertIn("Keep normal acceptance criteria visible", persisted)
+        self.assertIn("[REDACTED]", persisted)
+
     def test_source_ref_is_indexed_and_duplicate_creation_is_rejected(self):
         first = self.store.create("Imported issue", source_ref="github:issue:acme/app#17")
         self.assertTrue(self.store.source_ref_exists("github:issue:acme/app#17"))
