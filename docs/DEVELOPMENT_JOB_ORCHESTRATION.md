@@ -206,3 +206,6 @@ The original POLICY-00001 / #386, POLICY-00002 / #389 and POLICY-00003 / #390 br
 ### Quarantine recovery UI/API successor chain
 
 Rebased the UI-00012 recovery controls onto current BUILD-00386 / PR #384 as successor PR #404; it is mergeable and has one passed exact-head backend check [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819), while second run [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665) remained in progress. Rebased the API contract test-only change onto #404 as successor PR #405; it is mergeable and exact-head workflow [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441) remained in progress. Preserve #404 → #405 dependency order; original #387/#397 remain unchanged. Draft only, no production recovery.
+
+
+Quarantine recovery successor validation is complete at hosted CI level: PR #404 passed both [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819) and [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665); API successor PR #405 passed [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441). Keep the branches Draft/unmerged and preserve #404 → #405. Tests are synthetic/handler-level and do not validate production recovery.
