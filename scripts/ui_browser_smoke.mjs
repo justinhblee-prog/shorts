@@ -76,7 +76,8 @@ async function waitForServer() {
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     fs.mkdirSync("artifacts", { recursive: true });
     assert.match(await page.title(), /NEXUS STUDIO PRO/);
-    assert.equal(await page.locator(".main-nav a").count(), 5);
+    assert.equal(await page.locator(".main-nav a").count(), 6);
+    assert.equal(await page.locator("#development").count(), 1);
     assert.equal(await page.locator("#studio").count(), 1);
     assert.equal(await page.locator("#discovery").count(), 1);
     assert.equal(await page.locator("#review").count(), 1);
