@@ -558,6 +558,40 @@ class DevelopmentJobStore:
             connection.commit()
         return self.get(job_id)
 
+    def recover_quarantined(self, job_id, operator_id, reason):
+        """Explicitly requeue a quarantined job after an operator records the recovery reason."""
+        if not isinstance(operator_id, str) or not operator_id.strip() or len(operator_id.strip()) > 128:
+            raise ValueError("operator_id must contain 1 to 128 characters")
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in operator_id):
+            raise ValueError("operator_id must contain printable characters")
+        if not isinstance(reason, str) or not reason.strip() or len(reason) > 1000:
+            raise ValueError("reason must contain 1 to 1000 characters")
+        safe_reason = redact_sensitive_text(reason.strip(), limit=1000)
+        actor = operator_id.strip()
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT status,attempts FROM development_jobs WHERE id=?", (job_id,)
+            ).fetchone()
+            if row is None:
+                raise DevelopmentJobNotFound("job not found")
+            if row["status"] != "quarantined":
+                raise DevelopmentJobConflict("only quarantined jobs can be manually recovered")
+            timestamp = _stamp(_now())
+            connection.execute(
+                """UPDATE development_jobs SET status='ready',attempts=0,
+                   worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,retry_after=NULL,
+                   changed_files_json=NULL,tests_passed=NULL,validation_ref=NULL,
+                   result_summary=?,updated_at=? WHERE id=? AND status='quarantined'""",
+                ("Operator recovery: " + safe_reason, timestamp, job_id),
+            )
+            self._event(
+                connection, job_id, "quarantine_recovered", "quarantined", "ready",
+                actor, {"reason": safe_reason, "previous_attempts": row["attempts"]}, timestamp,
+            )
+            connection.commit()
+        return self.get(job_id)
+
     def fail(self, job_id, worker_id, lease_token, error, retryable=True, retry_delay_seconds=None):
         """Record a failed attempt; retry with bounded exponential backoff or quarantine."""
         if not isinstance(error, str) or not error.strip():
