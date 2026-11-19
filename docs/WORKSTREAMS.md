@@ -179,3 +179,11 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 
 - PR #400 exact head `272d5efc9564b9d4dca6fa4bff187579a3911adb` passed hosted backend workflow [44575404874](https://github.com/justinhblee-prog/shorts/actions/runs/44575404874), including `scripts/validate.sh` and frontend JavaScript syntax validation.
 - PR #400 remains Draft/unmerged on the current BUILD-00386 base. This is hosted CI evidence only; no live GitHub provider intake or production operation was performed.
+
+
+## Policy stack base repair — POLICY-00001 through POLICY-00003 (2026-11-20)
+
+- The original PR #386 was diverged from its YouTube disclosure base by 18 commits; the base and policy changes were independent at source level (YouTube publishing files versus policy-engine files). Created successor PR #401 on current PR #385 head, transplanting only `backend/policy_engine.py` and `backend/tests/test_policy_engine.py`. PR #401 is mergeable and exact-head checks passed [44575712933](https://github.com/justinhblee-prog/shorts/actions/runs/44575712933) and [44575735946](https://github.com/justinhblee-prog/shorts/actions/runs/44575735946).
+- Created successor PR #402 on #401, transplanting policy-engine source URL and rights-key validation plus tests from original #389. It is mergeable; exact-head checks [44575784946](https://github.com/justinhblee-prog/shorts/actions/runs/44575784946) passed, while [44575810640](https://github.com/justinhblee-prog/shorts/actions/runs/44575810640) was still running at checkpoint.
+- Created successor PR #403 on #402, carrying fail-closed review approval behavior and regressions from original #390. It is mergeable; exact-head runs [44575901354](https://github.com/justinhblee-prog/shorts/actions/runs/44575901354) and [44575928560](https://github.com/justinhblee-prog/shorts/actions/runs/44575928560) were running/queued at checkpoint.
+- Original PRs #386, #389 and #390 remain unchanged for traceability. Successor PRs #401–#403 remain Draft/unmerged and preserve the dependency chain. No production deployment or live provider actions were performed.
