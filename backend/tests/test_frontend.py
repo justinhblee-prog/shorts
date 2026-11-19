@@ -39,6 +39,19 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('approvalHistory.body.items.at(-1).decision, "approved"', browser)
         self.assertIn("const approvalResponse = page.waitForResponse", browser)
 
+
+    def test_review_queue_has_live_search_for_brand_topic_job_and_status(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        css = (frontend / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('id="reviewSearch"', html)
+        self.assertIn('id="reviewSearchStatus" role="status" aria-live="polite"', html)
+        self.assertIn("function filterReviewCards()", app_js)
+        self.assertIn('card.textContent.toLocaleLowerCase().includes(query)', app_js)
+        self.assertIn('addEventListener("input",filterReviewCards)', app_js)
+        self.assertIn(".review-card[hidden]{display:none}", css)
+
     def test_dashboard_assets_are_packaged(self):
         frontend = ROOT / "frontend"
         self.assertTrue((frontend / "index.html").is_file())
