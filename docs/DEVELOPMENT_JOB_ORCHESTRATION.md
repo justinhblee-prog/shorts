@@ -336,3 +336,8 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 - Apply case-folded, slash-normalized path matching at the durable `mark_review_pending` gate, matching the scheduler and Aider executor rules.
 - Preserve exact file matching, explicit recursive directory scopes, and path-component boundaries.
 - Add regressions for differently cased file/directory scopes and sibling-directory boundary rejection. Exact-head CI pending.
+
+
+### BUILD-00384 — exact-head validation
+- Code head `58034c67387c5fb648623603c40320582a2aa95e` passed **814 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44544093165](https://github.com/justinhblee-prog/shorts/actions/runs/44544093165) and [44544133397](https://github.com/justinhblee-prog/shorts/actions/runs/44544133397).
+- Case-insensitive file and directory completion-scope regressions passed in both runs. Hosted Linux only; Windows local-runner execution remains unverified.
