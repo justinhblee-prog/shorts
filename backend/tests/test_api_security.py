@@ -1056,17 +1056,19 @@ class ApiSecurityTests(unittest.TestCase):
             mock.patch.object(app_module.tiktok_metrics_store,"history",return_value=tiktok) as tt_history,
         ):
             result=publishing_analytics_history(
-                platform="all",days=30,limit=200,x_review_token="analytics-token"
+                platform="all",days=30,limit=200,offset=500,x_review_token="analytics-token"
             )
         authorize.assert_called_once_with("analytics-token","analytics.read")
         yt_history.assert_called_once()
         self.assertEqual(yt_history.call_args.kwargs["video_id"],None)
         self.assertEqual(yt_history.call_args.kwargs["limit"],200)
+        self.assertEqual(yt_history.call_args.kwargs["offset"],500)
         self.assertIsNotNone(yt_history.call_args.kwargs["since"])
         tt_history.assert_called_once()
         self.assertIs(tt_history.call_args.args[0],app_module.tiktok_publish_store)
         self.assertEqual(tt_history.call_args.kwargs["video_id"],None)
         self.assertEqual(tt_history.call_args.kwargs["limit"],200)
+        self.assertEqual(tt_history.call_args.kwargs["offset"],500)
         self.assertIsNotNone(tt_history.call_args.kwargs["since"])
         self.assertEqual(result["counts"],{"youtube":1,"tiktok":1})
         self.assertEqual(result["items"]["youtube"][0]["retention_curve"][0]["audience_watch_ratio"],0.4)
@@ -1080,6 +1082,7 @@ class ApiSecurityTests(unittest.TestCase):
                 platform="youtube",days=-30,limit=999,x_review_token="analytics-token"
             )
         self.assertEqual(bounded["days"],1)
+        self.assertEqual(bounded["offset"],0)
         bounded_youtube.assert_called_once()
         self.assertEqual(bounded_youtube.call_args.kwargs["limit"],500)
         bounded_tiktok.assert_not_called()
