@@ -220,3 +220,11 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - Exact-head hosted CI was automatically triggered for this new SHA: run [44600985186](https://github.com/justinhblee-prog/shorts/actions/runs/44600985186) and run [44600976216](https://github.com/justinhblee-prog/shorts/actions/runs/44600976216). Both were **in progress** at the time of this update; aggregate Automation integration remains VERIFYING until both complete successfully.
 - The prior aggregate UI+Core head `ae7ed6574a4a3eaac306215d9702e2f33c4f0fd4` passed both hosted checks (runs [44597011173](https://github.com/justinhblee-prog/shorts/actions/runs/44597011173) and [44596966746](https://github.com/justinhblee-prog/shorts/actions/runs/44596966746)); each completed all 17 steps. Artifacts: [14565152825](https://github.com/justinhblee-prog/shorts/actions/runs/44597011173/artifacts/14565152825) and [14566382219](https://github.com/justinhblee-prog/shorts/actions/runs/44596966746/artifacts/14566382219). This prior PASS does not certify the new SHA.
 - Trusted Windows self-hosted execution, two-run LocalAppData persistence, and live Ollama generation remain BLOCKED / unverified. PR #415 remains Draft; no merge or deployment.
+
+
+## 20. Handover documentation integrated into aggregate candidate — 2026-11-20
+
+- Added the mainline-based handover from PR #410 and the multi-flow plan/workstream updates from PR #411 into the aggregate candidate. Files: `docs/INTEGRATION_HANDOVER_2026-11-20.md`, `docs/MULTI_FLOW_EXECUTION.md`, and `docs/WORKSTREAMS.md`.
+- Aggregate branch now carries UI, Core, Automation integrity, and documentation lanes in one review candidate. PR #415 remains Draft; the documentation stack PRs #410/#411 remain open and unmerged as source records.
+- Exact current branch head must be taken from PR #415; hosted checks are re-triggered by the documentation commits and must pass on that final SHA before the aggregate can be marked PASS.
+- External gate remains unchanged: trusted Windows self-hosted runner, two-run persistent LocalAppData proof, and live Ollama generation are not verified by hosted Linux checks.
