@@ -1372,3 +1372,5 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Regression test covers duplicate publication rows, stale and missing snapshots, and latest timestamp.
 - Code/test commits: `50b310c589378ad9a319ae5f4ae1802063e1f046` / `2b1bbb80f17059920180192059f4761c2daa05a0`.
 - Exact-head CI: pending. Production-sized latency benchmark and live provider validation remain outstanding.
+
+- Initial exact-head CI caught a stale Python variable reference in the new response mapping (3 errors); corrected it to return the SQL aggregate's `published` count. Revalidation is running on the corrected code checkpoint.
