@@ -116,3 +116,13 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - FLOW-CORE: DAG mutation guard and three regression cases are in PR #413 at head `a80bff7f9dc3c4b7a5d5399008e76680802aebaf`; exact-head run [44594717811](https://github.com/justinhblee-prog/shorts/actions/runs/44594717811) is in progress.
 - PR #412 UI implementation: https://github.com/justinhblee-prog/shorts/pull/412. PR #413 Core implementation: https://github.com/justinhblee-prog/shorts/pull/413.
 - Only the runs listed as completed above are PASS. In-progress runs remain VERIFYING; Windows/Ollama remains BLOCKED pending the trusted runner.
+
+
+## 10. UI lane exact-head PASS — 2026-11-20
+
+- FLOW-UI and FLOW-QA are **PASS** at head `cf6b727252c8f33b3e90722d05cebef1bd40fe23`.
+- Hosted run [44594782147](https://github.com/justinhblee-prog/shorts/actions/runs/44594782147) passed repository validation, frontend syntax, analytics Chromium smoke, recovery Chromium smoke, and artifact upload.
+- The recovery browser flow confirmed UI/Core grouping, the persisted predecessor title and completed state, operator-confirmed quarantine recovery, and no horizontal overflow at 320px viewport width.
+- Screenshot artifact: [14564938001](https://github.com/justinhblee-prog/shorts/actions/runs/44594782147/artifacts/14564938001).
+- PR #412 remains Draft/unmerged: https://github.com/justinhblee-prog/shorts/pull/412.
+- FLOW-CORE remains VERIFYING at head `5d3e7447d72788b8802dfe8c4bcdfd3de76b4ff8`; run [44595023343](https://github.com/justinhblee-prog/shorts/actions/runs/44595023343) is still running. Do not mark it PASS until completion.
