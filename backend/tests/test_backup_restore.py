@@ -433,13 +433,15 @@ class BackupRestoreTests(unittest.TestCase):
             sidecar = Path(str(self.db) + suffix)
             sidecar.write_bytes(b"active-or-uncheckpointed-sidecar")
             with self.subTest(sidecar=suffix):
-                with self.assertRaisesRegex(BackupRestoreError, "SQLite sidecar files are present"):
-                    restore_backup(
-                        backup, self.db, self.media, self.backups,
-                        confirm_restore=True,
-                    )
+                try:
+                    with self.assertRaisesRegex(BackupRestoreError, "SQLite sidecar files are present"):
+                        restore_backup(
+                            backup, self.db, self.media, self.backups,
+                            confirm_restore=True,
+                        )
+                finally:
+                    sidecar.unlink(missing_ok=True)
                 self.assertEqual(self._db_value(), "before")
-            sidecar.unlink()
 
 
 if __name__ == "__main__":
