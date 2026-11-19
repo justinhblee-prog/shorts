@@ -97,3 +97,12 @@ This snapshot is a repository coordination record, not a claim that independent 
 - PR #394 — UI-00014 professional workspace design system; Draft, unmerged, stacked directly on PR #392. Its six-commit delta is limited to `frontend/cyber-magic.css` and `frontend/index.html`; it preserves the existing app JavaScript/API behavior. Exact head `b098826455150fefe4a8def6377bf77630a1ad7f` has one successful full validation + Chromium browser smoke run [44565614418](https://github.com/justinhblee-prog/shorts/actions/runs/44565614418), including screenshot artifact `nexus-dashboard-browser-screenshots`; a second duplicate run [44565685710](https://github.com/justinhblee-prog/shorts/actions/runs/44565685710) is still in progress at the Korean font setup step as of this snapshot.
 - Do not merge or deploy either UI PR. The next UI action is to inspect the captured desktop/mobile screenshots and finish the second exact-head CI run; then review visual hierarchy, responsive behavior, and preservation of existing controls before integration.
 - The UI stack must be integrated only after the current Core/Policy dependency stack is reviewed and the cross-lane API/browser regression plan is satisfied.
+
+## UI-00015 — analytics history table pagination
+
+- PR #395 — Draft, unmerged, stacked on UI-00014 / PR #394. Head currently `f64553264638464debbe9b427a10fa5313062e9a`.
+- Browser screenshot review of UI-00014 exposed a long analytics history table: the view displayed up to 200 records in one continuous table, making the overall workspace excessively tall.
+- UI-00015 changes only the analytics history presentation: 25 rows per page, previous/next controls, and a live page/count indicator. Chart summaries and full cursor-paginated CSV export remain independent of the visible page.
+- Added browser smoke assertions for 25-row rendering, page 1 → 2 → 1 navigation, disabled previous control on the first page, and preservation of the complete 502-row CSV export.
+- Exact-head hosted repository validation passed in run [44567167733](https://github.com/justinhblee-prog/shorts/actions/runs/44567167733) through `scripts/validate.sh`; Chromium browser smoke is still running at screenshot/font setup in this snapshot. An earlier validation failure from a stale source assertion was corrected and is not the current head.
+- Do not merge PR #395 independently. Keep the UI-00013 → UI-00014 → UI-00015 stack intact until browser validation and cross-lane integration review pass.
