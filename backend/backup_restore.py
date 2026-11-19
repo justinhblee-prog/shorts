@@ -26,6 +26,8 @@ MAX_MANIFEST_BYTES = 16 * 1024 * 1024
 MAX_DATABASE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_MEDIA_BYTES = 200 * 1024 * 1024 * 1024
 MAX_ARCHIVE_BYTES = MAX_MANIFEST_BYTES + MAX_DATABASE_BYTES + MAX_MEDIA_BYTES
+# Allow tar headers, directory entries, gzip overhead and the AES-GCM envelope.
+MAX_COMPRESSED_ARCHIVE_BYTES = MAX_ARCHIVE_BYTES + 256 * 1024 * 1024
 ENCRYPTED_MAGIC = b"NEXUSBK1"
 ENCRYPTED_NONCE_BYTES = 12
 ENCRYPTED_TAG_BYTES = 16
@@ -150,6 +152,8 @@ def _decrypt_file(source, destination, key):
     size = source.stat().st_size
     if size < minimum_size:
         raise BackupRestoreError("Encrypted backup is truncated")
+    if size > MAX_COMPRESSED_ARCHIVE_BYTES:
+        raise BackupRestoreError("Encrypted backup exceeds the supported compressed archive size")
     created = False
     try:
         with source.open("rb") as input_file:
@@ -410,6 +414,9 @@ def _validate_manifest(manifest):
 
 
 def _extract_and_verify(archive_path, destination):
+    archive_path = Path(archive_path)
+    if archive_path.stat().st_size > MAX_COMPRESSED_ARCHIVE_BYTES:
+        raise BackupRestoreError("Backup exceeds the supported compressed archive size")
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     try:
