@@ -89,3 +89,11 @@ This snapshot is a repository coordination record, not a claim that independent 
 - No production deployment, live OAuth/provider upload, live Windows self-hosted runner execution, or real quarantined-job recovery is claimed.
 - Hosted CI success validates the tested source revision only. It does not imply the scheduled local worker is active on main or that independent worker processes are running.
 - Integration must verify API contract compatibility, database migration ordering, permission grants, browser behavior, and release-readiness evidence before any merge or deployment.
+
+
+## Active UI design continuation — 2026-11-20 01:24 KST
+
+- PR #392 — UI-00013 cinematic dashboard presentation layer; Draft, unmerged. Exact head `454698508fbe652a511d2ad1235c274aea3bcd53` has successful hosted CI run [44563818798](https://github.com/justinhblee-prog/shorts/actions/runs/44563818798).
+- PR #394 — UI-00014 professional workspace design system; Draft, unmerged, stacked directly on PR #392. Its six-commit delta is limited to `frontend/cyber-magic.css` and `frontend/index.html`; it preserves the existing app JavaScript/API behavior. Exact head `b098826455150fefe4a8def6377bf77630a1ad7f` has one successful full validation + Chromium browser smoke run [44565614418](https://github.com/justinhblee-prog/shorts/actions/runs/44565614418), including screenshot artifact `nexus-dashboard-browser-screenshots`; a second duplicate run [44565685710](https://github.com/justinhblee-prog/shorts/actions/runs/44565685710) is still in progress at the Korean font setup step as of this snapshot.
+- Do not merge or deploy either UI PR. The next UI action is to inspect the captured desktop/mobile screenshots and finish the second exact-head CI run; then review visual hierarchy, responsive behavior, and preservation of existing controls before integration.
+- The UI stack must be integrated only after the current Core/Policy dependency stack is reviewed and the cross-lane API/browser regression plan is satisfied.
