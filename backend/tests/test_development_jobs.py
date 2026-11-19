@@ -542,5 +542,60 @@ class DevelopmentJobStoreTests(unittest.TestCase):
             )
 
 
+class DependencyMutationGuardTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = DevelopmentJobStore(os.path.join(self.tmp.name, "jobs.sqlite3"), lease_seconds=30)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_cannot_add_dependency_after_child_has_been_claimed(self):
+        child = self.store.create("Claimed child")
+        parent = self.store.create("Late prerequisite")
+        claim = self.store.claim_ready("worker-a")
+        self.assertEqual(claim["id"], child["id"])
+        with self.assertRaisesRegex(DevelopmentJobConflict, "ready or blocked"):
+            self.store.add_dependency(child["id"], parent["id"])
+        persisted = self.store.get(child["id"])
+        self.assertEqual(persisted["status"], "leased")
+        self.assertEqual(persisted["dependencies"], [])
+        self.assertFalse(any(event["event_type"] == "dependency_added"
+                             for event in self.store.events(child["id"])))
+
+    def test_completed_prerequisite_does_not_block_new_ready_child(self):
+        parent = self.store.create("Already completed prerequisite",
+                                   scope=["backend/parent.py"])
+        claim = self.store.claim_ready("worker-parent")
+        self.assertEqual(claim["id"], parent["id"])
+        self.store.mark_review_pending(
+            parent["id"], "worker-parent", claim["lease_token"],
+            ["backend/parent.py"], True, "ci://dependency/completed-parent",
+        )
+        self.store.publish_review_artifact(
+            parent["id"], "https://github.com/example/repo/pull/12", "b" * 40,
+            ["backend/parent.py"], is_draft=True, is_open=True,
+        )
+        child = self.store.create("Late child")
+        updated = self.store.add_dependency(child["id"], parent["id"])
+        self.assertEqual(updated["status"], "ready")
+        self.assertEqual(updated["dependencies"], [parent["id"]])
+        dependency_event = self.store.events(child["id"])[-1]
+        self.assertEqual(dependency_event["from_status"], "ready")
+        self.assertEqual(dependency_event["to_status"], "ready")
+        next_claim = self.store.claim_ready("worker-child")
+        self.assertEqual(next_claim["id"], child["id"])
+
+    def test_cannot_add_cancelled_prerequisite(self):
+        parent = self.store.create("Cancelled prerequisite")
+        child = self.store.create("Dependent child")
+        with self.store.db() as connection:
+            connection.execute("UPDATE development_jobs SET status='cancelled' WHERE id=?", (parent["id"],))
+        with self.assertRaisesRegex(DevelopmentJobConflict, "cancelled prerequisite"):
+            self.store.add_dependency(child["id"], parent["id"])
+        self.assertEqual(self.store.get(child["id"])["status"], "ready")
+        self.assertEqual(self.store.get(child["id"])["dependencies"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
