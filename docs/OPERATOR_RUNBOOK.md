@@ -93,6 +93,12 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 - Scheduler dispatch uses deterministic idempotency keys. Run one scheduler process until distributed leadership is implemented.
 - Back up the persistent SQLite volume and test restoration before real operation.
 - **Restore is an offline maintenance operation.** Stop the API, worker, scheduler, metrics collector and backup service before restoring. The restore command refuses to proceed when SQLite `-wal`, `-shm` or `-journal` sidecars exist; do not delete those files manually to bypass the guard. Close/checkpoint the database cleanly, restore, verify integrity, then restart services.
+  ```bash
+  docker compose stop api worker scheduler metrics-collector backup
+  docker compose run --rm --no-deps --entrypoint python backup /app/backend/backup_restore.py restore --archive /backups/ARCHIVE_NAME.tar.gz.enc --confirm-restore
+  docker compose up -d
+  ```
+  Replace `ARCHIVE_NAME.tar.gz.enc` with the exact encrypted archive filename. The backup service shares the persistent database/media and backup volumes and loads the configured encryption key from `.env`.
 - The sidecar check is a fail-closed safeguard, not proof that no process has the database file open. The operator must stop all processes using the volume.
 - Do not scale multiple API/worker/scheduler instances on shared SQLite as if it were a production distributed database.
 
