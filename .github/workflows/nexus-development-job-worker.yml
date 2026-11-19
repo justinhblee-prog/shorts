@@ -69,11 +69,11 @@ jobs:
           )
           $credentialPattern = '(?i)(TOKEN|SECRET|PASSWORD|CREDENTIAL|API[_-]?KEY|ENCRYPTION[_-]?KEY|PRIVATE[_-]?KEY|SIGNING[_-]?KEY|ACCESS[_-]?KEY|SERVICE[_-]?ROLE[_-]?KEY|DATABASE[_-]?URL|DB[_-]?URL|REDIS[_-]?URL|POSTGRES[_-]?URL|MYSQL[_-]?URL|MONGODB[_-]?URI|MONGO[_-]?URL|CONNECTION[_-]?STRING|SERVICE[_-]?ACCOUNT)'
           $blockedNames = @()
-          foreach ($entry in [Environment]::GetEnvironmentVariables().Keys) {
+          foreach ($entry in [System.Environment]::GetEnvironmentVariables().Keys) {
             $name = [string]$entry
             $prefixMatch = $false
             foreach ($prefix in $blockedPrefixes) {
-              if ($name.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+              if ($name.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
                 $prefixMatch = $true
                 break
               }
