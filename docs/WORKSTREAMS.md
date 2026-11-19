@@ -141,3 +141,11 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - PR #397 is Draft, unmerged, and based on PR #387; preserve the #384 → #387 → #397 dependency order.
 - PR #385 remains at exact head `151ee074d8116e12759a6dc46e734cf84f52c2d4`; its hosted backend run [44563227397](https://github.com/justinhblee-prog/shorts/actions/runs/44563227397) passed. Do not substitute an uncommitted or historical hardening head for the actual PR head.
 - Cross-lane integration remains blocked until the dependency-ordered Core, Policy and UI branches are assembled on one candidate commit and tested together. No merge/deployment or live provider action is authorized.
+
+
+## UI-00016 pagination accessibility checkpoint (2026-11-20)
+
+- PR #398 adds a named navigation landmark to analytics-history pagination and browser coverage for keyboard Enter activation, last-page rendering, next-button disabling at the final page, and return to page 1.
+- Exact head `0d9db34cc5969f277c1174f7092e7d4907f957af` passed the complete hosted backend/browser workflow [44573923657](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657). The run completed `scripts/validate.sh` and the browser smoke, including 320px mobile navigation, the 25-row page behavior, full 502-row CSV export, review approval/audit history, and no browser page errors.
+- Browser screenshots artifact: [14555931151](https://github.com/justinhblee-prog/shorts/actions/runs/44573923657/artifacts/14555931151).
+- PR #398 remains Draft/unmerged and is stacked on UI-00015 / PR #395. No production deployment or live provider publishing was exercised.
