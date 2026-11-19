@@ -309,3 +309,7 @@ GitHub Actions run [44517983256](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00367 — multiline credential redaction evidence
 GitHub Actions run [44518327365](https://github.com/justinhblee-prog/shorts/actions/runs/44518327365) passed **787 backend tests**, repository validation and frontend syntax validation, including multiline service-account JSON redaction. This remains a code-level test contract, not a production log inventory.
+
+
+### BUILD-00367 — expanded worker evidence redaction
+The shared redactor now handles PEM/OpenSSH private-key blocks, Basic authorization values, authenticated MongoDB/MySQL/AMQP URLs and common provider token formats. It sanitizes successful result summaries and validation references in addition to worker exceptions. Exact-head CI pending; no production log inventory is claimed.
