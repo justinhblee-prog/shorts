@@ -243,6 +243,17 @@
       const key=item.platform+":"+item.video_id;
       (grouped[key]||(grouped[key]=[])).push(item);
     });
+    const chartMetric=$("analyticsHistoryMetric")?.value||"views";
+    const metricLabels={views:"조회수",like_count:"좋아요",comment_count:"댓글",share_count:"공유",estimated_minutes_watched:"시청 시간(분)",average_view_percentage:"평균 시청 비율(%)"};
+    const metricUnits={views:"회",like_count:"개",comment_count:"개",share_count:"개",estimated_minutes_watched:"분",average_view_percentage:"%"};
+    const chartMetricValue=item=>{
+      const key=chartMetric==="views"?"views":chartMetric;
+      const raw=item[key];
+      if(raw===null||raw===undefined||raw==="")return null;
+      const value=Number(raw);
+      return Number.isFinite(value)&&value>=0?value:null;
+    };
+    const chartMetricDeltas=new WeakMap();
     const deltas=new WeakMap();
     Object.entries(grouped).forEach(([,items])=>{
       const chronological=[...items].sort((a,b)=>
@@ -250,7 +261,13 @@
         || Number(a.id||0)-Number(b.id||0)
       );
       let previous;
+      let previousChartMetric;
       chronological.forEach(item=>{
+        const chartValue=chartMetricValue(item);
+        if(chartValue!==null){
+          if(previousChartMetric!==undefined)chartMetricDeltas.set(item,chartValue-previousChartMetric);
+          previousChartMetric=chartValue;
+        }
         const metric=item.platform==="youtube"?"views":"view_count";
         const value=item[metric];
         const numericValue=value===null||value===undefined||value===""?null:Number(value);
@@ -286,11 +303,9 @@
     }).join("");
     const platformComparison='<section class="analytics-platform-comparison"><div class="analytics-trend-heading"><strong>플랫폼별 최신 조회수 요약</strong><span>영상별 최신 스냅샷 기준</span></div><div class="analytics-platform-grid">'+platformSummary+'</div><p class="analytics-chart-note">플랫폼별 수집 영상 수와 최신 조회수 합계의 참고 지표입니다. 플랫폼별 조회수 정의·수집 범위가 다르므로 우열이나 성과 순위로 해석하지 마세요.</p></section>';
     const chartGroups=Object.entries(grouped).map(([key,items])=>{
-      const metric=items[0]?.platform==="youtube"?"views":"view_count";
-      const points=items.map(item=>{
-        const raw=item[metric];
-        return {time:Date.parse(item.collected_at),value:raw===null||raw===undefined||raw===""?null:Number(raw),item};
-      })
+      const points=items.map(item=>({
+        time:Date.parse(item.collected_at),value:chartMetricValue(item),item
+      }))
         .filter(point=>Number.isFinite(point.time)&&Number.isFinite(point.value)&&point.value>=0)
         .sort((a,b)=>a.time-b.time);
       return {key,platform:items[0]?.platform,videoId:items[0]?.video_id,points};
@@ -318,16 +333,16 @@
           const coordinates=group.points.map(point=>({x:x(point.time),y:y(point.value),point}));
           const points=coordinates.map(point=>point.x.toFixed(1)+","+point.y.toFixed(1)).join(" ");
           const markers=coordinates.map(({x:px,y:py,point})=>{
-            const delta=deltaFor(point.item);
-            const deltaLabel=delta==="—"?"":" · 이전 수집 대비 "+delta+"회";
-            return '<circle class="analytics-chart-point analytics-series-'+index+'" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4"><title>'+esc(new Date(point.time).toLocaleString())+' · '+esc(Number(point.value).toLocaleString())+'회'+esc(deltaLabel)+'</title></circle>';
+            const deltaValue=chartMetricDeltas.get(point.item);
+            const deltaLabel=deltaValue===undefined?"":" · 이전 수집 대비 "+(deltaValue>0?"+":"")+deltaValue.toLocaleString()+ (metricUnits[chartMetric]||"");
+            return '<circle class="analytics-chart-point analytics-series-'+index+'" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4"><title>'+esc(new Date(point.time).toLocaleString())+' · '+esc(Number(point.value).toLocaleString())+(metricUnits[chartMetric]||"") +esc(deltaLabel)+'</title></circle>';
           }).join("");
           return '<polyline class="analytics-chart-line analytics-series-'+index+'" points="'+points+'"></polyline>'+markers;
         }).join("");
         const legend=chartGroups.map((group,index)=>'<span class="analytics-chart-legend-item"><i class="analytics-series-dot analytics-series-'+index+'"></i>'+esc(group.platform==="youtube"?"YouTube":"TikTok")+" · "+esc(String(group.videoId||"").slice(0,18))+'</span>').join("");
-        return '<section class="analytics-trend-panel" aria-label="영상별 조회수 추이"><div class="analytics-trend-heading"><strong>영상별 조회수 추이</strong><span>표본이 2개 이상인 영상 중 최대 4개</span></div><div class="analytics-chart-scroll"><svg class="analytics-trend-chart" viewBox="0 0 '+width+" "+height+'" role="img" aria-label="선택된 영상들의 시간에 따른 조회수 스냅샷 추이">'+lines+axisLabels+series+'</svg></div><div class="analytics-chart-legend">'+legend+'</div><p class="analytics-chart-note">각 선은 영상별 실제 수집 스냅샷입니다. YouTube와 TikTok의 조회수 집계 기준은 다를 수 있어 플랫폼 간 절대값 비교에는 주의가 필요합니다.</p></section>';
+        return '<section class="analytics-trend-panel" aria-label="영상별 성과 지표 추이"><div class="analytics-trend-heading"><strong>영상별 '+esc(metricLabels[chartMetric]||"성과 지표")+' 추이</strong><span>표본이 2개 이상인 영상 중 최대 4개</span></div><div class="analytics-chart-scroll"><svg class="analytics-trend-chart" viewBox="0 0 '+width+" "+height+'" role="img" aria-label="선택된 영상들의 시간에 따른 조회수 스냅샷 추이">'+lines+axisLabels+series+'</svg></div><div class="analytics-chart-legend">'+legend+'</div><p class="analytics-chart-note">각 선은 영상별 실제 수집 스냅샷입니다. YouTube와 TikTok의 조회수 집계 기준은 다를 수 있어 플랫폼 간 절대값 비교에는 주의가 필요합니다.</p></section>';
       })()
-      : '<div class="analytics-chart-empty">추이 그래프를 표시하려면 동일 영상의 유효한 조회수 스냅샷이 최소 2개 필요합니다.</div>';
+      : '<div class="analytics-chart-empty">선택한 지표의 추이를 표시하려면 동일 영상에 유효한 스냅샷이 최소 2개 필요합니다.</div>';
     $("analyticsHistory").innerHTML=rows.length
       ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개</div>'+platformComparison+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>평균 시청 비율</th></tr></thead><tbody>'
       +rows.slice(0,200).map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>').join("")
