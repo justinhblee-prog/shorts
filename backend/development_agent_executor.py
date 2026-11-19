@@ -357,7 +357,7 @@ class AiderDevelopmentExecutor:
             actual = self._changed_files(env)
         if not actual:
             raise NonRetryableDevelopmentJobError("Git worktree contains no source changes")
-        normalize = lambda paths: sorted({path.replace("\\\\", "/") for path in paths})
+        normalize = lambda paths: sorted(paths)
         if normalize(claimed) != normalize(actual):
             raise NonRetryableDevelopmentJobError(
                 "executor changed_files do not match the current Git worktree"
