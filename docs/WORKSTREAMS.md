@@ -256,3 +256,14 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - PR #406's original integration commit `96f59cc8b19792602f03eafd1c1138bde5c7b138` carries 20 source/test file deltas; the later exact head `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0` also corrects the recovery browser dialog handling. Existing #399 and #406 green runs remain separate evidence.
 
 - Created corrected integration staging branch `integration/core-policy-ui-modern-dashboard-2026-11-20` from exact #406 head `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0`. This is the safe backend/Core/Policy/recovery base for the next selective UI-00015–UI-00017 transplant; no frontend transplant has yet been committed.
+
+
+### Unified modern dashboard + quarantine recovery candidate (2026-11-20)
+
+- Created Draft PR #407: https://github.com/justinhblee-prog/shorts/pull/407
+- Base: dependency-aligned #406 candidate `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0`; head branch `integration/core-policy-ui-modern-dashboard-2026-11-20`; exact head `7393e41a689f655c7974cab763aacef363a6b659`.
+- Selectively integrated UI-00017 analytics frontend (`frontend/app.js`, `frontend/index.html`, `frontend/styles.css`, `frontend/cyber-magic.css`) while retaining the Core/Policy recovery API and adding the development-job control plane, event history, operator-confirmed quarantine recovery, and Engineering navigation entry.
+- Preserved 14 analytics table column-scope assertions and the modern analytics browser smoke. Added recovery UI/API contract regression methods and a second isolated Chromium browser smoke fixture for the audited recovery flow.
+- Backend workflow now runs `scripts/validate.sh`, `node --check frontend/app.js`, analytics Chromium smoke, and recovery Chromium smoke on the same exact PR head; screenshots are uploaded as an artifact.
+- Exact-head hosted workflow run `44581865675` is **in progress**. Do not mark the integrated candidate validated until all steps pass, especially both browser smoke commands.
+- PR #407 remains Draft/unmerged. No deployment or live external provider action.
