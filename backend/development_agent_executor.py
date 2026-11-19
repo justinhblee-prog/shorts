@@ -135,7 +135,8 @@ class AiderDevelopmentExecutor:
             "GIT_CONFIG_VALUE_1": "false",
             "GIT_TERMINAL_PROMPT": "0",
             "GCM_INTERACTIVE": "Never",
-            "OLLAMA_API_BASE": os.environ.get("OLLAMA_API_BASE", "http://127.0.0.1:11434"),
+            # Never inherit an endpoint override after the environment scrub; keep local Ollama loopback-only.
+            "OLLAMA_API_BASE": "http://127.0.0.1:11434",
         })
         drive, tail = os.path.splitdrive(str(home))
         if drive:

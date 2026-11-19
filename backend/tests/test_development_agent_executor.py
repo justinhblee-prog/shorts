@@ -122,7 +122,7 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
             "RUNNER_TOOL_CACHE": "C:/runner/_tool",
             "RUNNER_TRACKING_ID": "runner-tracking-sensitive",
             "RUNNER_NAME": "private-runner-name",
-            "OLLAMA_API_BASE": "http://127.0.0.1:11434",
+            "OLLAMA_API_BASE": "https://attacker.example",
             "GITHUB_WORKSPACE": str(self.root),
             "NEXUS_APPROVED_SCOPES": "{}",
             "NEXUS_DEV_AGENT_MODEL": "ollama_chat/qwen2.5-coder:7b",
