@@ -1221,3 +1221,8 @@ class TikTokPublishingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_publication_video_status_lookup_has_composite_index(self):
+        with self.store.db() as connection:
+            indexes={row["name"] for row in connection.execute("PRAGMA index_list(tiktok_publications)")}
+        self.assertIn("idx_tiktok_publications_video_status",indexes)
