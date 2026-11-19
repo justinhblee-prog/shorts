@@ -141,3 +141,13 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - Hosted run [44595023343](https://github.com/justinhblee-prog/shorts/actions/runs/44595023343) succeeded: repository validation (including new DAG mutation regressions), frontend syntax, analytics Chromium smoke, recovery Chromium smoke, and artifact upload [14565337019](https://github.com/justinhblee-prog/shorts/actions/runs/44595023343/artifacts/14565337019).
 - PR #413 remains Draft/unmerged: https://github.com/justinhblee-prog/shorts/pull/413.
 - FLOW-UI and FLOW-QA remain PASS at the tested 320px-capable head in section 10. FLOW-AUTO hosted checks passed under PR #409; real Windows/Ollama execution remains BLOCKED.
+
+
+## 13. Automation integrity QA lane — 2026-11-20
+
+- FLOW-AUTO / FLOW-QA opened PR #414: https://github.com/justinhblee-prog/shorts/pull/414.
+- Added runtime path-containment guards for both persistent Windows tool virtual environments: even a misconfigured `LOCALAPPDATA` cannot place tooling inside `GITHUB_WORKSPACE` and break the clean-worktree invariant.
+- Added an explicit check that the persisted Aider environment still contains `Scripts/python.exe` before accepting its launcher.
+- Regression tests cover both containment guards and the Aider interpreter check.
+- Exact-head CI for `8bb993a084b1f6b78730e78a49e943166f4f5e17` is running as of this checkpoint (workflow runs [44595671151](https://github.com/justinhblee-prog/shorts/actions/runs/44595671151) and [44595698428](https://github.com/justinhblee-prog/shorts/actions/runs/44595698428)). FLOW-AUTO remains VERIFYING until exact-head validation completes.
+- This is hosted validation only; trusted Windows self-hosted execution and two-run LocalAppData persistence remain unverified.
