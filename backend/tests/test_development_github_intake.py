@@ -251,14 +251,16 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
                 ]},
             ),
         ]
-        with patch("urllib.request.urlopen", side_effect=pages) as request:
+        with patch("urllib.request.build_opener") as build_opener:
+            build_opener.return_value.open.side_effect = pages
             client = GitHubReadOnlyClient("test-token")
             runs = client.list_workflow_runs("acme", "app")
 
         self.assertEqual([run["id"] for run in runs], [101, 102])
         self.assertEqual([run["conclusion"] for run in runs], ["success", "failure"])
-        self.assertEqual(request.call_count, 2)
-        self.assertTrue(all(call.args[0].get_method() == "GET" for call in request.call_args_list))
+        request_calls = build_opener.return_value.open.call_args_list
+        self.assertEqual(len(request_calls), 2)
+        self.assertTrue(all(call.args[0].get_method() == "GET" for call in request_calls))
 
     def test_rest_client_caps_each_feed_at_five_pages_and_reports_truncation(self):
         import json
@@ -292,12 +294,13 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
                 f'<{next_url}>; rel="next"',
             ))
 
-        with patch("urllib.request.urlopen", side_effect=responses) as request:
+        with patch("urllib.request.build_opener") as build_opener:
+            build_opener.return_value.open.side_effect = responses
             client = GitHubReadOnlyClient("test-token")
             runs = client.list_workflow_runs("acme", "app")
 
         self.assertEqual([run["id"] for run in runs], [1, 2, 3, 4, 5])
-        self.assertEqual(request.call_count, client.MAX_PAGES)
+        self.assertEqual(build_opener.return_value.open.call_count, client.MAX_PAGES)
         self.assertTrue(client.pagination_truncated["/repos/acme/app/actions/runs"])
 
     def test_rest_client_rejects_non_github_pagination_link(self):
@@ -317,10 +320,37 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
             def __exit__(self, *args):
                 return False
 
-        with patch("urllib.request.urlopen", return_value=Response()):
+        with patch("urllib.request.build_opener") as build_opener:
+            build_opener.return_value.open.return_value = Response()
             client = GitHubReadOnlyClient("test-token")
             with self.assertRaisesRegex(ValueError, "non-GitHub pagination URL"):
                 client.list_workflow_runs("acme", "app")
+
+    def test_redirect_handler_rejects_off_host_or_insecure_redirects(self):
+        from urllib.request import Request
+        from development_github_intake import _GitHubAPIOnlyRedirectHandler
+
+        handler = _GitHubAPIOnlyRedirectHandler()
+        request = Request(
+            "https://api.github.com/repos/acme/app/issues",
+            headers={"Authorization": "Bearer test-token"},
+        )
+        with self.assertRaisesRegex(ValueError, "trusted GitHub API origin"):
+            handler.redirect_request(
+                request, None, 302, "Found", {},
+                "https://attacker.example/collect",
+            )
+        with self.assertRaisesRegex(ValueError, "trusted GitHub API origin"):
+            handler.redirect_request(
+                request, None, 302, "Found", {},
+                "http://api.github.com/repos/acme/app/issues",
+            )
+        redirected = handler.redirect_request(
+            request, None, 301, "Moved", {},
+            "https://api.github.com/repos/acme-renamed/app/issues",
+        )
+        self.assertEqual(redirected.full_url, "https://api.github.com/repos/acme-renamed/app/issues")
+        self.assertEqual(redirected.get_header("Authorization"), "Bearer test-token")
 
     def test_snapshot_exposes_per_feed_truncation_metadata(self):
         client = FakeReadOnlyGitHub()
