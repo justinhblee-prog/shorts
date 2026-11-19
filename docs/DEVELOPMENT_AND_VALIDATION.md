@@ -323,3 +323,5 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - Included modern UI-00017 analytics screen/pagination and 14 column scopes; Core/Policy audited quarantine recovery API; development-job status/events UI; recovery reason/confirmation controls; and both analytics/recovery Chromium smoke scripts.
 - CI run `44581865675` is currently in progress. At checkpoint, dependencies installed and `scripts/validate.sh` is running; browser tests have not yet been confirmed. This is not a passing validation result.
 - PR #407 is Draft and unmerged. No production deployment or live provider tests.
+
+- First integrated browser run `44581865675` exposed one expected UI assertion mismatch: adding the Engineering navigation group increased the navigation count from five to six. The analytics smoke assertion and frontend navigation regression were corrected to assert six links and the `#development` panel; the modern cyber-magic stylesheet now includes the sixth navigation item. The corrected exact-head run `44582200007` is in progress; no passing result is claimed yet.
