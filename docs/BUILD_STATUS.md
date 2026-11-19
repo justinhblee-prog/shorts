@@ -2640,3 +2640,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Apply shared diagnostic/credential redaction to job titles, descriptions and acceptance criteria inside `DevelopmentJobStore.create`, covering GitHub-intake and direct callers before SQLite persistence.
 - Preserve ordinary task context while preventing pasted bearer tokens, provider keys and database credentials from entering durable job records.
 - Add regression coverage across title, description, acceptance criteria and creation history. Exact-head hosted CI pending.
+
+
+### BUILD-00372 — exact-head hosted validation
+- Code head `43b223c49f4e95f4bb830476b259bebcbb16e6df` passed GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/actions/runs/44533179406): **803 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Regression confirms credentials from imported title, description and acceptance criteria are absent from persisted job rows and creation events while ordinary task text remains.
+- Hosted Linux only.
