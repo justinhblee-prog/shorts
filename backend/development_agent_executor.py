@@ -234,7 +234,7 @@ class AiderDevelopmentExecutor:
         aider = self._resolve_aider_executable()
 
         with tempfile.TemporaryDirectory(prefix="nexus-aider-home-") as isolated_home:
-            env = self._child_environment()
+            env = self._child_environment(isolated_home)
     
             if self._git("status", "--porcelain", "--untracked-files=all", env=env):
                 raise NonRetryableDevelopmentJobError(
@@ -261,7 +261,7 @@ class AiderDevelopmentExecutor:
     
             handle = tempfile.NamedTemporaryFile(
                 mode="w", encoding="utf-8", suffix=".md", prefix="nexus-job-",
-                delete=False,
+                delete=False, dir=isolated_home,
             )
             try:
                 handle.write(prompt)
