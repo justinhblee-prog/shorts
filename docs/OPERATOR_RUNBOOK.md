@@ -734,5 +734,5 @@ This protects local database consistency only. It does not make the external pro
 ### Compose service health
 
 - Check `docker compose ps` and require API, worker, scheduler, metrics collector and backup to report `healthy`.
-- The backup service updates `/backups/.last-success` only after an encrypted archive is successfully created. Set `NEXUS_BACKUP_HEALTH_MAX_AGE_SECONDS` to adjust the maximum acceptable age; default is 48 hours for a daily schedule.
+- The backup service updates `/backups/.last-success` only after an archive is successfully created. The health probe checks both the marker and a retained archive within the configured age; when `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true`, it requires a `.tar.gz.enc` archive. Set `NEXUS_BACKUP_HEALTH_MAX_AGE_SECONDS` to adjust the maximum acceptable age; default is 48 hours for a daily schedule.
 - A process health probe confirms the expected PID-1 worker/scheduler/collector command is alive; it does not replace operational monitoring of job throughput or provider errors.
