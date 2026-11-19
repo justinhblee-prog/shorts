@@ -460,3 +460,8 @@ The durable review-pending gate is aligned with scheduler and executor path matc
 - Set YouTube `status.containsSyntheticMedia` from the approved status (`ai_generated`/`realistic_alteration` => true; `none`/`ai_assisted_nonrealistic` => false).
 - Require the approved YouTube disclosure acknowledgement for realistic synthetic media; add upload-body regressions. Exact-head CI pending.
 - Official API support is documented at https://developers.google.com/youtube/data/reference/rest/v3/videos.
+
+
+### BUILD-00386 — exact-head validation
+- Code head `09351f5704c3cd89a79d30f79d92956477942806` passed **823 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44549002097](https://github.com/justinhblee-prog/shorts/actions/runs/44549002097).
+- The upload-body tests confirmed `containsSyntheticMedia=false` for non-synthetic media, `true` for approved realistic alteration, and fail-closed behavior when the policy report is missing. No real platform upload was performed.
