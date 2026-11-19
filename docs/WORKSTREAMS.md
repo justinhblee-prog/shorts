@@ -87,3 +87,5 @@ Develop the product interface and its runtime independently so both can make pro
 - The browser smoke captures full-page desktop and compact-mobile screenshots and uploads them as the `nexus-dashboard-browser-screenshots` Actions artifact for visual review.
 
 - Initial browser smoke runner failed before launching Chromium because the `.mjs` file used CommonJS `require`; converted the runner to native ESM imports. Revalidation pending.
+
+- To avoid a slow/blocked apt dependency-install step on hosted Ubuntu 24.04 runners, the browser workflow now installs only the Chromium binary and uses the runner's preinstalled system libraries. The next exact-head run verifies that those libraries are sufficient.
