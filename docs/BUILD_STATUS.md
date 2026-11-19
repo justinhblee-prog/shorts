@@ -2488,3 +2488,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Correct the analytics history summary: the API applies a maximum of 500 snapshots independently to each selected platform, so the all-platform response can contain at most 1,000 rows. The prior UI wording incorrectly implied the CSV always exported the complete history.
 - The summary now explicitly states the 200-row on-screen table limit and the 1,000-row CSV ceiling (500 per platform), preventing users from interpreting a bounded export as an exhaustive archive.
 - Add a frontend regression assertion for the explicit limits. Validation: pending GitHub Actions.
+
+
+## BUILD-00328 — paginated, uncapped analytics CSV export
+
+- Add bounded offset pagination (500 rows per API page, maximum offset 10,000,000) to YouTube and TikTok analytics history storage and the protected history endpoint.
+- Replace TikTok bulk identity preloading with a publication-table join, so older published videos are not silently excluded by a 500-publication lookup cap and large identity lists do not exceed SQLite bind-variable limits.
+- Change CSV export to fetch every page sequentially for each selected platform, then sort the combined snapshots deterministically before generating the spreadsheet-safe CSV. The on-screen table remains limited to 200 rows and the dashboard preview remains a 500-row-per-platform page.
+- Add API offset pass-through and frontend pagination regression assertions. Exact-head CI validation pending; live provider accounts and browser download behavior remain unverified.
