@@ -580,6 +580,9 @@ class DependencyMutationGuardTests(unittest.TestCase):
         updated = self.store.add_dependency(child["id"], parent["id"])
         self.assertEqual(updated["status"], "ready")
         self.assertEqual(updated["dependencies"], [parent["id"]])
+        dependency_event = self.store.events(child["id"])[-1]
+        self.assertEqual(dependency_event["from_status"], "ready")
+        self.assertEqual(dependency_event["to_status"], "ready")
         next_claim = self.store.claim_ready("worker-child")
         self.assertEqual(next_claim["id"], child["id"])
 
