@@ -343,6 +343,69 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "non-GitHub pagination URL"):
                 client.list_workflow_runs("acme", "app")
 
+    def test_rest_client_rejects_same_host_pagination_to_a_different_endpoint(self):
+        import json
+        from unittest.mock import patch
+        from development_github_intake import GitHubReadOnlyClient
+
+        class Response:
+            headers = {
+                "Link": '<https://api.github.com/repos/acme/other/actions/runs?page=2>; rel="next"'
+            }
+
+            def read(self):
+                return json.dumps({"workflow_runs": [{"id": 1}]}).encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with patch("urllib.request.urlopen", return_value=Response()) as request:
+            client = GitHubReadOnlyClient("test-token")
+            with self.assertRaisesRegex(ValueError, "non-GitHub pagination URL"):
+                client.list_workflow_runs("acme", "app")
+        self.assertEqual(request.call_count, 1)
+
+    def test_rest_client_rejects_github_host_userinfo_pagination_link(self):
+        import json
+        from unittest.mock import patch
+        from development_github_intake import GitHubReadOnlyClient
+
+        class Response:
+            headers = {
+                "Link": '<https://attacker@api.github.com/repos/acme/app/actions/runs?page=2>; rel="next"'
+            }
+
+            def read(self):
+                return json.dumps({"workflow_runs": [{"id": 1}]}).encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with patch("urllib.request.urlopen", return_value=Response()) as request:
+            client = GitHubReadOnlyClient("test-token")
+            with self.assertRaisesRegex(ValueError, "non-GitHub pagination URL"):
+                client.list_workflow_runs("acme", "app")
+        self.assertEqual(request.call_count, 1)
+
+    def test_rest_client_rejects_invalid_collection_path_before_network_access(self):
+        from unittest.mock import patch
+        from development_github_intake import GitHubReadOnlyClient
+
+        client = GitHubReadOnlyClient("test-token")
+        with patch("urllib.request.urlopen") as request:
+            for path in ("https://example.invalid/feed", "/repos/acme/app/issues?state=all",
+                         "/repos/acme/app/issues#fragment"):
+                with self.subTest(path=path):
+                    with self.assertRaisesRegex(ValueError, "invalid GitHub API collection path"):
+                        client._get_pages(path)
+            request.assert_not_called()
+
     def test_snapshot_exposes_per_feed_truncation_metadata(self):
         client = FakeReadOnlyGitHub()
         client.pagination_truncated = {

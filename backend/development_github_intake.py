@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from typing import Any, Iterable
+from urllib.parse import urlsplit
 
 from development_jobs import DevelopmentJobConflict
 
@@ -235,12 +236,23 @@ class GitHubReadOnlyClient:
         import json
         from urllib.error import HTTPError, URLError
         from urllib.request import Request, urlopen
+        if not isinstance(path, str) or not path.startswith("/") or "?" in path or "#" in path:
+            raise ValueError("refusing invalid GitHub API collection path")
+        api_root = urlsplit(self.API_ROOT)
         url = f"{self.API_ROOT}{path}?{params}" if params else f"{self.API_ROOT}{path}"
         results: list[dict[str, Any]] = []
         pages_fetched = 0
         while url and pages_fetched < self.MAX_PAGES:
-            if not url.startswith(self.API_ROOT + "/"):
-                raise ValueError("refusing non-GitHub API URL")
+            parsed_url = urlsplit(url)
+            if (
+                parsed_url.scheme != "https"
+                or parsed_url.netloc != api_root.netloc
+                or parsed_url.username is not None
+                or parsed_url.password is not None
+                or parsed_url.path != path
+                or parsed_url.fragment
+            ):
+                raise ValueError("refusing non-GitHub API pagination URL")
             request = Request(url, headers={
                 "Accept": "application/vnd.github+json",
                 "Authorization": f"Bearer {self._token}",
@@ -265,7 +277,15 @@ class GitHubReadOnlyClient:
             for part in link.split(","):
                 if 'rel="next"' in part:
                     candidate = part[part.find("<") + 1:part.find(">")]
-                    if not candidate.startswith(self.API_ROOT + "/"):
+                    parsed_next = urlsplit(candidate)
+                    if (
+                        parsed_next.scheme != "https"
+                        or parsed_next.netloc != api_root.netloc
+                        or parsed_next.username is not None
+                        or parsed_next.password is not None
+                        or parsed_next.path != path
+                        or parsed_next.fragment
+                    ):
                         raise ValueError("refusing non-GitHub pagination URL")
                     next_url = candidate
                     break
