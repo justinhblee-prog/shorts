@@ -185,5 +185,101 @@ class ScheduledYouTubeAnalyticsOAuthTests(unittest.TestCase):
         store.release_lease.assert_called_once_with(metrics_collector.OWNER_ID, "lease-token")
 
 
+    def test_default_tiktok_collector_uses_encrypted_oauth_access_token_provider(self):
+        store = Mock()
+        store.acquire_lease.return_value = "lease-token"
+        store.renew_lease.return_value = True
+        publication_store = Mock()
+        collector = Mock()
+        collector.refresh_due_metrics.return_value = {
+            "requested": 1, "collected": 1, "missing": [],
+        }
+        token_manager = Mock()
+        with patch("metrics_collector.TikTokOAuthStore") as oauth_store_class, \
+             patch("metrics_collector.TikTokOAuthManager", return_value=token_manager), \
+             patch("metrics_collector.TikTokMetricsCollector", return_value=collector) as collector_class:
+            result = metrics_collector.run_tiktok_once(
+                store=store, publication_store=publication_store
+            )
+        oauth_store_class.assert_called_once_with(metrics_collector.DB)
+        collector_class.assert_called_once()
+        self.assertIs(collector_class.call_args.args[0], store)
+        self.assertIs(collector_class.call_args.args[1], publication_store)
+        self.assertEqual(
+            [call.args[0] for call in store.record_collection.call_args_list],
+            ["running", "succeeded"],
+        )
+        store.release_lease.assert_called_once_with(metrics_collector.OWNER_ID, "lease-token")
+        self.assertEqual(result["collected"], 1)
+
+    def test_injected_tiktok_collector_does_not_construct_oauth_manager(self):
+        store = Mock()
+        store.acquire_lease.return_value = "lease-token"
+        store.renew_lease.return_value = True
+        publication_store = Mock()
+        collector = Mock()
+        collector.refresh_due_metrics.return_value = {
+            "requested": 0, "collected": 0, "missing": [],
+        }
+        with patch("metrics_collector.TikTokOAuthManager") as manager_class:
+            result = metrics_collector.run_tiktok_once(
+                store=store, collector=collector, publication_store=publication_store
+            )
+        manager_class.assert_not_called()
+        self.assertEqual(result["requested"], 0)
+        store.release_lease.assert_called_once_with(metrics_collector.OWNER_ID, "lease-token")
+
+    def test_tiktok_collector_discards_completed_results_after_lease_loss(self):
+        store = Mock()
+        store.acquire_lease.return_value = "lease-token"
+        store.renew_lease.side_effect = [True, False]
+        collector = Mock()
+        collector.refresh_due_metrics.return_value = {
+            "requested": 1, "collected": 1, "missing": [],
+        }
+        with self.assertRaises(metrics_collector.CollectorLeaseLost):
+            metrics_collector.run_tiktok_once(
+                store=store, collector=collector, publication_store=Mock()
+            )
+        self.assertEqual(
+            [call.args[0] for call in store.record_collection.call_args_list],
+            ["running"],
+        )
+        store.release_lease.assert_called_once_with(metrics_collector.OWNER_ID, "lease-token")
+
+    def test_tiktok_collector_records_failure_only_while_lease_is_owned(self):
+        store = Mock()
+        store.acquire_lease.return_value = "lease-token"
+        store.renew_lease.side_effect = [True, True]
+        collector = Mock()
+        collector.refresh_due_metrics.side_effect = RuntimeError("provider unavailable")
+        with self.assertRaisesRegex(RuntimeError, "provider unavailable"):
+            metrics_collector.run_tiktok_once(
+                store=store, collector=collector, publication_store=Mock()
+            )
+        self.assertEqual(
+            [call.args[0] for call in store.record_collection.call_args_list],
+            ["running", "failed"],
+        )
+        store.release_lease.assert_called_once_with(metrics_collector.OWNER_ID, "lease-token")
+
+    def test_tiktok_collector_does_not_write_failure_after_lease_loss(self):
+        store = Mock()
+        store.acquire_lease.return_value = "lease-token"
+        store.renew_lease.side_effect = [True, False]
+        collector = Mock()
+        collector.refresh_due_metrics.side_effect = RuntimeError("provider unavailable")
+        with self.assertRaises(metrics_collector.CollectorLeaseLost):
+            metrics_collector.run_tiktok_once(
+                store=store, collector=collector, publication_store=Mock()
+            )
+        self.assertEqual(
+            [call.args[0] for call in store.record_collection.call_args_list],
+            ["running"],
+        )
+        store.release_lease.assert_called_once_with(metrics_collector.OWNER_ID, "lease-token")
+
+
+
 if __name__ == "__main__":
     unittest.main()
