@@ -212,3 +212,7 @@ These are additional readiness constraints documented by the project, not comple
 
 ### BUILD-00352 — encrypted restore instructions
 The production restore command now selects `.tar.gz.enc` and explicitly requires the protected `NEXUS_BACKUP_ENCRYPTION_KEY` plus `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true`. The prior runbook example selected the legacy plaintext suffix, contradicting the encrypted production configuration and failing closed. A regression test protects the documentation contract. Exact-head CI is pending; this does not configure or exercise a production secret or restore.
+
+
+### BUILD-00352 — exact-head CI result
+Exact head `c0d5b925a1605da439a1ea2ece23a40d3b631d7e` passed backend run [44509209296](https://github.com/justinhblee-prog/shorts/actions/runs/44509209296), 726 tests, and Compose run [44509209269](https://github.com/justinhblee-prog/shorts/actions/runs/44509209269), including five-service health and encrypted isolated backup/restore smoke. The runbook test now protects the production encrypted archive suffix. This does not configure production secrets or constitute a production restore drill.
