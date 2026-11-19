@@ -279,3 +279,12 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - Full repository validation: **854 tests passed**; frontend JavaScript syntax check passed.
 - The combined candidate did not run Playwright browser smoke because its workflow on this base has no browser-smoke step and the browser smoke script is not present on the candidate base. UI PRs have separate branch-level browser evidence, but unified browser verification remains open.
 - Draft/unmerged. No production deployment, live OAuth/provider publishing or production operator recovery was performed.
+
+
+### PR #406 — unified backend and recovery-browser exact-head result
+
+- Exact head `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0`: [44577763179](https://github.com/justinhblee-prog/shorts/actions/runs/44577763179) and [44577785714](https://github.com/justinhblee-prog/shorts/actions/runs/44577785714) SUCCESS.
+- Repository validation: **854 tests passed**; frontend JavaScript syntax check passed.
+- New Chromium smoke passed: authenticated dashboard, quarantined job display, operator prompt and confirmation, recovery response, ready status, and immutable audit event with authenticated legacy-operator attribution and recorded reason.
+- Browser runner uses Ubuntu 24.04 for Playwright 1.56.1 compatibility.
+- Remaining: full analytics browser flow on this same candidate, live OAuth/provider publishing, production operator recovery, production deployment and operational evidence. Draft/unmerged.
