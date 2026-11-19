@@ -1397,3 +1397,7 @@ Heartbeat persistence/transport failures now mark lease ownership as uncertain a
 
 ### BUILD-00368 — exact-head CI result
 Code head `f6c69af52204ebfccce88a48114291c4fb6946e8` passed GitHub Actions run [44530628392](https://github.com/justinhblee-prog/shorts/actions/runs/44530628392): **797 tests**, repository validation and frontend JavaScript syntax validation. The new heartbeat-failure and child-process cancellation regressions both passed. Hosted Linux only; Windows runner process-tree behavior remains unverified.
+
+
+### BUILD-00368 — definitive fencing-loss regression
+Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actions run [44531177231](https://github.com/justinhblee-prog/shorts/actions/runs/44531177231): **798 tests**, repository validation and frontend syntax check. Both heartbeat transport failure and rejected lease fencing now cancel the executor, with active child-process termination covered. Hosted Linux only.
