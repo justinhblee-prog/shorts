@@ -244,3 +244,7 @@ Exact head `7c48c967eca8460378ffa9dc5ea13cacdfd89a16` passed backend Actions run
 
 ### BUILD-00357 — safe GitHub repository path construction
 Owner and repository inputs are validated as individual path segments before any read-only GitHub API request. Invalid path traversal, embedded slashes, query/fragment syntax and whitespace fail before network access. Exact-head CI is pending; this is not live GitHub authentication evidence.
+
+
+### BUILD-00357 — exact-head CI result
+Exact head `b3de0e02310ccb353d07b6032dfa6620dd0b4a14` passed backend Actions run [44511457164](https://github.com/justinhblee-prog/shorts/actions/runs/44511457164) with 773 tests. Malformed repository path segments are rejected before API access while supported valid names remain accepted. Live GitHub authentication/rate-limit behavior remains unverified.
