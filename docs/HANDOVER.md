@@ -1289,7 +1289,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 | #338 | BUILD-00359 local model secret and workflow-command environment isolation | Open Draft; 775 backend tests passed on exact head |
 | #339 | BUILD-00360 secret-file scope denylist and symlink-target protection | Open Draft; 776 backend tests passed on exact head |
 | #340 | BUILD-00361 isolated Aider home, tool configuration and noninteractive Git credentials | Open Draft; 778 backend tests passed on exact head |
-| #342 | BUILD-00362 scrub runtime and shell startup injection variables | Open Draft; exact-head CI pending |
+| #342 | BUILD-00362 scrub runtime and shell startup injection variables | Open Draft; 778 backend tests passed on exact head |
 
 PR #340 is stacked on PR #339. PR #342 is a parallel follow-up based on PR #340. PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #334; #336 is stacked on #335. PRs #331–#333 are independent follow-ups based on the core PR #323. PR #329 is the separate UI branch. PRs #311–#315 remain protected and unmerged.
 
@@ -1338,4 +1338,4 @@ The local Aider executor now creates a temporary home for each job and redirects
 
 
 ### BUILD-00362 — runtime and shell startup injection isolation
-The Aider child environment now strips inherited Python import/runtime overrides, dynamic-loader injection variables, non-interactive shell startup hooks, and Node/Ruby/Perl preload settings. Regression tests inject hostile values for these variables and assert they are absent from the child process environment. Exact-head CI is pending; this does not claim live Windows runner or Ollama execution.
+The Aider child environment now strips inherited Python import/runtime overrides, dynamic-loader injection variables, non-interactive shell startup hooks, and Node/Ruby/Perl preload settings. Regression tests inject hostile values for these variables and assert they are absent from the child process environment. Exact-head backend Actions run [44516499054](https://github.com/justinhblee-prog/shorts/actions/runs/44516499054) passed 778 tests; this does not claim live Windows runner or Ollama execution.
