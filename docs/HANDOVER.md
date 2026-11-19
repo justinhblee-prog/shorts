@@ -1382,3 +1382,7 @@ Code head `3b10a656924e3b93e2a4ff2cbe000be514d46380` passed GitHub Actions run [
 
 ### BUILD-00376 — Windows-invalid path character rejection
 Scope validation now rejects Windows-forbidden characters and ASCII control characters in all path segments, preventing invalid filenames from entering the Windows self-hosted worktree. Exact-head CI pending.
+
+
+### BUILD-00376 — exact-head CI result
+Code head `68c654594eb4de57e3cdd4f3aae3f17037079320` passed GitHub Actions run [44525610403](https://github.com/justinhblee-prog/shorts/actions/runs/44525610403): **785 tests**, repository validation and frontend syntax check. Windows-invalid path character regressions passed.
