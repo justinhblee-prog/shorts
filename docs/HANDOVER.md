@@ -1334,3 +1334,7 @@ The Aider scope validator now rejects SSH private identities/authorized-key file
 
 ### BUILD-00361 — per-job user home and tool config isolation
 The local Aider executor now creates a temporary home for each job and redirects HOME/USERPROFILE, XDG, Windows roaming/local app-data, Docker, npm and Git global config to private isolated locations, and disables pip config-file loading entirely. Inherited SSH/Git credential overrides and Aider/LiteLLM/provider endpoint settings are stripped; Git system/global config and interactive credential prompts are disabled; OLLAMA_API_BASE is restricted to loopback hosts to prevent source/context forwarding to a remote model endpoint. Exact-head CI pending; this is not evidence of live Windows runner/Aider execution.
+
+
+### BUILD-00362 — runtime and shell startup injection isolation
+The Aider child environment now strips inherited Python import/runtime overrides, dynamic-loader injection variables, non-interactive shell startup hooks, and Node/Ruby/Perl preload settings. Regression tests inject hostile values for these variables and assert they are absent from the child process environment. Exact-head CI is pending; this does not claim live Windows runner or Ollama execution.
