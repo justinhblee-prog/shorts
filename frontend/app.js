@@ -229,12 +229,16 @@
 
   async function loadAnalyticsHistory(){
     if($("exportAnalyticsHistory"))$("exportAnalyticsHistory").disabled=true;
+    const status=$("analyticsHistoryStatus");
+    if(status)status.textContent="조회 중 · 선택한 기간의 YouTube · TikTok 성과 이력을 불러옵니다.";
     const days=Number($("analyticsHistoryDays").value||30);
     const platform=$("analyticsHistoryPlatform").value||"all";
     const videoId=$("analyticsHistoryVideoId").value.trim();
     const query=new URLSearchParams({days:String(days),platform,limit:"500"});
     if(videoId)query.set("video_id",videoId);
-    const data=await api("/api/publishing/analytics-history?"+query.toString());
+    let data;
+    try{data=await api("/api/publishing/analytics-history?"+query.toString());}
+    catch(error){if(status)status.textContent="조회 실패 · "+error.message;throw error;}
     const rows=[];
     for(const [key,items] of Object.entries(data.items||{})){
       for(const item of items)rows.push({...item,platform:key});
@@ -375,9 +379,12 @@
       exportButton.disabled=rows.length===0;
       exportButton.onclick=rows.length?async()=>{
         exportButton.disabled=true;
+        const status=$("analyticsHistoryStatus");
+        if(status)status.textContent="CSV 준비 중 · 플랫폼별 전체 이력을 페이지 단위로 조회합니다.";
         try{
           const exportRows=[];
           const pageSize=500;
+          let exportPageCount=0;
           let exportAsOf=null;
           for(const exportPlatform of (platform==="all"?["youtube","tiktok"]:[platform])){
             let cursor=null;
@@ -388,6 +395,8 @@
               const pageQuery=new URLSearchParams(pageParams);
               if(videoId)pageQuery.set("video_id",videoId);
               const page=await api("/api/publishing/analytics-history?"+pageQuery.toString());
+              exportPageCount+=1;
+              if(status)status.textContent="CSV 준비 중 · "+(exportPlatform==="youtube"?"YouTube":"TikTok")+" "+exportPageCount+"페이지 조회 완료 · "+exportRows.length+"개 행 확보";
               if(!exportAsOf){if(typeof page.as_of!=="string"||!Number.isFinite(Date.parse(page.as_of)))throw new Error("분석 내보내기 기준 시각을 확인할 수 없습니다.");exportAsOf=page.as_of;}
               const pageItems=page.items?.[exportPlatform]||[];
               exportRows.push(...pageItems.map(item=>({...item,platform:exportPlatform})));
@@ -437,7 +446,9 @@
           link.click();
           link.remove();
           setTimeout(()=>URL.revokeObjectURL(url),1000);
+          if(status)status.textContent="CSV 다운로드 요청 완료 · "+exportRows.length+"개 행 · "+exportPageCount+"페이지 조회";
         }catch(err){
+          if(status)status.textContent="CSV 내보내기 실패 · "+err.message;
           toast("CSV 내보내기 실패: "+err.message);
         }finally{
           exportButton.disabled=false;
@@ -445,6 +456,7 @@
       }:null;
     }
     $("analyticsHistory").dataset.loaded="true";
+    if(status)status.textContent=rows.length?"조회 완료 · "+rows.length+"개 스냅샷 · CSV는 전체 페이지를 순차 조회합니다.":"조회 완료 · 선택한 기간에 저장된 스냅샷이 없습니다.";
   }
 
   async function loadApproved(){
