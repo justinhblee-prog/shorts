@@ -2504,8 +2504,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 
 ## BUILD-00363 — prevent worker reuse after a partial job attempt
-- Stop the bounded worker cycle after any claimed job attempt, including retryable failure and lease loss, because a failed executor can leave partial unvalidated changes in the shared worktree.
-- Add a regression where the first job writes a partial change and fails, then assert the second ready job remains untouched.
+- Stop both the bounded worker cycle and the continuous service loop after any claimed job attempt, including retryable failure and lease loss, because a failed executor can leave partial unvalidated changes in the shared worktree.
+- Add regressions where the first job writes a partial change and fails, then assert the second ready job remains untouched in the worker cycle and the continuous service does not start a second cycle.
 - Exact-head hosted CI pending; Windows runner workspace cleanup remains a separate integration check.
 
 ## BUILD-00364 — make recursive file scope explicit
