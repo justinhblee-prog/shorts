@@ -201,3 +201,11 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - PR #404 exact head `ee6a1113ce280c49c0a65c31e3555cf5a61de6d4`: both backend workflow runs [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819) and [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665) passed.
 - PR #405 exact head `5dcfc199cd4d719b03601e1a3507f83689a7bbd0`: backend workflow [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441) passed.
 - PRs #404 and #405 remain Draft/unmerged. The API contract tests use mocked storage; no live production recovery was performed.
+
+
+## Core + Policy + UI integration candidate assembled (2026-11-20)
+
+- Created Draft PR #406 on the exact BUILD-00385 base with one integration commit `96f59cc8b19792602f03eafd1c1138bde5c7b138` and 20 implementation/test files from the dependency-aligned successor branches.
+- Included: BUILD-00386 recovery (#384), BUILD-00387 disclosure (#385), BUILD-00388 feed pagination (#400), POLICY-00001→00003 (#401→#403), and UI/API quarantine recovery (#404→#405).
+- Candidate compare is cleanly ahead by one commit, zero behind; GitHub reports mergeable. Hosted exact-head runs [44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216) were queued/in progress at checkpoint.
+- This is the first unified Core/Policy/UI source candidate; the cross-stack validation gate remains pending until both workflows complete. No merge, deployment or live provider operation was performed.
