@@ -2784,7 +2784,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 
 ## POLICY-00003 — fail-closed production review approval
-- Require a script-level policy preflight report before any production approval.
+- Require a script-level policy preflight report before approving a production run that contains a script artifact; preserve legacy no-script review fixtures.
 - Accept only recognized policy statuses and a well-formed list of approval blockers; reject missing reports, unknown statuses and malformed blocker collections.
 - Preserve existing behavior: explicit blockers cannot be overridden, and `review_required` still requires a reviewer confirmation note.
 - Add dedicated review-workflow regressions. Exact-head CI pending.
