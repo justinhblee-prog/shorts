@@ -227,6 +227,7 @@
   }
 
   async function loadAnalyticsHistory(){
+    if($("exportAnalyticsHistory"))$("exportAnalyticsHistory").disabled=true;
     const days=Number($("analyticsHistoryDays").value||30);
     const platform=$("analyticsHistoryPlatform").value||"all";
     const videoId=$("analyticsHistoryVideoId").value.trim();
