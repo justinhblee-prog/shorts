@@ -1342,3 +1342,7 @@ The Aider child environment now strips inherited Python import/runtime overrides
 
 ### BUILD-00363 — one claimed job per shared worktree cycle
 The worker now exits its bounded run after any claimed job attempt, including retryable failures and lease loss, because an unsuccessful executor can leave partial files in the shared worktree. A regression confirms a second ready job is not claimed after the first job leaves an unvalidated partial edit. Exact-head CI pending; actual Windows workflow checkout cleanup remains an integration gate.
+
+
+### BUILD-00364 — explicit directory-only recursive scope
+Recursive changed-file matching now requires an explicit directory marker produced by validating an existing directory. Extensionless file scopes match only the exact file and cannot authorize nested paths. Regression coverage checks both directory recursion and extensionless-file containment. Exact-head CI pending.
