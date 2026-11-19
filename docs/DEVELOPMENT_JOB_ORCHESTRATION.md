@@ -73,6 +73,7 @@ All state changes must be append-only in the job event history and guarded by co
 ## 6. Parallelism rules
 
 - Parallelize only jobs with satisfied dependencies and disjoint declared write/resource scopes.
+- Canonicalize approved symlink targets and compare scopes using normalized separators, dot segments and case-folding; unsafe, absolute or traversal scopes conflict conservatively with all other scopes.
 - Serialize changes to shared schemas, migrations, central API contracts, workflow files, and the same feature module unless an explicit integration plan exists.
 - Reserve an integration job to reconcile parallel outputs and run the full validation suite.
 - Limit concurrency by available trusted workers and resource budget; never equate multiple agent invocations with useful parallel progress.
@@ -300,3 +301,21 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 ### BUILD-00381 — exact-head validation
 - Final head `d28864929dbaf71e4aed68f6f07127112455b0a3` passed **808 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44539840507](https://github.com/justinhblee-prog/shorts/actions/runs/44539840507) and [44539829594](https://github.com/justinhblee-prog/shorts/actions/runs/44539829594).
 - The Windows case/separator/traversal scope-conflict regression passed in both runs. Hosted Linux only; actual Windows multi-runner scheduling remains unverified.
+
+
+## BUILD-00382 — canonicalize approved symlink scopes
+- Resolve approved scope paths to their canonical repository-relative targets before they are persisted in the durable job graph.
+- Ensure symlink aliases to the same file or directory reserve the same scheduler write scope, preventing parallel jobs from bypassing overlap detection.
+- Add file and directory symlink regressions. Exact-head CI pending.
+
+
+### BUILD-00382 — exact-head validation
+- Code head `a94482501ac192c11039bb9cb8974ee47df8575e` passed **809 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44540567494](https://github.com/justinhblee-prog/shorts/actions/runs/44540567494) and [44540594755](https://github.com/justinhblee-prog/shorts/actions/runs/44540594755).
+- The approved file/directory symlink alias canonicalization regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.
+
+- Add a concurrent two-worker scheduler regression proving differently cased/backslash-vs-slash aliases cannot both be claimed at once.
+
+
+### BUILD-00382 — final exact-head validation
+- Final head `dbcbf2d54a21ae78380b282faaeeb213eed76c3d` passed **810 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44541640154](https://github.com/justinhblee-prog/shorts/actions/runs/44541640154) and [44541653671](https://github.com/justinhblee-prog/shorts/actions/runs/44541653671).
+- Both the approved symlink-alias canonicalization test and concurrent worker scope-alias claim regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.

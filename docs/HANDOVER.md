@@ -1476,3 +1476,19 @@ Scope conflict comparison now normalizes slash direction, repeated separators an
 ### BUILD-00381 — exact-head validation
 - Final head `d28864929dbaf71e4aed68f6f07127112455b0a3` passed **808 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44539840507](https://github.com/justinhblee-prog/shorts/actions/runs/44539840507) and [44539829594](https://github.com/justinhblee-prog/shorts/actions/runs/44539829594).
 - The Windows case/separator/traversal scope-conflict regression passed in both runs. Hosted Linux only; actual Windows multi-runner scheduling remains unverified.
+
+
+### BUILD-00382 — canonical approved scopes
+Approved scopes are now stored using resolved repository-relative targets rather than symlink aliases. This aligns durable scheduler reservations with the physical files the executor will edit and prevents alias-based parallel overlap. File/directory symlink tests added; exact-head CI pending.
+
+
+### BUILD-00382 — exact-head validation
+- Code head `a94482501ac192c11039bb9cb8974ee47df8575e` passed **809 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44540567494](https://github.com/justinhblee-prog/shorts/actions/runs/44540567494) and [44540594755](https://github.com/justinhblee-prog/shorts/actions/runs/44540594755).
+- The approved file/directory symlink alias canonicalization regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.
+
+The scope conflict follow-up also verifies two concurrent workers cannot both claim jobs whose path scopes differ only by Windows casing or slash direction.
+
+
+### BUILD-00382 — final exact-head validation
+- Final head `dbcbf2d54a21ae78380b282faaeeb213eed76c3d` passed **810 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44541640154](https://github.com/justinhblee-prog/shorts/actions/runs/44541640154) and [44541653671](https://github.com/justinhblee-prog/shorts/actions/runs/44541653671).
+- Both the approved symlink-alias canonicalization test and concurrent worker scope-alias claim regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.
