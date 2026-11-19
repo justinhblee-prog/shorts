@@ -2520,3 +2520,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - This prevents a long-lived process from reusing a worktree containing validated or partial edits from a previous job; the host must recycle/clean the workspace before another job.
 - Add worker and service regressions proving the second ready job remains untouched after the first job is handled.
 - Exact-head hosted CI pending.
+
+
+### BUILD-00363–00365 — stacked exact-head validation
+- GitHub Actions Backend tests run [44516995900](https://github.com/justinhblee-prog/shorts/actions/runs/44516995900) passed **782 tests**, `scripts/validate.sh` and `node --check frontend/app.js` for the combined worker workspace, file-scope and daemon-cycle changes.
+- Hosted Linux validation only; the Windows self-hosted runner, real Aider/Ollama execution and host workspace recycling remain separate launch gates.
