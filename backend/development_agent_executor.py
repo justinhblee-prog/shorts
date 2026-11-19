@@ -224,8 +224,10 @@ class AiderDevelopmentExecutor:
             return True
         try:
             metadata = path.lstat()
-        except OSError:
+        except FileNotFoundError:
             return False
+        except OSError:
+            return True
         reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
         return bool(getattr(metadata, "st_file_attributes", 0) & reparse_flag)
 
