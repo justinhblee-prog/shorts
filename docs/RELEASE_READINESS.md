@@ -265,3 +265,7 @@ The constrained Aider executor now removes backup-encryption keys, database/Redi
 
 ### BUILD-00360 — secret-file path denylist
 The local Aider executor now rejects common SSH private identities, cloud credential folders, Kubernetes/Docker/GnuPG config, Terraform/Pulumi state, package-manager credential files, service-account JSON and private-key/keystore formats even when an issue scope mapping would otherwise include them. Credential-bearing subdirectories under `.config` are also blocked. The validator checks both the supplied path and its resolved symlink target. Exact-head backend Actions run [44513787916](https://github.com/justinhblee-prog/shorts/actions/runs/44513787916) passed 776 tests; no live runner filesystem scan is claimed.
+
+
+### BUILD-00361 — isolated Aider home and tool configuration
+Aider now runs with a per-job temporary user home and isolated XDG/Windows user config, Docker, npm, pip and Git configuration paths. SSH/Git credential injection, inherited tool/provider endpoint overrides, and user package-manager configuration variables are removed. System/global Git config and interactive credential prompts are disabled, with an empty isolated global config and an explicit no-helper credential policy. Exact-head CI pending; hosted tests do not establish real Windows runner or Ollama behavior.
