@@ -233,6 +233,8 @@ class GitHubReadOnlyClient:
     """Minimal GitHub REST client exposing GET operations only."""
     API_ROOT = "https://api.github.com"
     MAX_PAGES = 5
+    MAX_RETRIES = 2
+    MAX_RETRY_DELAY_SECONDS = 5
 
     def __init__(self, token: str, timeout: int = 15):
         if not isinstance(token, str) or not token.strip():
@@ -243,8 +245,48 @@ class GitHubReadOnlyClient:
         self._timeout = timeout
         self.pagination_truncated: dict[str, bool] = {}
 
+    @classmethod
+    def _retry_delay(cls, error, attempt):
+        """Return a bounded retry delay for transient failures, else None."""
+        import time
+        from datetime import datetime, timezone
+        from email.utils import parsedate_to_datetime
+
+        status = getattr(error, "code", None)
+        headers = getattr(error, "headers", None)
+        retry_after = headers.get("Retry-After") if headers is not None else None
+        remaining = headers.get("X-RateLimit-Remaining") if headers is not None else None
+        reset = headers.get("X-RateLimit-Reset") if headers is not None else None
+        retryable = status in {408, 425, 429, 500, 502, 503, 504}
+        rate_limited = status == 403 and (retry_after is not None or remaining == "0")
+        if not retryable and not rate_limited:
+            return None
+        delay = None
+        if retry_after is not None:
+            try:
+                delay = float(retry_after)
+            except (TypeError, ValueError):
+                try:
+                    retry_at = parsedate_to_datetime(retry_after)
+                    if retry_at.tzinfo is None:
+                        retry_at = retry_at.replace(tzinfo=timezone.utc)
+                    delay = (retry_at - datetime.now(timezone.utc)).total_seconds()
+                except (TypeError, ValueError, OverflowError):
+                    return None
+        elif status == 403 and remaining == "0":
+            try:
+                delay = float(reset) - time.time()
+            except (TypeError, ValueError):
+                return None
+        else:
+            delay = min(2 ** attempt, cls.MAX_RETRY_DELAY_SECONDS)
+        if delay is None or delay < 0 or delay > cls.MAX_RETRY_DELAY_SECONDS:
+            return None
+        return delay
+
     def _get_pages(self, path: str, params: str = "") -> list[dict[str, Any]]:
         import json
+        import time
         from urllib.error import HTTPError, URLError
         from urllib.request import Request, build_opener
         url = f"{self.API_ROOT}{path}?{params}" if params else f"{self.API_ROOT}{path}"
@@ -260,12 +302,26 @@ class GitHubReadOnlyClient:
                 "X-GitHub-Api-Version": "2022-11-28",
                 "User-Agent": "nexus-development-backlog-sync",
             }, method="GET")
-            try:
-                with opener.open(request, timeout=self._timeout) as response:
-                    payload = json.loads(response.read().decode("utf-8"))
-                    link = response.headers.get("Link", "")
-            except (HTTPError, URLError, TimeoutError, ValueError) as error:
-                raise RuntimeError(f"GitHub read failed: {type(error).__name__}") from error
+            attempt = 0
+            while True:
+                try:
+                    with opener.open(request, timeout=self._timeout) as response:
+                        payload = json.loads(response.read().decode("utf-8"))
+                        link = response.headers.get("Link", "")
+                    break
+                except HTTPError as error:
+                    delay = self._retry_delay(error, attempt)
+                    if delay is None or attempt >= self.MAX_RETRIES:
+                        raise RuntimeError(f"GitHub read failed: {type(error).__name__}") from error
+                    time.sleep(delay)
+                    attempt += 1
+                except (URLError, TimeoutError) as error:
+                    if attempt >= self.MAX_RETRIES:
+                        raise RuntimeError(f"GitHub read failed: {type(error).__name__}") from error
+                    time.sleep(min(2 ** attempt, self.MAX_RETRY_DELAY_SECONDS))
+                    attempt += 1
+                except ValueError as error:
+                    raise RuntimeError(f"GitHub read failed: {type(error).__name__}") from error
             if isinstance(payload, dict) and isinstance(payload.get("workflow_runs"), list):
                 page_items = payload["workflow_runs"]
             elif isinstance(payload, list):

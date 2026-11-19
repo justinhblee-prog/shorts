@@ -262,6 +262,61 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
         self.assertEqual(len(request_calls), 2)
         self.assertTrue(all(call.args[0].get_method() == "GET" for call in request_calls))
 
+    def test_rest_client_retries_transient_rate_limit_with_bounded_delay(self):
+        import io
+        import json
+        from email.message import Message
+        from urllib.error import HTTPError
+        from unittest.mock import patch
+        from development_github_intake import GitHubReadOnlyClient
+
+        class Response:
+            headers = {"Link": ""}
+
+            def read(self):
+                return json.dumps([{"number": 1, "title": "Recovered"}]).encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        headers = Message()
+        headers["Retry-After"] = "2"
+        error = HTTPError(
+            "https://api.github.com/repos/acme/app/issues", 429,
+            "rate limited", headers, io.BytesIO(),
+        )
+        with patch("urllib.request.build_opener") as build_opener:
+            build_opener.return_value.open.side_effect = [error, Response()]
+            with patch("time.sleep") as sleep:
+                client = GitHubReadOnlyClient("test-token")
+                issues = client.list_issues("acme", "app")
+        self.assertEqual(issues[0]["number"], 1)
+        self.assertEqual(build_opener.return_value.open.call_count, 2)
+        sleep.assert_called_once_with(2.0)
+
+    def test_rate_limit_retry_respects_reset_and_fails_closed_when_delay_is_too_long(self):
+        from email.message import Message
+        from urllib.error import HTTPError
+        from unittest.mock import patch
+        from development_github_intake import GitHubReadOnlyClient
+
+        headers = Message()
+        headers["X-RateLimit-Remaining"] = "0"
+        headers["X-RateLimit-Reset"] = "1002.5"
+        error = HTTPError("https://api.github.com/repos/acme/app/issues", 403,
+                          "rate limited", headers, None)
+        with patch("time.time", return_value=1000.0):
+            self.assertEqual(GitHubReadOnlyClient._retry_delay(error, 0), 2.5)
+        headers.replace_header("X-RateLimit-Reset", "1100")
+        with patch("time.time", return_value=1000.0):
+            self.assertIsNone(GitHubReadOnlyClient._retry_delay(error, 0))
+        forbidden = HTTPError("https://api.github.com/repos/acme/app/issues", 401,
+                              "unauthorized", Message(), None)
+        self.assertIsNone(GitHubReadOnlyClient._retry_delay(forbidden, 0))
+
     def test_rest_client_caps_each_feed_at_five_pages_and_reports_truncation(self):
         import json
         from unittest.mock import patch

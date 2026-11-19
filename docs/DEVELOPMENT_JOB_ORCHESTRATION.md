@@ -241,3 +241,11 @@ The durable `mark_review_pending` transition enforces that changed-file evidence
 
 ### BUILD-00372 — exact-head validation
 GitHub Actions run [44529199064](https://github.com/justinhblee-prog/shorts/actions/runs/44529199064) passed **804 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Durable job completion now independently rejects test-only changed-file evidence.
+
+
+### BUILD-00373 — bounded GitHub read retry contract
+The GET-only GitHub intake retries network timeouts and transient HTTP responses (408, 425, 429, 5xx) at most twice per page. Numeric/date Retry-After and X-RateLimit-Reset delays are honored only up to five seconds; excessive waits and authentication/permission failures fail fast. Exact-head CI pending.
+
+
+### BUILD-00373 — exact-head retry validation
+GitHub Actions run [44529902141](https://github.com/justinhblee-prog/shorts/actions/runs/44529902141) passed **806 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Retry behavior is fixture-backed and bounded to two retries with a five-second maximum delay.
