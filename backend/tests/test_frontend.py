@@ -165,6 +165,17 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("CSV 다운로드 요청 완료", app_js)
         self.assertIn("CSV 내보내기 실패 · ", app_js)
 
+
+    def test_dashboard_has_keyboard_skip_link_and_visible_focus_styles(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        css = (frontend / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('class="skip-link" href="#home"', html)
+        self.assertIn("본문으로 건너뛰기", html)
+        self.assertIn(".skip-link:focus", css)
+        self.assertIn(":focus-visible", css)
+
+
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
