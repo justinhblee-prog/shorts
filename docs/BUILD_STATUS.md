@@ -2409,4 +2409,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Parse and expose the curve as `retention_curve` from the history store/API; malformed stored JSON fails safely to an empty curve and has a regression test.
 - Migrate existing databases by adding the column with an empty-array default and backfilling the latest history row per video from the current snapshot only. Older snapshots without recorded curves remain unavailable rather than receiving today's curve retroactively.
 - Render the 25%/50%/75% audience-retention checkpoints and sparkline in the history table; include the checkpoint summary in CSV exports.
-- Validation: GitHub Actions runs #44446698740 and #44446708718 passed the full validation workflow with 697 backend tests on code checkpoint `fda8549`. Migration, per-snapshot retention isolation, API pass-through and frontend rendering assertions passed. Live YouTube account retention coverage and browser rendering remain unverified.
+- Validation: GitHub Actions runs #44447186007 and #44447192379 passed the full validation workflow with 698 backend tests on code checkpoint `5793823`. Migration ordering, per-snapshot retention isolation, malformed-JSON fallback, API pass-through and frontend rendering assertions passed. Live YouTube account retention coverage and browser rendering remain unverified.
+
+
+## BUILD-00319 — deterministic analytics snapshot ordering
+
+- Apply collection timestamp and stable database ID tie-breakers consistently to history table rows, chart points and latest-per-video summary selection.
+- Prevent snapshots collected at the same timestamp from appearing in inconsistent order or selecting a non-deterministic latest value.
+- Add frontend regression assertions for both descending history order and chronological chart point order.
+- Validation: included in GitHub Actions runs #44447186007 and #44447192379, both successful with 698 backend tests on code checkpoint `5793823`.
