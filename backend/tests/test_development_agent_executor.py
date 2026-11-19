@@ -22,6 +22,35 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_worktree_verifier_requires_exact_git_changed_file_match(self):
+        job = {"scope": ["backend/"]}
+        result = {"changed_files": ["backend/claimed.py"]}
+        with patch.object(self.executor, "_validated_scope", return_value=["backend/"]), \
+             patch.object(self.executor, "_child_environment", return_value={}), \
+             patch.object(self.executor, "_changed_files", return_value=["backend/actual.py"]):
+            with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "do not match"):
+                self.executor.verify_execution_evidence(job, result)
+
+    def test_worktree_verifier_rejects_changes_outside_declared_scope(self):
+        job = {"scope": ["backend/"]}
+        result = {"changed_files": ["backend/allowed.py", "frontend/outside.js"]}
+        with patch.object(self.executor, "_validated_scope", return_value=["backend/"]), \
+             patch.object(self.executor, "_child_environment", return_value={}), \
+             patch.object(self.executor, "_changed_files", return_value=["backend/allowed.py", "frontend/outside.js"]):
+            with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "outside the declared scope"):
+                self.executor.verify_execution_evidence(job, result)
+
+    def test_worktree_verifier_returns_actual_changed_files_when_claim_matches(self):
+        job = {"scope": ["backend/"]}
+        result = {"changed_files": ["backend/actual.py"]}
+        with patch.object(self.executor, "_validated_scope", return_value=["backend/"]), \
+             patch.object(self.executor, "_child_environment", return_value={}), \
+             patch.object(self.executor, "_changed_files", return_value=["backend/actual.py"]):
+            self.assertEqual(
+                self.executor.verify_execution_evidence(job, result),
+                ["backend/actual.py"],
+            )
+
     def test_cancel_terminates_active_child_process(self):
         finished = threading.Event()
         errors = []
