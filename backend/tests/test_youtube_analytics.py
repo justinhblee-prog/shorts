@@ -286,11 +286,21 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                 ) VALUES('legacy-video','2026-11-01','2026-11-14',77,NULL,NULL,5,4,60,
                          'available','available','2026-11-15T00:00:00+00:00')
             """)
+            connection.execute("""
+                INSERT INTO youtube_analytics_history(
+                  video_id,start_date,end_date,views,engaged_views,engaged_view_share,
+                  estimated_minutes_watched,average_view_duration,average_view_percentage,
+                  analytics_status,retention_status,collected_at
+                ) VALUES('legacy-video','2026-11-01','2026-11-13',70,NULL,NULL,4,3,55,
+                         'available','available','2026-11-14T00:00:00+00:00')
+            """)
         migrated=YouTubeAnalyticsStore(legacy_db)
         history=migrated.history("legacy-video")
-        self.assertEqual(len(history),1)
+        self.assertEqual(len(history),2)
         self.assertEqual(history[0]["views"],77)
         self.assertEqual(history[0]["retention_curve"][0]["audience_watch_ratio"],0.4)
+        self.assertEqual(history[1]["views"],70)
+        self.assertEqual(history[1]["retention_curve"],[])
 
     def test_analytics_history_appends_snapshots_while_latest_remains_current(self):
         first={"views":100,"engagedViews":60,"estimatedMinutesWatched":10,
