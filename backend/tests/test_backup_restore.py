@@ -361,5 +361,34 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertEqual(self._db_value(), "before")
 
 
+
+    def test_backup_and_restore_reject_symlink_storage_roots(self):
+        outside_media = self.root / "real-media"
+        outside_media.mkdir()
+        media_link = self.root / "media-link"
+        backup_link = self.root / "backup-link"
+        db_link = self.root / "database-link.sqlite3"
+        try:
+            media_link.symlink_to(outside_media, target_is_directory=True)
+            backup_link.symlink_to(self.backups, target_is_directory=True)
+            db_link.symlink_to(self.db)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are not supported in this environment")
+
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            create_backup(self.db, media_link, self.backups)
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            create_backup(self.db, self.media, backup_link)
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            restore_backup(
+                backup, db_link, self.media, self.backups, confirm_restore=True
+            )
+        with self.assertRaisesRegex(BackupRestoreError, "must not be symbolic links"):
+            restore_backup(
+                backup, self.db, media_link, self.backups, confirm_restore=True
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
