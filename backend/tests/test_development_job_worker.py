@@ -47,13 +47,15 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         secret_values = (
             "abc.def", "ghp_123456789012345678901234567890",
             "postgres://user:password@db.example/nexus", "private-key-material",
+            "firebase-private-secret",
         )
 
         def broken(_):
             raise RuntimeError(
                 "Bearer abc.def GITHUB_TOKEN=ghp_123456789012345678901234567890 "
                 "DATABASE_URL=postgres://user:password@db.example/nexus "
-                "PRIVATE_KEY=private-key-material"
+                "PRIVATE_KEY=private-key-material "
+                'FIREBASE_SERVICE_ACCOUNT={"type": "service_account", "private_key": "firebase-private-secret"}'
             )
 
         worker = DevelopmentJobWorker(self.store, "worker-redaction", broken)
