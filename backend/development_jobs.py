@@ -276,10 +276,22 @@ class DevelopmentJobStore:
         # Empty scope means unknown write set: serialize conservatively.
         if not left or not right:
             return True
+        def path_key(value):
+            # Match Path normalization performed by the executor on Windows:
+            # slash direction, repeated separators, dot segments, and casing.
+            parts = (
+                part for part in value.replace("\\", "/").split("/")
+                if part not in ("", ".")
+            )
+            return "/".join(parts).casefold()
+
         for first in left:
-            a = first.rstrip("/")
+            # The trusted production runner is Windows (case-insensitive paths).
+            # Conservatively apply that behavior to every scheduler so aliases
+            # cannot bypass scope serialization.
+            a = path_key(first)
             for second in right:
-                b = second.rstrip("/")
+                b = path_key(second)
                 if a == b or a.startswith(b + "/") or b.startswith(a + "/"):
                     return True
         return False

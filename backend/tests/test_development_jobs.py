@@ -170,6 +170,20 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertFalse(self.store._scopes_conflict(["backend/api.py"], ["frontend/app.js"]))
         self.assertTrue(self.store._scopes_conflict([], ["frontend/app.js"]))
 
+    def test_case_only_scope_aliases_serialize_on_windows_runner(self):
+        self.assertTrue(self.store._scopes_conflict(["Backend/"], ["backend/api.py"]))
+        self.assertTrue(self.store._scopes_conflict(["BACKEND/API.py"], ["backend/api.py"]))
+        self.assertTrue(self.store._scopes_conflict(["backend//api.py"], ["backend/api.py"]))
+        self.assertTrue(self.store._scopes_conflict(["./backend/api.py"], ["backend/api.py"]))
+        self.assertTrue(self.store._scopes_conflict(["backend\\\\api.py"], ["backend/api.py"]))
+        self.assertFalse(self.store._scopes_conflict(["Backend/"], ["frontend/app.js"]))
+
+        self.store.create("Uppercase directory writer", priority=1, scope=["Backend/"])
+        self.store.create("Lowercase child writer", priority=2, scope=["backend/api.py"])
+        first = self.store.claim_ready("worker-case-a")
+        self.assertEqual(first["scope"], ["Backend/"])
+        self.assertIsNone(self.store.claim_ready("worker-case-b"))
+
     def test_attempt_limit_quarantines_job(self):
         job = self.store.create("One attempt only", max_attempts=1)
         claim = self.store.claim_ready("worker-a")

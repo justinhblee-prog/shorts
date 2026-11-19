@@ -216,3 +216,9 @@ Worker presence is keyed by a process-session identity rather than the static se
 ### BUILD-00370 — force-kill residual POSIX descendants
 
 A follow-up process-tree audit found that waiting only for the command-group leader after SIGTERM was insufficient: the leader could exit while a descendant ignored SIGTERM, leaving that child alive. POSIX cancellation now escalates to SIGKILL against the process group after the grace wait regardless of whether the leader has already exited. A regression launches a child that ignores SIGTERM and verifies it cannot write its post-cancellation marker. Windows continues to use `taskkill /T /F`.
+
+
+
+### BUILD-00371 — case-insensitive write-scope conflicts
+
+Scope-lock comparison now normalizes slash direction, repeated separators and dot segments, then applies Unicode case-folding before exact/parent-child overlap checks. The trusted production runner is Windows, so paths such as `Backend/` and `backend/api.py` must serialize even though hosted Linux validation itself uses a case-sensitive filesystem. This is deliberately conservative and prevents case-only aliases from allowing concurrent edits to the same Windows worktree files.
