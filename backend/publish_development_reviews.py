@@ -74,6 +74,26 @@ class GitHubReviewArtifactClient:
         return results
 
 
+    def list_open_pull_requests(self, owner: str, repository: str):
+        """Read every open PR page; recovery must not assume the first page is complete."""
+        url = f"{self.API_ROOT}/repos/{owner}/{repository}/pulls?state=open&per_page=100"
+        results = []
+        while url:
+            payload, link = self._get(url)
+            if not isinstance(payload, list):
+                raise RuntimeError("GitHub returned an invalid open pull-request list")
+            results.extend(item for item in payload if isinstance(item, dict))
+            next_url = None
+            for part in link.split(","):
+                if 'rel="next"' in part:
+                    candidate = part[part.find("<") + 1:part.find(">")]
+                    if candidate.startswith(self.API_ROOT + "/"):
+                        next_url = candidate
+                    break
+            url = next_url
+        return results
+
+
 def _parse_review_url(review_url: str, expected_repository: str):
     parsed = urlparse(review_url)
     if (parsed.scheme != "https" or parsed.netloc.lower() != "github.com"
@@ -173,6 +193,73 @@ def publish_pending_reviews(
         "published": published,
         "skipped": skipped,
     }
+
+
+def recover_pending_reviews(store, client, repository: str,
+                            expected_head_ref: str, expected_base_ref: str):
+    """Recover only by verifying the existing stable automation Draft PR.
+
+    No PR is created, changed, approved, merged, or closed. Zero or multiple
+    matching PRs leave every job pending for explicit operator investigation.
+    """
+    if not isinstance(repository, str) or not re.fullmatch(
+        r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository
+    ):
+        raise ValueError("GITHUB_REPOSITORY must be owner/repository")
+    if not isinstance(expected_head_ref, str) or not expected_head_ref.strip():
+        raise ValueError("expected pull-request head branch is required")
+    if not isinstance(expected_base_ref, str) or not expected_base_ref.strip():
+        raise ValueError("expected pull-request base branch is required")
+
+    pending = store.list(statuses=["review_pending"], limit=500)
+    if not pending:
+        return {"published_count": 0, "pending_count": 0, "skipped": []}
+
+    owner, repo_name = repository.split("/", 1)
+    pull_requests = client.list_open_pull_requests(owner, repo_name)
+    candidates = []
+    for pr in pull_requests:
+        head = pr.get("head") if isinstance(pr.get("head"), dict) else {}
+        base = pr.get("base") if isinstance(pr.get("base"), dict) else {}
+        head_repo = head.get("repo") if isinstance(head.get("repo"), dict) else {}
+        base_repo = base.get("repo") if isinstance(base.get("repo"), dict) else {}
+        if (
+            pr.get("state") == "open"
+            and pr.get("merged_at") is None
+            and pr.get("draft") is True
+            and head.get("ref") == expected_head_ref
+            and base.get("ref") == expected_base_ref
+            and head_repo.get("full_name", "").lower() == repository.lower()
+            and base_repo.get("full_name", "").lower() == repository.lower()
+            and isinstance(pr.get("html_url"), str)
+            and isinstance(head.get("sha"), str)
+            and re.fullmatch(r"[0-9a-fA-F]{40}", head["sha"])
+        ):
+            candidates.append(pr)
+
+    if len(candidates) != 1:
+        reason = (
+            "no matching open Draft PR exists; no job was requeued or modified"
+            if not candidates else
+            "multiple matching open Draft PRs are ambiguous; no job was modified"
+        )
+        return {
+            "published_count": 0,
+            "pending_count": len(pending),
+            "published": [],
+            "skipped": [{"reason": reason, "candidate_count": len(candidates)}],
+        }
+
+    candidate = candidates[0]
+    return publish_pending_reviews(
+        store=store,
+        client=client,
+        repository=repository,
+        review_url=candidate["html_url"],
+        expected_head_sha=candidate["head"]["sha"],
+        expected_head_ref=expected_head_ref,
+        expected_base_ref=expected_base_ref,
+    )
 
 
 def main():

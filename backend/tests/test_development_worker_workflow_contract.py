@@ -51,6 +51,18 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("draft: true", self.source)
         self.assertIn("review_pending", self.source)
 
+    def test_manual_recovery_mode_is_read_only_and_skips_code_generation(self):
+        self.assertIn("mode:", self.source)
+        self.assertIn("- recover", self.source)
+        recovery = self.source.index("name: Recover orphaned review-pending jobs (read-only)")
+        execute = self.source.index("name: Execute one dependency-aware development cycle")
+        create_pr = self.source.index("name: Create Draft PR for verified changes only")
+        self.assertLess(recovery, execute)
+        self.assertIn("if: github.event.inputs.mode == 'recover'", self.source[recovery:execute])
+        self.assertIn("if: github.event.inputs.mode != 'recover'", self.source[execute:create_pr])
+        self.assertIn("python backend/recover_development_reviews.py", self.source[recovery:execute])
+        self.assertIn("no job was requeued", self.source[recovery:execute])
+        self.assertIn("if: github.event.inputs.mode != 'recover'", self.source[create_pr:])
     def test_approved_scope_is_explicitly_required_by_environment_contract(self):
         self.assertIn("NEXUS_APPROVED_SCOPES", self.source)
         self.assertIn("NEXUS_GITHUB_READ_TOKEN", self.source)

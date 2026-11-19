@@ -2,6 +2,15 @@ name: NEXUS development job worker
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "develop = run one approved coding cycle; recover = verify existing Draft PR evidence only"
+        required: true
+        default: develop
+        type: choice
+        options:
+          - develop
+          - recover
   schedule:
     - cron: "17 */2 * * *"
 
@@ -56,6 +65,7 @@ jobs:
           Write-Host "Persistent development-job database: $databaseFull"
 
       - name: Verify Python, Ollama and local model
+        if: github.event.inputs.mode != 'recover'
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
@@ -81,6 +91,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Backend dependency installation failed." }
 
       - name: Install and verify local Aider CLI
+        if: github.event.inputs.mode != 'recover'
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
@@ -95,7 +106,24 @@ jobs:
           aider --version
           if ($LASTEXITCODE -ne 0) { throw "Aider CLI verification failed." }
 
+      - name: Recover orphaned review-pending jobs (read-only)
+        if: github.event.inputs.mode == 'recover'
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NEXUS_REVIEW_HEAD_REF: automation/nexus-development-cycle
+          NEXUS_REVIEW_BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not $env:GITHUB_TOKEN) {
+            throw "Configure NEXUS_GITHUB_READ_TOKEN as a fine-grained read-only GitHub token."
+          }
+          python backend/recover_development_reviews.py
+          if ($LASTEXITCODE -ne 0) { throw "Review recovery found pending or ambiguous work; no job was requeued." }
+
       - name: Execute one dependency-aware development cycle
+        if: github.event.inputs.mode != 'recover'
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}
@@ -117,6 +145,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Development agent cycle failed." }
 
       - name: Create Draft PR for verified changes only
+        if: github.event.inputs.mode != 'recover'
         id: publish-pr
         uses: peter-evans/create-pull-request@v7
         with:
@@ -136,7 +165,7 @@ jobs:
             - External provider integrations and production behavior are not implied.
             
       - name: Record exact Draft PR review artifact
-        if: steps.publish-pr.outputs.pull-request-url != '' && steps.publish-pr.outputs.pull-request-head-sha != ''
+        if: github.event.inputs.mode != 'recover' && steps.publish-pr.outputs.pull-request-url != '' && steps.publish-pr.outputs.pull-request-head-sha != ''
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -151,7 +180,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Draft PR review-artifact verification failed; jobs remain review_pending." }
 
       - name: Leave jobs pending when no Draft PR artifact was published
-        if: steps.publish-pr.outputs.pull-request-url == '' || steps.publish-pr.outputs.pull-request-head-sha == ''
+        if: github.event.inputs.mode != 'recover' && (steps.publish-pr.outputs.pull-request-url == '' || steps.publish-pr.outputs.pull-request-head-sha == '')
         shell: powershell
         run: |
           Write-Warning "No exact Draft PR URL/head SHA was returned. Development jobs remain review_pending and are not marked completed."

@@ -3,7 +3,7 @@ import tempfile
 import unittest
 
 from development_jobs import DevelopmentJobStore
-from publish_development_reviews import publish_pending_reviews
+from publish_development_reviews import publish_pending_reviews, recover_pending_reviews
 
 
 HEAD_SHA = "a" * 40
@@ -39,6 +39,10 @@ class FakeReviewClient:
     def list_pull_request_files(self, owner, repository, number):
         self.requested.append(("files", owner, repository, number))
         return self.files
+
+    def list_open_pull_requests(self, owner, repository):
+        self.requested.append(("open", owner, repository))
+        return [self.pull_request]
 
 
 class PublishDevelopmentReviewsTests(unittest.TestCase):
@@ -118,6 +122,45 @@ class PublishDevelopmentReviewsTests(unittest.TestCase):
         self.assertEqual(result["published_count"], 0)
         self.assertEqual(result["pending_count"], 1)
         self.assertEqual(self.store.get(self.job_id)["status"], "review_pending")
+
+    def test_recovery_verifies_existing_exact_draft_pr_without_creating_or_mutating_it(self):
+        client = FakeReviewClient()
+        result = recover_pending_reviews(self.store, client, "acme/app", HEAD_REF, BASE_REF)
+        self.assertEqual(result["published_count"], 1)
+        self.assertEqual(self.store.get(self.job_id)["status"], "completed")
+        self.assertEqual(client.requested, [
+            ("open", "acme", "app"), ("pull", "acme", "app", 42),
+            ("files", "acme", "app", 42),
+        ])
+
+    def test_recovery_without_matching_pr_preserves_pending_job_and_history(self):
+        client = FakeReviewClient(pull_request=make_pr(head_ref="unrelated-branch"))
+        before = self.store.events(self.job_id)
+        result = recover_pending_reviews(self.store, client, "acme/app", HEAD_REF, BASE_REF)
+        self.assertEqual(result["published_count"], 0)
+        self.assertEqual(result["pending_count"], 1)
+        self.assertEqual(self.store.get(self.job_id)["status"], "review_pending")
+        self.assertEqual(self.store.events(self.job_id), before)
+
+    def test_recovery_with_ambiguous_matching_prs_fails_closed(self):
+        class AmbiguousClient(FakeReviewClient):
+            def list_open_pull_requests(self, owner, repository):
+                return [make_pr(), make_pr(head_sha="b" * 40)]
+        client = AmbiguousClient()
+        result = recover_pending_reviews(self.store, client, "acme/app", HEAD_REF, BASE_REF)
+        self.assertEqual(result["published_count"], 0)
+        self.assertEqual(result["skipped"][0]["candidate_count"], 2)
+        self.assertEqual(self.store.get(self.job_id)["status"], "review_pending")
+
+    def test_recovery_with_no_pending_jobs_does_not_call_github(self):
+        self.store.publish_review_artifact(
+            self.job_id, PR_URL, HEAD_SHA, ["backend/example.py"],
+            is_draft=True, is_open=True,
+        )
+        client = FakeReviewClient()
+        result = recover_pending_reviews(self.store, client, "acme/app", HEAD_REF, BASE_REF)
+        self.assertEqual(result["pending_count"], 0)
+        self.assertEqual(client.requested, [])
 
     def test_repository_mismatch_is_rejected_before_github_read(self):
         client = FakeReviewClient()
