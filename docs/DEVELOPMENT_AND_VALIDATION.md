@@ -226,3 +226,11 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - The initial head failed one legacy frontend assertion because it expected unscoped markup. The source regression was updated to the new semantics.
 - Corrected exact-head backend validation passed in [44574846265](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265); browser smoke was in progress at the checkpoint. Compose service readiness and isolated backup/restore checks passed in [44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267), with cleanup still in progress.
 - Keep PR Draft/unmerged until both workflows finish successfully. No production deployment or live provider publishing was performed.
+
+
+### UI-00017 — final exact-head evidence
+
+- Exact head `16d4964dcf2472f47c0b1dd1fbd890e2d46750c1`: [workflow 44574846265](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265) SUCCESS. Repository validation and Chromium browser smoke both passed, including the 14-column `scope="col"` assertions and existing desktop/mobile, keyboard, pagination, CSV, review/audit and partial-failure checks.
+- [Compose workflow 44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267) SUCCESS: service readiness, scheduled backup, isolated restore, log collection and cleanup.
+- Screenshots artifact [14556945683](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265/artifacts/14556945683).
+- PR #399 remains Draft/unmerged; no production deployment or live provider actions were performed.
