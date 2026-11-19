@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from development_github_intake import (
     normalize_issue, normalize_snapshot, read_github_snapshot,
@@ -67,6 +68,39 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
         self.assertEqual(second["created_count"], 0)
         self.assertEqual(second["skipped"][0]["reason"], "duplicate")
         self.assertEqual(len(self.store.list()), 1)
+
+    def test_sync_deduplicates_sources_beyond_the_first_500_jobs(self):
+        for number in range(500):
+            self.store.create(
+                f"Existing job {number}", priority=1,
+                source_ref=f"github:acme/app#existing-{number}",
+            )
+        source_ref = "github:acme/app#501"
+        target = self.store.create(
+            "Older imported issue", priority=100, source_ref=source_ref,
+        )
+        self.assertNotIn(target["id"], {job["id"] for job in self.store.list(limit=500)})
+        issue = {
+            "number": 501, "title": "Older imported issue", "state": "open",
+            "labels": ["development-job"], "repository": "acme/app",
+        }
+        resolver = lambda _: ["backend/approved.py"]
+
+        result = sync_labeled_issues(self.store, [issue], scope_resolver=resolver)
+        self.assertEqual(result["created_count"], 0)
+        self.assertEqual(result["skipped"][0]["reason"], "duplicate")
+
+        # Simulate the race where another intake inserts the same source after
+        # the preflight read. The store's BEGIN IMMEDIATE check must still win.
+        with patch.object(self.store, "source_ref_exists", return_value=False):
+            raced = sync_labeled_issues(self.store, [issue], scope_resolver=resolver)
+        self.assertEqual(raced["created_count"], 0)
+        self.assertEqual(raced["skipped"][0]["reason"], "duplicate")
+        with self.store.db() as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM development_jobs WHERE source_ref=?", (source_ref,)
+            ).fetchone()[0]
+        self.assertEqual(count, 1)
 
     def test_sync_github_backlog_requires_per_issue_scope_approval(self):
         client = FakeReadOnlyGitHub()
