@@ -106,7 +106,9 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertIn("[REDACTED]", pending["validation_ref"])
         self.assertIn("[REDACTED]", pending["result_summary"])
 
-        failure_job = self.store.create("Direct store failure redaction")
+        failure_job = self.store.create(
+            "Direct store failure redaction", scope=["backend/failure.py"]
+        )
         failure_claim = self.store.claim_ready("worker-store-redaction")
         password = "database-password-sensitive"
         error = (
