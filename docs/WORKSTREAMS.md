@@ -37,3 +37,11 @@ Develop the product interface and its runtime independently so both can make pro
 - Analytics history filters, charts, and CSV export are implemented in the frontend; live browser behavior and real provider account behavior are not established by source tests alone.
 - PR #323 remains Open / Draft / Unmerged and is the current Core delivery line.
 - This document establishes ownership and branch boundaries; it does not claim that two independent agents are executing simultaneously.
+
+
+## UI-00002 — keyboard navigation and focus visibility
+
+- Add a keyboard-only skip link to the main content so keyboard users can bypass the sticky workspace header.
+- Add explicit high-contrast `:focus-visible` outlines for links, buttons, and form controls; the skip link becomes visible when focused.
+- Add source regression coverage for the skip link and focus treatment.
+- Browser keyboard traversal and assistive-technology validation remain outstanding.
