@@ -2713,4 +2713,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add an atomic successful-backup timestamp marker and a freshness health probe for the backup service; failed or overdue backups now make the container unhealthy.
 - Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
 - Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
-- Exact-head Actions validation pending.
+- Exact-head validation passed on `59ec8286f6c216345955593dd82a1047851fad4d`: backend [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693), **725 tests**; Compose [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702), all five services healthy, fresh successful-backup marker present, encrypted isolated restore passed, wrong-key restore rejected without changing the target DB. CI-only; no production-host or production-data recovery is claimed.
