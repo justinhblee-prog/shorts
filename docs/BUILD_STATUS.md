@@ -2695,3 +2695,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add regressions for all three sidecar types and verify live DB contents remain unchanged.
 - The sidecar check is a fail-closed safeguard, not proof that no process has an open database handle; operator shutdown remains mandatory.
 - Exact-head Actions validation pending.
+
+
+## BUILD-00350 — report post-restore cleanup failures
+
+- Preserve successful restore status while explicitly returning `cleanup_warnings` when pre-restore database or media copies cannot be removed.
+- Include only the retained path and exception type; do not silently swallow disk-usage cleanup failures.
+- Add failure-injection coverage for both old database and media cleanup paths while verifying the restored database remains valid.
+- Exact-head Actions validation pending.
