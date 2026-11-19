@@ -240,12 +240,11 @@ class GitHubReadOnlyClient:
     def list_workflow_runs(self, owner: str, repository: str, per_page: int = 100):
         if per_page != 100:
             raise ValueError("only bounded workflow-run reads are supported")
-        payload = self._get_pages(f"/repos/{owner}/{repository}/actions/runs", "per_page=100")
-        for item in payload:
-            runs = item.get("workflow_runs")
-            if isinstance(runs, list):
-                return runs
-        return []
+        # _get_pages already unwraps GitHub's {total_count, workflow_runs}
+        # response envelope and flattens every Link-paginated page into run rows.
+        # Do not try to unwrap workflow_runs a second time: each returned item is
+        # an individual workflow run, not the original response envelope.
+        return self._get_pages(f"/repos/{owner}/{repository}/actions/runs", "per_page=100")
 
 def sync_github_backlog(
     store: Any,
