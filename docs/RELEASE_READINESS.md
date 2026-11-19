@@ -224,3 +224,7 @@ These are additional readiness constraints documented by the project, not comple
 - Backend requirements and Aider are installed in separate per-run workspace virtual environments; global/user Python packages are not modified by the workflow.
 - The backend interpreter and Aider executable are selected explicitly to avoid PATH ambiguity between the two environments.
 - This improves setup diagnostics and dependency isolation, but does not count as an integrated-environment launch gate. The owner-hosted Windows runner, real Ollama edit, repeated runner database persistence, Docker Compose deployment, and production backup/restore remain unverified.
+
+
+### BUILD-00355 — idempotent GitHub issue intake
+The read-only backlog sync now deduplicates by indexed `source_ref` across the complete development-job store, rather than the first 500 rows returned by the list API. The store enforces duplicate identity under its SQLite write transaction, so concurrent intake runs cannot create duplicate jobs after racing preflight checks. Exact-head CI is pending; no live Windows runner execution is claimed.
