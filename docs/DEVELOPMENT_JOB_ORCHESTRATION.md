@@ -77,9 +77,9 @@ Production gates are separate: live OAuth, real AI-provider calls, platform uplo
 flowchart TD
   B384[BUILD-00384 PR #381] --> B385[BUILD-00385 PR #383]
   B385 --> B386[BUILD-00386 worker recovery PR #384]
-  B386 --> B387[BUILD-00387 GitHub pagination PR #388]
+  B385 --> YT[BUILD-00387 YouTube disclosure PR #385]
+  B386 --> B388[BUILD-00388 GitHub pagination PR #388]
   B386 --> U012[UI-00012 recovery control PR #387]
-  B385 --> YT[YouTube synthetic disclosure PR #385]
   YT --> P001[POLICY-00001 PR #386]
   P001 --> P002[POLICY-00002 PR #389]
   P002 --> P003[POLICY-00003 PR #390]
@@ -98,10 +98,10 @@ All listed PRs are Draft and unmerged in this snapshot. Their base/head relation
 - PR #382 UI-00011: exact-head hosted backend/browser/Compose validation passed.
 - PR #383 BUILD-00385: exact-head hosted backend validation passed.
 - PR #384 BUILD-00386: 825-test hosted backend validation passed; live Windows worker recovery remains unverified.
-- PR #385 YouTube disclosure mapping: 823-test hosted validation passed; no live platform upload performed.
+- PR #385 BUILD-00387 YouTube disclosure mapping: 823-test hosted validation passed; no live platform upload performed.
 - PR #386 POLICY-00001: 825-test hosted validation passed.
 - PR #387 UI-00012: exact-head hosted repository and frontend syntax validation passed; live authenticated browser/API interaction remains unverified.
-- PR #388 BUILD-00387: exact-head hosted repository and frontend syntax validation passed; live GitHub API pagination remains unverified.
+- PR #388 BUILD-00388: exact-head hosted repository and frontend syntax validation passed; live GitHub API pagination remains unverified.
 - PR #389 POLICY-00002: exact-head hosted repository and frontend syntax validation passed.
 - PR #390 POLICY-00003: exact-head `a89dd228f924bf6f7cb8bd7d441c6733851c1acf` passed `scripts/validate.sh` and `node --check frontend/app.js` in runs [44554183308](https://github.com/justinhblee-prog/shorts/actions/runs/44554183308) and [44554192636](https://github.com/justinhblee-prog/shorts/actions/runs/44554192636).
 
