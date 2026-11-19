@@ -2606,3 +2606,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00369 — exact-head hosted validation
 - Code head `d802ff98a8e7ab5fed3cfdf37aca38ff5ece9ce4` passed GitHub Actions Backend tests run [44527024967](https://github.com/justinhblee-prog/shorts/actions/runs/44527024967): **801 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Hosted Linux validation only; this does not claim that a live Windows/Aider execution has occurred.
+
+
+## BUILD-00370 — constrain authenticated GitHub API redirects
+- Route GET requests through a dedicated urllib redirect handler that accepts only HTTPS redirects to the exact `api.github.com` origin on the default HTTPS port.
+- Reject off-host, insecure, credential-bearing and nonstandard-port redirects before forwarding the bearer token.
+- Update pagination tests for the controlled opener and add same-origin vs off-origin redirect regressions.
+- Exact-head hosted CI pending.
