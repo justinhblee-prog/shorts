@@ -2628,3 +2628,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Replace the credential assignment redaction's greedy-to-end behavior with value-aware matching for quoted strings, unquoted tokens and structured JSON objects.
 - Preserve unrelated diagnostic context after a secret assignment while still redacting multiline service-account payloads.
 - Add regressions for trailing safe context and multiline service-account redaction. Exact-head hosted CI pending.
+
+
+### BUILD-00371 — exact-head hosted validation
+- Exact PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391): **802 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Inline credential and multiline service-account regressions both passed, including preservation of trailing safe diagnostic context.
+- Hosted Linux only.
