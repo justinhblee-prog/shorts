@@ -21,9 +21,15 @@ def redact_sensitive_text(value, limit=2000):
         r"\1=[REDACTED]", text,
     )
     text = re.sub(
-        r"(?i)\b(https?|postgres(?:ql)?|redis)://[^\s/@:]+(?::[^\s/@]*)?@[^\s,;]+",
+        r"(?i)\b(https?|postgres(?:ql)?|redis|mongodb|mysql|amqps?)://[^\s/@:]+(?::[^\s/@]*)?@[^\s,;]+",
         r"\1://[REDACTED]@[REDACTED]", text,
     )
-    text = re.sub(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b",
-                  "[REDACTED]", text)
+    text = re.sub(
+        r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|"
+        r"xox[baprs]-[A-Za-z0-9-]{20,}|glpat-[A-Za-z0-9_-]{20,}|"
+        r"npm_[A-Za-z0-9]{20,}|pypi-[A-Za-z0-9_-]{20,}|"
+        r"AIza[0-9A-Za-z_-]{30,}|AKIA[0-9A-Z]{16}|"
+        r"sk_(?:live|test)_[A-Za-z0-9]{12,}|sk-[A-Za-z0-9_-]{20,})\b",
+        "[REDACTED]", text,
+    )
     return text[-limit:]
