@@ -255,3 +255,11 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn(".main-nav a[aria-current=\"page\"]", css)
         self.assertIn(".main-nav a:nth-child(5):before", css)
         self.assertIn("prefers-reduced-motion:reduce", css)
+
+
+class AnalyticsFreshnessPresentationTests(unittest.TestCase):
+    def test_analytics_status_displays_latest_snapshot_and_counts_stale_data(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('coverage.stale_or_missing??(Number(coverage.without_snapshot||0)+Number(coverage.stale_snapshots||0))', app_js)
+        self.assertIn('최근 스냅샷', app_js)
+        self.assertIn('item.latest_snapshot_at', app_js)
