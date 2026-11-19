@@ -206,3 +206,9 @@ The executor now requires the supplied scope string to match its canonical POSIX
 ### BUILD-00376 — reject Windows-invalid filename characters
 
 Portable scope validation now rejects Windows-forbidden filename characters `< > " | ? *` and ASCII control characters in every path segment, in addition to drive/UNC roots, colons, reserved device names and noncanonical separators. This avoids accepting repository paths that cannot be represented consistently on the production Windows worktree.
+
+
+
+### BUILD-00377 — reject symlink aliases in write scopes
+
+Scope validation now rejects any symbolic-link component, including links whose targets remain inside the repository and are not secret paths. This closes a scope-lock bypass where two different lexical paths could resolve to the same writable file or directory. Both file symlinks and directory symlinks are covered by regression tests. Repositories requiring symlink editing must use an explicit future allowlist with target-aware locking rather than implicit traversal.
