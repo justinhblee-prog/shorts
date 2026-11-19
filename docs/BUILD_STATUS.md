@@ -2599,3 +2599,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actions run [44531177231](https://github.com/justinhblee-prog/shorts/actions/runs/44531177231): **798 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Both heartbeat failure modes are covered: transport/database exception and definitive fencing-token rejection each cancel the executor; the active child-process cancellation regression also passes.
 - Hosted Linux only; Windows self-hosted process-tree behavior and live runner recovery remain separate integration gates.
+
+
+## BUILD-00369 — normalize stale completion-fence conflicts
+- A durable `mark_review_pending` rejection caused by an expired or fenced lease is now returned as the normal `lease_lost` worker outcome instead of escaping as an unhandled runner exception.
+- Add regression coverage proving a stale evidence-gate conflict cannot advance the job or fail the whole worker invocation.
+- Exact-head hosted CI pending.

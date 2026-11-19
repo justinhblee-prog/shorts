@@ -209,3 +209,9 @@ Exact code head `f6c69af52204ebfccce88a48114291c4fb6946e8` passed GitHub Actions
 
 ### BUILD-00368 — final heartbeat-loss validation
 Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actions Backend tests run [44531177231](https://github.com/justinhblee-prog/shorts/actions/runs/44531177231): **798 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Transport/database heartbeat errors and definitive fencing-token rejection both cancel the executor; active child-process cancellation passed. Hosted Linux only; Windows runner behavior remains a separate gate.
+
+
+### BUILD-00369 — normalize stale completion-fence rejection
+- Treat `DevelopmentJobConflict` from the durable `mark_review_pending` gate as a normal `lease_lost` outcome, including expiry/fencing that occurs after the executor returns but before evidence persistence.
+- Preserve the durable store's fencing checks; no stale worker can write review-pending evidence.
+- Add regression coverage proving the runner returns normally and the job remains unadvanced when the completion fence rejects the worker. Exact-head hosted CI pending.

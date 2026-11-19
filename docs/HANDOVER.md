@@ -1401,3 +1401,7 @@ Code head `f6c69af52204ebfccce88a48114291c4fb6946e8` passed GitHub Actions run [
 
 ### BUILD-00368 — definitive fencing-loss regression
 Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actions run [44531177231](https://github.com/justinhblee-prog/shorts/actions/runs/44531177231): **798 tests**, repository validation and frontend syntax check. Both heartbeat transport failure and rejected lease fencing now cancel the executor, with active child-process termination covered. Hosted Linux only.
+
+
+### BUILD-00369 — stale evidence-gate conflict handling
+When the durable `mark_review_pending` gate rejects a worker because its lease is missing, expired or fenced, the worker now returns `lease_lost` rather than propagating an unhandled conflict to the workflow runner. A regression verifies that the job is not advanced. Exact-head hosted CI pending.

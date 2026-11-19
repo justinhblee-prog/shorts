@@ -208,6 +208,24 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         self.assertEqual(outcomes, ["lease_lost"])
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
+    def test_stale_evidence_gate_conflict_returns_lease_lost(self):
+        job = self.store.create("Stale completion fence", scope=["backend/example.py"])
+        worker = DevelopmentJobWorker(
+            self.store, "worker-stale-evidence-fence",
+            lambda _: {
+                "changed_files": ["backend/example.py"],
+                "tests_passed": True,
+                "validation_ref": "ci://stale-fence",
+                "result_summary": "validated but lease has expired",
+            },
+        )
+        with patch.object(
+            self.store, "mark_review_pending",
+            side_effect=DevelopmentJobConflict("lease is missing, expired, or fenced"),
+        ):
+            self.assertEqual(worker.run_once(), "lease_lost")
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+
     def test_run_once_registers_worker_and_clears_current_job(self):
         job = self.store.create("Worker presence", scope=["backend/example.py"])
         worker = DevelopmentJobWorker(
