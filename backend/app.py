@@ -1001,12 +1001,21 @@ def publishing_analytics_history(
     bounded_offset=max(0,min(offset,10000000))
     if (before_collected_at is None)!=(before_id is None):
         raise HTTPException(422,"before_collected_at and before_id must be provided together")
-    if before_collected_at is not None and (
-        not before_collected_at.strip() or len(before_collected_at)>64
-        or any(ord(char)<32 or ord(char)==127 for char in before_collected_at)
-        or before_id is None or before_id<1
-    ):
-        raise HTTPException(422,"history cursor is invalid")
+    if before_collected_at is not None:
+        if (
+            not before_collected_at.strip() or len(before_collected_at)>64
+            or any(ord(char)<32 or ord(char)==127 for char in before_collected_at)
+            or before_id is None or before_id<1
+        ):
+            raise HTTPException(422,"history cursor is invalid")
+        try:
+            cursor_time=datetime.fromisoformat(before_collected_at.replace("Z","+00:00"))
+            if cursor_time.tzinfo is None or cursor_time.utcoffset() is None:
+                raise ValueError("timezone required")
+        except (TypeError,ValueError,OverflowError):
+            raise HTTPException(
+                422,"before_collected_at must be a timezone-aware ISO-8601 timestamp"
+            )
     if as_of is None:
         as_of_time=datetime.now(timezone.utc)
     else:
