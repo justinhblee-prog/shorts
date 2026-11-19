@@ -1,6 +1,6 @@
 # NEXUS STUDIO PRO — Parallel Workstreams
 
-**Coordination baseline:** `851b414262cc6bef8ec374ed0e7a25921521b295` (main, 2026-11-19)  
+**Coordination baseline:** `851b414262cc6bef8ec374ed0e7a25921521b295` (main snapshot, 2026-11-19)  
 **Core delivery:** stacked BUILD / POLICY Draft PR chains #381, #383–#386, #388–#390  
 **UI delivery:** UI Draft PRs #382 and #387; UI base chain remains separate
 
@@ -79,7 +79,6 @@ This snapshot is a repository coordination record, not a claim that independent 
 - PR #381 BUILD-00384 → #383 BUILD-00385 → #384 BUILD-00386 form the worker-safety chain: durable scope semantics, worktree-diff verification, then audited operator recovery.
 - PR #385 BUILD-00387 adds approved YouTube synthetic-media disclosure mapping on the #383 base.
 - PR #388 BUILD-00388 is a sibling follow-up on #384, constraining GitHub intake pagination to the original HTTPS API host and collection path and rejecting non-canonical or hostile imported issue links.
-- PR #385 adds approved YouTube synthetic-media disclosure mapping on the #383 base.
 
 ### Policy lane
 - PR #386 POLICY-00001 → #389 POLICY-00002 → #390 POLICY-00003 form the policy-validation chain: declaration object validation, source URL/rights-key validation, then fail-closed review approval for script-bearing production artifacts.
