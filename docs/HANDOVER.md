@@ -74,11 +74,12 @@ YouTube channel search, channel snapshots and recent public video statistics are
 
 - Continue product development on branch `build/build-00315-harden-tiktok-aigc-disclosure` and PR #323. Keep the PR Draft; do not merge without an explicit user request.
 - The user has authorized routine product implementation, tests, fixes and documentation to proceed without per-task approval. Do not pause for confirmation on ordinary implementation choices.
-- PR #323 began as BUILD-00315 TikTok AI-generated-content disclosure hardening. It now also contains the publishing analytics follow-up and BUILD-00316 CSV export work.
-- Analytics history supports platform-specific view fields, selectable metrics, immediate chart refresh, watch-time/average-duration columns, platform-filtered summaries, and CSV export of all fetched rows (not only the 200-row visible table).
+- PR #323 began as BUILD-00315 TikTok AI-generated-content disclosure hardening. It now also contains publishing analytics follow-up, BUILD-00316 CSV export and BUILD-00317 expanded YouTube metrics.
+- Analytics history supports platform-specific view fields, selectable metrics, immediate chart refresh, watch-time/average-duration columns, platform-filtered summaries and CSV export of all fetched rows (not only the 200-row visible table).
 - CSV output includes UTF-8 BOM, escaped quoted cells, formula-like text prefixing, and is disabled during refresh/when no rows are available. A browser download/spreadsheet import has not yet been exercised.
-- GitHub Actions run #44445767691 passed the full validation workflow with 697 backend tests on the CSV implementation checkpoint. Run #44445841885 also passed with 697 tests after stabilizing a pre-existing TikTok status-poll backoff test whose 59/119-second boundaries could race against SQLite's clock precision.
-- A subsequent documentation checkpoint was committed after those validated code checkpoints; check exact-head CI before claiming the latest branch head is green.
+- YouTube engaged views, engaged-view share and average view duration are selectable chart metrics and are included in table/export. Stored engaged-view share is a ratio; the UI and CSV convert it to percentage values and chart deltas to percentage-point changes. TikTok does not fabricate unsupported equivalents.
+- GitHub Actions runs #44446285363 and #44446292661 passed the full validation workflow with 697 backend tests on code checkpoint `fc2ec38`. The pre-existing TikTok status-poll backoff test was stabilized by replacing one-second boundary assertions with safer timing margins.
+- Documentation commits after that code checkpoint are subject to exact-head CI; do not claim the current head green until its own check completes.
 - Preserve human approval gates, private-only upload constraints, token/lease fencing, fail-closed behavior and source provenance.
 - Automated tests do not prove live AI generation, external provider idempotency, OAuth connectivity, real YouTube/TikTok account behavior, browser usability or production restore readiness. Keep those explicitly pending until validated in an integrated environment.
 
