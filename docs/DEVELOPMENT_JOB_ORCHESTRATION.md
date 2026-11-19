@@ -126,9 +126,16 @@ If the action returns no PR URL/head SHA, the PR is not Draft/open, the head SHA
 
 Regression coverage includes successful publication, missing files, head-SHA mismatch, non-Draft/closed PR, branch/base mismatch, repository mismatch, idempotent same-head recording, dependency blocking until publication, review-pending scope reservation, and one changed job per worker cycle. Hosted CI remains fixture-backed; it does not prove the Windows runner or real Ollama execution.
 
-### Next code priority — recover orphaned review_pending jobs safely
+### BUILD-00318 — safe orphaned review_pending recovery
 
-BUILD-00317 deliberately fails closed when no exact Draft PR artifact can be verified. A remaining recovery gap is that a job may stay review_pending if the PR action fails before a branch/PR is created. Add a bounded, audited recovery workflow that first checks for an existing automation branch and open PR; if one exists, retry only the read-back/publication step. If no branch/PR contains the job changes, require an explicit operator-approved requeue that preserves the prior event/evidence history and increments the retry count. Never reset a review_pending job automatically merely because the PR URL output is empty, and never discard a potentially published diff.
+Implemented on `build/build-00318-orphaned-review-pending-recovery`; see [BUILD_00318.md](BUILD_00318.md).
+
+- Added paginated read-only discovery of open pull requests and a recovery path for the stable automation branch.
+- Recovery requires exactly one open, unmerged Draft PR with the expected head/base repositories and branch names. It then re-reads that exact PR and verifies the full head SHA and every changed file through the existing publication gate.
+- Zero or multiple matching PRs leave the job and immutable event history unchanged.
+- Added `backend/recover_development_reviews.py` and a manual `workflow_dispatch` mode named `recover`. This mode skips Aider/Ollama execution and Draft PR creation.
+- No automatic requeue, branch mutation, PR mutation, merge, or deployment is performed. A no-match case requires operator inspection of the persistent runner worktree/branch before any separate requeue decision.
+- Regression tests cover exact recovery, no-match preservation, ambiguous candidates, and no-op when there are no pending jobs. CI and live self-hosted-runner verification remain pending.
 
 ### Remaining ordered gates
 
