@@ -9,8 +9,7 @@
 
 - Core lane: PR [#323](https://github.com/justinhblee-prog/shorts/pull/323), Open / Draft / Unmerged. Current code head `da4cc9273f5f779dc2bb399a3f2b482b2d8c3341`; backend run [44502646079](https://github.com/justinhblee-prog/shorts/actions/runs/44502646079) passed **717 tests** and Compose run [44502645766](https://github.com/justinhblee-prog/shorts/actions/runs/44502645766) passed the five-service encrypted backup/restore smoke. BUILD-00345–00347 add restore rollback, path-overlap and symlink-root protections.
 - Latest Core engineering items: BUILD-00336–00340 (bounded/fair indexed TikTok scan, query-plan guard, collector lease/OAuth coverage, synthetic 10k-row scan); BUILD-00341–00344 (Compose service integration, AES-256-GCM backup, isolated restore, wrong-key failure without DB modification). Synthetic due scan measured 0.65 ms for 10k publications and 10k snapshots on the CI runner.
-- UI lane: PR [#329](https://github.com/justinhblee-prog/shorts/pull/329), Open / Draft / Unmerged. Current head `12c4d9ece3e666694e46c00cdbdce732ddb3cfde`; UI-00008 now exercises the actual FastAPI app/SQLite, authenticated API, review approval, analytics cursor pagination, browser CSV download and partial API outage handling. Exact-head browser CI is pending.https://github.com/justinhblee-prog/shorts/actions/runs/44501015943).
-- UI documentation-only head is `32188d5aa1c53591f9a2536a3c4384b259d81eb1`; it consolidates workstream ownership and validation evidence.
+- UI lane: PR [#329](https://github.com/justinhblee-prog/shorts/pull/329), Open / Draft / Unmerged. Current head `12c4d9ece3e666694e46c00cdbdce732ddb3cfde`; UI-00008 now exercises the actual FastAPI app/SQLite, authenticated API, review approval, analytics cursor pagination, browser CSV download and partial API outage handling. Exact-head browser CI for the current integration branch is pending.
 - Verified in CI: browser rendering/navigation and Blob CSV download using mocked API data; Docker Compose service startup; encrypted synthetic backup and isolated restore; wrong-key restore rejection without changing the target database. Not verified: live authenticated backend/provider data, real YouTube/TikTok OAuth/publishing/analytics, production-host deployment, production-data backup recovery, physical touch-device and assistive-technology validation, and real cohort ROI.
 - Both PRs remain Draft and unmerged. Do not merge without explicit user approval.
 - Launch gate completion remains **1/8 (12.5%)**. Automated CI and synthetic data do not close external/deployment gates.
@@ -26,9 +25,9 @@ Track two separate measures:
 
 CI completion does not imply live provider, browser, platform, financial, or production readiness.
 
-## Current checkpoint
+## Historical engineering chain — BUILD-00292–00302
 
-- Latest completed engineering item in the current stacked chain: BUILD-00302 — serialize OAuth state and refresh-lease clocks after the SQLite write lock; CI passed on PR #308.
+- The earlier stacked chain completed the scheduler/OAuth timestamp consistency audit through BUILD-00302. Its historical PR records remain below; the active development tracks are PRs #323 and #329.
 - PR #298 (BUILD-00292): https://github.com/justinhblee-prog/shorts/pull/298 — exact head `1f47019894854ea87565f00eb1c67fd64dbfbfeb`, GitHub Actions passed.
 - PR #299 (BUILD-00293): https://github.com/justinhblee-prog/shorts/pull/299 — exact head `724d4f78425577debc74a7990cf4d34133162390`, GitHub Actions passed.
 - PR #300 (BUILD-00294): https://github.com/justinhblee-prog/shorts/pull/300 — latest docs-inclusive head `00a55e1ae52a102a7eddfa52d3bc65c0b58aa8db`, GitHub Actions run #43990440580 passed.
