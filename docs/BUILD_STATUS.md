@@ -2652,3 +2652,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00372 — dependency/claim race exact-head validation
 - Updated head `148025eba9939f1c86488ddc705fa36632e942bd` passed GitHub Actions run [44523330129](https://github.com/justinhblee-prog/shorts/actions/runs/44523330129): **804 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`.
 - A threaded regression confirms the dependency edge either blocks the job before claim or is rejected after claim; no interleaving bypasses the prerequisite.
+
+
+## BUILD-00373 — append scheduler state-transition events
+- Record retry promotion, retry exhaustion/quarantine, and dependency-unblock transitions in immutable job events within the same SQLite transaction as each status change.
+- Add regression coverage for retry_ready, retry_quarantined, and dependencies_satisfied event records.
+- Exact-head hosted CI pending.
