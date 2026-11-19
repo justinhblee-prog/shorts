@@ -249,6 +249,14 @@ class AiderDevelopmentExecutor:
             candidate = Path(raw_path)
             if candidate.is_absolute() or ".." in candidate.parts:
                 raise NonRetryableDevelopmentJobError("job scope contains a path traversal")
+            # Reject every symlink component, not only links that resolve outside
+            # the repository or into known secret paths. Otherwise two lexical
+            # scopes can alias the same writable target and bypass scope locks.
+            cursor = self.repo_root
+            for part in candidate.parts:
+                cursor = cursor / part
+                if cursor.is_symlink():
+                    raise NonRetryableDevelopmentJobError("job scope contains a symbolic link")
             normalized = candidate.as_posix()
             expected_path = normalized + ("/" if raw_path.endswith("/") else "")
             if raw_path != expected_path:
