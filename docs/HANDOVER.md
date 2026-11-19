@@ -1336,3 +1336,8 @@ The analytics history API now returns a normalized UTC `as_of` timestamp and acc
 - Combined implementation and regression-test checkpoint: `deae2f0451b56e2bb4839a5cee2959db15504817`.
 - Actions run [44490155724](https://github.com/justinhblee-prog/shorts/actions/runs/44490155724) passed with **700 backend tests**; a second exact-head run was still in progress when recorded.
 - Export uses stable per-platform keyset cursors and a shared timezone-aware UTC `as_of` boundary across pages and platforms. No live provider or browser download validation is claimed.
+
+
+## BUILD-00331 — TikTok history query indexes
+
+Added composite indexes for publication video/status lookups and metric video/timestamp/ID ordering to support the new history join and cursor query. Existing indexes are retained. Schema regression tests added; production-scale query-plan/latency benchmark remains outstanding.
