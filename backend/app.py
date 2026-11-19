@@ -914,6 +914,39 @@ def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(
         raise HTTPException(409,str(e))
 
 
+@app.get("/api/publishing/overview")
+def publishing_overview(x_review_token:str|None=Header(default=None)):
+    """Return a bounded cross-platform publication status summary."""
+    require_review_permission(x_review_token,"review.read")
+    items=review_store.list_approved(200)
+    summary={
+        "total":len(items),
+        "youtube":{"uploaded":0,"processing":0,"failed":0,"pending":0,"uncertain":0},
+        "tiktok":{"published":0,"processing":0,"failed":0,"pending":0,"uncertain":0},
+    }
+    for item in items:
+        job_id=item["job_id"]
+        yt=youtube_upload_store.get(job_id)
+        yt=review_store.sanitize_production_record(yt) if yt else None
+        ys=yt.get("status") if yt else "pending"
+        if ys=="uploaded": summary["youtube"]["uploaded"]+=1
+        elif ys in ("uploading","processing"): summary["youtube"]["processing"]+=1
+        elif ys=="failed": summary["youtube"]["failed"]+=1
+        elif ys in ("reconciliation_required","late_success_review_required"):
+            summary["youtube"]["uncertain"]+=1
+        else: summary["youtube"]["pending"]+=1
+        tt=tiktok_publish_store.get(job_id)
+        tt=review_store.sanitize_production_record(tt) if tt else None
+        ts=tt.get("status") if tt else "pending"
+        if ts=="publish_complete": summary["tiktok"]["published"]+=1
+        elif ts in ("initializing","uploading","processing","send_to_inbox"):
+            summary["tiktok"]["processing"]+=1
+        elif ts=="failed": summary["tiktok"]["failed"]+=1
+        elif ts=="reconciliation_required": summary["tiktok"]["uncertain"]+=1
+        else: summary["tiktok"]["pending"]+=1
+    return summary
+
+
 @app.get("/api/publishing/analytics-status")
 def publishing_analytics_status(x_review_token:str|None=Header(default=None)):
     """Summarize analytics freshness and coverage without exposing provider credentials."""
