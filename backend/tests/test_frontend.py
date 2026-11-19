@@ -105,6 +105,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("group.points.length>=2", app_js)
         self.assertIn('raw===null||raw===undefined||raw===""', app_js)
         self.assertIn("chartMetricValue(item)", app_js)
+        self.assertIn('item.platform==="youtube"?"views":"view_count"', app_js)
         self.assertIn("chartMetricDeltas", app_js)
         self.assertIn("analyticsHistoryMetric", html)
         self.assertIn('value="like_count"', html)
