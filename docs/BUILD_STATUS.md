@@ -2486,3 +2486,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Block credential-bearing subdirectories under `.config` (AWS, Azure, gcloud, GitHub CLI, pip, containers, Kubernetes, Docker and npm) while leaving ordinary application configuration paths available.
 - Add regression cases for each secret/config path family and symlink aliases, checking both the supplied scope path and its resolved in-repository target so an innocuous filename cannot expose a protected target.
 - Exact-head backend Actions run [44513787916](https://github.com/justinhblee-prog/shorts/actions/runs/44513787916) passed **776 tests** on `630396f76439551fba42dfc3037acb7a28d84af1`. This is a path-policy contract; no actual runner filesystem or secret-file inventory is accessed.
+
+
+## BUILD-00361 — isolate local Aider home and tool configuration
+- Run the Aider subprocess and its scoped validation under a per-job temporary HOME/USERPROFILE with private XDG, APPDATA, LOCALAPPDATA, Docker, npm, pip and Git configuration directories; remove the temporary home after the job exits.
+- Strip inherited SSH agent/askpass, Git configuration and transport overrides, npm/pip configuration, Docker/cloud credentials, Aider/LiteLLM/provider endpoint overrides and other tool-specific injection variables.
+- Disable system/global Git configuration, interactive credential prompts and inherited credential helpers; supply only an empty isolated global config and explicit noninteractive credential policy.
+- Add regressions for isolated home/config paths, empty config files, blocked environment overrides and preserved required local execution context.
+- Exact-head CI pending. Hosted tests validate the environment contract only; no real Windows runner or Aider/Ollama invocation is claimed.
