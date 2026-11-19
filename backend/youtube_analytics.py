@@ -223,9 +223,7 @@ class YouTubeAnalyticsStore:
                 continue
             ratio = _as_number(point.get("elapsedVideoTimeRatio"))
             audience = _as_number(point.get("audienceWatchRatio"))
-            relative = _as_number(
-                point.get("relativeRetentionPerformance"), allow_negative=True
-            )
+            relative = _as_number(point.get("relativeRetentionPerformance"))
             if (ratio is None or audience is None
                     or ratio > 1 or (relative is not None and relative > 1)):
                 continue
