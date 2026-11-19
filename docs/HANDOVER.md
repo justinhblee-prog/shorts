@@ -1424,3 +1424,7 @@ Credential assignment redaction now replaces only the matched value instead of c
 
 ### BUILD-00371 — exact-head CI result
 Exact PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391): **802 tests**, repository validation and frontend syntax check. Tests confirm redaction preserves safe text after inline credentials and multiline service-account JSON.
+
+
+### BUILD-00372 — backlog text persistence sanitization
+Job creation now redacts credential-bearing content from titles, descriptions and acceptance criteria before writing to SQLite. This protects the durable backlog even when issue text is imported from GitHub or a caller bypasses other intake-layer sanitization. Regression coverage verifies token/password values are absent while ordinary acceptance text remains. Exact-head hosted CI pending.
