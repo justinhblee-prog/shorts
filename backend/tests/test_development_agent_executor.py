@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -241,6 +242,45 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
                 [sys.executable, "-c", "import time; time.sleep(30)"],
                 os.environ.copy(), 60,
             )
+
+    @unittest.skipIf(os.name == "nt", "POSIX process-group escalation test")
+    def test_lease_loss_kills_descendant_that_ignores_sigterm(self):
+        ready = self.root / "child-ready"
+        survived = self.root / "child-survived"
+        child_code = (
+            "import pathlib,signal,time; "
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            f"pathlib.Path({str(ready)!r}).write_text('ready'); "
+            "time.sleep(2); "
+            f"pathlib.Path({str(survived)!r}).write_text('survived')"
+        )
+        parent_code = (
+            "import subprocess,sys,time; "
+            "subprocess.Popen([sys.executable, '-c', sys.argv[1]]); "
+            "time.sleep(30)"
+        )
+        cancelled = threading.Event()
+        self.executor._lease_lost_event = cancelled
+
+        def cancel_after_child_starts():
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and not ready.exists():
+                time.sleep(0.01)
+            cancelled.set()
+
+        trigger = threading.Thread(target=cancel_after_child_starts, daemon=True)
+        trigger.start()
+        try:
+            with self.assertRaisesRegex(RuntimeError, "lease lost"):
+                self.executor._run(
+                    [sys.executable, "-c", parent_code, child_code],
+                    os.environ.copy(), 60,
+                )
+        finally:
+            cancelled.set()
+            trigger.join(timeout=1)
+        time.sleep(2.2)
+        self.assertFalse(survived.exists(), "orphaned command descendant survived lease-loss termination")
 
     def test_diagnostic_redaction_removes_bearer_and_common_api_tokens(self):
         message = (
