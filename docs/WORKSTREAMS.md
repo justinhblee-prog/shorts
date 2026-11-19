@@ -75,3 +75,11 @@ Desktop and compact-mobile full-page screenshots are captured after analytics fi
 - Validate actual media quality, platform policy, costs and cohort ROI.
 
 The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do not satisfy external, deployment or business-evidence gates.
+
+
+### UI-00008 — resilient partial dashboard refresh
+
+- Replace all-or-nothing dashboard refresh handling with per-workspace `Promise.allSettled` results.
+- Keep successful module data available when an unrelated API endpoint fails; report the number and names of failed modules in the connection indicator and toast.
+- Distinguish full connection failure from partial API availability rather than marking every workspace disconnected after one endpoint error.
+- Source regression coverage added. Browser test with intentionally mixed endpoint responses remains to be added.
