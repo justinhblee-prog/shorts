@@ -2690,3 +2690,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### BUILD-00380 — exact-head validation
 - Code head `cefe34668203cf922f50688b4bcff7c246712123` passed **807 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538922403](https://github.com/justinhblee-prog/shorts/actions/runs/44538922403) and [44538962283](https://github.com/justinhblee-prog/shorts/actions/runs/44538962283).
 - The delayed-heartbeat shutdown regression passed in both runs. Hosted Linux only; Windows local-runner and production execution remain unverified.
+
+
+## BUILD-00381 — case-insensitive scope conflict detection
+- Compare normalized scope paths with `casefold()` before detecting equal, parent/child and directory/file conflicts.
+- This prevents parallel job leases from treating differently cased Windows paths as disjoint when they refer to the same physical file.
+- Add regression coverage for case-only file differences, directory casing and independent paths. Exact-head CI pending.

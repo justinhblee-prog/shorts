@@ -297,9 +297,12 @@ class DevelopmentJobStore:
         if not left or not right:
             return True
         for first in left:
-            a = first.rstrip("/")
+            # The trusted development runner targets Windows, where paths are
+            # case-insensitive. Compare folded paths so parallel leases cannot
+            # reserve the same physical file under different casing.
+            a = first.rstrip("/").casefold()
             for second in right:
-                b = second.rstrip("/")
+                b = second.rstrip("/").casefold()
                 if a == b or a.startswith(b + "/") or b.startswith(a + "/"):
                     return True
         return False
