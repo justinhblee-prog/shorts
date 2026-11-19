@@ -137,7 +137,12 @@ jobs:
           $ErrorActionPreference = "Stop"
           # Tooling lives in persistent LocalAppData, never in the Git worktree.
           # The executor requires a clean worktree before it starts a job.
-          $toolRoot = Join-Path $env:LOCALAPPDATA "NexusStudioPro\tooling"
+          $stateRoot = $env:LOCALAPPDATA
+          if (-not $stateRoot) {
+            if (-not $env:USERPROFILE) { throw "Windows runner has neither LOCALAPPDATA nor USERPROFILE." }
+            $stateRoot = Join-Path $env:USERPROFILE "AppData\Local"
+          }
+          $toolRoot = Join-Path $stateRoot "NexusStudioPro\tooling"
           New-Item -ItemType Directory -Force -Path $toolRoot | Out-Null
           $backendVenv = Join-Path $toolRoot "backend-venv"
           $backendPython = Join-Path $backendVenv "Scripts\python.exe"
@@ -157,7 +162,12 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $toolRoot = Join-Path $env:LOCALAPPDATA "NexusStudioPro\tooling"
+          $stateRoot = $env:LOCALAPPDATA
+          if (-not $stateRoot) {
+            if (-not $env:USERPROFILE) { throw "Windows runner has neither LOCALAPPDATA nor USERPROFILE." }
+            $stateRoot = Join-Path $env:USERPROFILE "AppData\Local"
+          }
+          $toolRoot = Join-Path $stateRoot "NexusStudioPro\tooling"
           New-Item -ItemType Directory -Force -Path $toolRoot | Out-Null
           $aiderVenv = Join-Path $toolRoot "aider-venv"
           $aiderPython = Join-Path $aiderVenv "Scripts\python.exe"
