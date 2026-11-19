@@ -2676,4 +2676,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject symbolic-link database, media-root, backup-output and restore-backup directories before resolving paths.
 - Preserve the intended storage-root boundary instead of silently following a symlink to another directory or database file.
 - Add regression coverage for symlinked media, backup output, database and restore roots. Tests skip only on platforms that cannot create symlinks.
-- Exact-head Actions validation pending.
+- Exact-head backend validation passed: [run 44502646079](https://github.com/justinhblee-prog/shorts/actions/runs/44502646079), **717 tests**. Exact-head Compose integration passed: [run 44502645766](https://github.com/justinhblee-prog/shorts/actions/runs/44502645766).
