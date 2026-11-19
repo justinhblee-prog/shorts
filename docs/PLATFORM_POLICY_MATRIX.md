@@ -100,3 +100,9 @@ Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonatio
 ### BUILD-00386 — exact-head validation
 - Code head `09351f5704c3cd89a79d30f79d92956477942806` passed **823 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44549002097](https://github.com/justinhblee-prog/shorts/actions/runs/44549002097).
 - The upload-body tests confirmed `containsSyntheticMedia=false` for non-synthetic media, `true` for approved realistic alteration, and fail-closed behavior when the policy report is missing. No real platform upload was performed.
+
+
+## POLICY-00001 — reject malformed structured declarations
+- Stop treating falsey non-object values (empty lists, strings, or booleans) as omitted `policy_flags`, `rights`, `platform_disclosures`, or `risk_flags` objects.
+- Require supplied rights attestations to be booleans; preserve omitted/`null` optional objects as empty declarations so missing evidence remains review-required.
+- Add malformed-input and rights-type regressions. Exact-head CI pending.
