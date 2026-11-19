@@ -134,3 +134,9 @@ BUILD-00131 adds an optional ClamAV gate before staged renderer media is publish
 
 
 Latest verified validation: GitHub Actions run [43798901325](https://github.com/justinhblee-prog/shorts/actions/runs/43798901325), **466 backend tests passed** and `scripts/validate.sh` succeeded for BUILD-00140.
+
+
+### UI workstream checkpoint
+
+- UI-00002 adds a main-content skip link and visible keyboard focus styles.
+- Source-level regression coverage is included. Live browser and assistive-technology checks are not yet claimed.
