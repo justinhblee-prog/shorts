@@ -201,3 +201,7 @@ Approved existing directory paths are normalized to a trailing slash against the
 - Cancellable executors receive a cancellation signal. The Aider executor checks it before each subprocess and while waiting, then terminates the active process group and rejects subsequent commands.
 - A job whose lease becomes uncertain is not advanced to review_pending. It remains under durable lease fencing and can be reclaimed only through the existing expiry/recovery path.
 - Regression coverage includes a heartbeat transport failure and active child-process cancellation. Exact-head hosted CI pending; Windows process-tree semantics and real runner behavior remain separate integration gates.
+
+
+### BUILD-00368 — hosted regression result
+Exact code head `f6c69af52204ebfccce88a48114291c4fb6946e8` passed GitHub Actions Backend tests run [44530628392](https://github.com/justinhblee-prog/shorts/actions/runs/44530628392): **797 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Heartbeat transport failure and active child-process cancellation tests passed. Hosted Linux only; Windows self-hosted process-tree behavior and live runner recovery remain separate integration gates.
