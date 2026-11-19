@@ -2465,3 +2465,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 - Extend the protected analytics-status API test to verify that TikTok `latest_snapshot_at` and `coverage.stale_or_missing` pass through the allowlisted response fields, while internal errors and credentials remain excluded.
 - Exact-head GitHub Actions runs [44486123616](https://github.com/justinhblee-prog/shorts/actions/runs/44486123616) and [44486133696](https://github.com/justinhblee-prog/shorts/actions/runs/44486133696) passed with **699 backend tests** on checkpoint `910c521`.
+
+
+## BUILD-00325 — preserve targeted TikTok analytics history lookup
+
+- Fix TikTok analytics history lookup for older published videos: the previous implementation loaded only the newest 200 eligible publication identities before applying the requested video ID, so a specific older video could incorrectly return an empty history even when snapshots existed.
+- Add an exact video ID predicate to the publication identity query, allowing targeted lookup without scanning/truncating the recent-publication window.
+- Raise the bounded bulk identity window to 500 to match the analytics-history API/export limit; keep the per-video lookup bounded to one eligible publication.
+- Add a regression test with more than 200 published videos and an older video whose snapshot must remain queryable.
+- Validation: pending exact-head GitHub Actions.
