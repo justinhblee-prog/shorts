@@ -205,3 +205,11 @@ Approved existing directory paths are normalized to a trailing slash against the
 
 ### BUILD-00368 — CI evidence and scope reservation
 GitHub Actions run [44526419213](https://github.com/justinhblee-prog/shorts/actions/runs/44526419213) passed **799 tests**, `scripts/validate.sh` and `node --check frontend/app.js` for the lease safety changes. All quarantined jobs reserve their declared scopes against conflicting claims until explicit workspace-reset recovery. Hosted Linux CI does not establish host-level runner cleanup.
+
+
+### BUILD-00369 — post-validation diff contract
+The executor captures the final changed-file set only after repository validation completes, then rechecks scope and requires at least one non-test source file. A validation script that modifies files outside the declared scope fails closed; test-only or empty diffs cannot produce successful job evidence. Exact-head CI pending.
+
+
+### BUILD-00369 — exact-head validation
+GitHub Actions run [44527024967](https://github.com/justinhblee-prog/shorts/actions/runs/44527024967) passed **801 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. The executor now verifies the final Git diff after tests, re-applies file-scope constraints and refuses no-op/test-only completion.

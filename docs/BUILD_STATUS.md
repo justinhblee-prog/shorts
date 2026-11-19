@@ -2594,3 +2594,15 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Code head `923a4bd36ad3f7e5bf36c271c07f20b45c8642ef` passed GitHub Actions Backend tests run [44526419213](https://github.com/justinhblee-prog/shorts/actions/runs/44526419213): **799 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Quarantined scopes remain reserved against conflicting jobs until explicit workspace-reset recovery.
 - Hosted Linux only; host-level Windows process termination and workspace cleanup remain operational checks.
+
+
+## BUILD-00369 — verify final source diff after validation
+- Recompute tracked, staged and untracked Git changes after `scripts/validate.sh` completes; re-check every final path against the declared job scope.
+- Require at least one non-test source change before reporting successful job evidence. Test-only and no-op results cannot transition to review_pending.
+- Add tests for staged/unstaged/untracked change discovery and source-vs-test-only classification.
+- Exact-head hosted CI pending.
+
+
+### BUILD-00369 — exact-head hosted validation
+- Code head `d802ff98a8e7ab5fed3cfdf37aca38ff5ece9ce4` passed GitHub Actions Backend tests run [44527024967](https://github.com/justinhblee-prog/shorts/actions/runs/44527024967): **801 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Hosted Linux validation only; this does not claim that a live Windows/Aider execution has occurred.

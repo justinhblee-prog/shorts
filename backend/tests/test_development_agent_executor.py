@@ -70,6 +70,45 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertFalse(self.executor._matches_scope("backend/Makefile/generated.py", ["backend/Makefile"]))
         self.assertFalse(self.executor._matches_scope("frontend/a.js", ["backend/"]))
 
+    def test_test_only_change_classifier_requires_a_source_file(self):
+        self.assertFalse(self.executor._has_non_test_source_change([
+            "backend/tests/test_module.py", "frontend/__tests__/app.test.js",
+            "backend/module_test.py", "frontend/app.spec.ts",
+        ]))
+        self.assertTrue(self.executor._has_non_test_source_change([
+            "backend/tests/test_module.py", "backend/module.py",
+        ]))
+        self.assertTrue(self.executor._has_non_test_source_change([
+            "backend\\module.py",
+        ]))
+
+    def test_changed_files_include_staged_unstaged_and_untracked_paths(self):
+        import subprocess
+        env = os.environ.copy()
+        subprocess.run(["git", "init"], cwd=self.root, env=env, check=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["git", "config", "user.name", "NEXUS Test"], cwd=self.root, env=env, check=True)
+        subprocess.run(["git", "config", "user.email", "nexus-test@example.invalid"],
+                       cwd=self.root, env=env, check=True)
+        source = self.root / "backend" / "module.py"
+        test_file = self.root / "backend" / "tests" / "test_module.py"
+        (self.root / "backend" / "tests").mkdir(parents=True, exist_ok=True)
+        source.write_text("value = 1\\n", encoding="utf-8")
+        test_file.write_text("assert True\\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, env=env, check=True)
+        subprocess.run(["git", "commit", "-m", "baseline"], cwd=self.root, env=env, check=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        source.write_text("value = 2\\n", encoding="utf-8")
+        test_file.write_text("assert 1 == 1\\n", encoding="utf-8")
+        subprocess.run(["git", "add", str(test_file.relative_to(self.root))],
+                       cwd=self.root, env=env, check=True)
+        untracked = self.root / "backend" / "new_module.py"
+        untracked.write_text("value = 3\\n", encoding="utf-8")
+        self.assertEqual(
+            self.executor._changed_files(env),
+            ["backend/module.py", "backend/new_module.py", "backend/tests/test_module.py"],
+        )
+
     def test_scope_marks_existing_directories_as_recursive(self):
         scope = self.executor._validated_scope({"scope": ["backend"]})
         self.assertEqual(scope, ["backend/"])
