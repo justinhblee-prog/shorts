@@ -75,6 +75,8 @@
 .analytics-history-controls input,.analytics-history-controls select{font-size:10px;padding:9px 10px}
 .analytics-history{min-width:0}
 .analytics-history-summary{font-size:10px;color:#93a3bd;padding:10px 0}
+.analytics-history-status{margin:0 0 12px;padding:9px 12px;border:1px solid #2d3d58;border-radius:9px;background:#111d31;color:#a9bfd4;font-size:10px;line-height:1.5}
+.analytics-history-status:empty{display:none}
 .analytics-table-wrap{overflow:auto;border:1px solid #2d3d58;border-radius:10px}
 .analytics-table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:10px}
 .analytics-table th,.analytics-table td{padding:10px 12px;text-align:right;border-bottom:1px solid #293750}
