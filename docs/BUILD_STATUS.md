@@ -2699,6 +2699,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ## BUILD-00350 — report post-restore cleanup failures
 
+- Initial exact-head test exposed a missing `shutil` import in the failure-injection fixture; the test import is corrected and revalidation is running.
 - Preserve successful restore status while explicitly returning `cleanup_warnings` when pre-restore database or media copies cannot be removed.
 - Include only the retained path and exception type; do not silently swallow disk-usage cleanup failures.
 - Add failure-injection coverage for both old database and media cleanup paths while verifying the restored database remains valid.
