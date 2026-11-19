@@ -1501,3 +1501,12 @@ The Aider executor now matches changed files against declared scopes using norma
 ### BUILD-00383 — exact-head validation
 - Code head `86de6e72313c627f49ee2c2204c200fa74191918` passed **811 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44542261551](https://github.com/justinhblee-prog/shorts/actions/runs/44542261551) and [44542296386](https://github.com/justinhblee-prog/shorts/actions/runs/44542296386).
 - The case/separator-insensitive changed-file scope regression passed in both runs. Hosted Linux only; Windows local-runner execution remains unverified.
+
+
+### BUILD-00384 — durable scope-gate parity
+The final store transition now applies the same case-insensitive, separator-normalized Windows path semantics as scheduler lease conflict detection and Aider changed-file validation. Explicit directory markers and component boundaries remain enforced. Exact-head CI pending.
+
+
+### BUILD-00384 — exact-head validation
+- Code head `58034c67387c5fb648623603c40320582a2aa95e` passed **814 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44544093165](https://github.com/justinhblee-prog/shorts/actions/runs/44544093165) and [44544133397](https://github.com/justinhblee-prog/shorts/actions/runs/44544133397).
+- Case-insensitive file and directory completion-scope regressions passed in both runs. Hosted Linux only; Windows local-runner execution remains unverified.
