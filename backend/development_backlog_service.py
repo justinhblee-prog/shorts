@@ -25,6 +25,7 @@ class DevelopmentBacklogService:
         approved_scopes: dict[str, list[str]] | None = None,
         poll_seconds: float = 30,
         idle_seconds: float = 2,
+        require_execution_verifier: bool = False,
     ):
         if not callable(executor):
             raise ValueError("trusted executor must be callable")
@@ -41,6 +42,7 @@ class DevelopmentBacklogService:
         self.approved_scopes = approved_scopes or {}
         self.poll_seconds = poll_seconds
         self.idle_seconds = idle_seconds
+        self.require_execution_verifier = bool(require_execution_verifier)
         self._stop_event = threading.Event()
 
     def stop(self):
@@ -53,6 +55,7 @@ class DevelopmentBacklogService:
         )
         worker = DevelopmentJobWorker(
             self.store, self.worker_id, self.executor, poll_seconds=self.poll_seconds,
+            require_execution_verifier=self.require_execution_verifier,
         )
         execution = worker.run_until_idle(idle_seconds=self.idle_seconds)
         return {"intake": intake, "execution": execution}
