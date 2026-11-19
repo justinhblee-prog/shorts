@@ -65,3 +65,11 @@ Develop the product interface and its runtime independently so both can make pro
 - Make the main skip-link destination programmatically focusable.
 - Preserve minimum 48px navigation targets and 44px refresh action targets in the icon-only compact layout.
 - Add source-level regression coverage. Actual touch-device and screen-reader verification remain outstanding.
+
+
+## UI-00005 — analytics refresh state and data cutoff visibility
+
+- Mark the analytics-history result region `aria-busy` during refresh while retaining the last complete result on screen.
+- Show the API's frozen UTC `as_of` cutoff in the completed/empty result status so users can distinguish query time from the newest snapshot time.
+- Add source regression coverage for the busy state, cutoff display, and visual refresh indication.
+- Browser/screen-reader behavior remains to be verified in a runnable browser environment.
