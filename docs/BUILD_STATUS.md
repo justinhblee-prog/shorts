@@ -2567,3 +2567,16 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Update the EXPLAIN QUERY PLAN regression to accept either the dedicated video/status index or the newer due-scan composite index for the publication side; the planner correctly prefers the latter when available.
 - Triggered by exact-head CI failures: the bounded scan selected the wrong 20 tied records, so missing-video retry backoff could not expose the previously excluded video. The test no longer over-constrains a valid index choice.
 - Validation: pending exact-head GitHub Actions.
+
+
+## BUILD-00336 — fair bounded TikTok metrics retry ordering
+
+- Resolve tied publication timestamps with a descending job ID tie-breaker in both per-video ranking and final due-candidate ordering. This makes the bounded 20-video window deterministic and prevents recently inserted records from being starved when timestamps tie.
+- Update the history EXPLAIN regression to accept the dedicated video/status index or the newer due-scan composite index; SQLite correctly prefers the latter when available.
+- Exact-head GitHub Actions run [44495481567](https://github.com/justinhblee-prog/shorts/actions/runs/44495481567) passed `scripts/validate.sh` with **705 tests** on code/test checkpoint `3bc4a826cce64aa6ac7834f2a1c974eddcea80fe`.
+
+## BUILD-00337 — guard bounded TikTok collector query plan
+
+- Add an `EXPLAIN QUERY PLAN` regression for the bounded due-video CTE/window query.
+- Require the publication due-scan composite index to participate in selecting the bounded candidate set.
+- Exact-head Actions run above includes the query-plan regression and passed. Production-sized latency and database growth benchmarks remain outstanding.
