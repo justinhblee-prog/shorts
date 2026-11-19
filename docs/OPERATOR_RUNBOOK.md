@@ -358,11 +358,12 @@ Manual backup:
 docker compose run --rm --no-deps backup python backup_restore.py backup --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --retain-days 14
 ```
 
-Restore is destructive and requires the explicit `--confirm-restore` flag. Stop all writers first; the script validates archive paths, SHA-256 checksums and SQLite integrity, then creates a pre-restore backup before replacing data:
+Restore is destructive and requires the explicit `--confirm-restore` flag. Stop all writers first; the script validates archive paths, SHA-256 checksums and SQLite integrity, then creates a pre-restore backup before replacing data. For production, configure `NEXUS_BACKUP_ENCRYPTION_KEY` and `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true` and select the `.tar.gz.enc` archive shown below. The key is loaded from the protected Compose environment; never place it in the archive volume. A legacy `.tar.gz` archive is valid only when encryption-required mode is disabled:
 
 ```bash
 docker compose stop api worker scheduler metrics-collector backup
-docker compose run --rm --no-deps --entrypoint python backup backup_restore.py restore --archive /backups/ARCHIVE_NAME.tar.gz --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --confirm-restore
+# Production encrypted archive (NEXUS_BACKUP_ENCRYPTION_REQUIRED=true)
+docker compose run --rm --no-deps --entrypoint python backup backup_restore.py restore --archive /backups/ARCHIVE_NAME.tar.gz.enc --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --confirm-restore
 docker compose up -d
 ```
 

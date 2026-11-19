@@ -2714,3 +2714,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
 - Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
 - Exact-head validation passed on `59ec8286f6c216345955593dd82a1047851fad4d`: backend [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693), **725 tests**; Compose [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702), all five services healthy, fresh successful-backup marker present, encrypted isolated restore passed, wrong-key restore rejected without changing the target DB. CI-only; no production-host or production-data recovery is claimed.
+
+
+## BUILD-00352 — encrypted production restore runbook consistency
+- Correct the manual production restore command to select the AES-256-GCM `.tar.gz.enc` archive. The prior example used the legacy plaintext `.tar.gz` suffix even though the production instructions require `NEXUS_BACKUP_ENCRYPTION_REQUIRED=true`, which would cause a valid encrypted backup restore to fail closed.
+- State the required protected Compose environment key and distinguish legacy plaintext archives as an explicit encryption-disabled compatibility path.
+- Add a regression test that keeps the runbook command, encryption-required setting and legacy-format caveat aligned.
+- Exact-head validation passed on `c0d5b925a1605da439a1ea2ece23a40d3b631d7e`: backend [run 44509209296](https://github.com/justinhblee-prog/shorts/actions/runs/44509209296), **726 tests**; Compose [run 44509209269](https://github.com/justinhblee-prog/shorts/actions/runs/44509209269), five-service health and encrypted isolated backup/restore smoke passed. This is a documentation-contract regression plus CI evidence; no production restore or secret configuration is performed.
