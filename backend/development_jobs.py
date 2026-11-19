@@ -272,6 +272,19 @@ class DevelopmentJobStore:
             return [self._decode(row) for row in rows]
 
     @staticmethod
+    def _is_test_path(path):
+        candidate = Path(path.replace("\\", "/"))
+        parts = {part.lower() for part in candidate.parts}
+        name = candidate.name.lower()
+        return bool(
+            parts & {"test", "tests", "__tests__", "__snapshots__"}
+            or name.startswith("test_")
+            or name.endswith("_test.py")
+            or ".test." in name
+            or ".spec." in name
+        )
+
+    @staticmethod
     def _scopes_conflict(left, right):
         # Empty scope means unknown write set: serialize conservatively.
         if not left or not right:
@@ -469,6 +482,8 @@ class DevelopmentJobStore:
             normalized_files.append(path)
         if len(normalized_files) != len(set(normalized_files)):
             raise ValueError("changed_files must not contain duplicates")
+        if not any(not self._is_test_path(path) for path in normalized_files):
+            raise ValueError("review-pending transition requires at least one non-test source file")
 
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
