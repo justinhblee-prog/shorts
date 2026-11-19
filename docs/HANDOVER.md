@@ -1417,3 +1417,7 @@ The POSIX process terminator now sends SIGKILL to the original process group aft
 
 ### BUILD-00370 — exact-head CI result
 Code head `19df9dc3240ee98f11cb7d2d7dc15536e8d57305` passed GitHub Actions run [44521675405](https://github.com/justinhblee-prog/shorts/actions/runs/44521675405): **800 tests**, repository validation and frontend syntax check. The POSIX regression proves a SIGTERM-resistant child cannot survive even after the command-group leader exits. Windows process-tree behavior remains unverified on the trusted runner.
+
+
+### BUILD-00371 — case-insensitive scope locks
+The durable scheduler now treats case-only path aliases as overlapping, normalizes slash direction, and preserves parent/child conflict checks. This matches the Windows self-hosted runner's case-insensitive filesystem and prevents concurrent workers from editing the same files through different path casing. Exact-head CI pending.
