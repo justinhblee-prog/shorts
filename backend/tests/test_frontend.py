@@ -110,6 +110,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("Number(b.id||0)-Number(a.id||0)", app_js)
         self.assertIn("Number(a.item.id||0)-Number(b.item.id||0)", app_js)
         self.assertIn("medianInterval*3", app_js)
+        self.assertIn("Math.floor((intervals.length-1)/2)", app_js)
         self.assertIn("48*60*60*1000", app_js)
         self.assertIn("데이터가 없으며 보간하지 않습니다", app_js)
         self.assertIn("수집 기간", app_js)
