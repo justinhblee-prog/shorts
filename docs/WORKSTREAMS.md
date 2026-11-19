@@ -313,3 +313,13 @@ PR #388 job logs confirm `scripts/validate.sh` and `node --check frontend/app.js
 - Both browser smoke suites passed on the exact final head. Final artifact [14561965386](https://github.com/justinhblee-prog/shorts/actions/runs/44587081054/artifacts/14561965386) contains refreshed desktop/mobile screenshots.
 - Backend README now documents GET /api/publishing/overview and POST /api/production/jobs/{job_id}/provider-attempts/{provider_attempt_id}/reconcile.
 - PR #407 remains Draft/unmerged; no production deployment or live provider/OAuth operation was performed.
+
+
+### Provider reconciliation identity hardening — exact source-head PASS
+
+- The new provider-attempt reconciliation endpoint now binds its audit operator to the identity resolved from the supplied token. A caller-supplied operator_id that differs from the authenticated principal is rejected with HTTP 403 before any store mutation.
+- Added a regression test for body identity spoofing. The two previously hidden provider-reconciliation tests are now discovered because the unittest main guard is at the end of the test module.
+- Exact source head `0bcc4cfaa7d8b88f89b43c2984bebdb188bec87e` passed [workflow 44588685235](https://github.com/justinhblee-prog/shorts/actions/runs/44588685235): **880 tests passed**, JS syntax, full authenticated dashboard smoke (19/19 modules connected), analytics pagination/CSV and failure-state checks, and quarantine recovery smoke.
+- The browser workflow's Korean font installation now uses cached apt packages first and bounded repository retries; exact source-head workflow passed.
+- Backend README was clarified to state that provider-reconciliation operator IDs must match the token-authenticated principal. The resulting documentation-only candidate head `77333d264a123d80c87e6ca13f1edfc0282be06a` is awaiting its own exact-head CI.
+- PR #407 remains Draft/unmerged; no production deployment or live provider/OAuth action.
