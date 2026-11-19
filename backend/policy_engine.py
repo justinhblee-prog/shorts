@@ -4,8 +4,9 @@ This deterministic checklist is not legal advice, moderation, or platform approv
 It evaluates declarations supplied by the operator; it does not inspect media bytes.
 """
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
-POLICY_VERSION = "2026-11-16.1"
+POLICY_VERSION = "2026-11-20.1"
 POLICY_CHECKED_ON = "2026-11-16"
 PLATFORMS = ("youtube", "tiktok")
 
@@ -88,10 +89,27 @@ def _valid_url_list(value, field):
     if not isinstance(value, list) or len(value) > 30:
         raise ValueError(f"{field} must be a list of up to 30 URLs")
     cleaned = []
-    for url in value:
-        if not isinstance(url, str) or not url.startswith("https://"):
-            raise ValueError(f"{field} entries must be HTTPS URLs")
-        cleaned.append(url.strip())
+    for raw_url in value:
+        if not isinstance(raw_url, str):
+            raise ValueError(f"{field} entries must be absolute HTTPS URLs")
+        url = raw_url.strip()
+        if not url or any(ord(char) < 32 or char.isspace() for char in url):
+            raise ValueError(f"{field} entries must be valid absolute HTTPS URLs")
+        try:
+            parsed = urlsplit(url)
+            # Accessing .port validates numeric range and malformed port syntax.
+            parsed.port
+        except ValueError as error:
+            raise ValueError(f"{field} entries must be valid absolute HTTPS URLs") from error
+        if (
+            parsed.scheme.lower() != "https"
+            or not parsed.netloc
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            raise ValueError(f"{field} entries must be valid absolute HTTPS URLs")
+        cleaned.append(url)
     return cleaned
 
 
@@ -109,6 +127,8 @@ def evaluate_content_policy(brief):
 
     rights = _optional_object(brief, "rights")
     required_rights = ("visuals_cleared", "audio_cleared", "likeness_authorized")
+    if any(key not in required_rights for key in rights):
+        raise ValueError("rights contains an unsupported attestation field")
     if any(key in rights and not isinstance(rights[key], bool) for key in required_rights):
         raise ValueError("rights fields must be boolean values")
     missing_rights = [f"rights.{key}" for key in required_rights if rights.get(key) is not True]
