@@ -3,6 +3,7 @@ import io
 import json
 import os
 import sqlite3
+import shutil
 import tarfile
 import tempfile
 import unittest
