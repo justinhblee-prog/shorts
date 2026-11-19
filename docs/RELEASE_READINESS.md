@@ -364,7 +364,7 @@ GitHub Actions run [44522472503](https://github.com/justinhblee-prog/shorts/acti
 
 
 ### BUILD-00372 — dependency mutation gate
-Dependency additions after claim/finalization are rejected; pre-existing duplicate edges remain idempotent. Hosted validation pending.
+Dependency additions after claim/finalization are rejected; pre-existing duplicate edges remain idempotent. A threaded race test covers the ordering against claim_ready. Hosted validation pending.
 
 
 ### BUILD-00372 — dependency immutability validation evidence
