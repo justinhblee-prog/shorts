@@ -1,11 +1,9 @@
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from run_development_agent import _normalize_approved_scopes, run_once
-
-import os
-import tempfile
-from pathlib import Path
 
 
 class FakeStore:
