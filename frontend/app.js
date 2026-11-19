@@ -229,6 +229,7 @@
 
   async function loadAnalyticsHistory(){
     if($("exportAnalyticsHistory"))$("exportAnalyticsHistory").disabled=true;
+    $("analyticsHistory").setAttribute("aria-busy","true");
     const status=$("analyticsHistoryStatus");
     if(status)status.textContent="조회 중 · 선택한 기간의 YouTube · TikTok 성과 이력을 불러옵니다.";
     const days=Number($("analyticsHistoryDays").value||30);
@@ -238,7 +239,7 @@
     if(videoId)query.set("video_id",videoId);
     let data;
     try{data=await api("/api/publishing/analytics-history?"+query.toString());}
-    catch(error){if(status)status.textContent="조회 실패 · "+error.message;throw error;}
+    catch(error){$("analyticsHistory").setAttribute("aria-busy","false");if(status)status.textContent="조회 실패 · "+error.message;throw error;}
     const rows=[];
     for(const [key,items] of Object.entries(data.items||{})){
       for(const item of items)rows.push({...item,platform:key});
@@ -455,8 +456,10 @@
         }
       }:null;
     }
+    $("analyticsHistory").setAttribute("aria-busy","false");
     $("analyticsHistory").dataset.loaded="true";
-    if(status)status.textContent=rows.length?"조회 완료 · "+rows.length+"개 스냅샷 · CSV는 전체 페이지를 순차 조회합니다.":"조회 완료 · 선택한 기간에 저장된 스냅샷이 없습니다.";
+    const asOfLabel=typeof data.as_of==="string"&&Number.isFinite(Date.parse(data.as_of))?new Date(data.as_of).toLocaleString():"기준 시각 정보 없음";
+    if(status)status.textContent=rows.length?"조회 완료 · "+rows.length+"개 스냅샷 · 기준 시각 "+asOfLabel+" · CSV는 전체 페이지를 순차 조회합니다.":"조회 완료 · 선택한 기간에 저장된 스냅샷이 없습니다. · 기준 시각 "+asOfLabel;
   }
 
   async function loadApproved(){
