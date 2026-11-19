@@ -71,8 +71,9 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
 
         def broken(_):
             raise RuntimeError(
-                'FIREBASE_SERVICE_ACCOUNT={"type": "service_account", '
-                '"private_key": "firebase-private-secret"}'
+                'FIREBASE_SERVICE_ACCOUNT={\n'
+                '  "type": "service_account",\n'
+                '  "private_key": "firebase-private-secret"\n}'
             )
 
         worker = DevelopmentJobWorker(self.store, "worker-service-account-redaction", broken)
