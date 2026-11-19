@@ -2425,4 +2425,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Distinguish a successful retention report with no points (`no_data`) from unavailable/permission-limited collection (`unavailable`) and not-yet-eligible videos (`pending_availability`).
 - Show the retention collection status separately from the 25%/50%/75% checkpoint summary in the history table and CSV.
 - Do not present missing retention curves as zero retention or as a successful collection.
-- Validation: GitHub Actions runs #44447418651 and #44447424894 passed the full validation workflow with 698 backend tests on code checkpoint `5e60fe8`. Frontend status-label regression assertions passed; real account permission/coverage combinations remain unverified.
+- Validation: GitHub Actions runs #44447418651 and #44447424894 passed the full validation workflow with 698 backend tests on code checkpoint `5e60fe8`. The later README-inclusive checkpoint also passed 698 tests in run #44447642344. Frontend status-label regression assertions passed; real account permission/coverage combinations remain unverified.
