@@ -188,3 +188,8 @@ PR #399 adds `scope="col"` to all 14 analytics history table headers and adds br
 
 
 UI-00017 final evidence: corrected exact head `16d4964dcf2472f47c0b1dd1fbd890e2d46750c1` passed [backend/browser workflow 44574846265](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265), including all 14 table header semantics assertions, and [Compose workflow 44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267), including backup/restore and cleanup. Screenshot artifact [14556945683](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265/artifacts/14556945683). PR #399 remains Draft/unmerged on #398. These are hosted CI/disposable environment checks, not production validation.
+
+
+### BUILD-00388 — GitHub feed pagination base repair
+
+The original PR #388 had a stale base and was five commits behind the current quarantine-recovery branch. A clean successor, PR #400, was created on the current BUILD-00386 base, carrying only the intake implementation and its tests while retaining all current base commits. Exact head `272d5efc9564b9d4dca6fa4bff187579a3911adb` compares ahead by two commits, behind by zero, and is mergeable. Backend workflow [44575404874](https://github.com/justinhblee-prog/shorts/actions/runs/44575404874) was in progress at this checkpoint. Preserve Draft status; do not merge before exact-head validation.
