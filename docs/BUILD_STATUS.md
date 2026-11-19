@@ -2443,3 +2443,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add regression coverage for an audience-watch ratio of 1.2 and rejection of an out-of-range relative-retention value.
 - Source: [YouTube Analytics API metrics](https://developers.google.com/youtube/analytics/metrics).
 - Validation: exact-head GitHub Actions pending.
+
+
+## BUILD-00323 — TikTok analytics freshness and coverage visibility
+
+- Expose the latest stored TikTok metric snapshot timestamp as `latest_snapshot_at`, matching the YouTube analytics-status contract.
+- Extend TikTok coverage with `stale_or_missing`, combining published videos with no snapshot and videos whose latest snapshot is older than the freshness threshold. Preserve the existing `stale_snapshots` field for compatibility.
+- Regression test verifies latest snapshot visibility and that missing published videos are counted without being misreported as collected.
+- Validation: GitHub Actions runs [44485474387](https://github.com/justinhblee-prog/shorts/actions/runs/44485474387) and [44485467845](https://github.com/justinhblee-prog/shorts/actions/runs/44485467845) passed the full validation workflow with **698 backend tests** on exact checkpoint `fe7b2e4`. Live TikTok account collection and browser rendering remain unverified.
