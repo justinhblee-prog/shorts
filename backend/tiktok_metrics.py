@@ -434,7 +434,7 @@ class TikTokMetricsStore:
             "source": state.get("source"),
             "available_metrics": ["view_count", "like_count", "comment_count", "share_count"],
             "unavailable_metrics": ["audience_retention", "watch_time", "estimated_revenue"],
-            "coverage": {"published_videos": len(eligible), "with_snapshot": with_snapshot,
+            "coverage": {"published_videos": published, "with_snapshot": with_snapshot,
                          "without_snapshot": missing,
                          "stale_snapshots": stale,
                          "stale_or_missing": missing + stale},
