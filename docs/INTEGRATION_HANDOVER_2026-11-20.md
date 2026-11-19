@@ -58,3 +58,17 @@ Important distinction: hosted CI validates code and fixtures only. The Windows s
 - Windows runner and local Ollama: unverified.
 - Live provider/OAuth and production deployment: unverified.
 - Do not claim background execution while this chat is idle; scheduled continuation requires the workflow to be deliberately integrated into the default branch and a trusted runner to be online.
+
+
+## 7. Worker tooling worktree isolation — verified 2026-11-20
+
+PR #409 (`fix/nexus-runner-venv-outside-worktree`) addresses a startup deadlock in the trusted Windows worker: the backend and Aider virtual environments were previously created inside `GITHUB_WORKSPACE`, while the executor correctly rejects any untracked worktree content before claiming a job.
+
+- Both environments now live under persistent `%LOCALAPPDATA%\NexusStudioPro\tooling` (with a `%USERPROFILE%\AppData\Local` fallback), outside the checkout and the SQLite state directory.
+- Existing complete environments are reused; incomplete environment directories fail closed rather than being deleted/rebuilt implicitly.
+- Workflow contract regressions verify both paths, fallback behavior, and retention of the clean-worktree guard.
+- Exact PR #409 head: `4d7286a7a4472736c0c037a34cff36743c54ae69`.
+- Hosted workflow [44592757768](https://github.com/justinhblee-prog/shorts/actions/runs/44592757768) passed: `scripts/validate.sh`, frontend syntax, analytics Chromium smoke, recovery Chromium smoke, and screenshot artifact upload [14564576167](https://github.com/justinhblee-prog/shorts/actions/runs/44592757768/artifacts/14564576167).
+- PR #409 is Draft/unmerged. Hosted Linux validation does not prove Windows path/runtime behavior, LocalAppData persistence, or a live Ollama cycle.
+
+The next engineering gate remains the ordered Windows runner preflight and two-run persistence proof in section 4.
