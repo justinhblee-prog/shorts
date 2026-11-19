@@ -52,6 +52,7 @@ def _canonical_issue_url(value: Any, owner: str, repository: str, number: int) -
         return None
     try:
         parsed = urlsplit(value)
+        parsed_port = parsed.port
     except ValueError:
         return None
     expected_path = f"/{owner}/{repository}/issues/{number}"
@@ -60,7 +61,7 @@ def _canonical_issue_url(value: Any, owner: str, repository: str, number: int) -
         or parsed.netloc.lower() != "github.com"
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.port not in (None, 443)
+        or parsed_port not in (None, 443)
         or parsed.query
         or parsed.fragment
         or parsed.path != expected_path
