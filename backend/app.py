@@ -982,7 +982,7 @@ def publishing_analytics_status(x_review_token:str|None=Header(default=None)):
 
 @app.get("/api/publishing/analytics-history")
 def publishing_analytics_history(
-    platform:str="all",video_id:str|None=None,days:int=30,limit:int=200,
+    platform:str="all",video_id:str|None=None,days:int=30,limit:int=200,offset:int=0,
     x_review_token:str|None=Header(default=None),
 ):
     """Return stored, read-only metric snapshots for trend comparison."""
@@ -996,18 +996,20 @@ def publishing_analytics_history(
         raise HTTPException(422,"video_id is invalid")
     bounded_days=max(1,min(days,365))
     bounded_limit=max(1,min(limit,500))
+    bounded_offset=max(0,min(offset,10000000))
     cutoff=(datetime.now(timezone.utc)-timedelta(days=bounded_days)).isoformat()
     result={}
     if platform in {"all","youtube"}:
         result["youtube"]=youtube_analytics_store.history(
-            video_id=video_id,limit=bounded_limit,since=cutoff
+            video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset
         )
     if platform in {"all","tiktok"}:
         result["tiktok"]=tiktok_metrics_store.history(
-            tiktok_publish_store,video_id=video_id,limit=bounded_limit,since=cutoff
+            tiktok_publish_store,video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset
         )
     return {
         "platform":platform,"video_id":video_id,"days":bounded_days,
+        "limit":bounded_limit,"offset":bounded_offset,
         "items":result,
         "counts":{key:len(value) for key,value in result.items()},
         "read_only":True,
