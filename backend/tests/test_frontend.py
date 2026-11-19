@@ -4,6 +4,16 @@ from app import app
 
 ROOT = Path(__file__).resolve().parents[2]
 class FrontendPortalTests(unittest.TestCase):
+
+    def test_dashboard_refresh_reports_partial_api_failures_without_hiding_successful_modules(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("Promise.allSettled(tasks.map", app_js)
+        self.assertIn("API 부분 연결", app_js)
+        self.assertIn("API 연결 실패", app_js)
+        self.assertIn("일부 데이터 갱신 실패", app_js)
+        self.assertIn('["검수 대기열",loadReviews]', app_js)
+        self.assertIn('["작업 큐",loadQueue]', app_js)
+
     def test_dashboard_assets_are_packaged(self):
         frontend = ROOT / "frontend"
         self.assertTrue((frontend / "index.html").is_file())
