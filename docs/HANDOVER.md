@@ -1381,3 +1381,7 @@ Shared redaction covers PEM/OpenSSH private-key blocks, Basic authorization valu
 
 ### BUILD-00367 — full redaction-format CI result
 Updated code head `11126bb8261e5a3d49625bd65a8ad75b1ffaf6d5` passed GitHub Actions run [44518688714](https://github.com/justinhblee-prog/shorts/actions/runs/44518688714): **794 tests**, repository validation and frontend syntax check. Tests cover quoted JSON keys, Basic auth, URL credentials, multiline PEM keys and common provider token formats. Hosted Linux only.
+
+
+### BUILD-00367 — workflow-level diagnostic validation
+Updated code head `ba03a9997693b7bb77137fcd18b028f5e784fee9` passed GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/actions/runs/44518919606): **795 tests**, repository validation and frontend syntax check. Top-level runner stderr is now sanitized as well as worker persistence and Aider subprocess diagnostics.
