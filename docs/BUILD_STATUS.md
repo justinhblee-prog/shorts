@@ -2634,3 +2634,26 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Exact PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391): **802 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Inline credential and multiline service-account regressions both passed, including preservation of trailing safe diagnostic context.
 - Hosted Linux only.
+
+
+## BUILD-00372 — sanitize imported backlog text before persistence
+- Apply shared diagnostic/credential redaction to job titles, descriptions and acceptance criteria inside `DevelopmentJobStore.create`, covering GitHub-intake and direct callers before SQLite persistence.
+- Preserve ordinary task context while preventing pasted bearer tokens, provider keys and database credentials from entering durable job records.
+- Add regression coverage across title, description, acceptance criteria and creation history. Exact-head hosted CI pending.
+
+
+### BUILD-00372 — exact-head hosted validation
+- Code head `43b223c49f4e95f4bb830476b259bebcbb16e6df` passed GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/actions/runs/44533179406): **803 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Regression confirms credentials from imported title, description and acceptance criteria are absent from persisted job rows and creation events while ordinary task text remains.
+- Hosted Linux only.
+
+
+### BUILD-00372 — preserve task prefixes under field limits
+- Backlog descriptions and acceptance criteria are now redacted in full before truncation, then bounded from the beginning so the issue summary and first acceptance steps are not discarded.
+- Added regressions for prefix preservation and the 8,000/2,000-character persisted field limits. Updated exact-head hosted validation pending.
+
+
+### BUILD-00372 — final exact-head validation
+- Final code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519): **804 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Credential redaction and prefix-preserving 8,000/2,000-character backlog bounds both passed.
+- Hosted Linux only.

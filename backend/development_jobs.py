@@ -165,6 +165,19 @@ class DevelopmentJobStore:
             raise ValueError("acceptance must be a list of non-empty strings")
         if source_ref is not None and (not isinstance(source_ref, str) or len(source_ref) > 500):
             raise ValueError("source_ref must be a string of at most 500 characters")
+        safe_title = redact_sensitive_text(title.strip(), limit=240)
+        description_text = str(description)
+        safe_description = redact_sensitive_text(
+            description_text, limit=max(8000, len(description_text))
+        )[:8000]
+        safe_acceptance = []
+        for item in acceptance:
+            acceptance_text = item.strip()
+            safe_acceptance.append(
+                redact_sensitive_text(
+                    acceptance_text, limit=max(2000, len(acceptance_text))
+                )[:2000]
+            )
         if job_id is None:
             job_id = str(uuid.uuid4())
         elif not isinstance(job_id, str) or not job_id.strip() or len(job_id) > 128:
@@ -186,8 +199,8 @@ class DevelopmentJobStore:
                    (id,title,description,status,priority,scope_json,acceptance_json,
                     max_attempts,source_ref,created_at,updated_at)
                    VALUES(?,?,?,'ready',?,?,?,?,?,?,?)""",
-                (job_id, title.strip(), str(description)[:8000], priority,
-                 json.dumps(scope), json.dumps(acceptance), max_attempts,
+                (job_id, safe_title, safe_description, priority,
+                 json.dumps(scope), json.dumps(safe_acceptance), max_attempts,
                  source_ref, timestamp, timestamp),
             )
             self._event(connection, job_id, "created", None, "ready", "system",

@@ -360,3 +360,19 @@ The redactor now targets only the credential value and preserves unrelated diagn
 
 ### BUILD-00371 — value-aware redaction validation
 GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391) passed **802 backend tests**, repository validation and frontend syntax validation. Inline and multiline credential redaction both preserve trailing safe diagnostic context.
+
+
+### BUILD-00372 — untrusted backlog content gate
+Titles, descriptions and acceptance criteria are sanitized at the durable job-creation boundary before storage. This reduces the chance that credentials pasted into an external issue become long-lived database content. Exact-head hosted regression validation pending.
+
+
+### BUILD-00372 — backlog persistence validation
+GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/actions/runs/44533179406) passed **803 backend tests**, repository validation and frontend syntax validation. The direct store regression verifies credential values are absent from imported job text and creation history.
+
+
+### BUILD-00372 — field-boundary behavior
+Backlog text sanitization preserves the beginning of descriptions and acceptance criteria when enforcing storage limits, while scanning the full input for credentials before truncation. Updated exact-head hosted validation pending.
+
+
+### BUILD-00372 — final backlog sanitization evidence
+GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519) passed **804 backend tests**, repository validation and frontend syntax validation, including credential removal and leading-context preservation under field limits.

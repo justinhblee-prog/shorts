@@ -1424,3 +1424,19 @@ Credential assignment redaction now replaces only the matched value instead of c
 
 ### BUILD-00371 — exact-head CI result
 Exact PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391): **802 tests**, repository validation and frontend syntax check. Tests confirm redaction preserves safe text after inline credentials and multiline service-account JSON.
+
+
+### BUILD-00372 — backlog text persistence sanitization
+Job creation now redacts credential-bearing content from titles, descriptions and acceptance criteria before writing to SQLite. This protects the durable backlog even when issue text is imported from GitHub or a caller bypasses other intake-layer sanitization. Regression coverage verifies token/password values are absent while ordinary acceptance text remains. Exact-head hosted CI pending.
+
+
+### BUILD-00372 — exact-head CI result
+Code head `43b223c49f4e95f4bb830476b259bebcbb16e6df` passed GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/actions/runs/44533179406): **803 tests**, repository validation and frontend syntax check. Backlog title, description and acceptance text are sanitized before durable persistence.
+
+
+### BUILD-00372 — preserve task-leading context
+The backlog sanitizer now processes the full description/acceptance string for secrets, then applies field limits from the beginning of the text. This preserves issue summaries and the first acceptance criteria rather than retaining only the tail. Regression coverage checks the 8,000-character description and 2,000-character acceptance bounds. Updated exact-head CI pending.
+
+
+### BUILD-00372 — final exact-head CI result
+Final code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519): **804 tests**, repository validation and frontend syntax check. The credential redaction and prefix-preservation regressions both passed.
