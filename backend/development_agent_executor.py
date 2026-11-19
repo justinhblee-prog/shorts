@@ -249,8 +249,9 @@ class AiderDevelopmentExecutor:
             if candidate.is_absolute() or ".." in candidate.parts:
                 raise NonRetryableDevelopmentJobError("job scope contains a path traversal")
             normalized = candidate.as_posix()
-            if normalized.startswith("./"):
-                normalized = normalized[2:]
+            expected_path = normalized + ("/" if raw_path.endswith("/") else "")
+            if raw_path != expected_path:
+                raise NonRetryableDevelopmentJobError("job scope contains a non-canonical path alias")
             if self._is_protected_scope_path(normalized):
                 raise NonRetryableDevelopmentJobError("job scope includes a protected secret or data path")
             resolved = (self.repo_root / normalized).resolve()
@@ -264,6 +265,8 @@ class AiderDevelopmentExecutor:
                 raise NonRetryableDevelopmentJobError("job scope resolves to a protected secret or data path")
             if not resolved.parent.exists():
                 raise NonRetryableDevelopmentJobError("job scope parent directory does not exist")
+            if raw_path.endswith("/") and not resolved.is_dir():
+                raise NonRetryableDevelopmentJobError("job scope marks a non-directory path as recursive")
             # Preserve directory intent explicitly. A file without an extension
             # must never gain recursive scope merely because its suffix is empty.
             if resolved.is_dir():
