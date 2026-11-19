@@ -234,3 +234,10 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - [Compose workflow 44574846267](https://github.com/justinhblee-prog/shorts/actions/runs/44574846267) SUCCESS: service readiness, scheduled backup, isolated restore, log collection and cleanup.
 - Screenshots artifact [14556945683](https://github.com/justinhblee-prog/shorts/actions/runs/44574846265/artifacts/14556945683).
 - PR #399 remains Draft/unmerged; no production deployment or live provider actions were performed.
+
+
+### BUILD-00388 — exact-head validation
+
+- PR #400 head `272d5efc9564b9d4dca6fa4bff187579a3911adb`: hosted backend workflow [44575404874](https://github.com/justinhblee-prog/shorts/actions/runs/44575404874) SUCCESS. `scripts/validate.sh` and `node --check frontend/app.js` passed.
+- The successor branch is based on current BUILD-00386 / PR #384 and has zero commits behind its base. Original PR #388 remains unchanged for traceability.
+- PR #400 remains Draft/unmerged. Hosted CI does not validate live GitHub provider access or production feed intake.
