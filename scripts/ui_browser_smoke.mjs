@@ -25,7 +25,8 @@ async function waitForServer() {
   try {
     await waitForServer();
     browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, acceptDownloads: true });
+    const page = await context.newPage();
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
     await page.route("https://fonts.googleapis.com/**", route =>
