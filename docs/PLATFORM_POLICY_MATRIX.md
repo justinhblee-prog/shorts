@@ -36,7 +36,7 @@ Re-check these sources at upload time and after platform policy updates. Rules c
   - YouTube: `platform_disclosures.youtube_altered_content`
   - TikTok: `platform_disclosures.tiktok_ai_generated_content`
 
-The acknowledgement is an operator attestation. It does not itself apply the platform label. The upload/publishing workflow must still apply the platform's actual disclosure setting.
+The acknowledgement is an operator attestation. It does not itself apply the platform label. The upload/publishing workflow must still apply the platform's actual disclosure setting. The YouTube Data API supports `status.containsSyntheticMedia` on `videos.insert`/`videos.update`; the NEXUS YouTube upload path derives this flag from the human-approved policy artifact and keeps the upload private.
 
 ## Risk review declarations
 
@@ -73,7 +73,7 @@ The generated policy report is stored with the script artifact and included in t
 
 1. The preflight is metadata-based. Automated frame/audio/transcript scanning and asset-level copyright matching are not implemented.
 2. Rights, consent, and factuality declarations are not independently verified.
-3. Platform disclosures are not yet automatically applied to the platform upload metadata. YouTube's API support for the relevant upload disclosure setting and TikTok publishing API capabilities must be separately verified before automation is added.
+3. YouTube `status.containsSyntheticMedia` and TikTok Direct Post `post_info.is_aigc` are now derived from the human-approved policy artifact and included in their respective upload request payloads. Actual account-level app review, OAuth scopes, platform acceptance, and creator-facing labels still require live integration validation.
 4. Monetization eligibility is channel- and content-level. A per-video checklist cannot certify YouTube Partner Program eligibility.
 5. Regional legal review is still required for privacy, publicity/likeness, health, financial, advertising, and regulated-goods topics.
 6. Public publishing remains disabled by default. YouTube upload remains private-only and requires explicit human approval.
@@ -81,3 +81,22 @@ The generated policy report is stored with the script artifact and included in t
 ## Validation
 
 Unit tests cover explicit blocking, TikTok-specific prohibited AIGC/impersonation flags, unknown/denied rights, platform-specific realistic-AI disclosure, selected-platform scoping, high-impact claim evidence, news source requirements, invalid flag rejection, and non-overridable approval blockers. CI results must be recorded after this branch's workflow completes.
+
+
+## YouTube upload disclosure implementation
+
+- The approved policy artifact is the source of truth for the upload-time synthetic-media flag.
+- `synthetic_media_status` values `ai_generated` and `realistic_alteration` set `status.containsSyntheticMedia=true`; `none` and `ai_assisted_nonrealistic` set it to `false`.
+- Missing/invalid policy reports, non-overridable approval blockers, or missing YouTube disclosure acknowledgement fail closed before upload initialization.
+- Official API reference: https://developers.google.com/youtube/data/reference/rest/v3/videos#status
+
+
+### TikTok Direct Post disclosure implementation
+
+- The TikTok publisher already maps approved `synthetic_media_status` to `post_info.is_aigc` and blocks realistic AI content when the approved `tiktok_ai_generated_content` acknowledgement is missing.
+- Official API reference: https://developers.tiktok.com/docs/en/content-posting-api-reference-direct-post
+
+
+### BUILD-00387 — exact-head validation
+- Code head `09351f5704c3cd89a79d30f79d92956477942806` passed **823 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44549002097](https://github.com/justinhblee-prog/shorts/actions/runs/44549002097).
+- The upload-body tests confirmed `containsSyntheticMedia=false` for non-synthetic media, `true` for approved realistic alteration, and fail-closed behavior when the policy report is missing. No real platform upload was performed.

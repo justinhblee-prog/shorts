@@ -2752,3 +2752,39 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ### BUILD-00385 — exact-head validation
 - Final head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). The isolated HOME fixture was moved outside the temporary Git worktree. Hosted Linux only; Windows self-hosted runner/Ollama execution remains unverified.
+
+
+## BUILD-00387 — apply YouTube altered/synthetic media disclosure
+- Read the latest human-approved `policy_preflight` artifact before upload; reject missing/invalid reports and non-overridable blockers.
+- Set YouTube `status.containsSyntheticMedia` from the approved status (`ai_generated`/`realistic_alteration` => true; `none`/`ai_assisted_nonrealistic` => false).
+- Require the approved YouTube disclosure acknowledgement for realistic synthetic media; add upload-body regressions. Exact-head CI pending.
+- Official API support is documented at https://developers.google.com/youtube/data/reference/rest/v3/videos.
+
+
+### BUILD-00387 — exact-head validation
+- Code head `09351f5704c3cd89a79d30f79d92956477942806` passed **823 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44549002097](https://github.com/justinhblee-prog/shorts/actions/runs/44549002097).
+- The upload-body tests confirmed `containsSyntheticMedia=false` for non-synthetic media, `true` for approved realistic alteration, and fail-closed behavior when the policy report is missing. No real platform upload was performed.
+
+
+### BUILD-00389 — require platform-scoped policy approval for upload
+- YouTube upload now rejects an otherwise valid policy report unless its approved `platforms` list explicitly includes `youtube`; a TikTok-only preflight cannot authorize a YouTube upload.
+- Added a regression using a valid TikTok-only report and verified the upload is rejected before the provider request.
+- Exact-head CI pending. No live YouTube API upload was performed.
+
+
+### BUILD-00390 — reject blocked policy reports at the upload boundary
+- Defense in depth: the YouTube uploader now accepts only `review_required` or `ready_for_human_review` policy statuses; `blocked` and unknown statuses are rejected even if the blocker list is empty.
+- Added a regression for a blocked unauthorized-assets report with an empty `approval_blockers` list, which must not reach the provider upload call.
+- Exact-head CI pending. No real YouTube upload was performed.
+
+
+### BUILD-00391 — validate policy report structure at upload
+- Upload preflight now requires `approval_blockers` to be a list of non-empty strings and `platform_disclosures` to be an object before evaluating the YouTube disclosure flag.
+- Malformed structures fail closed with a controlled `YouTubeUploadError`; regression coverage exercises malformed blocker and disclosure fields.
+- Exact-head CI pending. No real YouTube API upload was performed.
+
+
+### BUILD-00392 — bind upload authorization to the latest script
+- YouTube upload now evaluates the policy preflight attached to the newest approved script artifact, rather than selecting the newest valid report from any historical script revision.
+- Added a regression proving an older valid report cannot authorize a later script revision with no preflight report.
+- Exact-head CI pending. No live YouTube API upload was performed.

@@ -676,6 +676,57 @@ class YouTubePublisher:
         if size>max_bytes:
             raise YouTubeUploadError("Rendered video exceeds NEXUS_MAX_MEDIA_BYTES")
         approved_artifacts=history[-1].get("artifact_snapshot") or []
+        script_artifacts=[
+            item for item in approved_artifacts
+            if isinstance(item,dict) and item.get("stage")=="script"
+            and item.get("artifact_type")=="text"
+        ]
+        latest_script=script_artifacts[-1] if script_artifacts else None
+        latest_script_metadata=(latest_script.get("metadata")
+                                if isinstance(latest_script,dict) else None)
+        policy_report=(latest_script_metadata.get("policy_preflight")
+                       if isinstance(latest_script_metadata,dict) else None)
+        if not isinstance(policy_report,dict):
+            raise YouTubeUploadError(
+                "Approved policy report is missing; latest approved script has no valid policy report. Run policy preflight and obtain a new human approval"
+            )
+        if policy_report.get("status") not in ("review_required","ready_for_human_review"):
+            raise YouTubeUploadError(
+                "Approved policy report is blocked or has an unsupported status; obtain a valid human policy review"
+            )
+        approved_platforms=policy_report.get("platforms")
+        if (not isinstance(approved_platforms,list)
+                or "youtube" not in approved_platforms):
+            raise YouTubeUploadError(
+                "Approved policy report does not cover YouTube; run YouTube policy preflight and obtain a new human approval"
+            )
+        synthetic_status=policy_report.get("synthetic_media_status")
+        if synthetic_status not in ("none","ai_assisted_nonrealistic","ai_generated","realistic_alteration"):
+            raise YouTubeUploadError(
+                "Approved synthetic-media status is missing or invalid; obtain a new policy review"
+            )
+        approval_blockers=policy_report.get("approval_blockers")
+        if (not isinstance(approval_blockers,list)
+                or any(not isinstance(item,str) or not item.strip() for item in approval_blockers)):
+            raise YouTubeUploadError(
+                "Approved policy report has malformed approval blockers; obtain a new policy review"
+            )
+        if approval_blockers:
+            raise YouTubeUploadError(
+                "Approved policy report contains non-overridable blockers"
+            )
+        contains_synthetic_media=synthetic_status in ("ai_generated","realistic_alteration")
+        platform_disclosures=policy_report.get("platform_disclosures",{})
+        if not isinstance(platform_disclosures,dict):
+            raise YouTubeUploadError(
+                "Approved policy report has malformed platform disclosures; obtain a new policy review"
+            )
+        if contains_synthetic_media and platform_disclosures.get(
+            "youtube_altered_content"
+        ) is not True:
+            raise YouTubeUploadError(
+                "YouTube altered/synthetic media disclosure is not acknowledged in the approved policy report"
+            )
         approved_video=next((
             item for item in approved_artifacts
             if isinstance(item,dict) and item.get("stage")=="rendering"
@@ -715,7 +766,8 @@ class YouTubePublisher:
             body={
                 "snippet":{"title":title,"description":description,
                            "tags":list(tags or []),"categoryId":str(category_id)},
-                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False}
+                "status":{"privacyStatus":"private","selfDeclaredMadeForKids":False,
+                         "containsSyntheticMedia":contains_synthetic_media}
             }
             request=service.videos().insert(
                 part="snippet,status",body=body,
