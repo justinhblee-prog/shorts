@@ -1,5 +1,6 @@
 import json
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -692,9 +693,12 @@ class TikTokMetricsTests(unittest.TestCase):
             """, snapshot_rows)
             connection.commit()
 
+        started = time.perf_counter()
         due = self.store.due_videos(
             limit=20, min_age_seconds=0, now=query_now,
         )
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        print("synthetic_tiktok_due_scan rows=10000 snapshots=10000 limit=20 elapsed_ms=%.2f" % elapsed_ms)
         self.assertEqual(len(due), 20)
         self.assertEqual(due[0]["video_id"], "load-video-9999")
         self.assertEqual(due[-1]["video_id"], "load-video-9980")
