@@ -135,8 +135,8 @@ PR #395 is a Draft follow-up stacked on UI-00014 (#394), currently at head `4b1f
 The browser capture showed that up to 200 analytics snapshot rows were rendered in a single long table. UI-00015 changes the visible table to 25 rows per page with accessible previous/next controls and a live page/count status. It retains full-history aggregation, chart rendering, and the separate cursor-paginated CSV export.
 
 Validation:
-- Exact-head hosted repository validation passed in [run 44567167733](https://github.com/justinhblee-prog/shorts/actions/runs/44567167733), including the full `scripts/validate.sh` test suite.
-- Full Compose image build, service startup/readiness, scheduled backup and isolated restore passed in [run 44567167743](https://github.com/justinhblee-prog/shorts/actions/runs/44567167743).
+- Latest-head hosted repository validation is passing through the full `scripts/validate.sh` test suite in [run 44567584068](https://github.com/justinhblee-prog/shorts/actions/runs/44567584068).
+- Full Compose image build, service startup/readiness, scheduled backup and isolated restore passed in [run 44567584065](https://github.com/justinhblee-prog/shorts/actions/runs/44567584065).
 - A follow-up browser run exposed that the API returns 501 snapshots while the legacy visible table is intentionally capped at 200. The current head restores the 200-row display cap and paginates those 200 rows. The latest exact-head browser smoke is in progress after the full repository test suite passed; page navigation and complete 502-row CSV export assertions remain pending.
 - An earlier CI attempt failed due to dynamically generated IDs being absent from static HTML and a stale test expectation. The implementation now uses scoped data attributes for generated controls and the frontend regression assertion was updated. Do not count the failed attempts as validation.
 
