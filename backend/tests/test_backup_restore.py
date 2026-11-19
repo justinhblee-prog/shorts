@@ -403,12 +403,13 @@ class BackupRestoreTests(unittest.TestCase):
             encrypted_backup = Path(create_backup(
                 self.db, self.media, self.backups
             )["backup_path"])
-            with patch("backup_restore.MAX_COMPRESSED_ARCHIVE_BYTES", plain_backup.stat().st_size - 1):
-                with self.assertRaisesRegex(BackupRestoreError, "compressed archive size"):
-                    restore_backup(
-                        plain_backup, self.db, self.media, self.backups,
-                        confirm_restore=True,
-                    )
+            with patch.dict(os.environ, {"NEXUS_BACKUP_ENCRYPTION_REQUIRED": "false"}):
+                with patch("backup_restore.MAX_COMPRESSED_ARCHIVE_BYTES", plain_backup.stat().st_size - 1):
+                    with self.assertRaisesRegex(BackupRestoreError, "compressed archive size"):
+                        restore_backup(
+                            plain_backup, self.db, self.media, self.backups,
+                            confirm_restore=True,
+                        )
             with patch("backup_restore.MAX_COMPRESSED_ARCHIVE_BYTES", encrypted_backup.stat().st_size - 1):
                 with self.assertRaisesRegex(BackupRestoreError, "compressed archive size"):
                     restore_backup(
