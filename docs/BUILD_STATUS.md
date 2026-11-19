@@ -2604,4 +2604,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add a SQLite regression fixture with 10,000 published-video identities and 10,000 historical metric snapshots.
 - Verify the indexed due-candidate query returns exactly the newest 20 stale videos in deterministic order, with no duplicates.
 - This is a synthetic bounded-volume smoke test, not a production latency benchmark or a claim about deployed database performance.
-- Exact-head GitHub Actions validation pending.
+- Exact-head GitHub Actions run [44496875265](https://github.com/justinhblee-prog/shorts/actions/runs/44496875265) passed `scripts/validate.sh` with **712 tests**. The synthetic 10,000-publication / 10,000-snapshot due scan returned 20 ordered candidates in **0.50 ms** on that CI runner; this is a synthetic CI measurement, not a production latency SLA.
