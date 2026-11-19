@@ -167,7 +167,7 @@ async function waitForServer() {
     await page.emulateMedia({ reducedMotion: "reduce" });
     assert.equal(await page.locator("html").evaluate(el => getComputedStyle(el).scrollBehavior), "auto");
     assert.deepEqual(pageErrors, []);
-    process.stdout.write("UI browser smoke passed: desktop, 390px/320px layouts, navigation, keyboard skip, reduced motion.\n");
+    process.stdout.write("UI browser smoke passed: desktop/mobile, keyboard navigation, analytics busy/as-of state, paginated 502-row CSV download, reduced motion.\n");
   } catch (error) {
     process.stderr.write((error && error.stack) || String(error));
     process.exitCode = 1;
