@@ -2547,3 +2547,5 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add regression coverage for duplicate publication identities, one stale snapshot, one missing snapshot, and latest snapshot timestamp.
 - This is a query-volume reduction and correctness improvement. Representative production-sized latency benchmarking remains outstanding.
 - Validation: pending exact-head GitHub Actions.
+
+- Initial exact-head CI caught a stale Python variable reference in the new response mapping (3 errors); corrected it to return the SQL aggregate's `published` count. Revalidation is running on the corrected code checkpoint.
