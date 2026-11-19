@@ -2580,3 +2580,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ### BUILD-00367 — final redaction and scope-normalization validation
 - Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
+
+
+## BUILD-00368 — terminate stale worker process trees after lease loss
+- Worker heartbeat failures now have a bounded budget based on the configured lease window; persistent storage failure or a fencing conflict signals lease loss.
+- The trusted Aider executor polls the in-memory lease-loss signal while child commands run and terminates the isolated process group/tree before proceeding to diff inspection or validation.
+- Regression tests cover prolonged heartbeat failure, rejection of stale success evidence, and child-process termination.
+- Exact-head hosted CI pending. Windows process-tree termination remains a runner integration gate.
