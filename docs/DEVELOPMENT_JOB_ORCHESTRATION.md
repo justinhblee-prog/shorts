@@ -221,4 +221,4 @@ A follow-up process-tree audit found that waiting only for the command-group lea
 
 ### BUILD-00371 — case-insensitive write-scope conflicts
 
-Scope-lock comparison now normalizes slash direction and applies Unicode case-folding before exact/parent-child overlap checks. The trusted production runner is Windows, so paths such as `Backend/` and `backend/api.py` must serialize even though hosted Linux validation itself uses a case-sensitive filesystem. This is deliberately conservative and prevents case-only aliases from allowing concurrent edits to the same Windows worktree files.
+Scope-lock comparison now normalizes slash direction, repeated separators and dot segments, then applies Unicode case-folding before exact/parent-child overlap checks. The trusted production runner is Windows, so paths such as `Backend/` and `backend/api.py` must serialize even though hosted Linux validation itself uses a case-sensitive filesystem. This is deliberately conservative and prevents case-only aliases from allowing concurrent edits to the same Windows worktree files.
