@@ -314,3 +314,8 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 - The approved file/directory symlink alias canonicalization regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.
 
 - Add a concurrent two-worker scheduler regression proving differently cased/backslash-vs-slash aliases cannot both be claimed at once.
+
+
+### BUILD-00382 — final exact-head validation
+- Final head `dbcbf2d54a21ae78380b282faaeeb213eed76c3d` passed **810 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44541640154](https://github.com/justinhblee-prog/shorts/actions/runs/44541640154) and [44541653671](https://github.com/justinhblee-prog/shorts/actions/runs/44541653671).
+- Both the approved symlink-alias canonicalization test and concurrent worker scope-alias claim regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.
