@@ -77,25 +77,13 @@ Desktop and compact-mobile full-page screenshots are captured after analytics fi
 The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do not satisfy external, deployment or business-evidence gates.
 
 
-### UI-00008 — resilient partial dashboard refresh
+## UI-00008 — resilient dashboard refresh and real API browser integration
 
-- Replace all-or-nothing dashboard refresh handling with per-workspace `Promise.allSettled` results.
-- Keep successful module data available when an unrelated API endpoint fails; report the number and names of failed modules in the connection indicator and toast.
-- Distinguish full connection failure from partial API availability rather than marking every workspace disconnected after one endpoint error.
-- Source regression coverage added. Browser test with intentionally mixed endpoint responses remains to be added.
-
-- Browser smoke now injects a queue-statistics HTTP 503 while other API fixtures remain healthy; it verifies the UI reports partial API connectivity and names the failed refresh rather than masking successful workspaces.
-
-
-## UI-00008 — real FastAPI/SQLite browser integration
-
-- Replace the static-only smoke server and mocked analytics responses with the actual FastAPI app backed by a disposable SQLite database.
-- Seed 501 YouTube analytics history rows and one completed TikTok publication/metrics snapshot using the real stores.
-- Authenticate through the UI's review-token flow; exercise the real analytics-history endpoint, frozen `as_of`, keyset cursor pagination, and Chromium CSV download.
-- Inject a single controlled HTTP 503 for `/api/queue/stats` to verify partial API failure feedback while all other API requests remain real.
-- External YouTube/TikTok provider calls are not made; this is local API/database integration, not live provider validation.
-- Exact-head CI validation pending.
-
-- Browser integration additionally asserts HTTP 200 and response shapes from the real authenticated `/api/brands`, `/api/queue/stats`, `/api/review/pending`, and `/api/publishing/analytics-status` endpoints before exercising analytics history and CSV export.
-
-- The real FastAPI browser fixture now creates a durable production queue job, moves it through the worker-completed review handoff, and approves it through the actual UI action; the test verifies the append-only review history records `approved`.
+- Replace all-or-nothing dashboard refresh handling with per-workspace `Promise.allSettled` results; preserve successful module data when an unrelated endpoint fails and identify failed modules.
+- Run Playwright Chromium against the actual FastAPI app and a disposable SQLite database, not a static-only mock server.
+- Seed 501 YouTube metric rows, one TikTok publication/metric snapshot, and a durable production job moved into the human-review queue.
+- Verify authenticated API responses for brands, queue statistics, review queue, analytics status and paginated analytics history.
+- Exercise the actual review approval button and verify append-only review history records the decision.
+- Exercise real SQLite keyset pagination and actual Chromium CSV download; inject one controlled 503 to verify partial API failure handling.
+- External YouTube/TikTok provider calls, production credentials, and deployed environment remain outside this local integration test.
+- Exact-head validation for the current UI head is pending.
