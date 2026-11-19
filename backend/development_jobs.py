@@ -293,7 +293,7 @@ class DevelopmentJobStore:
             timestamp = _stamp(timestamp_dt)
             # Expired leases are returned to ready only after the old fencing token is revoked.
             expired = connection.execute(
-                """SELECT id,status FROM development_jobs
+                """SELECT id,status,worker_id FROM development_jobs
                    WHERE status IN ('leased','running') AND lease_expires_at<=?""", (timestamp,)
             ).fetchall()
             for item in expired:
@@ -308,9 +308,22 @@ class DevelopmentJobStore:
                        updated_at=? WHERE id=?""",
                     (next_status, timestamp, item["id"]),
                 )
+                if item["worker_id"]:
+                    connection.execute(
+                        """UPDATE development_workers SET status='lease_expired',
+                           current_job_id=?,last_seen_at=?,stopped_at=NULL WHERE worker_id=?""",
+                        (item["id"], timestamp, item["worker_id"]),
+                    )
                 self._event(connection, item["id"], "lease_expired", item["status"], next_status,
-                            "system", {"reason": "worker lease expired; manual workspace reset required"},
-                            timestamp)
+                            "system", {"reason": "worker lease expired; manual workspace reset required",
+                                       "worker_id": item["worker_id"]}, timestamp)
+            worker_state = connection.execute(
+                "SELECT status FROM development_workers WHERE worker_id=?",
+                (worker_id.strip(),),
+            ).fetchone()
+            if worker_state is not None and worker_state["status"] == "lease_expired":
+                connection.commit()
+                return None
             # Promote due retries before selecting the next ready job.
             connection.execute(
                 """UPDATE development_jobs SET status='ready',retry_after=NULL,updated_at=?
@@ -405,6 +418,11 @@ class DevelopmentJobStore:
                    result_summary='Lease recovered after confirmed workspace reset; retry pending.',
                    updated_at=? WHERE id=? AND status='quarantined'""",
                 (timestamp, job_id),
+            )
+            connection.execute(
+                """UPDATE development_workers SET status='offline',current_job_id=NULL,
+                   last_seen_at=?,stopped_at=? WHERE current_job_id=? AND status='lease_expired'""",
+                (timestamp, timestamp, job_id),
             )
             self._event(connection, job_id, "lease_recovered", "quarantined", "ready", actor.strip(),
                         {"reason": reason.strip(), "workspace_reset_confirmed": True}, timestamp)
@@ -630,6 +648,27 @@ class DevelopmentJobStore:
         worker_id = worker_id.strip()
         timestamp = _stamp(_now())
         with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing = connection.execute(
+                "SELECT status FROM development_workers WHERE worker_id=?",
+                (worker_id,),
+            ).fetchone()
+            if existing is not None and existing["status"] == "lease_expired":
+                raise DevelopmentJobConflict(
+                    "worker identity is fenced until its expired workspace is explicitly recovered"
+                )
+            active = connection.execute(
+                """SELECT id FROM development_jobs
+                   WHERE worker_id=? AND status IN ('leased','running')
+                     AND lease_expires_at>? LIMIT 1""",
+                (worker_id, timestamp),
+            ).fetchone()
+            if active is not None and current_job_id != active["id"]:
+                raise DevelopmentJobConflict(
+                    "worker identity already owns an active job; concurrent presence update rejected"
+                )
+            if active is None and current_job_id is not None:
+                raise DevelopmentJobConflict("worker cannot report a job without an active lease")
             connection.execute(
                 """INSERT INTO development_workers
                    (worker_id,hostname,status,current_job_id,started_at,last_seen_at,stopped_at)
@@ -645,10 +684,17 @@ class DevelopmentJobStore:
     def stop_worker(self, worker_id):
         timestamp = _stamp(_now())
         with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             cursor = connection.execute(
                 """UPDATE development_workers SET status='offline',
-                   current_job_id=NULL,last_seen_at=?,stopped_at=? WHERE worker_id=?""",
-                (timestamp, timestamp, worker_id),
+                   current_job_id=NULL,last_seen_at=?,stopped_at=?
+                   WHERE worker_id=? AND status<>'lease_expired'
+                     AND NOT EXISTS (
+                       SELECT 1 FROM development_jobs
+                       WHERE worker_id=? AND status IN ('leased','running')
+                         AND lease_expires_at>?
+                     )""",
+                (timestamp, timestamp, worker_id, worker_id, timestamp),
             )
             return cursor.rowcount > 0
 
