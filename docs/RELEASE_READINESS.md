@@ -337,3 +337,7 @@ GitHub Actions run [44530628392](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00368 — fencing-loss cancellation evidence
 GitHub Actions run [44531177231](https://github.com/justinhblee-prog/shorts/actions/runs/44531177231) passed **798 backend tests**, repository validation and frontend syntax validation, including both heartbeat transport failure and fencing-token rejection cancellation paths. Windows self-hosted process-tree behavior remains unverified.
+
+
+### BUILD-00369 — stale lease conflict gate
+A stale lease rejection at the durable completion/evidence gate must not be reported as an unhandled worker crash or allow the job to advance. The worker now reports `lease_lost`; hosted regression validation is pending.
