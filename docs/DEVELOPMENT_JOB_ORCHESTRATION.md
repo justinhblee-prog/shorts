@@ -209,3 +209,8 @@ Rebased the UI-00012 recovery controls onto current BUILD-00386 / PR #384 as suc
 
 
 Quarantine recovery successor validation is complete at hosted CI level: PR #404 passed both [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819) and [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665); API successor PR #405 passed [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441). Keep the branches Draft/unmerged and preserve #404 → #405. Tests are synthetic/handler-level and do not validate production recovery.
+
+
+### Core + Policy + UI candidate assembly
+
+Draft PR #406 assembles one integration commit `96f59cc8b19792602f03eafd1c1138bde5c7b138` on the current BUILD-00385 base, overlaying 20 source/test files from dependency-aligned Core, Policy and UI successor branches (#400–#405 plus #384/#385). Compare is ahead 1 / behind 0 and mergeable. Hosted workflows [44576765212](https://github.com/justinhblee-prog/shorts/actions/runs/44576765212) and [44576807216](https://github.com/justinhblee-prog/shorts/actions/runs/44576807216) were queued/in progress. The cross-stack gate is not complete until exact-head validation succeeds; do not merge/deploy.
