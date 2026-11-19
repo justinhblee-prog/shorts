@@ -2752,3 +2752,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ### BUILD-00385 — exact-head validation
 - Final head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions run [44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). The isolated HOME fixture was moved outside the temporary Git worktree. Hosted Linux only; Windows self-hosted runner/Ollama execution remains unverified.
+
+
+## BUILD-00386 — apply YouTube altered/synthetic media disclosure
+- Read the latest human-approved `policy_preflight` artifact before upload; reject missing/invalid reports and non-overridable blockers.
+- Set YouTube `status.containsSyntheticMedia` from the approved status (`ai_generated`/`realistic_alteration` => true; `none`/`ai_assisted_nonrealistic` => false).
+- Require the approved YouTube disclosure acknowledgement for realistic synthetic media; add upload-body regressions. Exact-head CI pending.
+- Official API support is documented at https://developers.google.com/youtube/data/reference/rest/v3/videos.
