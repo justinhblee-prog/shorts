@@ -1285,6 +1285,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 | #334 | BUILD-00355 global GitHub issue source deduplication | Open Draft; 768 backend tests passed |
 | #335 | BUILD-00356 bounded GitHub API pagination (500 records/feed) with truncation reporting and host validation | Open Draft; 771 backend tests passed |
 | #336 | BUILD-00357 GitHub owner/repository path-segment validation | Open Draft; 773 backend tests passed |
+| #337 | BUILD-00358 Node 24 self-hosted runner preflight and action upgrades | Open Draft; 774 backend tests passed on exact head |
 
 PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #334; #336 is stacked on #335. PRs #331–#333 are independent follow-ups based on the core PR #323. PR #329 is the separate UI branch. PRs #311–#315 remain protected and unmerged.
 
@@ -1314,3 +1315,7 @@ PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #3
 
 ## Next continuation target
 Continue from the latest open Draft chain, starting with any failing or unverified exact-head CI checks. Then audit the development worker's real execution/publication lifecycle and the core backup/restore and provider lifecycle boundaries. Never report a mock or hosted-Linux fixture as proof of the Windows local-model execution. Do not ask the user to run commands or supply data already available from repository/CI tools. Stop for explicit approval only where merging, secrets, external contracts, production data, costs or public publishing are involved.
+
+
+### BUILD-00358 — Windows worker Node 24 action runtime
+The local Windows worker workflow now upgrades `actions/checkout` to v7 and `peter-evans/create-pull-request` to v8, both Node 24 actions. Before checkout, it reads the active `Runner.Listener` file version and fails if it is below 2.327.1. This avoids silently starting a Node 24 action on an unsupported old runner. The actual local runner version still needs to be observed during a real self-hosted cycle.

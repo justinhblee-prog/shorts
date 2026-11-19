@@ -19,9 +19,10 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 ## Current checkpoint
 
 - Repository default branch remains `main`; current main head is `851b414262cc6bef8ec374ed0e7a25921521b295`. All development work below remains on Draft branches and is not integrated into main.
-- PRs #311–#336 remain Open, Draft and unmerged. This includes the specifically protected PRs #311–#315. No merge or main push was performed.
+- PRs #311–#337 remain Open, Draft and unmerged. This includes the specifically protected PRs #311–#315. No merge or main push was performed.
 - PRs #321–#328 (BUILD-00313 through BUILD-00320) have successful exact-head GitHub Actions checks. They form the development-control-plane chain for job orchestration, persistent runner state, verified Draft-PR completion, orphan recovery, bounded self-dispatch and Windows runner preflight.
 - PR #329 is the separate UI workstream (UI-00001–00009). PR #330 is BUILD-00321, fixing paginated GitHub Actions intake; exact head `9195a6bddce5bef58f6ffd9bed17beb0be2b3818` passed run [44508180651](https://github.com/justinhblee-prog/shorts/actions/runs/44508180651).
+- PR #337 adds BUILD-00358: Node 24-compatible actions for the Windows worker workflow, guarded by a pre-check that requires self-hosted runner version 2.327.1 or newer; exact-head backend Actions run [44512423036](https://github.com/justinhblee-prog/shorts/actions/runs/44512423036) passed 774 tests; the user's actual Windows runner version remains unverified.
 - PR #323 is the core/backend workstream BUILD-00315–00351. Exact core head `59ec8286f6c216345955593dd82a1047851fad4d` passed 725 backend tests and the five-service Compose/backup/restore smoke; this is synthetic CI evidence only.
 - Parallel core follow-ups: PR #331 BUILD-00352 encrypted restore runbook passed 726 backend tests and Compose smoke; PR #332 BUILD-00353 upgraded CI actions to Node 24 and passed 726 backend tests plus Compose smoke; PR #333 BUILD-00354 strengthened retained-archive health and format validation, passing 729 backend tests plus Compose smoke.
 - Stacked control-plane follow-ups: PR #334 BUILD-00355 global GitHub issue deduplication passed 768 backend tests; PR #335 BUILD-00356 bounded GitHub pagination passed 771; PR #336 BUILD-00357 repository path validation passed 773. These are hosted CI results on their exact Draft PR heads, not proof of a live token or self-hosted runner.
@@ -250,3 +251,7 @@ Owner and repository inputs are validated as individual path segments before any
 
 ### BUILD-00357 — exact-head CI result
 Exact head `b3de0e02310ccb353d07b6032dfa6620dd0b4a14` passed backend Actions run [44511457164](https://github.com/justinhblee-prog/shorts/actions/runs/44511457164) with 773 tests. Malformed repository path segments are rejected before API access while supported valid names remain accepted. Live GitHub authentication/rate-limit behavior remains unverified.
+
+
+### BUILD-00358 — Windows runner Node 24 compatibility
+The self-hosted development workflow now uses Node 24-compatible checkout v7 and create-pull-request v8. A PowerShell step runs before checkout and requires the active self-hosted runner to be version 2.327.1 or newer. Hosted CI can verify the workflow contract but cannot establish the user's actual Windows runner version; that remains a live-runner gate.

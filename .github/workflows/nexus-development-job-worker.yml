@@ -41,8 +41,27 @@ jobs:
       pull-requests: write
       actions: write
     steps:
+      - name: Verify self-hosted runner supports Node 24 actions
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $listener = Get-Process -Name "Runner.Listener" -ErrorAction Stop | Select-Object -First 1
+          if (-not $listener.Path) {
+            throw "Unable to locate the active Runner.Listener executable; cannot verify Node 24 action compatibility."
+          }
+          $versionText = (Get-Item -LiteralPath $listener.Path).VersionInfo.ProductVersion
+          $match = [regex]::Match([string]$versionText, '\d+\.\d+\.\d+')
+          if (-not $match.Success) {
+            throw "Unable to parse self-hosted Actions runner version '$versionText'; Node 24 actions require runner 2.327.1 or newer."
+          }
+          $runnerVersion = [version]$match.Value
+          if ($runnerVersion -lt [version]"2.327.1") {
+            throw "Self-hosted Actions runner $runnerVersion is too old for Node 24 actions; update the runner to 2.327.1 or newer."
+          }
+          Write-Host "Self-hosted Actions runner $runnerVersion supports Node 24 actions."
+
       - name: Check out default branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -204,7 +223,7 @@ jobs:
       - name: Create Draft PR for verified changes only
         if: github.event.inputs.mode != 'recover' && steps.detect-changes.outputs.has_changes == 'true'
         id: publish-pr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: ${{ github.event.repository.default_branch }}

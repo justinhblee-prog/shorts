@@ -29,6 +29,20 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn('"README.md"', ci_source)
         self.assertIn('".gitignore"', ci_source)
 
+    def test_node24_actions_are_guarded_by_self_hosted_runner_version_preflight(self):
+        preflight = self.source.index("name: Verify self-hosted runner supports Node 24 actions")
+        checkout = self.source.index("name: Check out default branch")
+        create_pr = self.source.index("name: Create Draft PR for verified changes only")
+        self.assertLess(preflight, checkout)
+        guard = self.source[preflight:checkout]
+        self.assertIn("Runner.Listener", guard)
+        self.assertIn("2.327.1", guard)
+        self.assertIn("actions/checkout@v7", self.source)
+        self.assertIn("peter-evans/create-pull-request@v8", self.source)
+        self.assertNotIn("actions/checkout@v5", self.source)
+        self.assertNotIn("peter-evans/create-pull-request@v7", self.source)
+        self.assertLess(checkout, create_pr)
+
     def test_schedule_and_manual_dispatch_are_configured(self):
         self.assertIn("workflow_dispatch:", self.source)
         self.assertIn('cron: "17 */2 * * *"', self.source)
