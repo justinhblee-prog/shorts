@@ -1529,4 +1529,5 @@ The final store transition now applies the same case-insensitive, separator-norm
 ## BUILD-00388 — GitHub pagination endpoint confinement
 - Tightened the GET-only backlog client so a server-provided Link header can continue only over HTTPS to the exact GitHub API host and same collection path requested initially.
 - Rejects same-host cross-repository/feed pagination, URL user-info, fragments and malformed initial collection paths before issuing a follow-up request.
-- Added focused regression tests. Exact-head CI pending.
+- Imported issue links are now accepted only when they are canonical HTTPS links for the exact repository and issue number; invalid or hostile `html_url` values fall back to a constructed GitHub issue URL.
+- Added focused pagination and issue-link security regressions. Live GitHub API pagination remains unverified.
