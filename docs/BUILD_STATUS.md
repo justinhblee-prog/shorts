@@ -2647,11 +2647,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extend the Compose backup/restore smoke to attempt restore with a syntactically valid but incorrect AES-256 key.
 - Require authentication failure and verify the target database SHA-256 is unchanged before performing the successful restore with the ephemeral CI key.
 - This validates wrong-key fail-closed behavior on a real generated archive in a disposable container environment; it does not prove production key custody or disaster recovery.
-- Exact-head validation pending.
+- Exact-head backend validation passed: [run 44501997095](https://github.com/justinhblee-prog/shorts/actions/runs/44501997095), 716 tests. Compose integration passed: [run 44501997029](https://github.com/justinhblee-prog/shorts/actions/runs/44501997029).
 
 
 ## BUILD-00345 — restore rollback after media installation failure
 
+- Exact-head validation (combined BUILD-00345/00346 checkpoint) passed: backend [run 44501997095](https://github.com/justinhblee-prog/shorts/actions/runs/44501997095), 716 tests; Compose [run 44501997029](https://github.com/justinhblee-prog/shorts/actions/runs/44501997029).
 - Add a failure-injection regression at the point where the restored database has been installed but the staged media directory cannot be installed.
 - Verify rollback restores the original live database and complete media tree, including files absent from the backup being restored.
 - Verify no `.restore-*` or `.pre-restore-*` staging/rollback paths remain after recovery.
@@ -2661,6 +2662,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ## BUILD-00346 — backup database/media path-overlap protection
 
+- Exact-head validation passed in the same combined checkpoint: backend [run 44501997095](https://github.com/justinhblee-prog/shorts/actions/runs/44501997095), 716 tests; Compose [run 44501997029](https://github.com/justinhblee-prog/shorts/actions/runs/44501997029).
 - Preserve symlink rejection before resolving the archive path and add a regression proving a symlinked archive cannot bypass the regular-file check.
 
 - Reject backup and restore layouts where the SQLite database resides inside the media tree; replacing the media directory in such a layout could move or delete the live database.
