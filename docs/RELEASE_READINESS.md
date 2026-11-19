@@ -369,3 +369,7 @@ GitHub Actions run [44529199064](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00373 — GitHub intake transient resilience
 GitHub backlog reads now have bounded retry handling for transient failures and rate limits, with a strict five-second per-retry delay ceiling. Authentication and permission errors are not retried. Hosted CI pending; no live GitHub rate-limit test is claimed.
+
+
+### BUILD-00373 — bounded GitHub retry validation
+GitHub Actions run [44529902141](https://github.com/justinhblee-prog/shorts/actions/runs/44529902141) passed **806 backend tests**, repository validation and frontend syntax validation. Retry behavior is unit-tested; no live GitHub rate-limit response was triggered.
