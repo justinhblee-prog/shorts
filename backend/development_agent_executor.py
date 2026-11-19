@@ -10,7 +10,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from urllib.parse import urlsplit
 
 from development_job_worker import NonRetryableDevelopmentJobError
@@ -223,7 +223,27 @@ class AiderDevelopmentExecutor:
         for raw in scope:
             if not isinstance(raw, str) or not raw.strip():
                 raise NonRetryableDevelopmentJobError("job scope contains an invalid path")
-            candidate = Path(raw.strip())
+            raw_path = raw.strip()
+            windows_path = PureWindowsPath(raw_path)
+            windows_reserved = {"CON", "PRN", "AUX", "NUL"}
+            for segment in raw_path.replace("\\", "/").split("/"):
+                stem = segment.split(".", 1)[0].upper()
+                if (
+                    segment != segment.rstrip(" .")
+                    or stem in windows_reserved
+                    or re.fullmatch(r"(?:COM|LPT)[1-9]", stem)
+                ):
+                    raise NonRetryableDevelopmentJobError("job scope contains a Windows-reserved path segment")
+            if (
+                "\\" in raw_path
+                or ":" in raw_path
+                or raw_path in {".", "./"}
+                or windows_path.drive
+                or windows_path.root
+                or windows_path.is_absolute()
+            ):
+                raise NonRetryableDevelopmentJobError("job scope contains a non-portable or absolute path")
+            candidate = Path(raw_path)
             if candidate.is_absolute() or ".." in candidate.parts:
                 raise NonRetryableDevelopmentJobError("job scope contains a path traversal")
             normalized = candidate.as_posix()
