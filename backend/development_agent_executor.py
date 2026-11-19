@@ -181,7 +181,13 @@ class AiderDevelopmentExecutor:
                 try:
                     process.wait(timeout=3)
                 except subprocess.TimeoutExpired:
+                    pass
+                # The group leader may exit while a descendant ignores SIGTERM.
+                # Always escalate against the process group, not just the parent.
+                try:
                     os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
         except (OSError, subprocess.SubprocessError):
             try:
                 process.kill()
