@@ -329,3 +329,7 @@ GitHub Actions run [44518919606](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00368 — lease expiry recovery gate
 The lease expiry path is fail-closed: an expired lease is quarantined and its fencing token revoked. It is not automatically reassigned to another worker until an explicit recovery operation confirms workspace cleanup. This prevents two executors from writing the same worktree after a paused or partitioned worker resumes. Hosted CI pending; Windows runner termination/workspace reset remains an operational integration check.
+
+
+### BUILD-00368 — hosted lease safety validation
+GitHub Actions run [44526419213](https://github.com/justinhblee-prog/shorts/actions/runs/44526419213) passed **799 backend tests**, repository validation and frontend syntax validation for expired-lease quarantine, explicit workspace-reset recovery, reserved quarantined scopes and single-active-lease worker identity. This does not verify Windows host process termination or workspace cleanup.
