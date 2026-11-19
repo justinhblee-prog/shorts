@@ -1,9 +1,9 @@
 # NEXUS STUDIO PRO — Development Job Orchestration
 
-**Checkpoint:** BUILD-00317 (review-artifact completion gate)  
-**Updated:** 2026-11-18  
+**Checkpoint:** BUILD-00320 (Windows local-runner toolchain and Python isolation)  
+**Updated:** 2026-11-19  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Status:** BUILD-00317 implementation CI passed on exact code/test head 3ac4800227e05129fddfd824a51d3b1cca28cdde (run 44258464733, 754 tests); Windows local-runner execution remains unverified.
+**Status:** BUILD-00319 exact PR head `95844080e8635354ab8f8e2511c4b64b5bfe91ae` passed GitHub Actions run [44437965780](https://github.com/justinhblee-prog/shorts/actions/runs/44437965780). BUILD-00320 adds Windows toolchain preflight and isolated backend/Aider virtual environments; exact-head CI is pending. Live Windows runner/Ollama execution remains unverified.
 
 ## 1. Why this exists
 
@@ -151,8 +151,20 @@ Implemented on `build/build-00319-bounded-autonomous-continuation`.
 
 ### Remaining ordered gates
 
-1. Review the stacked control-plane PR chain (#321 → #324 → #325) in dependency order; no PR is merged without explicit user approval.
+1. Review the stacked control-plane PR chain (#321 → #327) in dependency order; no PR is merged without explicit user approval.
 2. After the workflow is deliberately integrated into main, configure the fine-grained NEXUS_GITHUB_READ_TOKEN and explicit NEXUS_APPROVED_SCOPES mappings.
-3. Verify the trusted Windows self-hosted runner, Ollama model access, and persistent LocalAppData database across at least two separate workflow runs.
+3. Verify the trusted Windows self-hosted runner toolchain, isolated Python environments, Ollama model access, and persistent LocalAppData database across at least two separate workflow runs.
 4. Verify a real Ollama-generated scoped diff, exact open Draft PR publication, successful review-artifact recording, and dependent-job advancement.
 5. Verify the read-only API/dashboard against that real runner cycle; then continue product integration and the remaining release gates.
+
+
+### BUILD-00320 — Windows runner preflight and isolated Python environments
+
+Implemented on `build/build-00320-windows-validation-shell-preflight`.
+
+- Fail fast before model execution unless the trusted Windows runner has Python 3.11+, Git Bash/POSIX sh, Node.js 18+, a responding loopback Ollama API, and the exact `qwen2.5-coder:7b` model tag.
+- Replace substring model matching with exact CLI/API tag checks so similarly named variants cannot satisfy the runtime gate.
+- Create separate per-run workspace virtual environments for backend requirements and Aider. Do not install backend or Aider packages into the runner user's global/user Python site-packages.
+- Pass the backend interpreter explicitly through `NEXUS_BACKEND_PYTHON` and the Aider executable through `NEXUS_AIDER_EXECUTABLE`; repository validation therefore uses the backend dependency environment while Aider remains isolated.
+- Add PyYAML as an explicit backend validation dependency because `scripts/validate.sh` parses `compose.yaml`.
+- Add workflow-contract tests and executor tests for the explicit Aider path. This is source/CI validation only; it does not prove the owner's Windows runner, Ollama model, or local disk persistence.
