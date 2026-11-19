@@ -2593,3 +2593,9 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Code head `f6c69af52204ebfccce88a48114291c4fb6946e8` passed GitHub Actions Backend tests run [44530628392](https://github.com/justinhblee-prog/shorts/actions/runs/44530628392): **797 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
 - Both regressions passed: heartbeat transport failure cancels the executor without advancing the job, and active child-process cancellation terminates the process group.
 - Hosted Linux only; Windows self-hosted process-tree behavior and live runner recovery remain separate integration gates.
+
+
+### BUILD-00368 — definitive fencing-loss cancellation validation
+- Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actions run [44531177231](https://github.com/justinhblee-prog/shorts/actions/runs/44531177231): **798 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Both heartbeat failure modes are covered: transport/database exception and definitive fencing-token rejection each cancel the executor; the active child-process cancellation regression also passes.
+- Hosted Linux only; Windows self-hosted process-tree behavior and live runner recovery remain separate integration gates.
