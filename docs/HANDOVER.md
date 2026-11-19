@@ -1287,6 +1287,7 @@ The latest workflow run observed during this update was [run 43662557760](https:
 | #336 | BUILD-00357 GitHub owner/repository path-segment validation | Open Draft; 773 backend tests passed |
 | #337 | BUILD-00358 Node 24 self-hosted runner preflight and action upgrades | Open Draft; 774 backend tests passed on exact head |
 | #338 | BUILD-00359 local model secret and workflow-command environment isolation | Open Draft; 775 backend tests passed on exact head |
+| #339 | BUILD-00360 secret-file scope denylist and symlink-target protection | Open Draft; 776 backend tests passed on exact head |
 
 PR #330 is stacked on PR #328. PR #334 is stacked on #330; #335 is stacked on #334; #336 is stacked on #335. PRs #331–#333 are independent follow-ups based on the core PR #323. PR #329 is the separate UI branch. PRs #311–#315 remain protected and unmerged.
 
