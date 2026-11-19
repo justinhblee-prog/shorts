@@ -305,3 +305,7 @@ The executor rejects Windows drive and UNC paths, backslash-based traversal, alt
 
 ### BUILD-00369 — scheduler test timing reliability
 The TikTok polling backoff regression now uses wider timestamp margins to avoid one-second wall-clock boundary races. This changes test timing only, not scheduler production behavior. Exact-head CI pending.
+
+
+### BUILD-00375 — canonical path validation
+Noncanonical scope aliases and directory markers on files are rejected before execution. Hosted validation pending.
