@@ -310,7 +310,7 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
                           "rate limited", headers, None)
         with patch("time.time", return_value=1000.0):
             self.assertEqual(GitHubReadOnlyClient._retry_delay(error, 0), 2.5)
-        headers["X-RateLimit-Reset"] = "1100"
+        headers.replace_header("X-RateLimit-Reset", "1100")
         with patch("time.time", return_value=1000.0):
             self.assertIsNone(GitHubReadOnlyClient._retry_delay(error, 0))
         forbidden = HTTPError("https://api.github.com/repos/acme/app/issues", 401,
