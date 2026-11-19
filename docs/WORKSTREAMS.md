@@ -117,3 +117,5 @@ Develop the product interface and its runtime independently so both can make pro
 - Desktop screenshot capture now occurs after the authenticated UI fixture loads analytics history, so the visual artifact shows a populated analytics state rather than only the initial unauthenticated screen.
 
 - Final populated-screen browser checkpoint `7ac55a0af12a6e931cc86494f4006071622c1b79` passed [Actions run 44499970650](https://github.com/justinhblee-prog/shorts/actions/runs/44499970650): 717 tests plus Playwright desktop/mobile, keyboard, reduced-motion, analytics busy/as-of, and paginated 502-row CSV download. The screenshot artifact ID `14516477491` was captured after analytics fixture data loaded, so the desktop artifact shows a populated analytics state.
+
+- Latest synchronized UI head `9bdc1f3e3b3afedb6f698ec5d8d3df6f37efb9e2` passed [Actions run 44500377424](https://github.com/justinhblee-prog/shorts/actions/runs/44500377424): 717 tests and Chromium browser smoke, including paginated CSV download. The populated desktop/mobile screenshot artifact ID is `14516882003` (expires 2027-02-17).
