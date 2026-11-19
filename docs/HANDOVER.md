@@ -1433,3 +1433,7 @@ New dependency edges are now accepted only for ready/blocked jobs. The transacti
 
 ### BUILD-00372 — exact-head CI result
 Code head `b2c74c47ee95c59544ea5fea12ff2fbbd456ef0a` passed GitHub Actions run [44522908956](https://github.com/justinhblee-prog/shorts/actions/runs/44522908956): **803 tests**, repository validation and frontend syntax check. Dependency mutation/claim race regressions passed.
+
+
+### BUILD-00372 — dependency/claim race CI result
+Updated head `148025eba9939f1c86488ddc705fa36632e942bd` passed GitHub Actions run [44523330129](https://github.com/justinhblee-prog/shorts/actions/runs/44523330129): **804 tests**, repository validation and frontend syntax check. The threaded claim/dependency race regression passed.
