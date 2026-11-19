@@ -127,21 +127,28 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         self.assertEqual(worker.run_once(), "quarantined")
         self.assertEqual(self.store.get(job["id"])["status"], "quarantined")
 
-    def test_worker_stops_executor_when_heartbeat_cannot_prove_lease(self):
-        job = self.store.create("Heartbeat outage", scope=["backend/example.py"])
+    def test_worker_stops_executor_when_heartbeat_call_blocks_past_lease_budget(self):
+        job = self.store.create("Heartbeat storage stall", scope=["backend/example.py"])
         self.store.lease_seconds = 1
+        heartbeat_started = threading.Event()
+
+        def stalled_heartbeat(*args, **kwargs):
+            heartbeat_started.set()
+            threading.Event().wait(timeout=1.5)
+            raise OSError("database busy timeout")
 
         def wait_for_fence(claimed):
-            self.assertTrue(claimed["_lease_lost_event"].wait(timeout=4))
+            self.assertTrue(heartbeat_started.wait(timeout=3))
+            self.assertTrue(claimed["_lease_lost_event"].wait(timeout=3))
             return {
                 "changed_files": ["backend/example.py"],
                 "tests_passed": True,
                 "validation_ref": "ci://must-not-be-recorded",
             }
 
-        worker = DevelopmentJobWorker(self.store, "worker-heartbeat-outage", wait_for_fence)
+        worker = DevelopmentJobWorker(self.store, "worker-heartbeat-stall", wait_for_fence)
         original_heartbeat = self.store.heartbeat
-        self.store.heartbeat = lambda *args, **kwargs: (_ for _ in ()).throw(OSError("database unavailable"))
+        self.store.heartbeat = stalled_heartbeat
         try:
             self.assertEqual(worker.run_once(), "lease_lost")
         finally:
@@ -149,6 +156,7 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         saved = self.store.get(job["id"])
         self.assertEqual(saved["status"], "leased")
         self.assertIsNone(saved["validation_ref"])
+
 
     def test_worker_requires_callable_executor(self):
         with self.assertRaisesRegex(ValueError, "executor"):
