@@ -55,8 +55,16 @@ class DevelopmentJobWorker:
                     lease_lost.set()
                     return
                 except Exception:
-                    # A transient heartbeat error is retried on the next interval.
-                    continue
+                    # A heartbeat transport/database failure makes lease ownership
+                    # uncertain. Fail closed: never keep editing after that point.
+                    lease_lost.set()
+                    cancel = getattr(self.executor, "cancel", None)
+                    if callable(cancel):
+                        try:
+                            cancel()
+                        except Exception:
+                            pass
+                    return
 
         heartbeat = threading.Thread(target=keep_lease_alive, name="dev-job-heartbeat", daemon=True)
         heartbeat.start()
