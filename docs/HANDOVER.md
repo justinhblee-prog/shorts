@@ -1496,3 +1496,8 @@ The scope conflict follow-up also verifies two concurrent workers cannot both cl
 
 ### BUILD-00383 — Windows-safe executor scope matching
 The Aider executor now matches changed files against declared scopes using normalized separators and case-folded paths, while preserving explicit directory-only recursion. Tests cover case differences, backslashes and extensionless file containment. Exact-head CI pending.
+
+
+### BUILD-00383 — exact-head validation
+- Code head `86de6e72313c627f49ee2c2204c200fa74191918` passed **811 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44542261551](https://github.com/justinhblee-prog/shorts/actions/runs/44542261551) and [44542296386](https://github.com/justinhblee-prog/shorts/actions/runs/44542296386).
+- The case/separator-insensitive changed-file scope regression passed in both runs. Hosted Linux only; Windows local-runner execution remains unverified.
