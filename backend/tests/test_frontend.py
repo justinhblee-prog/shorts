@@ -118,7 +118,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('item.engaged_views,item.engaged_view_share', app_js)
         self.assertIn('chartMetric==="engaged_view_share"?value*100:value', app_js)
         self.assertIn('Number(item.engaged_view_share)*100', app_js)
-        self.assertIn('number(item.engaged_view_share)', app_js)
+        self.assertIn('(Number(item.engaged_view_share)*100).toLocaleString()+"%"', app_js)
         self.assertIn("metricLabels[chartMetric]", app_js)
         self.assertIn('estimated_minutes_watched', app_js)
         self.assertIn('average_view_duration', app_js)
