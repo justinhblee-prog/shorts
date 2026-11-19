@@ -1305,3 +1305,10 @@ The latest workflow run observed during this update was [run 43662557760](https:
 
 - The analytics history API rejects video IDs with leading/trailing whitespace and ASCII DEL, in addition to blank, overlong, and C0 control-character values.
 - Regression tests cover invalid identifiers, 365-day maximum window, and minimum limit clamping for YouTube and TikTok. GitHub Actions passed on the combined code/test checkpoint `012654685d868451f68d52ebdbdb450871ac750d` (run `44487580908`, 700 backend tests). Documentation-only commits follow this validated checkpoint.
+
+
+## BUILD-00327 — analytics CSV export limit transparency
+
+- The analytics-history API clamps each platform's history query to 500 snapshots. Selecting both platforms therefore yields at most 1,000 CSV rows; it is not an unlimited archive export.
+- Updated the dashboard summary to state the on-screen 200-row limit and CSV cap of 1,000 total / 500 per platform. Added a frontend regression assertion so the UI does not overstate export completeness.
+- Validation: pending GitHub Actions.
