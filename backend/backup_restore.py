@@ -275,9 +275,14 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14,
     if encryption_key is not None:
         _encryption_key_bytes(encryption_key)
 
-    db_path = Path(db_path).resolve()
-    media_dir = Path(media_dir).resolve()
-    output_dir = Path(output_dir).resolve()
+    db_path = Path(db_path)
+    media_dir = Path(media_dir)
+    output_dir = Path(output_dir)
+    if db_path.is_symlink() or media_dir.is_symlink() or output_dir.is_symlink():
+        raise BackupRestoreError("Database, media, and backup roots must not be symbolic links")
+    db_path = db_path.resolve()
+    media_dir = media_dir.resolve()
+    output_dir = output_dir.resolve()
     _validate_database_media_paths(db_path, media_dir)
     if output_dir == media_dir or media_dir in output_dir.parents:
         raise BackupRestoreError("Backup output directory must be outside the media directory")
@@ -507,10 +512,15 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
         raise BackupRestoreError(
             "NEXUS_BACKUP_ENCRYPTION_REQUIRED is enabled but NEXUS_BACKUP_ENCRYPTION_KEY is missing"
         )
-    db_path = Path(db_path).resolve()
-    media_dir = Path(media_dir).resolve()
-    backup_dir = Path(backup_dir).resolve()
+    db_path = Path(db_path)
+    media_dir = Path(media_dir)
+    backup_dir = Path(backup_dir)
     archive_path = Path(archive_path)
+    if db_path.is_symlink() or media_dir.is_symlink() or backup_dir.is_symlink():
+        raise BackupRestoreError("Database, media, and backup roots must not be symbolic links")
+    db_path = db_path.resolve()
+    media_dir = media_dir.resolve()
+    backup_dir = backup_dir.resolve()
     if archive_path.is_symlink():
         raise BackupRestoreError("Backup archive does not exist or is not a regular file")
     archive_path = archive_path.resolve()
