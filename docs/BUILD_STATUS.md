@@ -2780,4 +2780,4 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ## POLICY-00002 — validate source URL structure and rights attestations
 - Validate source evidence URLs as absolute HTTPS references with a hostname and valid port; reject credentials, malformed authority, whitespace and control characters while preserving valid query/fragment references.
 - Reject unsupported rights-attestation keys; only the documented visual, audio and likeness clearances are recognized.
-- Add focused policy-engine regressions and bump the policy pack to `2026-11-20.1`. Exact-head CI pending.
+- Add focused policy-engine regressions and bump the policy pack to `2026-11-16.2`. Exact-head CI pending.
