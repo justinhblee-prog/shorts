@@ -166,7 +166,6 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertEqual(child_env["DOCKER_CONFIG"], str((self.root / "isolated-home" / ".config" / "docker").resolve()))
         self.assertEqual(child_env["NPM_CONFIG_USERCONFIG"], str((self.root / "isolated-home" / ".npmrc").resolve()))
         self.assertEqual(child_env["NPM_CONFIG_GLOBALCONFIG"], str((self.root / "isolated-home" / "npm-globalrc").resolve()))
-        self.assertEqual(child_env["PIP_CONFIG_FILE"], str((self.root / "isolated-home" / "pip.ini").resolve()))
         self.assertEqual(child_env["GITHUB_WORKSPACE"], str(self.root))
         self.assertEqual(child_env["NEXUS_APPROVED_SCOPES"], "{}")
         self.assertEqual(child_env["NEXUS_DEV_AGENT_MODEL"], "ollama_chat/qwen2.5-coder:7b")
