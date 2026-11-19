@@ -26,7 +26,19 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertEqual(scope, [".github/workflows/nexus.yml", "backend/module.py"])
 
     def test_scope_rejects_traversal_and_environment_files(self):
-        for path in ("../outside.py", ".env", ".env.production", "backend/credentials.json", "config/client_credential.json", "backend/private_config.py"):
+        for path in (
+            "../outside.py", ".env", ".env.production",
+            "backend/credentials.json", "config/client_credential.json",
+            "backend/private_config.py", "id_rsa", "id_ed25519_work",
+            ".ssh/id_ed25519", ".aws/credentials", ".azure/client_secret.json",
+            ".kube/config", ".docker/config.json", ".gnupg/private-keys-v1.d",
+            ".terraform/terraform.tfstate", ".pulumi/credentials.json",
+            ".netrc", ".npmrc", ".pypirc", ".git-credentials",
+            "service-account.json", "service_account.json", "kubeconfig",
+            "terraform.tfvars", ".config/gcloud/application_default_credentials.json",
+            ".config/gh/hosts.yml", ".config/pip/pip.conf",
+            ".config/containers/auth.json", "authorized_keys", "known_hosts",
+        ):
             with self.subTest(path=path):
                 with self.assertRaises(NonRetryableDevelopmentJobError):
                     self.executor._validated_scope({"scope": [path]})
