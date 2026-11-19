@@ -26,10 +26,43 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertEqual(scope, [".github/workflows/nexus.yml", "backend/module.py"])
 
     def test_scope_rejects_traversal_and_environment_files(self):
-        for path in ("../outside.py", ".env", ".env.production", "backend/credentials.json", "config/client_credential.json", "backend/private_config.py"):
+        for path in (
+            "../outside.py", ".env", ".env.production",
+            "backend/credentials.json", "config/client_credential.json",
+            "backend/private_config.py", "id_rsa", "id_ed25519_work",
+            ".ssh/id_ed25519", ".aws/credentials", ".azure/client_secret.json",
+            ".kube/config", ".docker/config.json", ".gnupg/private-keys-v1.d",
+            ".terraform/terraform.tfstate", ".pulumi/credentials.json",
+            ".netrc", ".npmrc", ".pypirc", ".git-credentials",
+            "service-account.json", "service_account.json", "serviceAccountKey.json",
+            "firebase-adminsdk-prod.json", "kubeconfig",
+            "terraform.tfvars", ".config/gcloud/application_default_credentials.json",
+            ".config/gh/hosts.yml", ".config/pip/pip.conf",
+            ".config/containers/auth.json", "authorized_keys", "known_hosts",
+        ):
             with self.subTest(path=path):
                 with self.assertRaises(NonRetryableDevelopmentJobError):
                     self.executor._validated_scope({"scope": [path]})
+
+    def test_scope_rejects_symlink_aliases_to_internal_secret_files(self):
+        ssh_dir = self.root / ".ssh"
+        ssh_dir.mkdir()
+        private_key = ssh_dir / "id_ed25519"
+        private_key.write_text("private-key", encoding="utf-8")
+        alias = self.root / "backend" / "ordinary_module.py"
+        try:
+            alias.symlink_to(private_key)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are not supported in this environment")
+        with self.assertRaises(NonRetryableDevelopmentJobError):
+            self.executor._validated_scope({"scope": ["backend/ordinary_module.py"]})
+
+        credential = self.root / "backend" / "credentials.json"
+        credential.write_text("{}", encoding="utf-8")
+        alias.unlink()
+        alias.symlink_to(credential)
+        with self.assertRaises(NonRetryableDevelopmentJobError):
+            self.executor._validated_scope({"scope": ["backend/ordinary_module.py"]})
 
     def test_changed_file_must_be_inside_declared_scope(self):
         self.assertTrue(self.executor._matches_scope("backend/a.py", ["backend"]))

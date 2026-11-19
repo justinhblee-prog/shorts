@@ -2479,3 +2479,10 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extract environment construction into a separately testable least-privilege helper while preserving the local Ollama endpoint, repository workspace, approved scope mapping and selected local model settings.
 - Add regression coverage proving secret-bearing variables are absent while required local execution context remains available.
 - Exact-head backend Actions run [44513202976](https://github.com/justinhblee-prog/shorts/actions/runs/44513202976) passed **775 tests** on `81281194dc3ce043957708b090ad99d131df5021`. This validates environment filtering only; no actual model execution or production secret exposure test is claimed.
+
+
+## BUILD-00360 — protect local agent from common secret-file scopes
+- Expand the Aider executor's immutable path denylist to cover SSH identities and authorized-key files, cloud credential directories (`.aws`, `.azure`), Kubernetes/Docker/ GnuPG configuration, Terraform/Pulumi state, package-manager credential files, service-account JSON, and common private-key/keystore formats.
+- Block credential-bearing subdirectories under `.config` (AWS, Azure, gcloud, GitHub CLI, pip, containers, Kubernetes, Docker and npm) while leaving ordinary application configuration paths available.
+- Add regression cases for each secret/config path family and symlink aliases, checking both the supplied scope path and its resolved in-repository target so an innocuous filename cannot expose a protected target.
+- Exact-head backend Actions run [44513787916](https://github.com/justinhblee-prog/shorts/actions/runs/44513787916) passed **776 tests** on `630396f76439551fba42dfc3037acb7a28d84af1`. This is a path-policy contract; no actual runner filesystem or secret-file inventory is accessed.
