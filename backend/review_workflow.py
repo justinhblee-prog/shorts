@@ -375,12 +375,15 @@ class ReviewStore:
             """, (job_id,)).fetchall()
             policy_report = None
             quality_report = None
+            has_script_artifact = False
             for artifact in artifacts:
                 metadata = json.loads(artifact["metadata_json"])
                 if artifact["stage"] == "script" and artifact["artifact_type"] == "text":
-                    candidate = metadata.get("policy_preflight")
-                    if isinstance(candidate, dict):
-                        policy_report = candidate
+                    has_script_artifact = True
+                    candidate = metadata.get("policy_preflight") if isinstance(metadata, dict) else None
+                    # The newest script artifact supersedes all earlier preflight reports.
+                    # Never let a stale report authorize a revised script.
+                    policy_report = candidate if isinstance(candidate, dict) else None
                 if artifact["stage"] == "quality_check" and artifact["artifact_type"] == "report":
                     if isinstance(metadata, dict):
                         quality_report = metadata
@@ -395,16 +398,27 @@ class ReviewStore:
                     raise ValueError(
                         "Quality warnings require an explicit reviewer confirmation note"
                     )
-            if decision == "approved" and policy_report:
-                if policy_report.get("status") == "blocked":
+            if decision == "approved" and has_script_artifact:
+                if not isinstance(policy_report, dict):
+                    raise ReviewConflict(
+                        "Policy preflight report is required before production approval"
+                    )
+                policy_status = policy_report.get("status")
+                if policy_status not in ("blocked", "review_required", "ready_for_human_review"):
+                    raise ReviewConflict("Policy preflight report has an unsupported status")
+                if policy_status == "blocked":
                     raise ReviewConflict("Policy-blocked content cannot be approved")
-                approval_blockers = policy_report.get("approval_blockers") or []
+                approval_blockers = policy_report.get("approval_blockers")
+                if (not isinstance(approval_blockers, list)
+                        or any(not isinstance(item, str) or not item.strip()
+                               for item in approval_blockers)):
+                    raise ReviewConflict("Policy preflight approval blockers are malformed")
                 if approval_blockers:
                     raise ReviewConflict(
                         "Policy approval blockers must be resolved before approval: "
-                        + ", ".join(sorted(str(item) for item in approval_blockers))
+                        + ", ".join(sorted(approval_blockers))
                     )
-                if policy_report.get("status") == "review_required" and not comment:
+                if policy_status == "review_required" and not comment:
                     raise ValueError("Policy review requires an explicit reviewer confirmation note")
             snapshot = [{
                 "stage": a["stage"], "artifact_type": a["artifact_type"],
