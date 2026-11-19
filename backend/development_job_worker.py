@@ -45,17 +45,28 @@ class DevelopmentJobWorker:
         lease_lost = threading.Event()
         heartbeat_stop = threading.Event()
         interval = max(1, min(30, self.store.lease_seconds // 3))
+        heartbeat_failure_budget = max(1.0, self.store.lease_seconds * 0.75)
+        last_successful_heartbeat = [time.monotonic()]
+        # The executor receives this in-memory signal and must terminate active
+        # subprocesses when ownership can no longer be proven.
+        job = dict(job)
+        job["_lease_lost_event"] = lease_lost
 
         def keep_lease_alive():
             while not heartbeat_stop.wait(interval):
                 try:
                     self.store.heartbeat(job["id"], self.worker_id, job["lease_token"])
+                    last_successful_heartbeat[0] = time.monotonic()
                     self.store.touch_worker(self.worker_id, current_job_id=job["id"])
                 except DevelopmentJobConflict:
                     lease_lost.set()
                     return
                 except Exception:
-                    # A transient heartbeat error is retried on the next interval.
+                    # Retry brief storage faults, but never let an unrenewed
+                    # lease silently outlive its ownership window.
+                    if time.monotonic() - last_successful_heartbeat[0] >= heartbeat_failure_budget:
+                        lease_lost.set()
+                        return
                     continue
 
         heartbeat = threading.Thread(target=keep_lease_alive, name="dev-job-heartbeat", daemon=True)
