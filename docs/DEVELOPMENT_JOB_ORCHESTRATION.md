@@ -141,3 +141,28 @@ Validation:
 - An earlier CI attempt failed due to dynamically generated IDs being absent from static HTML and a stale test expectation. The implementation now uses scoped data attributes for generated controls and the frontend regression assertion was updated. Do not count the failed attempts as validation.
 
 Next gate: confirm latest-head Chromium smoke and inspect the refreshed screenshot artifact. Keep PR #395 Draft and do not merge it independently of PR #394.
+
+
+## Verification refresh — 2026-11-20 02:10 KST
+
+Exact-head hosted workflow state was re-queried from GitHub for the active stacks:
+
+| PR | Head | Latest observed result |
+|---|---|---|
+| #384 BUILD-00386 | `6f8f378b8e8e343919af3a4aaba585c90ae6f00d` | Backend tests passed — run [44557449271](https://github.com/justinhblee-prog/shorts/actions/runs/44557449271) |
+| #385 BUILD-00387 | `151ee074d8116e12759a6dc46e734cf84f52c2d4` | Backend tests passed — run [44563227397](https://github.com/justinhblee-prog/shorts/actions/runs/44563227397) |
+| #386 POLICY-00001 | `7a83fe9960c3581ad18ddd25805c5f3aa35afc03` | Backend tests passed — run [44550380614](https://github.com/justinhblee-prog/shorts/actions/runs/44550380614) |
+| #387 UI-00012 | `13ab5be32c108118aa57512bce1ac1bd17726ae8` | Backend tests passed — run [44555664708](https://github.com/justinhblee-prog/shorts/actions/runs/44555664708) |
+| #388 BUILD-00388 | `f55030dab87cbcb8a1fa1a015a74db87961496f4` | Backend validation and frontend syntax passed — run [44558169681](https://github.com/justinhblee-prog/shorts/actions/runs/44558169681) |
+| #389 POLICY-00002 | `d38bca36389c439d4cf37de31d9dfc4d72d53780` | Backend tests passed — run [44552071509](https://github.com/justinhblee-prog/shorts/actions/runs/44552071509) |
+| #390 POLICY-00003 | `cc29af580467e6b261fa724aad99a976eedb5552` | Backend tests passed — run [44560114906](https://github.com/justinhblee-prog/shorts/actions/runs/44560114906) |
+| #394 UI-00014 | `b098826455150fefe4a8def6377bf77630a1ad7f` | Two hosted validation/browser runs passed — [44565614418](https://github.com/justinhblee-prog/shorts/actions/runs/44565614418), [44565685710](https://github.com/justinhblee-prog/shorts/actions/runs/44565685710) |
+| #395 UI-00015 | `bd2926c981c44398465994d4825d981729bf4e13` | Backend/browser and Compose integration passed — [44570606677](https://github.com/justinhblee-prog/shorts/actions/runs/44570606677), [44570606778](https://github.com/justinhblee-prog/shorts/actions/runs/44570606778) |
+
+PR #388's workflow job was separately inspected: dependency setup, `scripts/validate.sh`, and `node --check frontend/app.js` all completed successfully. All listed PRs remain Draft/unmerged. A green exact-head workflow is a source-revision validation checkpoint only; it does not satisfy live OAuth, production provider upload, Windows runner, or deployment gates.
+
+### Integration gate decision
+
+The current repository already has a mocked lifecycle contract test in `backend/tests/test_end_to_end_lifecycle.py` covering queue submission, worker claim, script/voice/render pipeline, human review, staged-media reapproval, private YouTube upload, analytics snapshot, and ledger records. It explicitly does not represent live provider validation. Policy-specific tests in `backend/tests/test_review_workflow.py` and `backend/tests/test_youtube_publishing.py` separately exercise non-overridable approval blockers and YouTube synthetic-media disclosure mapping.
+
+Do not duplicate these isolated fixtures and call them cross-stack integration. The next integration job must run against a single candidate commit that actually contains the dependency stack, then add any missing cross-boundary assertion (especially worker quarantine recovery → authorized UI/API action and immutable audit evidence). Until those dependencies are available together on a candidate branch, keep integration status as BLOCKED_BY_STACK_INTEGRATION rather than claiming a full end-to-end pass.
