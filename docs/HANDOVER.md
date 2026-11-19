@@ -1462,3 +1462,8 @@ The full-suite run exposed a timing-sensitive TikTok status-poll backoff test th
 
 ### BUILD-00380 — worker presence shutdown fencing
 Worker presence heartbeats now update last-seen state only while the worker is online and still owns the same active job context. A delayed heartbeat can no longer resurrect offline presence after shutdown. A blocked-heartbeat regression is added; exact-head CI pending.
+
+
+### BUILD-00380 — exact-head validation
+- Code head `cefe34668203cf922f50688b4bcff7c246712123` passed **807 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538922403](https://github.com/justinhblee-prog/shorts/actions/runs/44538922403) and [44538962283](https://github.com/justinhblee-prog/shorts/actions/runs/44538962283).
+- The delayed-heartbeat shutdown regression passed in both runs. Hosted Linux only; Windows local-runner and production execution remain unverified.

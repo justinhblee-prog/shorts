@@ -2685,3 +2685,8 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Add a presence heartbeat update that succeeds only while the worker remains online with the same active job ID.
 - Prevent a delayed heartbeat thread from resurrecting an offline worker or restoring a stale `current_job_id` after the worker has cleared its job and stopped.
 - Add a regression that blocks a heartbeat across shutdown and verifies the late completion cannot reactivate presence. Exact-head CI pending.
+
+
+### BUILD-00380 — exact-head validation
+- Code head `cefe34668203cf922f50688b4bcff7c246712123` passed **807 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538922403](https://github.com/justinhblee-prog/shorts/actions/runs/44538922403) and [44538962283](https://github.com/justinhblee-prog/shorts/actions/runs/44538962283).
+- The delayed-heartbeat shutdown regression passed in both runs. Hosted Linux only; Windows local-runner and production execution remain unverified.
