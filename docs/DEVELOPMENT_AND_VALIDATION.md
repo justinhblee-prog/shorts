@@ -288,3 +288,11 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - New Chromium smoke passed: authenticated dashboard, quarantined job display, operator prompt and confirmation, recovery response, ready status, and immutable audit event with authenticated legacy-operator attribution and recorded reason.
 - Browser runner uses Ubuntu 24.04 for Playwright 1.56.1 compatibility.
 - Remaining: full analytics browser flow on this same candidate, live OAuth/provider publishing, production operator recovery, production deployment and operational evidence. Draft/unmerged.
+
+
+### UI-00017 / Core-Policy integration audit — not yet unified
+
+- Exact refs rechecked: UI-00017 PR #399 `16d4964dcf2472f47c0b1dd1fbd890e2d46750c1`; Core/Policy/recovery PR #406 `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0`; recovery UI PR #404.
+- File-level inspection confirms mutually exclusive frontend feature deltas. UI-00017 has analytics pagination and table semantics but no quarantine recovery UI. PR #406 has recovery UI but lacks UI-00017 analytics behavior. The associated frontend regression test files differ as well.
+- A direct branch compare returns `diverged` (534 ahead / 519 behind); this is not a safe merge base. PR #406 itself remains a clean seven-commit successor to its declared BUILD-00385 base.
+- Integration remains explicitly incomplete. Do not count PR #399's browser evidence as coverage of PR #406 or vice versa. A new dependency-aligned successor and a three-way frontend merge are required before claiming the unified gate.
