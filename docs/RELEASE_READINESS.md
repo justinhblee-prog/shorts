@@ -301,3 +301,7 @@ GitHub Actions run [44517570254](https://github.com/justinhblee-prog/shorts/acti
 
 ### BUILD-00368 — portable scope path validation
 The executor rejects Windows drive and UNC paths, backslash-based traversal, alternate data streams, root scopes, trailing-dot/space aliases and reserved device names before interpreting a scope on the host OS. Exact PR head `0414d43ebf24b9b5eadc728a5f92fd86006af090` passed backend Actions run [44519037430](https://github.com/justinhblee-prog/shorts/actions/runs/44519037430): 785 tests; no live Windows filesystem scan is claimed.
+
+
+### BUILD-00370 — runner startup environment isolation
+The initial PowerShell preflight writes empty values for inherited runtime injection, provider endpoint, credential, Git/SSH, package-manager, dynamic-loader and TLS override variables before checkout or Node/Python actions start. It preserves runner-managed workflow paths and later step-scoped credentials. Exact-head CI pending; no live Windows runner execution is claimed.

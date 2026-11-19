@@ -2546,3 +2546,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Reject Windows drive/drive-relative and UNC roots, backslash separators, alternate data stream colons, root scopes, trailing-dot/space segments and reserved device names (CON/PRN/AUX/NUL/COM/LPT).
 - Add regression coverage for Windows-style traversal and aliases while preserving valid repository-relative paths.
 - Exact PR head `0414d43ebf24b9b5eadc728a5f92fd86006af090` passed backend Actions run [44519037430](https://github.com/justinhblee-prog/shorts/actions/runs/44519037430): **785 tests**. This is a cross-platform path-validation contract; no live Windows runner filesystem access is claimed.
+
+
+## BUILD-00370 — sanitize runner environment before runtime actions
+- Extend the first PowerShell preflight to clear inherited runtime-injection, provider endpoint, credential, Git config/SSH, package-manager, dynamic-loader and TLS override variables through the runner-managed GITHUB_ENV file.
+- Run this step before actions/checkout@v7 and any Python/Node setup or execution; set GIT_CONFIG_COUNT=0 after clearing inherited config injection entries.
+- Preserve runner-managed GITHUB_* workflow paths and later step-scoped tokens/model settings; do not print environment values.
+- Add workflow-contract tests asserting the scrub occurs before checkout and covers Python, Node, shell, Git, SSH, loader, provider and credential variable families.
+- Exact code/test head `f8033fb17c9067a9f87e6fa5966a15f4641e3f08` passed backend Actions run [44520580445](https://github.com/justinhblee-prog/shorts/actions/runs/44520580445): **786 tests**. Hosted Linux validates workflow text only; Windows self-hosted execution remains an integration gate.

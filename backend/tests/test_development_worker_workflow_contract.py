@@ -43,6 +43,28 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("peter-evans/create-pull-request@v7", self.source)
         self.assertLess(checkout, create_pr)
 
+    def test_runner_environment_is_sanitized_before_checkout_or_node_actions(self):
+        preflight = self.source.index("name: Verify self-hosted runner supports Node 24 actions")
+        checkout = self.source.index("name: Check out default branch")
+        step = self.source[preflight:checkout]
+        self.assertLess(preflight, checkout)
+        self.assertIn("$env:GITHUB_ENV", step)
+        self.assertIn("[System.Environment]::GetEnvironmentVariables()", step)
+        self.assertIn("$blockedPrefixes", step)
+        self.assertIn("$credentialPattern", step)
+        self.assertIn("GIT_CONFIG_COUNT=0", step)
+        self.assertIn('"NEXUS_APPROVED_SCOPES"', step)
+        self.assertIn('"GITHUB_TOKEN"', step)
+        for prefix in (
+            '"PYTHON"', '"NODE_"', '"RUBY"', '"PERL"', '"JAVA_"',
+            '"GIT_"', '"SSH_"', '"LD_"', '"DYLD_"', '"AIDER_"',
+            '"OPENAI_"', '"OLLAMA_"',
+        ):
+            with self.subTest(prefix=prefix):
+                self.assertIn(prefix, step)
+        self.assertNotIn("Write-Host $env:", step)
+        self.assertIn("before checkout and runtime actions", step)
+
     def test_schedule_and_manual_dispatch_are_configured(self):
         self.assertIn("workflow_dispatch:", self.source)
         self.assertIn('cron: "17 */2 * * *"', self.source)
