@@ -125,3 +125,9 @@
 
 /* Keep the last complete result visible while clearly announcing a refresh. */
 .analytics-history[aria-busy="true"]{opacity:.72;cursor:progress}
+
+
+.review-search{display:grid;gap:7px;margin:14px 0 4px;max-width:560px;color:var(--muted);font-size:12px;font-weight:700}
+.review-search input{width:100%;min-height:44px;padding:10px 13px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft);color:var(--text);font:inherit;font-weight:500}
+.review-search-status{min-height:18px;margin:4px 0 12px;color:var(--muted);font-size:12px}
+.review-card[hidden]{display:none}
