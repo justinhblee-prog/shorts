@@ -1324,3 +1324,8 @@ The analytics history endpoint now accepts bounded `offset` alongside the existi
 ## BUILD-00329 — stable analytics export pagination
 
 CSV export now uses a per-platform composite keyset cursor (`collected_at,id`) instead of offset paging. This avoids page shifts and skipped/duplicated older rows when new snapshots are inserted at the front during a long export. The API and both stores retain bounded offset support for compatibility. Cursor validation and regression tests are included; exact-head CI is pending.
+
+
+## BUILD-00330 — stable export time window
+
+The analytics history API now returns a normalized UTC `as_of` timestamp and accepts it on subsequent requests. CSV export pins this value from the first response and reuses it across all pages and platforms, so the rolling date-window cutoff does not move during long-running exports. Timezone-aware ISO-8601 values are required. Regression tests added; exact-head CI pending.
