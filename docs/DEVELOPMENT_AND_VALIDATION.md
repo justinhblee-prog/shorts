@@ -256,3 +256,10 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - UI successor PR #404 head `ee6a1113ce280c49c0a65c31e3555cf5a61de6d4`, based on current BUILD-00386 / #384: compare ahead 4, behind 0, mergeable. Workflow [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819) passed; [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665) was in progress.
 - API contract successor PR #405 head `5dcfc199cd4d719b03601e1a3507f83689a7bbd0`, based on #404: compare ahead 1, behind 0, mergeable. Workflow [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441) was in progress.
 - Both are Draft/unmerged. API coverage is route-handler testing with mocked storage, not live production recovery.
+
+
+### Quarantine recovery UI/API successor exact-head results
+
+- PR #404 exact head `ee6a1113ce280c49c0a65c31e3555cf5a61de6d4`: backend workflows [44576159819](https://github.com/justinhblee-prog/shorts/actions/runs/44576159819) and [44576203665](https://github.com/justinhblee-prog/shorts/actions/runs/44576203665) both SUCCESS.
+- PR #405 exact head `5dcfc199cd4d719b03601e1a3507f83689a7bbd0`: backend workflow [44576279441](https://github.com/justinhblee-prog/shorts/actions/runs/44576279441) SUCCESS.
+- PRs remain Draft/unmerged. API test coverage invokes the FastAPI handler with mocked storage; no live operator recovery or production data was used.
