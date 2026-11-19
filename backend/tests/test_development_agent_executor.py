@@ -24,8 +24,7 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_changed_files_includes_tracked_diff_and_untracked_files_from_git(self):
-        home = self.root / "isolated-home"
-        env = self.executor._child_environment(home)
+        env = os.environ.copy()
 
         def git(*args):
             subprocess.run(
