@@ -138,7 +138,7 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('dataset.loaded="true"', app_js)
         self.assertIn('id="exportAnalyticsHistory"', html)
         self.assertIn('exportButton.disabled=rows.length===0', app_js)
-        self.assertIn("표 최대 200개 표시 · CSV 최대 1,000개 내보내기(플랫폼별 최대 500개)", app_js)
+        self.assertIn("표 최대 200개 표시 · CSV 전체 내보내기(페이지 단위)", app_js)
         self.assertIn("const exportRows=[]", app_js)
         self.assertIn("while(true)", app_js)
         self.assertIn("offset+=pageItems.length", app_js)
