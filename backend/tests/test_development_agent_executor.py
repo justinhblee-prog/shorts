@@ -170,6 +170,18 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertEqual(child_env["NEXUS_APPROVED_SCOPES"], "{}")
         self.assertEqual(child_env["NEXUS_DEV_AGENT_MODEL"], "ollama_chat/qwen2.5-coder:7b")
 
+    def test_ollama_endpoint_rejects_non_loopback_overrides(self):
+        with patch.dict(os.environ, {"OLLAMA_API_BASE": "https://remote.example/v1"}):
+            self.assertEqual(
+                self.executor._local_ollama_api_base(),
+                "http://127.0.0.1:11434",
+            )
+        with patch.dict(os.environ, {"OLLAMA_API_BASE": "http://127.0.0.2:11434/"}):
+            self.assertEqual(
+                self.executor._local_ollama_api_base(),
+                "http://127.0.0.2:11434",
+            )
+
     def test_child_environment_uses_private_empty_user_config_directories(self):
         home = self.root / "private-home"
         env = self.executor._child_environment(home)
