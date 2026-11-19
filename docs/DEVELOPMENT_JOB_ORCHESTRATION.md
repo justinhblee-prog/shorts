@@ -235,3 +235,9 @@ Code head `d6af913a2325a4a390f9bcb788f473670cf018b4` passed GitHub Actions run [
 
 ### BUILD-00371 — exact-head redaction regression result
 PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391): **802 tests**, `scripts/validate.sh` and frontend syntax validation. Safe diagnostic context after inline and multiline credential values is preserved.
+
+
+### BUILD-00372 — redact imported backlog text
+- Apply the shared redactor inside `DevelopmentJobStore.create` to title, description and each acceptance criterion before the INSERT.
+- Cover both GitHub issue intake and direct store callers at the final persistence boundary.
+- Preserve non-sensitive task instructions and source-reference identity; redact credential-bearing text before durable storage. Exact-head hosted CI pending.
