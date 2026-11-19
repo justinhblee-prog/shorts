@@ -112,6 +112,7 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
         self.assertEqual(result["import"]["created_count"], 1)
         self.assertEqual(result["candidate_count"], 1)
         self.assertEqual(result["snapshot_counts"]["pull_requests"], 1)
+        self.assertEqual(result["snapshot_truncated"], {"issues": False, "pull_requests": False, "workflow_runs": False})
         self.assertEqual(self.store.list()[0]["scope"], ["backend/export.py"])
 
     def test_scope_must_be_configured_before_import(self):
@@ -145,6 +146,7 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
         self.assertEqual(len(normalized["job_candidates"]), 1)
         self.assertEqual(normalized["pull_requests"][0]["state"], "draft")
         self.assertEqual(normalized["workflow_runs"][0]["conclusion"], "failure")
+        self.assertEqual(normalized["pagination_truncated"], {"issues": False, "pull_requests": False, "workflow_runs": False})
         self.assertEqual([call[0] for call in client.calls], ["issues", "pulls", "runs"])
         self.assertTrue(all(call[3]["per_page"] == 100 for call in client.calls))
 
@@ -221,6 +223,59 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
         self.assertEqual([run["conclusion"] for run in runs], ["success", "failure"])
         self.assertEqual(request.call_count, 2)
         self.assertTrue(all(call.args[0].get_method() == "GET" for call in request.call_args_list))
+
+    def test_rest_client_caps_each_feed_at_five_pages_and_reports_truncation(self):
+        import json
+        from unittest.mock import patch
+        from development_github_intake import GitHubReadOnlyClient
+
+        class Response:
+            def __init__(self, payload, link=""):
+                self.payload = payload
+                self.headers = {"Link": link}
+
+            def read(self):
+                return json.dumps(self.payload).encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        responses = []
+        for page in range(1, 6):
+            next_url = (
+                "https://api.github.com/repos/acme/app/actions/runs"
+                f"?per_page=100&page={page + 1}"
+            )
+            responses.append(Response(
+                {"total_count": 6, "workflow_runs": [
+                    {"id": page, "name": "CI", "status": "completed", "conclusion": "success"}
+                ]},
+                f'<{next_url}>; rel="next"',
+            ))
+
+        with patch("urllib.request.urlopen", side_effect=responses) as request:
+            client = GitHubReadOnlyClient("test-token")
+            runs = client.list_workflow_runs("acme", "app")
+
+        self.assertEqual([run["id"] for run in runs], [1, 2, 3, 4, 5])
+        self.assertEqual(request.call_count, client.MAX_PAGES)
+        self.assertTrue(client.pagination_truncated["/repos/acme/app/actions/runs"])
+
+    def test_snapshot_exposes_per_feed_truncation_metadata(self):
+        client = FakeReadOnlyGitHub()
+        client.pagination_truncated = {
+            "/repos/acme/app/issues": True,
+            "/repos/acme/app/pulls": False,
+            "/repos/acme/app/actions/runs": True,
+        }
+        snapshot = read_github_snapshot(client, "acme", "app")
+        self.assertEqual(snapshot["pagination_truncated"], {
+            "issues": True, "pull_requests": False, "workflow_runs": True,
+        })
+        self.assertEqual(normalize_snapshot(snapshot)["pagination_truncated"], snapshot["pagination_truncated"])
 
     def test_rest_client_requires_token(self):
         from development_github_intake import GitHubReadOnlyClient
