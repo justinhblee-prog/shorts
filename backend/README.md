@@ -68,6 +68,8 @@ API:
 - `POST /api/production/jobs/{id}/execute` — execute only with the current
   `worker_id` and `lease_token`.
 - `GET /api/production/jobs/{id}` — inspect stages and artifacts.
+- `GET /api/publishing/overview` — return a bounded (latest 200 approved jobs) YouTube/TikTok publication-state summary; requires `review.read` and excludes provider credentials.
+- `POST /api/production/jobs/{job_id}/provider-attempts/{provider_attempt_id}/reconcile` — resolve an ambiguous provider attempt only with `confirmed_not_executed=true`, operator ID, evidence reference and note; requires `production.provider_reconcile`. This appends an immutable reconciliation event and does not retry the provider call or resume production.
 - `python worker.py` — run the long-lived worker. It claims only `short_video_production` jobs, renews its lease while provider calls run, and finalizes the queue into `review_pending` after successful rendering.
 
 A completed render transitions the queue job to `review_pending`. This is not
