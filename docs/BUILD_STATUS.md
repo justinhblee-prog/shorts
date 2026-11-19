@@ -2493,11 +2493,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Strip inherited SSH agent/askpass, Git configuration and transport overrides, npm/pip configuration, Docker/cloud credentials, Aider/LiteLLM/provider endpoint overrides and other tool-specific injection variables; accept OLLAMA_API_BASE only for loopback hosts and fall back to the local default for remote/invalid endpoints.
 - Disable system/global Git configuration, interactive credential prompts and inherited credential helpers; supply only an empty isolated global config and explicit noninteractive credential policy.
 - Add regressions for isolated home/config paths, empty config files, blocked environment overrides and preserved required local execution context.
-- Exact-head CI pending. Hosted tests validate the environment contract only; no real Windows runner or Aider/Ollama invocation is claimed.
+- Exact-head backend Actions run [44515975018](https://github.com/justinhblee-prog/shorts/actions/runs/44515975018) passed **778 tests** on `03bd72a4d00af95e992954c67b8cf41eaaf522ad`. Hosted tests validate the environment contract only; no real Windows runner or Aider/Ollama invocation is claimed.
 
 
 ## BUILD-00362 — scrub runtime and shell startup injection variables
-- Remove inherited Python interpreter/module injection settings, dynamic-loader overrides, shell startup hooks, and Node/Ruby/Perl runtime preload variables from the Aider child environment.
+- Remove inherited Python interpreter/module injection settings, dynamic-loader overrides, shell startup hooks (Bash/sh/Zsh), and Node/Ruby/Perl/Java runtime preload and module-path variables from the Aider child environment.
 - Preserve only the explicitly constructed local model, repository, and isolated tool configuration context.
-- Add regression coverage for PYTHONPATH/PYTHONHOME, LD_PRELOAD, DYLD_INSERT_LIBRARIES, BASH_ENV, ENV, NODE_OPTIONS and related runtime injection variables.
-- Exact-head hosted CI pending. This is environment-contract coverage; no live Windows runner or Aider/Ollama execution is claimed.
+- Add regression coverage for PYTHONPATH/PYTHONHOME/PYTHONUSERBASE/PYTHONSTARTUP, LD_PRELOAD/LD_LIBRARY_PATH/LD_AUDIT, DYLD_INSERT_LIBRARIES/DYLD_FRAMEWORK_PATH, BASH_ENV/ENV/PROMPT_COMMAND/ZDOTDIR/ZSHENV, NODE_OPTIONS/NODE_PATH, RUBYOPT/RUBYLIB, PERL5OPT/PERL5LIB and Java agent/classpath variables.
+- Exact-head CI pending. This is environment-contract coverage; no live Windows runner or Aider/Ollama execution is claimed.
