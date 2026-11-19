@@ -92,11 +92,23 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         self.assertEqual(child_env["NEXUS_DEV_AGENT_MODEL"], "ollama_chat/qwen2.5-coder:7b")
 
     def test_diagnostic_redaction_removes_bearer_and_common_api_tokens(self):
-        message = "Bearer abc.def token=private123 ghp_123456789012345678901234567890"
+        message = (
+            "Bearer abc.def token=private123 "
+            "NEXUS_BACKUP_ENCRYPTION_KEY=backup-secret "
+            "DATABASE_URL=postgres://user:password@db.example/nexus "
+            "SUPABASE_SERVICE_ROLE_KEY=service-role-secret "
+            "PRIVATE_KEY=private-key-secret "
+            "ghp_123456789012345678901234567890"
+        )
         safe = _tail(message)
-        self.assertNotIn("abc.def", safe)
-        self.assertNotIn("private123", safe)
-        self.assertNotIn("ghp_123456789012345678901234567890", safe)
+        for secret in (
+            "abc.def", "private123", "backup-secret",
+            "postgres://user:password@db.example/nexus",
+            "service-role-secret", "private-key-secret",
+            "ghp_123456789012345678901234567890",
+        ):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, safe)
         self.assertIn("[REDACTED]", safe)
 
 
