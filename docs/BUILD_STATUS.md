@@ -2434,3 +2434,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Keep every actual snapshot marker and tooltip; do not interpolate missing values or synthesize a trend through an unobserved period.
 - Display the actual first-to-last collection date range for the returned history result alongside snapshot counts.
 - Validation: frontend regression assertions cover the gap threshold, non-interpolation explanation and coverage-range label. Exact-head GitHub Actions pending; real browser rendering and live account sampling cadence remain unverified.
+
+
+## BUILD-00322 — preserve valid YouTube audience-watch ratios above 1.0
+
+- Correct validation for YouTube `audienceWatchRatio`: it is an absolute ratio of segment views to total video views and can legitimately exceed 1.0 when viewers replay a segment.
+- Keep `elapsedVideoTimeRatio` bounded to 0..1 and `relativeRetentionPerformance` bounded to 0..1 (while preserving documented negative values if returned); do not apply the relative metric's bound to the absolute audience-watch ratio.
+- Add regression coverage for an audience-watch ratio of 1.2 and rejection of an out-of-range relative-retention value.
+- Source: [YouTube Analytics API metrics](https://developers.google.com/youtube/analytics/metrics).
+- Validation: exact-head GitHub Actions pending.
