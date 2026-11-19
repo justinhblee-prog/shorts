@@ -33,6 +33,10 @@ async function waitForServer() {
       route.fulfill({ status: 200, contentType: "text/css", body: "" })
     );
     let authenticated = false;
+    let resolveAnalyticsStarted;
+    let releaseAnalytics;
+    const analyticsStarted = new Promise(resolve => { resolveAnalyticsStarted = resolve; });
+    const analyticsGate = new Promise(resolve => { releaseAnalytics = resolve; });
     await page.route("**/api/**", async route => {
       if (!authenticated) {
         return route.fulfill({
@@ -43,7 +47,8 @@ async function waitForServer() {
       }
       const pathname = new URL(route.request().url()).pathname;
       if (pathname === "/api/publishing/analytics-history") {
-        await new Promise(resolve => setTimeout(resolve, 350));
+        resolveAnalyticsStarted();
+        await analyticsGate;
         const url = new URL(route.request().url());
         const platform = url.searchParams.get("platform") || "all";
         const hasCursor = url.searchParams.has("before_id");
@@ -102,7 +107,9 @@ async function waitForServer() {
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
     await page.locator("#loadAnalyticsHistory").click();
+    await analyticsStarted;
     assert.equal(await page.locator("#analyticsHistory").getAttribute("aria-busy"), "true");
+    releaseAnalytics();
     await page.waitForFunction(() =>
       document.querySelector("#analyticsHistory").getAttribute("aria-busy") === "false" &&
       document.querySelector("#analyticsHistoryStatus").textContent.includes("기준 시각")
@@ -121,6 +128,8 @@ async function waitForServer() {
     assert.ok(csv.includes("video-tt-1"));
     assert.match(await page.locator("#analyticsHistoryStatus").textContent(), /CSV 다운로드 요청 완료/);
 
+    await page.reload({ waitUntil: "networkidle" });
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.keyboard.press("Tab");
     assert.equal(await page.evaluate(() => document.activeElement.classList.contains("skip-link")), true);
     await page.keyboard.press("Enter");
