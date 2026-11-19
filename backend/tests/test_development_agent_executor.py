@@ -1,5 +1,8 @@
 import os
+import sys
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -18,6 +21,37 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_cancel_terminates_active_child_process(self):
+        finished = threading.Event()
+        errors = []
+
+        def run_command():
+            try:
+                self.executor._run(
+                    [sys.executable, "-c", "import time; time.sleep(30)"],
+                    os.environ.copy(),
+                    40,
+                )
+            except Exception as error:
+                errors.append(error)
+            finally:
+                finished.set()
+
+        thread = threading.Thread(target=run_command)
+        thread.start()
+        deadline = time.monotonic() + 3
+        while self.executor._active_process is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertIsNotNone(self.executor._active_process)
+        self.executor.cancel()
+        self.assertTrue(finished.wait(5))
+        thread.join(1)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(len(errors), 1)
+        self.assertIn("cancelled", str(errors[0]))
+        self.assertIsNotNone(self.executor._cancel_requested)
+        self.assertTrue(self.executor._cancel_requested.is_set())
 
     def test_scope_preserves_dot_github_path_and_accepts_scoped_files(self):
         scope = self.executor._validated_scope({

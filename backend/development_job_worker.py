@@ -46,17 +46,28 @@ class DevelopmentJobWorker:
         heartbeat_stop = threading.Event()
         interval = max(1, min(30, self.store.lease_seconds // 3))
 
+        def cancel_for_lease_loss():
+            lease_lost.set()
+            cancel = getattr(self.executor, "cancel", None)
+            if callable(cancel):
+                try:
+                    cancel()
+                except Exception:
+                    pass
+
         def keep_lease_alive():
             while not heartbeat_stop.wait(interval):
                 try:
                     self.store.heartbeat(job["id"], self.worker_id, job["lease_token"])
                     self.store.touch_worker(self.worker_id, current_job_id=job["id"])
                 except DevelopmentJobConflict:
-                    lease_lost.set()
+                    # A rejected fencing token is definitive lease loss.
+                    cancel_for_lease_loss()
                     return
                 except Exception:
-                    # A transient heartbeat error is retried on the next interval.
-                    continue
+                    # A heartbeat persistence/transport failure makes ownership uncertain.
+                    cancel_for_lease_loss()
+                    return
 
         heartbeat = threading.Thread(target=keep_lease_alive, name="dev-job-heartbeat", daemon=True)
         heartbeat.start()

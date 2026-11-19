@@ -1,8 +1,10 @@
 import os
 import tempfile
+import threading
 import unittest
+from unittest.mock import patch
 
-from development_jobs import DevelopmentJobStore
+from development_jobs import DevelopmentJobConflict, DevelopmentJobStore
 from development_job_worker import DevelopmentJobWorker, NonRetryableDevelopmentJobError
 
 
@@ -130,6 +132,81 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "executor"):
             DevelopmentJobWorker(self.store, "worker-a", None)
 
+
+    def test_heartbeat_transport_failure_cancels_executor_and_fails_closed(self):
+        self.store.lease_seconds = 3
+        job = self.store.create("Lease heartbeat transport failure", scope=["backend/example.py"])
+
+        class CancellableExecutor:
+            def __init__(self):
+                self.started = threading.Event()
+                self.cancelled = threading.Event()
+
+            def __call__(self, _):
+                self.started.set()
+                self.cancelled.wait(5)
+                return {
+                    "changed_files": ["backend/example.py"],
+                    "tests_passed": True,
+                    "validation_ref": "ci://must-not-be-accepted",
+                }
+
+            def cancel(self):
+                self.cancelled.set()
+
+        executor = CancellableExecutor()
+        worker = DevelopmentJobWorker(self.store, "worker-heartbeat-failure", executor)
+        outcomes = []
+        with patch.object(
+            self.store, "heartbeat", side_effect=RuntimeError("database temporarily unavailable")
+        ):
+            thread = threading.Thread(target=lambda: outcomes.append(worker.run_once()))
+            thread.start()
+            self.assertTrue(executor.started.wait(2))
+            self.assertTrue(executor.cancelled.wait(4))
+            thread.join(2)
+
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(outcomes, ["lease_lost"])
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+        self.assertNotEqual(self.store.get(job["id"])["status"], "review_pending")
+
+    def test_fenced_heartbeat_rejection_cancels_executor(self):
+        self.store.lease_seconds = 3
+        job = self.store.create("Lease fencing rejection", scope=["backend/example.py"])
+
+        class CancellableExecutor:
+            def __init__(self):
+                self.started = threading.Event()
+                self.cancelled = threading.Event()
+
+            def __call__(self, _):
+                self.started.set()
+                self.cancelled.wait(5)
+                return {
+                    "changed_files": ["backend/example.py"],
+                    "tests_passed": True,
+                    "validation_ref": "ci://must-not-be-accepted",
+                }
+
+            def cancel(self):
+                self.cancelled.set()
+
+        executor = CancellableExecutor()
+        worker = DevelopmentJobWorker(self.store, "worker-fenced-heartbeat", executor)
+        outcomes = []
+        with patch.object(
+            self.store, "heartbeat", side_effect=DevelopmentJobConflict("lease fenced")
+        ):
+            thread = threading.Thread(target=lambda: outcomes.append(worker.run_once()))
+            thread.start()
+            self.assertTrue(executor.started.wait(2))
+            self.assertTrue(executor.cancelled.wait(4))
+            thread.join(2)
+
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(outcomes, ["lease_lost"])
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
     def test_run_once_registers_worker_and_clears_current_job(self):
         job = self.store.create("Worker presence", scope=["backend/example.py"])

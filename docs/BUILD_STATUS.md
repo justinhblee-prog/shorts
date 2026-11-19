@@ -2580,3 +2580,22 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 
 ### BUILD-00367 — final redaction and scope-normalization validation
 - Final PR head `d714efdccfbcec56503cc68c3e4fe9e7dcfc4790` passed backend Actions run [44519065531](https://github.com/justinhblee-prog/shorts/actions/runs/44519065531): **795 tests**, repository validation and frontend syntax check; includes top-level error redaction and approved-scope normalization.
+
+
+## BUILD-00368 — fail closed on uncertain Worker lease heartbeat
+- Treat any heartbeat persistence/transport exception as loss of trustworthy lease ownership instead of retrying indefinitely while the executor continues editing.
+- Signal cancellable executors immediately; the Aider executor now polls a cancellation event, terminates the active process group, and refuses to launch later commands after cancellation.
+- Add worker regression coverage proving heartbeat database failure cancels execution and cannot advance the job to review_pending, plus subprocess cancellation coverage.
+- Exact-head hosted CI pending. Hosted CI does not prove Windows process-tree behavior or live runner recovery.
+
+
+### BUILD-00368 — exact-head hosted validation
+- Code head `f6c69af52204ebfccce88a48114291c4fb6946e8` passed GitHub Actions Backend tests run [44530628392](https://github.com/justinhblee-prog/shorts/actions/runs/44530628392): **797 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Both regressions passed: heartbeat transport failure cancels the executor without advancing the job, and active child-process cancellation terminates the process group.
+- Hosted Linux only; Windows self-hosted process-tree behavior and live runner recovery remain separate integration gates.
+
+
+### BUILD-00368 — definitive fencing-loss cancellation validation
+- Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actions run [44531177231](https://github.com/justinhblee-prog/shorts/actions/runs/44531177231): **798 tests**, `scripts/validate.sh` and `node --check frontend/app.js`.
+- Both heartbeat failure modes are covered: transport/database exception and definitive fencing-token rejection each cancel the executor; the active child-process cancellation regression also passes.
+- Hosted Linux only; Windows self-hosted process-tree behavior and live runner recovery remain separate integration gates.
