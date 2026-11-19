@@ -901,6 +901,16 @@ class YouTubePublishingTests(unittest.TestCase):
             with self.assertRaisesRegex(YouTubeUploadError,"does not cover YouTube"):
                 self.publisher.upload_approved("job-1",self.media,self.review,"TikTok-only approval")
 
+    def test_upload_rejects_stale_policy_report_when_latest_script_has_none(self):
+        history=self.review.history("job-1")
+        history[-1]["artifact_snapshot"].append({
+            "stage":"script","artifact_type":"text","artifact_url":None,
+            "metadata":{"script":"Revised script without policy preflight"},
+        })
+        with patch.object(self.review,"history",return_value=history):
+            with self.assertRaisesRegex(YouTubeUploadError,"Latest approved script has no valid policy report"):
+                self.publisher.upload_approved("job-1",self.media,self.review,"Stale policy report")
+
     def test_upload_requires_approved_policy_report_for_synthetic_media_flag(self):
         history=self.review.history("job-1")
         history[-1]["artifact_snapshot"]=[
