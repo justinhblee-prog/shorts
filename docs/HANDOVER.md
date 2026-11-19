@@ -1441,3 +1441,7 @@ Updated head `148025eba9939f1c86488ddc705fa36632e942bd` passed GitHub Actions ru
 
 ### BUILD-00373 — scheduler transition audit completeness
 claim_ready now appends immutable events for retry_wait→ready, retry_wait→quarantined, and blocked→ready transitions in the same transaction as each update. This closes gaps where persisted state changed without corresponding event history. Exact-head CI pending.
+
+
+### BUILD-00373 — exact-head CI result
+Head `f1408abd9fd878c9c06e3f5ceb9448e7e9a27b85` passed GitHub Actions run [44523925899](https://github.com/justinhblee-prog/shorts/actions/runs/44523925899): **805 tests**, repository validation and frontend syntax check. Scheduler transition event regressions passed.
