@@ -45,13 +45,14 @@ async function waitForServer() {
     assert.equal(await recoverButton.isEnabled(), true);
     assert.match(await page.locator("#developmentJobList").textContent(), /격리/);
 
-    page.once("dialog", async dialog => {
-      assert.equal(dialog.type(), "prompt");
-      await dialog.accept("Reviewed the quarantined job and corrected its source scope.");
-    });
-    page.once("dialog", async dialog => {
-      assert.equal(dialog.type(), "confirm");
-      await dialog.accept();
+    page.on("dialog", async dialog => {
+      if (dialog.type() === "prompt") {
+        await dialog.accept("Reviewed the quarantined job and corrected its source scope.");
+      } else if (dialog.type() === "confirm") {
+        await dialog.accept();
+      } else {
+        await dialog.dismiss();
+      }
     });
     const recoveryResponse = page.waitForResponse(response =>
       response.url().includes("/api/development/jobs/" + jobId + "/recover") &&
