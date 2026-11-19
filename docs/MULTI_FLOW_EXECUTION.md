@@ -171,3 +171,13 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 | FLOW-QA | PASS | Exact-head hosted validation and Chromium smoke evidence recorded for PRs #412–#414 |
 | FLOW-DOCS | ACTIVE | This handover updated with exact-head evidence and remaining external gates |
 | FLOW-INTEGRATION | READY | Review cross-PR base compatibility and aggregate changes; keep all PRs Draft and do not merge/deploy |
+
+
+## 16. Integration ancestry and file-ownership review — 2026-11-20
+
+- PRs #412 (UI), #413 (Core), and #409 (Automation baseline) all target `integration/nexus-ui-current-verified` at base `77333d264a123d80c87e6ca13f1edfc0282be06a`; each is currently open, Draft, and reported mergeable.
+- PR #412 owns frontend files and its browser-smoke fixtures; PR #413 owns `backend/development_jobs.py` and its focused tests. Their changed-file sets are disjoint, and both are based directly on the same integration candidate.
+- PR #414 is not an independent sibling of #409: commit comparison confirms #414 head `8bb993a084b1f6b78730e78a49e943166f4f5e17` is exactly two commits ahead of, and contains, #409 head `4d7286a7a4472736c0c037a34cff36743c54ae69`. They both modify the same workflow and workflow-contract test. Preserve the ancestry/order **#409 before #414** during integration; do not treat their same-base PR metadata as proof of independent changes.
+- PR #411 is likewise stacked on PR #410: its base SHA is exactly #410 head `56bb66ca18000563f95f999bc9a94e3f35ed0bf3`. Preserve **#410 before #411** when integrating documentation.
+- Recommended integration sequence after explicit approval: integrate the shared baseline candidate first; then the independent UI/Core changes (#412/#413); then Automation baseline #409 followed by its integrity hardening #414; then the documentation stack #410 followed by #411. Re-run full validation on the resulting combined head because individual branch PASS evidence does not certify the aggregate merge result.
+- No merge or deployment was performed. All six PRs remain Draft pending user approval and the external Windows/Ollama gate.
