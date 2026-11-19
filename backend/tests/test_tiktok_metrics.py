@@ -621,5 +621,31 @@ class TikTokMetricsTests(unittest.TestCase):
         self.assertEqual(status["latest_snapshot_at"], "2000-01-01T00:00:00+00:00")
 
 
+
+    def test_due_video_selection_is_bounded_and_deduplicates_publications(self):
+        for index in range(2, 32):
+            self._publish("job-" + str(index), "video-" + str(index))
+        self._publish("job-duplicate", "video-1")
+        due = self.store.due_videos(limit=7, min_age_seconds=0)
+        self.assertEqual(len(due), 7)
+        ids = [item["video_id"] for item in due]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(sum(1 for item in due if item["video_id"] == "video-1"), 1)
+
+    def test_collector_uses_bounded_sql_candidate_selection_not_full_ledger_scans(self):
+        self._publish("job-2", "video-2")
+        self.publications.list_metrics_eligible = lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("full publication scan must not be used")
+        )
+        self.store.latest_snapshot_times = lambda: (_ for _ in ()).throw(
+            AssertionError("full snapshot map must not be used")
+        )
+        collector = self._collector({
+            "data": {"videos": []}, "error": {"code": "ok", "message": ""},
+        })
+        result = collector.refresh_due_metrics(limit=2, min_age_seconds=0)
+        self.assertEqual(result["requested"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()
