@@ -1374,3 +1374,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact-head CI: pending. Production-sized latency benchmark and live provider validation remain outstanding.
 
 - Initial exact-head CI caught a stale Python variable reference in the new response mapping (3 errors); corrected it to return the SQL aggregate's `published` count. Revalidation is running on the corrected code checkpoint.
+
+
+## BUILD-00335 — bounded TikTok metrics candidate selection
+
+- `TikTokMetricsStore.due_videos()` now uses SQLite CTEs/window ranking to select one current publication per video, join the latest snapshot and retry deadline, and apply a SQL `LIMIT` capped at 20.
+- `TikTokMetricsCollector.refresh_due_metrics()` now consumes this bounded query instead of materializing all eligible publications, all latest snapshot timestamps, and all deferred IDs in memory.
+- Regression coverage includes bounded results, duplicate publication rows, and guards proving the collector no longer calls the full-scan APIs.
+- Code commit: `792b284ebe1e62c3c8a15635a82383aa0df85790`; collector/test commits: `de5fc5ee7e5def0041f31f7d4f70a442371348bf` / `3f8f09f06623ce2205854e95027e5c1cf82dbc96`.
+- Exact-head CI pending; production-scale benchmark remains outstanding.
