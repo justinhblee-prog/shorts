@@ -70,7 +70,7 @@ class ContainerHealthTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             plain = root / "nexus-backup-20261119T100000Z.tar.gz"
-            plain.write_bytes(b"\\x1f\\x8bplaintext")
+            plain.write_bytes(b"\x1f\x8bplaintext")
             os.utime(plain, (990, 990))
             self.assertTrue(backup_archive_is_fresh(root, 20, now=1000))
             self.assertFalse(
@@ -89,7 +89,7 @@ class ContainerHealthTests(unittest.TestCase):
             marker = root / ".last-success"
             archive = root / "nexus-backup-current.tar.gz.enc"
             marker.write_text("success", encoding="utf-8")
-            archive.write_bytes(b"encrypted")
+            archive.write_bytes(b"NEXUSBK1encrypted")
             with patch.dict(os.environ, {
                 "NEXUS_BACKUP_HEALTH_MAX_AGE_SECONDS": "300",
                 "NEXUS_BACKUP_ENCRYPTION_REQUIRED": "true",
@@ -97,11 +97,11 @@ class ContainerHealthTests(unittest.TestCase):
                 self.assertEqual(main(["backup", str(marker)]), 0)
                 archive.unlink()
                 self.assertEqual(main(["backup", str(marker)]), 1)
-                archive.write_bytes(b"\\x1f\\x8bplaintext")
+                archive.write_bytes(b"\x1f\x8bplaintext")
                 self.assertEqual(main(["backup", str(marker)]), 1)
                 archive.unlink()
                 archive = root / "nexus-backup-current.tar.gz.enc"
-                archive.write_bytes(b"encrypted")
+                archive.write_bytes(b"NEXUSBK1encrypted")
                 self.assertEqual(main(["backup", str(marker)]), 0)
 
     def test_backup_marker_rejects_stale_future_symlink_and_invalid_age(self):
