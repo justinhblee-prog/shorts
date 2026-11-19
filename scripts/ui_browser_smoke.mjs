@@ -89,7 +89,7 @@ async function waitForServer() {
     }, "nexus-ui-browser-smoke-token-2026-11-19-32chars");
     assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200]);
     assert.ok(Array.isArray(liveApiChecks[0].body.brands));
-    assert.ok(Number.isFinite(Number(liveApiChecks[1].body.queued)));
+    assert.ok(Number.isFinite(Number(liveApiChecks[1].body.total)));
     assert.ok(Array.isArray(liveApiChecks[2].body.items));
     assert.ok(liveApiChecks[2].body.items.some(item => item.job_id === "browser-smoke-review-ready"));
     assert.ok(liveApiChecks[3].body.youtube && liveApiChecks[3].body.tiktok);
