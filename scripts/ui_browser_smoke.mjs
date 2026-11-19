@@ -150,14 +150,14 @@ async function waitForServer() {
       document.querySelector("#analyticsHistoryStatus").textContent.includes("기준 시각")
     );
     assert.equal(await page.locator("#exportAnalyticsHistory").isDisabled(), false);
-    assert.equal(await page.locator("#analyticsHistoryTableBody tr").count(), 25,
+    assert.equal(await page.locator("[data-analytics-table-body] tr").count(), 25,
       "analytics history should render only one 25-row page at a time");
-    assert.equal(await page.locator("#analyticsHistoryPageStatus").textContent(), "1 / 8 · 200개");
+    assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "1 / 8 · 200개");
     await page.locator('[data-analytics-page="1"]').click();
-    assert.equal(await page.locator("#analyticsHistoryTableBody tr").count(), 25);
-    assert.equal(await page.locator("#analyticsHistoryPageStatus").textContent(), "2 / 8 · 200개");
+    assert.equal(await page.locator("[data-analytics-table-body] tr").count(), 25);
+    assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "2 / 8 · 200개");
     await page.locator('[data-analytics-page="-1"]').click();
-    assert.equal(await page.locator("#analyticsHistoryPageStatus").textContent(), "1 / 8 · 200개");
+    assert.equal(await page.locator("[data-analytics-page-status]").textContent(), "1 / 8 · 200개");
     assert.equal(await page.locator('[data-analytics-page="-1"]').isDisabled(), true);
     await page.screenshot({ path: "artifacts/nexus-dashboard-desktop.png", fullPage: true });
     const downloadPromise = page.waitForEvent("download");
