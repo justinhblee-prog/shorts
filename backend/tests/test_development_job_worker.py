@@ -89,6 +89,26 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         self.assertEqual(self.store.get(first["id"])["status"], "review_pending")
         self.assertEqual(self.store.get(second["id"])["status"], "ready")
 
+    def test_run_until_idle_stops_after_failed_attempt_with_partial_workspace_changes(self):
+        first = self.store.create("First job leaves a partial diff", scope=["backend/first.py"])
+        second = self.store.create("Second job must wait", scope=["backend/second.py"])
+        calls = []
+
+        def execute(job):
+            calls.append(job["id"])
+            (self.root if hasattr(self, "root") else Path(self.tmp.name) / "partial.py").write_text(
+                "unvalidated partial change", encoding="utf-8"
+            )
+            raise RuntimeError("validation failed after partial edit")
+
+        worker = DevelopmentJobWorker(self.store, "runner-failed-once", execute, poll_seconds=1)
+        result = worker.run_until_idle(idle_seconds=1)
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(result["outcomes"], {"retry_wait": 1})
+        self.assertEqual(calls, [first["id"]])
+        self.assertEqual(self.store.get(first["id"])["status"], "retry_wait")
+        self.assertEqual(self.store.get(second["id"])["status"], "ready")
+
     def test_run_until_idle_marks_worker_offline_on_exit(self):
         worker = DevelopmentJobWorker(self.store, "runner-idle", lambda _: {})
         result = worker.run_until_idle(idle_seconds=1)
