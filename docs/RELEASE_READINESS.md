@@ -200,3 +200,7 @@ These are additional readiness constraints documented by the project, not comple
 - Extend atomic artifact/provider-attempt adoption to script, voice-generation and rendering; the previous split writes left a crash window after artifact commit but before attempt adoption.
 - New regression checks paired adoption and rollback for all three stages.
 - Validation pending exact PR-head CI. No live provider or deployed runtime validation is claimed; launch-gate score remains 1/8.
+
+
+### BUILD-00342 — CI backup/restore evidence
+- The Compose workflow now verifies that the backup container creates a tar archive and restores it into isolated temporary paths with SQLite integrity verification. This does not satisfy the production backup/restore gate; production data, off-host retention, encryption-key custody, and recovery-time objectives remain pending.
