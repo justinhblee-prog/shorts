@@ -308,7 +308,7 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         second={"views":150,"engagedViews":90,"estimatedMinutesWatched":15,
                 "averageViewDuration":7,"averageViewPercentage":55}
         first_curve=[{"elapsedVideoTimeRatio":0.25,"audienceWatchRatio":0.8,"relativeRetentionPerformance":0.1}]
-        second_curve=[{"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.45,"relativeRetentionPerformance":-0.2}]
+        second_curve=[{"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.45,"relativeRetentionPerformance":0.2}]
         self.store.save("history-video","2026-11-01","2026-11-14",first,first_curve)
         self.store.save("history-video","2026-11-01","2026-11-15",second,second_curve)
         history=self.store.history("history-video")
@@ -362,7 +362,7 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         older=self.store.history("range-video",limit=5,since="2026-11-02")
         self.assertEqual({row["views"] for row in older},{20,30})
 
-    def test_relative_retention_performance_preserves_negative_values(self):
+    def test_relative_retention_performance_rejects_negative_values(self):
         reports = FakeReports(retention={
             "columnHeaders": [
                 {"name": "elapsedVideoTimeRatio"},
@@ -374,8 +374,8 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         collector = YouTubeAnalyticsCollector(self.store, service=FakeService(reports))
         collector.collect_video("negative-retention", "2026-11-01", "2026-11-14")
         saved = self.store.get("negative-retention")
-        self.assertEqual(
-            saved["retention_curve"][0]["relative_retention_performance"], -0.35
+        self.assertIsNone(
+            saved["retention_curve"][0]["relative_retention_performance"]
         )
 
     def test_rejects_invalid_video_ids_and_date_ranges(self):
