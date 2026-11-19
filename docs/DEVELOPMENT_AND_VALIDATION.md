@@ -296,3 +296,12 @@ This is not yet a cross-branch integration result. The worker-recovery, GitHub i
 - File-level inspection confirms mutually exclusive frontend feature deltas. UI-00017 has analytics pagination and table semantics but no quarantine recovery UI. PR #406 has recovery UI but lacks UI-00017 analytics behavior. The associated frontend regression test files differ as well.
 - A direct branch compare returns `diverged` (534 ahead / 519 behind); this is not a safe merge base. PR #406 itself remains a clean seven-commit successor to its declared BUILD-00385 base.
 - Integration remains explicitly incomplete. Do not count PR #399's browser evidence as coverage of PR #406 or vice versa. A new dependency-aligned successor and a three-way frontend merge are required before claiming the unified gate.
+
+
+### Analytics + quarantine recovery staging checkpoint
+
+- PR #399 / UI-00017 remains green on exact head `16d4964dcf2472f47c0b1dd1fbd890e2d46750c1`: browser/backend run `44574846265`, Compose run `44574846267`.
+- PR #406 recovery candidate remains green on exact head `04e52a4c6c06687b11ea17c7c45a2f9b561eeee0`: backend/browser run `44577785714` (854 tests and targeted recovery Chromium smoke, per recorded run evidence).
+- Created staging branch `integration/ui-analytics-quarantine-recovery-2026-11-20` from #399 exact head. No source changes were committed to the staging branch in this pass.
+- Manual file-size and feature inspection confirms the #404 recovery frontend is an older portal snapshot. Wholesale replacement would regress the #399 analytics dashboard. The combined UI gate is therefore still open; separate green runs are not combined validation.
+- No merge, deployment, live OAuth, provider publishing, or production recovery was performed.
