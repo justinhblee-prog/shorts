@@ -289,7 +289,7 @@
       const metric=items[0]?.platform==="youtube"?"views":"view_count";
       const points=items.map(item=>{
         const raw=item[metric];
-        return {time:Date.parse(item.collected_at),value:raw===null||raw===undefined||raw===""?null:Number(raw)};
+        return {time:Date.parse(item.collected_at),value:raw===null||raw===undefined||raw===""?null:Number(raw),item};
       })
         .filter(point=>Number.isFinite(point.time)&&Number.isFinite(point.value)&&point.value>=0)
         .sort((a,b)=>a.time-b.time);
@@ -317,7 +317,11 @@
         const series=chartGroups.map((group,index)=>{
           const coordinates=group.points.map(point=>({x:x(point.time),y:y(point.value),point}));
           const points=coordinates.map(point=>point.x.toFixed(1)+","+point.y.toFixed(1)).join(" ");
-          const markers=coordinates.map(({x:px,y:py,point})=>'<circle class="analytics-chart-point analytics-series-'+index+'" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4"><title>'+esc(new Date(point.time).toLocaleString())+' · '+esc(Number(point.value).toLocaleString())+'회</title></circle>').join("");
+          const markers=coordinates.map(({x:px,y:py,point})=>{
+            const delta=deltaFor(point.item);
+            const deltaLabel=delta==="—"?"":" · 이전 수집 대비 "+delta+"회";
+            return '<circle class="analytics-chart-point analytics-series-'+index+'" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4"><title>'+esc(new Date(point.time).toLocaleString())+' · '+esc(Number(point.value).toLocaleString())+'회'+esc(deltaLabel)+'</title></circle>';
+          }).join("");
           return '<polyline class="analytics-chart-line analytics-series-'+index+'" points="'+points+'"></polyline>'+markers;
         }).join("");
         const legend=chartGroups.map((group,index)=>'<span class="analytics-chart-legend-item"><i class="analytics-series-dot analytics-series-'+index+'"></i>'+esc(group.platform==="youtube"?"YouTube":"TikTok")+" · "+esc(String(group.videoId||"").slice(0,18))+'</span>').join("");
