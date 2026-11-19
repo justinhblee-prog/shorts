@@ -343,7 +343,7 @@ class TikTokMetricsStore:
         where=" AND ".join(clauses)
         with self.db() as c:
             rows=c.execute(f"""
-              SELECT s.*,p.status AS publication_status,
+              SELECT DISTINCT s.*,p.status AS publication_status,
                      COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
               FROM tiktok_video_metric_snapshots s
               JOIN tiktok_publications p ON p.video_id=s.video_id
