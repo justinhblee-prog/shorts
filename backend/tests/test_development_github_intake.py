@@ -345,6 +345,13 @@ class DevelopmentGitHubIntakeTests(unittest.TestCase):
                 request, None, 302, "Found", {},
                 "http://api.github.com/repos/acme/app/issues",
             )
+        for unsafe_url in (
+            "https://user:password@api.github.com/repos/acme/app/issues",
+            "https://api.github.com:8443/repos/acme/app/issues",
+        ):
+            with self.subTest(url=unsafe_url):
+                with self.assertRaisesRegex(ValueError, "trusted GitHub API origin"):
+                    handler.redirect_request(request, None, 302, "Found", {}, unsafe_url)
         redirected = handler.redirect_request(
             request, None, 301, "Moved", {},
             "https://api.github.com/repos/acme-renamed/app/issues",
