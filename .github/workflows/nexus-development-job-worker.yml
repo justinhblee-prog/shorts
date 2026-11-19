@@ -45,6 +45,53 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
+          # This PowerShell preflight runs before checkout/setup actions, so clear
+          # inherited runtime and credential injection variables before Node/Python start.
+          $workflowEnv = $env:GITHUB_ENV
+          if ([string]::IsNullOrWhiteSpace($workflowEnv) -or
+              -not (Test-Path -LiteralPath $workflowEnv -PathType Leaf)) {
+            throw "GitHub Actions did not provide a valid GITHUB_ENV file; refusing to start runtime actions."
+          }
+          $blockedPrefixes = @(
+            "PYTHON", "NODE_", "RUBY", "PERL", "JAVA_", "JDK_",
+            "GIT_", "SSH_", "NPM_CONFIG_", "PIP_", "DOCKER_", "AWS_",
+            "AZURE_", "GCLOUD_", "GOOGLE_", "LD_", "DYLD_", "AIDER_",
+            "LITELLM_", "OPENAI_", "ANTHROPIC_", "GEMINI_", "OLLAMA_"
+          )
+          $blockedExact = @(
+            "BASH_ENV", "ENV", "PROMPT_COMMAND", "ZDOTDIR", "ZSHENV",
+            "NETRC", "CURL_HOME", "WGETRC", "BOTO_CONFIG", "KUBECONFIG",
+            "GITHUB_TOKEN", "GH_TOKEN", "NEXUS_REVIEW_TOKEN",
+            "NEXUS_REVIEW_CREDENTIALS_JSON", "NEXUS_BACKUP_ENCRYPTION_KEY",
+            "ACTIONS_CACHE_URL", "ACTIONS_RUNTIME_URL", "ACTIONS_RESULTS_URL",
+            "_JAVA_OPTIONS", "CLASSPATH", "SSL_CERT_FILE", "SSL_CERT_DIR",
+            "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"
+          )
+          $credentialPattern = '(?i)(TOKEN|SECRET|PASSWORD|CREDENTIAL|API[_-]?KEY|ENCRYPTION[_-]?KEY|PRIVATE[_-]?KEY|SIGNING[_-]?KEY|ACCESS[_-]?KEY|SERVICE[_-]?ROLE[_-]?KEY|DATABASE[_-]?URL|DB[_-]?URL|REDIS[_-]?URL|POSTGRES[_-]?URL|MYSQL[_-]?URL|MONGODB[_-]?URI|MONGO[_-]?URL|CONNECTION[_-]?STRING|SERVICE[_-]?ACCOUNT)'
+          $blockedNames = @()
+          foreach ($entry in [Environment]::GetEnvironmentVariables().Keys) {
+            $name = [string]$entry
+            $prefixMatch = $false
+            foreach ($prefix in $blockedPrefixes) {
+              if ($name.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+                $prefixMatch = $true
+                break
+              }
+            }
+            if ($prefixMatch -or $blockedExact -contains $name -or $name -match $credentialPattern) {
+              $blockedNames += $name
+            }
+          }
+          $envCommands = @()
+          foreach ($name in ($blockedNames | Sort-Object -Unique)) {
+            $envCommands += "$name="
+          }
+          # Prevent any inherited Git config-count injection while preserving a
+          # valid, explicit empty config list for all later Git invocations.
+          $envCommands += "GIT_CONFIG_COUNT=0"
+          Add-Content -LiteralPath $workflowEnv -Value $envCommands -Encoding utf8
+          Write-Host "Cleared $($blockedNames.Count) inherited runtime/credential override variables before checkout and runtime actions."
+
           $listener = Get-Process -Name "Runner.Listener" -ErrorAction Stop | Select-Object -First 1
           if (-not $listener.Path) {
             throw "Unable to locate the active Runner.Listener executable; cannot verify Node 24 action compatibility."
