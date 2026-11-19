@@ -1431,3 +1431,23 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Verify the indexed due-candidate query returns exactly the newest 20 stale videos in deterministic order, with no duplicates.
 - This is a synthetic bounded-volume smoke test, not a production latency benchmark or a claim about deployed database performance.
 - Exact-head GitHub Actions run [44496875265](https://github.com/justinhblee-prog/shorts/actions/runs/44496875265) passed `scripts/validate.sh` with **712 tests**. Synthetic 10k-row candidate scan measured **0.50 ms** on that runner; this is not production benchmarking.
+
+
+## BUILD-00341 — Docker Compose service integration smoke
+
+- Add a dedicated GitHub Actions workflow that builds the actual Compose image and starts API, worker, scheduler, metrics collector, and backup services with the non-production `.env.example` configuration.
+- Verify all expected processes remain running, `/api/ready` returns HTTP 200, and worker/scheduler containers can access the shared data volume.
+- Always collect service logs and tear down the containers and test volumes.
+- This is CI container integration evidence only; it does not replace deployment-host HTTPS, persistent-volume, backup/restore, real-provider, or production operations validation.
+- Exact-head Compose workflow validation passed.
+
+- Exact-head validation: Compose workflow run [44497681238](https://github.com/justinhblee-prog/shorts/actions/runs/44497681238) passed (image build, five service processes running, API readiness HTTP 200, shared data volume checks, teardown). Backend tests run [44497681456](https://github.com/justinhblee-prog/shorts/actions/runs/44497681456) passed **712 tests**. This is CI integration evidence, not deployment-host evidence.
+
+
+## BUILD-00342 — Compose backup archive and isolated restore smoke
+
+- Extend the Compose integration workflow to wait for the backup service's first archive.
+- Verify that an archive is created, restore it into isolated temporary database/media paths, and run SQLite `PRAGMA integrity_check` on the restored database.
+- The restore operates only on a disposable copy and never overwrites the running service database.
+- This is a CI restore smoke against synthetic container data, not a production backup retention or disaster-recovery drill.
+- Exact-head validation pending.

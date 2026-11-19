@@ -8,7 +8,7 @@
 ## Current checkpoint — 2026-11-19
 
 - Core lane: PR [#323](https://github.com/justinhblee-prog/shorts/pull/323), Open / Draft / Unmerged. Latest docs-inclusive head `9bb930be024e42874f150ee46143213b04660c45`; GitHub Actions run [44496236632](https://github.com/justinhblee-prog/shorts/actions/runs/44496236632) passed `scripts/validate.sh` with **711 tests**.
-- Latest Core engineering items: BUILD-00336 fair bounded TikTok retry ordering; BUILD-00337 due-candidate query-plan guard; BUILD-00338 indexed ordered scan with correlated latest-snapshot lookup; BUILD-00339 TikTok OAuth initialization and lease-fencing coverage; BUILD-00340 synthetic 10k-publication/10k-snapshot scan smoke test (712 tests, 0.50 ms CI measurement).
+- Latest Core engineering items: BUILD-00336 fair bounded TikTok retry ordering; BUILD-00337 due-candidate query-plan guard; BUILD-00338 indexed ordered scan with correlated latest-snapshot lookup; BUILD-00339 TikTok OAuth initialization and lease-fencing coverage; BUILD-00340 synthetic 10k-publication/10k-snapshot scan smoke test (712 tests, 0.50 ms CI measurement); BUILD-00341 Docker Compose integration smoke passed (all five services running, API readiness HTTP 200).
 - UI lane: PR [#329](https://github.com/justinhblee-prog/shorts/pull/329), Open / Draft / Unmerged. UI-00001–00004 passed [run 44495954616](https://github.com/justinhblee-prog/shorts/actions/runs/44495954616) with **710 tests**. UI-00005 adds analytics refresh/busy state and displays the API's frozen `as_of` cutoff; exact-head validation is pending.
 - Both lanes remain separate; the UI branch is based on the Core branch and the PRs remain unmerged.
 - Browser rendering, actual CSV download, physical touch-device/screen-reader validation, real YouTube/TikTok OAuth and provider operations, Docker deployment, backup/restore drill, and actual cohort ROI remain unverified.
@@ -70,7 +70,7 @@ This is a rolling audit, not a claim that exactly six BUILD items remain. Add ne
 
 **Exit criteria:** all three Compose services start and remain healthy; API, worker and scheduler exercise one complete supervised lifecycle; recovery and backup behavior are demonstrated.
 
-- [ ] Build and start Docker Compose; confirm API, worker and scheduler health.
+- [ ] Build and start Docker Compose on the deployment host; confirm API, worker and scheduler health. A separate CI Compose smoke workflow is being added under BUILD-00341 and does not count as deployment evidence.
 - [ ] Exercise queue → worker → production record → review handoff → recovery on the deployed single-host SQLite volume.
 - [ ] Verify scheduler pause, pending outbox replay, restart behavior and idempotency on the deployed host.
 - [ ] Run a backup and restore drill against a copy of the persistent data volume.
@@ -200,3 +200,7 @@ These are additional readiness constraints documented by the project, not comple
 - Extend atomic artifact/provider-attempt adoption to script, voice-generation and rendering; the previous split writes left a crash window after artifact commit but before attempt adoption.
 - New regression checks paired adoption and rollback for all three stages.
 - Validation pending exact PR-head CI. No live provider or deployed runtime validation is claimed; launch-gate score remains 1/8.
+
+
+### BUILD-00342 — CI backup/restore evidence
+- The Compose workflow now verifies that the backup container creates a tar archive and restores it into isolated temporary paths with SQLite integrity verification. This does not satisfy the production backup/restore gate; production data, off-host retention, encryption-key custody, and recovery-time objectives remain pending.
