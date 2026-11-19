@@ -22,6 +22,13 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("outside GITHUB_WORKSPACE", step)
         self.assertIn("databaseFull.StartsWith($workspace", step)
 
+    def test_documentation_and_ignore_changes_trigger_repository_validation(self):
+        ci_workflow = ROOT / ".github" / "workflows" / "backend-tests.yml"
+        ci_source = ci_workflow.read_text(encoding="utf-8")
+        self.assertIn('"docs/**"', ci_source)
+        self.assertIn('"README.md"', ci_source)
+        self.assertIn('".gitignore"', ci_source)
+
     def test_schedule_and_manual_dispatch_are_configured(self):
         self.assertIn("workflow_dispatch:", self.source)
         self.assertIn('cron: "17 */2 * * *"', self.source)
@@ -30,6 +37,25 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("runs-on: [self-hosted, windows, nexus-local-ai]", self.source)
         self.assertIn("ollama list", self.source)
         self.assertIn("qwen2.5-coder:7b", self.source)
+
+    def test_windows_runner_preflights_python_git_bash_node_and_exact_ollama_model(self):
+        self.assertIn("Python 3.11 or newer is required", self.source)
+        self.assertIn("Get-Command bash.exe", self.source)
+        self.assertIn("Node.js 18 or newer is required", self.source)
+        self.assertIn('if ($apiModelNames -notcontains $modelTag)', self.source)
+        self.assertIn('qwen2.5-coder:7b', self.source)
+
+    def test_runtime_dependencies_use_separate_workspace_virtual_environments(self):
+        self.assertIn(".nexus-backend-venv", self.source)
+        self.assertIn(".nexus-aider-venv", self.source)
+        self.assertIn("NEXUS_BACKEND_PYTHON=", self.source)
+        self.assertIn("NEXUS_AIDER_EXECUTABLE=", self.source)
+        self.assertIn(".nexus-backend-venv/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+        self.assertIn(".nexus-aider-venv/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+        self.assertNotIn("pip install --user", self.source)
+        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/run_development_agent.py", self.source)
+        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/publish_development_reviews.py", self.source)
+        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py", self.source)
 
     def test_read_only_intake_token_is_separate_from_pr_token(self):
         self.assertIn("GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}", self.source)
@@ -47,7 +73,7 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertLess(create, publish)
         self.assertIn("pull-request-head-sha", self.source[publish:])
         self.assertIn("NEXUS_REVIEW_HEAD_SHA", self.source[publish:])
-        self.assertIn("python backend/publish_development_reviews.py", self.source[publish:])
+        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/publish_development_reviews.py", self.source[publish:])
         self.assertIn("draft: true", self.source)
         self.assertIn("review_pending", self.source)
 
@@ -60,7 +86,7 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertLess(recovery, execute)
         self.assertIn("if: github.event.inputs.mode == 'recover'", self.source[recovery:execute])
         self.assertIn("if: github.event.inputs.mode != 'recover'", self.source[execute:create_pr])
-        self.assertIn("python backend/recover_development_reviews.py", self.source[recovery:execute])
+        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py", self.source[recovery:execute])
         self.assertIn("no job was requeued", self.source[recovery:execute])
         self.assertIn("if: github.event.inputs.mode != 'recover'", self.source[create_pr:])
     def test_verified_pr_update_triggers_bounded_self_continuation(self):

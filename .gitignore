@@ -228,3 +228,5 @@ data/
 *.db
 *.db-shm
 *.db-wal
+.nexus-backend-venv/
+.nexus-aider-venv/

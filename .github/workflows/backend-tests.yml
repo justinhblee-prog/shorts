@@ -8,12 +8,18 @@ on:
       - ".github/workflows/backend-tests.yml"
       - ".github/workflows/nexus-development-job-worker.yml"
       - ".github/workflows/nexus-continuous-codex.yml"
+      - "docs/**"
+      - "README.md"
+      - ".gitignore"
   pull_request:
     paths:
       - "backend/**"
       - "frontend/**"
       - "scripts/**"
       - ".github/workflows/backend-tests.yml"
+      - "docs/**"
+      - "README.md"
+      - ".gitignore"
 jobs:
   test:
     runs-on: ubuntu-latest

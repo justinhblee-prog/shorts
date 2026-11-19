@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Inventory date:** 2026-11-18  
+**Inventory date:** 2026-11-19  
 **Inventory source:** `docs/BUILD_STATUS.md`, `docs/OPERATOR_RUNBOOK.md`, `docs/HANDOVER.md`, `docs/PLATFORM_POLICY_MATRIX.md`, current Draft PR chain.
 
 ## How progress is measured
@@ -18,18 +18,14 @@ CI completion does not imply live provider, browser, platform, financial, or pro
 
 ## Current checkpoint
 
-- Latest code/test validation before BUILD-00317: BUILD-00316, PR #324, exact current head `f6c6beb16f370114e17a43a9efbe9cb6c2ef135d`; GitHub Actions run [44252805612](https://github.com/justinhblee-prog/shorts/actions/runs/44252805612) completed successfully, including `scripts/validate.sh` (741 backend tests) and `node --check frontend/app.js`.
-- PR #324 is Draft/Open and is based on the BUILD-00313 orchestration prototype branch. It persists the development-job database outside the Actions checkout workspace; the Windows runner has not yet been observed completing repeated cycles.
-- PR #321 (BUILD-00313) exact head passed run [44075082662](https://github.com/justinhblee-prog/shorts/actions/runs/44075082662). It contains a development-job control-plane prototype, but does not prove real local Ollama execution or default-branch scheduling.
-- PR #322 (BUILD-00314, YouTube synthetic-media disclosure) exact head passed run [44076538828](https://github.com/justinhblee-prog/shorts/actions/runs/44076538828); tests are fixture-based, not a live upload.
-- PR #323 (BUILD-00315, TikTok AI-content disclosure) exact head passed run [44091928487](https://github.com/justinhblee-prog/shorts/actions/runs/44091928487); tests use mocked transport, not a real account or public post.
-- PRs #311–#318 were checked as Open/Draft/unmerged. Exact-head backend CI passed for #311–#317; the current lookup returned no PR-triggered run for #318. The local self-hosted runner and model execution remain unverified.
-- PRs #321–#324 were checked as Open/Draft/unmerged. No merge or default-branch change was performed. The work branches remain separate; the Cyber Magic and provider changes have not been integrated into `main`.
-- BUILD-00317 (Draft PR #325) changes the development-job lifecycle to review_pending until a GET-only verifier confirms an open Draft PR, exact action/API head SHA, expected head/base branches, and every changed file. GitHub Actions run [44258464733](https://github.com/justinhblee-prog/shorts/actions/runs/44258464733) passed for exact code/test head `3ac4800227e05129fddfd824a51d3b1cca28cdde` (754 backend tests, repository validation, and frontend syntax check). A documentation-only evidence update follows and is validated separately. This code-level gate is not proof of a Windows runner or live Ollama cycle.
-- The default branch is still `main`; the BUILD status ledger and release-readiness changes in this branch are not yet on `main`. Scheduled workflows are not considered active until their reviewed code is present on the default branch and the trusted runner is online.
+- Repository default branch remains `main`; current main head is `5558c058f09bc09d15f5d13fd3746eb9cc76f630`. Development branches and Draft PRs are not integrated into main.
+- PRs #311–#328 were checked in GitHub: all remain Open, Draft and unmerged. This includes the user's specifically protected PRs #311–#315. No merge or main push was performed.
+- PR #327 (BUILD-00319) exact head `95844080e8635354ab8f8e2511c4b64b5bfe91ae` passed GitHub Actions run [44437965780](https://github.com/justinhblee-prog/shorts/actions/runs/44437965780). The run executed repository validation and frontend JavaScript syntax checks. It validates hosted CI only, not the Windows runner or local Ollama.
+- PR #326 adds read-only recovery for orphaned review-pending jobs. PR #327 adds bounded self-dispatch after a changed Draft PR is read back and verified. Both remain Draft/Open.
+- BUILD-00320 (Draft PR #328) initial implementation head `d91bab89b2659b2080c7f0749291fbee240b2ccd` passed run [44472930435](https://github.com/justinhblee-prog/shorts/actions/runs/44472930435) (764 tests). The later code/test head `0e66b04125709c73e415e71c6e2e7a11c2c91fb2`, which also adds CI path filters for docs/README/ignore changes, passed exact-head run [44473385233](https://github.com/justinhblee-prog/shorts/actions/runs/44473385233) (**765 tests**, `scripts/validate.sh`, frontend syntax check). Hosted Linux CI only; Windows runner/Ollama execution is not proven.
+- The user reported Ollama installed and 64 GB RAM. This does not establish that the GitHub self-hosted runner is registered, online, running under the Ollama account, or able to access the local model.
+- The default-branch schedules are not active until their reviewed workflows are integrated into `main`. No live local-model generation, real Draft-PR publication by the user's PC, or repeated LocalAppData persistence has been observed.
 - The launch-gate score remains **1/8**. Hosted CI is the only verified mandatory gate; Compose deployment, real AI/media providers, renderer playback, OAuth/private test upload, financial reconciliation, security/backup/restore operations, and ROI cohort evidence remain pending.
-- PR #325 is a separate Draft branch stacked on PR #324. The implementation head `3ac4800227e05129fddfd824a51d3b1cca28cdde` passed run [44258464733](https://github.com/justinhblee-prog/shorts/actions/runs/44258464733), and the following documentation head `3a2ec516a918eb30c583f54ecca3217c9819368d` passed run [44258650491](https://github.com/justinhblee-prog/shorts/actions/runs/44258650491); the latest documentation-only note is covered by the final exact-head PR check recorded in PR #325. Windows self-hosted execution remains unverified. No merge or default-branch activation has occurred.
-- Next code priority: add a safe, audited recovery path for orphaned review_pending jobs; verify any existing PR branch before requiring an explicit operator-approved requeue.
 
 ## Phase 1 — Engineering closure (rolling)
 
@@ -220,3 +216,11 @@ These are additional readiness constraints documented by the project, not comple
 - A validated code diff enters review_pending; it cannot unlock dependent work or count as completed until the exact Draft PR artifact is read back from GitHub.
 - The verifier requires an open, unmerged Draft PR, the action's exact head SHA, the expected automation branch/default base, and inclusion of every recorded changed file. It uses GET-only API calls.
 - Publication failure leaves the job visibly review_pending; exact-head hosted CI is pending. The change does not establish a Windows runner, real Ollama inference, or production deployment.
+
+
+### BUILD-00320 — Windows local-runner readiness
+
+- The development workflow now preflights Python 3.11+, Git Bash/POSIX sh, Node.js 18+, loopback Ollama API health, and the exact configured model tag before starting Aider.
+- Backend requirements and Aider are installed in separate per-run workspace virtual environments; global/user Python packages are not modified by the workflow.
+- The backend interpreter and Aider executable are selected explicitly to avoid PATH ambiguity between the two environments.
+- This improves setup diagnostics and dependency isolation, but does not count as an integrated-environment launch gate. The owner-hosted Windows runner, real Ollama edit, repeated runner database persistence, Docker Compose deployment, and production backup/restore remain unverified.
