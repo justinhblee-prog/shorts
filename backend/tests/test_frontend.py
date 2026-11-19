@@ -159,6 +159,11 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn(".analytics-trend-chart", css)
         self.assertIn(".analytics-history-controls{display:grid;grid-template-columns:1fr 1fr 1.5fr auto auto", css)
         self.assertIn('id="analyticsHistory"', html)
+        self.assertIn('id="analyticsHistoryStatus" class="analytics-history-status" role="status" aria-live="polite"', html)
+        self.assertIn("조회 중 · 선택한 기간의 YouTube · TikTok 성과 이력을 불러옵니다.", app_js)
+        self.assertIn("CSV 준비 중 · 플랫폼별 전체 이력을 페이지 단위로 조회합니다.", app_js)
+        self.assertIn("CSV 다운로드 요청 완료", app_js)
+        self.assertIn("CSV 내보내기 실패 · ", app_js)
 
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
