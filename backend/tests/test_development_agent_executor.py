@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 from pathlib import Path
 
@@ -57,6 +58,31 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
                 with self.assertRaises(NonRetryableDevelopmentJobError):
                     self.executor._validated_scope({"scope": [path]})
 
+    def test_scope_reparse_point_detection_covers_windows_junction_attributes(self):
+        class ReparsePath:
+            def is_symlink(self):
+                return False
+
+            def is_junction(self):
+                return False
+
+            def lstat(self):
+                return SimpleNamespace(st_file_attributes=0x400)
+
+        self.assertTrue(self.executor._is_scope_reparse_point(ReparsePath()))
+
+        class UnreadablePath:
+            def is_symlink(self):
+                return False
+
+            def is_junction(self):
+                return False
+
+            def lstat(self):
+                raise PermissionError("metadata denied")
+
+        self.assertTrue(self.executor._is_scope_reparse_point(UnreadablePath()))
+
     def test_scope_rejects_symlink_aliases_to_internal_secret_files(self):
         ssh_dir = self.root / ".ssh"
         ssh_dir.mkdir()
@@ -76,6 +102,18 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         alias.symlink_to(credential)
         with self.assertRaises(NonRetryableDevelopmentJobError):
             self.executor._validated_scope({"scope": ["backend/ordinary_module.py"]})
+
+        alias.unlink()
+        ordinary_target = self.root / "backend" / "ordinary_target.py"
+        ordinary_target.write_text("print('target')", encoding="utf-8")
+        alias.symlink_to(ordinary_target)
+        with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "symbolic link"):
+            self.executor._validated_scope({"scope": ["backend/ordinary_module.py"]})
+
+        linked_directory = self.root / "backend" / "linked"
+        linked_directory.symlink_to(self.root / "backend", target_is_directory=True)
+        with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "symbolic link"):
+            self.executor._validated_scope({"scope": ["backend/linked/ordinary_target.py"]})
 
     def test_changed_file_must_be_inside_explicit_directory_scope(self):
         self.assertTrue(self.executor._matches_scope("backend/a.py", ["backend/"]))

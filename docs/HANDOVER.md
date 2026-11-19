@@ -1386,3 +1386,7 @@ Scope validation now rejects Windows-forbidden characters and ASCII control char
 
 ### BUILD-00376 — exact-head CI result
 Code head `68c654594eb4de57e3cdd4f3aae3f17037079320` passed GitHub Actions run [44525610403](https://github.com/justinhblee-prog/shorts/actions/runs/44525610403): **785 tests**, repository validation and frontend syntax check. Windows-invalid path character regressions passed.
+
+
+### BUILD-00377 — symlink-safe scope locking
+The executor now rejects every symbolic-link or Windows reparse-point component (including junctions) before resolving a declared scope; metadata inspection errors fail closed. This prevents distinct lexical paths from aliasing one writable target and bypassing the scheduler's path-based locks. File and directory symlink regressions are included. Exact-head CI pending.

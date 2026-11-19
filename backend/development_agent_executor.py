@@ -8,6 +8,7 @@ import ipaddress
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 from pathlib import Path, PureWindowsPath
@@ -215,6 +216,22 @@ class AiderDevelopmentExecutor:
             or candidate.suffix.lower() in _FORBIDDEN_SUFFIXES
         )
 
+    @staticmethod
+    def _is_scope_reparse_point(path):
+        if path.is_symlink():
+            return True
+        is_junction = getattr(path, "is_junction", None)
+        if callable(is_junction) and is_junction():
+            return True
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return True
+        reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        return bool(getattr(metadata, "st_file_attributes", 0) & reparse_flag)
+
     def _validated_scope(self, job):
         scope = job.get("scope")
         if not isinstance(scope, list) or not scope:
@@ -249,6 +266,14 @@ class AiderDevelopmentExecutor:
             candidate = Path(raw_path)
             if candidate.is_absolute() or ".." in candidate.parts:
                 raise NonRetryableDevelopmentJobError("job scope contains a path traversal")
+            # Reject every symlink component, not only links that resolve outside
+            # the repository or into known secret paths. Otherwise two lexical
+            # scopes can alias the same writable target and bypass scope locks.
+            cursor = self.repo_root
+            for part in candidate.parts:
+                cursor = cursor / part
+                if self._is_scope_reparse_point(cursor):
+                    raise NonRetryableDevelopmentJobError("job scope contains a symbolic link or reparse point")
             normalized = candidate.as_posix()
             expected_path = normalized + ("/" if raw_path.endswith("/") else "")
             if raw_path != expected_path:
