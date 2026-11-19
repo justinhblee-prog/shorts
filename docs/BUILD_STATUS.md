@@ -2538,3 +2538,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Require the planner to use `idx_tiktok_metric_video_time_id` for snapshot filtering/order and `idx_tiktok_publications_video_status` for publication eligibility lookup.
 - This is a deterministic index-usage regression, not a production-scale latency benchmark. Representative-volume performance and browser/provider validation remain separate checks.
 - - Exact-head GitHub Actions validation: run [44492971072](https://github.com/justinhblee-prog/shorts/actions/runs/44492971072) passed `scripts/validate.sh` with **701 backend tests** on `05bbf26363cc786f771c2b59fe8ac00f74ec7cfa`.
+
+
+## BUILD-00334 — SQL aggregate TikTok analytics coverage
+
+- Replace Python-side materialization of all eligible publication IDs and all latest snapshot timestamps with a single SQLite CTE aggregate.
+- Count distinct published video identities, snapshot coverage, stale snapshots, and latest snapshot time in the database. Duplicate publication rows for one video no longer inflate coverage; only snapshots for currently published identities contribute.
+- Add regression coverage for duplicate publication identities, one stale snapshot, one missing snapshot, and latest snapshot timestamp.
+- This is a query-volume reduction and correctness improvement. Representative production-sized latency benchmarking remains outstanding.
+- Validation: pending exact-head GitHub Actions.
