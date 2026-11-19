@@ -2446,7 +2446,7 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ## BUILD-00355 — global GitHub issue source deduplication
 - Fix the development backlog sync's 500-row list-window dedupe bug: an existing imported issue outside the first 500 visible jobs could be imported again on each sync.
 - Add a partial source-ref index and a store-level source identity lookup across all development jobs.
-- Enforce duplicate source-ref rejection inside the same `BEGIN IMMEDIATE` transaction as job creation, preventing concurrent sync workers from racing past the preflight read.
+- Enforce duplicate rejection for `github:issue:` source refs inside the same `BEGIN IMMEDIATE` transaction as job creation, preventing concurrent sync workers from racing past the preflight read. Other seeded/documentation source refs retain their existing non-unique semantics.
 - Update the GitHub intake to use the indexed lookup, preserve batch-level deduplication, and classify a transaction-level duplicate conflict as a skipped duplicate rather than a new job.
 - Add regression coverage for a pre-existing source beyond the first 500 listed jobs and for a simulated race after preflight.
 - Exact-head CI pending. No live Windows runner/Ollama execution is implied.
