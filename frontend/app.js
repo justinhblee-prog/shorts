@@ -245,14 +245,14 @@
   }
 
   function renderAnalyticsHistoryTablePage(){
-    const body=$("analyticsHistoryTableBody");
+    const body=$("analyticsHistory").querySelector("[data-analytics-table-body]");
     if(!body)return;
     const total=analyticsHistoryTableRows.length;
     const pageCount=Math.max(1,Math.ceil(total/analyticsHistoryPageSize));
     analyticsHistoryPage=Math.min(pageCount,Math.max(1,analyticsHistoryPage));
     const start=(analyticsHistoryPage-1)*analyticsHistoryPageSize;
     body.innerHTML=analyticsHistoryTableRows.slice(start,start+analyticsHistoryPageSize).join("");
-    const status=$("analyticsHistoryPageStatus");
+    const status=$("analyticsHistory").querySelector("[data-analytics-page-status]");
     if(status)status.textContent=analyticsHistoryPage+" / "+pageCount+" · "+total.toLocaleString()+"개";
     const previous=$("analyticsHistory").querySelector('[data-analytics-page="-1"]');
     const next=$("analyticsHistory").querySelector('[data-analytics-page="1"]');
@@ -406,7 +406,7 @@
     analyticsHistoryTableRows=rows.map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+number(item.engaged_views)+'</td><td>'+(item.engaged_view_share===null||item.engaged_view_share===undefined||!Number.isFinite(Number(item.engaged_view_share))?"—":(Number(item.engaged_view_share)*100).toLocaleString()+"%")+'</td><td>'+(item.platform==="youtube"?(Array.isArray(item.retention_curve)&&item.retention_curve.length?retentionSparkline(item.retention_curve)+'<small>'+esc(retentionSummary(item.retention_curve))+'</small>':esc(retentionStatusLabels[item.retention_status]||"상태 미확인")):"—")+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.estimated_minutes_watched)+'</td><td>'+number(item.average_view_duration)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>');
     analyticsHistoryPage=1;
     $("analyticsHistory").innerHTML=rows.length
-      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개 · 수집 기간 '+esc(collectionRange)+' · 화면 '+analyticsHistoryPageSize+'개씩 표시 · CSV 전체 내보내기(페이지 단위)</div>'+platformComparison+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>참여 조회수</th><th>참여 조회 비율</th><th>시청자 유지율</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>시청 시간(분)</th><th>평균 시청 시간(초)</th><th>평균 시청 비율</th></tr></thead><tbody id="analyticsHistoryTableBody"></tbody></table></div><div class="analytics-table-pagination" aria-label="성과 이력 페이지 이동"><button type="button" class="button button-quiet button-small" data-analytics-page="-1" disabled>이전</button><span id="analyticsHistoryPageStatus" aria-live="polite">1 / 1</span><button type="button" class="button button-quiet button-small" data-analytics-page="1" disabled>다음</button></div>'
+      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개 · 수집 기간 '+esc(collectionRange)+' · 화면 '+analyticsHistoryPageSize+'개씩 표시 · CSV 전체 내보내기(페이지 단위)</div>'+platformComparison+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>참여 조회수</th><th>참여 조회 비율</th><th>시청자 유지율</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>시청 시간(분)</th><th>평균 시청 시간(초)</th><th>평균 시청 비율</th></tr></thead><tbody data-analytics-table-body></tbody></table></div><div class="analytics-table-pagination" aria-label="성과 이력 페이지 이동"><button type="button" class="button button-quiet button-small" data-analytics-page="-1" disabled>이전</button><span data-analytics-page-status aria-live="polite">1 / 1</span><button type="button" class="button button-quiet button-small" data-analytics-page="1" disabled>다음</button></div>'
       : '<div class="empty-state">선택한 기간에 저장된 성과 스냅샷이 없습니다. 데이터 수집이 완료된 후 다시 조회하세요.</div>';
     renderAnalyticsHistoryTablePage();
     const exportButton=$("exportAnalyticsHistory");
