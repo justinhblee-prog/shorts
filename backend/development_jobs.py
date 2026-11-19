@@ -165,6 +165,10 @@ class DevelopmentJobStore:
             raise ValueError("acceptance must be a list of non-empty strings")
         if source_ref is not None and (not isinstance(source_ref, str) or len(source_ref) > 500):
             raise ValueError("source_ref must be a string of at most 500 characters")
+        safe_source_ref = (
+            redact_sensitive_text(source_ref, limit=500)
+            if source_ref is not None else None
+        )
         safe_title = redact_sensitive_text(title.strip(), limit=240)
         description_text = str(description)
         safe_description = redact_sensitive_text(
@@ -186,10 +190,10 @@ class DevelopmentJobStore:
             job_id = job_id.strip()
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            if isinstance(source_ref, str) and source_ref.startswith("github:issue:"):
+            if isinstance(safe_source_ref, str) and safe_source_ref.startswith("github:issue:"):
                 duplicate = connection.execute(
                     "SELECT id FROM development_jobs WHERE source_ref=? LIMIT 1",
-                    (source_ref,),
+                    (safe_source_ref,),
                 ).fetchone()
                 if duplicate:
                     raise DevelopmentJobConflict("source_ref already exists")
@@ -201,10 +205,10 @@ class DevelopmentJobStore:
                    VALUES(?,?,?,'ready',?,?,?,?,?,?,?)""",
                 (job_id, safe_title, safe_description, priority,
                  json.dumps(scope), json.dumps(safe_acceptance), max_attempts,
-                 source_ref, timestamp, timestamp),
+                 safe_source_ref, timestamp, timestamp),
             )
             self._event(connection, job_id, "created", None, "ready", "system",
-                        {"source_ref": source_ref}, timestamp)
+                        {"source_ref": safe_source_ref}, timestamp)
             row = connection.execute("SELECT * FROM development_jobs WHERE id=?", (job_id,)).fetchone()
             connection.commit()
             return self._decode(row)
