@@ -1299,3 +1299,9 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The TikTok history endpoint now filters the eligible publication identity by exact video ID in SQL before applying any bulk limit. Previously, a requested video outside the newest 200 eligible publications could incorrectly appear to have no history.
 - Bulk history identity selection is bounded to 500, matching the history API and CSV export cap; single-video lookup is bounded to one eligible publication.
 - Regression coverage creates more than 200 published videos and confirms an older video's stored snapshot is returned. GitHub Actions passed on code/test checkpoint `2d81a86594a1b3d0c1bb9831a988225729da63b5`: run `44486853576` passed 700 tests and run `44486850076` passed 699 tests. Earlier sequential checkpoints also passed (runs `44486846374` and `44486840647`, 699 tests each).
+
+
+## BUILD-00326 — analytics history query input hardening
+
+- The analytics history API rejects video IDs with leading/trailing whitespace and ASCII DEL, in addition to blank, overlong, and C0 control-character values.
+- Regression tests cover invalid identifiers, 365-day maximum window, and minimum limit clamping for YouTube and TikTok. Await exact-head CI before marking validated.
