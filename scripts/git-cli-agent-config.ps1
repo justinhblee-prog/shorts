@@ -9,22 +9,24 @@ param(
 $ErrorActionPreference="Stop"
 function Test-AgentConfig([string]$Command,[string]$ArgsJson){
  if([string]::IsNullOrWhiteSpace($Command)){throw "Agent executable path/name is required."}
- if([string]::IsNullOrWhiteSpace($ArgsJson)){throw 'Agent args must be a JSON array containing "{prompt_file}".'}
+ if([string]::IsNullOrWhiteSpace($ArgsJson)){throw 'Agent args must be a JSON array containing exactly one "{prompt_file}" or "{prompt_text}" placeholder.'}
  try{$parsed=ConvertFrom-Json -InputObject $ArgsJson -ErrorAction Stop}catch{throw "DEVFLOW_AGENT_ARGS_JSON is not valid JSON: $($_.Exception.Message)"}
  if($parsed -isnot [array]){throw "DEVFLOW_AGENT_ARGS_JSON must be a JSON array, not a string or object."}
  if(@($parsed|Where-Object{$_ -isnot [string]}).Count){throw "Every Agent argument must be a string."}
- if(@($parsed|Where-Object{$_ -eq "{prompt_file}"}).Count -ne 1){throw 'Agent args must contain "{prompt_file}" exactly once.'}
+ $fileCount=@($parsed|Where-Object{$_ -eq "{prompt_file}"}).Count
+ $textCount=@($parsed|Where-Object{$_ -eq "{prompt_text}"}).Count
+ if(($fileCount + $textCount) -ne 1){throw 'Agent args must contain exactly one "{prompt_file}" or "{prompt_text}" placeholder, but not both.'}
  $unsafe=@($parsed|Where-Object{$_ -match '(?i)(api[-_]?key|access[-_]?token|secret|password|authorization)\s*=' -or $_ -match '(?i)^--(api[-_]?key|token|secret|password|authorization)$'})
  if($unsafe.Count){throw "Do not put credentials in Agent arguments. Sign in with the Agent CLI's own login flow or use its documented credential store."}
 }
 if($ValidateOnly){
  Test-AgentConfig $AgentCommand $AgentArgsJson
- Write-Host "PASS: Agent configuration format is valid; prompt_file placeholder is present."
+ Write-Host "PASS: Agent configuration format is valid; exactly one supported prompt placeholder is present."
  exit 0
 }
 if($Configure){
  if(-not $AgentCommand){$AgentCommand=Read-Host "Installed Agent CLI executable (full path or command name)"}
- if(-not $AgentArgsJson){$AgentArgsJson=Read-Host 'Agent CLI argument JSON array; include "{prompt_file}" exactly once'}
+ if(-not $AgentArgsJson){$AgentArgsJson=Read-Host 'Agent CLI argument JSON array; include "{prompt_file}" or "{prompt_text}" exactly once'}
  Test-AgentConfig $AgentCommand $AgentArgsJson
  $resolved=Get-Command $AgentCommand -ErrorAction SilentlyContinue
  if(-not $resolved -and -not(Test-Path -LiteralPath $AgentCommand)){throw "Agent executable not found. Install the CLI and authenticate it before configuring: $AgentCommand"}
