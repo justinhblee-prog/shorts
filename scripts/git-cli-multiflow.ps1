@@ -51,6 +51,7 @@ foreach($t in $tasks){
  $expanded=foreach($a in $agentArgs){$a.Replace("{prompt_file}",$prompt).Replace("{task_id}",$id).Replace("{worktree}",$wt)}
  RunAgent $AgentCommand @($expanded) $wt
  Remove-Item -LiteralPath $prompt -Force
+ if(& git -C $wt status --porcelain -- .devflow/tasks.json){throw "Agent changed task manifest; task state is human-controlled. Worktree retained: $wt"}
  if(-not(& git -C $wt status --porcelain)){throw "Agent made no changes; worktree retained: $wt"}
  & python (Join-Path $wt "scripts/devflow.py") validate;if($LASTEXITCODE -ne 0){throw "Validation failed; worktree retained: $wt"}
  foreach($n in @(".env",".env.local","credentials.json","secrets.json")){if(Get-ChildItem $wt -Force -Recurse -File -Filter $n -ErrorAction SilentlyContinue|Where-Object{$_.FullName -notmatch '[\\/](\.git|node_modules|\.venv)[\\/]'}){throw "Potential secret file blocks commit: $n"}}
