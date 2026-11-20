@@ -9,6 +9,10 @@ services:
       NEXUS_DB_PATH: /app/data/nexus.sqlite3
       NEXUS_MEDIA_DIR: /app/data/media
       NEXUS_PRIVATE_MEDIA_ROOT: ${NEXUS_PRIVATE_MEDIA_ROOT:-/app/data/private-media}
+      NEXUS_RENDER_STAGING_ROOT: ${NEXUS_RENDER_STAGING_ROOT:-/app/data/render-staging}
+      NEXUS_RENDER_ARTIFACT_ROOT: ${NEXUS_RENDER_ARTIFACT_ROOT:-/app/data/render-artifacts}
+      NEXUS_RENDER_MAX_OUTPUT_BYTES: ${NEXUS_RENDER_MAX_OUTPUT_BYTES:-2147483648}
+      NEXUS_FFPROBE_PATH: ${NEXUS_FFPROBE_PATH:-/usr/bin/ffprobe}
     ports:
       - "8502:8502"
     volumes:
