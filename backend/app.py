@@ -1273,8 +1273,10 @@ def performance_insights(brand:str|None=None,
 
 
 @app.post("/api/schedules",status_code=201)
-def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"schedules.manage")
+def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=None),
+                    x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"schedules.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     brand=next((b for b in brand_store.list(active_only=True)
                 if body.brand in (b["slug"],b["name"])),None)
     if brand is None: raise HTTPException(422,"Unknown or inactive brand")
@@ -1283,29 +1285,35 @@ def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=No
     payload={"brand":brand["name"],"region":body.region,
              "language":body.language,"topic":body.topic,
              "platforms":[body.platform]}
-    try:return schedule_store.create(body.name,body.interval_seconds,payload,body.start_at)
+    try:return schedule_store.create(body.name,body.interval_seconds,payload,body.start_at,workspace_id=workspace_id)
     except ValueError as e:raise HTTPException(422,str(e))
 
 
 @app.get("/api/schedules")
-def list_schedules(x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"schedules.manage")
-    return {"items":schedule_store.list()}
+def list_schedules(x_review_token:str|None=Header(default=None),
+                   x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"schedules.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return {"items":schedule_store.list(workspace_id=workspace_id)}
 
 
 
 @app.get("/api/schedules/outbox")
-def schedule_outbox(x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"schedules.manage")
-    return schedule_store.outbox_status()
+def schedule_outbox(x_review_token:str|None=Header(default=None),
+                    x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"schedules.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return schedule_store.outbox_status(workspace_id=workspace_id)
 
 
 
 @app.post("/api/schedules/outbox/{outbox_id}/retry")
-def retry_schedule_outbox(outbox_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"schedules.manage")
+def retry_schedule_outbox(outbox_id:str,x_review_token:str|None=Header(default=None),
+                          x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"schedules.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        result=schedule_store.retry_dead_letter(outbox_id)
+        result=schedule_store.retry_dead_letter(outbox_id,workspace_id=workspace_id)
     except ValueError as e:
         raise HTTPException(422,str(e))
     if result is None:
@@ -1315,9 +1323,11 @@ def retry_schedule_outbox(outbox_id:str,x_review_token:str|None=Header(default=N
 
 @app.put("/api/schedules/{schedule_id}/activation")
 def activate_schedule(schedule_id:str,active:bool,
-                      x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"schedules.manage")
-    result=schedule_store.set_active(schedule_id,active)
+                      x_review_token:str|None=Header(default=None),
+                      x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"schedules.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    result=schedule_store.set_active(schedule_id,active,workspace_id=workspace_id)
     if result is None:raise HTTPException(404,"Schedule not found")
     return result
 
