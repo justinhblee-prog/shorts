@@ -41,6 +41,7 @@ class TimelineRenderer:
         max_cpu_seconds=None,
         runner=None,
         inspector=None,
+        font_path=None,
     ):
         self.media_root = Path(
             media_root or os.getenv("NEXUS_MEDIA_DIR", "data/media")
@@ -55,6 +56,12 @@ class TimelineRenderer:
         self.max_cpu_seconds = int(max_cpu_seconds or os.getenv("NEXUS_RENDER_MAX_CPU_SECONDS", "900"))
         self.runner = runner
         self.inspector = inspector or MediaInspector(analyze_signals=False)
+        self.font_path = Path(
+            font_path or os.getenv(
+                "NEXUS_RENDER_FONT_PATH",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            )
+        )
 
         if not (1 <= self.timeout_seconds <= 3600):
             raise ValueError("render timeout must be between 1 and 3600 seconds")
@@ -146,12 +153,13 @@ class TimelineRenderer:
             time.sleep(0.1)
 
     def render(self, edl, asset_paths, output_dir=None, audio_asset_id=None, stop_event=None):
-        """Render validated video clips; asset_paths must come from an ownership-checked registry.
+        """Render workspace-owned video clips with safe title overlays and mixed audio.
 
-        Title cards are rejected until the renderer has a safe, deterministic font/text
-        implementation. Audio, when supplied, is a separately registered workspace asset
-        used as the output narration/music track; source-clip audio mixing is not implemented
-        in this slice. No EDL path or URL is ever interpreted.
+        Title text is written to private UTF-8 text files and passed to FFmpeg's drawtext
+        filter with expansion disabled and a fixed, operator-controlled Noto CJK font.
+        Source-clip audio is preserved; an optional registered M4A track is mixed at a
+        conservative fixed gain. No EDL path, URL, filter or arbitrary renderer directive
+        is interpreted.
         """
         try:
             normalized = validate_edl(edl)
