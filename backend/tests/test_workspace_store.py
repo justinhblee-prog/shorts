@@ -20,7 +20,7 @@ class WorkspaceStoreTests(unittest.TestCase):
         with self.assertRaises(WorkspaceDenied): self.store.add_member("ws_studio","viewer","eve")
     def test_last_owner_cannot_be_revoked(self):
         with self.assertRaises(WorkspaceConflict): self.store.revoke_member("ws_studio","alice","alice")
-    def test_only_owner_can_revoke_another_owner(self):
+    def test_admin_cannot_revoke_owner(self):
         self.store.add_member("ws_studio","alice","bob","admin")
         self.store.add_member("ws_studio","alice","carol","viewer")
         with self.assertRaises(WorkspaceDenied): self.store.revoke_member("ws_studio","bob","alice")
