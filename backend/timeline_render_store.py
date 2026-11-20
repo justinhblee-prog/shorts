@@ -56,6 +56,26 @@ class TimelineRenderStore:
             db.execute("""CREATE TRIGGER IF NOT EXISTS timeline_edl_snapshots_no_delete
                 BEFORE DELETE ON timeline_edl_snapshots
                 BEGIN SELECT RAISE(ABORT,'EDL snapshots are immutable'); END""")
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS timeline_render_reviews (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    snapshot_id TEXT NOT NULL REFERENCES timeline_edl_snapshots(id) ON DELETE RESTRICT,
+                    workspace_id TEXT NOT NULL,
+                    job_id TEXT NOT NULL,
+                    reviewer_id TEXT NOT NULL,
+                    decision TEXT NOT NULL CHECK(decision IN ('approved','rejected','revision_requested')),
+                    comment TEXT NOT NULL DEFAULT '',
+                    artifact_sha256 TEXT NOT NULL CHECK(length(artifact_sha256)=64),
+                    created_at TEXT NOT NULL,
+                    UNIQUE(snapshot_id)
+                )
+            """)
+            db.execute("""CREATE TRIGGER IF NOT EXISTS timeline_render_reviews_no_update
+                BEFORE UPDATE ON timeline_render_reviews
+                BEGIN SELECT RAISE(ABORT,'timeline render reviews are immutable'); END""")
+            db.execute("""CREATE TRIGGER IF NOT EXISTS timeline_render_reviews_no_delete
+                BEFORE DELETE ON timeline_render_reviews
+                BEGIN SELECT RAISE(ABORT,'timeline render reviews are immutable'); END""")
 
     @contextmanager
     def _db(self):
@@ -166,4 +186,90 @@ class TimelineRenderStore:
             "render_job_id": row["render_job_id"],
             "payload_sha256": row["payload_sha256"],
             "status": "queued", "replayed": replayed,
+        }
+
+
+    def list_pending_reviews(self, workspace_id, principal_id, limit=50):
+        self.workspaces.require_membership(workspace_id, principal_id)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
+            raise ValueError("limit must be between 1 and 200")
+        with self._db() as db:
+            rows = db.execute("""
+                SELECT s.id AS snapshot_id,s.render_job_id,s.payload_sha256,
+                       s.creator_principal_id,s.created_at,
+                       a.artifact_id,a.artifact_sha256,a.byte_size,a.duration_ms,
+                       a.video_width,a.video_height,a.audio_streams
+                FROM timeline_edl_snapshots s
+                JOIN pipeline_jobs j ON j.id=s.render_job_id
+                JOIN render_artifacts a ON a.job_id=s.render_job_id
+                    AND a.workspace_id=s.workspace_id
+                LEFT JOIN timeline_render_reviews r ON r.snapshot_id=s.id
+                WHERE s.workspace_id=? AND j.status='review_pending' AND r.id IS NULL
+                ORDER BY s.created_at ASC LIMIT ?
+            """, (workspace_id, limit)).fetchall()
+        return [{
+            **dict(row),
+            "preview_url": f"/api/timeline/artifacts/{row['artifact_id']}/preview",
+            "status": "review_pending",
+        } for row in rows]
+
+    def review_status(self, workspace_id, principal_id, snapshot_id):
+        self.workspaces.require_membership(workspace_id, principal_id)
+        snapshot = self.get(workspace_id, principal_id, snapshot_id)
+        with self._db() as db:
+            row = db.execute("""
+                SELECT reviewer_id,decision,comment,artifact_sha256,created_at
+                FROM timeline_render_reviews WHERE snapshot_id=? AND workspace_id=?
+            """, (snapshot_id, workspace_id)).fetchone()
+        if row is None:
+            return {"status": "review_pending", "decision": None}
+        return {"status": row["decision"], **dict(row)}
+
+    def review_decide(self, workspace_id, reviewer_id, snapshot_id, decision, comment=""):
+        self.workspaces.require_membership(workspace_id, reviewer_id)
+        if decision not in {"approved", "rejected", "revision_requested"}:
+            raise ValueError("unsupported timeline review decision")
+        if not isinstance(comment, str) or len(comment) > 4000:
+            raise ValueError("review comment must be at most 4000 characters")
+        if any(ord(ch) < 32 and ch not in "\n\t" for ch in comment):
+            raise ValueError("review comment contains unsupported control characters")
+        timestamp = datetime.now(timezone.utc).isoformat()
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            snapshot = db.execute("""
+                SELECT id,render_job_id,payload_sha256 FROM timeline_edl_snapshots
+                WHERE id=? AND workspace_id=?
+            """, (snapshot_id, workspace_id)).fetchone()
+            if snapshot is None:
+                raise SnapshotError("EDL snapshot not found")
+            job = db.execute("""
+                SELECT status FROM pipeline_jobs
+                WHERE id=? AND workspace_id=? AND job_type='timeline_render'
+            """, (snapshot["render_job_id"], workspace_id)).fetchone()
+            if job is None or job["status"] != "review_pending":
+                raise SnapshotConflict("render output is not awaiting review")
+            artifact = db.execute("""
+                SELECT artifact_sha256 FROM render_artifacts
+                WHERE job_id=? AND workspace_id=? AND snapshot_id=?
+                  AND snapshot_sha256=?
+            """, (snapshot["render_job_id"], workspace_id, snapshot_id,
+                  snapshot["payload_sha256"])).fetchone()
+            if artifact is None:
+                raise SnapshotConflict("verified render artifact is not available for review")
+            try:
+                db.execute("""
+                    INSERT INTO timeline_render_reviews
+                    (snapshot_id,workspace_id,job_id,reviewer_id,decision,comment,
+                     artifact_sha256,created_at)
+                    VALUES(?,?,?,?,?,?,?,?)
+                """, (snapshot_id,workspace_id,snapshot["render_job_id"],reviewer_id,
+                      decision,comment,artifact["artifact_sha256"],timestamp))
+            except sqlite3.IntegrityError as exc:
+                raise SnapshotConflict("this immutable render snapshot already has a review decision") from exc
+            db.commit()
+        return {
+            "snapshot_id": snapshot_id, "workspace_id": workspace_id,
+            "render_job_id": snapshot["render_job_id"], "reviewer_id": reviewer_id,
+            "decision": decision, "comment": comment,
+            "artifact_sha256": artifact["artifact_sha256"], "created_at": timestamp,
         }
