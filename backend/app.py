@@ -33,7 +33,6 @@ from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
 from render_asset_store import RenderAssetStore, RenderAssetError, RenderAssetNotFound
 from render_output_store import RenderOutputStore, RenderOutputError, RenderOutputNotFound
-from render_output_store import RenderOutputStore, RenderOutputError, RenderOutputNotFound
 from preflight import build_preflight
 from timeline_edl import validate_edl, EDLValidationError
 from workspace_access import resolve_workspace_membership, resolve_workspace_access, WorkspaceAccessConfigurationError
@@ -112,10 +111,6 @@ schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
 render_asset_store=RenderAssetStore(
-    os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),
-    os.getenv("NEXUS_MEDIA_DIR","data/media"),
-)
-render_output_store=RenderOutputStore(
     os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),
     os.getenv("NEXUS_MEDIA_DIR","data/media"),
 )
