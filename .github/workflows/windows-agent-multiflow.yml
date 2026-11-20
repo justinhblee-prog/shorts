@@ -1,6 +1,13 @@
 name: Windows self-hosted Agent multi-flow
 
 on:
+  push:
+    branches:
+      - fix/devflow-detached-supervisor-2026-11-20
+    paths:
+      - ".github/workflows/windows-agent-multiflow.yml"
+      - "scripts/**"
+      - ".devflow/tasks.json"
   workflow_dispatch:
     inputs:
       max_tasks:
