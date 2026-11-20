@@ -42,14 +42,30 @@ checks path, size, suffix and checksum but does not claim media-stream validity.
 Without a store, the existing injected-renderer review handoff remains available
 for compatibility.
 
+## Concrete EDL renderer
+
+`TimelineFFmpegRenderer` implements the EDL v1 video/title/audio path.
+It resolves only clean workspace assets, copies them into a per-job private
+working directory, probes each source and rejects source trims beyond the real
+media duration. Video clips are composed onto a 1080x1920 portrait canvas;
+title text is passed through UTF-8 text files with drawtext expansion disabled.
+Audio clips use the existing bounded audio-mix builder, including source in-points,
+timeline delay, gain, fades and limiter. Both FFmpeg stages run with argv-only
+execution, no shell, bounded wall time/output bytes and lease-loss cancellation.
+The final MP4 is ffprobe-validated before it is returned to the lease-fenced
+artifact store for checksum-backed adoption.
+
+The render job now carries its originating workspace and principal context so
+the asset store re-checks membership and clean scan status when opening media.
+A failed or lease-lost handoff removes the staged MP4. EDL v1 now supports
+explicit audio clips with bounded gain and fades.
+
 ## Remaining production gates
 
-- A concrete EDL renderer must produce the staged MP4 and call the safe audio
-  mix builder with trusted, staged inputs.
 - Pin FFmpeg/ffprobe versions and run them in a production-isolated container
   with CPU, memory, disk, network and process-count limits.
 - Run real-media integration and crash/lease-loss tests on the target runtime.
 - Add authenticated upload/render/review APIs and retention cleanup.
-- CI tests use generated fixture bytes and a mocked ffprobe process. The actual
-  ffprobe binary, real FFmpeg rendering and production filesystem isolation
-  still require target-runtime validation.
+- CI tests execute a fake FFmpeg/ffprobe toolchain against generated fixtures;
+  the actual pinned binaries, representative real-media renders and production
+  filesystem isolation still require target-runtime validation.
