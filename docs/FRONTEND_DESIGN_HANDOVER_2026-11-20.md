@@ -61,3 +61,6 @@ Some entries intentionally land on the same existing feature section until dedic
 ## Safety
 
 PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner configuration change, workflow dispatch or live provider action was performed.
+
+- Global search now scans visible live task/review/calendar/analytics rows as well as section headings and form labels; the browser smoke verifies Ctrl+K and an authenticated review-task result.
+- Browser smoke also checks that the approved design token stylesheet is loaded, the desktop sidebar/main offset is 258px, the violet design token is present, and no Google Fonts network requests occur.
