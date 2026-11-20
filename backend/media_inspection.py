@@ -166,7 +166,7 @@ class MediaInspector:
         except OSError as exc:
             raise MediaInspectionError("ffprobe could not be executed") from exc
         if result.returncode != 0:
-            detail = (result.stderr or "").strip()[:500]
+            detail = (result.stderr or "").strip()[-500:]
             raise MediaInspectionError("ffprobe rejected the media file" + (": " + detail if detail else ""))
         try:
             payload = json.loads(result.stdout)
