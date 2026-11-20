@@ -76,6 +76,18 @@ async function waitForServer() {
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     fs.mkdirSync("artifacts", { recursive: true });
     assert.match(await page.title(), /NEXUS STUDIO PRO/);
+    assert.equal(await page.locator('link[href="/assets/nexus-premium.css"]').count(), 1);
+    const visualSystem = await page.evaluate(() => ({
+      font: getComputedStyle(document.body).fontFamily,
+      background: getComputedStyle(document.body).backgroundColor,
+      heroColumns: getComputedStyle(document.querySelector(".hero")).gridTemplateColumns,
+      koreanReplacementGlyphs: (document.body.innerText.match(/\\uFFFD/g) || []).length,
+      premiumStylesheet: [...document.styleSheets].some(sheet => sheet.href?.endsWith("/assets/nexus-premium.css")),
+    }));
+    assert.match(visualSystem.font, /Pretendard Variable|Pretendard|Noto Sans KR/);
+    assert.equal(visualSystem.koreanReplacementGlyphs, 0);
+    assert.equal(visualSystem.premiumStylesheet, true);
+    checkpoint("premium typography and Korean text rendering verified");
     assert.equal(await page.locator(".main-nav a").count(), 5);
     assert.equal(await page.locator("#studio").count(), 1);
     assert.equal(await page.locator("#discovery").count(), 1);
