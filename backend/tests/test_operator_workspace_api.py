@@ -10,7 +10,7 @@ _TEST_DB = tempfile.TemporaryDirectory()
 os.environ.setdefault("NEXUS_DB_PATH", os.path.join(_TEST_DB.name, "app.sqlite3"))
 
 import app as api
-from workspace_store import WorkspaceStore
+from workspace_store import WorkspaceStore, WorkspaceDenied
 
 
 class OperatorWorkspaceApiTests(unittest.TestCase):
@@ -60,7 +60,7 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         workspace_id = response.json()["id"]
         self.assertEqual(self.store.require_membership(workspace_id, "alice")["role"], "owner")
-        with self.assertRaises(Exception):
+        with self.assertRaises(WorkspaceDenied):
             self.store.require_membership(workspace_id, "mallory")
 
     def test_list_is_scoped_to_authenticated_principal(self):
@@ -89,6 +89,31 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
             headers={"X-Review-Token": "alice-token"},
         )
         self.assertEqual(revoked.status_code, 200)
+
+
+    def test_sqlite_edl_mode_ignores_legacy_grants_and_denies_cross_workspace(self):
+        payload = {
+            "schema": "nexus-edit-decision-list", "version": 1, "timebase": "milliseconds",
+            "clips": [{"id": "clip-1", "type": "video", "start_ms": 0, "end_ms": 1000,
+                       "asset_id": "asset_1", "source_in_ms": 0, "source_out_ms": 1000}],
+        }
+        with patch.dict(os.environ, {
+            "NEXUS_WORKSPACE_AUTH_MODE": "sqlite",
+            "NEXUS_OPERATOR_WORKSPACES_JSON": '{"bob":["ws_alice"]}',
+        }):
+            allowed = self.client.post(
+                "/api/timeline/edl/validate",
+                headers={"X-Review-Token": "alice-token", "X-Nexus-Workspace-Id": "ws_alice"},
+                json=payload,
+            )
+            denied = self.client.post(
+                "/api/timeline/edl/validate",
+                headers={"X-Review-Token": "bob-token", "X-Nexus-Workspace-Id": "ws_alice"},
+                json=payload,
+            )
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(allowed.json()["workspace_id"], "ws_alice")
+        self.assertEqual(denied.status_code, 403)
 
     def test_unauthenticated_workspace_requests_are_rejected(self):
         response = self.client.get("/api/operator/workspaces")
