@@ -201,3 +201,12 @@ The customer identity provider and account contract must be selected before impl
 - Legacy operator-token claim/heartbeat/complete/fail endpoints now accept a workspace selector and pass the resolved workspace into every queue lease operation. Without a workspace selector they can only access legacy NULL-owned jobs; credential mode disables these legacy routes entirely.
 - Queue worker control, global recovery, and worker registry remain system-level operational controls protected by queue-control/operations permissions; they are not tenant-facing workspace data.
 - Added queue store regression coverage for workspace-scoped statistics and cancellation. Latest CI for the import/test fix is running.
+
+## Remaining tenant boundary gaps (explicitly not complete)
+
+- YouTube and TikTok OAuth currently use service/global connection state. Publication job records and analytics histories are workspace-scoped, but provider credentials, OAuth status, creator identity, and collection status are not yet per-workspace. A tenant deployment must not assume each workspace has an independent channel connection.
+- Required next design: encrypted per-workspace provider credential records, workspace-bound OAuth state/redirect validation, revocation/rotation audit, and collection workers that select only the authorized workspace's provider connection. No encryption key, OAuth secret, or external account connection was added.
+- Customer OIDC identity is still not selected or implemented. Operator/reviewer tokens are not customer identities.
+- The current worker process still accesses SQLite directly and does not consume the new credential-backed worker API. Dedicated OS/network isolation remains mandatory.
+- A tenant asset registry and authorized asset retrieval API are not implemented; legacy media files remain unassigned and workspace media cleanup remains fail-closed where upload ownership cannot be proven.
+- Default brand profiles and public trend/competitor signals are shared platform reference data. Workspace-owned custom brand profile management is not implemented.
