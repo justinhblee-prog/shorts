@@ -128,6 +128,8 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineTotalDuration").textContent(), "8.0s");
     await page.locator("#timelinePlaySelected").click();
     assert.match(await page.locator("#timelineStatus").textContent(), /타이틀 미리보기/);
+    assert.equal(await page.locator("#timelineTitleOverlay").textContent(), "Second title");
+    assert.equal(await page.locator("#timelineTitleOverlay").isVisible(), true);
     await page.locator("#timelineRemove").click();
     assert.equal(await page.locator(".timeline-clip").count(), 1, "timeline clip removal failed");
     await page.locator("#timelineRemove").click();
