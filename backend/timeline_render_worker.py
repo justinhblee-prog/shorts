@@ -6,7 +6,6 @@ completion as proof of publication; successful renders enter review_pending.
 from __future__ import annotations
 
 import threading
-import time
 
 
 class TimelineRenderWorker:
@@ -56,7 +55,7 @@ class TimelineRenderWorker:
             if self.artifact_store is not None:
                 if not isinstance(result, dict) or "staged_path" not in result:
                     raise RuntimeError("renderer must return staged_path when artifact adoption is enabled")
-                adopted = self.artifact_store.adopt(
+                self.artifact_store.adopt(
                     job["id"], self.worker_id, job["lease_token"],
                     self.generation_token, job["workspace_id"],
                     job["payload"]["snapshot_id"],
