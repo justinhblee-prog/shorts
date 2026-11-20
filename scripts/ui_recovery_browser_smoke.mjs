@@ -81,7 +81,7 @@ async function waitForServer() {
       "browser-smoke-pagination-204",
       "loading another page from a missing prerequisite must focus the persisted parent");
     const paginationStatus = (await page.locator("#developmentJobPaginationStatus").textContent()).trim();
-    const paginationMatch = paginationStatus.match(/^([0-9]+) . ([0-9]+)개 작업 표시$/);
+    const paginationMatch = paginationStatus.match(/^([0-9]+) \/ ([0-9]+)개 작업 표시$/);
     assert.ok(paginationMatch, "pagination status must expose loaded and total job counts");
     assert.equal(Number(paginationMatch[1]), Number(paginationMatch[2]),
       "all persisted jobs must be loaded before the load-more control hides");
