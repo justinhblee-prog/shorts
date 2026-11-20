@@ -167,25 +167,41 @@ class TimelineRenderer:
             raise TimelineRenderError(str(exc)) from exc
 
         clips = normalized["clips"]
-        if any(clip["type"] != "video" for clip in clips):
-            raise TimelineRenderError("Title clips are not yet supported by the FFmpeg renderer")
+        video_clips = [clip for clip in clips if clip["type"] == "video"]
+        title_clips = [clip for clip in clips if clip["type"] == "title"]
+        if not video_clips:
+            raise TimelineRenderError("EDL must contain at least one video clip")
 
         timeline_cursor = 0.0
-        for clip in clips:
+        for clip in video_clips:
             if not math.isclose(clip["start_ms"], timeline_cursor, abs_tol=1.0):
-                raise TimelineRenderError("EDL clips must be ordered and contiguous in this renderer version")
+                raise TimelineRenderError("Video clips must be ordered and contiguous in this renderer version")
             timeline_cursor = clip["end_ms"]
-        inputs = [self._trusted_asset(clip["asset_id"], asset_paths) for clip in clips]
+        for title in title_clips:
+            if title["start_ms"] < 0 or title["end_ms"] > timeline_cursor:
+                raise TimelineRenderError("Title overlay must fit inside the rendered video timeline")
+
+        inputs = [self._trusted_asset(clip["asset_id"], asset_paths) for clip in video_clips]
         audio_path = self._trusted_asset(audio_asset_id, asset_paths) if audio_asset_id else None
         total_input_bytes = sum(path.stat().st_size for path in inputs)
         if audio_path is not None:
             total_input_bytes += audio_path.stat().st_size
         if total_input_bytes > self.max_total_asset_bytes:
             raise TimelineRenderError("Combined render assets exceed the configured total size limit")
-        durations = [(clip["source_out_ms"] - clip["source_in_ms"]) / 1000 for clip in clips]
-        total_duration = sum(durations)
+        durations = [(clip["source_out_ms"] - clip["source_in_ms"]) / 1000 for clip in video_clips]
+        total_duration = timeline_cursor / 1000
         if total_duration <= 0 or total_duration > 180:
             raise TimelineRenderError("Rendered timeline duration is outside the supported range")
+
+        source_audio_flags = []
+        for path in inputs:
+            try:
+                source_report = self.inspector.inspect(path)
+            except Exception as exc:
+                raise TimelineRenderError("Source video failed media inspection") from exc
+            if source_report.get("status") != "inspected":
+                raise TimelineRenderError("Source video did not pass media inspection")
+            source_audio_flags.append(bool(source_report.get("audio_track_present")))
 
         target_dir = Path(output_dir) if output_dir is not None else self.media_root / "renders"
         if not target_dir.is_absolute():
