@@ -27,7 +27,10 @@ class FFmpegAudioMixTests(unittest.TestCase):
         ], str(self.output), output_duration_ms=12000)
         self.assertEqual(argv[0], "ffmpeg")
         self.assertIn("-nostdin", argv)
+        self.assertIn("-protocol_whitelist", argv)
+        self.assertIn("file,pipe", argv)
         self.assertIn("-filter_complex", argv)
+        self.assertIn("-threads", argv)
         graph = argv[argv.index("-filter_complex") + 1]
         self.assertIn("amix=inputs=2", graph)
         self.assertIn("alimiter=limit=0.95", graph)
@@ -52,6 +55,31 @@ class FFmpegAudioMixTests(unittest.TestCase):
             build_audio_mix_argv(
                 [{"path": str(self.one), "duration_ms": 1000}],
                 str(self.root / "mix.mp3"),
+            )
+
+
+    def test_audio_mix_applies_source_trim_before_timeline_delay(self):
+        argv = build_audio_mix_argv([{
+            "path": str(self.one), "start_ms": 750,
+            "source_in_ms": 1250, "duration_ms": 4000,
+            "gain": 0.5, "fade_out_ms": 500,
+        }], str(self.output), output_duration_ms=5000)
+        graph = argv[argv.index("-filter_complex") + 1]
+        self.assertIn("atrim=start=1.250:duration=4.000", graph)
+        self.assertIn("adelay=750|750", graph)
+        self.assertLess(graph.index("afade=t=out"), graph.index("adelay=750|750"))
+
+
+    def test_audio_mix_enforces_optional_output_byte_ceiling(self):
+        argv = build_audio_mix_argv(
+            [{"path": str(self.one), "duration_ms": 1000}],
+            str(self.output), max_output_bytes=4096,
+        )
+        self.assertEqual(argv[argv.index("-fs") + 1], "4096")
+        with self.assertRaises(AudioMixError):
+            build_audio_mix_argv(
+                [{"path": str(self.one), "duration_ms": 1000}],
+                str(self.output), max_output_bytes=0,
             )
 
 

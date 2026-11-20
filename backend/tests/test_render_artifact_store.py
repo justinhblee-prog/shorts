@@ -166,5 +166,44 @@ class RenderArtifactStoreTests(unittest.TestCase):
         self.assertEqual(record["audio_streams"], 1)
 
 
+    def test_discard_staged_only_removes_files_inside_private_staging_root(self):
+        self.assertTrue(self.store.discard_staged(self.staged))
+        self.assertFalse(self.staged.exists())
+        outside = Path(self.temp.name) / "outside.mp4"
+        outside.write_bytes(b"keep")
+        with self.assertRaisesRegex(ArtifactAdoptionError, "escaped"):
+            self.store.discard_staged(outside)
+        self.assertTrue(outside.exists())
+
+
+    def test_reconciles_only_old_generated_staging_outputs_and_workdirs(self):
+        import os
+        import time
+        old_time = time.time() - 7201
+        stale_output = self.staging / ("render_" + "c" * 32 + ".mp4")
+        stale_output.write_bytes(b"stale")
+        os.utime(stale_output, (old_time, old_time))
+        stale_dir = self.staging / ".render-stale-job"
+        stale_dir.mkdir()
+        (stale_dir / "input.blob").write_bytes(b"stale-input")
+        os.utime(stale_dir, (old_time, old_time))
+        recent_output = self.staging / ("render_" + "d" * 32 + ".mp4")
+        recent_output.write_bytes(b"keep")
+        unrelated = self.staging / "keep.mp4"
+        unrelated.write_bytes(b"keep")
+
+        result = self.store.reconcile_orphaned_staging(grace_seconds=7200)
+        self.assertEqual(result["removed_files"], 1)
+        self.assertEqual(result["removed_directories"], 1)
+        self.assertFalse(stale_output.exists())
+        self.assertFalse(stale_dir.exists())
+        self.assertTrue(recent_output.exists())
+        self.assertTrue(unrelated.exists())
+
+    def test_staging_reconciler_refuses_grace_shorter_than_max_render_timeout(self):
+        with self.assertRaisesRegex(ValueError, "at least 7200"):
+            self.store.reconcile_orphaned_staging(grace_seconds=7199)
+
+
 if __name__ == "__main__":
     unittest.main()

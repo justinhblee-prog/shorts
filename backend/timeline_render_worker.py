@@ -5,12 +5,14 @@ completion as proof of publication; successful renders enter review_pending.
 """
 from __future__ import annotations
 
+import inspect
 import threading
 
 
 class TimelineRenderWorker:
     def __init__(self, queue, renderer, worker_id, generation_token,
-                 heartbeat_seconds=10, artifact_store=None):
+                 heartbeat_seconds=10, artifact_store=None, shutdown_event=None,
+                 principal_resolver=None):
         if not callable(renderer):
             raise TypeError("renderer callback is required")
         if not worker_id or not generation_token:
@@ -23,6 +25,8 @@ class TimelineRenderWorker:
         self.generation_token = generation_token
         self.heartbeat_seconds = heartbeat_seconds
         self.artifact_store = artifact_store
+        self.shutdown_event = shutdown_event
+        self.principal_resolver = principal_resolver
 
     def run_once(self):
         job = self.queue.claim(
@@ -37,6 +41,9 @@ class TimelineRenderWorker:
 
         def beat():
             while not stop.wait(self.heartbeat_seconds):
+                if self.shutdown_event is not None and self.shutdown_event.is_set():
+                    lost.set()
+                    return
                 try:
                     self.queue.heartbeat(
                         job["id"], self.worker_id, job["lease_token"],
@@ -48,19 +55,48 @@ class TimelineRenderWorker:
 
         heartbeat = threading.Thread(target=beat, daemon=True)
         heartbeat.start()
+        staged_path = None
+        adopted = False
         try:
-            result = self.renderer(job["payload"], stop_event=lost)
+            principal_id = job["payload"].get("creator_principal_id")
+            if self.principal_resolver is not None:
+                resolved_principal = self.principal_resolver(job["workspace_id"], job["payload"])
+                if principal_id is not None and principal_id != resolved_principal:
+                    raise RuntimeError("render job creator does not match immutable snapshot owner")
+                principal_id = resolved_principal
+            try:
+                parameters = inspect.signature(self.renderer).parameters
+                accepts_kwargs = any(
+                    item.kind == inspect.Parameter.VAR_KEYWORD
+                    for item in parameters.values()
+                )
+                context = {
+                    "workspace_id": job["workspace_id"],
+                    "principal_id": principal_id,
+                }
+                context = {
+                    key: value for key, value in context.items()
+                    if accepts_kwargs or key in parameters
+                }
+            except (TypeError, ValueError):
+                context = {}
+            result = self.renderer(
+                job["payload"], stop_event=lost, **context
+            )
+            if isinstance(result, dict):
+                staged_path = result.get("staged_path")
             if lost.is_set():
                 raise RuntimeError("timeline render lease was lost")
             if self.artifact_store is not None:
-                if not isinstance(result, dict) or "staged_path" not in result:
+                if not isinstance(result, dict) or not staged_path:
                     raise RuntimeError("renderer must return staged_path when artifact adoption is enabled")
                 self.artifact_store.adopt(
                     job["id"], self.worker_id, job["lease_token"],
                     self.generation_token, job["workspace_id"],
                     job["payload"]["snapshot_id"],
-                    job["payload"]["snapshot_sha256"], result["staged_path"],
+                    job["payload"]["snapshot_sha256"], staged_path,
                 )
+                adopted = True
             else:
                 self.queue.finish(
                     job["id"], self.worker_id, job["lease_token"],
@@ -71,6 +107,11 @@ class TimelineRenderWorker:
                 )
             return True
         except Exception as exc:
+            if staged_path and self.artifact_store is not None and not adopted:
+                try:
+                    self.artifact_store.discard_staged(staged_path)
+                except Exception:
+                    pass
             if not lost.is_set():
                 try:
                     self.queue.fail(

@@ -43,15 +43,28 @@
         "Lease-fenced checksum-verified render artifact adoption with workspace-scoped immutable records and atomic review_pending handoff",
         "Worker integration and regression coverage for stale generation rejection, snapshot binding, private staging boundaries, byte limits and artifact tamper detection",
         "Grace-period reconciliation of orphaned private artifact files after process crashes, serialized against active adoption",
-        "Bounded shell-free ffprobe validation helper with timeout, file/stream/duration limits and optional artifact-adoption metadata persistence"
+        "Bounded shell-free ffprobe validation helper with timeout, file/stream/duration limits and optional artifact-adoption metadata persistence",
+        "Atomic EDL snapshot and render-queue handoff in one SQLite transaction (including worker creator identity)",
+        "EDL v1 bounded audio-track schema with workspace-scoped clean-asset validation",
+        "Sequential EDL video renderer using shell-free bounded FFmpeg execution, staged asset checksum verification, audio source trims/mix/fades/limiter and final MP4 mux",
+        "Lease-loss cancellation during FFmpeg processes and final ffprobe duration/stream/size validation",
+        "Lease-loss and adoption-failure cleanup of unadopted staged MP4s, constrained to the private staging root",
+        "Recompute and verify canonical normalized EDL SHA-256 before media processing; restrict FFmpeg and ffprobe inputs to local file/pipe protocols",
+        "Dedicated opt-in Compose render-worker service with stable identity, graceful SIGTERM cancellation and shared private media roots",
+        "Aggregate source-input byte budget, two-thread FFmpeg encoder limits and environment-validated worker configuration",
+        "Periodic two-hour-grace cleanup of crash-orphaned staging directories and unindexed private artifacts",
+        "Apply FFmpeg -fs output ceilings to video intermediate, audio mix and final MP4 stages",
+        "Backward-compatible canonical digest validation for existing EDL v1 jobs without the optional audio_tracks field",
+        "Resolve legacy render-job creator identity from the immutable workspace snapshot row and reject creator/hash mismatches"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
-        "Integrate audio mixing and video rendering into a concrete EDL renderer that produces staged MP4 outputs",
         "Run pinned FFmpeg and ffprobe binaries in an isolated worker container with CPU, memory, disk, network and process-count quotas",
         "Add real-media integration tests and crash/lease-loss tests against the production runtime",
         "Expose authenticated upload, render submission and review APIs with production filesystem permissions and retention cleanup",
-        "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service"
+        "Run the new renderer against pinned real FFmpeg/ffprobe binaries and representative real video/audio assets",
+        "Add title overlays, transitions, subtitles and gap/overlap policies to the EDL renderer after their product semantics are specified",
+        "Enable the render-worker profile only after API submission/auth integration and production container CPU, memory, disk, process-count and network isolation are ready"
       ]
     },
     {

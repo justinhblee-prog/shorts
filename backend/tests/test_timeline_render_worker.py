@@ -85,5 +85,121 @@ class TimelineRenderWorkerTests(unittest.TestCase):
         self.assertTrue((artifacts / artifact["storage_key"]).is_file())
 
 
+    def test_discards_staged_output_when_renderer_reports_lost_lease(self):
+        root = Path(self.temp.name)
+        staging = root / "staging"
+        artifacts = root / "artifacts"
+        staging.mkdir()
+        store = RenderArtifactStore(self.queue, staging, artifacts)
+        staged = staging / "abandoned.mp4"
+
+        def lose_lease(payload, stop_event):
+            staged.write_bytes(b"orphan-render")
+            stop_event.set()
+            return {"staged_path": str(staged)}
+
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_" + "d" * 32,
+             "snapshot_sha256": "e" * 64, "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        worker = TimelineRenderWorker(
+            self.queue, lose_lease, "timeline-worker", self.generation,
+            heartbeat_seconds=0.02, artifact_store=store,
+        )
+        self.assertFalse(worker.run_once())
+        self.assertFalse(staged.exists())
+        with self.queue.db() as db:
+            self.assertEqual(
+                db.execute("SELECT COUNT(*) FROM render_artifacts WHERE job_id=?",
+                           (queued["id"],)).fetchone()[0],
+                0,
+            )
+
+
+    def test_graceful_shutdown_cancels_and_discards_unadopted_output(self):
+        root = Path(self.temp.name)
+        staging = root / "staging"
+        artifacts = root / "artifacts"
+        staging.mkdir()
+        store = RenderArtifactStore(self.queue, staging, artifacts)
+        shutdown = __import__("threading").Event()
+        staged = staging / "shutdown.mp4"
+
+        def render(payload, stop_event):
+            staged.write_bytes(b"shutdown-render")
+            shutdown.set()
+            if not stop_event.wait(1):
+                raise AssertionError("worker did not propagate shutdown to renderer")
+            return {"staged_path": str(staged)}
+
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_" + "f" * 32,
+             "snapshot_sha256": "1" * 64, "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        worker = TimelineRenderWorker(
+            self.queue, render, "timeline-worker", self.generation,
+            heartbeat_seconds=0.02, artifact_store=store,
+            shutdown_event=shutdown,
+        )
+        self.assertFalse(worker.run_once())
+        self.assertFalse(staged.exists())
+        with self.queue.db() as db:
+            self.assertEqual(
+                db.execute("SELECT COUNT(*) FROM render_artifacts WHERE job_id=?",
+                           (queued["id"],)).fetchone()[0],
+                0,
+            )
+
+
+    def test_resolves_legacy_job_creator_from_immutable_snapshot_owner(self):
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_" + "9" * 32,
+             "snapshot_sha256": "a" * 64, "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        seen = []
+
+        def render(payload, stop_event, workspace_id, principal_id):
+            seen.append((workspace_id, principal_id))
+            return {"rendered": True}
+
+        worker = TimelineRenderWorker(
+            self.queue, render, "timeline-worker", self.generation,
+            heartbeat_seconds=0.02,
+            principal_resolver=lambda workspace_id, payload: "alice",
+        )
+        self.assertTrue(worker.run_once())
+        self.assertEqual(seen, [("ws_fixture", "alice")])
+
+    def test_rejects_creator_identity_conflicting_with_snapshot_owner(self):
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_" + "8" * 32,
+             "snapshot_sha256": "b" * 64, "creator_principal_id": "mallory",
+             "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        invoked = []
+
+        def render(payload, stop_event, workspace_id, principal_id):
+            invoked.append(principal_id)
+            return {"rendered": True}
+
+        worker = TimelineRenderWorker(
+            self.queue, render, "timeline-worker", self.generation,
+            heartbeat_seconds=0.02,
+            principal_resolver=lambda workspace_id, payload: "alice",
+        )
+        self.assertFalse(worker.run_once())
+        self.assertEqual(invoked, [])
+        failed = self.queue.get(queued["id"], workspace_id="ws_fixture")
+        self.assertEqual(failed["status"], "failed_retriable")
+
+
 if __name__ == "__main__":
     unittest.main()
