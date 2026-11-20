@@ -61,6 +61,9 @@ class DevelopmentJobWorker:
                 try:
                     self.store.heartbeat(job["id"], self.worker_id, job["lease_token"])
                     if not self.store.heartbeat_worker(self.worker_id, job["id"]):
+                        # The worker registry no longer recognizes this job context.
+                        # Treat that mismatch as lost ownership, not a harmless stale heartbeat.
+                        cancel_for_lease_loss()
                         return
                 except DevelopmentJobConflict:
                     # A rejected fencing token is definitive lease loss.
