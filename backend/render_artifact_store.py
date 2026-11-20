@@ -283,12 +283,12 @@ class RenderArtifactStore:
                     stat = path.stat()
                     if stat.st_mtime > cutoff:
                         continue
-                    if path.is_file() and re.fullmatch(r"rart_[a-f0-9]{32}\\.mp4", path.name):
+                    if path.is_file() and re.fullmatch(r"rart_[a-f0-9]{32}\.mp4", path.name):
                         size = stat.st_size
                         path.unlink()
                         removed_files += 1
                         removed_bytes += size
-                    elif path.is_dir() and re.fullmatch(r"\\.timeline-work-[A-Za-z0-9_-]+", path.name):
+                    elif path.is_dir() and re.fullmatch(r"\.timeline-work-[A-Za-z0-9_-]+", path.name):
                         shutil.rmtree(path)
                         removed_dirs += 1
                 except FileNotFoundError:
