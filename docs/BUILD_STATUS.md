@@ -2749,3 +2749,13 @@ Implement the secure FFmpeg/MP4 render worker rather than revisiting the already
 - The same head passed five-service Compose integration in [Compose run 44702536014](https://github.com/justinhblee-prog/shorts/actions/runs/44702536014): all services healthy, encrypted backup created, isolated restore succeeded, wrong-key restore rejected, and test volumes cleaned.
 - These Actions runs validate the repository and surrounding integration. The new renderer tests use injected FFmpeg/ffprobe adapters; **no real FFmpeg MP4 render has yet been executed**.
 - PR [#420](https://github.com/justinhblee-prog/shorts/pull/420) remains Draft / Open / Unmerged. No deployment, live provider action, or publish action was performed.
+
+
+## BUILD — workspace-owned render source asset registry (2026-11-20)
+
+- Added `backend/render_asset_store.py` with opaque per-workspace storage namespaces, authenticated owner attribution, strict MP4/M4A content types, streaming upload caps, MP4-family signature checks, SHA-256, atomic file adoption and a durable SQLite asset index.
+- Added authenticated `POST /api/render/assets` and `GET /api/render/assets`; both require an explicit workspace resolved from the token principal and membership. The API never accepts an owner ID or filesystem path from the request body.
+- Added `POST /api/render/validate-edl` to validate EDL v1 and resolve each opaque asset ID only within the selected workspace. It returns no internal path and does not claim that rendering is enabled.
+- Assets are render-resolvable only after an explicit clean ClamAV scan and a fresh hash/size verification. If `NEXUS_MEDIA_SCAN_ENABLED` is disabled, uploads are marked `disabled` and fail closed at EDL resolution. Configure the ClamAV database/updater before enabling this flow.
+- Regression coverage includes cross-workspace denial, tamper detection, symlinked namespaces, scanner failure, unscanned assets, invalid content types/signatures, upload limits, and API workspace binding.
+- **Scope boundary:** no durable render-job queue, lease/recovery worker, deletion lifecycle, real MP4 rendering, title overlay, source-clip audio mix, approval or publishing is enabled yet.
