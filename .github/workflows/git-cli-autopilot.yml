@@ -54,9 +54,11 @@ jobs:
       - name: Confirm no implicit merge or deployment commands
         shell: pwsh
         run: |
-          $script = Get-Content "scripts/git-cli-autopilot.ps1" -Raw
-          if ($script -match "(?im)^\s*gh\s+pr\s+merge") { throw "Automatic merge is forbidden." }
-          if ($script -match "(?im)^\s*vercel\s+deploy") { throw "Automatic deployment is forbidden." }
+          foreach ($path in @("scripts/git-cli-autopilot.ps1", "scripts/git-cli-multiflow.ps1")) {
+            $script = Get-Content $path -Raw
+            if ($script -match "(?im)^\s*gh\s+pr\s+merge") { throw "Automatic merge is forbidden: $path" }
+            if ($script -match "(?im)^\s*vercel\s+deploy") { throw "Automatic deployment is forbidden: $path" }
+          }
 
   python:
     name: Git workflow helper validation
