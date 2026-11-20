@@ -11,6 +11,8 @@ os.environ.setdefault("NEXUS_DB_PATH", os.path.join(_TEST_DB.name, "app.sqlite3"
 
 import app as api
 from workspace_store import WorkspaceStore, WorkspaceDenied
+from production_pipeline import ProductionStore
+from queue_store import JobQueue
 
 
 class OperatorWorkspaceApiTests(unittest.TestCase):
@@ -101,6 +103,33 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
         self.assertTrue(allowed["valid"])
         self.assertEqual(allowed["workspace_id"], "ws_alice")
         self.assertEqual(denied.exception.status_code, 403)
+
+    def test_production_detail_endpoint_enforces_authenticated_workspace_membership(self):
+        db_path = os.path.join(self.temp.name, "production.sqlite3")
+        queue = JobQueue(db_path)
+        store = ProductionStore(db_path)
+        brief = {"brand": "Future Leak", "region": "US",
+                 "language": "en", "topic": "AI agents"}
+        job = queue.enqueue(
+            "short_video_production", brief, workspace_id="ws_alice"
+        )
+        store.create(job["id"], brief)
+        production_patch = patch.object(api, "production_store", store)
+        production_patch.start()
+        try:
+            with patch.dict(os.environ, {"NEXUS_WORKSPACE_AUTH_MODE": "sqlite"}):
+                with patch.object(api, "require_review_permission", return_value="alice"):
+                    visible = api.get_production_job(
+                        job["id"], x_nexus_workspace_id="ws_alice"
+                    )
+                    self.assertEqual(visible["workspace_id"], "ws_alice")
+                    with self.assertRaises(HTTPException) as denied:
+                        api.get_production_job(
+                            job["id"], x_nexus_workspace_id="ws_mallory"
+                        )
+                    self.assertEqual(denied.exception.status_code, 403)
+        finally:
+            production_patch.stop()
 
     def test_unauthenticated_workspace_requests_are_rejected(self):
         with patch.object(api, "require_review_permission",
