@@ -10,8 +10,8 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import sqlite3
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from queue_store import LeaseConflict
@@ -98,9 +98,7 @@ class RenderArtifactStore:
         destination = self.artifact_root / storage_key
         if source.stat().st_dev != self.artifact_root.stat().st_dev:
             raise ArtifactAdoptionError("staging and artifact roots must share a filesystem")
-        timestamp = __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc
-        ).isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
 
         moved = False
         try:
@@ -136,6 +134,20 @@ class RenderArtifactStore:
                     VALUES(?,?,?,?,?,?,?,?,?,?)
                 """, (artifact_id, job_id, workspace_id, snapshot_id, snapshot_sha256,
                       digest, size, suffix, storage_key, timestamp))
+                updated = db.execute("""
+                    UPDATE pipeline_jobs
+                    SET status='review_pending',worker_id=NULL,lease_token=NULL,
+                        lease_expires_at=NULL,completed_at=?,updated_at=?
+                    WHERE id=? AND status='running' AND worker_id=? AND lease_token=?
+                """, (timestamp, timestamp, job_id, worker_id, lease_token))
+                if updated.rowcount != 1:
+                    raise LeaseConflict("render lease changed before artifact handoff")
+                self.queue.event(
+                    db, job_id, "completed", "running", "review_pending", worker_id,
+                    {"artifact_id": artifact_id, "snapshot_id": snapshot_id,
+                     "artifact_sha256": digest, "review_required": True},
+                    created_at=timestamp,
+                )
                 db.commit()
         except Exception:
             if moved:
