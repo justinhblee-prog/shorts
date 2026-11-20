@@ -64,6 +64,10 @@ async function waitForServer() {
     });
     const analyticsRequests = [];
     let analyticsHistoryResponse = null;
+    let resolveAnalyticsHistoryResponse;
+    const analyticsHistoryResponsePromise = new Promise(resolve => {
+      resolveAnalyticsHistoryResponse = resolve;
+    });
     page.on("request", request => {
       const requestUrl = new URL(request.url());
       if (requestUrl.pathname === "/api/publishing/analytics-history") {
@@ -87,6 +91,7 @@ async function waitForServer() {
       } catch (error) {
         analyticsHistoryResponse = { status: response.status(), parseError: String(error) };
       }
+      resolveAnalyticsHistoryResponse(analyticsHistoryResponse);
     });
     await page.route(url => url.pathname === "/api/publishing/analytics-history", async route => {
       resolveAnalyticsStarted();
@@ -261,6 +266,7 @@ async function waitForServer() {
       document.querySelector("#analyticsHistory").getAttribute("aria-busy") === "false" &&
       document.querySelector("#analyticsHistoryStatus").textContent.includes("기준 시각")
     );
+    await analyticsHistoryResponsePromise;
     checkpoint("analytics history response " + JSON.stringify(analyticsHistoryResponse));
     assert.equal(
       await page.locator("#exportAnalyticsHistory").isDisabled(),
