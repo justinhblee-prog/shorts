@@ -454,6 +454,8 @@ class DevelopmentWorkstreamPresentationTests(unittest.TestCase):
         self.assertIn('loadMoreButton.disabled=true', app_js)
         self.assertIn('developmentJobLoadPromise=request.finally', app_js)
         self.assertIn('developmentJobPaginationStatus', app_js)
+        self.assertIn('developmentJobSnapshotAt', app_js)
+        self.assertIn('&created_before="+encodeURIComponent(developmentJobSnapshotAt)', app_js)
         self.assertIn('id="loadMoreDevelopmentJobs"', html)
         self.assertIn('.development-job-pagination', css)
         self.assertIn('data-workstream="\'+lane+\'"', app_js)
