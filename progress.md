@@ -1,9 +1,9 @@
 # 프로젝트 진행 상황 (Progress Tracker)
 
 - **프로젝트**: NEXUS STUDIO PRO 통합 후보 PR #415
-- **전체 상태**: 완료 (100% - 이번 작업 범위)
-- **마지막 업데이트**: Step 7 - 최종 검증·인수인계 완료
-- **검증된 workflow/handover 커밋**: `b78ebc8cb9d8a3bd13d7a2016eb4930bd2af0daf`
+- **전체 상태**: 진행 중 — hosted CI 검증은 반복 통과했으나 최신 브랜치 헤드 확인 및 외부 Windows/Ollama 운영 게이트가 남아 있음
+- **마지막 업데이트**: 2026-11-20 — UI 브라우저 검증, worker promotion CI, 보안·승인 게이트 재점검
+- **최근 문서 커밋**: `45f6014d512f0087eb8d6d7707b94d0f53e1d118` (후속 브랜치 변경 존재; 현재 PR 헤드 `480e5e3ef834247ca5958e887fbb78a94e46e76d`의 exact-head CI는 별도 확인 필요)
 - **진행 브랜치**: `integration/nexus-aggregate-ui-core-2026-11-20`
 - **PR**: https://github.com/justinhblee-prog/shorts/pull/415
 - **안전 상태**: PR Draft/open/unmerged. 병합·배포·default branch 변경 없음.
@@ -247,3 +247,13 @@
 - Extended recovery Chromium smoke beyond recovery-only inspection: clicking a job selects its detail panel, pressing Enter on another job switches the selected state, and the event panel must replace its contents with the newly selected job's history.
 - Exact head 17ee4a515767b9e05b5c20b00eb240024365f807 passed all PR CI steps in [run 44654934989](https://github.com/justinhblee-prog/shorts/actions/runs/44654934989), including full backend validation, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation and keyboard-selection/detail-switching smoke, and artifact upload [14592123441](https://github.com/justinhblee-prog/shorts/actions/runs/44654934989/artifacts/14592123441).
 - FLOW-UI/FLOW-QA selection and detail-switching behavior: PASS on hosted Chromium fixtures. No real production account or live provider behavior is implied.
+
+## 32. Current continuation checkpoint — 2026-11-20
+
+- PR #415 current observed head: `480e5e3ef834247ca5958e887fbb78a94e46e76d`. It remains Draft/open/unmerged; current metadata reports mergeable=false. Do not infer merge conflict details from this boolean alone.
+- Latest observed aggregate browser workflow [44655506451](https://github.com/justinhblee-prog/shorts/actions/runs/44655506451) completed successfully: all 17 steps, including backend validation, frontend syntax, Playwright/Chromium setup, dashboard smoke, recovery/workstream/dependency smoke, and artifact upload. This run was associated with the prior documentation checkpoint, not yet proven to match current head `480e5e3`.
+- PR #416 remains Draft/open/unmerged and mergeable. Exact worker-promotion head `6e5c2a14e7c29d6d90120303014bc5abedc44cae` passed run [44651976963](https://github.com/justinhblee-prog/shorts/actions/runs/44651976963), including 615 backend tests and worker workflow YAML parse.
+- Both PRs currently have no submitted reviews and no inline review threads.
+- PR #416 security review reconfirmed the workflow uses a dedicated Windows runner label, checks runner version, installs backend/Aider virtual environments outside the workspace, persists SQLite under LocalAppData, and strips credentials from the Aider child process. However, the OS-level sandbox, low-privilege account, ACL isolation, outbound egress policy, and secret inventory remain unverified. The executor still runs with the Windows runner account's OS-level authority; prompt restrictions are not a security boundary.
+- PR #415 and #416 are separate by design: aggregate dashboard/API product integration versus standalone Windows worker promotion. Do not combine or merge automatically.
+- Next work: resolve why PR #415 reports mergeable=false; inspect current head ancestry and required checks, then re-run exact-head CI only after the branch is stable. Continue static security review of worker workflow and executor. No default-branch changes, workflow dispatch, merge, deployment, or live provider action.
