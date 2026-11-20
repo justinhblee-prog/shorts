@@ -806,8 +806,13 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
                 or previous.get("size_bytes")!=staged.get("size_bytes")
                 or previous.get("media_path")!=staged.get("media_path")):
             metadata["media_staging"]=staged
-            production_store.artifact(job_id,"rendering","video",video["artifact_url"],metadata)
-            production_store.stage(job_id,"review","review_pending")
+            production_store.artifact(
+                job_id,"rendering","video",video["artifact_url"],metadata,
+                workspace_id=workspace_id,
+            )
+            production_store.stage(
+                job_id,"review","review_pending",workspace_id=workspace_id
+            )
             staged["review_required"]=True
         return staged
     except MediaStagingError as e:
