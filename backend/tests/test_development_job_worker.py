@@ -1,0 +1,394 @@
+import os
+import tempfile
+import threading
+import unittest
+from unittest.mock import patch
+
+from development_jobs import DevelopmentJobConflict, DevelopmentJobStore
+from development_job_worker import DevelopmentJobWorker, NonRetryableDevelopmentJobError
+
+
+class DevelopmentJobWorkerTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = DevelopmentJobStore(os.path.join(self.tmp.name, "jobs.sqlite3"), lease_seconds=10)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_worker_completes_job_with_evidence(self):
+        job = self.store.create("Worker completion", scope=["backend/example.py"])
+        worker = DevelopmentJobWorker(
+            self.store, "worker-a",
+            lambda _: {"changed_files": ["backend/example.py"], "tests_passed": True,
+                       "validation_ref": "ci://run/42", "result_summary": "implemented"},
+        )
+        self.assertEqual(worker.run_once(), "review_pending")
+        self.assertEqual(self.store.get(job["id"])["status"], "review_pending")
+
+    def test_worker_strict_mode_quarantines_mismatched_worktree_evidence(self):
+        job = self.store.create("Mismatched worktree evidence", scope=["backend/example.py"])
+
+        class VerifiedExecutor:
+            def __call__(self, _):
+                return {
+                    "changed_files": ["backend/example.py"],
+                    "tests_passed": True,
+                    "validation_ref": "ci://run/verified",
+                }
+
+            def verify_execution_evidence(self, _job, _result):
+                return ["backend/other.py"]
+
+        worker = DevelopmentJobWorker(
+            self.store, "worker-verified", VerifiedExecutor(),
+            require_execution_verifier=True,
+        )
+        self.assertEqual(worker.run_once(), "quarantined")
+        saved = self.store.get(job["id"])
+        self.assertEqual(saved["status"], "quarantined")
+        self.assertIn("do not match", saved["result_summary"])
+
+    def test_worker_strict_mode_rejects_executor_without_verifier(self):
+        job = self.store.create("Missing worktree verifier", scope=["backend/example.py"])
+        worker = DevelopmentJobWorker(
+            self.store, "worker-no-verifier",
+            lambda _: {
+                "changed_files": ["backend/example.py"],
+                "tests_passed": True,
+                "validation_ref": "ci://run/unverified",
+            },
+            require_execution_verifier=True,
+        )
+        self.assertEqual(worker.run_once(), "quarantined")
+        self.assertEqual(self.store.get(job["id"])["status"], "quarantined")
+
+    def test_worker_rejects_noop_and_schedules_retry(self):
+        job = self.store.create("No-op must not pass", scope=["backend/example.py"])
+        worker = DevelopmentJobWorker(
+            self.store, "worker-a",
+            lambda _: {"changed_files": [], "tests_passed": True,
+                       "validation_ref": "ci://run/43"},
+        )
+        self.assertEqual(worker.run_once(), "retry_wait")
+        self.assertEqual(self.store.get(job["id"])["status"], "retry_wait")
+
+    def test_worker_records_executor_exception(self):
+        job = self.store.create("Executor error", scope=["backend/example.py"])
+        def broken(_):
+            raise RuntimeError("simulated worker failure")
+        worker = DevelopmentJobWorker(self.store, "worker-a", broken)
+        self.assertEqual(worker.run_once(), "retry_wait")
+        self.assertIn("RuntimeError", self.store.get(job["id"])["result_summary"])
+
+    def test_worker_redacts_secrets_before_persisting_executor_errors(self):
+        job = self.store.create("Secret-bearing executor failure", scope=["backend/example.py"])
+        secret_values = (
+            "abc.def", "ghp_123456789012345678901234567890",
+            "postgres://user:password@db.example/nexus", "private-key-material",
+            "firebase-private-secret",
+        )
+
+        def broken(_):
+            raise RuntimeError(
+                "Bearer abc.def GITHUB_TOKEN=ghp_123456789012345678901234567890 "
+                "DATABASE_URL=postgres://user:password@db.example/nexus "
+                "PRIVATE_KEY=private-key-material "
+                'FIREBASE_SERVICE_ACCOUNT={\\n  "type": "service_account",\\n  "private_key": "firebase-private-secret"\\n}'
+            )
+
+        worker = DevelopmentJobWorker(self.store, "worker-redaction", broken)
+        self.assertEqual(worker.run_once(), "retry_wait")
+        summary = self.store.get(job["id"])["result_summary"]
+        for secret in secret_values:
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, summary)
+        self.assertIn("[REDACTED]", summary)
+
+    def test_worker_redacts_pem_and_database_url(self):
+        job = self.store.create("PEM and database diagnostic failure", scope=["backend/example.py"])
+        pem = "-----BEGIN OPENSSH PRIVATE KEY-----\\nprivate-key-body\\n-----END OPENSSH PRIVATE KEY-----"
+        mongo_url = "mongodb://user:password@db.example/nexus"
+
+        def broken(_):
+            raise RuntimeError(f"{pem} {mongo_url}")
+
+        worker = DevelopmentJobWorker(self.store, "worker-pem-redaction", broken)
+        self.assertEqual(worker.run_once(), "retry_wait")
+        summary = self.store.get(job["id"])["result_summary"]
+        for secret in (pem, "private-key-body", mongo_url, "password"):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, summary)
+        self.assertIn("[REDACTED]", summary)
+
+    def test_worker_redacts_successful_summary_and_validation_reference(self):
+        job = self.store.create("Secret in successful evidence", scope=["backend/example.py"])
+        secret = "ghp_123456789012345678901234567890"
+        worker = DevelopmentJobWorker(
+            self.store, "worker-success-redaction",
+            lambda _: {
+                "changed_files": ["backend/example.py"],
+                "tests_passed": True,
+                "validation_ref": f"https://ci.example/run/1?DATABASE_URL=postgres://user:password@db.example/{secret}",
+                "result_summary": f"completed with DATABASE_URL=postgres://user:password@db.example/{secret}",
+            },
+        )
+        self.assertEqual(worker.run_once(), "review_pending")
+        saved = self.store.get(job["id"])
+        self.assertNotIn(secret, saved["result_summary"])
+        self.assertNotIn(secret, saved["validation_ref"])
+        self.assertIn("[REDACTED]", saved["result_summary"])
+        self.assertIn("[REDACTED]", saved["validation_ref"])
+
+    def test_worker_redacts_multiline_service_account_json(self):
+        job = self.store.create("Service account diagnostic", scope=["backend/example.py"])
+
+        def broken(_):
+            raise RuntimeError(
+                'FIREBASE_SERVICE_ACCOUNT={\n'
+                '  "type": "service_account",\n'
+                '  "private_key": "firebase-private-secret"\n}'
+            )
+
+        worker = DevelopmentJobWorker(self.store, "worker-service-account-redaction", broken)
+        self.assertEqual(worker.run_once(), "retry_wait")
+        summary = self.store.get(job["id"])["result_summary"]
+        self.assertNotIn("firebase-private-secret", summary)
+        self.assertNotIn('"type": "service_account"', summary)
+        self.assertIn("[REDACTED]", summary)
+
+    def test_non_retryable_worker_error_quarantines_job(self):
+        job = self.store.create("Unsafe scope", scope=["backend/example.py"])
+        def rejected(_):
+            raise NonRetryableDevelopmentJobError("scope validation failed")
+        worker = DevelopmentJobWorker(self.store, "worker-a", rejected)
+        self.assertEqual(worker.run_once(), "quarantined")
+        self.assertEqual(self.store.get(job["id"])["status"], "quarantined")
+
+    def test_worker_requires_callable_executor(self):
+        with self.assertRaisesRegex(ValueError, "executor"):
+            DevelopmentJobWorker(self.store, "worker-a", None)
+
+
+    def test_heartbeat_transport_failure_cancels_executor_and_fails_closed(self):
+        self.store.lease_seconds = 3
+        job = self.store.create("Lease heartbeat transport failure", scope=["backend/example.py"])
+
+        class CancellableExecutor:
+            def __init__(self):
+                self.started = threading.Event()
+                self.cancelled = threading.Event()
+
+            def __call__(self, _):
+                self.started.set()
+                self.cancelled.wait(5)
+                return {
+                    "changed_files": ["backend/example.py"],
+                    "tests_passed": True,
+                    "validation_ref": "ci://must-not-be-accepted",
+                }
+
+            def cancel(self):
+                self.cancelled.set()
+
+        executor = CancellableExecutor()
+        worker = DevelopmentJobWorker(self.store, "worker-heartbeat-failure", executor)
+        outcomes = []
+        with patch.object(
+            self.store, "heartbeat", side_effect=RuntimeError("database temporarily unavailable")
+        ):
+            thread = threading.Thread(target=lambda: outcomes.append(worker.run_once()))
+            thread.start()
+            self.assertTrue(executor.started.wait(2))
+            self.assertTrue(executor.cancelled.wait(4))
+            thread.join(2)
+
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(outcomes, ["lease_lost"])
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+        self.assertNotEqual(self.store.get(job["id"])["status"], "review_pending")
+
+    def test_fenced_heartbeat_rejection_cancels_executor(self):
+        self.store.lease_seconds = 3
+        job = self.store.create("Lease fencing rejection", scope=["backend/example.py"])
+
+        class CancellableExecutor:
+            def __init__(self):
+                self.started = threading.Event()
+                self.cancelled = threading.Event()
+
+            def __call__(self, _):
+                self.started.set()
+                self.cancelled.wait(5)
+                return {
+                    "changed_files": ["backend/example.py"],
+                    "tests_passed": True,
+                    "validation_ref": "ci://must-not-be-accepted",
+                }
+
+            def cancel(self):
+                self.cancelled.set()
+
+        executor = CancellableExecutor()
+        worker = DevelopmentJobWorker(self.store, "worker-fenced-heartbeat", executor)
+        outcomes = []
+        with patch.object(
+            self.store, "heartbeat", side_effect=DevelopmentJobConflict("lease fenced")
+        ):
+            thread = threading.Thread(target=lambda: outcomes.append(worker.run_once()))
+            thread.start()
+            self.assertTrue(executor.started.wait(2))
+            self.assertTrue(executor.cancelled.wait(4))
+            thread.join(2)
+
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(outcomes, ["lease_lost"])
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+
+    def test_stale_evidence_gate_conflict_returns_lease_lost(self):
+        job = self.store.create("Stale completion fence", scope=["backend/example.py"])
+        worker = DevelopmentJobWorker(
+            self.store, "worker-stale-evidence-fence",
+            lambda _: {
+                "changed_files": ["backend/example.py"],
+                "tests_passed": True,
+                "validation_ref": "ci://stale-fence",
+                "result_summary": "validated but lease has expired",
+            },
+        )
+        with patch.object(
+            self.store, "mark_review_pending",
+            side_effect=DevelopmentJobConflict("lease is missing, expired, or fenced"),
+        ):
+            self.assertEqual(worker.run_once(), "lease_lost")
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+
+    def test_run_once_registers_worker_and_clears_current_job(self):
+        job = self.store.create("Worker presence", scope=["backend/example.py"])
+        worker = DevelopmentJobWorker(
+            self.store, "runner-a",
+            lambda _: {"changed_files": ["backend/example.py"], "tests_passed": True,
+                       "validation_ref": "ci://run/44"},
+        )
+        self.assertEqual(worker.run_once(), "review_pending")
+        presence = self.store.get_worker("runner-a")
+        self.assertEqual(presence["status"], "online")
+        self.assertIsNone(presence["current_job_id"])
+        self.assertEqual(self.store.summary()["online_workers"], 1)
+
+    def test_late_heartbeat_cannot_resurrect_worker_presence_after_shutdown(self):
+        self.store.lease_seconds = 3
+        self.store.create("Late worker heartbeat", scope=["backend/example.py"])
+        heartbeat_started = threading.Event()
+        release_heartbeat = threading.Event()
+        heartbeat_finished = threading.Event()
+        original_heartbeat_worker = self.store.heartbeat_worker
+
+        def delayed_heartbeat(*_args):
+            heartbeat_started.set()
+            if not release_heartbeat.wait(5):
+                raise RuntimeError("test heartbeat release timed out")
+            return True
+
+        def tracked_heartbeat_worker(worker_id, current_job_id):
+            try:
+                return original_heartbeat_worker(worker_id, current_job_id)
+            finally:
+                heartbeat_finished.set()
+
+        def execute(_job):
+            self.assertTrue(heartbeat_started.wait(3))
+            return {
+                "changed_files": ["backend/example.py"],
+                "tests_passed": True,
+                "validation_ref": "ci://worker-presence-race",
+            }
+
+        worker = DevelopmentJobWorker(
+            self.store, "runner-late-heartbeat", execute, poll_seconds=1
+        )
+        with patch.object(self.store, "heartbeat", side_effect=delayed_heartbeat), patch.object(
+            self.store, "heartbeat_worker", side_effect=tracked_heartbeat_worker
+        ):
+            result = worker.run_until_idle(idle_seconds=1)
+            self.assertEqual(result["processed"], 1)
+            stopped = self.store.get_worker("runner-late-heartbeat")
+            self.assertEqual(stopped["status"], "offline")
+            self.assertIsNone(stopped["current_job_id"])
+
+            release_heartbeat.set()
+            self.assertTrue(heartbeat_finished.wait(2))
+
+        final = self.store.get_worker("runner-late-heartbeat")
+        self.assertEqual(final["status"], "offline")
+        self.assertIsNone(final["current_job_id"])
+
+    def test_run_until_idle_stops_after_one_review_pending_diff(self):
+        first = self.store.create("First diff", scope=["backend/first.py"])
+        second = self.store.create("Second diff", scope=["backend/second.py"])
+        calls = []
+
+        def execute(job):
+            calls.append(job["id"])
+            return {
+                "changed_files": [job["scope"][0]],
+                "tests_passed": True,
+                "validation_ref": "ci://run/one",
+            }
+
+        worker = DevelopmentJobWorker(self.store, "runner-once", execute, poll_seconds=1)
+        result = worker.run_until_idle(idle_seconds=1)
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(result["outcomes"], {"review_pending": 1})
+        self.assertEqual(calls, [first["id"]])
+        self.assertEqual(self.store.get(first["id"])["status"], "review_pending")
+        self.assertEqual(self.store.get(second["id"])["status"], "ready")
+
+    def test_run_until_idle_stops_after_failed_attempt_with_partial_workspace_changes(self):
+        first = self.store.create("First job leaves a partial diff", scope=["backend/first.py"])
+        second = self.store.create("Second job must wait", scope=["backend/second.py"])
+        calls = []
+
+        def execute(job):
+            calls.append(job["id"])
+            with open(os.path.join(self.tmp.name, "partial.py"), "w", encoding="utf-8") as partial:
+                partial.write("unvalidated partial change")
+            raise RuntimeError("validation failed after partial edit")
+
+        worker = DevelopmentJobWorker(self.store, "runner-failed-once", execute, poll_seconds=1)
+        result = worker.run_until_idle(idle_seconds=1)
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(result["outcomes"], {"retry_wait": 1})
+        self.assertEqual(calls, [first["id"]])
+        self.assertEqual(self.store.get(first["id"])["status"], "retry_wait")
+        self.assertEqual(self.store.get(second["id"])["status"], "ready")
+
+    def test_run_forever_returns_after_one_claimed_job(self):
+        first = self.store.create("First daemon job", scope=["backend/first.py"])
+        second = self.store.create("Second daemon job", scope=["backend/second.py"])
+        calls = []
+
+        def execute(job):
+            calls.append(job["id"])
+            return {
+                "changed_files": [job["scope"][0]],
+                "tests_passed": True,
+                "validation_ref": "ci://run/daemon",
+            }
+
+        worker = DevelopmentJobWorker(self.store, "runner-daemon", execute, poll_seconds=1)
+        worker.run_forever()
+        self.assertEqual(calls, [first["id"]])
+        self.assertEqual(self.store.get(first["id"])["status"], "review_pending")
+        self.assertEqual(self.store.get(second["id"])["status"], "ready")
+        self.assertEqual(self.store.get_worker("runner-daemon")["status"], "offline")
+
+    def test_run_until_idle_marks_worker_offline_on_exit(self):
+        worker = DevelopmentJobWorker(self.store, "runner-idle", lambda _: {})
+        result = worker.run_until_idle(idle_seconds=1)
+        self.assertEqual(result["processed"], 0)
+        self.assertEqual(self.store.get_worker("runner-idle")["status"], "offline")
+
+
+if __name__ == "__main__":
+    unittest.main()
