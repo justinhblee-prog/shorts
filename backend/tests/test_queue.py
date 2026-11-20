@@ -70,6 +70,18 @@ class QueueTests(unittest.TestCase):
   with self.assertRaises(IdempotencyConflict):
    self.q.enqueue("render",{"topic":"x"},idempotency_key="once")
 
+ def test_queue_stats_and_cancellation_are_workspace_scoped(self):
+  first=self.q.enqueue("short_video_production",{"topic":"A"},workspace_id="workspace-a")
+  second=self.q.enqueue("short_video_production",{"topic":"B"},workspace_id="workspace-b")
+  self.assertEqual(self.q.stats(workspace_id="workspace-a")["total"],1)
+  self.assertEqual(self.q.stats(workspace_id="workspace-b")["total"],1)
+  self.assertEqual(self.q.stats()["total"],0)
+  with self.assertRaises(JobNotFound):
+   self.q.cancel(second["id"],workspace_id="workspace-a")
+  cancelled=self.q.cancel(second["id"],workspace_id="workspace-b")
+  self.assertEqual(cancelled["status"],"cancelled")
+  self.assertEqual(self.q.stats(workspace_id="workspace-b")["cancelled"],1)
+
  def test_workspace_id_is_persisted_through_queue_claim(self):
   queued=self.q.enqueue("short_video_production",{"topic":"tenant"},workspace_id="workspace-a")
   self.assertEqual(queued["workspace_id"],"workspace-a")
