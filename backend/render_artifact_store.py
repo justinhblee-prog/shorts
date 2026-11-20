@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import time
 import uuid
 from datetime import datetime, timezone
@@ -223,6 +224,42 @@ class RenderArtifactStore:
         }
 
 
+
+
+    def reconcile_orphaned_staging(self, grace_seconds=7200):
+        """Remove crash-left staging outputs older than the maximum render timeout.
+
+        The enforced two-hour minimum exceeds the renderer's one-hour maximum
+        process timeout, so a healthy bounded render cannot be collected.
+        """
+        if (isinstance(grace_seconds, bool)
+                or not isinstance(grace_seconds, (int, float))
+                or grace_seconds < 7200):
+            raise ValueError("staging grace_seconds must be at least 7200")
+        cutoff = time.time() - grace_seconds
+        removed_files = removed_dirs = removed_bytes = 0
+        output_pattern = re.compile(r"^render_[a-f0-9]{32}\\.mp4$")
+        for path in self.staging_root.iterdir():
+            if path.is_symlink():
+                continue
+            try:
+                stat = path.stat()
+                if stat.st_mtime > cutoff:
+                    continue
+                if path.is_file() and output_pattern.fullmatch(path.name):
+                    removed_bytes += stat.st_size
+                    path.unlink()
+                    removed_files += 1
+                elif path.is_dir() and path.name.startswith(".render-"):
+                    shutil.rmtree(path)
+                    removed_dirs += 1
+            except FileNotFoundError:
+                continue
+        return {
+            "removed_files": removed_files,
+            "removed_directories": removed_dirs,
+            "removed_bytes": removed_bytes,
+        }
 
     def discard_staged(self, staged_path):
         """Delete a failed or lease-abandoned staged output inside the private root."""
