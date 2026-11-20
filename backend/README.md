@@ -621,3 +621,13 @@ The authenticated `POST /api/render/assets` endpoint streams only MP4 video or M
 Malware scanning follows `NEXUS_MEDIA_SCAN_ENABLED`. If scanning is disabled, uploads are stored with `scan_status=disabled` and are **not render-resolvable**. Rendering requires a clean ClamAV result and a fresh SHA-256/size match at resolution time. Enable scanning only after configuring the ClamAV database/updater. This milestone still does not enqueue or execute render jobs.
 
 Uploads and EDL validation use the dedicated `media` rate-limit bucket (default 10 requests/minute; configure `NEXUS_API_MEDIA_RATE_LIMIT_PER_MINUTE`). Video EDL clips must resolve to registered `video` assets; an audio asset ID cannot be substituted for a video source.
+
+
+### Durable timeline render jobs
+
+- Queue a workspace-scoped job with `POST /api/render/jobs` (EDL v1 plus optional registered audio asset ID and optional `Idempotency-Key`). The API revalidates video/audio ownership and clean-scan state before enqueueing.
+- Inspect `GET /api/render/jobs/{job_id}` and `/events`; download the output through `/artifact`; cancel queued/running work with `POST /cancel`; submit an explicit `approved` or `rejected` decision through `POST /review`. Review decisions are append-only audited and never publish automatically.
+- The dedicated Compose `render-worker` claims only `timeline_render` jobs, renews a fenced queue lease, resolves asset IDs again inside the job workspace, and runs FFmpeg in its own container (`cpus: 2.0`, `mem_limit: 3g`, `pids_limit: 64`). FFmpeg runs in a killable POSIX process group; lease loss/operator cancellation terminates that group.
+- Successful output is adopted only while the queue lease and attempt still match. The output is not exposed until the queue transitions to `review_pending`; output metadata contains no local filesystem path. A stale attempt cannot complete or overwrite a newer attempt's review state.
+- The Compose integration smoke now generates a disposable source MP4, enqueues a render job in a temporary database, runs the actual worker/FFmpeg/ffprobe path, verifies a 1080×1920 MP4 and review-pending handoff, then discards the temporary database and media.
+- This worker has no publishing-provider integration. Source-clip audio mixing, title overlays, and automated publication remain unsupported.
