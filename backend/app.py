@@ -906,6 +906,216 @@ def get_workspace_asset(
         raise HTTPException(422,str(exc))
 
 
+@app.post("/api/operator/workspaces/{workspace_id}/assets", status_code=202)
+async def upload_operator_workspace_asset(
+    workspace_id: str,
+    request: Request,
+    filename: str = Query(..., min_length=1, max_length=128),
+    x_review_token: str | None = Header(default=None),
+):
+    """Stream a bounded private media upload; new assets remain quarantined by default."""
+    operator_id = require_review_permission(x_review_token, "media.manage")
+    workspace_id = resolve_operator_workspace_scope(operator_id, workspace_id)
+    allowed_suffixes = {
+        ".mp4", ".mov", ".m4v", ".webm", ".mkv",
+        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg",
+    }
+    if Path(filename).suffix.lower() not in allowed_suffixes:
+        raise HTTPException(415, "Unsupported media filename extension")
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if content_type not in {
+        "application/octet-stream", "video/mp4", "video/quicktime",
+        "video/webm", "video/x-matroska", "audio/mpeg", "audio/wav",
+        "audio/x-wav", "audio/mp4", "audio/aac", "audio/flac", "audio/ogg",
+    }:
+        raise HTTPException(415, "Unsupported media content type")
+    maximum = workspace_asset_store.max_asset_bytes
+    declared = request.headers.get("content-length")
+    if declared is not None:
+        if not declared.isdecimal():
+            raise HTTPException(400, "Invalid Content-Length")
+        if int(declared) > maximum:
+            raise HTTPException(413, "Media upload exceeds the configured byte limit")
+
+    with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode="w+b") as stream:
+        total = 0
+        async for chunk in request.stream():
+            if not isinstance(chunk, (bytes, bytearray)):
+                raise HTTPException(400, "Media upload stream was not binary")
+            total += len(chunk)
+            if total > maximum:
+                raise HTTPException(413, "Media upload exceeds the configured byte limit")
+            stream.write(chunk)
+        if total == 0:
+            raise HTTPException(422, "Empty media uploads are not accepted")
+        stream.seek(0)
+        try:
+            asset = workspace_asset_store.register_stream(
+                workspace_id, operator_id, stream, filename
+            )
+        except WorkspaceDenied as exc:
+            raise HTTPException(403, str(exc))
+        except AssetConflict as exc:
+            raise HTTPException(409, str(exc))
+        except AssetError as exc:
+            raise HTTPException(413, str(exc))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+
+    try:
+        scan = await asyncio.to_thread(
+            _scan_workspace_asset, workspace_id, operator_id, asset["asset_id"]
+        )
+    except WorkspaceDenied:
+        raise HTTPException(403, "Workspace membership is required")
+    except AssetNotFound:
+        raise HTTPException(404, "Uploaded asset could not be found")
+    except AssetError:
+        raise HTTPException(409, "Uploaded asset could not be verified")
+    if scan["scan_status"] == "rejected":
+        raise HTTPException(422, "Media was rejected by malware or format validation")
+    return {
+        "asset_id": asset["asset_id"],
+        "workspace_id": workspace_id,
+        "original_name": asset["original_name"],
+        "size_bytes": asset["size_bytes"],
+        "sha256": asset["sha256"],
+        "scan_status": scan["scan_status"],
+        "scanner_status": scan["scanner_status"],
+        "media_metadata": scan["media_metadata"],
+        "renderable": scan["scan_status"] == "clean",
+    }
+
+@app.post("/api/operator/workspaces/{workspace_id}/assets/{asset_id}/scan", status_code=200)
+def rescan_workspace_asset(
+    workspace_id: str,
+    asset_id: str,
+    x_review_token: str | None = Header(default=None),
+):
+    operator_id = require_review_permission(x_review_token, "media.manage")
+    workspace_id = resolve_operator_workspace_scope(operator_id, workspace_id)
+    try:
+        result = _scan_workspace_asset(workspace_id, operator_id, asset_id)
+    except WorkspaceDenied:
+        raise HTTPException(403, "Workspace membership is required")
+    except AssetNotFound:
+        raise HTTPException(404, "Asset not found")
+    except AssetError as exc:
+        raise HTTPException(409, str(exc))
+    if result["scan_status"] == "rejected":
+        raise HTTPException(422, "Media was rejected by malware or format validation")
+    return {
+        "asset_id": asset_id, "workspace_id": workspace_id,
+        **result, "renderable": result["scan_status"] == "clean",
+    }
+
+@app.post("/api/operator/workspaces/{workspace_id}/renders", status_code=202)
+def submit_workspace_render(
+    workspace_id: str,
+    body: TimelineRenderSubmitInput,
+    x_review_token: str | None = Header(default=None),
+):
+    operator_id = require_review_permission(x_review_token, "media.manage")
+    workspace_id = resolve_operator_workspace_scope(operator_id, workspace_id)
+    try:
+        return timeline_render_store.submit(
+            workspace_id, operator_id, body.edl, body.idempotency_key
+        )
+    except WorkspaceDenied:
+        raise HTTPException(403, "Workspace membership is required")
+    except AssetNotFound:
+        raise HTTPException(404, "A referenced workspace asset was not found")
+    except (AssetError, SnapshotConflict) as exc:
+        raise HTTPException(409, str(exc))
+    except SnapshotError as exc:
+        raise HTTPException(409, str(exc))
+    except EDLValidationError as exc:
+        raise HTTPException(422, str(exc))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+
+@app.get("/api/operator/workspaces/{workspace_id}/renders/{snapshot_id}")
+def get_workspace_render(
+    workspace_id: str,
+    snapshot_id: str,
+    x_review_token: str | None = Header(default=None),
+):
+    operator_id = require_review_permission(x_review_token, "media.manage")
+    workspace_id = resolve_operator_workspace_scope(operator_id, workspace_id)
+    try:
+        snapshot = timeline_render_store.get(workspace_id, operator_id, snapshot_id)
+        job = queue.get(snapshot["render_job_id"], workspace_id=workspace_id)
+    except WorkspaceDenied:
+        raise HTTPException(403, "Workspace membership is required")
+    except SnapshotError:
+        raise HTTPException(404, "Render snapshot not found")
+    except (JobNotFound, ValueError):
+        raise HTTPException(404, "Render job not found")
+    return {
+        "snapshot_id": snapshot["id"], "workspace_id": workspace_id,
+        "render_job_id": snapshot["render_job_id"],
+        "payload_sha256": snapshot["payload_sha256"],
+        "status": job["status"], "attempt": job["attempt"],
+        "max_attempts": job["max_attempts"],
+        "created_at": job["created_at"], "updated_at": job["updated_at"],
+        "completed_at": job.get("completed_at"),
+    }
+
+@app.get("/api/operator/workspaces/{workspace_id}/render-artifacts")
+def list_workspace_render_artifacts(
+    workspace_id: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    x_review_token: str | None = Header(default=None),
+):
+    operator_id = require_review_permission(x_review_token, "review.read")
+    workspace_id = resolve_operator_workspace_scope(operator_id, workspace_id)
+    return {"items": render_artifact_store.list_pending(workspace_id, limit)}
+
+@app.get("/api/operator/workspaces/{workspace_id}/render-artifacts/{artifact_id}/download")
+def download_workspace_render_artifact(
+    workspace_id: str,
+    artifact_id: str,
+    x_review_token: str | None = Header(default=None),
+):
+    operator_id = require_review_permission(x_review_token, "review.read")
+    workspace_id = resolve_operator_workspace_scope(operator_id, workspace_id)
+    try:
+        record = render_artifact_store.get(artifact_id, workspace_id)
+        if record["status"] != "review_pending" or record["media_suffix"] != ".mp4":
+            raise HTTPException(404, "Review artifact not found")
+        path = render_artifact_store.artifact_root / record["storage_key"]
+    except (ArtifactAdoptionError, ValueError):
+        raise HTTPException(404, "Review artifact not found")
+    return FileResponse(
+        path, media_type="video/mp4",
+        filename=f"render-{artifact_id}.mp4",
+    )
+
+@app.post("/api/operator/workspaces/{workspace_id}/renders/{snapshot_id}/decision")
+def decide_workspace_render(
+    workspace_id: str,
+    snapshot_id: str,
+    body: TimelineRenderDecisionInput,
+    x_review_token: str | None = Header(default=None),
+):
+    reviewer = require_review_permission(x_review_token, "review.decide")
+    workspace_id = resolve_operator_workspace_scope(reviewer, workspace_id)
+    try:
+        return timeline_render_store.review_decide(
+            workspace_id, reviewer, snapshot_id, body.decision, body.comment
+        )
+    except WorkspaceDenied as exc:
+        raise HTTPException(403, str(exc))
+    except SnapshotConflict as exc:
+        raise HTTPException(409, str(exc))
+    except SnapshotError as exc:
+        raise HTTPException(404, str(exc))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+
+
+
+
 @app.post("/api/timeline/renders",status_code=202)
 def submit_timeline_render(
     payload:dict,
