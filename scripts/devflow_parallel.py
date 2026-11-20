@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -52,6 +53,17 @@ def select_parallel_tasks(data: dict, limit: int) -> list[dict]:
     return selected
 
 
+def git(*args: str) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=str(ROOT), text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        timeout=900, check=False, shell=False,
+    )
+    if result.returncode:
+        raise RuntimeError(f"git {' '.join(args)} failed: {(result.stdout or '')[-4000:]}")
+    return (result.stdout or "").strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--max-parallel", type=int, default=None)
@@ -61,10 +73,16 @@ def main() -> int:
     default_limit = int(data.get("policy", {}).get("max_parallel_worktrees", 1))
     limit = args.max_parallel if args.max_parallel is not None else default_limit
     selected = select_parallel_tasks(data, limit)
-    base = args.base
-    if not base:
-        import os
-        base = os.environ.get("DEVFLOW_BASE", "feat/ffmpeg-render-execution-guard-2026-11-20")
+    base = args.base or os.environ.get("DEVFLOW_BASE", "feat/ffmpeg-render-execution-guard-2026-11-20")
+    if git("status", "--porcelain"):
+        raise RuntimeError("primary checkout is not clean; refusing parallel execution")
+    git("fetch", "origin", "--prune")
+    try:
+        base_sha = git("rev-parse", "--verify", f"refs/remotes/origin/{base}")
+    except RuntimeError:
+        base_sha = git("rev-parse", "--verify", base)
+    child_env = os.environ.copy()
+    child_env["DEVFLOW_RESOLVED_BASE_SHA"] = base_sha
 
     print("[devflow-parallel] selected: " + ", ".join(task["id"] for task in selected), flush=True)
     results = {}
@@ -75,6 +93,7 @@ def main() -> int:
                 [sys.executable, str(SUPERVISOR), "--task", str(task["id"]), "--base", base],
                 cwd=str(ROOT), text=True, stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT, timeout=21600, check=False, shell=False,
+                env=child_env,
             ): task for task in selected
         }
         for future in as_completed(futures):
