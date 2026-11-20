@@ -91,7 +91,8 @@ class TimelineRenderStore:
                 not isinstance(media, dict) or not media.get("has_video")
             ):
                 raise SnapshotError("video clips must reference a probed video asset")
-            if clip["source_out_ms"] > metadata.get("duration_ms", float("inf")):
+            source_duration = metadata.get("duration_ms")
+            if source_duration is not None and clip["source_out_ms"] > source_duration:
                 raise EDLValidationError("source trim exceeds registered media duration")
         for track in normalized["audio_tracks"]:
             metadata = self.assets.get_asset(workspace_id, principal_id, track["asset_id"])
@@ -102,7 +103,8 @@ class TimelineRenderStore:
                 not isinstance(media, dict) or not media.get("has_audio")
             ):
                 raise SnapshotError("audio tracks must reference a probed audio asset")
-            if track["source_out_ms"] > metadata.get("duration_ms", float("inf")):
+            source_duration = metadata.get("duration_ms")
+            if source_duration is not None and track["source_out_ms"] > source_duration:
                 raise EDLValidationError("audio source trim exceeds registered media duration")
 
         serialized = json.dumps(normalized, ensure_ascii=False, sort_keys=True,
