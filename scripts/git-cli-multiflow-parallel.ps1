@@ -122,9 +122,9 @@ while($queue.Count -gt 0 -or $active.Count -gt 0){
   Set-State $statePath $id "queued" "branch=$branch"
   $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=(Get-Command pwsh).Source;$psi.WorkingDirectory=$root;$psi.UseShellExecute=$false
   foreach($a in @("-NoProfile","-File",$PSCommandPath,"-Worker","-TaskFile",$taskPath,"-StateRoot",$stateDir)){[void]$psi.ArgumentList.Add($a)}
-  $worker=[Diagnostics.Process]::new();$worker.StartInfo=$psi
-  if(-not $worker.Start()){throw "Could not start worker for $id."}
-  $active.Add([pscustomobject]@{id=$id;process=$worker;started=[DateTime]::UtcNow;worktree=$wt})
+  $workerProcess=[Diagnostics.Process]::new();$workerProcess.StartInfo=$psi
+  if(-not $workerProcess.Start()){throw "Could not start worker for $id."}
+  $active.Add([pscustomobject]@{id=$id;process=$workerProcess;started=[DateTime]::UtcNow;worktree=$wt})
   Write-Host "[MULTIFLOW] Started $id on $branch"
  }
  Start-Sleep -Seconds 2
