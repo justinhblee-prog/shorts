@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from media_scanner import ClamAVScanner, MediaScanError
+from media_scanner import ClamAVScanner
 
 
 class RenderAssetError(RuntimeError):
@@ -198,6 +198,12 @@ class RenderAssetStore:
             destination = directory / (asset_id + extension)
             os.replace(temporary_path, destination)
             temporary_path = None
+            if os.name == "posix":
+                directory_fd = os.open(directory, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
             relative_path = destination.relative_to(self.media_root).as_posix()
             created_at = _now()
             with self.db() as connection:
@@ -223,8 +229,6 @@ class RenderAssetStore:
                 "render_ready": scan_status == "clean",
                 "created_at": created_at,
             }
-        except MediaScanError as exc:
-            raise RenderAssetError("Uploaded asset did not pass malware scanning") from exc
         except Exception:
             if destination is not None:
                 destination.unlink(missing_ok=True)
