@@ -17,6 +17,7 @@ from workspace_store import WorkspaceStore
 from workspace_asset_store import WorkspaceAssetStore
 from render_artifact_store import RenderArtifactStore
 from timeline_render_worker import create_edl_render_worker
+from media_binary_pin import verify_binary_manifest
 
 
 DB_PATH = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
@@ -59,6 +60,11 @@ def handle_shutdown_signal(signum, frame):
 def main():
     signal.signal(signal.SIGTERM, handle_shutdown_signal)
     signal.signal(signal.SIGINT, handle_shutdown_signal)
+    verified = verify_binary_manifest(
+        [FFMPEG_PATH, FFPROBE_PATH],
+        os.getenv("NEXUS_RENDER_BINARY_MANIFEST", "/usr/share/nexus-media-binaries.sha256"),
+    )
+    print("timeline_render_binaries_verified " + ",".join(verified.keys()))
     registration = queue.register_worker(WORKER_ID, socket.gethostname())
     generation_token = registration["generation_token"]
     try:
