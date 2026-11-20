@@ -709,7 +709,7 @@ class ApiSecurityTests(unittest.TestCase):
                         limit=13, offset=0, cursor='page-cursor', x_review_token=reviewer_token
                     ), expected
                 )
-                report.assert_called_once_with(app_module.queue, limit=13, offset=0, cursor='page-cursor')
+                report.assert_called_once_with(app_module.queue, limit=13, offset=0, cursor='page-cursor', workspace_id=None)
                 with self.assertRaises(HTTPException) as denied:
                     app_module.production_integrity_report(
                         limit=13, offset=17, cursor='page-cursor', x_review_token=analyst_token
