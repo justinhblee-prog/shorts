@@ -292,7 +292,7 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - YouTube video analytics routes resolve video ownership through the upload record and enforce the same workspace check. Analytics history uses publication-to-production joins and workspace filtering.
 - Financial ledger and scored opportunity records now persist nullable workspace ownership. Finance writes with a job ID must match its production parent; finance reports and opportunity lists are workspace-scoped. Legacy rows stay in the unassigned NULL namespace.
 - Public trend signals and default brand profiles are treated as shared platform reference data; generated production work retains workspace ownership.
-- Latest CI for these additions is pending at handover update; recheck backend validation/Chromium and Compose integration before marking complete.
+- Latest code head e092f8013fa07b66c355bc7fee51a21cb4b1377f passed Backend/Chromium run 44694735250 and Compose integration run 44694735235.
 
 ## Worker identity API slice — 2026-11-20
 
