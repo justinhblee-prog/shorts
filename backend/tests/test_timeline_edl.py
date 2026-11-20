@@ -63,6 +63,16 @@ class TimelineEDLTests(unittest.TestCase):
         with self.assertRaises(EDLValidationError):
             validate_edl({**self.valid, "clips": too_many})
 
+    def test_rejects_title_control_characters_but_allows_line_breaks(self):
+        for value in ("unsafe\\x00text", "unsafe\\x7ftext"):
+            payload = {**self.valid, "clips": [dict(x) for x in self.valid["clips"]]}
+            payload["clips"][1]["text"] = value
+            with self.subTest(value=repr(value)), self.assertRaises(EDLValidationError):
+                validate_edl(payload)
+        payload = {**self.valid, "clips": [dict(x) for x in self.valid["clips"]]}
+        payload["clips"][1]["text"] = "Line one\\nLine two"
+        self.assertEqual(validate_edl(payload)["clips"][1]["text"], "Line one\\nLine two")
+
     def test_does_not_mutate_input(self):
         import copy
         payload = copy.deepcopy(self.valid)
