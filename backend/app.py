@@ -188,6 +188,11 @@ class ReviewDecision(BaseModel):
     reviewer_id:str=Field(min_length=1,max_length=128)
     comment:str=Field(default="",max_length=4000)
 
+class TimelineRenderDecisionInput(BaseModel):
+    model_config = {"extra": "forbid"}
+    decision:Literal["approved","rejected","revision_requested"]
+    comment:str=Field(default="",max_length=4000)
+
 
 class PolicyEvidenceInput(BaseModel):
     reviewer_id:str=Field(min_length=1,max_length=128)
@@ -867,6 +872,7 @@ def get_timeline_render_status(
         )
         snapshot=timeline_render_store.get(workspace_id,principal,snapshot_id)
         job=queue.get(snapshot["render_job_id"],workspace_id=workspace_id)
+        review=timeline_render_store.review_status(workspace_id,principal,snapshot_id)
         response={
             "snapshot_id":snapshot_id,"workspace_id":workspace_id,
             "render_job_id":snapshot["render_job_id"],
@@ -874,7 +880,7 @@ def get_timeline_render_status(
             "status":job["status"],"error_code":job.get("error_code"),
             "error_message":job.get("error_message"),
             "created_at":job.get("created_at"),"updated_at":job.get("updated_at"),
-            "rendered":False,
+            "rendered":False,"review":review,
         }
         with queue.db() as db:
             artifact=db.execute(
@@ -906,6 +912,40 @@ def get_timeline_render_status(
         raise HTTPException(404,"EDL snapshot not found")
     except (ArtifactAdoptionError,ValueError) as exc:
         raise HTTPException(409,str(exc))
+
+
+@app.post("/api/timeline/renders/{snapshot_id}/decision")
+def decide_timeline_render(
+    snapshot_id:str,
+    body:TimelineRenderDecisionInput,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    reviewer=require_review_permission(x_review_token,"review.decide")
+    if not x_nexus_workspace_id:
+        raise HTTPException(400,"X-Nexus-Workspace-Id is required")
+    try:
+        workspace_id=resolve_workspace_access(
+            reviewer,x_nexus_workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE","legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON",""),
+            store=workspace_store,
+        )
+        return timeline_render_store.review_decide(
+            workspace_id,reviewer,snapshot_id,body.decision,body.comment
+        )
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except SnapshotConflict as exc:
+        raise HTTPException(409,str(exc))
+    except SnapshotError as exc:
+        raise HTTPException(404,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
 
 
 @app.get("/api/timeline/artifacts/{artifact_id}/preview")
@@ -947,7 +987,14 @@ def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None),
     operator_id=require_review_permission(x_review_token,"review.read")
     workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     production_store.reconcile_review_pending(queue)
-    return {"items":review_store.list_pending(limit,workspace_id=workspace_id)}
+    timeline_items=(
+        timeline_render_store.list_pending_reviews(workspace_id,operator_id,limit)
+        if workspace_id is not None else []
+    )
+    return {
+        "items":review_store.list_pending(limit,workspace_id=workspace_id),
+        "timeline_renders":timeline_items,
+    }
 
 
 
