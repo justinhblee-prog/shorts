@@ -114,6 +114,7 @@ class ProductionStore:
               idempotency_key TEXT NOT NULL UNIQUE, state TEXT NOT NULL,
               provider_request_id TEXT, response_json TEXT, error TEXT,
               started_at TEXT NOT NULL, completed_at TEXT,
+              workspace_id TEXT,
               UNIQUE(job_id,stage,attempt_number));
             CREATE INDEX IF NOT EXISTS idx_provider_attempt_state
               ON provider_execution_attempts(state,started_at);
@@ -122,7 +123,7 @@ class ProductionStore:
               provider_attempt_id TEXT NOT NULL, stage TEXT NOT NULL,
               operator_id TEXT NOT NULL, evidence_reference TEXT NOT NULL,
               note TEXT NOT NULL, resolution TEXT NOT NULL,
-              created_at TEXT NOT NULL);
+              created_at TEXT NOT NULL, workspace_id TEXT);
             CREATE INDEX IF NOT EXISTS idx_provider_reconciliation_job
               ON provider_attempt_reconciliation_events(job_id,created_at);
             """)
@@ -136,6 +137,38 @@ class ProductionStore:
                 c.execute("ALTER TABLE provider_execution_attempts ADD COLUMN adopted_at TEXT")
             if "adopted_artifact_sha256" not in columns:
                 c.execute("ALTER TABLE provider_execution_attempts ADD COLUMN adopted_artifact_sha256 TEXT")
+            if "workspace_id" not in columns:
+                c.execute("ALTER TABLE provider_execution_attempts ADD COLUMN workspace_id TEXT")
+            reconciliation_columns = {row[1] for row in c.execute(
+                "PRAGMA table_info(provider_attempt_reconciliation_events)").fetchall()}
+            if "workspace_id" not in reconciliation_columns:
+                c.execute("ALTER TABLE provider_attempt_reconciliation_events ADD COLUMN workspace_id TEXT")
+            c.execute("""UPDATE provider_execution_attempts
+                SET workspace_id=(SELECT workspace_id FROM production_runs
+                                  WHERE production_runs.job_id=provider_execution_attempts.job_id)
+                WHERE workspace_id IS NULL""")
+            c.execute("""UPDATE provider_attempt_reconciliation_events
+                SET workspace_id=(SELECT workspace_id FROM production_runs
+                                  WHERE production_runs.job_id=provider_attempt_reconciliation_events.job_id)
+                WHERE workspace_id IS NULL""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_provider_attempt_workspace_state ON provider_execution_attempts(workspace_id,state,started_at)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_provider_reconcile_workspace_job ON provider_attempt_reconciliation_events(workspace_id,job_id,created_at)")
+            c.execute("""CREATE TRIGGER IF NOT EXISTS trg_provider_attempt_workspace_insert
+                AFTER INSERT ON provider_execution_attempts
+                BEGIN
+                  UPDATE provider_execution_attempts
+                  SET workspace_id=(SELECT workspace_id FROM production_runs
+                                     WHERE production_runs.job_id=NEW.job_id)
+                  WHERE id=NEW.id;
+                END""")
+            c.execute("""CREATE TRIGGER IF NOT EXISTS trg_provider_reconcile_workspace_insert
+                AFTER INSERT ON provider_attempt_reconciliation_events
+                BEGIN
+                  UPDATE provider_attempt_reconciliation_events
+                  SET workspace_id=(SELECT workspace_id FROM production_runs
+                                     WHERE production_runs.job_id=NEW.job_id)
+                  WHERE id=NEW.id;
+                END""")
     
     @contextmanager
     def db(self):
