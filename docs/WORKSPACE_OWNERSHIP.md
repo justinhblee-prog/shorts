@@ -23,7 +23,7 @@ Regression coverage: `backend/tests/test_workspace_store.py`, `backend/tests/tes
 The registry is now wired to the existing per-operator review-token authentication boundary through these routes:
 - `GET /api/operator/workspaces`: list only the authenticated operator's active workspaces.
 - `POST /api/operator/workspaces`: create a workspace; the owner is derived from the authenticated token, never the request body.
-- `POST /api/operator/workspaces/{workspace_id}/members`: add an operator principal with admin/editor/viewer role.
+- `GET /api/operator/workspaces/{workspace_id}/members`: list active members for a workspace member.\n- `GET /api/operator/workspaces/{workspace_id}/audit`: list bounded immutable audit events for workspace owners/admins.\n- `POST /api/operator/workspaces/{workspace_id}/members`: add an operator principal with admin/editor/viewer role.
 - `DELETE /api/operator/workspaces/{workspace_id}/members/{principal_id}`: revoke a member.
 
 All mutations additionally require the `media.manage` operator permission, and the registry enforces workspace owner/admin membership. Request-body principal IDs identify only the member being added or removed; they never establish the caller's identity. This is an operator-management integration, not general end-user/B2B account authentication.
