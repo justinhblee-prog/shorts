@@ -1,0 +1,71 @@
+name: Windows self-hosted Agent multi-flow
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_tasks:
+        description: Maximum tasks to process in this run (1-3)
+        required: true
+        default: "3"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "3"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: windows-agent-multiflow
+  cancel-in-progress: false
+
+jobs:
+  run-agent:
+    if: github.ref == 'refs/heads/fix/devflow-detached-supervisor-2026-11-20'
+    runs-on: [self-hosted, Windows, X64, shorts-agent]
+    timeout-minutes: 360
+    steps:
+      - name: Checkout approved automation branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/devflow-detached-supervisor-2026-11-20
+          clean: true
+
+      - name: Verify Windows execution environment
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -lt 7) { throw "PowerShell 7+ is required." }
+          foreach ($tool in @("git", "gh", "python", "pwsh")) {
+            if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "Missing required tool: $tool" }
+          }
+          gh auth status
+          & "$PWD/scripts/git-cli-agent-config.ps1" -Check
+          if ($LASTEXITCODE -ne 0) { throw "Agent CLI preflight failed." }
+          Write-Host "PASS: self-hosted Windows runner, GitHub auth, clean checkout and Agent CLI configuration."
+
+      - name: Run real multi-flow workers
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $count = [int]" ${{ inputs.max_tasks }} ".Trim()
+          if ($count -lt 1 -or $count -gt 3) { throw "max_tasks must be between 1 and 3." }
+          & "$PWD/scripts/start-devflow-autopilot.ps1" -Run -MaxTasks $count
+          if ($LASTEXITCODE -ne 0) { throw "Real Agent multi-flow run failed with exit code $LASTEXITCODE." }
+
+      - name: Upload execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-agent-multiflow-${{ github.run_id }}
+          path: |
+            *-multiflow-state/**
+            *-multiflow-logs/**
+          if-no-files-found: warn
+          retention-days: 14
