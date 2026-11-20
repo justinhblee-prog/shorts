@@ -1310,7 +1310,7 @@
     const list=$id("timelineClipList"),preview=$id("timelinePreview"),empty=$id("timelinePreviewEmpty");
     const audioInput=$id("timelineAudioInput");
     let audioFile=null,audioAssetId="",audioScanStatus="",renderArtifactUrl="",renderPollTimer=null;
-    let renderHistoryCursor=null,renderHistoryLoading=false,renderHistoryRequestId=0;
+    let renderHistoryCursor=null,renderHistoryRequestId=0;
     let currentRenderJobId=localStorage.getItem("nexusRenderJobId")||"";
     let currentRenderWorkspaceId=localStorage.getItem("nexusRenderJobWorkspace")||"";
     let assetWorkspaceId=activeWorkspaceId;
@@ -1415,7 +1415,6 @@
         if(!append)list.textContent="기록을 보려면 인증 토큰과 워크스페이스를 선택하세요.";
         more.hidden=true;return;
       }
-      renderHistoryLoading=true;
       $id("renderJobHistoryRefresh").disabled=true;
       more.disabled=true;
       try{
@@ -1460,7 +1459,6 @@
         }
       }finally{
         if(requestId===renderHistoryRequestId){
-          renderHistoryLoading=false;
           $id("renderJobHistoryRefresh").disabled=false;
           more.disabled=false;
         }
