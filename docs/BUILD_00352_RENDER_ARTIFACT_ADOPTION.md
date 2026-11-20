@@ -103,7 +103,8 @@ runtime validation gate.
 
 The FastAPI application now wires the workspace asset registry, immutable EDL
 snapshot store and private render artifact store to the shared application
-SQLite database. The following workspace-scoped endpoints are available:
+SQLite database. The following workspace-scoped endpoints are available. Timeline outputs awaiting
+review are also included under `timeline_renders` in `GET /api/review/pending`.
 
 - \`POST /api/workspaces/{workspace_id}/assets\`: accepts a bounded raw request
   body and \`X-File-Name\`; streams it to private storage and returns a quarantined
@@ -154,3 +155,11 @@ render output.
 The container image installs a local DejaVu font for deterministic title cards.
 The service is wired in Compose but has not yet been validated by running a
 real render against production-like media or by measuring its resource limits.
+
+
+Timeline review decisions are stored separately from production-run decisions,
+are append-only, and are unique per immutable EDL snapshot. A decision can only
+be recorded while the corresponding queue job is \`review_pending\` and a
+lease-fenced artifact row exists for the exact snapshot hash. The review record
+captures the adopted artifact hash, preventing a later artifact replacement
+from changing what was approved.
