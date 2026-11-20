@@ -17,7 +17,7 @@ import uuid
 from pathlib import Path
 from typing import Callable, Mapping
 
-from media_inspection import MediaInspector, MediaInspectionError
+from media_inspection import MediaInspector
 from timeline_edl import validate_edl, EDLValidationError
 
 
@@ -221,6 +221,7 @@ class TimelineRenderer:
                 for block in iter(lambda: stream.read(1024 * 1024), b""):
                     size += len(block)
                     digest.update(block)
+                os.fsync(stream.fileno())
             os.replace(temporary_path, final_path)
             return {
                 "render_id": render_id,
