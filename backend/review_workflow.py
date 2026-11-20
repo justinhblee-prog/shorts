@@ -308,8 +308,8 @@ class ReviewStore:
             )
             updated_payload["policy_report"] = report
             c.execute(
-                "UPDATE pipeline_jobs SET payload_json=?,updated_at=? WHERE id=?",
-                (json.dumps(updated_payload, ensure_ascii=False), timestamp, job_id),
+                "UPDATE pipeline_jobs SET payload_json=?,updated_at=? WHERE id=? AND workspace_id IS ?",
+                (json.dumps(updated_payload, ensure_ascii=False), timestamp, job_id, workspace_id),
             )
             cursor = c.execute("""
               INSERT INTO policy_evidence_events
@@ -455,8 +455,8 @@ class ReviewStore:
               UPDATE pipeline_jobs SET status=?,worker_id=NULL,
                 lease_token=NULL,lease_expires_at=NULL,updated_at=?
               WHERE id=? AND job_type='short_video_production'
-                AND status='review_pending'
-            """, (decision, timestamp, job_id))
+                AND status='review_pending' AND workspace_id IS ?
+            """, (decision, timestamp, job_id, workspace_id))
             if queue_updated.rowcount != 1:
                 raise ReviewConflict("Queue review state changed concurrently")
             events_table = c.execute(
