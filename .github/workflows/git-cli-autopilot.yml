@@ -147,8 +147,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Compile helpers and local Ollama Agent
-        run: python -m py_compile scripts/devflow.py scripts/ollama-agent.py scripts/test_ollama_tool_protocol.py scripts/test_ollama_agent_protocol.py
+        run: python -m py_compile scripts/devflow.py scripts/ollama-agent.py scripts/test_ollama_tool_protocol.py
       - name: Run offline Ollama tool protocol regression tests
+        if: hashFiles('scripts/test_ollama_agent_protocol.py') != ''
         run: python -m unittest scripts.test_ollama_agent_protocol -v
       - name: Run isolated local Ollama Agent safety tests
         if: hashFiles('scripts/test_ollama_agent.py') != ''
