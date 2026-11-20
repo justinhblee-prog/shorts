@@ -64,7 +64,7 @@ def choose_task(data: dict, task_id: str | None) -> dict:
     by_id = {t.get("id"): t for t in candidates}
     for dependency in task.get("depends_on", []):
         dep = by_id.get(dependency)
-        if not dep or dep.get("status") not in ("review_pending", "completed"):
+        if not dep or dep.get("status") != "completed":
             raise RuntimeError(f"dependency is not review-ready: {dependency}")
     return task
 
@@ -158,7 +158,12 @@ def main() -> int:
     worktree.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"[devflow] task={task_id} base={args.base}", flush=True)
-    run(["git", "worktree", "add", "-b", branch, str(worktree), args.base], ROOT)
+    run(["git", "fetch", "origin", "--prune"], ROOT, timeout=900)
+    try:
+        base_sha = git(ROOT, "rev-parse", "--verify", f"refs/remotes/origin/{args.base}")
+    except RuntimeError:
+        base_sha = git(ROOT, "rev-parse", "--verify", args.base)
+    run(["git", "worktree", "add", "-b", branch, str(worktree), base_sha], ROOT)
     helper = worktree / "scripts" / "devflow.py"
     prompt_file = worktree.parent / f"{slug}-agent-prompt.md"
     last_failure = ""
