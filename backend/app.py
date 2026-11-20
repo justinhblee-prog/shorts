@@ -31,6 +31,7 @@ from recommendation_evaluation import RecommendationEvaluationStore
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
+from render_asset_store import RenderAssetStore, RenderAssetError, RenderAssetNotFound
 from preflight import build_preflight
 from timeline_edl import validate_edl, EDLValidationError
 from workspace_access import resolve_workspace_membership, resolve_workspace_access, WorkspaceAccessConfigurationError
@@ -107,6 +108,10 @@ recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_D
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
+render_asset_store=RenderAssetStore(
+    os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),
+    os.getenv("NEXUS_MEDIA_DIR","data/media"),
+)
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -820,6 +825,74 @@ def review_history(job_id:str, x_review_token:str|None=Header(default=None),
         raise HTTPException(404,"Production job not found")
 
 
+
+
+@app.post("/api/render/assets",status_code=201)
+async def upload_render_asset(
+    request:Request,
+    x_asset_name:str|None=Header(default=None),
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(403,"An explicit workspace is required for render asset uploads")
+    try:
+        return await render_asset_store.register_stream(
+            workspace_id,operator_id,request.headers.get("content-type"),
+            x_asset_name,request.stream(),request.headers.get("content-length"),
+        )
+    except RenderAssetError as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.get("/api/render/assets")
+def list_render_assets(
+    limit:int=Query(default=100,ge=1,le=200),
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(403,"An explicit workspace is required to list render assets")
+    try:
+        return {"items":render_asset_store.list_assets(workspace_id,limit=limit)}
+    except RenderAssetError as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.post("/api/render/validate-edl")
+def validate_render_edl(
+    body:dict[str,Any],
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(403,"An explicit workspace is required to validate a render EDL")
+    try:
+        normalized=validate_edl(body)
+        if any(clip["type"]!="video" for clip in normalized["clips"]):
+            raise HTTPException(422,"Title clips are not yet supported by the FFmpeg renderer")
+        asset_ids=[clip["asset_id"] for clip in normalized["clips"]]
+        render_asset_store.resolve_asset_paths(workspace_id,asset_ids)
+        return {
+            "status":"validated",
+            "workspace_id":workspace_id,
+            "edl":normalized,
+            "asset_count":len(set(asset_ids)),
+            "render_enabled":False,
+            "message":"EDL and workspace asset ownership validated; durable render jobs are not enabled yet.",
+        }
+    except EDLValidationError as exc:
+        raise HTTPException(422,str(exc))
+    except RenderAssetNotFound as exc:
+        raise HTTPException(404,str(exc))
+    except RenderAssetError as exc:
+        raise HTTPException(422,str(exc))
 
 
 @app.post("/api/production/jobs/{job_id}/stage-media")
