@@ -26,11 +26,11 @@ class TimelineFFmpegError(RuntimeError):
     """A validated timeline could not be rendered safely."""
 
 
-def _configured_binary(value, name):
+def _configured_binary(value, name, *, executable=True):
     path = Path(value)
     if not path.is_absolute() or path.is_symlink() or not path.is_file():
         raise TimelineFFmpegError(f"{name} must be an absolute regular non-symlink file")
-    if os.name != "nt" and not os.access(path, os.X_OK):
+    if executable and os.name != "nt" and not os.access(path, os.X_OK):
         raise TimelineFFmpegError(f"{name} must be executable")
     return str(path.resolve(strict=True))
 
@@ -73,7 +73,8 @@ def _probe_source(path, ffprobe_path, expected_kind, timeout_seconds):
 
 
 def build_timeline_ffmpeg_argv(edl, staged_assets, output_path, *,
-                               ffmpeg_path, font_path=None, audio_mix_path=None):
+                               ffmpeg_path, font_path=None, audio_mix_path=None,
+                               title_files=None):
     """Build a deterministic 1080x1920 H.264 command for normalized EDL clips."""
     normalized = validate_edl(edl)
     videos = [clip for clip in normalized["clips"] if clip["type"] == "video"]
@@ -128,7 +129,7 @@ def build_timeline_ffmpeg_argv(edl, staged_assets, output_path, *,
     if titles:
         font = _filter_path(font_path)
         for index, clip in enumerate(titles):
-            text_path = clip.get("_text_file")
+            text_path = (title_files or {}).get(clip["id"])
             if not text_path:
                 raise TimelineFFmpegError("title text must be staged as a UTF-8 text file")
             text_file = _filter_path(text_path)
@@ -136,7 +137,7 @@ def build_timeline_ffmpeg_argv(edl, staged_assets, output_path, *,
             next_label = f"title{index}"
             filters.append(
                 f"[{current}]drawtext=fontfile={font}:textfile={text_file}:"
-                f"fontsize=58:fontcolor=white:borderw=3:bordercolor=black:"
+                f"expansion=none:fontsize=58:fontcolor=white:borderw=3:bordercolor=black:"
                 f"x=(w-text_w)/2:y=h*0.78:"
                 f"enable='between(t,{begin:.3f},{end:.3f})'[{next_label}]"
             )
@@ -226,7 +227,7 @@ class TimelineFFmpegRenderer:
             raise ValueError("staging root must be a private regular directory")
         self.ffmpeg_path = _configured_binary(ffmpeg_path, "FFmpeg")
         self.ffprobe_path = _configured_binary(ffprobe_path, "ffprobe")
-        self.font_path = _configured_binary(font_path, "font") if font_path else None
+        self.font_path = _configured_binary(font_path, "font", executable=False) if font_path else None
         self.timeout_seconds = timeout_seconds
         self.max_output_bytes = max_output_bytes
         self.max_input_bytes = max_input_bytes
@@ -273,34 +274,31 @@ class TimelineFFmpegRenderer:
                             output.flush()
                             os.fsync(output.fileno())
                     staged_assets[asset_id] = target
-                if asset_id not in source_probes:
-                    source_probes[asset_id] = _probe_source(
+                probe_key = (asset_id, expected_kind)
+                if probe_key not in source_probes:
+                    source_probes[probe_key] = _probe_source(
                         staged_assets[asset_id], self.ffprobe_path,
                         expected_kind, self.timeout_seconds,
                     )
-                if clip["source_out_ms"] > source_probes[asset_id] * 1000 + 1:
+                if clip["source_out_ms"] > source_probes[probe_key] * 1000 + 1:
                     raise TimelineFFmpegError("EDL source trim exceeds probed media duration")
                 if clip["type"] == "audio":
                     audio_tracks.append({
                         "path": str(staged_assets[asset_id]),
-                        "start_ms": int(clip["start_ms"]),
-                        "duration_ms": int(clip["end_ms"] - clip["start_ms"]),
-                        "gain": clip.get("gain", 1.0),
-                        "fade_in_ms": clip.get("fade_in_ms", 0),
-                        "fade_out_ms": clip.get("fade_out_ms", 0),
+                        "start_ms": round(clip["start_ms"]),
+                        "duration_ms": round(clip["end_ms"] - clip["start_ms"]),
+                        "gain": clip["gain"],
+                        "fade_in_ms": clip["fade_in_ms"],
+                        "fade_out_ms": clip["fade_out_ms"],
                     })
 
-            title_clips = []
+            title_files = {}
             for index, clip in enumerate(edl["clips"]):
                 if clip["type"] != "title":
                     continue
                 text_file = workdir / f"title-{index}.txt"
                 text_file.write_text(clip["text"], encoding="utf-8")
-                title_clips.append({**clip, "_text_file": str(text_file)})
-            render_edl = {**edl, "clips": [
-                *[clip for clip in edl["clips"] if clip["type"] == "video"],
-                *title_clips,
-            ]}
+                title_files[clip["id"]] = text_file
             total_duration = max(int(clip["end_ms"]) for clip in edl["clips"])
             audio_mix_path = None
             if audio_tracks:
@@ -315,9 +313,9 @@ class TimelineFFmpegRenderer:
                     self.timeout_seconds, self.max_output_bytes,
                 )
             argv = build_timeline_ffmpeg_argv(
-                render_edl, staged_assets, output_path,
+                edl, staged_assets, output_path,
                 ffmpeg_path=self.ffmpeg_path, font_path=self.font_path,
-                audio_mix_path=audio_mix_path,
+                audio_mix_path=audio_mix_path, title_files=title_files,
             )
             _run_cancellable(
                 argv, output_path, stop_event,
