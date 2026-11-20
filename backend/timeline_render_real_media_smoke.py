@@ -72,6 +72,9 @@ def main():
                 "id": "video", "type": "video", "start_ms": 0,
                 "end_ms": 2000, "asset_id": asset["asset_id"],
                 "source_in_ms": 0, "source_out_ms": 2000,
+            }, {
+                "id": "title", "type": "title", "start_ms": 0,
+                "end_ms": 2000, "text": "Integrated real render smoke",
             }],
             "audio_tracks": [{
                 "id": "music", "asset_id": asset["asset_id"],
