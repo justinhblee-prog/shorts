@@ -368,3 +368,9 @@ https://github.com/justinhblee-prog/shorts/pull/415
 - Exact PR #415 head `724e6d96ac51456aafa1bea972caaff9da4e9c7b` passed **903 backend tests**, frontend syntax, dashboard Chromium smoke, recovery Chromium smoke, and Compose integration in [run 44664154255](https://github.com/justinhblee-prog/shorts/actions/runs/44664154255).
 - Exact PR #416 head `0093970caf426798840db748234e41cfa6b03eff` passed **617 backend tests** and worker workflow YAML validation in [run 44664146137](https://github.com/justinhblee-prog/shorts/actions/runs/44664146137).
 - Both PRs remain Draft/open/unmerged. Windows self-hosted runner isolation, LocalAppData persistence, real Ollama generation, and live provider behavior remain unverified.
+
+
+### Recovery cannot bypass DAG prerequisites — 2026-11-20
+- Manual quarantine recovery now checks persisted prerequisite edges inside the same `BEGIN IMMEDIATE` transaction. If any parent is not completed, recovery transitions `quarantined → blocked`; otherwise it transitions to `ready` as before. The immutable `quarantine_recovered` event records the resulting state and unresolved dependency count.
+- `claim_ready` now independently excludes any `ready` row with an incomplete prerequisite. This is defense in depth against inconsistent persisted state and prevents a corrupted/manual state from bypassing the DAG.
+- Added regressions for recovery of a quarantined child with an incomplete parent and for a ready-looking child with an unresolved dependency. Exact-head CI is running on PR #415.
