@@ -116,3 +116,11 @@ Still outstanding: authenticated worker-to-workspace binding; customer identity 
 ## External decision required
 
 The customer identity provider and account contract must be selected before implementing customer login or mapping external identities into workspace memberships. This is an external service/security contract and is intentionally not guessed or enabled by code.
+
+
+## 2026-11-20 follow-up — exact-head CI and remaining operator execution gaps
+
+- Exact head `7a749a6b20b3d858cb57085a2e1231db89d57e04`: Backend tests workflow run 44681380757 completed successfully, including `scripts/validate.sh`, Korean font fallback verification, and `scripts/ui_browser_smoke.mjs` (Chromium). Compose integration run 44681381054 also completed successfully. Browser screenshot artifact: 14605210220 (`nexus-dashboard-browser-screenshots`).
+- A source review found that the newly scoped production detail/provider-attempt read routes are not yet the complete operator boundary. `POST /api/production/jobs/{job_id}/execute` still loads the queue job without a workspace scope; `POST /api/production/jobs/{job_id}/adopt-recovered-render` still loads production/provider-attempt records and stages media without a resolved workspace scope. These routes must be included in the next API hardening slice; do not infer that workspace scoping of detail reads protects execution or recovery mutations.
+- Worker identity is still not independently authenticated/bound to an allow-list of workspaces. The request's `worker_id` and lease token are not a substitute for a trusted worker credential-to-workspace grant. Do not accept a workspace ID supplied by a worker as authorization. A trusted worker identity contract and per-workspace grant registry are prerequisites for customer-safe worker execution.
+- Customer OIDC identity and full resource-family partitioning remain unimplemented. Existing unassigned (`NULL`) rows must remain unassigned pending evidence-backed migration.
