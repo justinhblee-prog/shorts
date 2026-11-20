@@ -377,3 +377,18 @@ class AnalyticsFreshnessPresentationTests(unittest.TestCase):
         self.assertIn('coverage.stale_or_missing??(Number(coverage.without_snapshot||0)+Number(coverage.stale_snapshots||0))', app_js)
         self.assertIn('최근 스냅샷', app_js)
         self.assertIn('item.latest_snapshot_at', app_js)
+
+
+class PremiumVisualSystemTests(unittest.TestCase):
+    def test_premium_visual_system_is_loaded_after_functional_themes(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        css = (frontend / "nexus-premium.css").read_text(encoding="utf-8")
+        self.assertIn('/assets/nexus-premium.css', html)
+        self.assertLess(html.index('/assets/cyber-magic.css'), html.index('/assets/nexus-premium.css'))
+        self.assertIn('"Noto Sans KR"', css)
+        self.assertIn('"Malgun Gothic"', css)
+        self.assertIn('font-synthesis:none', css)
+        self.assertIn('@media(max-width:760px)', css)
+        self.assertIn('grid-template-columns:1fr', css)
+        self.assertIn('prefers-reduced-motion:reduce', css)
