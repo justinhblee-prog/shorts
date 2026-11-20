@@ -625,6 +625,9 @@ def _scan_workspace_asset(workspace_id, principal_id, asset_id):
         return {"scan_status": "rejected", "scanner_status": "invalid_media",
                 "media_metadata": None}
 
+    # Re-hash after both external scanners have read the file to close the
+    # upload/scan time-of-check-to-time-of-use window.
+    workspace_asset_store.path_for_scan(workspace_id, principal_id, asset_id)
     verified = workspace_asset_store.mark_scan_result(
         workspace_id, principal_id, asset_id, True,
         media_metadata=media_metadata, scanner_verified=True,
