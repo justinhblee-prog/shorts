@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from workspace_store import WorkspaceStore, WorkspaceDenied
+from media_scanner import MediaInfectedError, MediaScanError
 from workspace_asset_store import (
     AssetError, AssetNotFound, WorkspaceAssetStore,
 )
@@ -103,6 +104,80 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
             self.store.register_stream(
                 "ws_studio", "viewer", io.BytesIO(b"payload"), "clip.mp4"
             )
+
+
+    def _scan_probe(self, *, has_video=True, has_audio=False):
+        class Scanner:
+            def scan(inner, path):
+                return {"status": "clean", "engine": "test"}
+        def probe(path):
+            return {
+                "duration_ms": 12000, "byte_size": Path(path).stat().st_size,
+                "has_video": has_video, "has_audio": has_audio,
+                "video_streams": [{"codec": "h264", "width": 640, "height": 360}] if has_video else [],
+                "audio_streams": [{"codec": "aac", "sample_rate": 48000, "channels": 2}] if has_audio else [],
+            }
+        return Scanner(), probe
+
+    def test_scan_requires_clamav_and_ffprobe_success_before_clean(self):
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"scan-fixture"), "scan.mp4"
+        )
+        scanner, probe = self._scan_probe()
+        metadata = self.store.scan_pending_asset(
+            "ws_studio", "alice", result["asset_id"], scanner, probe
+        )
+        self.assertEqual(metadata["scan_status"], "clean")
+        self.assertEqual(metadata["duration_ms"], 12000)
+        self.assertTrue(metadata["media_metadata"]["has_video"])
+
+    def test_infected_assets_are_rejected_and_scanner_outage_stays_pending(self):
+        infected = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"infected"), "infected.mp4"
+        )
+        class InfectedScanner:
+            def scan(self, path):
+                raise MediaInfectedError("infected")
+        with self.assertRaisesRegex(AssetError, "rejected"):
+            self.store.scan_pending_asset(
+                "ws_studio", "alice", infected["asset_id"], InfectedScanner(),
+                lambda path: {},
+            )
+        self.assertEqual(
+            self.store.get_asset("ws_studio", "alice", infected["asset_id"])["scan_status"],
+            "rejected",
+        )
+
+        pending = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"scanner-down"), "pending.mp4"
+        )
+        class UnavailableScanner:
+            def scan(self, path):
+                raise MediaScanError("database unavailable")
+        with self.assertRaisesRegex(AssetError, "remains quarantined"):
+            self.store.scan_pending_asset(
+                "ws_studio", "alice", pending["asset_id"], UnavailableScanner(),
+                lambda path: {},
+            )
+        self.assertEqual(
+            self.store.get_asset("ws_studio", "alice", pending["asset_id"])["scan_status"],
+            "pending",
+        )
+
+    def test_source_probe_failure_or_tampering_never_marks_asset_clean(self):
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"source"), "source.mp4"
+        )
+        scanner, _ = self._scan_probe()
+        with self.assertRaisesRegex(AssetError, "source media probe"):
+            self.store.scan_pending_asset(
+                "ws_studio", "alice", result["asset_id"], scanner,
+                lambda path: (_ for _ in ()).throw(ValueError("invalid media")),
+            )
+        self.assertEqual(
+            self.store.get_asset("ws_studio", "alice", result["asset_id"])["scan_status"],
+            "pending",
+        )
 
 
 if __name__ == "__main__":
