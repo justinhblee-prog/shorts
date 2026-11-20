@@ -1310,6 +1310,7 @@
     const list=$id("timelineClipList"),preview=$id("timelinePreview"),empty=$id("timelinePreviewEmpty");
     const audioInput=$id("timelineAudioInput");
     let audioFile=null,audioAssetId="",audioScanStatus="",renderArtifactUrl="",renderPollTimer=null;
+    let renderHistoryCursor=null,renderHistoryLoading=false;
     let currentRenderJobId=localStorage.getItem("nexusRenderJobId")||"";
     let currentRenderWorkspaceId=localStorage.getItem("nexusRenderJobWorkspace")||"";
     let assetWorkspaceId=activeWorkspaceId;
@@ -1406,6 +1407,59 @@
     $id("timelinePlaySelected").addEventListener("click",async()=>{const clip=selected();if(!clip){say("먼저 클립을 선택하세요.");return;}if(clip.kind==="title"){overlay.textContent=clip.text;overlay.hidden=false;say("타이틀 미리보기는 영상 위 렌더링 대상이 아닙니다. 구성표에 포함됩니다.");return;}if(preview.src!==clip.url)setPreview(clip);if(preview.currentTime<clip.inPoint||preview.currentTime>=clip.outPoint)preview.currentTime=clip.inPoint;try{await preview.play();say("선택한 구간을 재생합니다.");}catch{say("브라우저에서 영상 재생을 시작하지 못했습니다.");}});
     preview.addEventListener("play",()=>{const clip=selected();if(clip?.kind==="video"&&preview.currentTime<clip.inPoint)preview.currentTime=clip.inPoint;});
     preview.addEventListener("timeupdate",()=>{const clip=selected();if(clip?.kind==="video"&&preview.currentTime>=clip.outPoint){preview.pause();preview.currentTime=clip.outPoint;say("선택한 클립 구간 재생이 끝났습니다.");}});
+    async function loadRenderHistory(cursor=null,append=false){
+      const list=$id("renderJobHistoryList"),more=$id("renderJobHistoryMore");
+      if(renderHistoryLoading)return;
+      if(!token||!activeWorkspaceId){
+        if(!append)list.textContent="기록을 보려면 인증 토큰과 워크스페이스를 선택하세요.";
+        more.hidden=true;return;
+      }
+      renderHistoryLoading=true;
+      $id("renderJobHistoryRefresh").disabled=true;
+      more.disabled=true;
+      try{
+        const params=new URLSearchParams({limit:"20"});
+        if(cursor){
+          params.set("before_created_at",cursor.before_created_at);
+          params.set("before_job_id",cursor.before_job_id);
+        }
+        const result=await api("/api/render/jobs?"+params.toString());
+        if(!append)list.replaceChildren();
+        const labels={queued:"대기",running:"렌더링",review_pending:"검수 대기",failed_retriable:"재시도 대기",failed_terminal:"실패",cancelled:"취소"};
+        for(const job of result.items||[]){
+          const row=document.createElement("div");row.className="render-history-item";row.setAttribute("role","listitem");
+          if(job.job_id===currentRenderJobId)row.classList.add("is-active");
+          const summary=document.createElement("div");summary.className="render-history-summary";
+          const name=document.createElement("strong");name.className="render-history-name";name.textContent=(labels[job.status]||job.status)+" · "+job.job_id;
+          const detail=document.createElement("span");detail.className="render-history-detail";
+          detail.textContent=(job.created_at||"—")+" · 시도 "+job.attempt+"/"+job.max_attempts+(job.error_message?" · "+job.error_message:"");
+          summary.append(name,detail);
+          const open=document.createElement("button");open.type="button";open.className="button button-outline button-small";open.textContent="작업 열기";
+          open.addEventListener("click",async()=>{
+            currentRenderJobId=job.job_id;currentRenderWorkspaceId=activeWorkspaceId;
+            localStorage.setItem("nexusRenderJobId",currentRenderJobId);
+            localStorage.setItem("nexusRenderJobWorkspace",currentRenderWorkspaceId);
+            resetArtifact();
+            await refreshRenderJob();
+            for(const item of list.querySelectorAll(".render-history-item"))item.classList.remove("is-active");
+            row.classList.add("is-active");
+          });
+          row.append(summary,open);list.append(row);
+        }
+        renderHistoryCursor=result.next_cursor||null;
+        more.hidden=!renderHistoryCursor;
+        if(!(result.items||[]).length&&!append){
+          const empty=document.createElement("p");empty.className="render-history-empty";empty.textContent="이 워크스페이스에 등록된 렌더 작업이 없습니다.";list.append(empty);
+        }
+      }catch(error){
+        if(!append)list.textContent="렌더 작업 기록을 불러오지 못했습니다: "+error.message;
+        toast("렌더 작업 기록을 불러오지 못했습니다.");
+      }finally{
+        renderHistoryLoading=false;
+        $id("renderJobHistoryRefresh").disabled=false;
+        more.disabled=false;
+      }
+    }
     async function uploadRenderAsset(file,mimeType,assetName){
       if(!token)throw new Error("먼저 운영 인증 토큰을 연결하세요.");
       if(!activeWorkspaceId)throw new Error("렌더 작업을 등록할 워크스페이스를 선택하세요.");
@@ -1548,6 +1602,7 @@
         renderMeta.textContent="JOB "+currentRenderJobId+" · "+job.status+" · "+activeWorkspaceId;
         say("렌더 작업 "+currentRenderJobId+"을 등록했습니다.");
         await refreshRenderJob(true);
+        await loadRenderHistory();
       }catch(error){
         say("렌더 요청 실패: "+error.message);
         renderMessage("렌더 요청 실패: "+error.message,true);
@@ -1595,6 +1650,7 @@
         $id("renderJobReviewActions").hidden=true;
         toast(decision==="approved"?"검수 승인 기록 완료":"반려 기록 완료");
         await refreshRenderJob(true);
+        await loadRenderHistory();
       }catch(error){
         renderMessage("검수 결정 실패: "+error.message,true);
         button.disabled=false;
@@ -1602,11 +1658,13 @@
     }
     $id("timelineRenderSubmit").addEventListener("click",submitRenderJob);
     $id("renderJobRefresh").addEventListener("click",()=>refreshRenderJob());
+    $id("renderJobHistoryRefresh").addEventListener("click",()=>loadRenderHistory());
+    $id("renderJobHistoryMore").addEventListener("click",()=>{if(renderHistoryCursor)loadRenderHistory(renderHistoryCursor,true);});
     $id("renderJobCancel").addEventListener("click",async()=>{
       if(!currentRenderJobId||!confirm("렌더 작업을 취소하시겠습니까?"))return;
       try{
         await api("/api/render/jobs/"+encodeURIComponent(currentRenderJobId)+"/cancel",{method:"POST",body:"{}"});
-        await refreshRenderJob(true);toast("렌더 작업 취소를 요청했습니다.");
+        await refreshRenderJob(true);await loadRenderHistory();toast("렌더 작업 취소를 요청했습니다.");
       }catch(error){renderMessage("작업 취소 실패: "+error.message,true);}
     });
     $id("renderJobClear").addEventListener("click",()=>{
@@ -1634,8 +1692,10 @@
           refreshRenderJob(true);
         }
         say("워크스페이스가 변경되었습니다. 원본 자산은 새 공간에 다시 등록해야 합니다.");
+        loadRenderHistory();
       }
     });
+    if(token&&activeWorkspaceId)loadRenderHistory();
     if(currentRenderJobId&&currentRenderWorkspaceId){
       if(currentRenderWorkspaceId===activeWorkspaceId){
         renderMessage("저장된 렌더 작업이 있습니다. 인증 후 상태 갱신을 누르세요.");
