@@ -1,6 +1,8 @@
 import os
 import logging
 import secrets
+import shutil
+import tempfile
 from typing import Any, Literal
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException, Header, Query, Request, Response
@@ -35,6 +37,11 @@ from preflight import build_preflight
 from timeline_edl import validate_edl, EDLValidationError
 from workspace_access import resolve_workspace_membership, resolve_workspace_access, WorkspaceAccessConfigurationError
 from workspace_store import WorkspaceStore, WorkspaceDenied, WorkspaceConflict, WorkspaceNotFound
+from workspace_asset_store import WorkspaceAssetStore, AssetError, AssetNotFound, AssetConflict
+from timeline_render_store import TimelineRenderStore, SnapshotError, SnapshotConflict
+from render_artifact_store import RenderArtifactStore, ArtifactAdoptionError
+from ffprobe_validate import FFprobeValidationError, probe_source_media
+from media_scanner import ClamAVScanner, MediaScanError
 from worker_auth import authenticate_worker, WorkerAuthConfigurationError, WorkerAuthenticationError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
@@ -107,6 +114,22 @@ recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_D
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
+private_media_root=Path(os.getenv("NEXUS_PRIVATE_MEDIA_ROOT","data/private-media")).resolve()
+workspace_asset_store=WorkspaceAssetStore(
+    os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"), private_media_root,
+    workspace_store,
+    max_asset_bytes=int(os.getenv("NEXUS_MAX_MEDIA_BYTES",str(256*1024*1024))),
+)
+timeline_render_store=TimelineRenderStore(
+    os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),
+    workspace_asset_store, workspace_store, queue,
+)
+render_staging_root=Path(os.getenv("NEXUS_RENDER_STAGING_ROOT","data/render-staging")).resolve()
+render_artifact_root=Path(os.getenv("NEXUS_RENDER_ARTIFACT_ROOT","data/render-artifacts")).resolve()
+render_artifact_store=RenderArtifactStore(
+    queue, render_staging_root, render_artifact_root,
+    max_bytes=int(os.getenv("NEXUS_RENDER_MAX_OUTPUT_BYTES",str(2_000_000_000))),
+)
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -276,6 +299,12 @@ class TrendProductionDraft(BaseModel):
     platform:Literal["youtube","tiktok"]="youtube"
     idempotency_key:str|None=None
     recommendation_run_id:str|None=Field(default=None,min_length=1,max_length=64)
+
+class TimelineRenderSubmitInput(BaseModel):
+    model_config = {"extra": "forbid"}
+    edl:dict[str,Any]
+    idempotency_key:str=Field(min_length=8,max_length=128)
+
 
 class WorkspaceCreateInput(BaseModel):
     model_config = {"extra": "forbid"}
