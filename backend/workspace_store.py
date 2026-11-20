@@ -16,8 +16,11 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 def _principal(value):
-    if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 128
-            or any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+    if (
+        not isinstance(value, str) or not value.strip()
+        or value != value.strip() or len(value) > 128
+        or any(ord(ch) < 32 or ord(ch) == 127 for ch in value)
+    ):
         raise ValueError("invalid principal ID")
     return value
 
