@@ -95,11 +95,12 @@
               <label class="button button-outline timeline-upload">영상 불러오기<input id="timelineMediaInput" type="file" accept="video/*" multiple hidden></label>
               <label class="timeline-title-input">타이틀 텍스트<input id="timelineTitleInput" maxlength="120" placeholder="화면에 표시할 문구"></label>
               <button type="button" class="button button-secondary" id="timelineAddTitle">타이틀 추가</button>
+              <button type="button" class="button button-secondary" id="timelinePlaySelected">선택 구간 재생</button>
               <button type="button" class="button button-primary" id="timelineExport">편집 구성표 내보내기</button>
             </div>
             <div class="timeline-workspace">
-              <div class="timeline-preview"><video id="timelinePreview" controls playsinline preload="metadata" aria-label="선택한 영상 미리보기"></video><div id="timelinePreviewEmpty" class="empty-state">영상을 불러오면 미리보기가 표시됩니다.</div><p id="timelineStatus" role="status" aria-live="polite">클립을 추가해 편집 순서를 구성하세요.</p></div>
-              <div class="timeline-tracks"><div class="timeline-track-heading"><b>VIDEO / TITLE TRACK</b><span id="timelineClipCount">0 CLIPS</span></div><div id="timelineClipList" class="timeline-clip-list"><div class="empty-state">영상 파일 또는 타이틀을 추가하세요.</div></div></div>
+              <div class="timeline-preview"><div class="timeline-video-stage"><video id="timelinePreview" controls playsinline preload="metadata" aria-label="선택한 영상 미리보기"></video><div id="timelineTitleOverlay" class="timeline-title-overlay" hidden></div></div><div id="timelinePreviewEmpty" class="empty-state">영상을 불러오면 미리보기가 표시됩니다.</div><p id="timelineStatus" role="status" aria-live="polite">클립을 추가해 편집 순서를 구성하세요.</p></div>
+              <div class="timeline-tracks"><div class="timeline-track-heading"><b>VIDEO / TITLE TRACK</b><span><span id="timelineClipCount">0 CLIPS</span> · <span id="timelineTotalDuration">0.0s</span></span></div><div id="timelineClipList" class="timeline-clip-list"><div class="empty-state">영상 파일 또는 타이틀을 추가하세요.</div></div></div>
             </div>
             <div class="timeline-inspector" id="timelineInspector" hidden>
               <b id="timelineSelectedName">선택한 클립</b>
