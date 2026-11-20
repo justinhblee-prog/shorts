@@ -100,6 +100,30 @@ def chat(model: str,messages: list[dict[str,Any]]) -> dict[str,Any]:
   with urllib.request.urlopen(req,timeout=300) as response: return json.loads(response.read().decode())
  except urllib.error.URLError as e: raise RuntimeError(f"Cannot reach local Ollama at {API}. Start Ollama and check the installed model. Details: {e}") from e
 
+def parse_text_tool_call(content: str) -> list[dict[str, Any]]:
+ """Accept Qwen's JSON-in-text tool-call fallback as well as native tool_calls."""
+ if not content:
+  return []
+ candidates=[]
+ for match in re.finditer(r"\x60\x60\x60(?:json)?\\s*(\\{.*?\\})\\s*\x60\x60\x60", content, re.IGNORECASE | re.DOTALL):
+  candidates.append(match.group(1))
+ if not candidates:
+  decoder=json.JSONDecoder()
+  for i,ch in enumerate(content):
+   if ch=="{":
+    try:
+     value,end=decoder.raw_decode(content[i:])
+     if isinstance(value,dict) and "name" in value and "arguments" in value:
+      candidates.append(content[i:i+end]);break
+    except json.JSONDecodeError:
+     continue
+ for raw in candidates:
+  try: value=json.loads(raw)
+  except json.JSONDecodeError: continue
+  if isinstance(value,dict) and value.get("name") in {"list_files","read_file","write_file","search_text","run_check","git_diff"} and isinstance(value.get("arguments",{}),dict):
+   return [{"function":{"name":value["name"],"arguments":value.get("arguments",{})}}]
+ return []
+
 def main() -> int:
  ap=argparse.ArgumentParser()
  ap.add_argument("--prompt-file",required=True)
@@ -117,8 +141,15 @@ def main() -> int:
  messages=[{"role":"system","content":system},{"role":"user","content":f"Assigned task:\n{prompt}\n\nRepository root: {root}\nModel: {args.model}\nDo not claim checks passed unless run_check confirms exit_code=0."}]
  for _ in range(args.max_turns):
   msg=(chat(args.model,messages).get("message") or {})
-  messages.append(msg); calls=msg.get("tool_calls") or []
-  if not calls: print(msg.get("content","(Agent returned no final text.)")); return 0
+  calls=msg.get("tool_calls") or []
+  if not calls:
+   calls=parse_text_tool_call(str(msg.get("content", "")))
+   if not calls:
+    messages.append(msg)
+    print(msg.get("content","(Agent returned no final text.)")); return 0
+   # Normalize JSON-in-text calls to Ollama's native tool-call message shape.
+   msg={"role":"assistant","content":"","tool_calls":calls}
+  messages.append(msg)
   for call in calls:
    fn=call.get("function") or {}; name=fn.get("name",""); arguments=fn.get("arguments") or {}
    try: result=execute(root,name,arguments)
