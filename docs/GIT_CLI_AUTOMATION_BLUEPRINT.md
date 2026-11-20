@@ -169,7 +169,7 @@ Options:
 - `--agent-timeout 3600`: per-attempt timeout in seconds.
 
 Safety boundaries:
-- One task/worktree at a time in this initial supervisor; it is not yet a multi-agent parallel scheduler.
+- The single-task supervisor runs one agent in one worktree. The parallel dispatcher can launch up to the manifest cap (currently three) independent supervisors concurrently.
 - Primary checkout must be clean. Existing worktrees are never overwritten or deleted automatically.
 - The coding agent is instructed not to modify task state, use secrets, publish, deploy, merge, force-push or run destructive Git commands.
 - The supervisor only marks `review_pending` after repository validation passes; external gates remain open.
@@ -177,3 +177,16 @@ Safety boundaries:
 - If the agent CLI is absent, the task stops before creating a worktree. If it fails after worktree creation, the worktree is retained for inspection.
 
 This is an executable local automation runner, not a claim that the current ChatGPT session can execute commands on the user's Windows workstation. The first end-to-end run requires the configured agent CLI and authenticated `git`/`gh` on that workstation.
+
+
+### Parallel dispatcher
+
+For independent workstreams, use the scope-aware dispatcher:
+
+\`\`\`powershell
+python scripts/devflow_parallel.py --max-parallel 3
+\`\`\`
+
+It selects dependency-ready tasks with non-overlapping declared scopes and launches one isolated supervisor/worktree per task. It refuses tasks whose dependencies are merely \`review_pending\`; prerequisites must be marked \`completed\` after merge. It does not split a single task across multiple agents, and it cannot parallelize overlapping or undeclared scopes. The manifest's \`max_parallel_worktrees\` value is the hard cap (maximum three in this version).
+
+Current manifest state has only BUILD-00352 runnable; BUILD-00353 and BUILD-00354 remain blocked by external credentials/authorization. Therefore the dispatcher currently launches one flow, not three. Additional independent tasks can run concurrently when they are explicitly added to the manifest with disjoint scopes and satisfied dependencies.
