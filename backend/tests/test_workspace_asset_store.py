@@ -43,8 +43,11 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
         result = self.store.register_stream(
             "ws_studio", "alice", io.BytesIO(payload), "safe.mp4"
         )
-        metadata = self.store.mark_scan_result(
-            "ws_studio", "alice", result["asset_id"], True
+        class CleanScanner:
+            def scan(self, path):
+                return {"status": "clean", "engine": "test"}
+        metadata = self.store.scan_pending_asset(
+            "ws_studio", "alice", result["asset_id"], CleanScanner()
         )
         self.assertEqual(metadata["scan_status"], "clean")
         with self.store.open_clean_asset(
@@ -92,11 +95,29 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
         result = self.store.register_stream(
             "ws_studio", "alice", io.BytesIO(b"original"), "clip.mp4"
         )
-        self.store.mark_scan_result("ws_studio", "alice", result["asset_id"], True)
+        class CleanScanner:
+            def scan(self, path):
+                return {"status": "clean", "engine": "test"}
+        self.store.scan_pending_asset(
+            "ws_studio", "alice", result["asset_id"], CleanScanner()
+        )
         binary = self.root / "private-media" / "ws_studio" / (result["asset_id"] + ".blob")
         binary.write_bytes(b"tampered")
         with self.assertRaisesRegex(AssetError, "integrity"):
             self.store.open_clean_asset("ws_studio", "alice", result["asset_id"])
+
+    def test_admin_cannot_manually_bypass_clean_scan(self):
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"manual-bypass"), "manual.mp4"
+        )
+        with self.assertRaisesRegex(AssetError, "only be set by a successful malware scan"):
+            self.store.mark_scan_result(
+                "ws_studio", "alice", result["asset_id"], True
+            )
+        self.assertEqual(
+            self.store.get_asset("ws_studio", "alice", result["asset_id"])["scan_status"],
+            "pending",
+        )
 
     def test_viewer_cannot_register_or_mark_scan_result(self):
         self.workspaces.add_member("ws_studio", "alice", "viewer", "viewer")
