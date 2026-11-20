@@ -591,6 +591,11 @@ class YouTubeUploadStore:
               VALUES(?,?,?,?,?)""", (video_id, count("viewCount"), count("likeCount"),
                                       count("commentCount"), _now()))
 
+    def job_for_video(self,video_id):
+        with self.db() as c:
+            row=c.execute("SELECT job_id FROM youtube_uploads WHERE video_id=?",(video_id,)).fetchone()
+            return row["job_id"] if row else None
+
     def get(self,job_id):
         with self.db() as c:
             row=c.execute("SELECT * FROM youtube_uploads WHERE job_id=?",(job_id,)).fetchone()
