@@ -290,24 +290,48 @@ class DevelopmentJobStore:
                 (safe_source_ref,),
             ).fetchone() is not None
 
-    def list(self, statuses=None, limit=100, offset=0):
+    @staticmethod
+    def normalize_snapshot_timestamp(value):
+        if not isinstance(value, str) or not value.strip() or len(value) > 64:
+            raise ValueError("created_before must be an ISO-8601 timestamp")
+        try:
+            parsed = _parse(value.strip())
+        except (TypeError, ValueError) as error:
+            raise ValueError("created_before must be an ISO-8601 timestamp") from error
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("created_before must include a timezone")
+        return _stamp(parsed)
+
+    def snapshot_created_at(self):
+        """Capture a stable insertion boundary while holding SQLite's writer lock."""
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            snapshot_at = _stamp(_now())
+            connection.commit()
+            return snapshot_at
+
+    def list(self, statuses=None, limit=100, offset=0, created_before=None):
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
             raise ValueError("limit must be an integer from 1 to 500")
         if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 100000:
             raise ValueError("offset must be an integer from 0 to 100000")
+        snapshot = self.normalize_snapshot_timestamp(created_before) if created_before is not None else None
+        clauses = []
+        values = []
+        if statuses:
+            marks = ",".join("?" for _ in statuses)
+            clauses.append(f"status IN ({marks})")
+            values.extend(statuses)
+        if snapshot is not None:
+            clauses.append("created_at<=?")
+            values.append(snapshot)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
         with self.db() as connection:
-            if statuses:
-                values = tuple(statuses)
-                marks = ",".join("?" for _ in values)
-                rows = connection.execute(
-                    f"SELECT * FROM development_jobs WHERE status IN ({marks}) ORDER BY priority,created_at,id LIMIT ? OFFSET ?",
-                    (*values, limit, offset),
-                ).fetchall()
-            else:
-                rows = connection.execute(
-                    "SELECT * FROM development_jobs ORDER BY priority,created_at,id LIMIT ? OFFSET ?",
-                    (limit, offset),
-                ).fetchall()
+            rows = connection.execute(
+                "SELECT * FROM development_jobs" + where
+                + " ORDER BY priority,created_at,id LIMIT ? OFFSET ?",
+                (*values, limit, offset),
+            ).fetchall()
             jobs = [self._decode(row) for row in rows]
             if not jobs:
                 return jobs
@@ -327,19 +351,22 @@ class DevelopmentJobStore:
                 job["dependencies"] = by_job[job["id"]]
             return jobs
 
-    def count(self, statuses=None):
+    def count(self, statuses=None, created_before=None):
+        snapshot = self.normalize_snapshot_timestamp(created_before) if created_before is not None else None
+        clauses = []
+        values = []
+        if statuses:
+            marks = ",".join("?" for _ in statuses)
+            clauses.append(f"status IN ({marks})")
+            values.extend(statuses)
+        if snapshot is not None:
+            clauses.append("created_at<=?")
+            values.append(snapshot)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
         with self.db() as connection:
-            if statuses:
-                values = tuple(statuses)
-                marks = ",".join("?" for _ in values)
-                row = connection.execute(
-                    f"SELECT COUNT(*) AS total FROM development_jobs WHERE status IN ({marks})",
-                    values,
-                ).fetchone()
-            else:
-                row = connection.execute(
-                    "SELECT COUNT(*) AS total FROM development_jobs"
-                ).fetchone()
+            row = connection.execute(
+                "SELECT COUNT(*) AS total FROM development_jobs" + where, tuple(values)
+            ).fetchone()
             return int(row["total"])
 
     @staticmethod
