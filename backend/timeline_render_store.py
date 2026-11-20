@@ -104,6 +104,7 @@ class TimelineRenderStore:
         job_payload = {
             "snapshot_id": snapshot_id,
             "snapshot_sha256": digest,
+            "creator_principal_id": principal_id,
             "edl": normalized,
         }
         try:
