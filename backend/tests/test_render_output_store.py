@@ -1,4 +1,5 @@
 import hashlib
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -115,6 +116,16 @@ class RenderOutputStoreTests(unittest.TestCase):
         self.assertEqual(approved["review_status"], "approved")
         self.assertEqual(approved["reviewed_by"], "reviewer-a")
         self.assertEqual(approved["review_note"], "Looks good")
+        events = self.outputs.events(self.job["id"], self.workspace)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "review_decided")
+        self.assertEqual(events[0]["reviewer_id"], "reviewer-a")
+        with self.assertRaises(sqlite3.IntegrityError):
+            with self.outputs.db() as connection:
+                connection.execute(
+                    "UPDATE render_output_events SET note='rewritten' WHERE job_id=?",
+                    (self.job["id"],),
+                )
         with self.assertRaisesRegex(ValueError, "already received"):
             self.outputs.decide(
                 self.job["id"], self.workspace, "reviewer-a", "rejected", "Second decision"
