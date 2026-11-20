@@ -125,6 +125,8 @@ def validate_edl(payload: Any) -> dict:
         fade_in = _number(raw.get("fade_in_ms", 0), f"{prefix}.fade_in_ms")
         fade_out = _number(raw.get("fade_out_ms", 0), f"{prefix}.fade_out_ms")
         duration = source_out - source_in
+        if any(not float(value).is_integer() for value in (start, source_in, source_out, fade_in, fade_out)):
+            raise EDLValidationError(f"{prefix} timing and fade values must be whole milliseconds")
         if (start < 0 or source_in < 0 or duration <= 0 or start + duration > MAX_DURATION_MS
                 or not 0 <= gain <= 4 or not 0 <= fade_in <= 60000
                 or not 0 <= fade_out <= 60000 or fade_in + fade_out > duration):
