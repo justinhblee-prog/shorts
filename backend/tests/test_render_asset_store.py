@@ -150,6 +150,21 @@ class RenderAssetStoreTests(unittest.IsolatedAsyncioTestCase):
         paths = self.store.resolve_asset_paths("workspace-a", [result["asset_id"]])
         self.assertTrue(paths[result["asset_id"]].is_relative_to(self.root / "media"))
 
+    async def test_rejects_database_path_repointed_to_another_workspace_namespace(self):
+        result = await self.register()
+        other_namespace = hashlib.sha256(b"workspace-b").hexdigest()
+        other_dir = self.root / "media" / other_namespace / "render-assets"
+        other_dir.mkdir(parents=True)
+        other_file = other_dir / "foreign.mp4"
+        other_file.write_bytes(PAYLOAD)
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE render_assets SET relative_path=? WHERE asset_id=?",
+                (other_file.relative_to(self.root / "media").as_posix(), result["asset_id"]),
+            )
+        with self.assertRaisesRegex(RenderAssetError, "workspace namespace"):
+            self.store.resolve_asset_paths("workspace-a", [result["asset_id"]])
+
     async def test_rejects_symlinked_workspace_namespace(self):
         namespace = hashlib.sha256(b"workspace-a").hexdigest()
         external = self.root / "outside"
