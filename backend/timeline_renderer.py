@@ -6,6 +6,7 @@ must resolve asset IDs to paths from an authenticated workspace-scoped registry.
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 try:
     import resource
@@ -110,7 +111,7 @@ class TimelineRenderer:
 
         timeline_cursor = 0.0
         for clip in clips:
-            if not __import__("math").isclose(clip["start_ms"], timeline_cursor, abs_tol=1.0):
+            if not math.isclose(clip["start_ms"], timeline_cursor, abs_tol=1.0):
                 raise TimelineRenderError("EDL clips must be ordered and contiguous in this renderer version")
             timeline_cursor = clip["end_ms"]
         inputs = [self._trusted_asset(clip["asset_id"], asset_paths) for clip in clips]
@@ -227,7 +228,7 @@ class TimelineRenderer:
             if report.get("width") != 1080 or report.get("height") != 1920:
                 raise TimelineRenderError("Rendered output dimensions are not 1080x1920")
             reported_duration = report.get("duration_seconds")
-            if not isinstance(reported_duration, (int, float)) or abs(reported_duration - total_duration) > 0.75:
+            if isinstance(reported_duration, bool) or not isinstance(reported_duration, (int, float)) or abs(reported_duration - total_duration) > 0.75:
                 raise TimelineRenderError("Rendered output duration does not match the validated timeline")
             if not report.get("audio_track_present") and audio_path is not None:
                 raise TimelineRenderError("Registered audio track is missing from the rendered output")
