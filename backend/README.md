@@ -631,3 +631,6 @@ Uploads and EDL validation use the dedicated `media` rate-limit bucket (default 
 - Successful output is adopted only while the queue lease and attempt still match. The output is not exposed until the queue transitions to `review_pending`; output metadata contains no local filesystem path. A stale attempt cannot complete or overwrite a newer attempt's review state.
 - The Compose integration smoke now generates a disposable source MP4, enqueues a render job in a temporary database, runs the actual worker/FFmpeg/ffprobe path, verifies a 1080×1920 MP4 and review-pending handoff, then discards the temporary database and media.
 - This worker has no publishing-provider integration. Source-clip audio mixing, title overlays, and automated publication remain unsupported.
+
+
+Exact-head validation for the durable queue/worker integration: 864 backend tests and Chromium desktop/mobile smoke passed in [run 44706888144](https://github.com/justinhblee-prog/shorts/actions/runs/44706888144). Six-service Compose integration passed in [run 44706888290](https://github.com/justinhblee-prog/shorts/actions/runs/44706888290), including a real FFmpeg/ffprobe render through the queue worker and a review-pending handoff, plus encrypted backup/restore and wrong-key rejection. The render fixture injects a clean scanner; live ClamAV and provider publishing remain untested.
