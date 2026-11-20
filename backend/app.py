@@ -948,9 +948,11 @@ def decide_timeline_render(
         raise HTTPException(422,str(exc))
 
 
-@app.get("/api/timeline/artifacts/{artifact_id}/preview")
-def preview_timeline_artifact(
+@app.post("/api/timeline/artifacts/{artifact_id}/preview-session")
+def create_timeline_preview_session(
     artifact_id:str,
+    request:Request,
+    response:Response,
     x_review_token:str|None=Header(default=None),
     x_nexus_workspace_id:str|None=Header(default=None),
 ):
@@ -960,6 +962,48 @@ def preview_timeline_artifact(
     try:
         workspace_id=resolve_workspace_access(
             principal,x_nexus_workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE","legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON",""),
+            store=workspace_store,
+        )
+        render_artifact_store.get(artifact_id,workspace_id)
+        cookie_name="nexus_preview_"+artifact_id
+        response.set_cookie(
+            cookie_name,x_review_token,max_age=120,httponly=True,
+            secure=request.url.scheme=="https",samesite="strict",
+            path=f"/api/timeline/artifacts/${artifact_id}/preview",
+        )
+        response.headers["Cache-Control"]="no-store"
+        return {
+            "preview_url":f"/api/timeline/artifacts/${artifact_id}/preview?workspace_id=${workspace_id}",
+            "expires_in_seconds":120,
+        }
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except (ArtifactAdoptionError,ValueError):
+        raise HTTPException(404,"Render artifact not found")
+
+
+@app.get("/api/timeline/artifacts/{artifact_id}/preview")
+def preview_timeline_artifact(
+    artifact_id:str,
+    request:Request,
+    workspace_id:str|None=None,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    preview_cookie=request.cookies.get("nexus_preview_"+artifact_id)
+    principal=require_review_permission(x_review_token or preview_cookie,"review.read")
+    requested_workspace=x_nexus_workspace_id or workspace_id
+    if not requested_workspace:
+        raise HTTPException(400,"X-Nexus-Workspace-Id or workspace_id is required")
+    try:
+        workspace_id=resolve_workspace_access(
+            principal,requested_workspace,
             mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE","legacy_config"),
             memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON",""),
             store=workspace_store,
