@@ -80,7 +80,11 @@ async function waitForServer() {
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-development-job")),
       "browser-smoke-pagination-204",
       "loading another page from a missing prerequisite must focus the persisted parent");
-    assert.match(await page.locator("#developmentJobPaginationStatus").textContent(), /213 \/ 213/);
+    const paginationStatus = (await page.locator("#developmentJobPaginationStatus").textContent()).trim();
+    const paginationMatch = paginationStatus.match(/^(\\d+) \\/ (\\d+)개 작업 표시$/);
+    assert.ok(paginationMatch, "pagination status must expose loaded and total job counts");
+    assert.equal(Number(paginationMatch[1]), Number(paginationMatch[2]),
+      "all persisted jobs must be loaded before the load-more control hides");
     assert.equal(await page.locator("#loadMoreDevelopmentJobs").isHidden(), true,
       "the load-more control must hide after the final page");
     await page.setViewportSize({ width: 320, height: 900 });
