@@ -112,3 +112,11 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Compose integration smoke passed [run 44670599939](https://github.com/justinhblee-prog/shorts/actions/runs/44670599939), including service readiness and scheduled isolated backup/restore.
 - Fresh browser artifact: [14599966062](https://github.com/justinhblee-prog/shorts/actions/runs/44670600009/artifacts/14599966062) (5.39 MB).
 - The local editor remains EDL-only; actual MP4 rendering is blocked on the asset-upload/ownership/EDL-render-worker work described in `docs/VIDEO_EDITOR_RENDER_INTEGRATION.md`.
+
+
+## Title preview recovery regression — exact-head verification
+
+- UI head `195391211f63b21651127d7cb56bef776d09a5c8` passed [Backend tests run 44670853201](https://github.com/justinhblee-prog/shorts/actions/runs/44670853201): **736 backend tests**, frontend syntax, Chromium desktop/mobile and authenticated application smoke.
+- Added regression coverage for the selected title overlay remaining visible after removing another clip, and for overlay/empty-state cleanup after the last clip is removed. Object URLs are released when the editor page unloads.
+- Compose integration smoke passed [run 44670853253](https://github.com/justinhblee-prog/shorts/actions/runs/44670853253).
+- Latest browser artifact: [14600126059](https://github.com/justinhblee-prog/shorts/actions/runs/44670853201/artifacts/14600126059) (5.38 MB).
