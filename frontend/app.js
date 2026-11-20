@@ -845,10 +845,12 @@
         const parent=jobById.get(String(id));
         const label=parent?(parent.title||id):id;
         const parentStatus=parent?(developmentStatusLabels[parent.status]||parent.status):"현재 목록 외";
-        return '<span class="development-job-dependency">'+esc(label)+' · '+esc(parentStatus)+'</span>';
+        return parent
+          ? '<button type="button" class="development-job-dependency" data-focus-development-job="'+esc(id)+'" aria-label="선행 작업 '+esc(label)+' 카드로 이동">'+esc(label)+' · '+esc(parentStatus)+' ↗</button>'
+          : '<span class="development-job-dependency development-job-dependency-missing" role="status">'+esc(label)+' · 현재 목록 외</span>';
       }).join(""):'<span class="development-job-dependency development-job-dependency-none">선행 작업 없음</span>';
       const recovery=status==="quarantined"?'<button type="button" class="button button-outline development-job-recover" data-recover-development-job="'+esc(job.id)+'">격리 작업 복구</button>':"";
-      return '<div class="development-job-card"><button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p><div class="development-job-dependencies"><small>선행 작업</small>'+dependencyMarkup+'</div><small>'+esc(lease)+' · '+esc(updated)+'</small><p>변경 파일: '+esc(changed)+'</p><small>'+esc(evidence)+'</small><small>'+esc(review)+'</small></button>'+recovery+'</div>';
+      return '<div class="development-job-card" id="development-job-card-'+esc(job.id)+'"><button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p><div class="development-job-dependencies"><small>선행 작업</small>'+dependencyMarkup+'</div><small>'+esc(lease)+' · '+esc(updated)+'</small><p>변경 파일: '+esc(changed)+'</p><small>'+esc(evidence)+'</small><small>'+esc(review)+'</small></button>'+recovery+'</div>';
     };
     const groupedMarkup=laneOrder.filter(lane=>groupedJobs.get(lane).length).map(lane=>{
       const laneJobs=groupedJobs.get(lane);
@@ -938,6 +940,22 @@
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadDevelopmentJobs").addEventListener("click",()=>loadDevelopmentJobs().catch(e=>toast(e.message)));
   $("developmentJobList").addEventListener("click",async event=>{
+    const dependencyButton=event.target.closest("[data-focus-development-job]");
+    if(dependencyButton){
+      event.preventDefault();
+      event.stopPropagation();
+      const targetId=dependencyButton.getAttribute("data-focus-development-job");
+      const targetCard=$("development-job-card-"+targetId);
+      const targetButton=targetCard?.querySelector("[data-development-job]");
+      if(targetCard&&targetButton){
+        targetCard.scrollIntoView({behavior:"smooth",block:"center"});
+        targetButton.focus({preventScroll:true});
+        toast("선행 작업 카드로 이동했습니다.");
+      }else{
+        toast("선행 작업이 현재 목록에 없습니다. 목록 범위를 넓혀 다시 불러오세요.");
+      }
+      return;
+    }
     const recoveryButton=event.target.closest("[data-recover-development-job]");
     if(recoveryButton){
       event.preventDefault();
