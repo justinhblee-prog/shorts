@@ -35,6 +35,11 @@ class TimelineRenderStoreTests(unittest.TestCase):
         )
         self.assets.mark_scan_result("ws_studio", "alice", asset["asset_id"], True)
         self.asset_id = asset["asset_id"]
+        audio = self.assets.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"audio-fixture"), "music.wav"
+        )
+        self.assets.mark_scan_result("ws_studio", "alice", audio["asset_id"], True)
+        self.audio_asset_id = audio["asset_id"]
         self.edl = {
             "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
             "clips": [{
@@ -149,6 +154,45 @@ class TimelineRenderStoreTests(unittest.TestCase):
         with self.assertRaises(Exception):
             self.store.submit("ws_other", "bob", self.edl, "render-try-0005")
 
+
+    def test_submit_persists_and_authorizes_audio_track_assets(self):
+        edl = {
+            **self.edl,
+            "audio_tracks": [{
+                "id": "music1", "asset_id": self.audio_asset_id,
+                "start_ms": 0, "source_in_ms": 250,
+                "source_out_ms": 4250, "gain": 0.4,
+                "fade_in_ms": 100, "fade_out_ms": 200,
+            }],
+        }
+        result = self.store.submit("ws_studio", "alice", edl, "render-audio-0001")
+        job = self.queue.get(result["render_job_id"], workspace_id="ws_studio")
+        self.assertEqual(job["payload"]["creator_principal_id"], "alice")
+        self.assertEqual(job["payload"]["edl"]["audio_tracks"][0]["asset_id"], self.audio_asset_id)
+
+        pending = self.assets.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"pending-audio"), "pending.wav"
+        )
+        blocked = {
+            **self.edl,
+            "audio_tracks": [{
+                "id": "music2", "asset_id": pending["asset_id"],
+                "start_ms": 0, "source_in_ms": 0, "source_out_ms": 1000,
+            }],
+        }
+        with self.assertRaisesRegex(SnapshotError, "audio assets"):
+            self.store.submit("ws_studio", "alice", blocked, "render-audio-0002")
+
+    def test_queue_job_and_snapshot_are_atomic_on_snapshot_insert_failure(self):
+        with self.store._db() as db:
+            db.execute("""
+                CREATE TRIGGER reject_snapshot_for_test
+                BEFORE INSERT ON timeline_edl_snapshots
+                BEGIN SELECT RAISE(ABORT, 'snapshot write failure'); END
+            """)
+        with self.assertRaises(SnapshotConflict):
+            self.store.submit("ws_studio", "alice", self.edl, "render-atomic-0001")
+        self.assertEqual(self.queue.stats(workspace_id="ws_studio").get("total", 0), 0)
 
 if __name__ == "__main__":
     unittest.main()
