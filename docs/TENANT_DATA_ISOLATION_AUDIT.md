@@ -133,3 +133,11 @@ The customer identity provider and account contract must be selected before impl
 - Media cleanup now checks the parent production workspace first and passes the scope into `MediaStager.cleanup_uploaded`. Tenant cleanup intentionally remains fail-closed because the YouTube upload store is not yet workspace-scoped; no global upload lookup is treated as proof of tenant ownership.
 - API and store tests cover missing/mismatched/valid media staging scope, fail-closed tenant cleanup, and SQL workspace fences for artifact/stage mutations.
 - This does not complete worker identity binding, customer authentication, review/publishing/analytics family partitioning, or the full asset registry.
+
+
+### Exact-head verification for media lifecycle changes
+
+- Code/test head `f8170009c8f1b959039b21816273d468801a1b0e` passed Backend tests workflow run [44686718970](https://github.com/justinhblee-prog/shorts/actions/runs/44686718970), including `scripts/validate.sh`, Korean font fallback, and Chromium desktop/mobile browser smoke.
+- Compose integration smoke passed [run 44686719048](https://github.com/justinhblee-prog/shorts/actions/runs/44686719048), including service build/start/readiness and scheduled backup + isolated restore.
+- Fresh browser screenshot artifact: [14607235689](https://github.com/justinhblee-prog/shorts/actions/runs/44686718970/artifacts/14607235689) (5.37 MB).
+- Subsequent commits `c186cef` and `e8c226e` are documentation-only worker identity contract/handover updates; no code changed after the verified code/test head.
