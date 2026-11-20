@@ -152,6 +152,31 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         with self.assertRaises(NonRetryableDevelopmentJobError):
             self.executor._validated_scope({"scope": ["backend/ordinary_module.py"]})
 
+    def test_scope_rejects_nested_symlinks_before_recursive_agent_access(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "private.txt").write_text("not for the agent", encoding="utf-8")
+        nested = self.root / "backend" / "linked"
+        try:
+            nested.symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("directory symlinks are not supported in this environment")
+        with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "symbolic link"):
+            self.executor._validated_scope({"scope": ["backend/"]})
+
+    def test_scope_rejects_symlinked_ancestor_components(self):
+        real_backend = self.root / "real-backend"
+        real_backend.mkdir()
+        (real_backend / "module.py").write_text("value = 1\\n", encoding="utf-8")
+        alias = self.root / "backend"
+        alias.rmdir()
+        try:
+            alias.symlink_to(real_backend, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("directory symlinks are not supported in this environment")
+        with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "symbolic link"):
+            self.executor._validated_scope({"scope": ["backend/module.py"]})
+
     def test_changed_file_must_be_inside_explicit_directory_scope(self):
         self.assertTrue(self.executor._matches_scope("backend/a.py", ["backend/"]))
         self.assertFalse(self.executor._matches_scope("backend/a.py", ["backend"]))
