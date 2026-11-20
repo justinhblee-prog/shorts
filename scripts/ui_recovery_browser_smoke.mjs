@@ -162,6 +162,53 @@ async function waitForServer() {
     }, previousEventPanel);
     assert.equal(await recoveredJobButton.getAttribute("aria-pressed"), "false",
       "selecting another job must clear the previous selection");
+
+    // A late response for the previously selected job must never replace the new selection.
+    await page.route("**/api/development/jobs/" + jobId + "/events?limit=100", async route => {
+      await new Promise(resolve => setTimeout(resolve, 350));
+      await route.continue();
+    });
+    await page.route("**/api/development/jobs/browser-smoke-ui-parent/events?limit=100", async route => {
+      await new Promise(resolve => setTimeout(resolve, 30));
+      await route.continue();
+    });
+    await recoveredJobButton.click();
+    await parentJobButton.click();
+    await page.waitForFunction(() =>
+      document.querySelector("#developmentJobEvents").textContent.includes("review_published")
+    );
+    await new Promise(resolve => setTimeout(resolve, 450));
+    const selectedParentEvents = await page.locator("#developmentJobEvents").textContent();
+    assert.match(selectedParentEvents, /review_published/);
+    assert.doesNotMatch(selectedParentEvents, /quarantine_recovered/,
+      "a stale response must not overwrite the currently selected job's events");
+    await page.unroute("**/api/development/jobs/" + jobId + "/events?limit=100");
+    await page.unroute("**/api/development/jobs/browser-smoke-ui-parent/events?limit=100");
+
+    // Failed audit history requests must render an actionable inline error and retry.
+    let eventRequestAttempts = 0;
+    const parentEventsRoute = "**/api/development/jobs/browser-smoke-ui-parent/events?limit=100";
+    await page.route(parentEventsRoute, async route => {
+      eventRequestAttempts += 1;
+      if (eventRequestAttempts === 1) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "simulated audit event service failure" }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+    await parentJobButton.click();
+    await page.locator("#developmentJobEvents [role=alert]").waitFor({ state: "visible" });
+    assert.match(await page.locator("#developmentJobEvents").textContent(), /불러오지 못했습니다/);
+    await page.locator('[data-retry-development-events="browser-smoke-ui-parent"]').click();
+    await page.waitForFunction(() =>
+      document.querySelector("#developmentJobEvents").textContent.includes("review_published")
+    );
+    assert.equal(eventRequestAttempts, 2, "retry action must issue a new event-history request");
+    await page.unroute(parentEventsRoute);
     const events = await page.evaluate(async ({ tokenValue, id }) => {
       const result = await fetch("/api/development/jobs/" + encodeURIComponent(id) + "/events?limit=100", {
         headers: { "X-Review-Token": tokenValue },
