@@ -305,7 +305,24 @@ class DevelopmentJobStore:
                 rows = connection.execute(
                     "SELECT * FROM development_jobs ORDER BY priority,created_at LIMIT ?", (limit,)
                 ).fetchall()
-            return [self._decode(row) for row in rows]
+            jobs = [self._decode(row) for row in rows]
+            if not jobs:
+                return jobs
+            job_ids = [job["id"] for job in jobs]
+            marks = ",".join("?" for _ in job_ids)
+            dependencies = connection.execute(
+                f"""SELECT job_id,depends_on_id
+                    FROM development_job_dependencies
+                    WHERE job_id IN ({marks})
+                    ORDER BY job_id,depends_on_id""",
+                tuple(job_ids),
+            ).fetchall()
+            by_job = {job_id: [] for job_id in job_ids}
+            for dependency in dependencies:
+                by_job[dependency["job_id"]].append(dependency["depends_on_id"])
+            for job in jobs:
+                job["dependencies"] = by_job[job["id"]]
+            return jobs
 
     @staticmethod
     def _scope_key(scope):
