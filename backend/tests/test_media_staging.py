@@ -44,14 +44,15 @@ class MediaStagerTests(unittest.TestCase):
             self.stager.stage("job-1", "https://cdn.example.test/video.mp4", workspace_id="../other")
         self.assertEqual(self.calls, [])
 
-    def test_workspace_cleanup_cannot_remove_another_workspace_asset(self):
+    def test_workspace_cleanup_fails_closed_without_scoped_upload_store(self):
         self.stager.stage("same-job", "https://cdn.example.test/video.mp4", workspace_id="workspace-a")
         self.stager.stage("same-job", "https://cdn.example.test/video.mp4", workspace_id="workspace-b")
         class UploadStore:
             def get(self, job_id):
                 return {"status": "uploaded", "video_id": "yt-123"}
-        self.stager.cleanup_uploaded("same-job", UploadStore(), workspace_id="workspace-a")
-        self.assertFalse(self.stager.staged_path("same-job", "workspace-a").exists())
+        with self.assertRaisesRegex(MediaStagingError, "Workspace-scoped upload confirmation"):
+            self.stager.cleanup_uploaded("same-job", UploadStore(), workspace_id="workspace-a")
+        self.assertTrue(self.stager.staged_path("same-job", "workspace-a").exists())
         self.assertTrue(self.stager.staged_path("same-job", "workspace-b").exists())
 
     def test_rejects_non_allowlisted_host_before_network(self):
