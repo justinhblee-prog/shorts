@@ -101,27 +101,40 @@ def chat(model: str,messages: list[dict[str,Any]]) -> dict[str,Any]:
  except urllib.error.URLError as e: raise RuntimeError(f"Cannot reach local Ollama at {API}. Start Ollama and check the installed model. Details: {e}") from e
 
 def parse_text_tool_call(content: str) -> list[dict[str, Any]]:
- """Accept Qwen's JSON-in-text tool-call fallback as well as native tool_calls."""
+ """Normalize common JSON-text tool-call shapes into Ollama tool_calls."""
  if not content:
   return []
  candidates=[]
  for match in re.finditer(r"\x60\x60\x60(?:json)?\s*(\{.*?\})\s*\x60\x60\x60", content, re.IGNORECASE | re.DOTALL):
   candidates.append(match.group(1))
- if not candidates:
-  decoder=json.JSONDecoder()
-  for i,ch in enumerate(content):
-   if ch=="{":
-    try:
-     value,end=decoder.raw_decode(content[i:])
-     if isinstance(value,dict) and "name" in value and "arguments" in value:
-      candidates.append(content[i:i+end]);break
-    except json.JSONDecodeError:
-     continue
+ decoder=json.JSONDecoder()
+ for i,ch in enumerate(content):
+  if ch=="{":
+   try:
+    value,end=decoder.raw_decode(content[i:])
+    if isinstance(value,dict): candidates.append(content[i:i+end])
+   except json.JSONDecodeError:
+    continue
+ allowed={"list_files","read_file","write_file","search_text","run_check","git_diff"}
  for raw in candidates:
   try: value=json.loads(raw)
   except json.JSONDecodeError: continue
-  if isinstance(value,dict) and value.get("name") in {"list_files","read_file","write_file","search_text","run_check","git_diff"} and isinstance(value.get("arguments",{}),dict):
-   return [{"function":{"name":value["name"],"arguments":value.get("arguments",{})}}]
+  if not isinstance(value,dict): continue
+  entries=value.get("tool_calls") if isinstance(value.get("tool_calls"),list) else [value]
+  for entry in entries:
+   if not isinstance(entry,dict): continue
+   fn=entry.get("function") if isinstance(entry.get("function"),dict) else entry.get("tool_call")
+   if isinstance(fn,dict):
+    name=fn.get("name") or fn.get("tool")
+    arguments=fn.get("arguments",{})
+   else:
+    name=entry.get("name") or entry.get("tool")
+    arguments=entry.get("arguments",{})
+   if isinstance(arguments,str):
+    try: arguments=json.loads(arguments)
+    except json.JSONDecodeError: continue
+   if name in allowed and isinstance(arguments,dict):
+    return [{"function":{"name":name,"arguments":arguments}}]
  return []
 
 def main() -> int:
@@ -133,12 +146,13 @@ def main() -> int:
  root=Path.cwd().resolve(); prompt_path=Path(args.prompt_file).resolve()
  if not prompt_path.is_file(): print(f"Prompt file not found: {prompt_path}",file=sys.stderr); return 2
  prompt=prompt_path.read_text(encoding="utf-8-sig")
- system=("You are a careful coding agent in one assigned Git worktree. Inspect, implement, and validate the task using tools. "
+ system=("You are a coding agent in one assigned Git worktree. You must inspect, implement, and validate the assigned task using the available tools. "
+ "IMPORTANT: Your first response MUST be a tool request, not an explanation. "
+ "When requesting a tool, output exactly one JSON object such as {\\\"name\\\":\\\"list_files\\\",\\\"arguments\\\":{\\\"path\\\":\\\".\\\"}}. Replace the example name and arguments with the selected tool. Do not use Markdown or surrounding prose. "
+ "After each tool result, request the next tool the same way. When all work is complete, provide a concise final summary. "
  "Never modify .devflow/tasks.json, credentials, secrets, or files outside this worktree. "
  "Do not use network access, external APIs, arbitrary shell commands, deployment, or publishing. "
- "Make focused changes, inspect your diff, and run applicable predefined checks. "
- "If blocked, explain precisely; never fabricate success. "
- "If native tool calling is unavailable, request tools by returning exactly one JSON object with keys name and arguments, without Markdown.")
+ "Make focused changes, inspect your diff, and run applicable predefined checks. If blocked, explain precisely; never fabricate success.")
  messages=[{"role":"system","content":system},{"role":"user","content":f"Assigned task:\n{prompt}\n\nRepository root: {root}\nModel: {args.model}\nDo not claim checks passed unless run_check confirms exit_code=0."}]
  empty_responses=0
  repeated_calls: dict[str,int] = {}
