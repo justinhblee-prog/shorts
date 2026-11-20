@@ -49,6 +49,8 @@ class TimelineRenderWorker:
 
         heartbeat = threading.Thread(target=beat, daemon=True)
         heartbeat.start()
+        staged_path = None
+        adopted = False
         try:
             try:
                 parameters = inspect.signature(self.renderer).parameters.values()
@@ -67,17 +69,20 @@ class TimelineRenderWorker:
                 )
             else:
                 result = self.renderer(job["payload"], stop_event=lost)
+            if isinstance(result, dict):
+                staged_path = result.get("staged_path")
             if lost.is_set():
                 raise RuntimeError("timeline render lease was lost")
             if self.artifact_store is not None:
-                if not isinstance(result, dict) or "staged_path" not in result:
+                if not isinstance(result, dict) or not staged_path:
                     raise RuntimeError("renderer must return staged_path when artifact adoption is enabled")
                 self.artifact_store.adopt(
                     job["id"], self.worker_id, job["lease_token"],
                     self.generation_token, job["workspace_id"],
                     job["payload"]["snapshot_id"],
-                    job["payload"]["snapshot_sha256"], result["staged_path"],
+                    job["payload"]["snapshot_sha256"], staged_path,
                 )
+                adopted = True
             else:
                 self.queue.finish(
                     job["id"], self.worker_id, job["lease_token"],
@@ -88,6 +93,11 @@ class TimelineRenderWorker:
                 )
             return True
         except Exception as exc:
+            if staged_path and self.artifact_store is not None and not adopted:
+                try:
+                    self.artifact_store.discard_staged(staged_path)
+                except Exception:
+                    pass
             if not lost.is_set():
                 try:
                     self.queue.fail(
