@@ -121,6 +121,31 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
         with self.store.open_clean_asset("ws_studio", "alice", result["asset_id"]) as handle:
             self.assertEqual(handle.read(), b"scan-clean")
 
+    def test_omitted_scanner_uses_production_clamav_adapter(self):
+        from unittest.mock import patch
+
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"default-clamav"), "clamav.mp4"
+        )
+
+        class CleanScanner:
+            def scan(self, path):
+                self.assert_path = Path(path)
+                return {"status": "clean", "engine": "clamav"}
+
+        scanner = CleanScanner()
+        with patch("media_scanner.ClamAVScanner", return_value=scanner) as factory:
+            metadata = self.store.scan_pending_asset(
+                "ws_studio", "alice", result["asset_id"]
+            )
+
+        factory.assert_called_once_with()
+        self.assertEqual(metadata["scan_status"], "clean")
+        with self.store.open_clean_asset(
+            "ws_studio", "alice", result["asset_id"]
+        ) as handle:
+            self.assertEqual(handle.read(), b"default-clamav")
+
     def test_infected_media_is_rejected_and_scanner_failure_stays_quarantined(self):
         infected = self.store.register_stream(
             "ws_studio", "alice", io.BytesIO(b"infected-fixture"), "bad.mp4"
