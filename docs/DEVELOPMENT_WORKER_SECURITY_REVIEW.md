@@ -66,3 +66,20 @@ This CI run validates the repository test environment, not the Windows self-host
 ## Operational decision
 
 **Do not merge or activate the scheduled/manual worker yet.** Keep PR #416 Draft until the activation blockers above are verified. No workflow dispatch, schedule activation, runner configuration change, secret change, deployment, or merge was performed as part of this review.
+
+
+## Follow-up static review — 2026-11-20
+
+A second review of the current PR head identified one additional least-privilege gap that must be closed before activation:
+
+### Recovery mode inherits write-capable job permissions
+
+The workflow currently implements development and recovery as conditional steps inside the same `development-cycle` job. That job grants `contents: write`, `pull-requests: write`, and `actions: write` for the entire job, including when `mode=recover`. Recovery code itself only performs GitHub GET requests and writes local SQLite evidence, but its job token still has write-capable permissions. The separate `NEXUS_GITHUB_READ_TOKEN` does not reduce the permissions of the job-scoped `GITHUB_TOKEN`.
+
+Required remediation before activation:
+- Split recovery into a distinct job with only `contents: read` and `pull-requests: read` (and no Actions write permission).
+- Keep write permissions only on the development job that publishes the stable Draft PR and dispatches bounded continuation.
+- Keep the recovery job's token unavailable to the Aider execution path; recovery must remain read-only.
+- Add workflow-contract tests that assert the recovery job has no write permissions and the development job has only the exact writes it needs.
+
+This is a source-level permission-boundary issue, not evidence of an observed unauthorized write. No workflow was dispatched and no repository permissions or secrets were changed. The current CI result does not validate GitHub token effective permissions at runtime.
