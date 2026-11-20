@@ -10,6 +10,10 @@ class MediaScanError(RuntimeError):
     pass
 
 
+class MediaInfectedError(MediaScanError):
+    """The scanner completed and positively identified infected content."""
+
+
 class ClamAVScanner:
     """Run ClamAV without a shell and require an explicit clean exit."""
 
@@ -88,5 +92,5 @@ class ClamAVScanner:
             output = (getattr(result, "stdout", "") or "") + (getattr(result, "stderr", "") or "")
             if "Heuristics.Limits.Exceeded" in output:
                 raise MediaScanError("Malware scan was incomplete because a scanner limit was exceeded")
-            raise MediaScanError("Malware scanner detected an infected artifact")
+            raise MediaInfectedError("Malware scanner detected an infected artifact")
         raise MediaScanError("Malware scanner failed; artifact was not staged")
