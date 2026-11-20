@@ -68,19 +68,19 @@
         "Latest Compose CI passed the real FFmpeg/ffprobe media render, artifact adoption, pending review and immutable approval smoke",
         "Container image bakes SHA-256 manifest for FFmpeg and ffprobe; render worker verifies exact configured binary paths and hashes before worker registration",
         "Unit tests cover correct binary hashes, tampering, unlisted binaries and unsafe manifest paths",
-        "Latest Compose CI built the image, verified FFmpeg/ffprobe manifest at worker startup, passed real-media render/review smoke and backup/restore checks"
+        "Latest Compose CI built the image, verified FFmpeg/ffprobe manifest at worker startup, passed real-media render/review smoke and backup/restore checks",
+        "Authenticated private media, render submission/status, preview-session and artifact-bound review APIs are covered by route tests",
+        "Preview session cookie path and generated preview URL now use the actual artifact/workspace identifiers; native video preview accepts scoped cookie auth",
+        "Compose render-worker CPU quota smoke accepts either Docker CpuQuota or NanoCpus while preserving the two-CPU assertion"
       ],
       "remaining": [
-        "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
-        "Run pinned FFmpeg and ffprobe binaries in an isolated worker container with CPU, memory, disk, network and process-count quotas",
-        "Add real-media integration tests and crash/lease-loss tests against the production runtime",
-        "Expose authenticated upload, render submission and review APIs with production filesystem permissions and retention cleanup",
+        "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
+        "Run crash/restart and lease-loss fault injection against the target persistent filesystem",
+        "Configure and validate ClamAV signature freshness and fail-closed scanning before enabling production uploads",
         "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
-        "Implement title overlays, gaps, overlaps, transitions and source-clip audio semantics in the EDL renderer",
-        "Configure the concrete worker factory and pinned FFmpeg/ffprobe binaries in the target worker runtime",
-        "Implement overlap transitions and explicit project-duration/trailing-gap semantics in the EDL schema and renderer",
-        "Exercise end-to-end API upload → malware scan → render queue → worker adoption → review preview using real media",
-        "Enable and validate ClamAV database updater profile in target deployment before allowing workspace media uploads to render"
+        "Run end-to-end authenticated API upload → malware scan → render queue → worker adoption → review preview using production-like storage",
+        "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
+        "Implement EDL overlap transitions and explicit project-duration/trailing-gap semantics"
       ]
     },
     {
