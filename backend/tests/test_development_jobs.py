@@ -138,7 +138,13 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         page_one = self.store.list(limit=2, offset=0)
         page_two = self.store.list(limit=2, offset=2)
 
-        self.assertEqual([job["id"] for job in page_one], [first["id"], second["id"]])
+        expected_first_page = sorted(
+            [first, second], key=lambda job: (job["created_at"], job["id"])
+        )
+        self.assertEqual(
+            [job["id"] for job in page_one],
+            [job["id"] for job in expected_first_page],
+        )
         self.assertEqual([job["id"] for job in page_two], [third["id"]])
         self.assertEqual(self.store.count(), 3)
         self.assertEqual(self.store.count(statuses=["ready"]), 3)
