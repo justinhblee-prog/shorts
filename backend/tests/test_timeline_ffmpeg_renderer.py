@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from timeline_edl import validate_edl
 from timeline_ffmpeg_renderer import (
     RenderCancelled, TimelineFFmpegRenderer, TimelineRenderError,
     run_bounded_process,
@@ -64,11 +65,16 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
                 }],
             },
         }
+        self._rehash(self.payload)
+
+    @staticmethod
+    def _rehash(payload):
+        normalized = validate_edl(payload["edl"])
         canonical = json.dumps(
-            self.payload["edl"], ensure_ascii=False, sort_keys=True,
+            normalized, ensure_ascii=False, sort_keys=True,
             separators=(",", ":"), allow_nan=False,
         ).encode("utf-8")
-        self.payload["snapshot_sha256"] = hashlib.sha256(canonical).hexdigest()
+        payload["snapshot_sha256"] = hashlib.sha256(canonical).hexdigest()
 
     def tearDown(self):
         self.temp.cleanup()
@@ -103,6 +109,7 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
 
     def test_renders_video_only_when_no_audio_tracks(self):
         self.payload["edl"]["audio_tracks"] = []
+        self._rehash(self.payload)
         probe = {
             "duration_ms": 5000, "byte_size": 23,
             "video_streams": [{"width": 720, "height": 1280, "codec": "h264"}],
@@ -122,22 +129,26 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
             "id": "title1", "type": "title", "start_ms": 0,
             "end_ms": 5000, "text": "Not rendered yet",
         }
+        self._rehash(title)
         with self.assertRaisesRegex(TimelineRenderError, "title clips"):
             self.renderer(title, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
 
         gap = json.loads(json.dumps(self.payload))
         gap["edl"]["clips"][0]["start_ms"] = 100
         gap["edl"]["clips"][0]["end_ms"] = 5100
+        self._rehash(gap)
         with self.assertRaisesRegex(TimelineRenderError, "gaps or overlaps"):
             self.renderer(gap, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
 
         escaped = json.loads(json.dumps(self.payload))
         escaped["edl"]["clips"][0]["asset_id"] = "asset_escape"
+        self._rehash(escaped)
         with self.assertRaises(KeyError):
             self.renderer(escaped, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
 
         past_end = json.loads(json.dumps(self.payload))
         past_end["edl"]["audio_tracks"][0]["source_out_ms"] = 7000
+        self._rehash(past_end)
         with self.assertRaisesRegex(TimelineRenderError, "extends beyond"):
             self.renderer(past_end, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
 
