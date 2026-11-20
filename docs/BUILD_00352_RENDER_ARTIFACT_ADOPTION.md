@@ -172,3 +172,12 @@ real FFmpeg binary, validates the MP4 with ffprobe, checks audio/video streams,
 adopts the artifact under a live worker lease, and records a reviewer decision
 bound to the final artifact checksum. The workflow result is the validation
 gate; a source-level test or fake subprocess is not treated as equivalent.
+
+
+Latest Compose integration smoke validation completed successfully on the current
+implementation: the dedicated worker container started healthy, the real-media
+FFmpeg render produced a probed MP4 with video and audio streams, artifact
+adoption completed under the worker lease, the pending review item was visible,
+and an immutable artifact-hash-bound approval was recorded. This validates the
+small synthetic fixture in CI; it does not replace production media, ClamAV
+signature freshness, binary checksum pinning, or production resource-load tests.
