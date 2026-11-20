@@ -374,6 +374,44 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                                 ["backend/file.py"], True, "ci://run/stale")
         self.assertEqual(self.store.get(job["id"])["worker_id"], "worker-b")
 
+    def test_dependency_insert_racing_with_claim_cannot_lease_blocked_child(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+
+        parent = self.store.create("Active prerequisite", scope=["docs/parent.md"])
+        parent_claim = self.store.claim_ready("worker-parent")
+        self.assertEqual(parent_claim["id"], parent["id"])
+        child = self.store.create("Racing dependent", scope=["backend/child.py"])
+        barrier = Barrier(2)
+
+        def add_dependency():
+            barrier.wait()
+            try:
+                self.store.add_dependency(child["id"], parent["id"])
+                return "added"
+            except DevelopmentJobConflict:
+                return "conflict"
+
+        def claim_child():
+            barrier.wait()
+            return self.store.claim_ready("worker-child")
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            dependency_result = pool.submit(add_dependency)
+            claim_result = pool.submit(claim_child)
+            dependency_outcome = dependency_result.result()
+            claimed = claim_result.result()
+
+        persisted = self.store.get(child["id"])
+        if dependency_outcome == "added":
+            self.assertEqual(persisted["status"], "blocked")
+            self.assertEqual(persisted["dependencies"], [parent["id"]])
+            self.assertIsNone(claimed)
+        else:
+            self.assertEqual(persisted["status"], "leased")
+            self.assertEqual(persisted["dependencies"], [])
+            self.assertEqual(claimed["id"], child["id"])
+
     def test_parallel_workers_claim_distinct_jobs(self):
         from concurrent.futures import ThreadPoolExecutor
         jobs = [self.store.create("Job " + str(i), scope=["backend/module_" + str(i) + ".py"]) for i in range(4)]
