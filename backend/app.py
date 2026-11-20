@@ -1378,8 +1378,10 @@ def list_trends(region:str|None=None,source:str|None=None,q:str|None=None,limit:
 
 @app.post("/api/trends/{trend_id}/draft-production",status_code=201)
 def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
-                                x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.create")
+                                x_review_token:str|None=Header(default=None),
+                                x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.create")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
         trend=trend_store.get(trend_id)
         if trend is None:
@@ -1416,7 +1418,7 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
                 "published_at":trend.get("published_at"),"region":region,
             },
         }
-        submitted=submit_production(queue,production_store,brief)
+        submitted=submit_production(queue,production_store,brief,workspace_id=workspace_id)
         attribution = None
         if body.recommendation_run_id:
             attribution = recommendation_evaluation_store.link_production(
