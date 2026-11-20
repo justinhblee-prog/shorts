@@ -415,3 +415,10 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 - FLOW-UI identified duplicate page requests when a prerequisite or load-more control is clicked repeatedly before the response settles. Multiple requests shared the same offset and could cause a repeated page instead of forward progress.
 - Added a shared in-flight request promise and disabled pagination controls while loading. Concurrent actions reuse the current request; controls recover in `finally` after success or failure.
 - FLOW-QA now double-clicks a cross-page prerequisite against a delayed API response and asserts one request, correct disabled/re-enabled states, and parent focus. Static frontend assertions cover the guard. Exact-head CI is pending.
+
+## 17. Duplicate page-request race — exact-head validation — 2026-11-20
+
+- FLOW-UI fix and FLOW-QA regression passed at code head `cd15e38c2154e4c219e8d9083087d456fd026022` in [run 44658960036](https://github.com/justinhblee-prog/shorts/actions/runs/44658960036): 898 backend tests, frontend syntax, both Chromium suites, and artifact upload [14594781618](https://github.com/justinhblee-prog/shorts/actions/runs/44658960036/artifacts/14594781618).
+- The browser test double-clicks an out-of-page prerequisite against a delayed page response and proves only one API request is sent. It also verifies disabled/re-enabled controls and focus transfer to the parent job.
+- A malformed regex in the first test-harness iteration was corrected; the final exact-head workflow passed. The failure did not indicate an application regression.
+- Real Windows/Ollama/provider/production DB validation remains outside this hosted Chromium test scope.
