@@ -35,8 +35,12 @@ the stored checksum and size.
 
 Pass an initialized store as `artifact_store` to `TimelineRenderWorker`.
 With artifact adoption enabled, the renderer callback must return a mapping
-containing `staged_path`. Without a store, the existing injected-renderer
-review handoff remains available for compatibility.
+containing `staged_path`. Configure `ffprobe_path` on the store to enable bounded
+local ffprobe validation; validated duration, dimensions and audio stream count
+are persisted with the artifact. Without a configured binary, the worker still
+checks path, size, suffix and checksum but does not claim media-stream validity.
+Without a store, the existing injected-renderer review handoff remains available
+for compatibility.
 
 ## Remaining production gates
 
@@ -46,5 +50,6 @@ review handoff remains available for compatibility.
   with CPU, memory, disk, network and process-count limits.
 - Run real-media integration and crash/lease-loss tests on the target runtime.
 - Add authenticated upload/render/review APIs and retention cleanup.
-- This implementation has not been validated against a real FFmpeg binary or
-  production filesystem isolation. CI tests use generated fixture bytes.
+- CI tests use generated fixture bytes and a mocked ffprobe process. The actual
+  ffprobe binary, real FFmpeg rendering and production filesystem isolation
+  still require target-runtime validation.
