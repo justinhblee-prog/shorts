@@ -24,7 +24,7 @@ gh auth status
 # Preview eligible tasks without changing the repository
 .\scripts\start-devflow-autopilot.ps1 -Plan
 
-# Execute up to three eligible tasks in sequence
+# Execute up to three independent eligible tasks concurrently
 .\scripts\start-devflow-autopilot.ps1 -Run -MaxTasks 3
 ```
 
@@ -40,8 +40,12 @@ You can select one task with `-Task BUILD-xxxxx` or override the base branch wit
 6. Run `scripts/devflow.py validate`, block likely secret files, run staged diff checks, commit, push, and create a Draft PR.
 7. Leave dependency completion under human control. A dependent task cannot run until its prerequisite is reviewed, merged, and explicitly marked `completed` in `.devflow/tasks.json`.
 
-The current implementation chains task runs sequentially. `max_parallel_worktrees` is a safety cap on existing worktrees, not a promise that multiple coding agents run concurrently. True concurrent agent scheduling is not implemented yet. `blocked_external` tasks are never auto-run. Merge, deployment, publishing, credential changes, and external provider spend are never automated.
+The `-Run` path now dispatches independent eligible tasks to separate PowerShell worker processes, each with its own Git worktree and an exclusive per-task lease file. The scheduler caps active workers at the manifest `max_parallel_worktrees` value (maximum 3), records durable task state under the sibling `*-multiflow-state` directory, enforces an agent timeout, and retains failed worktrees for inspection. The lease is held with an OS-exclusive file handle so a second worker cannot acquire the same task while the first worker is alive. Dependencies still require an explicitly completed prerequisite; dependent work is not optimistically started. The current manifest has no runnable independent tasks, so parallel execution has not yet been exercised against real agent work. `blocked_external` tasks are never auto-run. Merge, deployment, publishing, credential changes, and external provider spend are never automated.
 
 ## Empty queue behavior
 
 If the planner reports `No eligible tasks without an existing open PR`, it found no task that simultaneously passes the dependency/status gates and the open-PR duplicate check. `blocked_external` tasks remain excluded until their external prerequisites are explicitly resolved; do not change their status merely to force execution.
+
+## Parallel worker state and recovery
+
+The runner stores `state.json`, per-task lease files, and task prompt snapshots in a sibling `*-multiflow-state` directory. A worker owns an exclusive lease for its task until it exits. Worker failures and timeouts are recorded; their worktrees are deliberately retained for inspection. A task recorded as `queued`, `running`, or `draft_pr_created` is not automatically dispatched again. Review the state file and the corresponding worktree before manually recovering a failed task. The scheduler does not mark manifest tasks completed, merge PRs, or deploy.
