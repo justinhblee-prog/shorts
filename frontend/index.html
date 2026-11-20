@@ -124,6 +124,11 @@
                   <button type="button" class="button button-quiet button-small" id="renderJobClear">작업 표시 지우기</button>
                 </div>
               </div>
+              <div class="render-history">
+                <div class="render-history-heading"><strong>최근 렌더 작업</strong><button type="button" class="button button-quiet button-small" id="renderJobHistoryRefresh">기록 새로고침</button></div>
+                <div id="renderJobHistoryList" class="render-history-list" role="list" aria-live="polite"><p class="render-history-empty">워크스페이스를 선택한 뒤 렌더 작업 기록을 불러오세요.</p></div>
+                <button type="button" class="button button-outline button-small" id="renderJobHistoryMore" hidden>이전 작업 더 보기</button>
+              </div>
               <p id="renderJobMeta" class="render-job-meta">MP4 클립을 추가하고 워크스페이스를 선택한 뒤 렌더 요청을 등록하세요.</p>
               <div class="render-review-grid">
                 <div class="render-artifact-stage">
