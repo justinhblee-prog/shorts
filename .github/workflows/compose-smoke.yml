@@ -70,7 +70,7 @@ jobs:
           ready=0
           for attempt in $(seq 1 600); do
             if docker compose exec -T api sh -c 'for f in "$NEXUS_CLAMAV_DATABASE_DIR"/*.cvd "$NEXUS_CLAMAV_DATABASE_DIR"/*.cld; do [ -s "$f" ] && exit 0; done; exit 1' \
-              && docker compose exec -T api sh -c 'clamscan --database="$NEXUS_CLAMAV_DATABASE_DIR" --no-summary /dev/null >/dev/null'; then
+              && docker compose exec -T api sh -c 'tmp="$(mktemp)"; trap '\''rm -f "$tmp"'\'' EXIT; printf "ClamAV readiness probe\\n" > "$tmp"; clamscan --database="$NEXUS_CLAMAV_DATABASE_DIR" --no-summary "$tmp" >/dev/null'; then
               ready=1
               break
             fi
