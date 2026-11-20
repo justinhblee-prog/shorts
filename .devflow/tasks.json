@@ -140,7 +140,7 @@
         "Do not modify .devflow/tasks.json or unrelated files"
       ],
       "external_gates": [],
-      "notes": "Retry with repeated directory discovery blocked and list_files example narrowed to scripts/. The model previously alternated list_files/read_file without editing; duplicate calls now return actionable feedback instead of repeating indefinitely. Draft PR only."
+      "notes": "Retry using a scoped one-shot JSON patch fallback when the local model repeats read-only tool discovery without writing. The fallback receives only task-scope file context and validates every output path before writing. Draft PR only."
     }
   ]
 }
