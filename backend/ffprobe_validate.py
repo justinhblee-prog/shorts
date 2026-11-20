@@ -44,7 +44,7 @@ def probe_media(path, ffprobe_path, *, max_duration_ms=3_600_000,
         raise FFprobeValidationError("media file size is outside configured limits")
 
     argv = [
-        str(binary), "-v", "error",
+        str(binary), "-protocol_whitelist", "file,pipe", "-v", "error",
         "-show_entries",
         "format=duration,size:stream=codec_type,codec_name,width,height,sample_rate,channels",
         "-of", "json", str(media),
