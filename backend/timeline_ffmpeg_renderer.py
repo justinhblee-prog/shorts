@@ -1,9 +1,10 @@
 """Lease-cancellable, argv-only EDL v1 renderer for private local media assets.
 
-The renderer supports sequential video clips and optional bounded audio tracks.
-Title overlays and transitions are rejected until their visual semantics and
-font policy are specified. All source media must be resolved by a trusted
-workspace asset callback; arbitrary paths and URLs never come from the EDL.
+The renderer supports contiguous video clips, bounded timed title overlays,
+and optional bounded audio tracks. Transitions, gaps and overlaps are rejected.
+Title text is staged as UTF-8 text files and rendered with a trusted configured
+font. All source media is resolved by a trusted workspace asset callback;
+arbitrary paths and URLs never come from the EDL.
 """
 from __future__ import annotations
 
