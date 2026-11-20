@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from queue_store import JobQueue
-from timeline_edl import SCHEMA
+from timeline_edl import SCHEMA, EDLValidationError
 from workspace_store import WorkspaceStore
 from workspace_asset_store import WorkspaceAssetStore
 from timeline_render_store import TimelineRenderStore, SnapshotConflict, SnapshotError
