@@ -1279,10 +1279,14 @@ def publishing_analytics_history(
 
 
 @app.get("/api/tiktok/metrics")
-def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
+def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None),
+                   x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     bounded=max(1,min(limit,200))
-    items=tiktok_metrics_store.recent_metrics(tiktok_publish_store,bounded)
+    items=tiktok_metrics_store.recent_metrics(
+        tiktok_publish_store,bounded,workspace_id=workspace_id
+    )
     return {"items":items,"count":len(items),"limit":bounded,
             "source":"TikTok Display API v2","read_only":True,"ranking_score_adjustment":0}
 
