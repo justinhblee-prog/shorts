@@ -21,10 +21,17 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
             mock.patch.object(app_module.development_job_store, "count", return_value=1) as counted,
             mock.patch.object(app_module.development_job_store, "summary",
                               return_value={"total": 1, "by_status": {"running": 1}}),
+            mock.patch.object(app_module.development_job_store, "snapshot_created_at",
+                              return_value="2026-11-20T00:00:00+00:00") as snapshot,
         ):
-            result = app_module.list_development_jobs(limit=100, offset=0, x_review_token="monitor-token")
-        listed.assert_called_once_with(statuses=None, limit=100, offset=0)
-        counted.assert_called_once_with(statuses=None)
+            result = app_module.list_development_jobs(
+                limit=100, offset=0, created_before=None, x_review_token="monitor-token"
+            )
+        snapshot.assert_called_once_with()
+        listed.assert_called_once_with(
+            statuses=None, limit=100, offset=0, created_before="2026-11-20T00:00:00+00:00"
+        )
+        counted.assert_called_once_with(statuses=None, created_before="2026-11-20T00:00:00+00:00")
         auth.assert_called_once_with("monitor-token", "operations.read")
         serialized = json.dumps(result)
         self.assertNotIn("private-lease-token", serialized)
@@ -36,6 +43,7 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["pagination"], {
             "limit": 100, "offset": 0, "total": 1,
             "has_more": False, "next_offset": None,
+            "snapshot_at": "2026-11-20T00:00:00+00:00",
         })
 
     def test_list_endpoint_passes_status_filter_and_offset(self):
@@ -46,12 +54,17 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
             mock.patch.object(app_module.development_job_store, "summary", return_value={}),
         ):
             result = app_module.list_development_jobs(
-                status="ready,blocked", limit=80, offset=160, x_review_token="monitor-token"
+                status="ready,blocked", limit=80, offset=160,
+                created_before="2026-11-20T00:00:00+00:00", x_review_token="monitor-token"
             )
-        listed.assert_called_once_with(statuses=["ready", "blocked"], limit=80, offset=160)
+        listed.assert_called_once_with(
+            statuses=["ready", "blocked"], limit=80, offset=160,
+            created_before="2026-11-20T00:00:00+00:00",
+        )
         self.assertEqual(result["pagination"], {
             "limit": 80, "offset": 160, "total": 240,
             "has_more": True, "next_offset": 161,
+            "snapshot_at": "2026-11-20T00:00:00+00:00",
         })
 
     def test_event_endpoint_omits_raw_error_details(self):
