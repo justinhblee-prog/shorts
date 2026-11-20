@@ -322,3 +322,10 @@
 - A browser regression exposed that the shared .button display rule overrode the browser's default [hidden] rule. Added an explicit #loadMoreDevelopmentJobs[hidden] display:none rule. The earlier failing runs are retained as evidence of the defect and its diagnosis.
 - Exact aggregate head c59beaa1eb69b599b198d7a9fce3735a0235485d passed all 17 steps in [PR run 44657078245](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245): 898 backend tests, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation/cross-page pagination Chromium smoke, and artifact upload [14594141209](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245/artifacts/14594141209).
 - FLOW-CORE/FLOW-UI/FLOW-QA pagination gate: PASS in hosted SQLite + Chromium fixtures. New jobs inserted ahead of the current offset are intentionally picked up by refresh, not by an in-flight page sequence. PR #415 remains Draft/open/unmerged.
+
+## 40. Development-job pagination request serialization — 2026-11-20
+
+- FLOW-UI/QA code review found a duplicate-request race: rapid clicks on a cross-page prerequisite control could issue multiple requests for the same offset. Since each response advanced the offset to the same next page, the user could see the same page repeatedly and lose pagination progress.
+- Added one shared in-flight promise for all development-job page loads. Concurrent refresh/load-more/prerequisite actions now await the same request. Refresh and load-more controls are disabled while the request is active and restored in `finally`, including failure paths.
+- Chromium recovery smoke now deliberately double-clicks a prerequisite while the next-page request is delayed, asserts exactly one API request, confirms controls are disabled in flight and re-enabled afterward, and verifies the target parent is focused.
+- Added static frontend assertions for the in-flight promise guard and disabled-control lifecycle. Exact-head CI pending; do not report this increment validated until both browser suites and backend validation pass.
