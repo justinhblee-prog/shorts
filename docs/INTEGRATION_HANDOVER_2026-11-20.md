@@ -179,3 +179,10 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - Fixed a race in `loadDevelopmentJobs`: rapid repeated clicks could launch duplicate requests with the same offset. Concurrent callers now share one in-flight promise; refresh and load-more controls are disabled until it settles and restored in `finally`.
 - The Chromium recovery smoke injects a 250ms delay on the next-page API and double-clicks the out-of-page prerequisite control. It asserts exactly one request, disabled pagination controls during the request, re-enabled controls afterward, and successful parent focus.
 - Static frontend tests assert the promise guard and control lifecycle. Validation is pending on the exact resulting commit; earlier CI evidence does not cover this change.
+
+## 20. Duplicate pagination request guard — exact-head validation — 2026-11-20
+
+- Exact application/test head `cd15e38c2154e4c219e8d9083087d456fd026022` passed [run 44658960036](https://github.com/justinhblee-prog/shorts/actions/runs/44658960036): 898 backend tests, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency/pagination Chromium smoke, and artifact upload [14594781618](https://github.com/justinhblee-prog/shorts/actions/runs/44658960036/artifacts/14594781618).
+- The regression test deliberately delays the next-page API and double-clicks the same cross-page prerequisite. It verifies one request, disabled controls during loading, control recovery afterward, and focus on the discovered parent.
+- An initial run exposed an incorrectly escaped Playwright regex in the new test harness; corrected it and reran the complete workflow successfully. The failure was in the test matcher, not application code.
+- The docs update after this validated code head is documentation-only; production multi-process SQLite, Windows runner isolation, LocalAppData persistence, live Ollama, and provider behavior remain NOT VERIFIED.
