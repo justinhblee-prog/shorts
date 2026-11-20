@@ -97,7 +97,9 @@ def main():
         assert render_worker.run_once() is True
 
         completed = queue.get(job["id"], workspace_id="compose-render-smoke")
-        assert completed["status"] == "review_pending", completed["status"]
+        assert completed["status"] == "review_pending", (
+            completed["status"], completed.get("error_code"), completed.get("error_message")
+        )
         output = output_store.get_reviewable(job["id"], "compose-render-smoke")
         assert output["path"].is_file()
         assert output["review_status"] == "pending"
