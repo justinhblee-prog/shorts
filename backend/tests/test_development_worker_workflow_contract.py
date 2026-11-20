@@ -13,13 +13,13 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
 
     def test_global_permissions_are_read_only_by_default(self):
         top_level = self.source.split("jobs:", 1)[0]
-        self.assertIn("permissions:\\n  contents: read", top_level)
+        self.assertIn("permissions:\n  contents: read", top_level)
         self.assertNotIn("pull-requests: write", top_level)
         self.assertNotIn("actions: write", top_level)
 
     def test_recovery_is_a_separate_read_only_job(self):
         recovery = self.source.split("  recover-reviews:", 1)[1].split("  development-cycle:", 1)[0]
-        permissions = recovery.split("    steps:", 1)[0]
+        permissions = recovery.split("    permissions:", 1)[1].split("    steps:", 1)[0]
         self.assertIn("if: github.event_name == 'workflow_dispatch' && inputs.mode == 'recover'", recovery)
         self.assertIn("contents: read", permissions)
         self.assertIn("pull-requests: read", permissions)
@@ -41,7 +41,7 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         recovery = self.source.split("  recover-reviews:", 1)[1].split("  development-cycle:", 1)[0]
         development = self.source.split("  development-cycle:", 1)[1]
         for section in (recovery, development):
-            self.assertIn('"NexusStudioPro\\\\shorts"', section)
+            self.assertIn('"NexusStudioPro\\shorts"', section)
             self.assertIn('"development.sqlite3"', section)
             self.assertIn("NEXUS_DEVELOPMENT_DB=", section)
             self.assertIn("outside GITHUB_WORKSPACE", section)
@@ -84,7 +84,7 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         backend_script = development[backend:aider]
         aider_script = development[aider:execute]
         for script in (backend_script, aider_script):
-            self.assertIn('"NexusStudioPro\\\\tooling"', script)
+            self.assertIn('"NexusStudioPro\\tooling"', script)
             self.assertIn("GetFullPath($env:GITHUB_WORKSPACE)", script)
             self.assertIn("$toolRootFull.StartsWith($workspace", script)
             self.assertIn("Persistent runner tooling must be outside GITHUB_WORKSPACE", script)
