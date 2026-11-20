@@ -102,13 +102,33 @@ async function waitForServer() {
     assert.equal(await page.locator(".main-nav a").count(), 9);
     assert.equal(await page.locator(".main-nav .nav-settings").count(), 1);
     assert.equal(await page.locator("#timelineEditor").count(), 1, "local timeline editor missing");
-    await page.locator("#timelineTitleInput").fill("Browser smoke title");
+    await page.locator("#timelineTitleInput").fill("First title");
     await page.locator("#timelineAddTitle").click();
-    assert.equal(await page.locator(".timeline-clip").count(), 1, "timeline title clip was not added");
+    await page.locator("#timelineTitleInput").fill("Second title");
+    await page.locator("#timelineAddTitle").click();
+    assert.equal(await page.locator(".timeline-clip").count(), 2, "timeline title clips were not added");
     assert.equal(await page.locator("#timelineInspector").isVisible(), true);
-    await page.locator("#timelineMoveDown").click();
+    await page.locator(".timeline-clip-select").nth(1).click();
+    await page.locator("#timelineMoveUp").click();
+    assert.match(await page.locator(".timeline-clip-select").first().textContent(), /Second title/, "timeline reorder failed");
+    await page.locator("#timelineIn").fill("1");
+    await page.locator("#timelineOut").fill("4");
+    await page.locator("#timelineApplyTrim").click();
+    assert.match(await page.locator(".timeline-clip").first().textContent(), /1\.0s — 4\.0s/, "timeline trim values were not applied");
+    const [timelineDownload] = await Promise.all([
+      page.waitForEvent("download"),
+      page.locator("#timelineExport").click(),
+    ]);
+    const timelinePath = await timelineDownload.path();
+    const editDecisionList = JSON.parse(fs.readFileSync(timelinePath, "utf8"));
+    assert.equal(editDecisionList.format, "nexus-edit-decision-list");
+    assert.equal(editDecisionList.rendered, false);
+    assert.equal(editDecisionList.clips.length, 2);
+    assert.equal(editDecisionList.clips[0].text, "Second title");
     await page.locator("#timelineRemove").click();
-    assert.equal(await page.locator(".timeline-clip").count(), 0, "timeline clip removal failed");
+    assert.equal(await page.locator(".timeline-clip").count(), 1, "timeline clip removal failed");
+    await page.locator("#timelineRemove").click();
+    assert.equal(await page.locator(".timeline-clip").count(), 0, "timeline empty state recovery failed");
     const destinations = ["home","trendList","trendRecommendations","productionForm","productionPipeline","reviewList","publishingOverview","analyticsHistory","queueDetails"];
     const navLinks = page.locator(".main-nav a");
     for (let index = 0; index < destinations.length; index++) {
