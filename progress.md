@@ -265,3 +265,11 @@
 - Removed only the duplicate declaration, retaining the accumulated collection and worker list. Fix commit: `32236825b4b2e15ed4dba4a5d26d0692cad0d9d8`.
 - Exact-head CI for the fix has not yet been returned by the PR-triggered run lookup. Do not mark this fix PASS until scripts/validate.sh, frontend syntax, both Chromium suites, and artifact upload complete on the exact head.
 - PR #415 remains Draft/open/unmerged. Its mergeability flag has fluctuated during rapid branch updates; inspect GitHub's current mergeability and checks after the branch settles. No merge/deployment/default-branch change.
+
+## 34. Pagination API security test direct-call correction — 2026-11-20
+
+- Exact failing aggregate CI run [44655875765](https://github.com/justinhblee-prog/shorts/actions/runs/44655875765) executed 898 tests and found one error in `test_list_endpoint_requires_operations_read_and_redacts_lease_and_error`.
+- Root cause was test invocation, not the HTTP endpoint path: the test called the FastAPI handler as a plain Python function without supplying `limit` and `offset`; FastAPI's `Query(default=...)` marker objects are passed through in direct calls, so pagination arithmetic received a `Query` object.
+- Updated the direct-call test to pass the intended HTTP defaults explicitly (`limit=100, offset=0`). Existing explicit pagination test remains unchanged.
+- Fix commit: `930c978aeefac5edc4cfa52e40df9e74f63bccdb`.
+- The prior syntax-fix commit `3223682` now has no duplicate-declaration defect; a separate earlier CI run failed on this test invocation. Exact-head validation for `930c978` is pending/not yet returned. Do not mark PASS until the full suite and browser smoke complete.
