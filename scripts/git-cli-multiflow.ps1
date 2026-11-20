@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param([switch]$Plan,[switch]$Run,[string]$Task,[string]$Base,[string]$AgentCommand=$env:DEVFLOW_AGENT_COMMAND,[string]$AgentArgsJson=$env:DEVFLOW_AGENT_ARGS_JSON,[ValidateRange(1,20)][int]$MaxTasks=3,[switch]$IncludeInProgress)
 $ErrorActionPreference="Stop"
-function Git($repo,[string[]]$args){ & git -C $repo @args; if($LASTEXITCODE -ne 0){throw "git failed: $($args -join ' ' )"} }
+function Git($repo,[string[]]$GitArgs){ & git -C $repo @GitArgs; if($LASTEXITCODE -ne 0){throw "git failed: $($args -join ' ' )"} }
 function Root { $r=& git rev-parse --show-toplevel 2>$null; if($LASTEXITCODE -ne 0 -or -not $r){throw "Run inside a Git checkout."}; $r.Trim() }
 function Eligible($m,$allow) {
  $states=@("ready"); if($allow){$states+= "in_progress"}
@@ -43,6 +43,7 @@ foreach($t in $tasks){
  Set-Content -LiteralPath $prompt -Value ($body -join [Environment]::NewLine) -Encoding utf8
  $expanded=foreach($a in $agentArgs){$a.Replace("{prompt_file}",$prompt).Replace("{task_id}",$id).Replace("{worktree}",$wt)}
  RunAgent $AgentCommand @($expanded) $wt
+ Remove-Item -LiteralPath $prompt -Force
  if(-not(& git -C $wt status --porcelain)){throw "Agent made no changes; worktree retained: $wt"}
  & python (Join-Path $wt "scripts/devflow.py") validate;if($LASTEXITCODE -ne 0){throw "Validation failed; worktree retained: $wt"}
  foreach($n in @(".env",".env.local","credentials.json","secrets.json")){if(Get-ChildItem $wt -Force -Recurse -File -Filter $n -ErrorAction SilentlyContinue|Where-Object{$_.FullName -notmatch '[\\/](\.git|node_modules|\.venv)[\\/]'}){throw "Potential secret file blocks commit: $n"}}
