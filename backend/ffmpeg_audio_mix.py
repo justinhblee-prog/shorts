@@ -97,7 +97,7 @@ def build_audio_mix_argv(tracks, output_path, *, ffmpeg_path="ffmpeg",
     )
     argv.extend([
         "-filter_complex", ";".join(filters), "-map", "[mixed]",
-        "-t", f"{total_ms / 1000:.3f}", "-ar", str(sample_rate),
+        "-t", f"{total_ms / 1000:.3f}", "-ar", str(sample_rate), "-threads", "2",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
         str(output),
     ])
