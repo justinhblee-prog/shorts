@@ -413,14 +413,24 @@ class DevelopmentJobStore:
                 attempts = connection.execute(
                     "SELECT attempts,max_attempts FROM development_jobs WHERE id=?", (item["id"],)
                 ).fetchone()
-                next_status = "quarantined" if attempts["attempts"] >= attempts["max_attempts"] else "ready"
+                unresolved = connection.execute(
+                    """SELECT COUNT(*) AS total FROM development_job_dependencies d
+                       JOIN development_jobs parent ON parent.id=d.depends_on_id
+                       WHERE d.job_id=? AND parent.status<>'completed'""",
+                    (item["id"],),
+                ).fetchone()["total"]
+                next_status = (
+                    "quarantined" if attempts["attempts"] >= attempts["max_attempts"]
+                    else ("blocked" if unresolved else "ready")
+                )
                 connection.execute(
                     """UPDATE development_jobs SET status=?,worker_id=NULL,lease_token=NULL,
                        lease_expires_at=NULL,updated_at=? WHERE id=?""",
                     (next_status, timestamp, item["id"]),
                 )
                 self._event(connection, item["id"], "lease_expired", item["status"], next_status,
-                            "system", {"reason": "worker lease expired"}, timestamp)
+                            "system", {"reason": "worker lease expired",
+                                       "unresolved_dependencies": unresolved}, timestamp)
             # Promote due retries individually so every durable state transition is audited.
             due_retries = connection.execute(
                 """SELECT id,attempts,max_attempts FROM development_jobs
@@ -428,9 +438,15 @@ class DevelopmentJobStore:
                 (timestamp,),
             ).fetchall()
             for retry in due_retries:
+                unresolved = connection.execute(
+                    """SELECT COUNT(*) AS total FROM development_job_dependencies d
+                       JOIN development_jobs parent ON parent.id=d.depends_on_id
+                       WHERE d.job_id=? AND parent.status<>'completed'""",
+                    (retry["id"],),
+                ).fetchone()["total"]
                 next_status = (
-                    "quarantined"
-                    if retry["attempts"] >= retry["max_attempts"] else "ready"
+                    "quarantined" if retry["attempts"] >= retry["max_attempts"]
+                    else ("blocked" if unresolved else "ready")
                 )
                 cur = connection.execute(
                     """UPDATE development_jobs SET status=?,retry_after=NULL,updated_at=?
@@ -442,7 +458,8 @@ class DevelopmentJobStore:
                         connection, retry["id"], "retry_due",
                         "retry_wait", next_status, "system",
                         {"attempts": retry["attempts"],
-                         "max_attempts": retry["max_attempts"]}, timestamp,
+                         "max_attempts": retry["max_attempts"],
+                         "unresolved_dependencies": unresolved}, timestamp,
                     )
             # Unblock only jobs with at least one prerequisite, after every prerequisite completes.
             unblocked = connection.execute(
