@@ -219,3 +219,11 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Global idempotency keys fail closed when reused from another workspace, preventing a duplicate request from returning another workspace's job. The existing global uniqueness constraint remains pending a reviewed migration to composite workspace/key uniqueness.
 - Regression tests cover queue-to-claim ownership continuity, cross-workspace idempotency rejection and invalid workspace values.
 - This does **not** yet provide tenant API authorization, workspace-filtered claims, workspace-scoped job events, production records, provider attempts, review or publishing data. No customer identity is inferred from operator credentials or request-supplied IDs.
+
+
+## Queue and production tenant-scope follow-up — 2026-11-20
+
+- Queue claim/get/events now support explicit workspace filtering at the SQL boundary; mismatched reads return the same not-found response as unknown IDs. Legacy unscoped calls remain for operator compatibility and are not customer authorization.
+- Production runs persist nullable `workspace_id`, inherited from the matching durable production queue row at creation. Mismatched ownership on duplicate create is rejected.
+- Regression coverage added for workspace-filtered claim, cross-workspace reads/events, invalid scope, production ownership inheritance and mismatch rejection.
+- Authenticated workspace context is still not wired to API/worker routes. Do not treat request-provided workspace IDs as trusted identity; provider attempts, reconciliation and event ownership still need complete parent-scope enforcement.
