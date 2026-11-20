@@ -67,7 +67,10 @@
         ? "선택한 워크스페이스의 데이터만 표시합니다."
         : "사용 가능한 워크스페이스가 없습니다.";
     }catch(error){
-      selector.innerHTML='<option value="">워크스페이스 권한 확인 필요</option>';
+      activeWorkspaceId="";
+      localStorage.removeItem("nexusWorkspaceId");
+      selector.innerHTML='<option value="">기본 공간 · 미지정 데이터</option>';
+      selector.value="";
       selector.disabled=true;
       selector.title=error.message;
     }
