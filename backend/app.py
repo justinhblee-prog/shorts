@@ -123,6 +123,8 @@ asset_store=WorkspaceAssetStore(
     workspace_store,
     max_asset_bytes=int(os.getenv("NEXUS_MAX_ASSET_BYTES","500000000")),
 )
+workspace_asset_store = asset_store
+
 timeline_render_store=TimelineRenderStore(
     os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"), asset_store, workspace_store, queue
 )
@@ -595,14 +597,14 @@ def _scan_workspace_asset(workspace_id, principal_id, asset_id):
             max_bytes=workspace_asset_store.max_asset_bytes
         )
         scanner.scan(path)
-    except MediaScanError as exc:
-        if "detected an infected artifact" in str(exc):
-            workspace_asset_store.mark_scan_result(
-                workspace_id, principal_id, asset_id, False,
-                scanner_verified=True,
-            )
-            return {"scan_status": "rejected", "scanner_status": "infected",
-                    "media_metadata": None}
+    except MediaInfectedError:
+        workspace_asset_store.mark_scan_result(
+            workspace_id, principal_id, asset_id, False,
+            scanner_verified=True,
+        )
+        return {"scan_status": "rejected", "scanner_status": "infected",
+                "media_metadata": None}
+    except MediaScanError:
         return {"scan_status": "pending", "scanner_status": "unavailable",
                 "media_metadata": None}
     except ValueError:
