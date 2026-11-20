@@ -7,7 +7,7 @@ param(
  [string]$Base,
  [string]$AgentCommand=$env:DEVFLOW_AGENT_COMMAND,
  [string]$AgentArgsJson=$env:DEVFLOW_AGENT_ARGS_JSON,
- [ValidateRange(1,20)][int]$MaxTasks=3,
+ [ValidateRange(1,20)][int]$MaxTasks=3
 )
 $ErrorActionPreference="Stop"
 if($Plan -or $Run){
