@@ -48,6 +48,7 @@ class TimelineRenderWorker:
 
         heartbeat = threading.Thread(target=beat, daemon=True)
         heartbeat.start()
+        result = None
         try:
             result = self.renderer(job["payload"], stop_event=lost)
             if lost.is_set():
@@ -71,6 +72,17 @@ class TimelineRenderWorker:
                 )
             return True
         except Exception as exc:
+            if self.artifact_store is not None and isinstance(result, dict):
+                staged = result.get("staged_path")
+                if isinstance(staged, str):
+                    try:
+                        candidate = __import__("pathlib").Path(staged)
+                        candidate.resolve(strict=False).relative_to(
+                            self.artifact_store.staging_root.resolve(strict=True)
+                        )
+                        candidate.unlink(missing_ok=True)
+                    except (OSError, ValueError):
+                        pass
             if not lost.is_set():
                 try:
                     self.queue.fail(
