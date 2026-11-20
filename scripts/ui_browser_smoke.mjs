@@ -43,7 +43,7 @@ async function waitForServer() {
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
     const remoteFontRequests = [];
-    page.on("request", request => { if (/fonts\\.(googleapis|gstatic)\\.com/i.test(request.url())) remoteFontRequests.push(request.url()); });
+    page.on("request", request => { if (/fonts\.(googleapis|gstatic)\.com/i.test(request.url())) remoteFontRequests.push(request.url()); });
     await page.route("https://fonts.googleapis.com/**", route =>
       route.fulfill({ status: 200, contentType: "text/css", body: "" })
     );
