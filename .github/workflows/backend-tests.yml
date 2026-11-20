@@ -23,18 +23,13 @@ jobs:
           python-version: "3.11"
       - run: pip install -r backend/requirements.txt
       - run: sh scripts/validate.sh
-      - name: Install CJK fallback fonts for readable browser artifacts
+      - name: Verify Korean font fallback without package-manager dependency
         run: |
-          if fc-list :lang=ko 2>/dev/null | grep -qiE 'Noto Sans CJK|Noto Sans KR|Noto Serif CJK'; then
-            echo "Korean-capable Noto font is already installed."
-            exit 0
+          if command -v fc-list >/dev/null 2>&1 && fc-list :lang=ko 2>/dev/null | grep -qiE 'Noto Sans CJK|Noto Sans KR|Noto Serif CJK|Nanum|UnDotum'; then
+            echo "Korean-capable system font is available."
+          else
+            echo "::notice::No known Korean fontconfig family detected; Chromium will use the OS/browser fallback stack and the browser smoke will validate rendered glyphs."
           fi
-          if ! apt-cache show fonts-noto-cjk >/dev/null 2>&1; then
-            echo "CJK font package metadata unavailable; continuing with runner font fallback."
-            exit 0
-          fi
-          timeout 120s sudo apt-get install --yes -qq -o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 fonts-noto-cjk || echo "::warning::Could not install Noto CJK within 120 seconds; browser uses configured Korean fallback stack."
-          fc-cache --force
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
