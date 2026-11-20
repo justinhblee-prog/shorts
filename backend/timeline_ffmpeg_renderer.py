@@ -107,10 +107,9 @@ def workspace_asset_resolver(asset_store):
 def _filter_path(value):
     """Escape a trusted local path for an FFmpeg filter option."""
     raw = Path(value).resolve(strict=True).as_posix()
-    for char in ("\\\\", "'", ":", ",", "[", "]", ";"):
-        raw = raw.replace(char, "\\\\" + char)
+    for char in ("\\", "'", ":", ",", "[", "]", ";"):
+        raw = raw.replace(char, "\\" + char)
     return "'" + raw + "'"
-
 
 class TimelineFFmpegRenderer:
     def __init__(self, staging_root, asset_resolver, ffmpeg_path, ffprobe_path,
