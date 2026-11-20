@@ -206,6 +206,41 @@ class RenderOutputStore:
             "created_at": created_at,
         }
 
+    def discard_if_stale(self, job_id, workspace_id, attempt, lease_token):
+        """Remove an adopted artifact only when its queue attempt is no longer reviewable."""
+        stale_path = None
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            job = connection.execute(
+                "SELECT status,attempt FROM pipeline_jobs WHERE id=? AND workspace_id=?",
+                (job_id,workspace_id),
+            ).fetchone()
+            output = connection.execute(
+                """SELECT relative_path,attempt,lease_token FROM render_outputs
+                   WHERE job_id=? AND workspace_id=?""",
+                (job_id,workspace_id),
+            ).fetchone()
+            if (
+                output is None or output["attempt"] != attempt
+                or output["lease_token"] != lease_token
+                or (job is not None and job["status"] == "review_pending" and job["attempt"] == attempt)
+            ):
+                return False
+            stale_path = output["relative_path"]
+            connection.execute(
+                "DELETE FROM render_outputs WHERE job_id=? AND workspace_id=? AND attempt=? AND lease_token=?",
+                (job_id,workspace_id,attempt,lease_token),
+            )
+        try:
+            candidate = self.media_root / stale_path
+            if not candidate.is_symlink():
+                resolved = candidate.resolve(strict=True)
+                resolved.relative_to(self.media_root)
+                resolved.unlink(missing_ok=True)
+        except (OSError, ValueError):
+            pass
+        return True
+
     def get_reviewable(self, job_id, workspace_id):
         if not isinstance(workspace_id, str) or not _WORKSPACE_ID.fullmatch(workspace_id):
             raise RenderOutputNotFound("Render output not found")
