@@ -68,7 +68,7 @@ def _run_bounded(argv: Sequence[str], *, timeout_seconds: int,
     if isinstance(max_output_bytes, bool) or not isinstance(max_output_bytes, int) or not 1024 <= max_output_bytes <= 2 * 1024**3:
         raise RenderExecutionError("render output limit must be between 1 KiB and 2 GiB")
     kwargs = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
-              "stderr": subprocess.PIPE, "shell": False}
+              "stderr": subprocess.DEVNULL, "shell": False}
     if os.name == "nt":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
@@ -85,7 +85,6 @@ def _run_bounded(argv: Sequence[str], *, timeout_seconds: int,
             if output_path.exists() and output_path.stat().st_size > max_output_bytes:
                 raise RenderExecutionError("FFmpeg render exceeded its output-size limit")
             time.sleep(0.05)
-        stderr = process.stderr.read(8192) if process.stderr else b""
         if process.returncode != 0:
             # Do not persist arbitrary FFmpeg stderr; it can contain source paths.
             raise RenderExecutionError(f"FFmpeg exited with status {process.returncode}")
@@ -98,8 +97,6 @@ def _run_bounded(argv: Sequence[str], *, timeout_seconds: int,
             _terminate_process(process)
         raise
     finally:
-        if process.stderr:
-            process.stderr.close()
 
 
 def _probe(ffprobe_path: str, media_path: Path, timeout_seconds: int) -> dict:
