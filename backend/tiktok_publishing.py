@@ -581,14 +581,27 @@ class TikTokPublishStore:
         """Return only published video identities owned by one workspace (NULL is legacy)."""
         bounded=max(1,min(int(limit),500))
         with self.db() as c:
-            rows=c.execute("""
-                SELECT p.job_id,p.video_id,p.status,p.privacy_level,p.updated_at
-                FROM tiktok_publications p
-                LEFT JOIN production_runs pr ON pr.job_id=p.job_id
-                WHERE p.status='publish_complete' AND p.video_id IS NOT NULL
-                  AND pr.workspace_id IS ?
-                ORDER BY p.updated_at DESC,p.job_id LIMIT ?
-            """,(workspace_id,bounded)).fetchall()
+            has_production=c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+            ).fetchone() is not None
+            if not has_production:
+                if workspace_id is not None:
+                    return []
+                rows=c.execute("""
+                    SELECT job_id,video_id,status,privacy_level,updated_at
+                    FROM tiktok_publications
+                    WHERE status='publish_complete' AND video_id IS NOT NULL
+                    ORDER BY updated_at DESC,job_id LIMIT ?
+                """,(bounded,)).fetchall()
+            else:
+                rows=c.execute("""
+                    SELECT p.job_id,p.video_id,p.status,p.privacy_level,p.updated_at
+                    FROM tiktok_publications p
+                    LEFT JOIN production_runs pr ON pr.job_id=p.job_id
+                    WHERE p.status='publish_complete' AND p.video_id IS NOT NULL
+                      AND pr.workspace_id IS ?
+                    ORDER BY p.updated_at DESC,p.job_id LIMIT ?
+                """,(workspace_id,bounded)).fetchall()
         return [dict(row) for row in rows]
 
     def list_recent(self, limit=100):
