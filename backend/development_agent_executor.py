@@ -290,6 +290,11 @@ class AiderDevelopmentExecutor:
             for current, directories, files in os.walk(scope_path, followlinks=False):
                 for name in (*directories, *files):
                     candidate = Path(current) / name
+                    relative = candidate.relative_to(self.repo_root)
+                    if self._is_protected_scope_path(relative):
+                        raise NonRetryableDevelopmentJobError(
+                            "job scope recursively includes a protected secret or data path"
+                        )
                     if candidate.is_symlink():
                         raise NonRetryableDevelopmentJobError(
                             "job scope contains a symbolic link; symlink-backed scopes are not allowed"
