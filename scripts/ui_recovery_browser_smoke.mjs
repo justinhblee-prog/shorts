@@ -57,6 +57,15 @@ async function waitForServer() {
     assert.match(dependencyBoard, /선행 작업/);
     assert.match(dependencyBoard, /Browser smoke UI dependency/);
     assert.match(dependencyBoard, /완료/);
+    const prerequisiteLink = page.locator('[data-focus-development-job="browser-smoke-ui-parent"]');
+    assert.equal(await prerequisiteLink.getAttribute("role"), "button",
+      "prerequisite navigation must be keyboard accessible");
+    await prerequisiteLink.click();
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-development-job")),
+      "browser-smoke-ui-parent", "prerequisite link must focus its persisted parent job");
+    await prerequisiteLink.press("Enter");
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-development-job")),
+      "browser-smoke-ui-parent", "Enter must activate prerequisite navigation");
     await page.setViewportSize({ width: 320, height: 900 });
     const mobileLayout = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
