@@ -25,6 +25,7 @@ def main() -> None:
     os.environ["NEXUS_REVIEW_TOKEN"] = "nexus-ui-browser-smoke-token-2026-11-19-32chars"
     os.environ["NEXUS_REVIEW_CREDENTIALS_JSON"] = ""
     os.environ["NEXUS_REVIEW_ROLE_MAP_JSON"] = ""
+    os.environ["NEXUS_WORKSPACE_AUTH_MODE"] = "sqlite"
     os.environ["NEXUS_MEDIA_ROOT"] = str(temp_root / "media")
     os.environ["NEXUS_UPLOAD_DIR"] = str(temp_root / "uploads")
     os.environ["PORT"] = str(args.port)
