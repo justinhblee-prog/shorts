@@ -110,7 +110,7 @@ class ApiRateLimitMiddleware:
         self.window_seconds = int(window_seconds)
         self.limits = {
             "default": 120, "auth": 20, "publish": 10,
-            "control": 30, "review": 60, "production": 30,
+            "control": 30, "review": 60, "production": 30, "media": 5,
         }
         if limits:
             self.limits.update({key: int(value) for key, value in limits.items()})
@@ -192,6 +192,11 @@ class ApiRateLimitMiddleware:
             return "review"
         if path.startswith("/api/production/"):
             return "production"
+        if path.startswith("/api/operator/workspaces/") and (
+            path.endswith("/assets") or path.endswith("/scan")
+            or path.endswith("/renders")
+        ):
+            return "media"
         if path.startswith("/api/"):
             return "default"
         return None
