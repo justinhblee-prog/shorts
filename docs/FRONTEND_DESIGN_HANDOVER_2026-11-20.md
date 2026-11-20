@@ -230,3 +230,6 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 
 
 - Follow-up: heartbeat, finish and fail queue transitions now accept an optional workspace scope and reject lease operations when the persisted job belongs to a different workspace. Regression tests verify rejected cross-workspace transitions do not change the running job, while the correct workspace can complete it.
+
+
+- Provider journal follow-up: provider execution attempts and provider reconciliation audit rows now persist nullable workspace ownership inherited from their `production_runs` parent. Existing rows are backfilled; insert triggers derive ownership from the parent rather than request data. `provider_attempts()` now returns the persisted workspace field. Regression tests cover tenant inheritance and preservation of legacy unassigned records.
