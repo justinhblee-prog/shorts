@@ -1768,6 +1768,8 @@ def claim_worker_v1(
 ):
     identity=require_worker_identity(authorization)
     generation=require_worker_generation(x_nexus_worker_generation)
+    if body.job_type not in (None,"short_video_production"):
+        raise HTTPException(422,"Worker credential is not authorized for this job type")
     for workspace_id in identity.workspace_ids:
         job=queue.claim(
             identity.worker_id,body.hostname,job_type=body.job_type,
