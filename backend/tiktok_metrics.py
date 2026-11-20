@@ -436,21 +436,26 @@ class TikTokMetricsStore:
             items.append(item)
         return items
 
-    def status(self, publication_store, freshness_seconds=43200):
-        # Aggregate coverage in SQLite instead of materializing every published
-        # identity and every snapshot timestamp in Python. Both stores share the
-        # same database file; keep the join and counts in one read transaction.
+    def status(self, publication_store, freshness_seconds=43200, workspace_id=None):
+        # Aggregate coverage in SQLite without materializing publication identities.
         cutoff = _stamp(_now() - timedelta(seconds=max(0, freshness_seconds)))
         with self.db() as c:
-            row = c.execute(
-                "SELECT * FROM tiktok_metrics_collection_state WHERE id=1"
-            ).fetchone()
-            coverage = c.execute("""
-              WITH eligible AS (
-                SELECT DISTINCT video_id
-                FROM tiktok_publications
-                WHERE status='publish_complete' AND video_id IS NOT NULL
-              ),
+            if workspace_id is None:
+                row = c.execute(
+                    "SELECT * FROM tiktok_metrics_collection_state WHERE id=1"
+                ).fetchone()
+                eligible_sql = """SELECT DISTINCT video_id FROM tiktok_publications
+                    WHERE status='publish_complete' AND video_id IS NOT NULL"""
+                params = (cutoff,)
+            else:
+                row = None
+                eligible_sql = """SELECT DISTINCT tp.video_id FROM tiktok_publications tp
+                    JOIN production_runs pr ON pr.job_id=tp.job_id
+                    WHERE tp.status='publish_complete' AND tp.video_id IS NOT NULL
+                      AND pr.workspace_id=?"""
+                params = (workspace_id, cutoff)
+            coverage = c.execute(f"""
+              WITH eligible AS ({eligible_sql}),
               latest AS (
                 SELECT s.video_id,MAX(s.collected_at) AS collected_at
                 FROM tiktok_video_metric_snapshots AS s
@@ -465,7 +470,7 @@ class TikTokMetricsStore:
                      MAX(latest.collected_at) AS latest_snapshot_at
               FROM eligible
               LEFT JOIN latest ON latest.video_id=eligible.video_id
-            """, (cutoff,)).fetchone()
+            """, params).fetchone()
         published = int(coverage["published_videos"] or 0)
         with_snapshot = int(coverage["with_snapshot"] or 0)
         stale = int(coverage["stale_snapshots"] or 0)
