@@ -56,10 +56,9 @@
         "Run pinned FFmpeg and ffprobe binaries in an isolated worker container with CPU, memory, disk, network and process-count quotas",
         "Add real-media integration tests and crash/lease-loss tests against the production runtime",
         "Expose authenticated upload, render submission and review APIs with production filesystem permissions and retention cleanup",
-        "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
         "Run the new renderer against pinned real FFmpeg/ffprobe binaries and representative real video/audio assets",
         "Add title overlays, transitions, subtitles and gap/overlap policies to the EDL renderer after their product semantics are specified",
-        "Wire and supervise the configured renderer/asset resolver in the production worker service with isolated resource quotas"
+        "Enable the render-worker profile only after API submission/auth integration and production container CPU, memory, disk, process-count and network isolation are ready"
       ]
     },
     {
