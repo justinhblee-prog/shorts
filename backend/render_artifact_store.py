@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -167,6 +168,43 @@ class RenderArtifactStore:
             "storage_key": storage_key,
             "status": "review_pending",
         }
+
+
+    def reconcile_orphaned_files(self, grace_seconds=3600):
+        """Remove unindexed generated files after a crash-safe grace period.
+
+        The queue write lock prevents racing an in-flight adoption. Only files
+        matching this store's generated key format are eligible for removal.
+        """
+        if (isinstance(grace_seconds, bool)
+                or not isinstance(grace_seconds, (int, float))
+                or grace_seconds < 0):
+            raise ValueError("grace_seconds must be a non-negative number")
+        cutoff = time.time() - grace_seconds
+        removed = 0
+        removed_bytes = 0
+        with self.queue.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            known = {
+                row["storage_key"]
+                for row in db.execute("SELECT storage_key FROM render_artifacts")
+            }
+            for path in self.artifact_root.iterdir():
+                if (path.is_symlink() or not path.is_file()
+                        or not re.fullmatch(r"rart_[a-f0-9]{32}\\.(mp4|m4a|aac)", path.name)
+                        or path.name in known):
+                    continue
+                try:
+                    stat = path.stat()
+                    if stat.st_mtime > cutoff:
+                        continue
+                    path.unlink()
+                    removed += 1
+                    removed_bytes += stat.st_size
+                except FileNotFoundError:
+                    continue
+            db.commit()
+        return {"removed": removed, "removed_bytes": removed_bytes}
 
     def get(self, artifact_id, workspace_id):
         if not isinstance(artifact_id, str) or not _ARTIFACT_ID.fullmatch(artifact_id):
