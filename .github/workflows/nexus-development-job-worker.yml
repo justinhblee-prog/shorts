@@ -90,6 +90,7 @@ jobs:
           & $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py
           if ($LASTEXITCODE -ne 0) { throw "Review recovery found pending or ambiguous work; no job was requeued." }
   development-cycle:
+    if: github.event_name == 'schedule' || inputs.mode != 'recover'
     # Requires the repository-owned Windows runner with Ollama and
     # qwen2.5-coder:7b installed. Scheduled workflows run from the default branch.
     runs-on: [self-hosted, windows, nexus-local-ai]
