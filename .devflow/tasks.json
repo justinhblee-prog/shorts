@@ -138,7 +138,7 @@
         "Do not modify .devflow/tasks.json or unrelated project files"
       ],
       "external_gates": [],
-      "notes": "Retry after fixing Windows validation shell resolution and making optional PyYAML parsing non-blocking when absent. Task scope narrowed to agent and its offline regression tests; maintainer will wire the test module into CI after the worker creates it."
+      "notes": "Retry after making Windows validation dependency-aware: when backend packages are absent on the self-hosted runner, static checks still run and full unit tests are delegated to dependency-provisioned Linux CI. Prior attempt created the test file but stopped because backend Python dependencies were not installed."
     }
   ]
 }
