@@ -174,4 +174,58 @@ The customer identity provider and account contract must be selected before impl
 - Financial ledger rows now carry nullable workspace_id with a non-destructive migration. Job-linked entries must match the production parent's workspace; reports filter by workspace. Existing source-reference idempotency collisions across workspaces fail closed rather than returning another workspace's row.
 - Scored opportunities now carry nullable workspace ownership; create/list APIs resolve membership and isolate records. Existing opportunities remain in the legacy NULL namespace.
 - Shared brand profiles and externally collected public trend signals remain platform-level reference data, not customer-owned records. Their use to create production jobs propagates the selected workspace into the queue.
-- Regression coverage added for publication parent access, video analytics access, financial ledger ownership, opportunity migration/isolation, and analytics-history parent joins. Latest combined Backend/Chromium and Compose validation for the current head is pending; do not mark these latest changes validated until both workflows finish successfully.
+- Regression coverage added for publication parent access, video analytics access, financial ledger ownership, opportunity migration/isolation, and analytics-history parent joins. Latest code head e092f8013fa07b66c355bc7fee51a21cb4b1377f passed Backend/Chromium run 44694735250 and Compose run 44694735235.
+
+## Opt-in worker credential and lease boundary — 2026-11-20
+
+- Added a SHA-256 digest-based worker credential verifier. A worker identity is bound to explicit workspace IDs; wildcard and empty grants are invalid. Presented bearer tokens are hashed and compared with constant-time digest comparison.
+- Added opt-in worker v1 registration, production-job claim, heartbeat, completion, and failure endpoints. The worker identity is derived from the credential, never from a request body. The job's workspace is derived from the durable queue row and applied to every lease transition.
+- Worker API claim is limited to short_video_production. A server-issued process-generation token is required for claims and all lease mutations; re-registration rotates it and stale generations are rejected.
+- When NEXUS_WORKER_CREDENTIALS_JSON is configured, legacy operator-token worker claim/heartbeat/complete/fail endpoints return HTTP 410. The credential mode is disabled by default and no secret or runtime setting was added.
+- Limitation: the current production worker still accesses SQLite directly and has not migrated to the new API. Direct database access bypasses HTTP credentials; this implementation is not a complete worker isolation boundary. OS/network sandbox, worker-runtime migration, append-only worker security audit, secret rotation procedure, and real remote worker execution remain pending.
+- Authentication and API regression tests cover digest validation, explicit grants, workspace-fenced claim/lease transitions, legacy endpoint shutdown, and stale-generation rejection. Code head aa2fa5b96205323fa97e58e9fbda89c0a6199f68 passed Backend validation + Chromium browser smoke (run 44692285597) and Compose integration smoke (run 44692285539).
+
+## Performance and recommendation evidence isolation — 2026-11-20
+
+- Performance insights now filter YouTube and TikTok production/video snapshots by production_runs.workspace_id and financial aggregates by financial_ledger.workspace_id.
+- Recommendation exposure snapshots persist workspace_id; deduplication is workspace-aware. Linking a selected recommendation to a production job verifies the production parent has the same workspace. Holdout evaluation reads only the selected workspace's exposure records.
+- Trend recommendations and recommendation evaluation endpoints resolve the authenticated operator's workspace and pass that scope through performance evidence and exposure storage. Shared trend signals, public competitor observations, and brand profiles remain platform-level reference data.
+- Dashboard toolbar now includes a responsive active-workspace selector populated from the authenticated operator's membership list. API requests include X-Nexus-Workspace-Id only when a workspace is selected; the unselected default remains the legacy NULL/unassigned namespace. The workspace list permission is a minimal workspace.read grant for supported operator roles.
+- Browser smoke now seeds a test workspace and verifies that switching selection propagates the workspace header and returning to the default removes it. Latest Backend validation + Chromium browser smoke passed (run 44694735250); Compose integration smoke passed (run 44694735235). Browser screenshot artifact: 14610172546.
+
+- Deployment note: the durable workspace registry is selected with NEXUS_WORKSPACE_AUTH_MODE=sqlite. The default legacy_config mode requires an explicit NEXUS_OPERATOR_WORKSPACES_JSON mapping and does not silently fall back to the registry. No environment setting was changed by this code update.
+
+## Queue operational views and mutations — 2026-11-20
+
+- Queue statistics, ambiguous production reconciliation listings, production retry authorization, and job cancellation now use the authenticated workspace scope. Generic queue enqueue also stamps the workspace resolved from membership rather than accepting client ownership.
+- Legacy operator-token claim/heartbeat/complete/fail endpoints now accept a workspace selector and pass the resolved workspace into every queue lease operation. Without a workspace selector they can only access legacy NULL-owned jobs; credential mode disables these legacy routes entirely.
+- Queue worker control, global recovery, and worker registry remain system-level operational controls protected by queue-control/operations permissions; they are not tenant-facing workspace data.
+- Added queue store regression coverage for workspace-scoped statistics and cancellation. Latest Backend validation + Chromium browser smoke passed (run 44694735250); Compose integration smoke passed (run 44694735235).
+
+## Remaining tenant boundary gaps (explicitly not complete)
+
+- YouTube and TikTok OAuth currently use service/global connection state. Publication job records and analytics histories are workspace-scoped, but provider credentials, OAuth status, creator identity, and collection status are not yet per-workspace. A tenant deployment must not assume each workspace has an independent channel connection.
+- Required next design: encrypted per-workspace provider credential records, workspace-bound OAuth state/redirect validation, revocation/rotation audit, and collection workers that select only the authorized workspace's provider connection. No encryption key, OAuth secret, or external account connection was added.
+- Customer OIDC identity is still not selected or implemented. Operator/reviewer tokens are not customer identities.
+- The current worker process still accesses SQLite directly and does not consume the new credential-backed worker API. Dedicated OS/network isolation remains mandatory.
+- A tenant asset registry and authorized asset retrieval API are not implemented; legacy media files remain unassigned and workspace media cleanup remains fail-closed where upload ownership cannot be proven.
+- Default brand profiles and public trend/competitor signals are shared platform reference data. Workspace-owned custom brand profile management is not implemented.
+
+
+- Workspace provider-connection architecture and migration requirements are specified in docs/WORKSPACE_PROVIDER_CONNECTION_CONTRACT.md. Implementation is intentionally blocked on provider account cardinality, approved KMS/key vault, OAuth app ownership, and authorized first tenant; no credentials or external connection were activated.
+
+
+## Analytics coverage tenant isolation — 2026-11-20
+
+- YouTube Analytics coverage now joins uploaded video identities through `youtube_uploads.job_id` to `production_runs.workspace_id`; scoped status never returns global collector counters/errors.
+- TikTok analytics coverage now joins publication job IDs to `production_runs.workspace_id`; scoped status omits global collector state and reports only the selected workspace's publication/snapshot counts.
+- `/api/youtube/analytics/collection-status` and `/api/publishing/analytics-status` now require the authenticated operator's resolved workspace scope. Historical analytics endpoints were already workspace-filtered; these status surfaces previously exposed cross-workspace aggregate coverage and collector state.
+- Added YouTube and TikTok store tests for workspace A/B coverage separation and zero-result unknown workspace behavior. Code head `fb85fb68af395796c901e9392b3c6fa43a7a686d` passed `scripts/validate.sh`, Korean font fallback, Chromium browser smoke and screenshot upload (Backend run `44696462688`, artifact `14611580399`), plus Compose service readiness and isolated backup/restore (run `44696462695`).
+
+- Both analytics status routes now reject omitted workspace selectors with HTTP 403, preventing legacy operator requests from falling back to global cross-workspace aggregates. The scoped API regression test verifies explicit workspace propagation.
+
+- YouTube Analytics detail lookup now also joins through the parent production job and enforces `workspace_id` at the store query, in addition to the API membership check. Regression coverage checks same-workspace visibility and cross-workspace denial.
+
+- Direct-call regression exposed FastAPI's `Header` sentinel as a truthy default; the guard now explicitly accepts only a non-empty string. The failing CI case was fixed in code commit `3a28f0a06d6341ef61a42bcfaa32da233c5dd101`; rerun is pending.
+
+- Browser smoke now sends the selected workspace header to `/api/publishing/analytics-status`; the updated fixture passed on Backend run `44696462688`.

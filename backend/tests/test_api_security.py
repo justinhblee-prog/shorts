@@ -221,7 +221,10 @@ class ApiSecurityTests(unittest.TestCase):
             endpoint = getattr(route, "endpoint", None)
             if endpoint is None:
                 continue
-            if "x_review_token" not in endpoint.__annotations__:
+            if path.startswith("/api/worker/v1/"):
+                if "authorization" not in endpoint.__annotations__:
+                    unprotected.append(path)
+            elif "x_review_token" not in endpoint.__annotations__:
                 unprotected.append(path)
         self.assertEqual(unprotected, [])
 
@@ -711,7 +714,7 @@ class ApiSecurityTests(unittest.TestCase):
                         limit=13, offset=0, cursor='page-cursor', x_review_token=reviewer_token
                     ), expected
                 )
-                report.assert_called_once_with(app_module.queue, limit=13, offset=0, cursor='page-cursor')
+                report.assert_called_once_with(app_module.queue, limit=13, offset=0, cursor='page-cursor', workspace_id=None)
                 with self.assertRaises(HTTPException) as denied:
                     app_module.production_integrity_report(
                         limit=13, offset=17, cursor='page-cursor', x_review_token=analyst_token

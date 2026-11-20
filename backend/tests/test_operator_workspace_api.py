@@ -107,6 +107,23 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
         self.assertEqual(allowed["workspace_id"], "ws_alice")
         self.assertEqual(denied.exception.status_code, 403)
 
+    def test_analytics_status_endpoints_require_explicit_workspace_scope(self):
+        with patch.dict(os.environ, {"NEXUS_WORKSPACE_AUTH_MODE": "sqlite"}):
+            with patch.object(api, "require_review_permission", return_value="alice"):
+                with self.assertRaises(HTTPException) as youtube_missing:
+                    api.youtube_analytics_collection_status(x_nexus_workspace_id=None)
+                self.assertEqual(youtube_missing.exception.status_code, 403)
+                with self.assertRaises(HTTPException) as publishing_missing:
+                    api.publishing_analytics_status(x_nexus_workspace_id=None)
+                self.assertEqual(publishing_missing.exception.status_code, 403)
+                with patch.object(api.youtube_analytics_store, "status", return_value={"coverage": {}}) as status:
+                    result=api.youtube_analytics_collection_status(
+                        x_nexus_workspace_id="ws_alice"
+                    )
+                    self.assertEqual(result, {"coverage": {}})
+                    status.assert_called_once()
+                    self.assertEqual(status.call_args.kwargs["workspace_id"], "ws_alice")
+
     def test_production_detail_endpoint_enforces_authenticated_workspace_membership(self):
         db_path = os.path.join(self.temp.name, "production.sqlite3")
         queue = JobQueue(db_path)
@@ -394,6 +411,24 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
                     x_nexus_worker_generation=generation,
                 )
                 self.assertEqual(completed["status"], "review_pending")
+                rotated = api.register_worker_v1(
+                    api.WorkerRegisterInput(hostname="replacement-worker"),
+                    authorization="Bearer " + token,
+                )
+                self.assertNotEqual(rotated["generation_token"], generation)
+                with self.assertRaises(HTTPException) as stale_generation:
+                    api.claim_worker_v1(
+                        api.WorkerClaimInput(hostname="isolated-worker"),
+                        authorization="Bearer " + token,
+                        x_nexus_worker_generation=generation,
+                    )
+                self.assertEqual(stale_generation.exception.status_code, 409)
+                with self.assertRaises(HTTPException) as legacy_disabled:
+                    api.claim(
+                        api.Claim(worker_id="worker-alpha", hostname="isolated-worker"),
+                        x_review_token="legacy-operator-token",
+                    )
+                self.assertEqual(legacy_disabled.exception.status_code, 410)
         finally:
             queue_patch.stop()
 

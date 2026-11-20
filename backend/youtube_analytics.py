@@ -323,27 +323,52 @@ class YouTubeAnalyticsStore:
                 max(0, int(failed)), source, stamp,
             ))
 
-    def status(self, freshness_seconds=86400):
+    def status(self, freshness_seconds=86400, workspace_id=None):
         cutoff = datetime.now(timezone.utc).timestamp() - max(0, int(freshness_seconds))
         cutoff_stamp = datetime.fromtimestamp(cutoff, timezone.utc).isoformat()
         with self.db() as connection:
-            state = connection.execute(
-                "SELECT * FROM youtube_analytics_collection_state WHERE id=1"
-            ).fetchone()
-            coverage = connection.execute("""
-                SELECT COUNT(DISTINCT u.video_id) AS published_videos,
-                       COUNT(DISTINCT CASE WHEN a.video_id IS NOT NULL
-                         THEN u.video_id END) AS with_snapshot,
-                       COUNT(DISTINCT CASE WHEN a.video_id IS NULL
-                         OR julianday(a.collected_at)<julianday(?)
-                         THEN u.video_id END) AS stale_or_missing
-                FROM youtube_uploads u
-                LEFT JOIN youtube_analytics_snapshots a ON a.video_id=u.video_id
-                WHERE u.status='uploaded' AND u.video_id IS NOT NULL
-            """, (cutoff_stamp,)).fetchone()
-            latest = connection.execute(
-                "SELECT MAX(collected_at) FROM youtube_analytics_snapshots"
-            ).fetchone()[0]
+            if workspace_id is None:
+                state = connection.execute(
+                    "SELECT * FROM youtube_analytics_collection_state WHERE id=1"
+                ).fetchone()
+                coverage = connection.execute("""
+                    SELECT COUNT(DISTINCT u.video_id) AS published_videos,
+                           COUNT(DISTINCT CASE WHEN a.video_id IS NOT NULL
+                             THEN u.video_id END) AS with_snapshot,
+                           COUNT(DISTINCT CASE WHEN a.video_id IS NULL
+                             OR julianday(a.collected_at)<julianday(?)
+                             THEN u.video_id END) AS stale_or_missing
+                    FROM youtube_uploads u
+                    LEFT JOIN youtube_analytics_snapshots a ON a.video_id=u.video_id
+                    WHERE u.status='uploaded' AND u.video_id IS NOT NULL
+                """, (cutoff_stamp,)).fetchone()
+                latest = connection.execute(
+                    "SELECT MAX(collected_at) FROM youtube_analytics_snapshots"
+                ).fetchone()[0]
+            else:
+                # Tenant status is derived from tenant-owned publications only.
+                # Global collector state/error counters are intentionally omitted.
+                state = None
+                coverage = connection.execute("""
+                    SELECT COUNT(DISTINCT u.video_id) AS published_videos,
+                           COUNT(DISTINCT CASE WHEN a.video_id IS NOT NULL
+                             THEN u.video_id END) AS with_snapshot,
+                           COUNT(DISTINCT CASE WHEN a.video_id IS NULL
+                             OR julianday(a.collected_at)<julianday(?)
+                             THEN u.video_id END) AS stale_or_missing
+                    FROM youtube_uploads u
+                    JOIN production_runs pr ON pr.job_id=u.job_id
+                    LEFT JOIN youtube_analytics_snapshots a ON a.video_id=u.video_id
+                    WHERE u.status='uploaded' AND u.video_id IS NOT NULL
+                      AND pr.workspace_id=?
+                """, (cutoff_stamp, workspace_id)).fetchone()
+                latest = connection.execute("""
+                    SELECT MAX(h.collected_at)
+                    FROM youtube_analytics_history h
+                    JOIN youtube_uploads u ON u.video_id=h.video_id
+                    JOIN production_runs pr ON pr.job_id=u.job_id
+                    WHERE pr.workspace_id=?
+                """, (workspace_id,)).fetchone()[0]
         saved = dict(state) if state else {}
         published = int(coverage["published_videos"] or 0)
         with_snapshot = int(coverage["with_snapshot"] or 0)
@@ -374,12 +399,25 @@ class YouTubeAnalyticsStore:
             "read_only": True,
         }
 
-    def get(self, video_id):
+    def get(self, video_id, workspace_id=None):
         with self.db() as connection:
-            row = connection.execute(
-                "SELECT * FROM youtube_analytics_snapshots WHERE video_id=?",
-                (video_id,),
-            ).fetchone()
+            has_production = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+            ).fetchone() is not None
+            if workspace_id is not None and not has_production:
+                return None
+            if has_production:
+                row = connection.execute("""
+                    SELECT a.* FROM youtube_analytics_snapshots a
+                    JOIN youtube_uploads u ON u.video_id=a.video_id
+                    JOIN production_runs pr ON pr.job_id=u.job_id
+                    WHERE a.video_id=? AND pr.workspace_id IS ?
+                """, (video_id, workspace_id)).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT * FROM youtube_analytics_snapshots WHERE video_id=?",
+                    (video_id,),
+                ).fetchone()
         if row is None:
             return None
         result = dict(row)

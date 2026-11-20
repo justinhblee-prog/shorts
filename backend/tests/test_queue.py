@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import queue_store
-from queue_store import JobQueue, LeaseConflict, IdempotencyConflict
+from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflict
 
 class QueueTests(unittest.TestCase):
  def setUp(self):
@@ -69,6 +69,18 @@ class QueueTests(unittest.TestCase):
    self.q.enqueue("script",{"topic":"y"},idempotency_key="once")
   with self.assertRaises(IdempotencyConflict):
    self.q.enqueue("render",{"topic":"x"},idempotency_key="once")
+
+ def test_queue_stats_and_cancellation_are_workspace_scoped(self):
+  first=self.q.enqueue("short_video_production",{"topic":"A"},workspace_id="workspace-a")
+  second=self.q.enqueue("short_video_production",{"topic":"B"},workspace_id="workspace-b")
+  self.assertEqual(self.q.stats(workspace_id="workspace-a")["total"],1)
+  self.assertEqual(self.q.stats(workspace_id="workspace-b")["total"],1)
+  self.assertEqual(self.q.stats()["total"],0)
+  with self.assertRaises(JobNotFound):
+   self.q.cancel(second["id"],workspace_id="workspace-a")
+  cancelled=self.q.cancel(second["id"],workspace_id="workspace-b")
+  self.assertEqual(cancelled["status"],"cancelled")
+  self.assertEqual(self.q.stats(workspace_id="workspace-b")["cancelled"],1)
 
  def test_workspace_id_is_persisted_through_queue_claim(self):
   queued=self.q.enqueue("short_video_production",{"topic":"tenant"},workspace_id="workspace-a")

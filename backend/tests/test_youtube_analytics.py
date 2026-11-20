@@ -192,6 +192,34 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(saved["retention_error"], "PermissionError")
         self.assertEqual(saved["retention_curve"], [])
 
+    def test_status_coverage_is_scoped_to_workspace_owned_uploads(self):
+        with self.store.db() as connection:
+            connection.execute(
+                "CREATE TABLE production_runs(job_id TEXT PRIMARY KEY,workspace_id TEXT)"
+            )
+            connection.execute(
+                "CREATE TABLE youtube_uploads(job_id TEXT,video_id TEXT,status TEXT,uploaded_at TEXT,updated_at TEXT)"
+            )
+            connection.executemany(
+                "INSERT INTO production_runs(job_id,workspace_id) VALUES(?,?)",
+                [("job-a","workspace-a"),("job-b","workspace-b")]
+            )
+            connection.executemany(
+                "INSERT INTO youtube_uploads(job_id,video_id,status,uploaded_at,updated_at) VALUES(?,?,'uploaded',?,?)",
+                [("job-a","video-a","2026-11-19","2026-11-19"),
+                 ("job-b","video-b","2026-11-19","2026-11-19")]
+            )
+        self.store.save("video-a","2026-11-01","2026-11-19",{"views":10},[])
+        self.store.save("video-b","2026-11-01","2026-11-19",{"views":20},[])
+        scoped=self.store.status(workspace_id="workspace-a")
+        self.assertEqual(self.store.get("video-a",workspace_id="workspace-a")["video_id"],"video-a")
+        self.assertIsNone(self.store.get("video-a",workspace_id="workspace-b"))
+        self.assertEqual(scoped["coverage"]["published_videos"],1)
+        self.assertEqual(scoped["coverage"]["with_snapshot"],1)
+        self.assertEqual(scoped["last_attempt_at"],None)
+        self.assertEqual(scoped["last_error"],None)
+        self.assertEqual(self.store.status(workspace_id="workspace-c")["coverage"]["published_videos"],0)
+
     def test_no_data_is_not_reported_as_live_metrics(self):
         reports = FakeReports()
         collector = YouTubeAnalyticsCollector(self.store, service=FakeService(reports))

@@ -292,4 +292,53 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - YouTube video analytics routes resolve video ownership through the upload record and enforce the same workspace check. Analytics history uses publication-to-production joins and workspace filtering.
 - Financial ledger and scored opportunity records now persist nullable workspace ownership. Finance writes with a job ID must match its production parent; finance reports and opportunity lists are workspace-scoped. Legacy rows stay in the unassigned NULL namespace.
 - Public trend signals and default brand profiles are treated as shared platform reference data; generated production work retains workspace ownership.
-- Latest CI for these additions is pending at handover update; recheck backend validation/Chromium and Compose integration before marking complete.
+- Latest code head e092f8013fa07b66c355bc7fee51a21cb4b1377f passed Backend/Chromium run 44694735250 and Compose integration run 44694735235.
+
+## Worker identity API slice — 2026-11-20
+
+- Added opt-in SHA-256 digest-based worker authentication in backend/worker_auth.py. Worker identity and explicit workspace grants come only from NEXUS_WORKER_CREDENTIALS_JSON; no plaintext credential is stored in source.
+- Added /api/worker/v1/register, /claim, and per-job /heartbeat, /complete, /fail endpoints. The API derives workspace ownership from queue rows, filters claims by the worker's allow-list, and requires a server-issued process-generation token for lease mutations.
+- Legacy operator-token worker endpoints are rejected with HTTP 410 once worker credential mode is configured. With no worker credential configuration, legacy compatibility remains unchanged.
+- The existing worker process still accesses SQLite directly and has not been migrated to this API. The new protocol is not a claim of full worker isolation; no credentials, runner settings, or production execution were activated.
+- Added unit and API tests for digest validation, explicit grants, workspace-fenced claim/lease behavior, legacy-mode guard, and stale process-generation rejection. Code head aa2fa5b96205323fa97e58e9fbda89c0a6199f68 passed Backend validation + Chromium browser smoke (run 44692285597) and Compose integration smoke (run 44692285539).
+
+## Active workspace selection and scoped performance evidence — 2026-11-20
+
+- Added a responsive workspace selector to the dashboard toolbar. It loads only the authenticated operator's memberships and sends X-Nexus-Workspace-Id on subsequent API calls when selected. No workspace is auto-selected; the default view remains unassigned legacy data.
+- Workspace metadata listing uses a dedicated workspace.read permission; creating or managing memberships retains stronger media.manage permissions.
+- Performance insights and recommendation exposure/evaluation now use workspace-scoped production and financial evidence. Recommendation selections are linked only when the production job and exposure share the same workspace.
+- Browser smoke verifies membership loading, workspace selection header propagation, and return to the legacy default. Latest code head e092f8013fa07b66c355bc7fee51a21cb4b1377f passed Backend/Chromium (run 44694735250) and Compose integration (run 44694735235).
+
+## Queue workspace boundary refinement — 2026-11-20
+
+- Queue statistics and ambiguous reconciliation lists are workspace-filtered. Queue retry and cancel actions verify the job's workspace before mutation.
+- Generic enqueue stamps the authenticated workspace. Legacy operator-token worker routes are workspace-filtered and restricted to unassigned legacy jobs when no workspace is selected; the new worker v1 credential API remains the preferred opt-in path.
+- System-level queue pause/resume/recovery and worker registry remain privileged global operations.
+- Regression tests added for workspace queue counts and cross-workspace cancellation denial. Latest code head e092f8013fa07b66c355bc7fee51a21cb4b1377f passed Backend/Chromium (run 44694735250) and Compose integration (run 44694735235).
+
+## Explicit remaining multi-tenant integrations
+
+- YouTube/TikTok OAuth credentials and creator identity remain global service connections, even though publication jobs and metric histories now enforce workspace ownership. Per-workspace encrypted provider credentials and workspace-bound OAuth flows remain a separate required milestone; no external credentials were configured.
+- Customer OIDC login/identity is not implemented. The workspace selector uses authenticated operator membership only.
+- The worker process still uses direct SQLite; the new opt-in worker API is not yet consumed by the worker runtime.
+- Tenant asset registry/retrieval and workspace-owned custom brand profiles remain future work. Existing default brand profiles and public trend/competitor signals are shared platform references.
+
+
+- Workspace provider-connection architecture and migration requirements are specified in docs/WORKSPACE_PROVIDER_CONNECTION_CONTRACT.md. Implementation is intentionally blocked on provider account cardinality, approved KMS/key vault, OAuth app ownership, and authorized first tenant; no credentials or external connection were activated.
+
+
+## Analytics status workspace scope — 2026-11-20
+
+- YouTube and TikTok analytics status APIs now resolve `X-Nexus-Workspace-Id` against the authenticated operator membership.
+- Tenant status derives publication coverage only from parent production jobs in the selected workspace and deliberately omits global collector run counters/errors.
+- Added regression tests for workspace-specific coverage and unknown workspace isolation. CI validation is pending.
+
+- Analytics coverage status endpoints fail closed when `X-Nexus-Workspace-Id` is omitted; the requested workspace is checked against the authenticated operator's membership.
+
+- YouTube Analytics detail reads are now workspace-filtered in the store query itself, not only pre-authorized at the API layer.
+
+- Analytics status header validation explicitly rejects absent workspace headers; direct-call regression tests passed in Backend run `44696462688`.
+
+- Browser smoke API fixture supplies the selected workspace ID when checking analytics status; Chromium smoke and screenshot artifact `14611580399` passed in run `44696462688`.
+
+- Latest analytics workspace isolation code head `fb85fb68af395796c901e9392b3c6fa43a7a686d` passed Backend validation + Chromium smoke and Compose integration/backup restore (runs `44696462688`, `44696462695`).

@@ -154,7 +154,7 @@ class JobQueue:
               VALUES(?,?,?,?, 'queued',?,?,?,?,?,?,?)""",
               (jid,job_type,channel_name,json.dumps(payload,ensure_ascii=False),int(priority),max(1,int(max_attempts)),n,idempotency_key,n,n,workspace_id))
             self.event(c,jid,"enqueued",None,"queued",None,created_at=n)
-            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit()
+            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id IS ?",(jid,workspace_id)).fetchone(); c.commit()
             return self.decode(row)
 
     def _pause_production_in_transaction(self, c, reason, job_id, timestamp, actor="system"):
@@ -365,12 +365,15 @@ class JobQueue:
                 "SELECT e.*,j.workspace_id FROM job_events e JOIN pipeline_jobs j ON j.id=e.job_id "
                 "WHERE e.job_id=? ORDER BY e.id",(jid,))]
 
-    def cancel(self,jid,reason="Cancelled by operator"):
+    def cancel(self,jid,reason="Cancelled by operator",workspace_id=None):
         reason = str(reason)[:2000]
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             n=stamp(now())
-            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            row=c.execute(
+                "SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id IS ?",
+                (jid,workspace_id),
+            ).fetchone()
             if row is None: raise JobNotFound()
             if row["status"] in ("uploaded","cancelled","failed_terminal"):
                 raise ValueError("Job is already terminal")
@@ -425,14 +428,14 @@ class JobQueue:
             c.commit()
             return self.decode(out)
 
-    def ambiguous_production_jobs(self, limit=100):
+    def ambiguous_production_jobs(self, limit=100, workspace_id=None):
         """List production jobs blocked because an external provider outcome is unknown."""
         bounded = max(1, min(int(limit), 200))
         with self.db() as c:
             rows = c.execute("""SELECT id,status,attempt,max_attempts,
                     error_code,error_message,updated_at
                 FROM pipeline_jobs
-                WHERE job_type='short_video_production'
+                WHERE job_type='short_video_production' AND workspace_id IS ?
                   AND (
                     (status='failed_terminal'
                      AND error_code IN (
@@ -443,10 +446,10 @@ class JobQueue:
                     (status='cancelled'
                      AND error_code='cancelled_external_outcome_ambiguous')
                   )
-                ORDER BY updated_at DESC,id LIMIT ?""", (bounded,)).fetchall()
+                ORDER BY updated_at DESC,id LIMIT ?""", (workspace_id,bounded)).fetchall()
             return [dict(row) for row in rows]
 
-    def reconcile_production_retry(self, job_id, operator_id, evidence_reference, note):
+    def reconcile_production_retry(self, job_id, operator_id, evidence_reference, note, workspace_id=None):
         """Authorize exactly one new attempt only after an operator proves no side effect occurred.
 
         The global production pause is intentionally retained. Resuming the queue is a
@@ -465,7 +468,8 @@ class JobQueue:
             c.execute("BEGIN IMMEDIATE")
             timestamp = stamp(now())
             row = c.execute("""SELECT * FROM pipeline_jobs
-                WHERE id=? AND job_type='short_video_production'""", (job_id,)).fetchone()
+                WHERE id=? AND job_type='short_video_production' AND workspace_id IS ?""",
+                (job_id,workspace_id)).fetchone()
             if row is None:
                 raise JobNotFound()
             expected_status = (
@@ -692,7 +696,9 @@ class JobQueue:
                 row["status"] = "stale"
         return rows
 
-    def stats(self):
+    def stats(self,workspace_id=None):
         with self.db() as c:
-            d={r["status"]:r["n"] for r in c.execute("SELECT status,COUNT(*) n FROM pipeline_jobs GROUP BY status")}
+            d={r["status"]:r["n"] for r in c.execute(
+                "SELECT status,COUNT(*) n FROM pipeline_jobs WHERE workspace_id IS ? GROUP BY status",
+                (workspace_id,))}
             d["total"]=sum(d.values()); return d

@@ -197,11 +197,29 @@ async function waitForServer() {
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
     checkpoint("authenticated dashboard loaded");
+    const workspaceSelector = page.locator("#workspaceSelector");
+    assert.equal(await workspaceSelector.locator("option").count(), 2,
+      "authenticated workspace membership was not loaded");
+    const workspaceId = await workspaceSelector.locator("option").nth(1).getAttribute("value");
+    assert.ok(workspaceId, "workspace option must have a stable ID");
+    const scopedWorkspaceRequest = page.waitForRequest(request =>
+      request.url().includes("/api/queue/stats") &&
+      request.headers()["x-nexus-workspace-id"] === workspaceId
+    );
+    await workspaceSelector.selectOption(workspaceId);
+    await scopedWorkspaceRequest;
+    const legacyWorkspaceRequest = page.waitForRequest(request =>
+      request.url().includes("/api/queue/stats") &&
+      !request.headers()["x-nexus-workspace-id"]
+    );
+    await workspaceSelector.selectOption("");
+    await legacyWorkspaceRequest;
+    checkpoint("workspace selector and request-level workspace isolation verified");
     const authenticatedText = await page.locator("body").innerText();
     assert.equal([...authenticatedText].filter(character => character === "\uFFFD").length, 0);
     assert.equal(await page.locator("html").getAttribute("lang"), "ko");
     checkpoint("authenticated Korean content has no replacement glyphs");
-    const liveApiChecks = await page.evaluate(async token => {
+    const liveApiChecks = await page.evaluate(async ({ token, workspaceId }) => {
       const paths = [
         "/api/brands",
         "/api/queue/stats",
@@ -209,11 +227,15 @@ async function waitForServer() {
         "/api/publishing/analytics-status",
       ];
       return Promise.all(paths.map(async path => {
-        const response = await fetch(path, { headers: { "X-Review-Token": token } });
+        const headers = { "X-Review-Token": token };
+        if (path === "/api/publishing/analytics-status") {
+          headers["X-Nexus-Workspace-Id"] = workspaceId;
+        }
+        const response = await fetch(path, { headers });
         const body = await response.json();
         return { path, status: response.status, body };
       }));
-    }, "nexus-ui-browser-smoke-token-2026-11-19-32chars");
+    }, { token: "nexus-ui-browser-smoke-token-2026-11-19-32chars", workspaceId });
     assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200]);
     assert.ok(Array.isArray(liveApiChecks[0].body.brands));
     assert.ok(Number.isFinite(Number(liveApiChecks[1].body.total)));

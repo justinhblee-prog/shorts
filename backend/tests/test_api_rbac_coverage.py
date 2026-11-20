@@ -26,7 +26,12 @@ class ApiRbacCoverageTests(unittest.TestCase):
                         if lines[i].startswith("@app.")), len(lines))
             block = "\n".join(lines[index:end])
             found.append(path)
-            if path not in self.PUBLIC_API_ROUTES:
+            if path.startswith("/api/worker/v1/"):
+                self.assertIn(
+                    "require_worker_identity(authorization)", block,
+                    f"{path} must declare an explicit worker credential guard",
+                )
+            elif path not in self.PUBLIC_API_ROUTES:
                 self.assertIn(
                     "require_review_permission(x_review_token,", block,
                     f"{path} must declare an explicit RBAC permission guard",

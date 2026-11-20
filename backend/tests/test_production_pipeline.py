@@ -1270,6 +1270,19 @@ class ProductionTests(unittest.TestCase):
         self.assertFalse(second["has_more"])
         self.assertIsNone(second["next_cursor"])
 
+    def test_integrity_report_filters_queue_orphans_by_workspace(self):
+        db_path = Path(self.tmp.name) / "integrity-scope.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        a = queue.enqueue("short_video_production", {"topic": "A"}, workspace_id="workspace-a")
+        b = queue.enqueue("short_video_production", {"topic": "B"}, workspace_id="workspace-b")
+        report_a = store.integrity_report(queue, workspace_id="workspace-a")
+        report_b = store.integrity_report(queue, workspace_id="workspace-b")
+        report_legacy = store.integrity_report(queue)
+        self.assertEqual([item["job_id"] for item in report_a["items"]], [a["id"]])
+        self.assertEqual([item["job_id"] for item in report_b["items"]], [b["id"]])
+        self.assertEqual(report_legacy["items"], [])
+
     def test_integrity_report_rejects_malformed_cursor(self):
         queue = JobQueue(self.store.db_path)
         with self.assertRaisesRegex(ValueError, "Invalid integrity report cursor"):
