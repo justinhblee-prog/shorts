@@ -124,5 +124,18 @@ class RenderArtifactStoreTests(unittest.TestCase):
             db.execute("DROP TRIGGER reject_artifact_insert")
 
 
+    def test_reconciles_only_unindexed_generated_artifacts(self):
+        adopted = self.adopt()
+        orphan = self.artifacts / ("rart_" + "b" * 32 + ".mp4")
+        orphan.write_bytes(b"orphan")
+        unrelated = self.artifacts / "keep.txt"
+        unrelated.write_bytes(b"keep")
+        result = self.store.reconcile_orphaned_files(grace_seconds=0)
+        self.assertEqual(result["removed"], 1)
+        self.assertFalse(orphan.exists())
+        self.assertTrue(unrelated.exists())
+        self.assertTrue((self.artifacts / adopted["storage_key"]).exists())
+
+
 if __name__ == "__main__":
     unittest.main()
