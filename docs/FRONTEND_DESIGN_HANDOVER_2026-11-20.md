@@ -322,3 +322,6 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Customer OIDC login/identity is not implemented. The workspace selector uses authenticated operator membership only.
 - The worker process still uses direct SQLite; the new opt-in worker API is not yet consumed by the worker runtime.
 - Tenant asset registry/retrieval and workspace-owned custom brand profiles remain future work. Existing default brand profiles and public trend/competitor signals are shared platform references.
+
+
+- Workspace provider-connection architecture and migration requirements are specified in docs/WORKSPACE_PROVIDER_CONNECTION_CONTRACT.md. Implementation is intentionally blocked on provider account cardinality, approved KMS/key vault, OAuth app ownership, and authorized first tenant; no credentials or external connection were activated.
