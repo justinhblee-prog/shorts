@@ -33,3 +33,29 @@ def resolve_workspace_membership(operator_id, workspace_id, *, memberships_json=
     if workspace_id not in mapping.get(operator_id, []):
         raise PermissionError("operator is not a member of the requested workspace")
     return workspace_id
+
+def resolve_workspace_access(principal_id, workspace_id, *, mode="legacy_config",
+                             memberships_json=None, store=None):
+    """Resolve operator workspace access using an explicit, fail-closed mode."""
+    if mode == "legacy_config":
+        return resolve_workspace_membership(
+            principal_id, workspace_id, memberships_json=memberships_json
+        )
+    if mode == "sqlite":
+        if store is None:
+            raise WorkspaceAccessConfigurationError(
+                "durable workspace registry is unavailable"
+            )
+        try:
+            store.require_membership(workspace_id, principal_id)
+        except ValueError as exc:
+            raise WorkspaceAccessConfigurationError(str(exc)) from exc
+        except Exception as exc:
+            from workspace_store import WorkspaceDenied
+            if isinstance(exc, WorkspaceDenied):
+                raise PermissionError("operator is not an active workspace member") from exc
+            raise
+        return workspace_id
+    raise WorkspaceAccessConfigurationError(
+        "NEXUS_WORKSPACE_AUTH_MODE must be legacy_config or sqlite"
+    )
