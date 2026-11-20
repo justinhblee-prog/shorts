@@ -1867,36 +1867,49 @@ def fail_worker_v1(
 
 
 @app.post("/api/jobs",status_code=201)
-def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.enqueue")
+def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None),
+            x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"queue.enqueue")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        return queue.enqueue(**body.model_dump())
+        return queue.enqueue(**body.model_dump(),workspace_id=workspace_id)
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
 @app.post("/api/jobs/claim")
-def claim(body:Claim,x_review_token:str|None=Header(default=None)):
+def claim(body:Claim,x_review_token:str|None=Header(default=None),
+          x_nexus_workspace_id:str|None=Header(default=None)):
     require_legacy_worker_api_compatibility()
-    require_review_permission(x_review_token,"worker.execute")
-    return {"job":queue.claim(body.worker_id,body.hostname)}
+    operator_id=require_review_permission(x_review_token,"worker.execute")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return {"job":queue.claim(body.worker_id,body.hostname,workspace_id=workspace_id)}
 @app.post("/api/jobs/{jid}/heartbeat")
-def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None)):
+def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None),
+              x_nexus_workspace_id:str|None=Header(default=None)):
     require_legacy_worker_api_compatibility()
-    require_review_permission(x_review_token,"worker.execute")
-    try: return queue.heartbeat(jid,body.worker_id,body.lease_token)
+    operator_id=require_review_permission(x_review_token,"worker.execute")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try: return queue.heartbeat(jid,body.worker_id,body.lease_token,workspace_id=workspace_id)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/complete")
-def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None)):
+def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None),
+             x_nexus_workspace_id:str|None=Header(default=None)):
     require_legacy_worker_api_compatibility()
-    require_review_permission(x_review_token,"worker.execute")
-    try: return queue.finish(jid,body.worker_id,body.lease_token,body.result)
+    operator_id=require_review_permission(x_review_token,"worker.execute")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try: return queue.finish(jid,body.worker_id,body.lease_token,body.result,workspace_id=workspace_id)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/fail")
-def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None)):
+def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None),
+         x_nexus_workspace_id:str|None=Header(default=None)):
     require_legacy_worker_api_compatibility()
-    require_review_permission(x_review_token,"worker.execute")
-    try: return queue.fail(jid,body.worker_id,body.lease_token,body.error_code,body.error_message,body.retryable)
+    operator_id=require_review_permission(x_review_token,"worker.execute")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try: return queue.fail(
+        jid,body.worker_id,body.lease_token,body.error_code,body.error_message,
+        body.retryable,workspace_id=workspace_id
+    )
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/cancel")
