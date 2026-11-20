@@ -96,6 +96,8 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         video_graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
         audio_graph = self.commands[1][self.commands[1].index("-filter_complex") + 1]
         self.assertIn("concat=n=1", video_graph)
+        self.assertIn("-filter_threads", self.commands[0])
+        self.assertIn("-threads", self.commands[0])
         self.assertIn("scale=720:1280", video_graph)
         self.assertIn("atrim=start=0.500:duration=5.000", audio_graph)
         self.assertIn("amix=inputs=1", audio_graph)
@@ -181,6 +183,22 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         with self.assertRaisesRegex(TimelineRenderError, "snapshot digest"):
             self.renderer(
                 invalid, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+
+
+    def test_rejects_aggregate_input_bytes_above_configured_budget(self):
+        limited = TimelineFFmpegRenderer(
+            self.staging, lambda *args: {
+                "path": str(self.assets["asset_video"]),
+                "sha256": hashlib.sha256(self.assets["asset_video"].read_bytes()).hexdigest(),
+            },
+            self.ffmpeg, self.ffprobe, max_input_bytes=10,
+            process_runner=lambda *args, **kwargs: self.fail("FFmpeg must not run"),
+        )
+        with self.assertRaisesRegex(TimelineRenderError, "aggregate source assets"):
+            limited(
+                self.payload, stop_event=threading.Event(),
                 workspace_id="ws_demo", principal_id="alice",
             )
 
