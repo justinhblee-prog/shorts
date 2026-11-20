@@ -79,14 +79,12 @@ def main():
             f"timeline_render_worker_started id={WORKER_ID} "
             f"lease_seconds={LEASE_SECONDS} heartbeat_seconds={HEARTBEAT_SECONDS}"
         )
-        try:
-            while not stopping.is_set():
-                if queue.is_paused():
-                    stopping.wait(IDLE_SECONDS)
-                    continue
-                if not worker.run_once():
-                    stopping.wait(IDLE_SECONDS)
-
+        while not stopping.is_set():
+            if queue.is_paused():
+                stopping.wait(IDLE_SECONDS)
+                continue
+            if not worker.run_once():
+                stopping.wait(IDLE_SECONDS)
     finally:
         try:
             queue.mark_worker_offline(WORKER_ID, generation_token)
