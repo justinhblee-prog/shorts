@@ -284,6 +284,10 @@ input:focus,select:focus,textarea:focus{border-color:#9b7bff;box-shadow:0 0 0 3p
 
 
 .development-job-card{display:grid;gap:8px;min-width:0}
+.development-job-detail{display:grid;gap:4px;padding:0 10px 8px;min-width:0}
+.development-job-detail>small{color:var(--muted);font:10px var(--mono);overflow-wrap:anywhere}
+.development-job-detail>p{margin:3px 0;color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+
 .development-job-recover{justify-self:start;padding:7px 11px;font-size:11px}
 .development-job-recover:disabled{opacity:.6;cursor:wait}
 
