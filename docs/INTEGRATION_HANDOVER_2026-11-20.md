@@ -134,3 +134,12 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 
 - A browser regression initially exposed that the list endpoint did not return dependency IDs: the store's single-job `get()` included them, but `list()` omitted them. Corrected `DevelopmentJobStore.list()` to fetch dependency edges for the returned IDs in one query and added a backend regression test.
 - Exact head `c2fab8b8b7bc3abcfe7cf9b96c83206d8d508a10` passed full backend validation, frontend syntax, dashboard and recovery/workstream/dependency-navigation Chromium smoke tests, and artifact upload in [run 44652954128](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128). Browser artifact: [14591602484](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128/artifacts/14591602484).
+
+## 14. Core DAG automatic-transition audit hardening — 2026-11-20
+
+- Reviewed lease fencing, dependency release, retry transitions, and immutable event history in backend/development_jobs.py.
+- Found missing audit records for the automatic retry_wait → ready and blocked → ready transitions inside claim_ready(). Added one immutable event per successful transition: retry_due and dependencies_satisfied.
+- The transitions and their events share the existing immediate SQLite write transaction. Conditional updates retain state guards; dependency release requires a non-empty dependency set and all parents completed.
+- Added regression assertions to backend/tests/test_development_jobs.py. Initial CI caught a test ordering issue because a subsequent claim event is appended after dependency release; the assertion was corrected to inspect the preceding event.
+- Exact head 07b31e6e1180bcfb1e191d2a88b079b9953cacb4 passed full backend validation (895 tests), frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation Chromium smoke, and artifact upload in run 44653917688. Artifact: https://github.com/justinhblee-prog/shorts/actions/runs/44653917688/artifacts/14591668407.
+- No Windows/Ollama/provider/live-publishing validation is implied. PR #415 remains Draft/open/unmerged.
