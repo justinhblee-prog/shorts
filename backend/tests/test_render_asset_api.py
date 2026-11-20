@@ -68,15 +68,15 @@ class RenderAssetApiTests(unittest.TestCase):
                 "asset_id": "a" * 32, "source_in_ms": 0, "source_out_ms": 1000,
             }],
         }
-        with (
-            patch.object(app_module, "require_review_permission", return_value="operator-a"),
-            patch.object(app_module, "resolve_operator_workspace_scope", return_value="workspace-a"),
-            patch.object(app_module.render_asset_store, "resolve_asset_paths",
-                         return_value={"a" * 32: "/private/internal/path"}),
-        ) as resolve:
-            result = app_module.validate_render_edl(
-                edl, x_review_token="token", x_nexus_workspace_id="workspace-a"
-            )
+        with patch.object(app_module.render_asset_store, "resolve_asset_paths",
+                          return_value={"a" * 32: "/private/internal/path"}) as resolve:
+            with (
+                patch.object(app_module, "require_review_permission", return_value="operator-a"),
+                patch.object(app_module, "resolve_operator_workspace_scope", return_value="workspace-a"),
+            ):
+                result = app_module.validate_render_edl(
+                    edl, x_review_token="token", x_nexus_workspace_id="workspace-a"
+                )
         self.assertEqual(result["status"], "validated")
         self.assertFalse(result["render_enabled"])
         resolve.assert_called_once_with("workspace-a", ["a" * 32])
