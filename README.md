@@ -37,14 +37,35 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 | Render worker (optional) | Claims and renders EDL video/audio jobs using the private FFmpeg pipeline; enabled only with the render Compose profile |
 | Scheduler | Dispatches due interval schedules into the durable queue |
 
-Enable the optional EDL renderer only after configuring the private media roots and trusted FFmpeg/ffprobe binaries in `.env`:
+
+### Private media and EDL render API
+
+The authenticated workspace API accepts raw binary media uploads and keeps every new asset quarantined until ClamAV and ffprobe both pass:
+
+- `POST /api/operator/workspaces/{workspace_id}/assets?filename=clip.mp4` — bounded raw-body upload; requires `media.manage`.
+- `POST /api/operator/workspaces/{workspace_id}/assets/{asset_id}/scan` — retry a pending scan after scanner services are available.
+- `GET /api/operator/workspaces/{workspace_id}/assets/{asset_id}` — inspect scan/probe status.
+- `POST /api/operator/workspaces/{workspace_id}/renders` — submit an immutable EDL snapshot with an idempotency key; all referenced assets must be clean and source trims must fit probed durations.
+- `GET /api/operator/workspaces/{workspace_id}/renders/{snapshot_id}` — inspect durable render status.
+- `GET /api/operator/workspaces/{workspace_id}/render-artifacts` and `GET .../{artifact_id}/download` — reviewer-only access to private `review_pending` outputs.
+
+All endpoints require `X-Review-Token` and workspace membership. Set `NEXUS_WORKSPACE_AUTH_MODE=sqlite` for the SQLite workspace memberships created by the workspace API. The media endpoints have a separate five-requests-per-minute default limit.
+
+To enable scanning, set `NEXUS_MEDIA_SCAN_ENABLED=true` and start the signature updater:
+
+```bash
+docker compose --profile media-scan up -d clamav-updater
+```
+
+If ClamAV or ffprobe is unavailable, assets remain pending and cannot be rendered. The renderer profile is separate:
 
 ```bash
 docker compose --profile render up -d render-worker
-docker compose ps render-worker
 ```
 
-The render worker uses the same persistent data volume and consumes only `timeline_render` jobs. It is intentionally profile-gated; authenticated API upload/render submission routes and production container resource/network isolation remain separate gates.
+No endpoint publishes or uploads rendered output to a social platform. Human review remains a separate step.
+
+The render worker uses the same persistent data volume and consumes only `timeline_render` jobs. The authenticated upload, scan, render submission, status and reviewer download APIs are implemented; the worker remains profile-gated. Pinned production binaries, hard container resource/network isolation and real-media verification remain deployment gates.
 
 All services share the persistent `nexus_data` volume. The scheduler uses a SQLite singleton leader lease with a fencing token, so multiple instances can safely run with only one active dispatcher; crashed leaders are replaced after lease expiry. This remains a single-host SQLite baseline, not a horizontally scalable multi-host production deployment.
 

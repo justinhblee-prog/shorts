@@ -55,16 +55,22 @@
         "Periodic two-hour-grace cleanup of crash-orphaned staging directories and unindexed private artifacts",
         "Apply FFmpeg -fs output ceilings to video intermediate, audio mix and final MP4 stages",
         "Backward-compatible canonical digest validation for existing EDL v1 jobs without the optional audio_tracks field",
-        "Resolve legacy render-job creator identity from the immutable workspace snapshot row and reject creator/hash mismatches"
+        "Resolve legacy render-job creator identity from the immutable workspace snapshot row and reject creator/hash mismatches",
+        "Authenticated workspace-scoped raw media upload, rescan, metadata, render submission/status and reviewer-only artifact list/download APIs",
+        "Optional fail-closed ClamAV plus bounded ffprobe source validation with post-scan SHA-256 recheck and persisted duration/stream metadata",
+        "Reject video/audio EDL references with wrong probed stream types or source trims beyond verified source duration",
+        "Dedicated five-request-per-minute media API rate limit and SQLite workspace authorization configuration"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
         "Run pinned FFmpeg and ffprobe binaries in an isolated worker container with CPU, memory, disk, network and process-count quotas",
         "Add real-media integration tests and crash/lease-loss tests against the production runtime",
-        "Expose authenticated upload, render submission and review APIs with production filesystem permissions and retention cleanup",
         "Run the new renderer against pinned real FFmpeg/ffprobe binaries and representative real video/audio assets",
         "Add title overlays, transitions, subtitles and gap/overlap policies to the EDL renderer after their product semantics are specified",
-        "Enable the render-worker profile only after API submission/auth integration and production container CPU, memory, disk, process-count and network isolation are ready"
+        "Pin and verify FFmpeg/ffprobe and ClamAV binaries/signature databases; validate on the target host",
+        "Run representative real video/audio files through the pinned toolchain and isolated worker container",
+        "Add render-artifact review decisions/attestations to the existing human review workflow without enabling publishing",
+        "Configure production private filesystem permissions and media retention cleanup"
       ]
     },
     {

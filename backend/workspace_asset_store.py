@@ -7,6 +7,7 @@ ready. Filesystem isolation and quotas still belong to the worker/container laye
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import sqlite3
@@ -78,9 +79,20 @@ class WorkspaceAssetStore:
                     status TEXT NOT NULL CHECK(status IN ('active','deleted')),
                     created_at TEXT NOT NULL,
                     retention_until TEXT NOT NULL,
+                    duration_ms INTEGER,
+                    media_metadata_json TEXT,
+                    probed_at TEXT,
                     UNIQUE(workspace_id, sha256)
                 )
             """)
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(workspace_media_assets)")}
+            for name, declaration in (
+                ("duration_ms", "INTEGER"),
+                ("media_metadata_json", "TEXT"),
+                ("probed_at", "TEXT"),
+            ):
+                if name not in columns:
+                    db.execute(f"ALTER TABLE workspace_media_assets ADD COLUMN {name} {declaration}")
             db.execute("""CREATE INDEX IF NOT EXISTS idx_workspace_assets_owner
                           ON workspace_media_assets(workspace_id, owner_principal_id, status)""")
 
@@ -193,13 +205,38 @@ class WorkspaceAssetStore:
         with self.db() as db:
             row = db.execute("""
                 SELECT id,workspace_id,owner_principal_id,original_name,byte_size,
-                       sha256,scan_status,status,created_at,retention_until
+                       sha256,scan_status,status,created_at,retention_until,
+                       duration_ms,media_metadata_json,probed_at
                 FROM workspace_media_assets
                 WHERE id=? AND workspace_id=? AND status='active'
             """, (asset_id, workspace_id)).fetchone()
         if row is None:
             raise AssetNotFound("asset not found in this workspace")
-        return dict(row)
+        result = dict(row)
+        raw_metadata = result.pop("media_metadata_json", None)
+        try:
+            result["media_metadata"] = json.loads(raw_metadata) if raw_metadata else None
+        except (TypeError, ValueError):
+            raise AssetError("stored media probe metadata is invalid")
+        return result
+
+    def path_for_scan(self, workspace_id, principal_id, asset_id):
+        """Resolve a pending private asset for an internal scanner/probe only."""
+        metadata = self.get_asset(workspace_id, principal_id, asset_id)
+        if metadata["scan_status"] != "pending":
+            raise AssetError("only pending assets may be scanned")
+        path = self._workspace_dir(workspace_id) / (asset_id + ".blob")
+        if path.is_symlink() or not path.is_file():
+            raise AssetNotFound("asset binary is unavailable")
+        digest = hashlib.sha256()
+        size = 0
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                size += len(chunk)
+                digest.update(chunk)
+        if size != metadata["byte_size"] or digest.hexdigest() != metadata["sha256"]:
+            raise AssetError("asset integrity verification failed before scanning")
+        return path
 
     def open_clean_asset(self, workspace_id, principal_id, asset_id):
         """Return a private file handle only for clean, active, workspace-owned media."""
@@ -222,21 +259,50 @@ class WorkspaceAssetStore:
             handle.close()
             raise
 
-    def mark_scan_result(self, workspace_id, principal_id, asset_id, clean):
-        """Record scanner outcome; only a workspace admin/owner may change quarantine state."""
+    def mark_scan_result(self, workspace_id, principal_id, asset_id, clean,
+                         *, media_metadata=None, scanner_verified=False):
+        """Record scanner/probe outcome; external callers cannot self-certify clean assets."""
+        if not isinstance(clean, bool) or not isinstance(scanner_verified, bool):
+            raise ValueError("clean and scanner_verified must be booleans")
+        minimum_roles = {"owner", "admin", "editor"} if scanner_verified else {"owner", "admin"}
         self.workspaces.require_membership(
-            workspace_id, principal_id, minimum_roles={"owner", "admin"}
+            workspace_id, principal_id, minimum_roles=minimum_roles
         )
-        if not isinstance(clean, bool):
-            raise ValueError("clean must be a boolean scanner result")
+        duration_ms = None
+        serialized_metadata = None
+        probed_at = None
+        if clean and media_metadata is not None:
+            if not isinstance(media_metadata, dict):
+                raise ValueError("media_metadata must be an object")
+            duration_ms = media_metadata.get("duration_ms")
+            asset_before = self.get_asset(workspace_id, principal_id, asset_id)
+            video_streams = media_metadata.get("video_streams")
+            audio_streams = media_metadata.get("audio_streams")
+            has_video = media_metadata.get("has_video")
+            has_audio = media_metadata.get("has_audio")
+            if (isinstance(duration_ms, bool) or not isinstance(duration_ms, int)
+                    or not 1 <= duration_ms <= 3_600_000
+                    or media_metadata.get("byte_size") != asset_before["byte_size"]
+                    or not isinstance(has_video, bool) or not isinstance(has_audio, bool)
+                    or not isinstance(video_streams, list) or not isinstance(audio_streams, list)
+                    or has_video != bool(video_streams) or has_audio != bool(audio_streams)):
+                raise ValueError("verified media metadata is invalid or does not match asset bytes")
+            serialized_metadata = json.dumps(
+                media_metadata, ensure_ascii=False, sort_keys=True,
+                separators=(",", ":"), allow_nan=False,
+            )
+            probed_at = _utcnow().isoformat()
         with self.db() as db:
             db.execute("BEGIN IMMEDIATE")
             cursor = db.execute("""
-                UPDATE workspace_media_assets SET scan_status=?
+                UPDATE workspace_media_assets
+                SET scan_status=?,duration_ms=?,media_metadata_json=?,probed_at=?
                 WHERE id=? AND workspace_id=? AND status='active' AND scan_status='pending'
-            """, ("clean" if clean else "rejected", asset_id, workspace_id))
+            """, ("clean" if clean else "rejected", duration_ms,
+                  serialized_metadata, probed_at, asset_id, workspace_id))
             if cursor.rowcount != 1:
                 db.rollback()
                 raise AssetNotFound("pending asset not found in this workspace")
             db.commit()
         return self.get_asset(workspace_id, principal_id, asset_id)
+

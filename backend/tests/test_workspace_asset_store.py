@@ -105,5 +105,48 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
             )
 
 
+    def test_scan_path_verifies_pending_asset_and_persists_probe_metadata(self):
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"probe-media"), "clip.mp4"
+        )
+        path = self.store.path_for_scan("ws_studio", "alice", result["asset_id"])
+        self.assertTrue(path.is_file())
+        metadata = {
+            "duration_ms": 2500, "byte_size": len(b"probe-media"),
+            "has_video": True, "has_audio": False,
+            "video_streams": [{"codec": "h264", "width": 640, "height": 360}],
+            "audio_streams": [],
+        }
+        verified = self.store.mark_scan_result(
+            "ws_studio", "alice", result["asset_id"], True,
+            media_metadata=metadata, scanner_verified=True,
+        )
+        self.assertEqual(verified["duration_ms"], 2500)
+        self.assertEqual(verified["media_metadata"]["has_video"], True)
+        with self.assertRaisesRegex(AssetError, "only pending"):
+            self.store.path_for_scan("ws_studio", "alice", result["asset_id"])
+
+    def test_editor_cannot_self_certify_asset_without_scanner_verification(self):
+        self.workspaces.add_member("ws_studio", "alice", "editor", "editor")
+        result = self.store.register_stream(
+            "ws_studio", "editor", io.BytesIO(b"editor-media"), "clip.mp4"
+        )
+        with self.assertRaises(WorkspaceDenied):
+            self.store.mark_scan_result(
+                "ws_studio", "editor", result["asset_id"], True
+            )
+        verified = self.store.mark_scan_result(
+            "ws_studio", "editor", result["asset_id"], True,
+            media_metadata={
+                "duration_ms": 1000, "byte_size": len(b"editor-media"),
+                "has_video": True, "has_audio": False,
+                "video_streams": [{"codec": "h264", "width": 640, "height": 360}],
+                "audio_streams": [],
+            },
+            scanner_verified=True,
+        )
+        self.assertEqual(verified["scan_status"], "clean")
+
+
 if __name__ == "__main__":
     unittest.main()

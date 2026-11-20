@@ -312,12 +312,32 @@ class RenderArtifactStore:
             db.commit()
         return {"removed": removed, "removed_bytes": removed_bytes}
 
+
+    def list_pending(self, workspace_id, limit=50):
+        """List only review-pending artifacts for one already-authorized workspace."""
+        if not isinstance(workspace_id, str) or not workspace_id:
+            raise ValueError("workspace_id is required")
+        if isinstance(limit, bool) or not isinstance(limit, int):
+            raise ValueError("limit must be an integer")
+        limit = max(1, min(limit, 200))
+        with self.queue.db() as db:
+            rows = db.execute("""
+                SELECT artifact_id,job_id,workspace_id,snapshot_id,snapshot_sha256,
+                       artifact_sha256,byte_size,media_suffix,duration_ms,
+                       video_width,video_height,audio_streams,created_at,
+                       'review_pending' AS status
+                FROM render_artifacts
+                WHERE workspace_id=? AND status='review_pending'
+                ORDER BY created_at DESC,artifact_id DESC LIMIT ?
+            """, (workspace_id, limit)).fetchall()
+        return [dict(row) for row in rows]
+
     def get(self, artifact_id, workspace_id):
         if not isinstance(artifact_id, str) or not _ARTIFACT_ID.fullmatch(artifact_id):
             raise ValueError("invalid artifact ID")
         with self.queue.db() as db:
             row = db.execute(
-                "SELECT * FROM render_artifacts WHERE artifact_id=? AND workspace_id=?",
+                "SELECT *, 'review_pending' AS status FROM render_artifacts WHERE artifact_id=? AND workspace_id=?",
                 (artifact_id, workspace_id),
             ).fetchone()
         if row is None:

@@ -205,5 +205,14 @@ class RenderArtifactStoreTests(unittest.TestCase):
             self.store.reconcile_orphaned_staging(grace_seconds=7199)
 
 
+    def test_lists_only_review_pending_artifacts_for_requested_workspace(self):
+        adopted = self.adopt()
+        pending = self.store.list_pending("ws_test")
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["artifact_id"], adopted["artifact_id"])
+        self.assertEqual(self.store.list_pending("ws_other"), [])
+        self.assertNotIn("storage_key", pending[0])
+
+
 if __name__ == "__main__":
     unittest.main()
