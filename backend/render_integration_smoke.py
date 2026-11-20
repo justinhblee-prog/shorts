@@ -33,6 +33,7 @@ def main():
         max_video_bytes=128 * 1024 * 1024,
     )
     asset = None
+    asset_path = None
     output = None
     with tempfile.TemporaryDirectory(prefix="nexus-render-smoke-") as temp:
         source = Path(temp) / "source.mp4"
@@ -54,6 +55,7 @@ def main():
             paths = store.resolve_asset_paths(
                 workspace_id, [asset["asset_id"]], expected_asset_type="video"
             )
+            asset_path = paths[asset["asset_id"]]
             edl = {
                 "schema": SCHEMA,
                 "version": 1,
@@ -94,13 +96,21 @@ def main():
             if output is not None:
                 output.unlink(missing_ok=True)
             if asset is not None:
+                if asset_path is None:
+                    try:
+                        asset_path = store.resolve_asset_paths(
+                            workspace_id, [asset["asset_id"]],
+                            require_clean_scan=False, expected_asset_type="video",
+                        )[asset["asset_id"]]
+                    except Exception:
+                        asset_path = None
+                if asset_path is not None:
+                    asset_path.unlink(missing_ok=True)
                 with store.db() as connection:
                     connection.execute(
                         "DELETE FROM render_assets WHERE asset_id=? AND workspace_id=?",
                         (asset["asset_id"], workspace_id),
                     )
-                for path in store.resolve_asset_paths.__self__.media_root.glob("never-match"):
-                    path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
