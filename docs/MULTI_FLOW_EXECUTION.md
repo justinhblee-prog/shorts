@@ -376,3 +376,6 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 - PR #415 remains Draft/open/unmerged. No merge, deploy, workflow dispatch, runner change, secret change, or default-branch change.
 
 - Follow-up implementation: prerequisite chips now act as accessible keyboard-operable links to their persisted parent job card; unavailable parent IDs are explicitly labeled as outside the current page. CSS focus treatment and frontend static assertions were added. Chromium recovery smoke now verifies click and Enter navigation.
+
+- QA exposed a real API contract gap: `DevelopmentJobStore.list()` omitted persisted dependency edges even though `get()` returned them. The dashboard list endpoint therefore could not render the actual DAG parent links. Fixed the list query with one bounded dependency lookup for the returned job IDs (avoids per-job N+1 queries), and added a regression test for parent/child/independent jobs.
+- Exact code head `c2fab8b8b7bc3abcfe7cf9b96c83206d8d508a10` passed all CI steps in [run 44652954128](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128): backend validation, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation Chromium smoke, and artifact upload [14591602484](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128/artifacts/14591602484).
