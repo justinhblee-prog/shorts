@@ -325,3 +325,10 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 
 
 - Workspace provider-connection architecture and migration requirements are specified in docs/WORKSPACE_PROVIDER_CONNECTION_CONTRACT.md. Implementation is intentionally blocked on provider account cardinality, approved KMS/key vault, OAuth app ownership, and authorized first tenant; no credentials or external connection were activated.
+
+
+## Analytics status workspace scope — 2026-11-20
+
+- YouTube and TikTok analytics status APIs now resolve `X-Nexus-Workspace-Id` against the authenticated operator membership.
+- Tenant status derives publication coverage only from parent production jobs in the selected workspace and deliberately omits global collector run counters/errors.
+- Added regression tests for workspace-specific coverage and unknown workspace isolation. CI validation is pending.
