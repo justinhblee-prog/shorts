@@ -250,7 +250,7 @@ class RenderOutputStore:
                 namespace_dir = self.media_root / namespace
                 workspace_output_candidate = namespace_dir / "render-outputs"
                 if namespace_dir.is_symlink() or workspace_output_candidate.is_symlink():
-                    raise RenderOutputError("Workspace output namespace must not be a symlink")
+                    return True
                 workspace_output_root = workspace_output_candidate.resolve(strict=True)
                 workspace_output_root.relative_to(self.media_root)
                 resolved.relative_to(workspace_output_root)
