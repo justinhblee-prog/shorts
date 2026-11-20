@@ -291,11 +291,13 @@ class RenderOutputStore:
         }
 
     def decide(self, job_id, workspace_id, reviewer_id, decision, note=""):
-        if decision not in {"approved", "rejected"}:
+        if not isinstance(decision, str) or decision not in {"approved", "rejected"}:
             raise ValueError("Review decision must be approved or rejected")
         if not isinstance(reviewer_id, str) or not reviewer_id.strip():
             raise ValueError("Authenticated reviewer is required")
         note = str(note or "")[:2000]
+        # Re-check the exact MP4 before any irreversible review audit is recorded.
+        self.get_reviewable(job_id, workspace_id)
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute("""
