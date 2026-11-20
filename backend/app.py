@@ -32,6 +32,7 @@ from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
 from preflight import build_preflight
+from timeline_edl import validate_edl, EDLValidationError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 class TikTokOAuthAccessLogRedaction(logging.Filter):
@@ -485,6 +486,17 @@ def require_review_permission(token, permission):
     if not allowed:
         raise HTTPException(403,"Operator role does not grant this action")
     return operator_id
+
+
+@app.post("/api/timeline/edl/validate")
+def validate_timeline_edl(payload:dict, x_review_token:str|None=Header(default=None)):
+    """Validate an EDL without storing assets, creating jobs, or invoking a renderer."""
+    require_review_permission(x_review_token,"media.manage")
+    try:
+        normalized=validate_edl(payload)
+    except EDLValidationError as exc:
+        raise HTTPException(422,str(exc))
+    return {"valid":True,"rendered":False,"edl":normalized}
 
 
 @app.get("/api/review/pending")
