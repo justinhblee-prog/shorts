@@ -27,6 +27,8 @@ class FFmpegAudioMixTests(unittest.TestCase):
         ], str(self.output), output_duration_ms=12000)
         self.assertEqual(argv[0], "ffmpeg")
         self.assertIn("-nostdin", argv)
+        self.assertIn("-protocol_whitelist", argv)
+        self.assertIn("file,pipe", argv)
         self.assertIn("-filter_complex", argv)
         graph = argv[argv.index("-filter_complex") + 1]
         self.assertIn("amix=inputs=2", graph)
