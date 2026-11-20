@@ -83,7 +83,7 @@ jobs:
           $failed = $false
           try { & "$PWD/scripts/git-cli-agent-config.ps1" -ValidateOnly -AgentCommand "fixture-agent" -AgentArgsJson '["--token","fake-secret","{prompt_file}"]' } catch { $failed = $true }
           if (-not $failed) { throw "Credential-like Agent CLI arguments were not rejected." }
-      - name: Exercise two isolated workers concurrently
+      - name: Exercise three isolated workers concurrently
         shell: pwsh
         run: |
           & "$PWD/scripts/test-git-cli-multiflow-parallel.ps1"
