@@ -45,7 +45,7 @@ def probe_media(path, ffprobe_path, *, max_duration_ms=3_600_000,
 
     argv = [
         str(binary), "-v", "error",
-        "-show_entries",
+        "-protocol_whitelist", "file,pipe", "-show_entries",
         "format=duration,size:stream=codec_type,codec_name,width,height,sample_rate,channels",
         "-of", "json", str(media),
     ]
