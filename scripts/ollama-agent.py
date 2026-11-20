@@ -164,7 +164,7 @@ def main() -> int:
    fn=call.get("function") or {}; name=fn.get("name",""); arguments=fn.get("arguments") or {}
    try: result=execute(root,name,arguments)
    except Exception as e: result=f"TOOL_ERROR: {type(e).__name__}: {e}"
-   messages.append({"role":"tool","name":name,"content":clip(str(result))})
+   messages.append({"role":"tool","tool_name":name,"content":clip(str(result))})
  print(f"Agent stopped at configured limit of {args.max_turns} turns.",file=sys.stderr); return 3
 
 if __name__=="__main__":
