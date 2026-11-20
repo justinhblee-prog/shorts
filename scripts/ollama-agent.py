@@ -150,6 +150,9 @@ def main() -> int:
   if not calls:
    content=str(msg.get("content", ""))
    calls=parse_text_tool_call(content)
+   if not calls and content.strip():
+    preview=content.strip().replace("\\r"," ").replace("\\n"," ")[:320]
+    print(f"[ollama-agent] unparsed_response={preview!r}",file=sys.stderr)
    if not calls:
     if not content.strip():
      empty_responses += 1
