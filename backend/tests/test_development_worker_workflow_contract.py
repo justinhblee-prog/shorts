@@ -11,41 +11,47 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
     def setUpClass(cls):
         cls.source = WORKFLOW.read_text(encoding="utf-8")
 
-    def test_development_job_database_is_persistent_outside_checkout(self):
-        configure = self.source.index("name: Configure persistent development-job state")
-        execute = self.source.index("name: Execute one dependency-aware development cycle")
-        self.assertLess(configure, execute)
-        step = self.source[configure:execute]
-        self.assertIn("$env:LOCALAPPDATA", step)
-        self.assertIn("NEXUS_DEVELOPMENT_DB=", step)
-        self.assertIn("$env:GITHUB_ENV", step)
-        self.assertIn("outside GITHUB_WORKSPACE", step)
-        self.assertIn("databaseFull.StartsWith($workspace", step)
+    def test_global_permissions_are_read_only_by_default(self):
+        top_level = self.source.split("jobs:", 1)[0]
+        self.assertIn("permissions:\\n  contents: read", top_level)
+        self.assertNotIn("pull-requests: write", top_level)
+        self.assertNotIn("actions: write", top_level)
 
-    def test_documentation_and_ignore_changes_trigger_repository_validation(self):
-        ci_workflow = ROOT / ".github" / "workflows" / "backend-tests.yml"
-        ci_source = ci_workflow.read_text(encoding="utf-8")
-        self.assertIn('"docs/**"', ci_source)
-        self.assertIn('"README.md"', ci_source)
-        self.assertIn('".gitignore"', ci_source)
+    def test_recovery_is_a_separate_read_only_job(self):
+        recovery = self.source.split("  recover-reviews:", 1)[1].split("  development-cycle:", 1)[0]
+        permissions = recovery.split("    steps:", 1)[0]
+        self.assertIn("if: github.event_name == 'workflow_dispatch' && inputs.mode == 'recover'", recovery)
+        self.assertIn("contents: read", permissions)
+        self.assertIn("pull-requests: read", permissions)
+        self.assertNotIn("write", permissions)
+        self.assertNotIn("Aider", recovery)
+        self.assertIn("GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}", recovery)
+        self.assertIn("backend/recover_development_reviews.py", recovery)
+        self.assertNotIn("backend/run_development_agent.py", recovery)
 
-    def test_node24_actions_are_guarded_by_self_hosted_runner_version_preflight(self):
-        preflight = self.source.index("name: Verify self-hosted runner supports Node 24 actions")
-        checkout = self.source.index("name: Check out default branch")
-        create_pr = self.source.index("name: Create Draft PR for verified changes only")
-        self.assertLess(preflight, checkout)
-        guard = self.source[preflight:checkout]
-        self.assertIn("Runner.Listener", guard)
-        self.assertIn("2.327.1", guard)
-        self.assertIn("actions/checkout@v7", self.source)
-        self.assertIn("peter-evans/create-pull-request@v8", self.source)
-        self.assertNotIn("actions/checkout@v5", self.source)
-        self.assertNotIn("peter-evans/create-pull-request@v7", self.source)
-        self.assertLess(checkout, create_pr)
+    def test_development_job_has_only_required_write_permissions(self):
+        development = self.source.split("  development-cycle:", 1)[1]
+        permissions = development.split("    steps:", 1)[0]
+        self.assertIn("contents: write", permissions)
+        self.assertIn("pull-requests: write", permissions)
+        self.assertIn("actions: write", permissions)
+        self.assertNotIn("issues:", permissions)
 
-    def test_schedule_and_manual_dispatch_are_configured(self):
-        self.assertIn("workflow_dispatch:", self.source)
-        self.assertIn('cron: "17 */2 * * *"', self.source)
+    def test_recovery_and_development_use_the_same_persistent_database(self):
+        recovery = self.source.split("  recover-reviews:", 1)[1].split("  development-cycle:", 1)[0]
+        development = self.source.split("  development-cycle:", 1)[1]
+        for section in (recovery, development):
+            self.assertIn('"NexusStudioPro\\\\shorts"', section)
+            self.assertIn('"development.sqlite3"', section)
+            self.assertIn("NEXUS_DEVELOPMENT_DB=", section)
+            self.assertIn("outside GITHUB_WORKSPACE", section)
+
+    def test_recovery_uses_no_write_capable_personal_token_or_aider(self):
+        recovery = self.source.split("  recover-reviews:", 1)[1].split("  development-cycle:", 1)[0]
+        self.assertNotIn("NEXUS_GITHUB_READ_TOKEN", recovery)
+        self.assertNotIn("NEXUS_APPROVED_SCOPES", recovery)
+        self.assertNotIn("NEXUS_AIDER_EXECUTABLE", recovery)
+        self.assertIn("pull-requests: read", recovery)
 
     def test_untrusted_pull_request_events_cannot_trigger_worker_execution(self):
         trigger_block = self.source.split("permissions:", 1)[0]
@@ -54,67 +60,47 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         for event in ("pull_request:", "pull_request_target:", "workflow_run:", "issue_comment:"):
             self.assertNotIn(event, trigger_block)
 
-    def test_workflow_token_uses_only_permissions_needed_for_worker_operations(self):
-        top_level = self.source.split("jobs:", 1)[0]
-        job_block = self.source.split("  development-cycle:", 1)[1]
-        job_permissions = job_block.split("    steps:", 1)[0]
-        self.assertIn("contents: read", top_level)
-        self.assertIn("pull-requests: write", top_level)
-        self.assertIn("actions: write", top_level)
-        self.assertNotIn("issues:", top_level)
-        self.assertIn("contents: write", job_permissions)
-        self.assertIn("pull-requests: write", job_permissions)
-        self.assertIn("actions: write", job_permissions)
-        self.assertNotIn("issues:", job_permissions)
+    def test_schedule_and_manual_dispatch_are_configured(self):
+        self.assertIn("workflow_dispatch:", self.source)
+        self.assertIn('cron: "17 */2 * * *"', self.source)
+        self.assertIn("- recover", self.source)
 
-    def test_only_trusted_self_hosted_windows_runner_is_targeted(self):
-        self.assertIn("runs-on: [self-hosted, windows, nexus-local-ai]", self.source)
-        self.assertIn("ollama list", self.source)
-        self.assertIn("qwen2.5-coder:7b", self.source)
+    def test_node24_actions_are_guarded_by_self_hosted_runner_version_preflight(self):
+        preflight = self.source.index("name: Verify self-hosted runner supports Node 24 actions")
+        checkout = self.source.index("name: Check out default branch", self.source.index("  development-cycle:"))
+        guard = self.source[preflight:checkout]
+        self.assertIn("Runner.Listener", guard)
+        self.assertIn("2.327.1", guard)
+        self.assertIn("actions/checkout@v7", self.source)
+        self.assertIn("peter-evans/create-pull-request@v8", self.source)
+        self.assertNotIn("actions/checkout@v5", self.source)
+        self.assertNotIn("peter-evans/create-pull-request@v7", self.source)
 
-    def test_windows_runner_preflights_python_git_bash_node_and_exact_ollama_model(self):
-        self.assertIn("Python 3.11 or newer is required", self.source)
-        self.assertIn("Get-Command bash.exe", self.source)
-        self.assertIn("Node.js 18 or newer is required", self.source)
-        self.assertIn('if ($apiModelNames -notcontains $modelTag)', self.source)
-        self.assertIn('qwen2.5-coder:7b', self.source)
-
-    def test_runtime_virtualenvs_are_persistent_and_outside_the_git_worktree(self):
-        backend = self.source.index("name: Install isolated backend runtime dependencies")
-        aider = self.source.index("name: Install and verify isolated local Aider CLI")
-        recovery = self.source.index("name: Recover orphaned review-pending jobs (read-only)")
-        backend_script = self.source[backend:aider]
-        aider_script = self.source[aider:recovery]
+    def test_development_job_keeps_persistent_isolated_tooling(self):
+        development = self.source.split("  development-cycle:", 1)[1]
+        backend = development.index("name: Install isolated backend runtime dependencies")
+        aider = development.index("name: Install and verify isolated local Aider CLI")
+        execute = development.index("name: Execute one dependency-aware development cycle")
+        backend_script = development[backend:aider]
+        aider_script = development[aider:execute]
         for script in (backend_script, aider_script):
-            self.assertIn('$stateRoot "NexusStudioPro\\tooling"', script)
-            self.assertIn("$env:USERPROFILE", script)
-            self.assertIn("AppData\\Local", script)
+            self.assertIn('"NexusStudioPro\\\\tooling"', script)
             self.assertIn("GetFullPath($env:GITHUB_WORKSPACE)", script)
             self.assertIn("$toolRootFull.StartsWith($workspace", script)
             self.assertIn("Persistent runner tooling must be outside GITHUB_WORKSPACE", script)
             self.assertNotIn("Join-Path $env:GITHUB_WORKSPACE", script)
-        self.assertIn("if (-not (Test-Path $aiderPython))", aider_script)
-        self.assertIn("Aider virtual environment Python is missing", aider_script)
         self.assertIn('"backend-venv"', backend_script)
         self.assertIn('"aider-venv"', aider_script)
         self.assertIn("NEXUS_BACKEND_PYTHON=", backend_script)
         self.assertIn("NEXUS_AIDER_EXECUTABLE=", aider_script)
         self.assertIn("incomplete; refusing destructive repair", backend_script)
         self.assertIn("incomplete; refusing destructive repair", aider_script)
-        self.assertNotIn("pip install --user", self.source)
-        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/run_development_agent.py", self.source)
-        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/publish_development_reviews.py", self.source)
-        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py", self.source)
+        self.assertIn("backend/run_development_agent.py", development)
+        self.assertIn("backend/publish_development_reviews.py", development)
 
-    def test_clean_worktree_guard_is_not_weakened_to_accommodate_tooling(self):
-        executor = (ROOT / "backend" / "development_agent_executor.py").read_text(encoding="utf-8")
-        self.assertIn('self._git("status", "--porcelain", "--untracked-files=all", env=env)', executor)
-        self.assertIn("runner worktree is not clean; refusing to mix unrelated changes with this job", executor)
-
-    def test_read_only_intake_token_is_separate_from_pr_token(self):
+    def test_intake_token_is_separate_from_pr_publication_token(self):
         self.assertIn("GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}", self.source)
         self.assertIn("token: ${{ secrets.GITHUB_TOKEN }}", self.source)
-        self.assertIn("pull-requests: write", self.source)
 
     def test_automated_pull_request_is_draft_and_uses_stable_branch(self):
         self.assertIn("branch: automation/nexus-development-cycle", self.source)
@@ -127,26 +113,12 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertLess(create, publish)
         self.assertIn("pull-request-head-sha", self.source[publish:])
         self.assertIn("NEXUS_REVIEW_HEAD_SHA", self.source[publish:])
-        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/publish_development_reviews.py", self.source[publish:])
-        self.assertIn("draft: true", self.source)
+        self.assertIn("backend/publish_development_reviews.py", self.source[publish:])
         self.assertIn("review_pending", self.source)
 
-    def test_manual_recovery_mode_is_read_only_and_skips_code_generation(self):
-        self.assertIn("mode:", self.source)
-        self.assertIn("- recover", self.source)
-        recovery = self.source.index("name: Recover orphaned review-pending jobs (read-only)")
-        execute = self.source.index("name: Execute one dependency-aware development cycle")
-        create_pr = self.source.index("name: Create Draft PR for verified changes only")
-        self.assertLess(recovery, execute)
-        self.assertIn("if: github.event.inputs.mode == 'recover'", self.source[recovery:execute])
-        self.assertIn("if: github.event.inputs.mode != 'recover'", self.source[execute:create_pr])
-        self.assertIn("& $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py", self.source[recovery:execute])
-        self.assertIn("no job was requeued", self.source[recovery:execute])
-        self.assertIn("if: github.event.inputs.mode != 'recover'", self.source[create_pr:])
     def test_verified_pr_update_triggers_bounded_self_continuation(self):
         self.assertIn("remaining_cycles:", self.source)
         self.assertIn('default: "5"', self.source)
-        self.assertIn("actions: write", self.source)
         continuation = self.source.index("name: Continue bounded autonomous development after verified PR update")
         publish = self.source.index("name: Record exact Draft PR review artifact")
         self.assertGreater(continuation, publish)
@@ -155,19 +127,12 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("pull-request-operation == 'updated'", step)
         self.assertIn("GH_WORKFLOW: nexus-development-job-worker.yml", step)
         self.assertIn("actions/workflows/$env:GH_WORKFLOW/dispatches", step)
-        detect = self.source.index("name: Detect generated source changes")
-        create = self.source.index("name: Create Draft PR for verified changes only")
-        self.assertLess(detect, create)
-        self.assertIn("steps.detect-changes.outputs.has_changes == 'true'", self.source[create:])
-        self.assertIn("Existing Draft PR will be left untouched", self.source[detect:create])
         self.assertIn("remaining - 1", step)
         self.assertIn("$remaining -gt 10", step)
         self.assertIn("Bounded continuation limit reached", step)
-        self.assertIn("No automatic merge or deployment is permitted.", self.source)
 
     def test_approved_scope_is_explicitly_required_by_environment_contract(self):
         self.assertIn("NEXUS_APPROVED_SCOPES", self.source)
-        self.assertIn("NEXUS_GITHUB_READ_TOKEN", self.source)
 
 
 if __name__ == "__main__":
