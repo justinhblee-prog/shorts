@@ -39,6 +39,44 @@ class RecommendationEvaluationTests(unittest.TestCase):
             },
         }
 
+    def test_recommendation_exposures_and_evaluation_are_workspace_scoped(self):
+        with self.store.db() as connection:
+            connection.execute(
+                "CREATE TABLE production_runs(job_id TEXT PRIMARY KEY,workspace_id TEXT)"
+            )
+            connection.execute("INSERT INTO production_runs VALUES('job-a','ws-a')")
+            connection.execute("INSERT INTO production_runs VALUES('job-b','ws-b')")
+        run_a = self.store.record_run(
+            "US", [self.item(700, 80)], "2026-11-01T00:00:00Z",
+            workspace_id="ws-a",
+        )
+        run_b = self.store.record_run(
+            "US", [self.item(700, 80)], "2026-11-01T00:00:00Z",
+            workspace_id="ws-b",
+        )
+        self.assertNotEqual(run_a["run_id"], run_b["run_id"])
+        linked_a = self.store.link_production(
+            "trend-700", "future-leak", "job-a",
+            run_id=run_a["run_id"], workspace_id="ws-a",
+        )
+        linked_b = self.store.link_production(
+            "trend-700", "future-leak", "job-b",
+            run_id=run_b["run_id"], workspace_id="ws-b",
+        )
+        self.assertTrue(linked_a["linked"])
+        self.assertTrue(linked_b["linked"])
+        self.assertEqual(
+            self.store.evaluate({"videos": []}, workspace_id="ws-a")["selected_production_count"],
+            1,
+        )
+        self.assertEqual(
+            self.store.evaluate({"videos": []}, workspace_id="ws-b")["selected_production_count"],
+            1,
+        )
+        self.assertEqual(
+            self.store.evaluate({"videos": []})["selected_production_count"], 0
+        )
+
     def test_record_run_ignores_malformed_exposure_rows_and_scores(self):
         valid = self.item(90, 82.5)
         invalid_score_bool = self.item(91, 80)
