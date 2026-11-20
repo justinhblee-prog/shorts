@@ -1332,9 +1332,11 @@ def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|Non
 @app.get("/api/performance/insights")
 def performance_insights(brand:str|None=None,
                          platform:Literal["youtube","tiktok"]="youtube",
-                         x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
-    return performance_analyzer.analyze(brand,platform=platform)
+                         x_review_token:str|None=Header(default=None),
+                         x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return performance_analyzer.analyze(brand,platform=platform,workspace_id=workspace_id)
 
 
 
@@ -1464,7 +1466,8 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
         if body.recommendation_run_id:
             attribution = recommendation_evaluation_store.link_production(
                 trend_id,brand["slug"],submitted["job"]["id"],
-                platform=body.platform,run_id=body.recommendation_run_id
+                platform=body.platform,run_id=body.recommendation_run_id,
+                workspace_id=workspace_id
             )
         submitted["recommendation_attribution"] = attribution or {
             "linked": False, "reason": "not_a_captured_recommendation_selection"
@@ -1553,10 +1556,10 @@ def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Heade
         raise HTTPException(422,str(e))
 
 
-def _build_trend_recommendations(region, limit, platform="youtube"):
+def _build_trend_recommendations(region, limit, platform="youtube", workspace_id=None):
     trends=trend_store.list(region=region,limit=200)
     brands=brand_store.list(active_only=True)
-    performance=performance_analyzer.analyze(platform=platform)
+    performance=performance_analyzer.analyze(platform=platform,workspace_id=workspace_id)
     performance_by_brand={item["brand"]:item for item in performance.get("brands",[])}
     return rank_trend_candidates(
         trends,brands,competitor_store,limit,
@@ -1579,20 +1582,28 @@ def _trend_recommendation_payload(ranked):
 @app.get("/api/trends/recommendations")
 def trend_recommendations(region:str|None=None,limit:int=30,
                           platform:Literal["youtube","tiktok"]="youtube",
-                          x_review_token:str|None=Header(default=None)):
+                          x_review_token:str|None=Header(default=None),
+                          x_nexus_workspace_id:str|None=Header(default=None)):
     """Read-only recommendation retrieval; does not create an evaluation exposure."""
-    require_review_permission(x_review_token,"recommendations.read")
-    return _trend_recommendation_payload(_build_trend_recommendations(region,limit,platform))
+    operator_id=require_review_permission(x_review_token,"recommendations.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return _trend_recommendation_payload(
+        _build_trend_recommendations(region,limit,platform,workspace_id=workspace_id)
+    )
 
 
 @app.post("/api/trends/recommendations/snapshot")
 def capture_trend_recommendations(region:str|None=None,limit:int=30,
                                   platform:Literal["youtube","tiktok"]="youtube",
-                                  x_review_token:str|None=Header(default=None)):
+                                  x_review_token:str|None=Header(default=None),
+                                  x_nexus_workspace_id:str|None=Header(default=None)):
     """Explicitly capture a platform-specific recommendation exposure."""
-    require_review_permission(x_review_token,"recommendations.manage")
-    ranked=_build_trend_recommendations(region,limit,platform)
-    exposure=recommendation_evaluation_store.record_run(region,ranked,platform=platform)
+    operator_id=require_review_permission(x_review_token,"recommendations.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    ranked=_build_trend_recommendations(region,limit,platform,workspace_id=workspace_id)
+    exposure=recommendation_evaluation_store.record_run(
+        region,ranked,platform=platform,workspace_id=workspace_id
+    )
     return {
         **_trend_recommendation_payload(ranked),
         "evaluation_run_id":exposure["run_id"],
@@ -1602,11 +1613,14 @@ def capture_trend_recommendations(region:str|None=None,limit:int=30,
 
 @app.get("/api/recommendations/evaluation")
 def recommendation_evaluation(platform:Literal["youtube","tiktok"]="youtube",
-                               x_review_token:str|None=Header(default=None)):
+                               x_review_token:str|None=Header(default=None),
+                               x_nexus_workspace_id:str|None=Header(default=None)):
     """Report chronological holdout diagnostics for one platform only."""
-    require_review_permission(x_review_token,"recommendations.read")
+    operator_id=require_review_permission(x_review_token,"recommendations.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     return recommendation_evaluation_store.evaluate(
-        performance_analyzer.analyze(platform=platform),platform=platform
+        performance_analyzer.analyze(platform=platform,workspace_id=workspace_id),
+        platform=platform,workspace_id=workspace_id
     )
 
 
