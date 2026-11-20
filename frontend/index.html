@@ -90,13 +90,16 @@
           </div>
           <div class="notice"><b>운영 원칙</b><span>AI 생성 완료와 수익 창출 성공은 다릅니다. 외부 공급자·채널 인증·실제 지표가 확인된 경우에만 완료로 판단합니다.</span></div>
           <section class="timeline-editor" id="timelineEditor" aria-labelledby="timelineEditorTitle">
-            <div class="panel-title"><div><span class="panel-kicker">LOCAL EDITOR · NON-DESTRUCTIVE</span><h3 id="timelineEditorTitle">영상 편집 타임라인</h3><p class="panel-description">브라우저에서 원본을 유지한 채 클립 구간·순서·타이틀을 구성합니다. 현재 버전은 편집 구성표(JSON) 내보내기를 지원하며 MP4 렌더링은 별도 엔진 연결이 필요합니다.</p></div><span class="tag">BETA</span></div>
+            <div class="panel-title"><div><span class="panel-kicker">LOCAL EDITOR · NON-DESTRUCTIVE</span><h3 id="timelineEditorTitle">영상 편집 타임라인</h3><p class="panel-description">브라우저에서 원본을 유지한 채 클립 구간과 순서를 구성합니다. 등록된 MP4 원본을 워크스페이스에 안전하게 올린 뒤 서버 FFmpeg 렌더 작업으로 전달합니다. 타이틀 오버레이는 아직 렌더링 대상이 아닙니다.</p></div><span class="tag">BETA</span></div>
             <div class="timeline-toolbar">
-              <label class="button button-outline timeline-upload">영상 불러오기<input id="timelineMediaInput" type="file" accept="video/*" multiple hidden></label>
+              <label class="button button-outline timeline-upload">영상 불러오기<input id="timelineMediaInput" type="file" accept="video/mp4,.mp4" multiple hidden></label>
               <label class="timeline-title-input">타이틀 텍스트<input id="timelineTitleInput" maxlength="120" placeholder="화면에 표시할 문구"></label>
               <button type="button" class="button button-secondary" id="timelineAddTitle">타이틀 추가</button>
               <button type="button" class="button button-secondary" id="timelinePlaySelected">선택 구간 재생</button>
-              <button type="button" class="button button-primary" id="timelineExport">편집 구성표 내보내기</button>
+              <label class="timeline-audio-input">배경 음원 (선택)<input id="timelineAudioInput" type="file" accept="audio/mp4,.m4a" hidden><span id="timelineAudioName">M4A 음원 선택</span></label>
+              <button type="button" class="button button-quiet button-small" id="timelineClearAudio">음원 제거</button>
+              <button type="button" class="button button-secondary" id="timelineExport">EDL 내보내기</button>
+              <button type="button" class="button button-primary" id="timelineRenderSubmit">MP4 렌더 요청 <span>→</span></button>
             </div>
             <div class="timeline-workspace">
               <div class="timeline-preview"><div class="timeline-video-stage"><video id="timelinePreview" controls playsinline preload="metadata" aria-label="선택한 영상 미리보기"></video><div id="timelineTitleOverlay" class="timeline-title-overlay" hidden></div></div><div id="timelinePreviewEmpty" class="empty-state">영상을 불러오면 미리보기가 표시됩니다.</div><p id="timelineStatus" role="status" aria-live="polite">클립을 추가해 편집 순서를 구성하세요.</p></div>
@@ -111,6 +114,37 @@
               <button type="button" class="button button-quiet button-small" id="timelineMoveDown">아래로</button>
               <button type="button" class="button button-quiet button-small" id="timelineRemove">삭제</button>
             </div>
+            <section class="render-job-console" aria-labelledby="renderJobTitle">
+              <div class="panel-title"><div><span class="panel-kicker">DURABLE RENDER WORKER</span><h4 id="renderJobTitle">MP4 렌더 작업 · 사람의 최종 검수</h4><p class="panel-description">업로드된 원본은 현재 워크스페이스에 격리 저장됩니다. 렌더 결과는 자동 게시되지 않으며, 미리보기 후 승인 또는 반려해야 합니다.</p></div><span class="tag">HUMAN GATE</span></div>
+              <div class="render-job-toolbar">
+                <div id="renderJobStatus" class="render-job-status" role="status" aria-live="polite">렌더 작업이 아직 등록되지 않았습니다.</div>
+                <div class="render-job-buttons">
+                  <button type="button" class="button button-outline button-small" id="renderJobRefresh">상태 갱신</button>
+                  <button type="button" class="button button-quiet button-small" id="renderJobCancel" disabled>작업 취소</button>
+                  <button type="button" class="button button-quiet button-small" id="renderJobClear">작업 표시 지우기</button>
+                </div>
+              </div>
+              <p id="renderJobMeta" class="render-job-meta">MP4 클립을 추가하고 워크스페이스를 선택한 뒤 렌더 요청을 등록하세요.</p>
+              <div class="render-review-grid">
+                <div class="render-artifact-stage">
+                  <video id="renderArtifactPreview" controls playsinline preload="metadata" hidden aria-label="렌더링 결과 검수 미리보기"></video>
+                  <div id="renderArtifactEmpty" class="empty-state">렌더 완료 후 검수용 MP4 미리보기가 여기에 표시됩니다.</div>
+                  <div class="render-artifact-actions">
+                    <button type="button" class="button button-outline button-small" id="renderArtifactLoad" disabled>검수 영상 불러오기</button>
+                    <button type="button" class="button button-secondary button-small" id="renderArtifactDownload" disabled>MP4 다운로드</button>
+                  </div>
+                </div>
+                <div class="render-review-panel">
+                  <label for="renderReviewNote">검수 메모 (선택)</label>
+                  <textarea id="renderReviewNote" rows="4" maxlength="2000" placeholder="화질, 장면 연결, 음원 및 정책 적합성을 확인하세요."></textarea>
+                  <div id="renderJobReviewActions" class="render-review-actions" hidden>
+                    <button type="button" class="button button-primary" id="renderJobApprove" disabled>검수 승인</button>
+                    <button type="button" class="button button-danger" id="renderJobReject" disabled>반려</button>
+                  </div>
+                  <p class="render-review-footnote">승인은 MP4 검수 완료만 기록합니다. YouTube·TikTok 게시를 실행하지 않습니다.</p>
+                </div>
+              </div>
+            </section>
           </section>
         </div>
       </div>
