@@ -441,6 +441,8 @@ class DevelopmentWorkstreamPresentationTests(unittest.TestCase):
         html = (frontend / "index.html").read_text(encoding="utf-8")
         css = (frontend / "styles.css").read_text(encoding="utf-8")
         self.assertIn('const laneForJob=job=>', app_js)
+        self.assertIn('replace(/\\\\/g,"/")', app_js)
+        self.assertIn('.toLowerCase()', app_js)
         self.assertIn('job.dependencies', app_js)
         self.assertIn('data-focus-development-job', app_js)
         self.assertIn('addEventListener("keydown"', app_js)
