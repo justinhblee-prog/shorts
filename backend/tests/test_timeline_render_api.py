@@ -154,6 +154,8 @@ class TimelineRenderApiTests(unittest.TestCase):
             def get(self, workspace_id, principal_id, snapshot_id):
                 return {"snapshot_id": snapshot_id, "render_job_id": "job_fixture",
                         "payload_sha256": "c" * 64}
+            def review_status(self, workspace_id, principal_id, snapshot_id):
+                return {"status": "review_pending", "decision": None}
 
         class FakeArtifactStore:
             def get(self, artifact_id, workspace_id):
@@ -197,6 +199,31 @@ class TimelineRenderApiTests(unittest.TestCase):
             self.assertEqual(Path(response.path), media)
             self.assertEqual(store.assertion, (artifact_id, "ws_studio"))
             self.assertEqual(response.media_type, "video/mp4")
+
+
+    def test_review_decision_uses_authenticated_reviewer_identity(self):
+        class FakeSnapshotStore:
+            def __init__(self): self.call = None
+            def review_decide(self, workspace_id, reviewer_id, snapshot_id, decision, comment):
+                self.call = (workspace_id, reviewer_id, snapshot_id, decision, comment)
+                return {"decision": decision, "reviewer_id": reviewer_id}
+        store = FakeSnapshotStore()
+        body = api.TimelineRenderDecisionInput(
+            decision="approved", comment="Verified output"
+        )
+        with (
+            patch.object(api, "require_review_permission", return_value="reviewer-1"),
+            patch.object(api, "resolve_workspace_access", return_value="ws_studio"),
+            patch.object(api, "timeline_render_store", store),
+        ):
+            result = api.decide_timeline_render(
+                "edl_" + "b" * 32, body, "review-token", "ws_studio"
+            )
+        self.assertEqual(store.call, (
+            "ws_studio", "reviewer-1", "edl_" + "b" * 32,
+            "approved", "Verified output",
+        ))
+        self.assertEqual(result["reviewer_id"], "reviewer-1")
 
     def test_render_submission_denies_non_member_before_queueing(self):
         store = FakeTimelineStore()
