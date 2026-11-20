@@ -150,7 +150,7 @@ class EDLFFmpegRenderer:
     track specifications for build_audio_mix_argv; it is never read from EDL.
     """
     def __init__(self, staging_root, ffmpeg_path, asset_resolver, *,
-                 audio_tracks_resolver=None, ffprobe_path=None, width=1080, height=1920, fps=30,
+                 audio_tracks_resolver=None, ffprobe_path=None, title_font_path=None, width=1080, height=1920, fps=30,
                  max_input_bytes=2_000_000_000, timeout_seconds=3600):
         root = Path(staging_root)
         root.mkdir(parents=True, exist_ok=True)
@@ -170,6 +170,7 @@ class EDLFFmpegRenderer:
         self.asset_resolver = asset_resolver
         self.audio_tracks_resolver = audio_tracks_resolver
         self.ffprobe_path = str(_regular_file(ffprobe_path, "ffprobe executable")) if ffprobe_path is not None else None
+        self.title_font_path = str(_regular_file(title_font_path, "title font")) if title_font_path is not None else None
         self.width, self.height, self.fps = width, height, fps
         self.max_input_bytes = max_input_bytes
         self.timeout_seconds = float(timeout_seconds)
@@ -229,10 +230,10 @@ class EDLFFmpegRenderer:
         if not isinstance(principal_id, str) or not principal_id:
             raise EDLRenderError("snapshot creator identity is required for asset authorization")
         edl = validate_edl(payload["edl"])
-        if any(clip["type"] != "video" for clip in edl["clips"]):
-            raise EDLRenderError("title clips are not supported by this renderer version")
         assets = {}
         for clip in edl["clips"]:
+            if clip["type"] != "video":
+                continue
             asset_id = clip["asset_id"]
             if asset_id not in assets:
                 resolved = self.asset_resolver(workspace_id, principal_id, asset_id)
@@ -253,6 +254,7 @@ class EDLFFmpegRenderer:
             argv, duration_ms = build_video_argv(
                 edl, assets, video_only, ffmpeg_path=self.ffmpeg_path,
                 width=self.width, height=self.height, fps=self.fps,
+                title_font_path=self.title_font_path,
             )
             self._run(argv, stop_event, deadline, log_path)
             if not video_only.is_file() or video_only.stat().st_size < 1:
