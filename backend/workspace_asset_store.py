@@ -223,9 +223,16 @@ class WorkspaceAssetStore:
             raise
 
 
-    def scan_pending_asset(self, workspace_id, principal_id, asset_id, scanner):
-        """Run a real scanner and atomically move pending media to clean/rejected."""
-        from media_scanner import MediaInfectedError, MediaScanError
+    def scan_pending_asset(self, workspace_id, principal_id, asset_id, scanner=None):
+        """Run ClamAV by default, then atomically move pending media to clean/rejected.
+
+        Tests and explicitly managed deployments may inject a scanner. Omitting
+        it always constructs the production ClamAV adapter; missing binaries,
+        stale databases, timeouts and scanner errors leave the asset quarantined.
+        """
+        from media_scanner import ClamAVScanner, MediaInfectedError, MediaScanError
+        if scanner is None:
+            scanner = ClamAVScanner()
 
         self.workspaces.require_membership(
             workspace_id, principal_id, minimum_roles=_ALLOWED_ROLES
