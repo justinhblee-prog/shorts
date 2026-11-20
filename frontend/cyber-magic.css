@@ -64,7 +64,7 @@ input:focus,select:focus,textarea:focus{outline:1px solid #398bff;box-shadow:0 0
 .cyber-approval-arrow{margin-left:auto;color:#6fdcf5}
 @media(max-width:700px){.cyber-approval-list{grid-template-columns:1fr}.cyber-approval .cyber-calendar-head{display:block}.cyber-approval .button{display:inline-flex;margin-top:9px}}
 
-.main-nav a[aria-current="page"]{background:linear-gradient(100deg,#253e94,#155d9a);border-color:#487ce9;color:#fff;box-shadow:0 0 20px #276bff35}
+.main-nav a[aria-current="location"]{background:linear-gradient(100deg,#253e94,#155d9a);border-color:#487ce9;color:#fff;box-shadow:0 0 20px #276bff35}
 .main-nav a:focus-visible{outline:2px solid #75e6ff;outline-offset:3px}
 html{scroll-behavior:smooth;scroll-padding-top:22px}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}

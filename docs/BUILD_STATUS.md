@@ -2714,3 +2714,14 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
 - Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
 - Exact-head validation passed on `59ec8286f6c216345955593dd82a1047851fad4d`: backend [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693), **725 tests**; Compose [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702), all five services healthy, fresh successful-backup marker present, encrypted isolated restore passed, wrong-key restore rejected without changing the target DB. CI-only; no production-host or production-data recovery is claimed.
+
+
+## UI-00010 — active in-page navigation semantics
+- The workspace navigation now uses `aria-current="location"` for the active section rather than announcing an in-page anchor as a separate page.
+- The JavaScript state, active-link CSS, source regression and Playwright browser smoke assertion are aligned. Actual assistive-technology verification remains outstanding.
+
+
+### UI-00010 — exact-head validation
+- Integrated UI/Core head `f0cd22c11169378efeedf7fac593f0bcd7b0490c` passed **735 tests**, `scripts/validate.sh`, frontend syntax validation and Playwright Chromium browser smoke in [run 44537041759](https://github.com/justinhblee-prog/shorts/actions/runs/44537041759).
+- Compose service startup, API readiness, scheduled backup, isolated restore and cleanup passed in [run 44537041818](https://github.com/justinhblee-prog/shorts/actions/runs/44537041818).
+- Browser smoke verified active in-page navigation, desktop/mobile layout, keyboard navigation, review approval/history, analytics pagination and CSV download. Actual assistive-technology testing remains outstanding.

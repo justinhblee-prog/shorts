@@ -351,9 +351,9 @@ class FrontendPortalTests(unittest.TestCase):
         for label in ("Dashboard", "AI Content Studio", "Content Planner and Intelligence", "Approvals and Publishing", "Analytics and Operations"):
             self.assertIn(f'aria-label="{label}"', html)
         self.assertIn("IntersectionObserver", app_js)
-        self.assertIn('setAttribute("aria-current","page")', app_js)
+        self.assertIn('setAttribute("aria-current","location")', app_js)
         self.assertIn('removeAttribute("aria-current")', app_js)
-        self.assertIn(".main-nav a[aria-current=\"page\"]", css)
+        self.assertIn(".main-nav a[aria-current=\"location\"]", css)
         self.assertIn(".main-nav a:nth-child(5):before", css)
         self.assertIn("prefers-reduced-motion:reduce", css)
 
