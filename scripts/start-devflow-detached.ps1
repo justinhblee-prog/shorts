@@ -40,6 +40,8 @@ $logRoot=Join-Path (Split-Path $root -Parent) ($repoName+"-multiflow-logs")
 New-Item -ItemType Directory -Force -Path $stateRoot,$logRoot|Out-Null
 $launcher=Join-Path $PSScriptRoot "start-devflow-autopilot.ps1"
 if(-not(Test-Path -LiteralPath $launcher)){throw "Multi-flow launcher missing: $launcher"}
+$preflight=Join-Path $PSScriptRoot "git-cli-agent-config.ps1"
+if(-not(Test-Path -LiteralPath $preflight)){throw "Agent CLI preflight missing: $preflight"}
 if($Supervisor){
  if(-not $RunId){throw "Supervisor RunId is required."}
  $lockPath=Join-Path $stateRoot "scheduler.lock"
@@ -70,8 +72,11 @@ if($Supervisor){
  }finally{if($lock){$lock.Dispose()}}
  exit $exitCode
 }
-if(-not $env:DEVFLOW_AGENT_COMMAND -or -not $env:DEVFLOW_AGENT_ARGS_JSON){
- throw "Agent CLI configuration is missing. Run scripts/git-cli-agent-config.ps1 -Check before detaching."
+if(-not $Supervisor){
+ $preflight=Join-Path $PSScriptRoot "git-cli-agent-config.ps1"
+ if(-not(Test-Path -LiteralPath $preflight)){throw "Agent CLI preflight script is missing: $preflight"}
+ & $preflight -Check
+ if($LASTEXITCODE -ne 0){throw "Agent CLI preflight failed; detached supervisor was not started."}
 }
 $pwsh=(Get-Command pwsh -ErrorAction Stop).Source
 $runId=Get-Date -Format "yyyyMMdd-HHmmss"
