@@ -971,11 +971,11 @@ def create_timeline_preview_session(
         response.set_cookie(
             cookie_name,x_review_token,max_age=120,httponly=True,
             secure=request.url.scheme=="https",samesite="strict",
-            path=f"/api/timeline/artifacts/${artifact_id}/preview",
+            path=f"/api/timeline/artifacts/{artifact_id}/preview",
         )
         response.headers["Cache-Control"]="no-store"
         return {
-            "preview_url":f"/api/timeline/artifacts/${artifact_id}/preview?workspace_id=${workspace_id}",
+            "preview_url":f"/api/timeline/artifacts/{artifact_id}/preview?workspace_id={workspace_id}",
             "expires_in_seconds":120,
         }
     except WorkspaceAccessConfigurationError as exc:
@@ -997,7 +997,10 @@ def preview_timeline_artifact(
     x_nexus_workspace_id:str|None=Header(default=None),
 ):
     preview_cookie=request.cookies.get("nexus_preview_"+artifact_id)
-    principal=require_review_permission(x_review_token or preview_cookie,"review.read")
+    if x_review_token:
+        principal=require_review_permission(x_review_token,"review.read")
+    else:
+        principal=require_review_permission(preview_cookie,"review.read")
     requested_workspace=x_nexus_workspace_id or workspace_id
     if not requested_workspace:
         raise HTTPException(400,"X-Nexus-Workspace-Id or workspace_id is required")
