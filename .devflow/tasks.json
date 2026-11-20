@@ -117,7 +117,7 @@
         "Do not modify .devflow/tasks.json or unrelated project files"
       ],
       "external_gates": [],
-      "notes": "Retry after correcting task base, Qwen text-tool-call handling, empty-turn retries, worker failure propagation, and artifact collection. Draft PR only."
+      "notes": "Retry after correcting Ollama tool response schema (`tool_name`), Qwen JSON fallback, base branch, worker failure propagation, and evidence upload. Draft PR only."
     }
   ]
 }
