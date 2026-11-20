@@ -17,7 +17,7 @@
 - Added `backend/worker_auth.py` with SHA-256 digest verification and constant-time comparison. The plaintext token is never stored or returned.
 - Added `NEXUS_WORKER_CREDENTIALS_JSON` configuration. Each worker entry requires a valid worker ID, a 64-character SHA-256 digest, and a unique, non-empty explicit workspace allow-list. Wildcards and NULL/unassigned grants are rejected.
 - Added `/api/worker/v1/register`, `/claim`, and per-job `/heartbeat`, `/complete`, `/fail` endpoints. The authenticated credential determines worker ID and allowed workspaces; the API derives each job's workspace from the durable queue row rather than accepting a client workspace selector.
-- Claim is workspace-filtered, and every lease transition includes the resolved workspace ID plus the server-issued process generation token. Legacy operator-token worker endpoints return 410 once credential mode is configured.
+- Claim is restricted to the short_video_production job type and workspace-filtered. Every lease transition includes the resolved workspace ID plus the server-issued process generation token. Re-registration rotates the generation and stale claim/heartbeat/complete/fail calls are rejected. Legacy operator-token worker endpoints return 410 once credential mode is configured.
 - The feature is dormant by default: no credentials or secrets were added to repository or runtime settings.
 
 ## Required credential contract
@@ -76,4 +76,4 @@ Requirements:
 - The current production worker still opens SQLite directly and does not consume the new remote worker API. Direct database access bypasses HTTP worker credential checks; do not treat this as full worker isolation.
 - Registration/revocation audit events are not yet a separate append-only worker-security journal. Credential rotation/revocation is performed by changing the configured digest/grant map; there is no expiry metadata or automated rotation workflow.
 - No credentials, environment values, runner settings, or production execution paths were activated. The opt-in API must not be used until the worker runtime is migrated and OS/network isolation is independently verified.
-- The new API and authentication tests must pass current Backend CI before this implementation slice is considered validated.
+- The new API and authentication tests cover digest validation, grant restrictions, workspace-fenced claim/lease transitions, legacy endpoint shutdown, and stale-generation rejection. Current CI for the newest implementation commit is pending; do not mark this slice validated until Backend/Chromium and Compose workflows pass.
