@@ -12,7 +12,7 @@ The worker accepts sequential video clips, bounded text overlays and up to eight
 - Before FFmpeg runs, the renderer copies each clean asset into a private per-job work directory, verifies its SHA-256, runs a bounded source-media ffprobe check, and enforces source-trim bounds.
 - The renderer recomputes the canonical normalized EDL SHA-256 and rejects queue payloads that do not match the immutable snapshot digest.
 
-Transitions, subtitles, arbitrary filters, URL inputs and arbitrary file paths remain unsupported. Video clips must be contiguous; gaps and overlaps are rejected rather than silently rendered.
+Transitions, subtitles, arbitrary filters, URL inputs, arbitrary file paths, timeline gaps and overlaps remain unsupported. Video clips must be contiguous; gaps and overlaps are rejected rather than silently rendered.
 
 ## Worker and API integration
 
@@ -26,7 +26,7 @@ Transitions, subtitles, arbitrary filters, URL inputs and arbitrary file paths r
 ## Validation evidence
 
 GitHub Actions on the integrated Draft PR:
-- 909 backend tests passed.
+- 910 backend tests passed.
 - UI browser smoke passed, including desktop/mobile, keyboard navigation and authenticated API checks.
 - Real FFmpeg/ffprobe smoke generated a two-second MP4 with a title overlay and audio track, validated the output, adopted the artifact under the live worker lease, exposed it for review and recorded an approval bound to the artifact hash.
 - Compose smoke verified worker isolation/resource limits and encrypted backup/restore.
