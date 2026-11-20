@@ -104,3 +104,10 @@ These source-level changes and regression tests passed on exact PR head `fb9807e
 ### Windows process-tree cancellation hardening — 2026-11-20
 - On lease loss or executor cancellation, the Windows executor now invokes `taskkill /PID <pid> /T /F` before waiting for Aider, so child processes in the Aider process tree are terminated rather than only the root process. If taskkill fails, it falls back to terminating the root process; this remains best-effort and is not an OS sandbox.
 - Added unit coverage for successful process-tree termination and fallback when taskkill fails. Hosted CI validates the code path with mocked Windows process behavior; it does not substitute for real Windows runner execution.
+
+
+## Current promotion branch verification and activation gate — 2026-11-20
+
+- Current PR #416 documentation head `3b7e99ad97193e6ee95d3a0603ebf6daca7dbb9a` passed exact-head backend/workflow validation in [run 44667178175](https://github.com/justinhblee-prog/shorts/actions/runs/44667178175). The worker implementation head `e671027536d99a17ac211d223281aa103d90c810` passed [run 44667166106](https://github.com/justinhblee-prog/shorts/actions/runs/44667166106), including 620 backend tests and Windows process-tree cancellation/fallback regressions.
+- These are hosted CI/source checks only. They do not verify the Windows runner's actual identity, profile isolation, filesystem ACLs, outbound network policy, LocalAppData persistence, or real Ollama generation.
+- **Activation remains blocked** until a dedicated low-privilege runner/VM is audited, outbound egress is restricted to required GitHub endpoints and loopback Ollama, unrelated credentials/workspaces are absent, two or more isolated workflow runs prove state persistence, and a disposable Draft-PR recovery roundtrip is observed. No workflow dispatch, schedule activation, runner mutation, secret change, merge or deployment is authorized by this documentation update.
