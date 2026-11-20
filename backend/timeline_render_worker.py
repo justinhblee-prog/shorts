@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import threading
 
+from ffmpeg_edl_renderer import EDLFFmpegRenderer
+
 
 class TimelineRenderWorker:
     def __init__(self, queue, renderer, worker_id, generation_token,
@@ -89,3 +91,29 @@ class TimelineRenderWorker:
         finally:
             stop.set()
             heartbeat.join(timeout=max(1.0, self.heartbeat_seconds + 1.0))
+
+
+def create_edl_render_worker(queue, asset_store, worker_id, generation_token,
+                             staging_root, ffmpeg_path, artifact_store, *,
+                             audio_tracks_resolver=None, width=1080, height=1920,
+                             fps=30, max_input_bytes=2_000_000_000,
+                             timeout_seconds=3600, heartbeat_seconds=10):
+    """Wire the EDL renderer, workspace asset authorization and artifact adoption."""
+    if artifact_store is None:
+        raise ValueError("artifact_store is required for lease-fenced output adoption")
+
+    def resolve_asset(workspace_id, principal_id, asset_id):
+        return asset_store.resolve_clean_asset_path(
+            workspace_id, principal_id, asset_id
+        )
+
+    renderer = EDLFFmpegRenderer(
+        staging_root, ffmpeg_path, resolve_asset,
+        audio_tracks_resolver=audio_tracks_resolver,
+        width=width, height=height, fps=fps,
+        max_input_bytes=max_input_bytes, timeout_seconds=timeout_seconds,
+    )
+    return TimelineRenderWorker(
+        queue, renderer, worker_id, generation_token,
+        heartbeat_seconds=heartbeat_seconds, artifact_store=artifact_store,
+    )
