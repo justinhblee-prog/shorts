@@ -1617,9 +1617,12 @@
     $id("renderJobApprove").addEventListener("click",()=>decideRenderReview("approved"));
     $id("renderJobReject").addEventListener("click",()=>decideRenderReview("rejected"));
     $id("workspaceSelector")?.addEventListener("change",()=>{
+      for(const clip of state.clips){clip.assetId="";clip.assetScanStatus="";}
+      audioAssetId="";audioScanStatus="";
       if(currentRenderWorkspaceId&&currentRenderWorkspaceId!==activeWorkspaceId){
         clearRenderTracking("워크스페이스가 변경되어 이전 렌더 작업 표시를 지웠습니다.");
       }
+      say("워크스페이스가 변경되었습니다. 원본 자산은 새 공간에 다시 등록해야 합니다.");
     });
     if(currentRenderJobId&&currentRenderWorkspaceId){
       if(currentRenderWorkspaceId===activeWorkspaceId){
