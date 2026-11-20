@@ -183,10 +183,10 @@ This is an executable local automation runner, not a claim that the current Chat
 
 For independent workstreams, use the scope-aware dispatcher:
 
-\`\`\`powershell
+```powershell
 python scripts/devflow_parallel.py --max-parallel 3
-\`\`\`
+```
 
-It selects dependency-ready tasks with non-overlapping declared scopes and launches one isolated supervisor/worktree per task. It refuses tasks whose dependencies are merely \`review_pending\`; prerequisites must be marked \`completed\` after merge. It does not split a single task across multiple agents, and it cannot parallelize overlapping or undeclared scopes. The manifest's \`max_parallel_worktrees\` value is the hard cap (maximum three in this version).
+It selects dependency-ready tasks with non-overlapping declared scopes and launches one isolated supervisor/worktree per task. It refuses tasks whose dependencies are merely `review_pending`; prerequisites must be marked `completed` after merge. It does not split a single task across multiple agents, and it cannot parallelize overlapping or undeclared scopes. The manifest's `max_parallel_worktrees` value is the hard cap (maximum three in this version).
 
 Current manifest state has only BUILD-00352 runnable; BUILD-00353 and BUILD-00354 remain blocked by external credentials/authorization. Therefore the dispatcher currently launches one flow, not three. Additional independent tasks can run concurrently when they are explicitly added to the manifest with disjoint scopes and satisfied dependencies.
