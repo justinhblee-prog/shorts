@@ -76,6 +76,17 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         ).encode("utf-8")
         payload["snapshot_sha256"] = hashlib.sha256(canonical).hexdigest()
 
+
+    @staticmethod
+    def _rehash_legacy(payload):
+        normalized = validate_edl(payload["edl"])
+        normalized.pop("audio_tracks", None)
+        canonical = json.dumps(
+            normalized, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"), allow_nan=False,
+        ).encode("utf-8")
+        payload["snapshot_sha256"] = hashlib.sha256(canonical).hexdigest()
+
     def tearDown(self):
         self.temp.cleanup()
 
@@ -203,6 +214,24 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
                 self.payload, stop_event=threading.Event(),
                 workspace_id="ws_demo", principal_id="alice",
             )
+
+
+    def test_accepts_legacy_edl_v1_snapshot_without_audio_tracks_field(self):
+        legacy = json.loads(json.dumps(self.payload))
+        legacy["edl"].pop("audio_tracks")
+        self._rehash_legacy(legacy)
+        probe = {
+            "duration_ms": 5000, "byte_size": 23,
+            "video_streams": [{"width": 720, "height": 1280, "codec": "h264"}],
+            "audio_streams": 0, "audio_codecs": [],
+        }
+        with patch("timeline_ffmpeg_renderer.probe_media", return_value=probe):
+            result = self.renderer(
+                legacy, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+        self.assertTrue(Path(result["staged_path"]).is_file())
+        self.assertEqual(len(self.commands), 1)
 
 
 if __name__ == "__main__":
