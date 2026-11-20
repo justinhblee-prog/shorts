@@ -88,7 +88,7 @@ async function waitForServer() {
     assert.equal(visualSystem.koreanReplacementGlyphs, 0);
     assert.equal(visualSystem.premiumStylesheet, true);
     checkpoint("premium typography and Korean text rendering verified");
-    assert.equal(await page.locator(".main-nav a").count(), 5);
+    assert.equal(await page.locator(".main-nav a").count(), 9);\n    assert.equal(await page.locator(".main-nav .nav-settings").count(), 1);\n    for (const label of ["대시보드","트렌드 탐색","콘텐츠 기획","AI 제작","영상 편집","검수·정책","게시 관리","성과 분석","작업 관리"]) assert.equal(await page.locator(".main-nav a").filter({ hasText: label }).count(), 1, "missing navigation item: " + label);\n    assert.equal(await page.locator("#workspaceSearch").count(), 1);
     assert.equal(await page.locator("#studio").count(), 1);
     assert.equal(await page.locator("#discovery").count(), 1);
     assert.equal(await page.locator("#review").count(), 1);
@@ -216,7 +216,7 @@ async function waitForServer() {
         dimensions.document <= dimensions.viewport,
         "horizontal page overflow at " + width + "px: " + JSON.stringify(dimensions)
       );
-      const targets = await page.locator(".main-nav a").evaluateAll(links =>
+      const targets = await page.locator(".main-nav a, .main-nav button").evaluateAll(links =>
         links.map(link => {
           const rect = link.getBoundingClientRect();
           return { width: rect.width, height: rect.height };
