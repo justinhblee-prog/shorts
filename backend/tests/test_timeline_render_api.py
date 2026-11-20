@@ -72,7 +72,8 @@ def make_request(body):
 class TimelineRenderApiTests(unittest.TestCase):
     def test_upload_streams_private_asset_into_quarantine(self):
         store = FakeAssetStore()
-        with patch.object(api, "require_review_permission", return_value="alice"), \
+        with patch.dict("os.environ", {"NEXUS_MEDIA_SCAN_ENABLED": "false"}), \
+             patch.object(api, "require_review_permission", return_value="alice"), \
              patch.object(api, "resolve_workspace_access", return_value="ws_studio"), \
              patch.object(api, "asset_store", store):
             result = asyncio.run(api.upload_workspace_asset(
