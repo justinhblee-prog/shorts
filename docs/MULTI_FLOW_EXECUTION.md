@@ -12,10 +12,10 @@ The work is divided into five delivery lanes plus one integration gate. Each lan
 
 | Lane | Ownership | Primary output | Current checkpoint | Next executable task |
 |---|---|---|---|---|
-| FLOW-UI | `frontend/**`, frontend tests in `backend/tests/test_frontend.py` | Real dashboard screens, responsive states, accessible interactions, browser evidence | Existing 19-module dashboard and development-job monitor passed hosted Chromium smoke in run 44592757768 | Show actual job dependency graph and group work by UI/Core/QA/Automation/Docs lane |
+| FLOW-UI | `frontend/**`, frontend tests in `backend/tests/test_frontend.py` | Real dashboard screens, responsive states, accessible interactions, browser evidence | Development-job board renders persisted dependencies and groups jobs by scope; full seven-lane responsive classification regression added on 2026-11-20 | Extend API-backed DAG/edge visibility and maintain desktop/mobile browser evidence |
 | FLOW-CORE | `backend/**`, database contracts and backend tests | Durable job graph, worker lease/fencing, APIs, security and provider adapters | Development job DAG, worker registry, event history and audited quarantine recovery exist | Verify persistence/recovery invariants and API contract gaps; keep shared schemas serialized |
 | FLOW-AUTO | `.github/workflows/**`, runner scripts and runner contract tests | Safe Windows/Ollama execution, persistent tooling, exact Draft PR evidence | PR #409 moves backend/Aider venvs outside the clean worktree; hosted run 44592757768 passed | Windows runner preflight and two-run LocalAppData SQLite persistence proof |
-| FLOW-QA | `backend/tests/**`, `scripts/**`, CI validation definitions | Regression coverage, Chromium smoke, exact-head evidence | Hosted suite and both dashboard/recovery browser smoke tests passed for PR #409 | Add UI dependency-graph assertions and preserve exact-head CI gates |
+| FLOW-QA | `backend/tests/**`, `scripts/**`, CI validation definitions | Regression coverage, Chromium smoke, exact-head evidence | Hosted suite and both dashboard/recovery browser smoke tests passed for PR #409 | Seven-lane classification and 320px visibility assertions added; verify exact-head CI and add explicit cross-lane/missing-prerequisite edge cases |
 | FLOW-DOCS | `docs/**`, handover and operator guidance | Current decisions, status, validation boundaries, runbooks | PR #410 adds mainline-based handover and current workstream notes | Keep lane status and evidence synchronized with merged/verified heads |
 | FLOW-INTEGRATION | Contract docs and coordinated integration only | Compatible integrated candidate, full test run, review-ready Draft PR | PR #407 integrated dashboard/recovery candidate; PR #409 worker fix is based on that candidate | Integrate UI/automation increments in dependency order; no automatic merge or deploy |
 
@@ -69,8 +69,8 @@ A lane item is complete only when all applicable conditions hold:
 | Order | Item | Lane | Status | Acceptance evidence |
 |---:|---|---|---|---|
 | 1 | Worker virtual environments outside clean checkout | FLOW-AUTO | Hosted PASS — PR #409 | Exact-head run 44592757768; Windows still unverified |
-| 2 | Dashboard dependency graph and workstream grouping | FLOW-UI | Ready to implement | API-backed dependencies, lane grouping, no fabricated status, responsive browser smoke |
-| 3 | Dependency/API contract regression for UI graph | FLOW-QA | Queued behind UI diff | Frontend assertions + analytics/recovery Chromium smoke |
+| 2 | Dashboard dependency graph and workstream grouping | FLOW-UI | Implemented; expanded QA in CI | Persisted API dependencies, scope-derived seven-lane grouping, no fabricated status, responsive browser smoke |
+| 3 | Dependency/API contract regression for UI graph | FLOW-QA | Expanded; exact-head CI pending | Seven lane classes and 320px visibility asserted by recovery Chromium smoke |
 | 4 | Windows runner and LocalAppData persistence | FLOW-AUTO | Blocked on trusted runner execution | Two separate workflow runs show same DB path and durable job/event state |
 | 5 | Real local-model cycle | FLOW-CORE + FLOW-AUTO | Blocked on runner preflight | Ollama-generated scoped diff, passing validation, exact Draft PR artifact, dependency advancement |
 | 6 | Integrated release-readiness review | FLOW-INTEGRATION + FLOW-DOCS | Waiting on 2–5 | Exact-head CI, reviewed diff, explicit live-test boundaries |
@@ -363,3 +363,14 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 
 
 - Promotion PR #416 clean-main CI runs 44649765794 and 44649800067 passed at exact head `20d9f522184654a11a75214a9fba81c5adabb660` (dependency install + full `scripts/validate.sh`). A later CI-only commit `13f9b1308a660e2a1799aba2c5aba39212008217` adds explicit worker-workflow YAML parsing; no exact-head run has yet been observed for that additional step.
+
+
+## 26. UI workstream board — expanded lane coverage (2026-11-20)
+
+- Audited the existing implementation: the board reads persisted `/api/development/jobs` and worker status, groups jobs by actual `scope` paths, and renders persisted prerequisite IDs/statuses. It does not fabricate job execution state.
+- Extended the disposable browser fixture with persisted Automation, QA, Docs, mixed-scope Integration, and unclassified jobs in addition to existing UI/Core dependency and quarantined-recovery jobs.
+- Extended Playwright assertions to require exactly one matching group for all seven classes (UI, CORE, AUTOMATION, QA, DOCS, INTEGRATION, UNCLASSIFIED), and to keep all seven groups visible at 320px.
+- Latest code commits: fixture `cb627da0ae91934ccebbcc3cb602054efd78b39c`; browser assertions `03bb8a8cf23ecf5d98468696e5ca35b7cc19d029`.
+- Exact-head hosted CI for `03bb8a8c...` is running (runs 44652238309 / 44652246574 / 44652255170). Do not mark PASS until the backend suite, both browser smoke scripts, and artifact upload complete.
+- UI lane code already exists; prior documentation incorrectly listed it as not yet implemented. Next UI increment is richer visual DAG edge/ancestor presentation and explicit missing-prerequisite handling, subject to API contract review.
+- PR #415 remains Draft/open/unmerged. No merge, deploy, workflow dispatch, runner change, secret change, or default-branch change.
