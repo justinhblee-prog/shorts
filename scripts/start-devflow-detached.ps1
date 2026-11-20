@@ -61,6 +61,7 @@ if($Supervisor){
   $runner.WaitForExit()
   $exitCode=$runner.ExitCode
   if($exitCode -ne 0){throw "Multi-flow launcher failed with exit code $exitCode."}
+  $lock.Dispose();$lock=$null
   Write-JsonAtomic $statusPath @{run_id=$RunId;status="completed";exit_code=0;finished_at=[DateTime]::UtcNow.ToString("o")}
  }catch{
   Write-Error $_
