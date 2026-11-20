@@ -284,4 +284,4 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Schedule records are now workspace-owned; existing records migrate as legacy unassigned (`workspace_id = NULL`).
 - Schedule creation, listing, activation, outbox status, and dead-letter retry use the authenticated operator's resolved workspace scope.
 - Due dispatch propagates the schedule's workspace ID into the durable queue job; outbox rows inherit scope from their parent schedule.
-- Regression coverage added for workspace A/B schedule isolation, dispatch propagation, and legacy outbox preservation. CI for `effc7a497b9c64b2fbcef1b8d1b7bb3c004f5117` was pending at handover update.
+- Regression coverage covers workspace A/B schedule isolation, dispatch propagation, and preservation of legacy orphan outbox records. Code head `effc7a497b9c64b2fbcef1b8d1b7bb3c004f5117` passed Backend tests + Chromium browser smoke (run `44688516667`) and Compose integration build/readiness/backup/restore (run `44688516822`).
