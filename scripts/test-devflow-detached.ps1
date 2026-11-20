@@ -67,6 +67,7 @@ try{
  catch{throw "Scheduler lease remained held after supervisor completion."}
  finally{if($probe){$probe.Dispose()}}
  Write-Host "PASS: detached supervisor survived parent launcher return, executed the scheduler, persisted logs/status, and released its exclusive lease."
+ $supervisorPid=$null
 }finally{
  if($supervisorPid){
   $p=Get-Process -Id $supervisorPid -ErrorAction SilentlyContinue
