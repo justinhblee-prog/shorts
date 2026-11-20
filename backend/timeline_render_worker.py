@@ -97,7 +97,7 @@ class TimelineRenderWorker:
             result = self.renderer(render_payload, stop_event=cancel_render, **context)
             if isinstance(result, dict):
                 staged_path = result.get("staged_path")
-            if lease_lost.is_set():
+            if lease_lost.is_set() or (cancel_render.is_set() and not (self.shutdown_event is not None and self.shutdown_event.is_set())):
                 raise RuntimeError("timeline render lease was lost")
             if self.shutdown_event is not None and self.shutdown_event.is_set():
                 raise RuntimeError("timeline render cancelled for graceful worker shutdown")
