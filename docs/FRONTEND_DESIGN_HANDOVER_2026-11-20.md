@@ -336,3 +336,5 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Analytics coverage status endpoints fail closed when `X-Nexus-Workspace-Id` is omitted; the requested workspace is checked against the authenticated operator's membership.
 
 - YouTube Analytics detail reads are now workspace-filtered in the store query itself, not only pre-authorized at the API layer.
+
+- Analytics status header validation explicitly rejects FastAPI `Header` sentinel values in direct-call tests as well as omitted HTTP headers; regression fix CI pending.
