@@ -245,6 +245,41 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
         self.assertEqual(outcomes, ["lease_lost"])
         self.assertEqual(self.store.get(job["id"])["status"], "leased")
 
+    def test_worker_presence_mismatch_cancels_executor_and_fails_closed(self):
+        self.store.lease_seconds = 3
+        job = self.store.create("Worker presence ownership mismatch", scope=["backend/example.py"])
+
+        class CancellableExecutor:
+            def __init__(self):
+                self.started = threading.Event()
+                self.cancelled = threading.Event()
+
+            def __call__(self, _):
+                self.started.set()
+                self.cancelled.wait(5)
+                return {
+                    "changed_files": ["backend/example.py"],
+                    "tests_passed": True,
+                    "validation_ref": "ci://must-not-be-accepted",
+                }
+
+            def cancel(self):
+                self.cancelled.set()
+
+        executor = CancellableExecutor()
+        worker = DevelopmentJobWorker(self.store, "worker-presence-mismatch", executor)
+        outcomes = []
+        with patch.object(self.store, "heartbeat_worker", return_value=False):
+            thread = threading.Thread(target=lambda: outcomes.append(worker.run_once()))
+            thread.start()
+            self.assertTrue(executor.started.wait(2))
+            self.assertTrue(executor.cancelled.wait(4))
+            thread.join(2)
+
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(outcomes, ["lease_lost"])
+        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+
     def test_stale_evidence_gate_conflict_returns_lease_lost(self):
         job = self.store.create("Stale completion fence", scope=["backend/example.py"])
         worker = DevelopmentJobWorker(
