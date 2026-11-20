@@ -7,7 +7,7 @@ param(
  [Parameter(ParameterSetName="Finalize")][string]$Title
 )
 $ErrorActionPreference="Stop"
-function Invoke-Git { param([string[]]$GitArgs) & git @Args; if($LASTEXITCODE -ne 0){throw "git $( $GitArgs -join ' ') failed (exit $LASTEXITCODE)"} }
+function Invoke-Git { param([string[]]$GitArgs) & git @GitArgs; if($LASTEXITCODE -ne 0){throw "git $($GitArgs -join ' ') failed (exit $LASTEXITCODE)"} }
 function Get-RepoRoot { $r=(& git rev-parse --show-toplevel 2>$null); if($LASTEXITCODE -ne 0 -or -not $r){throw "Not inside a Git repository."}; return $r.Trim() }
 foreach($tool in @("git","gh")){if(-not(Get-Command $tool -ErrorAction SilentlyContinue)){throw "Required CLI not found: $tool"}}
 & gh auth status *> $null
