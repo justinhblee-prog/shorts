@@ -3,7 +3,7 @@ import logging
 import secrets
 from typing import Any, Literal
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, HTTPException, Header, Query, Request, Response
+from fastapi import FastAPI, HTTPException, Header, Query, Request, Response, UploadFile, File
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -30,6 +30,7 @@ from performance_insights import PerformanceAnalyzer
 from recommendation_evaluation import RecommendationEvaluationStore
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
+from media_assets import MediaAssetStore, MediaAssetRejected, MediaAssetUnavailable
 from media_inspection import MediaInspector, MediaInspectionError
 from preflight import build_preflight
 from timeline_edl import validate_edl, EDLValidationError
@@ -37,6 +38,7 @@ from workspace_access import resolve_workspace_membership, resolve_workspace_acc
 from workspace_store import WorkspaceStore, WorkspaceDenied, WorkspaceConflict, WorkspaceNotFound
 from worker_auth import authenticate_worker, WorkerAuthConfigurationError, WorkerAuthenticationError
 
+MAX_MEDIA_UPLOAD_BYTES = int(os.getenv("NEXUS_MAX_MEDIA_BYTES", str(256 * 1024 * 1024)))
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 class TikTokOAuthAccessLogRedaction(logging.Filter):
     """Prevent OAuth authorization codes and state values entering access logs."""
@@ -74,7 +76,9 @@ app.add_middleware(
         "control": int(os.getenv("NEXUS_API_CONTROL_RATE_LIMIT_PER_MINUTE", "30")),
         "review": int(os.getenv("NEXUS_API_REVIEW_RATE_LIMIT_PER_MINUTE", "60")),
         "production": int(os.getenv("NEXUS_API_PRODUCTION_RATE_LIMIT_PER_MINUTE", "30")),
+        "media": int(os.getenv("NEXUS_API_MEDIA_RATE_LIMIT_PER_MINUTE", "10")),
     },
+    upload_max_bytes=MAX_MEDIA_UPLOAD_BYTES,
 )
 trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 trend_ingestor=TrendIngestor(trend_store)
@@ -106,6 +110,11 @@ performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.s
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+media_asset_store=MediaAssetStore(
+    db_path=os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),
+    media_dir=os.getenv("NEXUS_MEDIA_DIR","data/media"),
+    max_bytes=MAX_MEDIA_UPLOAD_BYTES,
+)
 media_stager=MediaStager()
 
 class Enqueue(BaseModel):
@@ -662,6 +671,57 @@ def validate_timeline_edl(
     except EDLValidationError as exc:
         raise HTTPException(422,str(exc))
     return {"valid":True,"rendered":False,"workspace_id":workspace_id,"edl":normalized}
+
+
+@app.post("/api/media/assets", status_code=201)
+def upload_source_media(
+    file: UploadFile = File(...),
+    x_review_token: str | None = Header(default=None),
+    x_nexus_workspace_id: str | None = Header(default=None),
+):
+    operator_id = require_review_permission(x_review_token, "media.upload")
+    workspace_id = resolve_operator_workspace_scope(operator_id, x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(400, "Select an active workspace before uploading source media")
+    try:
+        return media_asset_store.create_from_stream(
+            file.file, workspace_id=workspace_id, filename=file.filename
+        )
+    except MediaAssetRejected as exc:
+        raise HTTPException(422, str(exc))
+    except MediaAssetUnavailable as exc:
+        raise HTTPException(503, str(exc))
+    finally:
+        file.file.close()
+
+
+@app.get("/api/media/assets")
+def list_source_media(
+    limit: int = Query(default=50, ge=1, le=100),
+    x_review_token: str | None = Header(default=None),
+    x_nexus_workspace_id: str | None = Header(default=None),
+):
+    operator_id = require_review_permission(x_review_token, "media.read")
+    workspace_id = resolve_operator_workspace_scope(operator_id, x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(400, "Select an active workspace to list source media")
+    return {"items": media_asset_store.list_for_workspace(workspace_id, limit)}
+
+
+@app.get("/api/media/assets/{asset_id}")
+def get_source_media(
+    asset_id: str,
+    x_review_token: str | None = Header(default=None),
+    x_nexus_workspace_id: str | None = Header(default=None),
+):
+    operator_id = require_review_permission(x_review_token, "media.read")
+    workspace_id = resolve_operator_workspace_scope(operator_id, x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(400, "Select an active workspace to inspect source media")
+    asset = media_asset_store.get(asset_id, workspace_id=workspace_id)
+    if asset is None:
+        raise HTTPException(404, "Media asset not found")
+    return asset
 
 
 @app.get("/api/review/pending")
