@@ -76,3 +76,25 @@ The CI renderer tests use a fake subprocess executable and generated fixture
 bytes. They prove argv construction, audio-mix/mux orchestration, cancellation
 before process launch and worker wiring; they do not prove that a real FFmpeg
 binary can decode the supplied media or produce a playable MP4.
+
+
+## Timeline gaps, title cards and source audio
+
+The EDL renderer now emits explicit black video segments for timeline gaps,
+and title clips become centered drawtext cards on a black background. Title
+rendering is fail-closed unless the worker is configured with a trusted local
+font file via \`title_font_path\`. Text is passed as an escaped FFmpeg filter
+value with expansion disabled; it is never interpreted as a filter expression.
+
+When a pinned local ffprobe binary is configured via \`ffprobe_path\`, the
+renderer detects the first audio stream on each source asset and adds that
+clip's source-trimmed audio at its timeline offset. These tracks are mixed with
+any separately resolved trusted audio beds, subject to the combined eight-track
+limit. Silent clips are omitted from the source-audio mix. Source audio remains
+optional when ffprobe is not configured.
+
+Overlapping clips and transitions remain unsupported and are rejected by the
+renderer. Trailing timeline duration cannot be inferred from the current EDL
+schema because it has no explicit project-duration field. The tests use fake
+FFmpeg/ffprobe processes; a pinned real-media render is still an external
+runtime validation gate.
