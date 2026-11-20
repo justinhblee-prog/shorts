@@ -32,7 +32,8 @@ function Set-State([string]$Path,[string]$Id,[string]$Status,[string]$Detail){
 if($Worker){
  $taskData=Get-Content -LiteralPath $TaskFile -Raw -Encoding UTF8|ConvertFrom-Json
  $id=[string]$taskData.id
- if(-not $id){throw "Task file has no task id: $TaskFile"}$statePath=Join-Path $StateRoot "state.json"
+ if(-not $id){throw "Task file has no task id: $TaskFile"}
+ $statePath=Join-Path $StateRoot "state.json"
  $leaseDir=Join-Path $StateRoot "leases";New-Item -ItemType Directory -Force -Path $leaseDir|Out-Null
  $leasePath=Join-Path $leaseDir "$id.lease"
  $lease=$null
@@ -45,8 +46,8 @@ if($Worker){
   if(-not $command -or -not $argsJson){throw "Agent CLI configuration missing."}
   $agentArgs=ConvertFrom-Json -InputObject $argsJson;if($agentArgs -isnot [array]){$agentArgs=@($agentArgs)}
   if(@($agentArgs|Where-Object{$_ -eq "{prompt_file}"}).Count -eq 0){throw "Agent args must include {prompt_file}."}
-  $expanded=foreach($a in $agentArgs){([string]$a).Replace("{prompt_file}",$taskData.prompt).Replace("{task_id}",$id).Replace("{worktree}",$task.worktree)}
-  $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=$command;$psi.WorkingDirectory=$task.worktree;$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
+  $expanded=foreach($a in $agentArgs){([string]$a).Replace("{prompt_file}",$taskData.prompt).Replace("{task_id}",$id).Replace("{worktree}",$taskData.worktree)}
+  $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=$command;$psi.WorkingDirectory=$taskData.worktree;$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
   foreach($a in $expanded){[void]$psi.ArgumentList.Add($a)}
   $agent=[Diagnostics.Process]::new();$agent.StartInfo=$psi
   if(-not $agent.Start()){throw "Agent did not start."}
@@ -56,21 +57,21 @@ if($Worker){
   if(-not $agent.WaitForExit($agentTimeoutMs)){try{$agent.Kill($true)}catch{};throw "Agent timeout."}
   if($stdout.Result){Write-Output $stdout.Result};if($stderr.Result){Write-Output $stderr.Result}
   if($agent.ExitCode -ne 0){throw "Agent exit code $($agent.ExitCode)."}
-  Remove-Item -LiteralPath $task.prompt -Force -ErrorAction SilentlyContinue
-  if(& git -C $task.worktree status --porcelain -- .devflow/tasks.json){throw "Protected task manifest was modified."}
-  if(-not(& git -C $task.worktree status --porcelain)){throw "Agent produced no changes."}
-  & python (Join-Path $task.worktree "scripts/devflow.py") validate;if($LASTEXITCODE -ne 0){throw "Validation failed."}
+  Remove-Item -LiteralPath $taskData.prompt -Force -ErrorAction SilentlyContinue
+  if(& git -C $taskData.worktree status --porcelain -- .devflow/tasks.json){throw "Protected task manifest was modified."}
+  if(-not(& git -C $taskData.worktree status --porcelain)){throw "Agent produced no changes."}
+  & python (Join-Path $taskData.worktree "scripts/devflow.py") validate;if($LASTEXITCODE -ne 0){throw "Validation failed."}
   foreach($n in @(".env",".env.local","credentials.json","secrets.json")){
-   $secret=Get-ChildItem $task.worktree -Force -Recurse -File -Filter $n -ErrorAction SilentlyContinue|Where-Object{$_.FullName -notmatch '[\\/](\.git|node_modules|\.venv)[\\/]'}
+   $secret=Get-ChildItem $taskData.worktree -Force -Recurse -File -Filter $n -ErrorAction SilentlyContinue|Where-Object{$_.FullName -notmatch '[\\/](\.git|node_modules|\.venv)[\\/]'}
    if($secret){throw "Potential secret file: $n"}
   }
-  & git -C $task.worktree add -A;if($LASTEXITCODE -ne 0){throw "git add failed."}
-  & git -C $task.worktree diff --cached --check;if($LASTEXITCODE -ne 0){throw "git diff check failed."}
-  & git -C $task.worktree commit -m "BUILD: $id - $($task.title)";if($LASTEXITCODE -ne 0){throw "commit failed."}
-  & git -C $task.worktree push -u origin $task.branch;if($LASTEXITCODE -ne 0){throw "push failed."}
-  & gh pr create --draft --base $task.base --head $task.branch --title "BUILD: $id - $($task.title)" --body "Task $id validated by isolated worker. Draft only; no merge, deployment, publishing, or dependency completion."
+  & git -C $taskData.worktree add -A;if($LASTEXITCODE -ne 0){throw "git add failed."}
+  & git -C $taskData.worktree diff --cached --check;if($LASTEXITCODE -ne 0){throw "git diff check failed."}
+  & git -C $taskData.worktree commit -m "BUILD: $id - $($taskData.title)";if($LASTEXITCODE -ne 0){throw "commit failed."}
+  & git -C $taskData.worktree push -u origin $taskData.branch;if($LASTEXITCODE -ne 0){throw "push failed."}
+  & gh pr create --draft --base $taskData.base --head $taskData.branch --title "BUILD: $id - $($taskData.title)" --body "Task $id validated by isolated worker. Draft only; no merge, deployment, publishing, or dependency completion."
   if($LASTEXITCODE -ne 0){throw "Draft PR creation failed after push."}
-  Set-State $statePath $id "draft_pr_created" "fence=$fence; branch=$($task.branch)"
+  Set-State $statePath $id "draft_pr_created" "fence=$fence; branch=$($taskData.branch)"
  }catch{
   Set-State $statePath $id "failed" $_.Exception.Message
   throw
