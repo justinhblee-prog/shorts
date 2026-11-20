@@ -73,7 +73,7 @@ async function waitForServer() {
     );
     await crossPagePrerequisite.waitFor({ state: "visible" });
     let crossPageRequestCount = 0;
-    await page.route(/\/api\/development\/jobs\?limit=200&offset=200$/, async route => {
+    await page.route(/\/api\/development\/jobs\?limit=200&offset=200&created_before=[^&]+$/, async route => {
       crossPageRequestCount += 1;
       await new Promise(resolve => setTimeout(resolve, 250));
       await route.continue();
