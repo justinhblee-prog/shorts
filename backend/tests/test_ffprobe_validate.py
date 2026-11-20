@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from ffprobe_validate import FFprobeValidationError, probe_media, has_audio_stream
+from ffprobe_validate import FFprobeValidationError, probe_media, has_audio_stream, probe_source_media
 
 
 class FFprobeValidationTests(unittest.TestCase):
