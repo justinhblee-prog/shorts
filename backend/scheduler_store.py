@@ -35,6 +35,7 @@ class ScheduleStore:
             c.executescript("""
             CREATE TABLE IF NOT EXISTS production_schedules(
               id TEXT PRIMARY KEY, name TEXT NOT NULL, interval_seconds INTEGER NOT NULL,
+              workspace_id TEXT,
               payload_json TEXT NOT NULL, next_run_at TEXT NOT NULL,
               active INTEGER NOT NULL DEFAULT 1, last_enqueued_at TEXT,
               created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -57,6 +58,11 @@ class ScheduleStore:
               updated_at TEXT NOT NULL
             );
             """)
+            schedule_columns = {row["name"] for row in c.execute(
+                "PRAGMA table_info(production_schedules)").fetchall()}
+            if "workspace_id" not in schedule_columns:
+                c.execute("ALTER TABLE production_schedules ADD COLUMN workspace_id TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_schedule_workspace_active ON production_schedules(workspace_id,active,next_run_at)")
             columns = {row["name"] for row in c.execute(
                 "PRAGMA table_info(schedule_dispatch_outbox)").fetchall()}
             if "next_attempt_at" not in columns:
@@ -80,9 +86,11 @@ class ScheduleStore:
         finally:
             c.close()
 
-    def create(self, name, interval_seconds, payload, start_at=None):
+    def create(self, name, interval_seconds, payload, start_at=None, workspace_id=None):
         if not name.strip():
             raise ValueError("schedule name is required")
+        if workspace_id is not None and (not isinstance(workspace_id, str) or not workspace_id.strip() or len(workspace_id) > 128):
+            raise ValueError("workspace_id must be a non-empty string of at most 128 characters")
         if isinstance(interval_seconds, bool) or not isinstance(interval_seconds, int):
             raise ValueError("interval_seconds must be an integer")
         interval = interval_seconds
@@ -102,9 +110,9 @@ class ScheduleStore:
             due = _stamp(start if start is not None else now)
             stamp = _stamp(now)
             c.execute("""INSERT INTO production_schedules
-              (id,name,interval_seconds,payload_json,next_run_at,active,created_at,updated_at)
-              VALUES(?,?,?,?,?,1,?,?)""",
-              (sid, name.strip(), interval, json.dumps(payload, ensure_ascii=False), due, stamp, stamp))
+              (id,name,interval_seconds,workspace_id,payload_json,next_run_at,active,created_at,updated_at)
+              VALUES(?,?,?,?,?,?,1,?,?)""",
+              (sid, name.strip(), interval, workspace_id, json.dumps(payload, ensure_ascii=False), due, stamp, stamp))
             return self.get(sid, c)
 
     def get(self, sid, c=None):
