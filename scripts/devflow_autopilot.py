@@ -158,11 +158,16 @@ def main() -> int:
     worktree.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"[devflow] task={task_id} base={args.base}", flush=True)
-    run(["git", "fetch", "origin", "--prune"], ROOT, timeout=900)
-    try:
-        base_sha = git(ROOT, "rev-parse", "--verify", f"refs/remotes/origin/{args.base}")
-    except RuntimeError:
-        base_sha = git(ROOT, "rev-parse", "--verify", args.base)
+    resolved_base = os.environ.get("DEVFLOW_RESOLVED_BASE_SHA")
+    if resolved_base:
+        git(ROOT, "cat-file", "-e", f"{resolved_base}^{{commit}}")
+        base_sha = resolved_base
+    else:
+        run(["git", "fetch", "origin", "--prune"], ROOT, timeout=900)
+        try:
+            base_sha = git(ROOT, "rev-parse", "--verify", f"refs/remotes/origin/{args.base}")
+        except RuntimeError:
+            base_sha = git(ROOT, "rev-parse", "--verify", args.base)
     run(["git", "worktree", "add", "-b", branch, str(worktree), base_sha], ROOT)
     helper = worktree / "scripts" / "devflow.py"
     prompt_file = worktree.parent / f"{slug}-agent-prompt.md"
