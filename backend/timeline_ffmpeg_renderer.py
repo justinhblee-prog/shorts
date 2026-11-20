@@ -216,7 +216,7 @@ class TimelineFFmpegRenderer:
                     workspace_id, principal_id, clip["asset_id"], job_dir, index
                 )
                 staged_video.append(staged)
-                argv.extend(["-i", str(staged)])
+                argv.extend(["-protocol_whitelist", "file,pipe", "-i", str(staged)])
 
             filters = []
             labels = []
@@ -266,7 +266,8 @@ class TimelineFFmpegRenderer:
                 self._run(audio_argv, stop_event)
                 mux_argv = [
                     self.ffmpeg_path, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
-                    "-i", str(video_path), "-i", str(audio_path),
+                    "-protocol_whitelist", "file,pipe", "-i", str(video_path),
+                    "-protocol_whitelist", "file,pipe", "-i", str(audio_path),
                     "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "copy",
                     "-t", self._seconds(duration_ms), "-movflags", "+faststart",
                     str(final_path),
