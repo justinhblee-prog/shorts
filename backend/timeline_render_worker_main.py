@@ -61,30 +61,32 @@ def main():
     signal.signal(signal.SIGINT, handle_shutdown_signal)
     registration = queue.register_worker(WORKER_ID, socket.gethostname())
     generation_token = registration["generation_token"]
-    worker = create_edl_render_worker(
-        queue, asset_store, WORKER_ID, generation_token,
-        Path(STAGING_ROOT).resolve(), FFMPEG_PATH, artifact_store,
-        ffprobe_path=FFPROBE_PATH,
-        title_font_path=os.getenv("NEXUS_TITLE_FONT_PATH") or None,
-        width=int(os.getenv("NEXUS_RENDER_WIDTH", "1080")),
-        height=int(os.getenv("NEXUS_RENDER_HEIGHT", "1920")),
-        fps=int(os.getenv("NEXUS_RENDER_FPS", "30")),
-        max_input_bytes=int(os.getenv("NEXUS_MAX_ASSET_BYTES", "500000000")),
-        timeout_seconds=int(os.getenv("NEXUS_RENDER_TIMEOUT_SECONDS", "3600")),
-        heartbeat_seconds=HEARTBEAT_SECONDS,
-        shutdown_event=stopping,
-    )
-    print(
-        f"timeline_render_worker_started id={WORKER_ID} "
-        f"lease_seconds={LEASE_SECONDS} heartbeat_seconds={HEARTBEAT_SECONDS}"
-    )
     try:
-        while not stopping.is_set():
-            if queue.is_paused():
-                stopping.wait(IDLE_SECONDS)
-                continue
-            if not worker.run_once():
-                stopping.wait(IDLE_SECONDS)
+        worker = create_edl_render_worker(
+            queue, asset_store, WORKER_ID, generation_token,
+            Path(STAGING_ROOT).resolve(), FFMPEG_PATH, artifact_store,
+            ffprobe_path=FFPROBE_PATH,
+            title_font_path=os.getenv("NEXUS_TITLE_FONT_PATH") or None,
+            width=int(os.getenv("NEXUS_RENDER_WIDTH", "1080")),
+            height=int(os.getenv("NEXUS_RENDER_HEIGHT", "1920")),
+            fps=int(os.getenv("NEXUS_RENDER_FPS", "30")),
+            max_input_bytes=int(os.getenv("NEXUS_MAX_ASSET_BYTES", "500000000")),
+            timeout_seconds=int(os.getenv("NEXUS_RENDER_TIMEOUT_SECONDS", "3600")),
+            heartbeat_seconds=HEARTBEAT_SECONDS,
+            shutdown_event=stopping,
+        )
+        print(
+            f"timeline_render_worker_started id={WORKER_ID} "
+            f"lease_seconds={LEASE_SECONDS} heartbeat_seconds={HEARTBEAT_SECONDS}"
+        )
+        try:
+            while not stopping.is_set():
+                if queue.is_paused():
+                    stopping.wait(IDLE_SECONDS)
+                    continue
+                if not worker.run_once():
+                    stopping.wait(IDLE_SECONDS)
+
     finally:
         try:
             queue.mark_worker_offline(WORKER_ID, generation_token)
