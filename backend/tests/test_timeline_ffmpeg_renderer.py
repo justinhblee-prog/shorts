@@ -177,7 +177,7 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
 
     def test_rejects_edl_payload_that_does_not_match_snapshot_digest(self):
         invalid = json.loads(json.dumps(self.payload))
-        invalid["edl"]["clips"][0]["source_in_ms"] = 1500
+        invalid["edl"]["clips"][0]["asset_id"] = "asset_other"
         with self.assertRaisesRegex(TimelineRenderError, "snapshot digest"):
             self.renderer(
                 invalid, stop_event=threading.Event(),
