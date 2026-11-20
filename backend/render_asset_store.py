@@ -307,8 +307,12 @@ class RenderAssetStore:
             try:
                 path = candidate.resolve(strict=True)
                 path.relative_to(self.media_root)
+                namespace = hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
+                workspace_asset_root = (self.media_root / namespace / "render-assets").resolve(strict=True)
+                workspace_asset_root.relative_to(self.media_root)
+                path.relative_to(workspace_asset_root)
             except (OSError, ValueError) as exc:
-                raise RenderAssetError("Registered render asset escaped media storage") from exc
+                raise RenderAssetError("Registered render asset escaped its workspace namespace") from exc
             digest = hashlib.sha256()
             size = 0
             with path.open("rb") as stream:
