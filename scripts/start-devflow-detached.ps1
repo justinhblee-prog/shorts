@@ -49,12 +49,17 @@ if($Supervisor){
  try{
   try{$lock=[IO.File]::Open($lockPath,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)}
   catch{throw "Another multi-flow supervisor already owns the scheduler lease. Check the active run logs before starting another."}
-  $runnerArgs=@{Run=$true;MaxTasks=$MaxTasks}
-  if($Task){$runnerArgs.Task=$Task}
-  if($Base){$runnerArgs.Base=$Base}
-  & $launcher @runnerArgs
-  $exitCode=$LASTEXITCODE
-  if($null -eq $exitCode){$exitCode=0}
+  $psi=[Diagnostics.ProcessStartInfo]::new()
+  $psi.FileName=(Get-Command pwsh -ErrorAction Stop).Source
+  $psi.WorkingDirectory=$root
+  $psi.UseShellExecute=$false
+  foreach($arg in @("-NoProfile","-NoLogo","-NonInteractive","-File",$launcher,"-Run","-MaxTasks",[string]$MaxTasks)){[void]$psi.ArgumentList.Add($arg)}
+  if($Task){[void]$psi.ArgumentList.Add("-Task");[void]$psi.ArgumentList.Add($Task)}
+  if($Base){[void]$psi.ArgumentList.Add("-Base");[void]$psi.ArgumentList.Add($Base)}
+  $runner=[Diagnostics.Process]::new();$runner.StartInfo=$psi
+  if(-not $runner.Start()){throw "Could not start the multi-flow launcher process."}
+  $runner.WaitForExit()
+  $exitCode=$runner.ExitCode
   if($exitCode -ne 0){throw "Multi-flow launcher failed with exit code $exitCode."}
   Write-JsonAtomic $statusPath @{run_id=$RunId;status="completed";exit_code=0;finished_at=[DateTime]::UtcNow.ToString("o")}
  }catch{
