@@ -1651,9 +1651,11 @@ def readiness():
         "checks": {"queue_store": "ok", "scheduler_store": "ok"},
     }
 @app.get("/api/queue/stats")
-def stats(x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.read")
-    return queue.stats()
+def stats(x_review_token:str|None=Header(default=None),
+          x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"queue.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return queue.stats(workspace_id=workspace_id)
 @app.get("/api/queue/control")
 def queue_control(x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"queue.read")
@@ -1663,9 +1665,13 @@ def queue_control(x_review_token:str|None=Header(default=None)):
     }
 
 @app.get("/api/production/reconciliation")
-def list_production_reconciliation(limit:int=100,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.read")
-    return {"jobs":review_store._sanitize_review_value(queue.ambiguous_production_jobs(limit))}
+def list_production_reconciliation(limit:int=100,x_review_token:str|None=Header(default=None),
+                                  x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"queue.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return {"jobs":review_store._sanitize_review_value(
+        queue.ambiguous_production_jobs(limit,workspace_id=workspace_id)
+    )}
 
 @app.get("/api/production/jobs/{job_id}/reconciliation")
 def get_production_reconciliation(job_id:str,x_review_token:str|None=Header(default=None),
@@ -1687,11 +1693,14 @@ def reconcile_production_retry(job_id:str,body:ProductionReconciliationAction,
         raise HTTPException(422,"operator_id, evidence_reference and note must not be blank")
     try:
         job=queue.reconcile_production_retry(
-            job_id,body.operator_id,body.evidence_reference,body.note)
+            job_id,body.operator_id,body.evidence_reference,body.note,
+            workspace_id=workspace_id)
         return {
             "job":review_store.sanitize_production_record(job),
             "production_paused":queue.is_paused(),
-            "events":review_store._sanitize_review_value(queue.production_reconciliation_events(job_id)),
+            "events":review_store._sanitize_review_value(
+                queue.production_reconciliation_events(job_id,workspace_id=workspace_id)
+            ),
         }
     except JobNotFound:
         raise HTTPException(404,"Production job not found")
@@ -1891,9 +1900,13 @@ def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None)):
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/cancel")
-def cancel(jid:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.control")
-    try: return queue.cancel(jid)
+def cancel(jid:str,x_review_token:str|None=Header(default=None),
+           x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"queue.control")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try:
+        queue.get(jid,workspace_id=workspace_id)
+        return queue.cancel(jid,workspace_id=workspace_id)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except ValueError as e: raise HTTPException(409,str(e))
 @app.post("/api/queue/recover")
