@@ -69,6 +69,28 @@ class QueueTests(unittest.TestCase):
    self.q.enqueue("script",{"topic":"y"},idempotency_key="once")
   with self.assertRaises(IdempotencyConflict):
    self.q.enqueue("render",{"topic":"x"},idempotency_key="once")
+
+ def test_workspace_id_is_persisted_through_queue_claim(self):
+  queued=self.q.enqueue("short_video_production",{"topic":"tenant"},workspace_id="workspace-a")
+  self.assertEqual(queued["workspace_id"],"workspace-a")
+  claimed=self.q.claim("worker-tenant",job_type="short_video_production")
+  self.assertEqual(claimed["id"],queued["id"])
+  self.assertEqual(claimed["workspace_id"],"workspace-a")
+
+ def test_idempotency_key_cannot_return_another_workspaces_job(self):
+  first=self.q.enqueue("short_video_production",{"topic":"same"},
+                       idempotency_key="tenant-shared-key",workspace_id="workspace-a")
+  with self.assertRaisesRegex(IdempotencyConflict,"different workspace"):
+   self.q.enqueue("short_video_production",{"topic":"same"},
+                  idempotency_key="tenant-shared-key",workspace_id="workspace-b")
+  self.assertEqual(self.q.get(first["id"])["workspace_id"],"workspace-a")
+
+ def test_workspace_id_validation_rejects_empty_and_oversized_values(self):
+  for workspace_id in ("", " " , "x" * 129, 123):
+   with self.subTest(workspace_id=workspace_id):
+    with self.assertRaises(ValueError):
+     self.q.enqueue("render",{},workspace_id=workspace_id)
+
  def test_exclusive_claim_and_fenced_completion(self):
   j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
   self.assertEqual(a["id"],j["id"]); self.assertIsNone(self.q.claim("worker-b"))
