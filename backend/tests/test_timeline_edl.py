@@ -94,12 +94,17 @@ class TimelineEDLTests(unittest.TestCase):
         }
         for field, value in (("gain", 9), ("gain", float("nan")),
                              ("fade_in_ms", -1), ("fade_out_ms", 60001),
-                             ("fade_in_ms", 700), ("fade_out_ms", 700)):
+                             ("fade_in_ms", 1001), ("fade_out_ms", 1001)):
             payload = {"schema": base["schema"], "version": 1,
                        "timebase": "milliseconds",
                        "clips": [dict(base["clips"][0], **{field: value})]}
             with self.subTest(field=field, value=value), self.assertRaises(EDLValidationError):
                 validate_edl(payload)
+        payload = {"schema": base["schema"], "version": 1,
+                   "timebase": "milliseconds",
+                   "clips": [dict(base["clips"][0], fade_in_ms=700, fade_out_ms=700)]}
+        with self.assertRaises(EDLValidationError):
+            validate_edl(payload)
 
 
 if __name__ == "__main__":
