@@ -40,7 +40,8 @@ class RenderOutputStoreTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def make_result(self):
-        directory = self.media_root / "workspace" / "render-outputs"
+        namespace = hashlib.sha256(self.workspace.encode("utf-8")).hexdigest()
+        directory = self.media_root / namespace / "render-outputs"
         directory.mkdir(parents=True)
         path = directory / ("a" * 32 + ".mp4")
         payload = b"verified-render-output"
