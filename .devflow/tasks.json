@@ -140,7 +140,7 @@
         "Do not modify .devflow/tasks.json or unrelated files"
       ],
       "external_gates": [],
-      "notes": "Small real-worker validation task after the local model passed the JSON-text tool-call diagnostic. Intended to verify the no-format Ollama request path with deterministic offline tests. Draft PR only."
+      "notes": "Retry after simplifying the model instructions to require tool-first JSON requests and broadening normalization for common Qwen JSON tool-call shapes. Bounded response previews are emitted for diagnosis. Draft PR only."
     }
   ]
 }
