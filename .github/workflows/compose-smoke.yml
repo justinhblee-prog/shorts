@@ -17,6 +17,8 @@ jobs:
   compose:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      COMPOSE_PROFILES: render
     steps:
       - uses: actions/checkout@v4
       - name: Prepare encrypted non-production backup environment
@@ -32,6 +34,16 @@ jobs:
           PY
       - name: Verify Compose configuration
         run: docker compose config --quiet
+      - name: Verify render worker is opt-in
+        run: |
+          set -eu
+          default_services="$(env -u COMPOSE_PROFILES docker compose config --services)"
+          if printf '%s\n' "$default_services" | grep -qx "timeline-render-worker"; then
+            echo "timeline-render-worker must not start in the default Compose profile"
+            exit 1
+          fi
+          render_services="$(COMPOSE_PROFILES=render docker compose config --services)"
+          printf '%s\n' "$render_services" | grep -qx "timeline-render-worker"
       - name: Build all service images
         run: docker compose build
       - name: Start API, worker, scheduler, metrics collector and backup
@@ -76,6 +88,7 @@ jobs:
               "readonly_rootfs": host.get("ReadonlyRootfs"),
               "cap_drop": host.get("CapDrop"),
               "security_opt": host.get("SecurityOpt"),
+              "network_mode": host.get("NetworkMode"),
           }
           print("timeline_render_worker_security_limits=" + json.dumps(observed, sort_keys=True))
           assert observed["memory"] == 4 * 1024**3, observed
@@ -85,6 +98,7 @@ jobs:
           ), observed
           assert observed["pids_limit"] == 128, observed
           assert observed["readonly_rootfs"] is True, observed
+          assert observed["network_mode"] == "none", observed
           assert "ALL" in (observed["cap_drop"] or []), observed
           assert any("no-new-privileges" in item for item in (observed["security_opt"] or [])), observed
           PY

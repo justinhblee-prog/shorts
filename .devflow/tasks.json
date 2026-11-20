@@ -47,7 +47,6 @@
         "Concrete shell-free FFmpeg EDL v1 video renderer for contiguous video clips with bounded dimensions, frame rate, threads and runtime",
         "Optional trusted audio-bed mix and mux stage connected to the EDL render pipeline",
         "Worker factory wiring queue-owned workspace identity, snapshot creator membership, verified clean asset path resolution and lease-fenced artifact adoption",
-        "Black timeline-gap segments and configured-font title-card rendering in the FFmpeg EDL graph",
         "Optional source-clip audio discovery through bounded ffprobe, source trim and timeline offset mixing with trusted audio beds",
         "Probe source video metadata and reject EDL source trims that exceed trusted media duration when ffprobe is configured",
         "Authenticated workspace-scoped raw media upload API with bounded streaming and quarantine-only registration",
@@ -63,7 +62,6 @@
         "Append-only timeline render review queue and immutable per-snapshot decisions bound to adopted artifact SHA-256",
         "Workspace-scoped review decision API requiring review.decide permission and authenticated reviewer identity",
         "Timeline render pending items surfaced in the existing review queue and render status includes immutable review state",
-        "Real-media Compose smoke script generating a local source video and exercising title card, timeline gap, source audio mix, ffprobe verification, lease-fenced adoption and artifact-bound review",
         "Compose integration workflow starts and health-checks the dedicated render worker, then runs the real-media render smoke inside its container",
         "Latest Compose CI passed the real FFmpeg/ffprobe media render, artifact adoption, pending review and immutable approval smoke",
         "Container image bakes SHA-256 manifest for FFmpeg and ffprobe; render worker verifies exact configured binary paths and hashes before worker registration",
@@ -71,14 +69,18 @@
         "Latest Compose CI built the image, verified FFmpeg/ffprobe manifest at worker startup, passed real-media render/review smoke and backup/restore checks",
         "Authenticated private media, render submission/status, preview-session and artifact-bound review APIs are covered by route tests",
         "Preview session cookie path and generated preview URL now use the actual artifact/workspace identifiers; native video preview accepts scoped cookie auth",
-        "Compose render-worker CPU quota smoke accepts either Docker CpuQuota or NanoCpus while preserving the two-CPU assertion"
+        "Compose render-worker CPU quota smoke accepts either Docker CpuQuota or NanoCpus while preserving the two-CPU assertion",
+        "Bounded timed title overlays rendered from per-job UTF-8 text files with expansion disabled and a trusted configured font; video gaps and overlaps are explicitly rejected",
+        "Real-media Compose smoke generates a fixture video and verifies title overlay, audio mix, ffprobe output, lease-fenced artifact adoption, pending review and immutable artifact-hash approval",
+        "CI fault-injection coverage verifies process-generation lease loss cancels rendering, discards staged output, allows queue recovery/reclaim, and removes only expired generated staging files",
+        "Timeline render worker is opt-in behind the Compose render profile; Compose CI asserts it is absent from the default profile and enabled explicitly for integration smoke"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
-        "Run crash/restart and lease-loss fault injection against the target persistent filesystem",
+        "Run crash/restart and lease-loss fault injection against the target persistent filesystem; CI regression tests now cover process-generation loss, staging cleanup and lease reclaim in isolated test storage",
         "Configure and validate ClamAV signature freshness and fail-closed scanning before enabling production uploads",
-        "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
-        "Run end-to-end authenticated API upload → malware scan → render queue → worker adoption → review preview using production-like storage",
+        "Define indexed artifact retention/deletion policy and disk quotas; current worker reconciliation removes orphaned staging and unindexed artifact files only",
+        "Run end-to-end authenticated API upload → malware scan → render queue → worker adoption → review preview using production-like persistent storage",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
         "Implement EDL overlap transitions and explicit project-duration/trailing-gap semantics"
       ]
