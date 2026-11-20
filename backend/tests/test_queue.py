@@ -82,6 +82,40 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(cancelled["status"],"cancelled")
   self.assertEqual(self.q.stats(workspace_id="workspace-b")["cancelled"],1)
 
+ def test_workspace_job_history_is_scoped_filtered_and_cursor_paginated(self):
+  jobs=[
+   self.q.enqueue("timeline_render",{"n":1},workspace_id="workspace-a"),
+   self.q.enqueue("timeline_render",{"n":2},workspace_id="workspace-a"),
+   self.q.enqueue("timeline_render",{"n":3},workspace_id="workspace-a"),
+   self.q.enqueue("short_video_production",{"n":4},workspace_id="workspace-a"),
+   self.q.enqueue("timeline_render",{"n":5},workspace_id="workspace-b"),
+  ]
+  first=self.q.list_jobs(workspace_id="workspace-a",job_type="timeline_render",limit=2)
+  self.assertEqual(len(first),2)
+  self.assertEqual([item["job_type"] for item in first],["timeline_render","timeline_render"])
+  next_page=self.q.list_jobs(
+   workspace_id="workspace-a",job_type="timeline_render",limit=2,
+   before_created_at=first[-1]["created_at"],before_job_id=first[-1]["id"],
+  )
+  self.assertEqual(len(next_page),1)
+  self.assertNotEqual(first[0]["id"],next_page[0]["id"])
+  self.assertEqual(
+   {item["workspace_id"] for item in self.q.list_jobs(workspace_id="workspace-b")},
+   {"workspace-b"},
+  )
+  self.assertEqual(
+   len(self.q.list_jobs(workspace_id="workspace-a",status="queued")),
+   4,
+  )
+
+ def test_job_history_requires_explicit_workspace_and_complete_cursor(self):
+  with self.assertRaises(ValueError):
+   self.q.list_jobs(workspace_id=None)
+  with self.assertRaises(ValueError):
+   self.q.list_jobs(workspace_id="workspace-a",before_created_at="2026-01-01T00:00:00Z")
+  with self.assertRaises(ValueError):
+   self.q.list_jobs(workspace_id="workspace-a",limit=51)
+
  def test_workspace_id_is_persisted_through_queue_claim(self):
   queued=self.q.enqueue("short_video_production",{"topic":"tenant"},workspace_id="workspace-a")
   self.assertEqual(queued["workspace_id"],"workspace-a")
