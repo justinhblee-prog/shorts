@@ -131,6 +131,32 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
         finally:
             production_patch.stop()
 
+    def test_queue_event_and_reconciliation_reads_require_workspace_membership(self):
+        db_path = os.path.join(self.temp.name, "queue-read.sqlite3")
+        queue = JobQueue(db_path)
+        job = queue.enqueue(
+            "short_video_production",
+            {"brand": "Future Leak", "region": "US",
+             "language": "en", "topic": "AI agents"},
+            workspace_id="ws_alice",
+        )
+        queue_patch = patch.object(api, "queue", queue)
+        queue_patch.start()
+        try:
+            with patch.dict(os.environ, {"NEXUS_WORKSPACE_AUTH_MODE": "sqlite"}):
+                with patch.object(api, "require_review_permission", return_value="alice"):
+                    events = api.get_events(
+                        job["id"], x_nexus_workspace_id="ws_alice"
+                    )
+                    self.assertEqual(events["events"][0]["workspace_id"], "ws_alice")
+                    with self.assertRaises(HTTPException) as denied:
+                        api.get_events(
+                            job["id"], x_nexus_workspace_id="ws_mallory"
+                        )
+                    self.assertEqual(denied.exception.status_code, 403)
+        finally:
+            queue_patch.stop()
+
     def test_unauthenticated_workspace_requests_are_rejected(self):
         with patch.object(api, "require_review_permission",
                           side_effect=HTTPException(401, "Valid review token required")):
