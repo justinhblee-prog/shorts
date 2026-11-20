@@ -83,12 +83,18 @@ $argsList=@("-NoProfile","-NoLogo","-NonInteractive","-File",$PSCommandPath,"-Su
 if($Task){$argsList+=@("-Task",$Task)}
 if($Base){$argsList+=@("-Base",$Base)}
 $quoted=($argsList|ForEach-Object{Quote-WindowsArgument ([string]$_)}) -join " "
-$process=Start-Process -FilePath $pwsh -ArgumentList $quoted -WorkingDirectory $root -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-Write-JsonAtomic $runFile @{
- run_id=$runId;pid=$process.Id;repository=$root;started_at=[DateTime]::UtcNow.ToString("o")
- stdout_log=$stdout;stderr_log=$stderr;status_file=$statusFile;max_tasks=$MaxTasks;task=$Task;base=$Base
+$startedAt=[DateTime]::UtcNow.ToString("o")
+Write-JsonAtomic $statusFile @{run_id=$runId;status="starting";started_at=$startedAt}
+try{
+ $process=Start-Process -FilePath $pwsh -ArgumentList $quoted -WorkingDirectory $root -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+ Write-JsonAtomic $runFile @{
+  run_id=$runId;pid=$process.Id;repository=$root;started_at=$startedAt
+  stdout_log=$stdout;stderr_log=$stderr;status_file=$statusFile;max_tasks=$MaxTasks;task=$Task;base=$Base
+ }
+}catch{
+ Write-JsonAtomic $statusFile @{run_id=$runId;status="failed_to_start";error=$_.Exception.Message;finished_at=[DateTime]::UtcNow.ToString("o")}
+ throw
 }
-Write-JsonAtomic $statusFile @{run_id=$runId;status="started";pid=$process.Id;started_at=[DateTime]::UtcNow.ToString("o")}
 Write-Host "Detached multi-flow supervisor started. PID=$($process.Id)"
 Write-Host "Run metadata: $runFile"
 Write-Host "Logs: $stdout ; $stderr"
