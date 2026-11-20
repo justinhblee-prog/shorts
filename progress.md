@@ -345,3 +345,11 @@
 - Regression test inserts a higher-priority job between page requests and verifies the original three-job snapshot is returned exactly once with a stable total. API tests cover snapshot metadata, offset/status propagation, and malformed timestamp rejection. Chromium recovery smoke asserts the next-page request carries the initial snapshot.
 - Exact code head `46b337bad16648a0d7ed6753c42ffe3d63033569` passed [run 44659993665](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665): 901 backend tests, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency/pagination Chromium smoke, and artifact [14595685407](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665/artifacts/14595685407).
 - FLOW-CORE/FLOW-UI/FLOW-QA: PASS within hosted SQLite + Chromium fixture scope. Production multi-process SQLite and real Windows runner persistence remain NOT VERIFIED.
+
+## 43. Windows path alias workstream classification — 2026-11-20
+
+- FLOW-UI review found that the workstream classifier used case-sensitive forward-slash prefixes. Valid Windows scopes such as `Frontend\App.js` were therefore misclassified as INTEGRATION rather than UI.
+- The classifier now trims, converts backslashes to forward slashes, collapses repeated separators, removes a leading `./`, and compares lowercase path prefixes. This applies consistently to UI, CORE, QA, AUTOMATION, and DOCS lanes.
+- The recovery API smoke fixture now includes a mixed-case Windows-style path; Chromium asserts that its job appears in the UI lane. Static frontend tests assert path normalization.
+- Exact code head `006805df47d5cf493a2ad5e95396f074170ce416` passed [PR run 44660726931](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931): 901 backend tests, frontend syntax, both Chromium suites, and artifact [14594589376](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931/artifacts/14594589376).
+- FLOW-UI/FLOW-QA: PASS within hosted Chromium fixture scope. PR #415 remains Draft/open/unmerged.
