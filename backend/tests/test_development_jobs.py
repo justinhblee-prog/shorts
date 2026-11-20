@@ -130,6 +130,24 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(listed[parent["id"]]["dependencies"], [])
         self.assertEqual(listed[independent["id"]]["dependencies"], [])
 
+    def test_list_offset_and_count_preserve_stable_page_order(self):
+        first = self.store.create("Page one", priority=10)
+        second = self.store.create("Page two", priority=10)
+        third = self.store.create("Page three", priority=20)
+
+        page_one = self.store.list(limit=2, offset=0)
+        page_two = self.store.list(limit=2, offset=2)
+
+        self.assertEqual([job["id"] for job in page_one], [first["id"], second["id"]])
+        self.assertEqual([job["id"] for job in page_two], [third["id"]])
+        self.assertEqual(self.store.count(), 3)
+        self.assertEqual(self.store.count(statuses=["ready"]), 3)
+        self.assertEqual(self.store.count(statuses=["completed"]), 0)
+        with self.assertRaisesRegex(ValueError, "offset"):
+            self.store.list(limit=10, offset=-1)
+        with self.assertRaisesRegex(ValueError, "offset"):
+            self.store.list(limit=10, offset=100001)
+
     def test_dependency_cycle_is_rejected(self):
         first = self.store.create("First")
         second = self.store.create("Second")
