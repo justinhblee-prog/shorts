@@ -1481,7 +1481,10 @@
         return;
       }
       if(currentRenderWorkspaceId!==activeWorkspaceId){
-        clearRenderTracking("현재 워크스페이스와 다른 작업 ID라 표시를 초기화했습니다.");
+        clearRenderPoll();resetArtifact();
+        $id("renderJobCancel").disabled=true;$id("renderJobReviewActions").hidden=true;
+        renderMessage("이 작업은 다른 워크스페이스에 등록되어 있습니다. 해당 워크스페이스로 전환해 상태를 확인하세요.");
+        renderMeta.textContent="JOB "+currentRenderJobId+" · "+currentRenderWorkspaceId;
         return;
       }
       try{
@@ -1607,7 +1610,7 @@
       }catch(error){renderMessage("작업 취소 실패: "+error.message,true);}
     });
     $id("renderJobClear").addEventListener("click",()=>{
-      if(["queued","running","failed_retriable"].includes(renderStatus.dataset.state)&&!confirm("작업 표시만 지웁니다. 서버의 렌더 작업은 계속될 수 있습니다. 계속하시겠습니까?"))return;
+      if(currentRenderJobId&&!confirm("로컬 작업 ID와 미리보기 표시만 지웁니다. 서버의 렌더 작업과 검수 기록은 삭제되지 않습니다. 계속하시겠습니까?"))return;
       clearRenderTracking("렌더 작업 표시를 초기화했습니다.");
     });
     $id("renderArtifactLoad").addEventListener("click",loadRenderArtifact);
@@ -1622,8 +1625,13 @@
         for(const clip of state.clips){clip.assetId="";clip.assetScanStatus="";}
         audioAssetId="";audioScanStatus="";
         assetWorkspaceId=activeWorkspaceId;
-        if(currentRenderWorkspaceId&&currentRenderWorkspaceId!==activeWorkspaceId){
-          clearRenderTracking("워크스페이스가 변경되어 이전 렌더 작업 표시를 지웠습니다.");
+        if(currentRenderJobId&&currentRenderWorkspaceId!==activeWorkspaceId){
+          clearRenderPoll();resetArtifact();
+          $id("renderJobCancel").disabled=true;$id("renderJobReviewActions").hidden=true;
+          renderMessage("저장된 렌더 작업은 이전 워크스페이스에 남아 있습니다. 해당 공간으로 돌아가면 다시 조회할 수 있습니다.");
+          renderMeta.textContent="JOB "+currentRenderJobId+" · "+currentRenderWorkspaceId;
+        }else if(currentRenderJobId){
+          refreshRenderJob(true);
         }
         say("워크스페이스가 변경되었습니다. 원본 자산은 새 공간에 다시 등록해야 합니다.");
       }
@@ -1633,7 +1641,9 @@
         renderMessage("저장된 렌더 작업이 있습니다. 인증 후 상태 갱신을 누르세요.");
         renderMeta.textContent="JOB "+currentRenderJobId+" · "+currentRenderWorkspaceId;
       }else{
-        clearRenderTracking("저장된 작업이 현재 워크스페이스와 달라 초기화했습니다.");
+        renderMessage("저장된 렌더 작업은 다른 워크스페이스에 있습니다. 해당 공간으로 전환해 조회하세요.");
+        renderMeta.textContent="JOB "+currentRenderJobId+" · "+currentRenderWorkspaceId;
+        $id("renderJobCancel").disabled=true;
       }
     }
     $id("timelineExport").addEventListener("click",()=>{
