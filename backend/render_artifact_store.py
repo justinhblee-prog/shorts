@@ -324,7 +324,8 @@ class RenderArtifactStore:
             rows = db.execute("""
                 SELECT artifact_id,job_id,workspace_id,snapshot_id,snapshot_sha256,
                        artifact_sha256,byte_size,media_suffix,duration_ms,
-                       video_width,video_height,audio_streams,created_at,status
+                       video_width,video_height,audio_streams,created_at,
+                       'review_pending' AS status
                 FROM render_artifacts
                 WHERE workspace_id=? AND status='review_pending'
                 ORDER BY created_at DESC,artifact_id DESC LIMIT ?
@@ -336,7 +337,7 @@ class RenderArtifactStore:
             raise ValueError("invalid artifact ID")
         with self.queue.db() as db:
             row = db.execute(
-                "SELECT * FROM render_artifacts WHERE artifact_id=? AND workspace_id=?",
+                "SELECT *, 'review_pending' AS status FROM render_artifacts WHERE artifact_id=? AND workspace_id=?",
                 (artifact_id, workspace_id),
             ).fetchone()
         if row is None:
