@@ -72,7 +72,7 @@ def build_audio_mix_argv(tracks, output_path, *, ffmpeg_path="ffmpeg",
             raise AudioMixError("audio duration and fades are inconsistent")
         if isinstance(gain, bool) or not isinstance(gain, (int, float)) or not math.isfinite(gain) or not 0 <= gain <= 4:
             raise AudioMixError("gain must be finite and between 0 and 4")
-        argv.extend(["-i", path])
+        argv.extend(["-protocol_whitelist", "file,pipe", "-i", path])
         label = f"a{index}"
         chain = (
             f"[{index}:a]atrim=start={source_in / 1000:.3f}:duration={duration / 1000:.3f},"
