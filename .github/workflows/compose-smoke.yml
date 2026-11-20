@@ -71,6 +71,7 @@ jobs:
           observed = {
               "memory": host.get("Memory"),
               "cpu_quota": host.get("CpuQuota"),
+              "nano_cpus": host.get("NanoCpus"),
               "pids_limit": host.get("PidsLimit"),
               "readonly_rootfs": host.get("ReadonlyRootfs"),
               "cap_drop": host.get("CapDrop"),
@@ -78,7 +79,10 @@ jobs:
           }
           print("timeline_render_worker_security_limits=" + json.dumps(observed, sort_keys=True))
           assert observed["memory"] == 4 * 1024**3, observed
-          assert observed["cpu_quota"] == 200000, observed
+          assert (
+              observed["cpu_quota"] == 200000
+              or observed["nano_cpus"] == 2_000_000_000
+          ), observed
           assert observed["pids_limit"] == 128, observed
           assert observed["readonly_rootfs"] is True, observed
           assert "ALL" in (observed["cap_drop"] or []), observed
