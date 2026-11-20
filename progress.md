@@ -353,3 +353,17 @@
 - The recovery API smoke fixture now includes a mixed-case Windows-style path; Chromium asserts that its job appears in the UI lane. Static frontend tests assert path normalization.
 - Exact code head `006805df47d5cf493a2ad5e95396f074170ce416` passed [PR run 44660726931](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931): 901 backend tests, frontend syntax, both Chromium suites, and artifact [14594589376](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931/artifacts/14594589376).
 - FLOW-UI/FLOW-QA: PASS within hosted Chromium fixture scope. PR #415 remains Draft/open/unmerged.
+
+
+## 44. Dependency-safe lease expiry and retry promotion — 2026-11-20
+
+- FLOW-CORE review found that two secondary state transitions could bypass the DAG invariant: expired running jobs and due retries were promoted directly to `ready`, even when a prerequisite remained incomplete.
+- Both transitions now count unresolved persisted prerequisite edges in the same SQLite write transaction and move the dependent job to `blocked` until its parents complete. Terminal attempt exhaustion still quarantines the job. Audit events include the unresolved prerequisite count.
+- Added dedicated regressions for expired-lease and due-retry paths. Exact code head `5d98c8453827867db6757e40bb99325741c2032d` passed [run 44668254213](https://github.com/justinhblee-prog/shorts/actions/runs/44668254213): 907 backend tests, dashboard Chromium smoke, recovery/workstream/DAG Chromium smoke, and artifact [14598547648](https://github.com/justinhblee-prog/shorts/actions/runs/44668254213/artifacts/14598547648). Documentation head `63c44178e803c80aea2ef313d26b2df0c7350c84` passed both exact-head CI jobs.
+- FLOW-CORE/FLOW-QA: PASS within hosted SQLite + Chromium fixture scope. Production multi-process/Windows runner validation remains NOT VERIFIED.
+
+## 45. Frontend feature navigation destinations — 2026-11-20
+
+- FLOW-UI replaced duplicate sidebar anchors with distinct destinations for trend collection, editorial recommendations, production request, production pipeline, review queue, publishing overview, analytics history, and task queue.
+- Anchor scroll margins avoid hiding destination content beneath the sticky workspace toolbar. Browser smoke now checks all nine destinations, target existence, URL changes, and active navigation state after clicks.
+- Exact-head validation for `2e6ba4f2d7e1495c45c626f3c24c56fd07652fc0` is running. The pipeline destination is not a claim that a dedicated nonlinear video timeline editor is complete.
