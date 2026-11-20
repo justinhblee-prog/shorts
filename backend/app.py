@@ -778,11 +778,15 @@ def review_history(job_id:str, x_review_token:str|None=Header(default=None)):
 
 
 @app.post("/api/production/jobs/{job_id}/stage-media")
-def stage_production_media(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"media.manage")
-    production=production_store.get(job_id)
+def stage_production_media(job_id:str,x_review_token:str|None=Header(default=None),
+                           x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    production=production_store.get(job_id,workspace_id=workspace_id)
     if production is None:
         raise HTTPException(404,"Production job not found")
+    if production.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
     if production["status"] not in ("rendered","review_pending","approved"):
         raise HTTPException(409,"Only rendered production jobs can be staged")
     video=next((item for item in production["artifacts"]
@@ -790,12 +794,12 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
     if video is None:
         raise HTTPException(409,"Rendered video artifact is not available")
     try:
-        existing=media_stager.staged_path(job_id)
+        existing=media_stager.staged_path(job_id,workspace_id=workspace_id)
         if existing.is_file() and not existing.is_symlink():
             staged=media_stager.fingerprint(existing)
             staged["already_staged"]=True
         else:
-            staged=media_stager.stage(job_id,video["artifact_url"])
+            staged=media_stager.stage(job_id,video["artifact_url"],workspace_id=workspace_id)
         metadata=dict(video.get("metadata") or {})
         previous=metadata.get("media_staging") or {}
         if (previous.get("sha256")!=staged.get("sha256")
@@ -811,10 +815,17 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
 
 
 @app.post("/api/production/jobs/{job_id}/cleanup-media")
-def cleanup_production_media(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"media.manage")
+def cleanup_production_media(job_id:str,x_review_token:str|None=Header(default=None),
+                             x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    production=production_store.get(job_id,workspace_id=workspace_id)
+    if production is None:
+        raise HTTPException(404,"Production job not found")
+    if production.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
     try:
-        return media_stager.cleanup_uploaded(job_id,youtube_upload_store)
+        return media_stager.cleanup_uploaded(job_id,youtube_upload_store,workspace_id=workspace_id)
     except MediaStagingError as e:
         raise HTTPException(409,str(e))
 
