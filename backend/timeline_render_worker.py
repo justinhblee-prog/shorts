@@ -62,8 +62,6 @@ class TimelineRenderWorker:
                     job["payload"]["snapshot_id"],
                     job["payload"]["snapshot_sha256"], result["staged_path"],
                 )
-                if lost.is_set():
-                    raise RuntimeError("timeline render lease was lost")
             else:
                 self.queue.finish(
                     job["id"], self.worker_id, job["lease_token"],
