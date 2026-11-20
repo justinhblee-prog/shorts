@@ -174,7 +174,7 @@ class ScheduleStore:
             return [dict(row) for row in rows]
 
 
-    def outbox_status(self, limit=20, now=None):
+    def outbox_status(self, limit=20, now=None, workspace_id=None):
         limit = _bounded_limit(limit, "limit", 100)
         current = now or datetime.now(timezone.utc)
         if current.tzinfo is None:
@@ -182,7 +182,7 @@ class ScheduleStore:
         current_s = _stamp(current)
         with self.db() as c:
             counts = {row["status"]: row["n"] for row in c.execute(
-                "SELECT status,COUNT(*) n FROM schedule_dispatch_outbox GROUP BY status")}
+                "SELECT o.status,COUNT(*) n FROM schedule_dispatch_outbox o JOIN production_schedules s ON s.id=o.schedule_id WHERE s.workspace_id IS ? GROUP BY o.status", (workspace_id,))}
             pending_retries = c.execute("""SELECT COUNT(*) FROM schedule_dispatch_outbox
                 WHERE status='pending' AND next_attempt_at IS NOT NULL
                 AND next_attempt_at>?""", (current_s,)).fetchone()[0]
@@ -199,7 +199,7 @@ class ScheduleStore:
 
 
 
-    def retry_dead_letter(self, outbox_id):
+    def retry_dead_letter(self, outbox_id, workspace_id=None):
         """Explicitly requeue a dead-letter item without changing its idempotency key."""
         if not isinstance(outbox_id, str) or not outbox_id.strip():
             raise ValueError("outbox_id is required")
@@ -212,7 +212,8 @@ class ScheduleStore:
                 AND EXISTS (
                     SELECT 1 FROM production_schedules s
                     WHERE s.id=schedule_dispatch_outbox.schedule_id AND s.active=1
-                )""", (outbox_id,))
+                    AND s.workspace_id IS ?
+                )""", (outbox_id, workspace_id))
             if not cur.rowcount:
                 return None
             row = c.execute("SELECT * FROM schedule_dispatch_outbox WHERE id=?",
