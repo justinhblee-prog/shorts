@@ -51,16 +51,18 @@ def build_audio_mix_argv(tracks, output_path, *, ffmpeg_path="ffmpeg",
     max_end = 0
     for index, track in enumerate(tracks):
         if not isinstance(track, dict) or set(track) - {
-            "path", "start_ms", "duration_ms", "gain", "fade_in_ms", "fade_out_ms"
+            "path", "source_in_ms", "start_ms", "duration_ms", "gain", "fade_in_ms", "fade_out_ms"
         }:
             raise AudioMixError("audio track contains unsupported fields")
         path = _private_regular_file(track.get("path"), "track path")
+        source_in = track.get("source_in_ms", 0)
         start = track.get("start_ms", 0)
         duration = track.get("duration_ms")
         gain = track.get("gain", 1.0)
         fade_in = track.get("fade_in_ms", 0)
         fade_out = track.get("fade_out_ms", 0)
         for value, name, maximum in (
+            (source_in, "source_in_ms", 3_600_000),
             (start, "start_ms", 3_600_000), (duration, "duration_ms", 3_600_000),
             (fade_in, "fade_in_ms", 60_000), (fade_out, "fade_out_ms", 60_000),
         ):
@@ -73,7 +75,7 @@ def build_audio_mix_argv(tracks, output_path, *, ffmpeg_path="ffmpeg",
         argv.extend(["-i", path])
         label = f"a{index}"
         chain = (
-            f"[{index}:a]atrim=duration={duration / 1000:.3f},"
+            f"[{index}:a]atrim=start={source_in / 1000:.3f}:duration={duration / 1000:.3f},"
             f"asetpts=PTS-STARTPTS,volume={float(gain):.4f},"
             f"adelay={start}|{start}"
         )
