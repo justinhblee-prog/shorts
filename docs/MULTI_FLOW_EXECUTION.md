@@ -254,3 +254,13 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - Therefore the Windows/Ollama lane is **implemented but not yet triggerable from this unmerged candidate**. This is a repository activation dependency, not evidence that the self-hosted runner is offline or that a Windows execution failed.
 - The available GitHub connection exposes workflow-run inspection and rerun operations but no workflow-dispatch action. No dispatch was attempted or claimed.
 - Activation requires an authorized change that makes this workflow available on the default branch, followed by an actual Windows run and a second run proving LocalAppData tooling/database persistence. Keep this gate open; do not mark Windows/Ollama validation PASS based on Linux CI.
+
+
+## 23. Default-branch activation dependency audit — 2026-11-20
+
+- Rechecked repository default branch metadata: `main`.
+- Confirmed `.github/workflows/nexus-development-job-worker.yml` is absent from `main` (GitHub Contents API returned 404 for that path).
+- Confirmed the worker's executable prerequisites are also absent from `main`: `backend/run_development_agent.py`, `backend/development_agent_executor.py`, `backend/recover_development_reviews.py`, `backend/publish_development_reviews.py`, and `backend/tests/test_development_worker_workflow_contract.py`.
+- `backend/requirements.txt` exists on `main`, but that alone is insufficient: the workflow's Python entrypoints and contract tests are not present there. Copying only the workflow file to `main` would create a broken activation and is explicitly not the next step.
+- Required promotion unit must be dependency-complete and reviewed as one stack: worker workflow + worker/executor/backlog/intake/review-publication modules + seed/data contracts + tests + any required backend dependencies. Before proposing activation, compare every imported module and referenced path against `main`, then run the main-targeted CI suite on the promotion branch.
+- No promotion PR, default-branch update, workflow dispatch, merge, or runner execution was performed. This is a verified activation dependency, not a claim that the Windows runner is offline.
