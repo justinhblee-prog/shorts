@@ -374,3 +374,5 @@ https://github.com/justinhblee-prog/shorts/pull/415
 - Manual quarantine recovery now checks persisted prerequisite edges inside the same `BEGIN IMMEDIATE` transaction. If any parent is not completed, recovery transitions `quarantined → blocked`; otherwise it transitions to `ready` as before. The immutable `quarantine_recovered` event records the resulting state and unresolved dependency count.
 - `claim_ready` now independently excludes any `ready` row with an incomplete prerequisite. This is defense in depth against inconsistent persisted state and prevents a corrupted/manual state from bypassing the DAG.
 - Added regressions for recovery of a quarantined child with an incomplete parent and for a ready-looking child with an unresolved dependency. Exact-head CI is running on PR #415.
+
+- Lease expiry and due-retry promotion now preserve the same DAG invariant: if any prerequisite is incomplete, the job transitions to `blocked` (rather than appearing `ready`). The event records the unresolved prerequisite count. Added regressions for both paths; claim-time dependency filtering remains defense in depth.
