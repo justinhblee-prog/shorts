@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Updated:** 2026-11-19
+**Updated:** 2026-11-20
 
 ## Business objective
 
@@ -2714,3 +2714,12 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
 - Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
 - Exact-head validation passed on `59ec8286f6c216345955593dd82a1047851fad4d`: backend [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693), **725 tests**; Compose [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702), all five services healthy, fresh successful-backup marker present, encrypted isolated restore passed, wrong-key restore rejected without changing the target DB. CI-only; no production-host or production-data recovery is claimed.
+
+
+## UI workspace-scope regression checkpoint — 2026-11-20
+
+- The current premium UI candidate resolves the authenticated operator's workspace before saving opportunity scores and reading analytics history. The resolved `workspace_id` is an authorization boundary; storage calls must retain it.
+- PR #417 run [44690635908](https://github.com/justinhblee-prog/shorts/actions/runs/44690635908) exposed a stale test double in `test_opportunity_score_includes_selected_competitor_evidence`: its save lambda accepted only one positional argument while the application correctly supplied `workspace_id` as a keyword. A subsequent UI-branch change made the mock accept keyword arguments, but did not assert that the workspace scope was propagated.
+- Follow-up PR [#418](https://github.com/justinhblee-prog/shorts/pull/418) strengthens the regression by mocking the resolved workspace and asserting that the exact workspace ID reaches `OpportunityStore.save`. Initial code head `30ea4a9f074e8cac586abd266299e5be9d7e4e0c` passed **793 backend tests**, frontend syntax, Korean font fallback and Chromium desktop/mobile smoke in run [44690848255](https://github.com/justinhblee-prog/shorts/actions/runs/44690848255); Compose integration passed [44690848160](https://github.com/justinhblee-prog/shorts/actions/runs/44690848160).
+- The UI base branch continued advancing after that initial run. The documentation-inclusive PR #418 head must be revalidated against the current base before this follow-up is considered complete.
+- These hosted tests validate the application contract with fixtures. They do not establish production multi-tenant isolation or deployed identity-provider behavior.
