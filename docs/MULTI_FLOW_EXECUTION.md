@@ -246,3 +246,11 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - FLOW-UI, FLOW-CORE, FLOW-AUTO workflow-contract coverage, and FLOW-QA are **PASS for hosted validation at this aggregate head**. This does not promote the independent Windows/Ollama runtime gate to PASS.
 - FLOW-AUTO live-runtime gate remains **BLOCKED** pending a trusted Windows runner: actual runner preflight, two separate-run LocalAppData SQLite persistence evidence, and one live Ollama-generated scoped change with verified Draft PR artifact.
 - PR #415 description was synchronized with the exact-head evidence. PR #415 remains Draft/open/unmerged; no deployment, merge, or public publishing occurred.
+
+
+## Windows runner activation gate — 2026-11-20
+
+- The worker definition `.github/workflows/nexus-development-job-worker.yml` currently exists on the integration candidate branch. GitHub requires a `workflow_dispatch` workflow to exist on the repository default branch before it can be manually dispatched; scheduled runs are also evaluated from the default branch.
+- Therefore the Windows/Ollama lane is **implemented but not yet triggerable from this unmerged candidate**. This is a repository activation dependency, not evidence that the self-hosted runner is offline or that a Windows execution failed.
+- The available GitHub connection exposes workflow-run inspection and rerun operations but no workflow-dispatch action. No dispatch was attempted or claimed.
+- Activation requires an authorized change that makes this workflow available on the default branch, followed by an actual Windows run and a second run proving LocalAppData tooling/database persistence. Keep this gate open; do not mark Windows/Ollama validation PASS based on Linux CI.
