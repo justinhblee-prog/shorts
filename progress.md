@@ -63,3 +63,13 @@
 - 최종 hosted validation: [44647755797](https://github.com/justinhblee-prog/shorts/actions/runs/44647755797)
 - 읽기 쉬운 데스크톱/모바일 화면 증거: [14589176582](https://github.com/justinhblee-prog/shorts/actions/runs/44646542482)
 
+
+
+## 23. Default-branch activation dependency audit — 2026-11-20
+
+- Rechecked repository default branch metadata: `main`.
+- Confirmed `.github/workflows/nexus-development-job-worker.yml` is absent from `main` (GitHub Contents API returned 404 for that path).
+- Confirmed the worker's executable prerequisites are also absent from `main`: `backend/run_development_agent.py`, `backend/development_agent_executor.py`, `backend/recover_development_reviews.py`, `backend/publish_development_reviews.py`, and `backend/tests/test_development_worker_workflow_contract.py`.
+- `backend/requirements.txt` exists on `main`, but that alone is insufficient: the workflow's Python entrypoints and contract tests are not present there. Copying only the workflow file to `main` would create a broken activation and is explicitly not the next step.
+- Required promotion unit must be dependency-complete and reviewed as one stack: worker workflow + worker/executor/backlog/intake/review-publication modules + seed/data contracts + tests + any required backend dependencies. Before proposing activation, compare every imported module and referenced path against `main`, then run the main-targeted CI suite on the promotion branch.
+- No promotion PR, default-branch update, workflow dispatch, merge, or runner execution was performed. This is a verified activation dependency, not a claim that the Windows runner is offline.
