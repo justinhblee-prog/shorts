@@ -12,7 +12,7 @@ if($Run){
  $stateRoot=Join-Path (Split-Path $repoRoot -Parent) ((Split-Path $repoRoot -Leaf)+"-multiflow-state")
  if($AgentCommand){$env:DEVFLOW_AGENT_COMMAND=$AgentCommand}
  if($AgentArgsJson){$env:DEVFLOW_AGENT_ARGS_JSON=$AgentArgsJson}
- & $engine -StateRoot $stateRoot -MaxParallel ([Math]::Min(3,[int]$manifest.policy.max_parallel_worktrees)) -MaxTasks $MaxTasks -Task $Task -Base $Base
+ & $engine -StateRoot $stateRoot -MaxParallel ([Math]::Min(3,[int]$manifest.policy.max_parallel_worktrees)) -MaxTasks $MaxTasks -TaskId $Task -Base $Base
 
  exit 0
 }
