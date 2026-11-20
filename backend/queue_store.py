@@ -39,7 +39,7 @@ class JobQueue:
               worker_id TEXT, lease_token TEXT, lease_expires_at TEXT,
               idempotency_key TEXT UNIQUE, error_code TEXT, error_message TEXT,
               created_at TEXT NOT NULL, updated_at TEXT NOT NULL, started_at TEXT,
-              completed_at TEXT);
+              completed_at TEXT, workspace_id TEXT);
             CREATE INDEX IF NOT EXISTS idx_jobs_claim ON pipeline_jobs(status,available_at,priority,created_at);
             CREATE INDEX IF NOT EXISTS idx_jobs_lease ON pipeline_jobs(status,lease_expires_at);
             CREATE TABLE IF NOT EXISTS job_events(
@@ -88,6 +88,10 @@ class JobQueue:
             INSERT OR IGNORE INTO worker_control(id,paused,updated_at)
               VALUES(1,0,'1970-01-01T00:00:00+00:00');
             """)
+            job_columns = {row["name"] for row in c.execute("PRAGMA table_info(pipeline_jobs)")}
+            if "workspace_id" not in job_columns:
+                c.execute("ALTER TABLE pipeline_jobs ADD COLUMN workspace_id TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_jobs_workspace_status ON pipeline_jobs(workspace_id,status,created_at)")
             worker_columns = {row["name"] for row in c.execute("PRAGMA table_info(worker_registry)")}
             if "generation_token" not in worker_columns:
                 c.execute("ALTER TABLE worker_registry ADD COLUMN generation_token TEXT")
@@ -117,8 +121,10 @@ class JobQueue:
         if row is None: return None
         d=dict(row); d["payload"]=json.loads(d.pop("payload_json")); return d
 
-    def enqueue(self,job_type,payload,channel_name=None,priority=100,max_attempts=3,idempotency_key=None):
+    def enqueue(self,job_type,payload,channel_name=None,priority=100,max_attempts=3,idempotency_key=None,workspace_id=None):
         if not job_type.strip(): raise ValueError("job_type required")
+        if workspace_id is not None and (not isinstance(workspace_id,str) or not workspace_id.strip() or len(workspace_id)>128):
+            raise ValueError("workspace_id must be a non-empty string of at most 128 characters")
         jid=str(uuid.uuid4())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
@@ -132,6 +138,10 @@ class JobQueue:
                         raise IdempotencyConflict(
                             "Existing idempotency record cannot be safely compared"
                         ) from exc
+                    if old["workspace_id"] != workspace_id:
+                        raise IdempotencyConflict(
+                            "Idempotency key is already bound to a different workspace"
+                        )
                     if (old["job_type"] != job_type
                             or old["channel_name"] != channel_name
                             or old_payload != payload):
@@ -140,9 +150,9 @@ class JobQueue:
                         )
                     c.commit()
                     return self.decode(old)
-            c.execute("""INSERT INTO pipeline_jobs(id,job_type,channel_name,payload_json,status,priority,max_attempts,available_at,idempotency_key,created_at,updated_at)
-              VALUES(?,?,?,?, 'queued',?,?,?,?,?,?)""",
-              (jid,job_type,channel_name,json.dumps(payload,ensure_ascii=False),int(priority),max(1,int(max_attempts)),n,idempotency_key,n,n))
+            c.execute("""INSERT INTO pipeline_jobs(id,job_type,channel_name,payload_json,status,priority,max_attempts,available_at,idempotency_key,created_at,updated_at,workspace_id)
+              VALUES(?,?,?,?, 'queued',?,?,?,?,?,?,?)""",
+              (jid,job_type,channel_name,json.dumps(payload,ensure_ascii=False),int(priority),max(1,int(max_attempts)),n,idempotency_key,n,n,workspace_id))
             self.event(c,jid,"enqueued",None,"queued",None,created_at=n)
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit()
             return self.decode(row)
