@@ -34,7 +34,17 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 |---|---|
 | API | FastAPI dashboard and protected operational endpoints |
 | Worker | Claims and executes short-video production jobs |
+| Render worker (optional) | Claims and renders EDL video/audio jobs using the private FFmpeg pipeline; enabled only with the render Compose profile |
 | Scheduler | Dispatches due interval schedules into the durable queue |
+
+Enable the optional EDL renderer only after configuring the private media roots and trusted FFmpeg/ffprobe binaries in `.env`:
+
+```bash
+docker compose --profile render up -d render-worker
+docker compose ps render-worker
+```
+
+The render worker uses the same persistent data volume and consumes only `timeline_render` jobs. It is intentionally profile-gated; authenticated API upload/render submission routes and production container resource/network isolation remain separate gates.
 
 All services share the persistent `nexus_data` volume. The scheduler uses a SQLite singleton leader lease with a fencing token, so multiple instances can safely run with only one active dispatcher; crashed leaders are replaced after lease expiry. This remains a single-host SQLite baseline, not a horizontally scalable multi-host production deployment.
 
