@@ -62,6 +62,23 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
             revoked = api.revoke_operator_workspace_member("ws_alice", "bob")
         self.assertEqual(revoked["status"], "revoked")
 
+
+    def test_member_list_and_audit_visibility_are_role_scoped(self):
+        with patch.object(api, "require_review_permission", return_value="alice"):
+            api.add_operator_workspace_member(
+                "ws_alice", api.WorkspaceMemberInput(principal_id="bob", role="viewer")
+            )
+            members = api.list_operator_workspace_members("ws_alice")
+            events = api.list_operator_workspace_audit("ws_alice")
+        self.assertEqual({m["principal_id"] for m in members["members"]}, {"alice", "bob"})
+        self.assertGreaterEqual(len(events["events"]), 2)
+        with patch.object(api, "require_review_permission", return_value="bob"):
+            visible = api.list_operator_workspace_members("ws_alice")
+            self.assertEqual(len(visible["members"]), 2)
+            with self.assertRaises(HTTPException) as denied:
+                api.list_operator_workspace_audit("ws_alice")
+        self.assertEqual(denied.exception.status_code, 403)
+
     def test_sqlite_edl_mode_ignores_legacy_grants_and_denies_cross_workspace(self):
         payload = {
             "schema": "nexus-edit-decision-list", "version": 1, "timebase": "milliseconds",
