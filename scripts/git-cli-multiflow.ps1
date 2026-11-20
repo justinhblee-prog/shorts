@@ -2,6 +2,20 @@
 param([switch]$Plan,[switch]$Run,[string]$Task,[string]$Base,[string]$AgentCommand=$env:DEVFLOW_AGENT_COMMAND,[string]$AgentArgsJson=$env:DEVFLOW_AGENT_ARGS_JSON,[ValidateRange(1,20)][int]$MaxTasks=3)
 $ErrorActionPreference="Stop"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required. Start this script with pwsh."}
+if($Run){
+ $engine=Join-Path $PSScriptRoot "git-cli-multiflow-parallel.ps1"
+ if(-not(Test-Path $engine)){throw "Parallel worker engine missing: $engine"}
+ $repoRoot=(git rev-parse --show-toplevel 2>$null)
+ if($LASTEXITCODE -ne 0 -or -not $repoRoot){throw "Run inside a Git checkout."}
+ $repoRoot=$repoRoot.Trim()
+ $manifest=Get-Content (Join-Path $repoRoot ".devflow/tasks.json") -Raw -Encoding UTF8|ConvertFrom-Json
+ $stateRoot=Join-Path (Split-Path $repoRoot -Parent) ((Split-Path $repoRoot -Leaf)+"-multiflow-state")
+ if($AgentCommand){$env:DEVFLOW_AGENT_COMMAND=$AgentCommand}
+ if($AgentArgsJson){$env:DEVFLOW_AGENT_ARGS_JSON=$AgentArgsJson}
+ & $engine -StateRoot $stateRoot -MaxParallel ([Math]::Min(3,[int]$manifest.policy.max_parallel_worktrees)) -MaxTasks $MaxTasks -TaskId $Task -Base $Base
+ if($LASTEXITCODE -ne 0){throw "Parallel multiflow engine failed (exit $LASTEXITCODE)."}
+ exit 0
+}
 function Invoke-GitCli($repo,[string[]]$GitArgs){ & git -C $repo @GitArgs; if($LASTEXITCODE -ne 0){throw "git failed (exit $LASTEXITCODE)"} }
 function Root { $r=& git rev-parse --show-toplevel 2>$null; if($LASTEXITCODE -ne 0 -or -not $r){throw "Run inside a Git checkout."}; $r.Trim() }
 function Eligible($manifest) {
