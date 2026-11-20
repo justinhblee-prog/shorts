@@ -750,7 +750,7 @@ class ProductionStore:
             mismatch_total = c.execute("""
                 SELECT COUNT(*) FROM production_runs r
                 JOIN pipeline_jobs j ON j.id=r.job_id
-                WHERE j.job_type='short_video_production'
+                WHERE j.job_type='short_video_production' AND r.workspace_id IS ?
                   AND r.status<>j.status
                   AND (r.status IN ('rendered','review_pending','approved','uploaded',
                                     'cancelled','failed_terminal')
