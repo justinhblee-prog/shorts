@@ -202,3 +202,10 @@
 - Created Draft PR #416: https://github.com/justinhblee-prog/shorts/pull/416 (base main; head `20d9f522184654a11a75214a9fba81c5adabb660`). No aggregate PR #415 base/head changes.
 - Exact main-targeted Actions run: 44649765794 https://github.com/justinhblee-prog/shorts/actions/runs/44649765794. At documentation update time, dependency installation passed and `sh scripts/validate.sh` was running; final result pending.
 - PR #416 is Draft/open/unmerged. No workflow dispatch, scheduled activation, secret change, merge, deployment, or default branch modification performed.
+
+
+## 27. Isolated worker promotion CI result — 2026-11-20
+
+- PR #416 main-based validation runs 44649765794 and 44649800067 completed successfully at exact tested head `20d9f522184654a11a75214a9fba81c5adabb660`. Dependency installation and `sh scripts/validate.sh` passed; the latter runs Python compileall, frontend syntax check where Node is available, and complete backend unittest discovery.
+- Follow-up commit `13f9b1308a660e2a1799aba2c5aba39212008217` adds an explicit PyYAML parse step for `.github/workflows/nexus-development-job-worker.yml`. A new Actions run for that exact head has not yet been observed; do not label that last CI-only addition as tested.
+- PR #416 remains Draft/open/unmerged; PR #415 remains Draft/open/unmerged. Windows runner, two-run LocalAppData persistence and live Ollama generation remain NOT VERIFIED.
