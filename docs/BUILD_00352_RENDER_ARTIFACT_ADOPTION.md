@@ -59,8 +59,10 @@ restricted to local file/pipe protocols.
 
 The render job now carries its originating workspace and principal context so
 the asset store re-checks membership and clean scan status when opening media.
-A failed or lease-lost handoff removes the staged MP4. EDL v1 now supports
-explicit audio clips with bounded gain and fades.
+A failed or lease-lost handoff removes the staged MP4. Worker startup also
+reconciles stale staging files/work directories and unindexed artifact files
+after conservative grace periods. EDL v1 now supports up to eight explicit
+audio clips with bounded gain, source trims and fades.
 
 The dedicated Compose service runs with no network, a read-only root
 filesystem, a bounded temporary filesystem, dropped Linux capabilities,
