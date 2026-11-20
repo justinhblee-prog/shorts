@@ -1770,14 +1770,17 @@ def claim_worker_v1(
     generation=require_worker_generation(x_nexus_worker_generation)
     if body.job_type not in (None,"short_video_production"):
         raise HTTPException(422,"Worker credential is not authorized for this job type")
-    for workspace_id in identity.workspace_ids:
-        job=queue.claim(
-            identity.worker_id,body.hostname,job_type=body.job_type,
-            generation_token=generation,workspace_id=workspace_id,
-        )
-        if job is not None:
-            return {"job":job,"workspace_id":workspace_id}
-    return {"job":None,"workspace_id":None}
+    try:
+        for workspace_id in identity.workspace_ids:
+            job=queue.claim(
+                identity.worker_id,body.hostname,job_type=body.job_type,
+                generation_token=generation,workspace_id=workspace_id,
+            )
+            if job is not None:
+                return {"job":job,"workspace_id":workspace_id}
+        return {"job":None,"workspace_id":None}
+    except LeaseConflict as exc:
+        raise HTTPException(409,str(exc))
 
 
 @app.post("/api/worker/v1/jobs/{jid}/heartbeat")
