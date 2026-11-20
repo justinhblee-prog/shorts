@@ -1391,8 +1391,10 @@
     });
     $id("timelineAddTitle").addEventListener("click",()=>{
       const text=$id("timelineTitleInput").value.trim();if(!text){say("타이틀 문구를 입력하세요.");return;}
-      const clip={id:"title-"+Math.random().toString(36).slice(2),kind:"title",name:text,duration:5,inPoint:0,outPoint:5,text};
-      state.clips.push(clip);state.selected=clip.id;$id("timelineTitleInput").value="";render();say("타이틀 클립을 추가했습니다.");
+      const timelineDuration=state.clips.filter(item=>item.kind==="video").reduce((total,item)=>total+Math.max(0,item.outPoint-item.inPoint),0);
+      if(timelineDuration<=0){say("타이틀을 추가하기 전에 MP4 클립을 먼저 등록하세요.");return;}
+      const clip={id:"title-"+Math.random().toString(36).slice(2),kind:"title",name:text,duration:timelineDuration,inPoint:0,outPoint:Math.min(5,timelineDuration),text};
+      state.clips.push(clip);state.selected=clip.id;$id("timelineTitleInput").value="";render();say("타이틀 오버레이를 추가했습니다. 시작·종료 시간을 조정할 수 있습니다.");
     });
     $id("timelineApplyTrim").addEventListener("click",()=>{
       const clip=selected();if(!clip)return;
@@ -1404,7 +1406,7 @@
     $id("timelineMoveUp").addEventListener("click",()=>move(-1));
     $id("timelineMoveDown").addEventListener("click",()=>move(1));
     $id("timelineRemove").addEventListener("click",()=>{const clip=selected();if(!clip)return;if(clip.url)URL.revokeObjectURL(clip.url);state.clips=state.clips.filter(c=>c.id!==clip.id);state.selected=state.clips[0]?.id||null;render();const next=selected();setPreview(next);say("선택한 클립을 제거했습니다.");});
-    $id("timelinePlaySelected").addEventListener("click",async()=>{const clip=selected();if(!clip){say("먼저 클립을 선택하세요.");return;}if(clip.kind==="title"){overlay.textContent=clip.text;overlay.hidden=false;say("타이틀 미리보기는 영상 위 렌더링 대상이 아닙니다. 구성표에 포함됩니다.");return;}if(preview.src!==clip.url)setPreview(clip);if(preview.currentTime<clip.inPoint||preview.currentTime>=clip.outPoint)preview.currentTime=clip.inPoint;try{await preview.play();say("선택한 구간을 재생합니다.");}catch{say("브라우저에서 영상 재생을 시작하지 못했습니다.");}});
+    $id("timelinePlaySelected").addEventListener("click",async()=>{const clip=selected();if(!clip){say("먼저 클립을 선택하세요.");return;}if(clip.kind==="title"){overlay.textContent=clip.text;overlay.hidden=false;say("선택한 시간 구간에 한글 타이틀 오버레이가 합성됩니다.");return;}if(preview.src!==clip.url)setPreview(clip);if(preview.currentTime<clip.inPoint||preview.currentTime>=clip.outPoint)preview.currentTime=clip.inPoint;try{await preview.play();say("선택한 구간을 재생합니다.");}catch{say("브라우저에서 영상 재생을 시작하지 못했습니다.");}});
     preview.addEventListener("play",()=>{const clip=selected();if(clip?.kind==="video"&&preview.currentTime<clip.inPoint)preview.currentTime=clip.inPoint;});
     preview.addEventListener("timeupdate",()=>{const clip=selected();if(clip?.kind==="video"&&preview.currentTime>=clip.outPoint){preview.pause();preview.currentTime=clip.outPoint;say("선택한 클립 구간 재생이 끝났습니다.");}});
     async function loadRenderHistory(cursor=null,append=false){
@@ -1506,26 +1508,27 @@
       if(audioScanStatus!=="clean")throw new Error("배경 음원의 보안 검사 상태가 '"+String(audioScanStatus)+"'입니다. ClamAV 검사가 clean인 파일만 사용할 수 있습니다.");
       return audioAssetId;
     }
-    function buildRenderEdl(){
-      if(!state.clips.length)throw new Error("먼저 MP4 클립을 타임라인에 추가하세요.");
-      if(state.clips.some(clip=>clip.kind!=="video"))throw new Error("현재 서버 렌더러는 타이틀 오버레이를 지원하지 않습니다. 타이틀 클립을 제거한 뒤 요청하세요.");
+    function buildRenderEdl(requireRegistered=true){
+      const videoClips=state.clips.filter(clip=>clip.kind==="video");
+      const titleClips=state.clips.filter(clip=>clip.kind==="title");
+      if(!videoClips.length)throw new Error("먼저 MP4 클립을 타임라인에 추가하세요.");
       let cursor=0;
-      const clips=state.clips.map((clip,index)=>{
-        if(!clip.assetId||clip.assetScanStatus!=="clean")throw new Error("모든 원본 클립의 보안 검사 완료가 필요합니다.");
+      const videos=videoClips.map(clip=>{
+        if(requireRegistered&&(!clip.assetId||clip.assetScanStatus!=="clean"))throw new Error("모든 원본 클립의 보안 검사 완료가 필요합니다.");
         const sourceIn=Math.round(clip.inPoint*1000),sourceOut=Math.round(clip.outPoint*1000);
         if(sourceOut<=sourceIn)throw new Error("클립 "+clip.name+"의 시작·종료 구간을 확인하세요.");
         const start=cursor,end=start+(sourceOut-sourceIn);cursor=end;
         return {
-          id:clip.id,
-          type:"video",
-          start_ms:start,
-          end_ms:end,
-          asset_id:clip.assetId,
-          source_in_ms:sourceIn,
-          source_out_ms:sourceOut
+          id:clip.id,type:"video",start_ms:start,end_ms:end,
+          asset_id:clip.assetId||clip.id,source_in_ms:sourceIn,source_out_ms:sourceOut
         };
       });
-      return {schema:"nexus-edit-decision-list",version:1,timebase:"milliseconds",clips};
+      const titles=titleClips.map(clip=>{
+        const start=Math.round(clip.inPoint*1000),end=Math.round(clip.outPoint*1000);
+        if(end<=start||end>cursor)throw new Error("타이틀 오버레이 구간은 전체 영상 길이 안에 있어야 합니다.");
+        return {id:clip.id,type:"title",start_ms:start,end_ms:end,text:clip.text};
+      });
+      return {schema:"nexus-edit-decision-list",version:1,timebase:"milliseconds",clips:[...videos,...titles]};
     }
     function scheduleRenderPoll(status){
       clearRenderPoll();
@@ -1581,9 +1584,9 @@
       try{
         if(!token)throw new Error("먼저 설정에서 운영 인증 토큰을 연결하세요.");
         if(!activeWorkspaceId)throw new Error("상단에서 명시적인 워크스페이스를 선택하세요.");
-        if(state.clips.some(clip=>clip.kind!=="video"))throw new Error("타이틀 오버레이는 아직 서버 렌더링을 지원하지 않습니다.");
-        for(let index=0;index<state.clips.length;index++){
-          const clip=state.clips[index];
+        const videoClips=state.clips.filter(clip=>clip.kind==="video");
+        for(let index=0;index<videoClips.length;index++){
+          const clip=videoClips[index];
           if(!clip.assetId||clip.assetScanStatus!=="clean"){
             say("원본 업로드 및 보안 검사 중: "+clip.name);
             await ensureVideoAsset(clip,index);
@@ -1712,8 +1715,12 @@
       }
     }
     $id("timelineExport").addEventListener("click",()=>{
-      const payload={format:"nexus-edit-decision-list",version:1,exported_at:new Date().toISOString(),rendered:false,clips:state.clips.map((c,order)=>({order:order+1,type:c.kind,name:c.name,source:c.kind==="video"?c.name:undefined,mime_type:c.mimeType||undefined,size_bytes:c.sizeBytes||undefined,text:c.text||undefined,in_seconds:c.inPoint,out_seconds:c.outPoint,duration_seconds:Math.max(0,c.outPoint-c.inPoint)}))};
-      const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"})),a=document.createElement("a");a.href=url;a.download="nexus-edit-decision-list.json";a.click();URL.revokeObjectURL(url);say("편집 구성표(JSON)를 내보냈습니다. MP4 렌더 요청은 별도 버튼에서 실행하세요.");
+      try{
+        const payload=buildRenderEdl(false);
+        const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"})),a=document.createElement("a");
+        a.href=url;a.download="nexus-edit-decision-list.json";a.click();URL.revokeObjectURL(url);
+        say("서버 렌더러와 호환되는 EDL(JSON)을 내보냈습니다. 원본 자산 ID는 서버 등록 전까지 임시 값입니다.");
+      }catch(error){say("EDL 내보내기 실패: "+error.message);}
     });
     preview.addEventListener("loadedmetadata",()=>{empty.hidden=true;});
     window.addEventListener("beforeunload",()=>{for(const clip of state.clips){if(clip.url)URL.revokeObjectURL(clip.url);}if(renderArtifactUrl)URL.revokeObjectURL(renderArtifactUrl);});
