@@ -249,3 +249,9 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - `ProductionStore.artifact` and `ProductionStore.stage` accept optional workspace fences and verify parent ownership transactionally. API passes the verified scope when recording staged-media metadata and review transition.
 - Tenant cleanup remains deliberately blocked until YouTube upload records support workspace-scoped reads; global job-ID lookup cannot authorize deletion of a tenant file.
 - New tests cover workspace mismatch, missing selector, valid staging, fail-closed cleanup, and scoped store writes. Full backend/Compose/Chromium CI is running for the updated head.
+
+
+### Trusted worker boundary contract — 2026-11-20
+
+- Added `docs/WORKER_IDENTITY_CONTRACT.md` describing independent high-entropy worker credentials (hash-only config), immutable worker identity, explicit workspace grants, process-generation fencing, workspace-scoped claim/lease operations, revocation, audit, and acceptance tests.
+- This is a design contract only. The existing direct-SQLite worker and operator-authenticated legacy HTTP job endpoints have not been silently reclassified as independently authenticated workers. No worker secret, environment setting, runner, or production execution path was activated.
