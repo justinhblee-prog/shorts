@@ -173,3 +173,9 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - Browser QA found CSS cascade overriding the native hidden attribute because .button sets display:inline-flex. Fixed with #loadMoreDevelopmentJobs[hidden]{display:none}.
 - Exact aggregate head c59beaa1eb69b599b198d7a9fce3735a0235485d passed all 17 steps in [run 44657078245](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245), including 898 backend tests, frontend syntax, both Chromium smoke suites, and artifact upload [14594141209](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245/artifacts/14594141209).
 - Hosted fixture validation does not establish production multi-process SQLite behavior, Windows runner isolation, LocalAppData persistence, live Ollama, or provider behavior. PR #415 remains Draft/open/unmerged.
+
+## 19. UI pagination concurrent-request guard — 2026-11-20
+
+- Fixed a race in `loadDevelopmentJobs`: rapid repeated clicks could launch duplicate requests with the same offset. Concurrent callers now share one in-flight promise; refresh and load-more controls are disabled until it settles and restored in `finally`.
+- The Chromium recovery smoke injects a 250ms delay on the next-page API and double-clicks the out-of-page prerequisite control. It asserts exactly one request, disabled pagination controls during the request, re-enabled controls afterward, and successful parent focus.
+- Static frontend tests assert the promise guard and control lifecycle. Validation is pending on the exact resulting commit; earlier CI evidence does not cover this change.
