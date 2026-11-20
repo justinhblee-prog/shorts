@@ -1548,3 +1548,13 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact-head Actions validation pending.
 
 - BUILD-00351 exact checkpoint `1dbd12852bf41c9c58c11a801a30d9d3000daffa` passed 725 backend tests and the health-aware five-service Compose integration: [backend 44506538368](https://github.com/justinhblee-prog/shorts/actions/runs/44506538368), [Compose 44506538484](https://github.com/justinhblee-prog/shorts/actions/runs/44506538484). Worker, scheduler, metrics collector and backup reported healthy; backup success marker and encrypted isolated restore were verified.
+
+
+## BUILD — bounded FFmpeg timeline rendering primitive (2026-11-20)
+
+- Added `backend/timeline_renderer.py` as a standalone primitive. It accepts only validated EDL v1, resolves opaque asset IDs through a caller-supplied workspace-owned registry mapping, rejects path escape/symlink/oversized inputs, and invokes FFmpeg without a shell using file/pipe-only protocols and bounded resource limits via POSIX `prlimit`.
+- It currently supports ordered contiguous video clips up to 180 seconds and an optional separately registered narration/music track. It does not mix original clip audio, render title cards, or support timeline gaps/overlaps.
+- Output is ffprobe-checked for 1080×1920 dimensions and duration, SHA-256 hashed, fsynced and atomically adopted as `rendered_unreviewed`. Human review is still mandatory.
+- Exact head `1d278acc881b51742d3ffbf2b4d707e639d0b201` passed 826 backend tests plus Chromium desktop/mobile smoke [run 44702536031](https://github.com/justinhblee-prog/shorts/actions/runs/44702536031) and five-service encrypted Compose backup/restore [run 44702536014](https://github.com/justinhblee-prog/shorts/actions/runs/44702536014).
+- **Not production-enabled:** no API, durable render queue, asset registration, or lease/recovery integration exists yet. Tests use fake FFmpeg/ffprobe adapters; real MP4 rendering remains unverified.
+- Next: implement authenticated workspace-scoped source asset registration with content hash and malware scan; durable render-job records with fenced lease/heartbeat/recovery; isolated render worker integration; then safe title overlays, real audio mixing, cancellation and real MP4 fixture validation. Do not bypass the shared review-token authorization boundary.
