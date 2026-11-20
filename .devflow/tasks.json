@@ -55,7 +55,7 @@
         "EDL audio track cap of eight and source-relative audio trim/fade ordering to preserve timing"
       ],
       "remaining": [
-        "Connect an actual malware scanner to the asset quarantine transition and fail closed when scanner health is unavailable",
+        "Invoke the default fail-closed ClamAV adapter from the authenticated asset upload/quarantine workflow; enable and health-check the ClamAV database updater in the target deployment",
         "Pin FFmpeg/ffprobe builds and verify codec/filter compatibility on target Windows and isolated Linux runtimes",
         "Run representative real-media renders plus process-tree crash/lease-loss tests using the pinned production binaries",
         "Expose authenticated asset upload, render submission/status and review APIs for the browser editor",
