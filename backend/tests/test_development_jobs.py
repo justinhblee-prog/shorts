@@ -339,14 +339,14 @@ class DevelopmentJobStoreTests(unittest.TestCase):
             child["id"], "ops-admin", "verified the prior failure and requeued safely"
         )
         self.assertEqual(recovered["status"], "blocked")
-        self.assertIsNone(self.store.claim_ready("worker-child"))
-        parent_claim = self.store.claim_ready("worker-parent")
-        self.assertEqual(parent_claim["id"], parent["id"])
+        next_claim = self.store.claim_ready("worker-child")
+        self.assertEqual(next_claim["id"], parent["id"])
+        self.assertNotEqual(next_claim["id"], child["id"])
         self.assertEqual(self.store.get(child["id"])["status"], "blocked")
         event = self.store.events(child["id"])[-1]
         self.assertEqual(event["event_type"], "quarantine_recovered")
         self.assertEqual(event["to_status"], "blocked")
-        self.assertEqual(event["metadata"]["unresolved_dependencies"], 1)
+        self.assertEqual(event["details"]["unresolved_dependencies"], 1)
 
     def test_ready_job_with_unresolved_dependency_is_never_claimed(self):
         parent = self.store.create("Pending parent")
