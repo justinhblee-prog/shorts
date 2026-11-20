@@ -154,6 +154,34 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "offset"):
             self.store.list(limit=10, offset=100001)
 
+    def test_snapshot_pagination_excludes_jobs_inserted_after_first_page(self):
+        first = self.store.create("Snapshot page one", priority=10)
+        second = self.store.create("Snapshot page two", priority=10)
+        third = self.store.create("Snapshot page three", priority=20)
+        snapshot = self.store.snapshot_created_at()
+
+        page_one = self.store.list(limit=2, offset=0, created_before=snapshot)
+        inserted_ahead = self.store.create("Inserted after snapshot", priority=1)
+        page_two = self.store.list(limit=2, offset=2, created_before=snapshot)
+
+        self.assertEqual({job["id"] for job in page_one}, {first["id"], second["id"]})
+        self.assertEqual([job["id"] for job in page_two], [third["id"]])
+        self.assertEqual(self.store.count(created_before=snapshot), 3)
+        self.assertNotIn(inserted_ahead["id"], {
+            job["id"] for job in page_one + page_two
+        })
+
+    def test_snapshot_timestamp_requires_timezone_aware_iso8601(self):
+        for value in ("not-a-date", "2026-11-20T10:00:00", "", "x" * 65):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "created_before"):
+                    self.store.normalize_snapshot_timestamp(value)
+
+        normalized = self.store.normalize_snapshot_timestamp(
+            "2026-11-20T10:00:00+09:00"
+        )
+        self.assertEqual(normalized, "2026-11-20T01:00:00+00:00")
+
     def test_dependency_cycle_is_rejected(self):
         first = self.store.create("First")
         second = self.store.create("Second")
