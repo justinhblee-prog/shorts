@@ -274,6 +274,43 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
         finally:
             store_patch.stop()
 
+    def test_youtube_and_tiktok_publication_reads_require_parent_workspace(self):
+        class ScopedProductionStore:
+            def get(self, job_id, workspace_id=None):
+                if workspace_id != "ws_alice":
+                    return None
+                return {"job_id": job_id, "workspace_id": "ws_alice"}
+
+        class FakePublicationStore:
+            def get(self, job_id):
+                return {"job_id": job_id, "status": "uploaded", "events": []}
+
+        patches = [
+            patch.object(api, "production_store", ScopedProductionStore()),
+            patch.object(api, "youtube_upload_store", FakePublicationStore()),
+            patch.object(api, "tiktok_publish_store", FakePublicationStore()),
+        ]
+        for item in patches:
+            item.start()
+        try:
+            with patch.dict(os.environ, {"NEXUS_WORKSPACE_AUTH_MODE": "sqlite"}):
+                with patch.object(api, "require_review_permission", return_value="alice"):
+                    for endpoint, job_id in (
+                        (api.get_youtube_upload, "job-youtube"),
+                        (api.get_tiktok_publication, "job-tiktok"),
+                    ):
+                        with self.assertRaises(HTTPException) as missing:
+                            endpoint(job_id)
+                        self.assertEqual(missing.exception.status_code, 404)
+                        with self.assertRaises(HTTPException) as wrong:
+                            endpoint(job_id, x_nexus_workspace_id="ws_mallory")
+                        self.assertEqual(wrong.exception.status_code, 403)
+                        result = endpoint(job_id, x_nexus_workspace_id="ws_alice")
+                        self.assertEqual(result["job_id"], job_id)
+        finally:
+            for item in reversed(patches):
+                item.stop()
+
     def test_unauthenticated_workspace_requests_are_rejected(self):
         with patch.object(api, "require_review_permission",
                           side_effect=HTTPException(401, "Valid review token required")):
