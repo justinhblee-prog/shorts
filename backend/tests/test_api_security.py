@@ -439,7 +439,7 @@ class ApiSecurityTests(unittest.TestCase):
         with (
             mock.patch("app.require_review_access"),
             mock.patch("app.competitor_store.list_videos", return_value=videos),
-            mock.patch("app.opportunity_store.save", side_effect=lambda result: result),
+            mock.patch("app.opportunity_store.save", side_effect=lambda result, **kwargs: result),
         ):
             result = create_opportunity_score(body, x_review_token="test-token")
         self.assertEqual(result["competitive_context"]["observed_videos"], 2)
