@@ -2800,3 +2800,11 @@ Implement the secure FFmpeg/MP4 render worker rather than revisiting the already
 - UI stores only render job ID and workspace ID locally; review tokens remain in the existing authenticated session. Switching workspace invalidates cached asset IDs but preserves the job/workspace pair for returning to the original workspace.
 - Known UI/renderer limits remain: title overlays and source-clip audio mixing are unsupported; separate M4A audio is accepted. ClamAV must be enabled and report `clean`. Preview currently buffers the MP4 into a Blob URL.
 - PRs #422 and #425 remain Draft / Open / Unmerged. No provider publishing or production rollout occurred.
+
+
+## BUILD — workspace render history exact-head validation (2026-11-20)
+
+- Exact head `cd4551d4b16aad3deafac4b66b8cd982568bdc0e` passed **869 backend tests** and Chromium desktop/mobile smoke in [run 44710092287](https://github.com/justinhblee-prog/shorts/actions/runs/44710092287). The browser smoke verified the render history panel, history refresh control, render/review gating, workspace isolation, Korean rendering and responsive/keyboard flows.
+- The same exact head passed six-service Compose integration [run 44710092310](https://github.com/justinhblee-prog/shorts/actions/runs/44710092310), including the actual FFmpeg/ffprobe durable render worker, review-pending artifact handoff, encrypted backup, isolated restore and wrong-key rejection.
+- `GET /api/render/jobs` now returns workspace-scoped, cursor-paginated timeline-render history. The UI can restore any listed job and load its review state. Cursor scans use a workspace/job-type/created-time index; API responses omit lease tokens, worker identity and filesystem paths.
+- Draft PR [#428](https://github.com/justinhblee-prog/shorts/pull/428) remains Open / Unmerged. No provider publishing or production rollout occurred.
