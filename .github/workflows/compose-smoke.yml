@@ -57,6 +57,8 @@ jobs:
             done
             test "$healthy" = "1"
           done
+      - name: Verify real FFmpeg EDL render, artifact adoption and review
+        run: docker compose exec -T timeline-render-worker python timeline_render_real_media_smoke.py
       - name: Verify scheduled backup and isolated restore
         run: |
           set -eu
