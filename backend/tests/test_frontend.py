@@ -38,6 +38,16 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("app.tiktok_metrics_store.save_snapshot(", server)
 
 
+    def test_development_job_event_panel_handles_request_races_and_api_errors(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("let developmentJobEventsRequest=0", app_js)
+        self.assertIn("requestId!==developmentJobEventsRequest", app_js)
+        self.assertIn('host.setAttribute("aria-busy","true")', app_js)
+        self.assertIn('host.setAttribute("aria-busy","false")', app_js)
+        self.assertIn('role="alert"', app_js)
+        self.assertIn("data-retry-development-events", app_js)
+        self.assertIn("작업 이력을 불러오지 못했습니다", app_js)
+
     def test_browser_smoke_seeds_and_approves_a_real_review_queue_job(self):
         server = (ROOT / "scripts" / "ui_api_smoke_server.py").read_text(encoding="utf-8")
         browser = (ROOT / "scripts" / "ui_browser_smoke.mjs").read_text(encoding="utf-8")
