@@ -3,7 +3,7 @@ param(
  [switch]$Worker,[string]$TaskFile,[string]$StateRoot,[string]$TaskId,[string]$Base,
  [ValidateRange(1,3)][int]$MaxParallel=3,
  [ValidateRange(60,86400)][int]$TaskTimeoutSeconds=3600,
- [ValidateRange(1,20)][int]$MaxTasks=3
+ [ValidateRange(1,20)][int]$MaxTasks=20
 )
 $ErrorActionPreference="Stop"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required."}
@@ -45,8 +45,16 @@ if($Worker){
   $argsJson=$env:DEVFLOW_AGENT_ARGS_JSON;$command=$env:DEVFLOW_AGENT_COMMAND
   if(-not $command -or -not $argsJson){throw "Agent CLI configuration missing."}
   $agentArgs=ConvertFrom-Json -InputObject $argsJson;if($agentArgs -isnot [array]){$agentArgs=@($agentArgs)}
-  if(@($agentArgs|Where-Object{$_ -eq "{prompt_file}"}).Count -eq 0){throw "Agent args must include {prompt_file}."}
-  $expanded=foreach($a in $agentArgs){([string]$a).Replace("{prompt_file}",$taskData.prompt).Replace("{task_id}",$id).Replace("{worktree}",$taskData.worktree)}
+  $filePlaceholderCount=@($agentArgs|Where-Object{$_ -eq "{prompt_file}"}).Count
+  $textPlaceholderCount=@($agentArgs|Where-Object{$_ -eq "{prompt_text}"}).Count
+  if(($filePlaceholderCount + $textPlaceholderCount) -ne 1){throw "Agent args must include exactly one {prompt_file} or {prompt_text} placeholder."}
+  $promptText=$null
+  if($textPlaceholderCount -eq 1){$promptText=Get-Content -LiteralPath $taskData.prompt -Raw -Encoding UTF8}
+  $expanded=foreach($a in $agentArgs){
+   $value=([string]$a).Replace("{prompt_file}",$taskData.prompt)
+   if($textPlaceholderCount -eq 1){$value=$value.Replace("{prompt_text}",$promptText)}
+   $value.Replace("{task_id}",$id).Replace("{worktree}",$taskData.worktree)
+  }
   $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=$command;$psi.WorkingDirectory=$taskData.worktree;$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
   foreach($a in $expanded){[void]$psi.ArgumentList.Add($a)}
   $agent=[Diagnostics.Process]::new();$agent.StartInfo=$psi

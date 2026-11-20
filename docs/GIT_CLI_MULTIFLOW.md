@@ -15,7 +15,7 @@ Configure the installed Agent CLI once from PowerShell 7 in the repository root:
 .\scripts\git-cli-agent-config.ps1 -Configure
 ```
 
-The helper prompts for the executable name/full path and the Agent CLI's documented prompt-file argument syntax. The JSON argument array must contain the `{prompt_file}` placeholder exactly once; `{task_id}` and `{worktree}` are optional. It stores only the executable and argument template in the current Windows user's environment. Do not put API keys, tokens, passwords, or other credentials in the argument list. Authenticate with the Agent CLI's own login/credential flow. Open a new PowerShell 7 window after configuration if you want the saved user environment to be reloaded automatically.
+The helper prompts for the executable name/full path and the Agent CLI's documented prompt-file argument syntax. The JSON argument array must contain exactly one prompt placeholder: `{prompt_file}` passes the prompt file path, while `{prompt_text}` passes its UTF-8 contents directly to CLIs that accept a prompt string. `{task_id}` and `{worktree}` are optional. It stores only the executable and argument template in the current Windows user's environment. Do not put API keys, tokens, passwords, or other credentials in the argument list. Authenticate with the Agent CLI's own login/credential flow. Open a new PowerShell 7 window after configuration if you want the saved user environment to be reloaded automatically.
 
 To verify the machine before running:
 
@@ -23,7 +23,19 @@ To verify the machine before running:
 .\scripts\git-cli-agent-config.ps1 -Check
 ```
 
-The `-Run` launcher performs this preflight automatically. It checks PowerShell 7+, Git, Python, GitHub CLI authentication, repository cleanliness, the task manifest, Agent executable resolution, and the argument contract without printing the configured values or credentials.
+A single `-Run` invocation drains up to 20 currently eligible independent tasks; no extra confirmation is required between tasks. At most three workers run concurrently, as bounded by the task manifest. Tasks represented by open Draft PRs remain excluded, and dependent tasks remain blocked until their dependency is explicitly marked completed. The `-Run` launcher performs this preflight automatically. It checks PowerShell 7+, Git, Python, GitHub CLI authentication, repository cleanliness, the task manifest, Agent executable resolution, and the argument contract without printing the configured values or credentials.
+
+
+### Claude CLI (Codex excluded)
+
+For this Windows workflow, use Claude CLI only; Codex is not part of the configured worker path. After confirming `claude --help` on the installed version and completing Claude's own sign-in flow, configure the runner with the prompt-text placeholder so Claude receives the actual task instructions rather than a file path:
+
+```powershell
+.\\scripts\\git-cli-agent-config.ps1 -Configure -AgentCommand "claude" -AgentArgsJson '["-p","{prompt_text}","--permission-mode","acceptEdits"]'
+.\\scripts\\git-cli-agent-config.ps1 -Check
+```
+
+The `acceptEdits` mode allows normal workspace edits while preserving Claude's permission checks for other tool actions. Do not use bypass-permissions or dangerously-skip-permissions flags. If the installed Claude CLI does not list `--permission-mode` or `acceptEdits` in its own help, stop and adapt the arguments to that installed version rather than guessing. Real Claude execution remains unverified until the local preflight and a real worker run succeed.
 
 ## Run
 

@@ -67,6 +67,11 @@ jobs:
         run: |
           & "$PWD/scripts/git-cli-agent-config.ps1" -ValidateOnly -AgentCommand "fixture-agent" -AgentArgsJson '["--prompt-file","{prompt_file}"]'
           if (-not $?) { throw "Valid Agent CLI configuration was rejected." }
+          & "$PWD/scripts/git-cli-agent-config.ps1" -ValidateOnly -AgentCommand "claude" -AgentArgsJson '["-p","{prompt_text}","--permission-mode","acceptEdits"]'
+          if (-not $?) { throw "Valid Claude prompt-text configuration was rejected." }
+          $failed = $false
+          try { & "$PWD/scripts/git-cli-agent-config.ps1" -ValidateOnly -AgentCommand "claude" -AgentArgsJson '["-p","{prompt_file}","{prompt_text}"]' } catch { $failed = $true }
+          if (-not $failed) { throw "Mixed prompt placeholders were not rejected." }
           $failed = $false
           try { & "$PWD/scripts/git-cli-agent-config.ps1" -ValidateOnly -AgentCommand "fixture-agent" -AgentArgsJson '["--token","fake-secret","{prompt_file}"]' } catch { $failed = $true }
           if (-not $failed) { throw "Credential-like Agent CLI arguments were not rejected." }
