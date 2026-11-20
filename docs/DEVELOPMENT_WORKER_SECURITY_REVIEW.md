@@ -84,11 +84,11 @@ Required remediation before activation:
 
 This is a source-level permission-boundary issue, not evidence of an observed unauthorized write. No workflow was dispatched and no repository permissions or secrets were changed. The current CI result does not validate GitHub token effective permissions at runtime.
 
-## Follow-up remediation — 2026-11-20 (source changes; CI pending)
+## Follow-up remediation — 2026-11-20 (source changes; exact-head CI passed)
 
 The two source-level gaps above have been addressed on the promotion branch:
 
 1. **Recovery token boundary:** recovery now runs as a separate `recover-reviews` job with only `contents: read` and `pull-requests: read`. The workflow's top-level permissions default to `contents: read`; write permissions are scoped to `development-cycle`. The development job is explicitly skipped for `mode=recover`, so the read-only path cannot also enter the Aider / PR-publishing job. Recovery uses the job-scoped `GITHUB_TOKEN` rather than a separate personal read token.
 2. **Worker presence mismatch:** when the job lease heartbeat succeeds but the worker-presence heartbeat no longer matches the active job context, the worker now treats that mismatch as uncertain ownership, cancels the executor, and returns `lease_lost`. A regression test covers this case.
 
-These are source-level changes and regression tests only. Exact-head CI must pass before they are treated as verified. They do not remove the OS-level sandbox requirement or provide real Windows/Ollama runtime evidence.
+These source-level changes and regression tests passed on exact PR head `fb9807ee906ba2fa4039176930ac433e9485b2bc` in [Backend tests run 44662978507](https://github.com/justinhblee-prog/shorts/actions/runs/44662978507). The run completed successfully. This validates repository tests and workflow YAML parsing only. It does not remove the OS-level sandbox requirement or provide real Windows/Ollama runtime evidence.
