@@ -25,6 +25,33 @@ class SchedulerTests(unittest.TestCase):
             {"brand": "Brain Glitch", "region": "US", "language": "English",
              "topic": "Test"}, start_at=start.isoformat())
 
+    def test_schedule_workspace_scope_and_dispatch_ownership(self):
+        now = datetime.now(timezone.utc)
+        a = self.schedules.create(
+            "workspace A", 3600,
+            {"brand": "Brain Glitch", "region": "US", "language": "English", "topic": "A"},
+            start_at=(now - timedelta(minutes=5)).isoformat(), workspace_id="workspace-a"
+        )
+        b = self.schedules.create(
+            "workspace B", 3600,
+            {"brand": "Brain Glitch", "region": "US", "language": "English", "topic": "B"},
+            start_at=(now - timedelta(minutes=5)).isoformat(), workspace_id="workspace-b"
+        )
+        self.assertEqual(self.schedules.list(), [])
+        self.assertEqual([item["id"] for item in self.schedules.list("workspace-a")], [a["id"]])
+        self.assertIsNone(self.schedules.set_active(b["id"], False, workspace_id="workspace-a"))
+        self.assertFalse(self.schedules.set_active(a["id"], False, workspace_id="workspace-a")["active"])
+        self.schedules.set_active(a["id"], True, workspace_id="workspace-a")
+        result = self.schedules.dispatch_due(self.queue, now=now)
+        self.assertEqual(result["count"], 2)
+        with self.queue.db() as connection:
+            rows = connection.execute(
+                "SELECT workspace_id,payload_json FROM pipeline_jobs ORDER BY created_at"
+            ).fetchall()
+        self.assertEqual({row["workspace_id"] for row in rows}, {"workspace-a", "workspace-b"})
+        self.assertEqual(self.schedules.outbox_status(workspace_id="workspace-a")["counts"], {"dispatched": 1})
+        self.assertEqual(self.schedules.outbox_status()["counts"], {})
+
     def test_schedule_create_samples_default_clock_after_write_lock(self):
         sampled_time = threading.Event()
         operation_started = threading.Event()
