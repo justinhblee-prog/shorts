@@ -1594,3 +1594,11 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Six-service Compose integration passed [run 44708253747](https://github.com/justinhblee-prog/shorts/actions/runs/44708253747). The smoke generated a real MP4 with FFmpeg, queued a `timeline_render` job in an isolated temporary DB, exercised the actual render worker and FFmpeg/ffprobe pipeline, verified 1080×1920 output plus `review_pending` status, then discarded all temporary data. The same run passed encrypted backup, isolated restore, wrong-key rejection and teardown.
 - The scanner is injected as clean in the disposable fixture. This is real FFmpeg rendering, but not a live ClamAV scan or external provider publishing test.
 - Next: add the front-end render-job status/review surface, source-clip audio mixing and safe title overlays; retain manual review and keep publishing separate.
+
+
+## BUILD — timeline render/review UI handoff (2026-11-20)
+
+- PR [#425](https://github.com/justinhblee-prog/shorts/pull/425) adds the browser workflow to the existing timeline editor: upload workspace-owned MP4 assets, optionally upload separate M4A audio, validate the EDL, enqueue an idempotent render job, inspect status, cancel, load/download the MP4, and explicitly approve or reject.
+- Exact UI head `35aede3ebf2659d6f6a24b60e2b116cf5184bc37` passed 865 backend tests and Chromium desktop/mobile smoke [run 44708689692](https://github.com/justinhblee-prog/shorts/actions/runs/44708689692). The smoke verifies the new controls and that preview/review actions remain disabled until a completed artifact is loaded.
+- The same UI head passed Compose integration [run 44708689724](https://github.com/justinhblee-prog/shorts/actions/runs/44708689724), including actual FFmpeg render-worker output and backup/restore.
+- Next engineering priorities: source-clip audio mixing, safe title overlays, durable render job history/listing, streaming preview instead of Blob buffering, and live ClamAV operational validation. Keep human review and provider publishing as separate gates.
