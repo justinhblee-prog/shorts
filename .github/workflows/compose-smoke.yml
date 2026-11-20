@@ -57,6 +57,16 @@ jobs:
             done
             test "$healthy" = "1"
           done
+      - name: Verify render worker isolation and resource limits
+        run: |
+          set -eu
+          cid="$(docker compose ps -q timeline-render-worker)"
+          test "$(docker inspect --format '{{.HostConfig.Memory}}' "$cid")" = "4294967296"
+          test "$(docker inspect --format '{{.HostConfig.CpuQuota}}' "$cid")" = "200000"
+          test "$(docker inspect --format '{{.HostConfig.PidsLimit}}' "$cid")" = "128"
+          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$cid")" = "true"
+          docker inspect --format '{{json .HostConfig.CapDrop}}' "$cid" | grep -q 'ALL'
+          docker inspect --format '{{json .HostConfig.SecurityOpt}}' "$cid" | grep -q 'no-new-privileges'
       - name: Verify real FFmpeg EDL render, artifact adoption and review
         run: docker compose exec -T timeline-render-worker python timeline_render_real_media_smoke.py
       - name: Verify scheduled backup and isolated restore
