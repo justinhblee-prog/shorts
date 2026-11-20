@@ -103,6 +103,7 @@
       "priority": 4,
       "status": "ready",
       "depends_on": [],
+      "base_branch": "fix/devflow-detached-supervisor-2026-11-20",
       "scope": [
         "scripts/ollama-agent.py",
         "scripts/test_ollama_agent.py"
