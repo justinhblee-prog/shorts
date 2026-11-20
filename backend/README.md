@@ -603,3 +603,10 @@ Production jobs can be cancelled only before review handoff. A running productio
 ### BUILD-00138 — metrics collector lease ownership
 
 The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewable, token-fenced leases. Snapshot and collection-state writes verify the active owner/token in the same SQLite transaction, so results arriving after lease replacement or expiry are rejected. The heartbeat is checked before and after provider work. Configure `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds) for YouTube Data API/TikTok and `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds) for Analytics. Restart the metrics-collector service after deploying the SQLite lease-token migration.
+
+
+### BUILD — bounded FFmpeg timeline rendering primitive
+
+`timeline_renderer.py` is the first isolated rendering primitive for the browser timeline EDL. It accepts only the strict `nexus-edit-decision-list` v1 schema and resolves every `asset_id` through a caller-supplied trusted mapping; browser paths, URLs and renderer directives are never accepted from the EDL. Inputs and output must remain regular files under the configured media root. FFmpeg is invoked as an argument array with `shell=False`, file/pipe protocol allowlisting, bounded threads, timeout, CPU/address-space/file-size limits, and a maximum input/output byte size. The resulting MP4 is probed from its bytes, checked for 1080×1920 dimensions and optional registered audio, hashed, fsynced and atomically adopted as `rendered_unreviewed`.
+
+This is a tested low-level primitive, **not yet an end-to-end render worker**. It is intentionally not connected to the API or queue until workspace-owned asset registration, workspace-scoped durable render-job state, lease/recovery semantics and an authenticated submission contract are implemented. Title clips are rejected for now rather than passed through unsafe text/filter interpolation. No automatic approval or publishing occurs.
