@@ -69,9 +69,12 @@ try{
  Write-Host "PASS: detached supervisor survived parent launcher return, executed the scheduler, persisted logs/status, and released its exclusive lease."
  $supervisorPid=$null
 }finally{
- if($supervisorPid){
-  $p=Get-Process -Id $supervisorPid -ErrorAction SilentlyContinue
-  if($p){try{$p.Kill()}catch{}}
+ if($supervisorPid -and $statusPath -and (Test-Path $statusPath)){
+  $finalStatus=Get-Content $statusPath -Raw|ConvertFrom-Json
+  if($finalStatus.status -notin @("completed","failed","failed_to_start")){
+   $p=Get-Process -Id $supervisorPid -ErrorAction SilentlyContinue
+   if($p){try{$p.Kill()}catch{}}
+  }
  }
  $env:PATH=$originalPath
  if($null -eq $originalCommand){Remove-Item Env:DEVFLOW_AGENT_COMMAND -ErrorAction SilentlyContinue}else{$env:DEVFLOW_AGENT_COMMAND=$originalCommand}
