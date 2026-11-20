@@ -66,6 +66,32 @@ class RenderOutputStore:
                 CREATE INDEX IF NOT EXISTS idx_render_outputs_workspace_review
                 ON render_outputs(workspace_id,review_status,created_at)
             """)
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS render_output_events(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id TEXT NOT NULL,
+                    workspace_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    reviewer_id TEXT NOT NULL,
+                    decision TEXT NOT NULL,
+                    note TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            connection.execute("""
+                CREATE INDEX IF NOT EXISTS idx_render_output_events_job
+                ON render_output_events(job_id,id)
+            """)
+            connection.execute("""
+                CREATE TRIGGER IF NOT EXISTS render_output_events_no_update
+                BEFORE UPDATE ON render_output_events
+                BEGIN SELECT RAISE(ABORT,'render output events are immutable'); END
+            """)
+            connection.execute("""
+                CREATE TRIGGER IF NOT EXISTS render_output_events_no_delete
+                BEFORE DELETE ON render_output_events
+                BEGIN SELECT RAISE(ABORT,'render output events are immutable'); END
+            """)
 
     @contextmanager
     def db(self):
@@ -236,4 +262,21 @@ class RenderOutputStore:
                 SET review_status=?,reviewed_by=?,reviewed_at=?,review_note=?
                 WHERE job_id=? AND workspace_id=?
             """, (decision, reviewer_id.strip(), reviewed_at, note, job_id, workspace_id))
+            connection.execute("""
+                INSERT INTO render_output_events(
+                    job_id,workspace_id,event_type,reviewer_id,decision,note,created_at
+                ) VALUES(?,?,?,?,?,?,?)
+            """, (
+                job_id,workspace_id,"review_decided",reviewer_id.strip(),
+                decision,note,reviewed_at,
+            ))
         return self.get_reviewable(job_id, workspace_id)
+
+    def events(self, job_id, workspace_id):
+        with self.db() as connection:
+            rows = connection.execute("""
+                SELECT id,event_type,reviewer_id,decision,note,created_at
+                FROM render_output_events
+                WHERE job_id=? AND workspace_id=? ORDER BY id
+            """, (job_id,workspace_id)).fetchall()
+        return [dict(row) for row in rows]
