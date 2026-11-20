@@ -326,7 +326,7 @@ class TimelineRenderer:
             temporary_path.unlink(missing_ok=True)
             if isinstance(exc, TimelineRenderError):
                 raise
-            detail = str(exc).replace(str(self.media_root), "<media-root>")[:200]
+            detail = str(exc).replace(str(self.media_root), "<media-root>")[-240:]
             raise TimelineRenderError(
                 f"Rendered output failed media validation ({type(exc).__name__}): {detail}"
             ) from exc
