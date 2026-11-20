@@ -12,10 +12,9 @@ try:
 except ImportError:  # Windows development environments do not expose POSIX rlimits.
     resource = None
 import subprocess
-import tempfile
 import uuid
 from pathlib import Path
-from typing import Callable, Mapping
+from typing import Mapping
 
 from media_inspection import MediaInspector
 from timeline_edl import validate_edl, EDLValidationError
@@ -32,6 +31,7 @@ class TimelineRenderer:
         ffmpeg_path=None,
         timeout_seconds=None,
         max_asset_bytes=None,
+        max_total_asset_bytes=None,
         max_output_bytes=None,
         max_memory_bytes=None,
         max_cpu_seconds=None,
@@ -44,6 +44,7 @@ class TimelineRenderer:
         self.ffmpeg_path = ffmpeg_path or os.getenv("NEXUS_FFMPEG_PATH", "ffmpeg")
         self.timeout_seconds = int(timeout_seconds or os.getenv("NEXUS_RENDER_TIMEOUT_SECONDS", "900"))
         self.max_asset_bytes = int(max_asset_bytes or os.getenv("NEXUS_RENDER_MAX_ASSET_BYTES", str(512 * 1024 * 1024)))
+        self.max_total_asset_bytes = int(max_total_asset_bytes or os.getenv("NEXUS_RENDER_MAX_TOTAL_ASSET_BYTES", str(1024 * 1024 * 1024)))
         self.max_output_bytes = int(max_output_bytes or os.getenv("NEXUS_RENDER_MAX_OUTPUT_BYTES", str(512 * 1024 * 1024)))
         self.max_memory_bytes = int(max_memory_bytes or os.getenv("NEXUS_RENDER_MAX_MEMORY_BYTES", str(2 * 1024 * 1024 * 1024)))
         self.max_cpu_seconds = int(max_cpu_seconds or os.getenv("NEXUS_RENDER_MAX_CPU_SECONDS", "900"))
@@ -54,6 +55,8 @@ class TimelineRenderer:
             raise ValueError("render timeout must be between 1 and 3600 seconds")
         if not (1 <= self.max_asset_bytes <= 2 * 1024 * 1024 * 1024):
             raise ValueError("render asset limit is outside the supported range")
+        if not (1 <= self.max_total_asset_bytes <= 4 * 1024 * 1024 * 1024):
+            raise ValueError("total render asset limit is outside the supported range")
         if not (1 <= self.max_output_bytes <= 2 * 1024 * 1024 * 1024):
             raise ValueError("render output limit is outside the supported range")
         if not (128 * 1024 * 1024 <= self.max_memory_bytes <= 16 * 1024 * 1024 * 1024):
@@ -105,11 +108,21 @@ class TimelineRenderer:
         if any(clip["type"] != "video" for clip in clips):
             raise TimelineRenderError("Title clips are not yet supported by the FFmpeg renderer")
 
+        timeline_cursor = 0.0
+        for clip in clips:
+            if not __import__("math").isclose(clip["start_ms"], timeline_cursor, abs_tol=1.0):
+                raise TimelineRenderError("EDL clips must be ordered and contiguous in this renderer version")
+            timeline_cursor = clip["end_ms"]
         inputs = [self._trusted_asset(clip["asset_id"], asset_paths) for clip in clips]
         audio_path = self._trusted_asset(audio_asset_id, asset_paths) if audio_asset_id else None
+        total_input_bytes = sum(path.stat().st_size for path in inputs)
+        if audio_path is not None:
+            total_input_bytes += audio_path.stat().st_size
+        if total_input_bytes > self.max_total_asset_bytes:
+            raise TimelineRenderError("Combined render assets exceed the configured total size limit")
         durations = [(clip["source_out_ms"] - clip["source_in_ms"]) / 1000 for clip in clips]
         total_duration = sum(durations)
-        if total_duration <= 0 or total_duration > 3600:
+        if total_duration <= 0 or total_duration > 180:
             raise TimelineRenderError("Rendered timeline duration is outside the supported range")
 
         target_dir = Path(output_dir or self.media_root / "renders")
@@ -213,6 +226,9 @@ class TimelineRenderer:
                 raise TimelineRenderError("Rendered output did not pass media inspection")
             if report.get("width") != 1080 or report.get("height") != 1920:
                 raise TimelineRenderError("Rendered output dimensions are not 1080x1920")
+            reported_duration = report.get("duration_seconds")
+            if not isinstance(reported_duration, (int, float)) or abs(reported_duration - total_duration) > 0.75:
+                raise TimelineRenderError("Rendered output duration does not match the validated timeline")
             if not report.get("audio_track_present") and audio_path is not None:
                 raise TimelineRenderError("Registered audio track is missing from the rendered output")
             digest = hashlib.sha256()
