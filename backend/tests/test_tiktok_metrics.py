@@ -134,6 +134,18 @@ class TikTokMetricsTests(unittest.TestCase):
             details,
         )
 
+    def test_unassigned_legacy_tiktok_history_remains_visible_without_tenant_scope(self):
+        self.store.save_snapshot("job-1", {
+            "id": "video-1", "view_count": 10, "like_count": 2,
+            "comment_count": 1, "share_count": 0,
+        })
+        with self.store.db() as connection:
+            connection.execute("CREATE TABLE production_runs(job_id TEXT PRIMARY KEY,workspace_id TEXT)")
+        self.assertEqual(len(self.store.history(self.publications,video_id="video-1")),1)
+        self.assertEqual(
+            self.store.history(self.publications,video_id="video-1",workspace_id="workspace-a"),[]
+        )
+
     def test_history_since_filters_before_applying_limit(self):
         self.store.save_snapshot("job-1", {
             "id": "video-1", "view_count": 10, "like_count": 1,
