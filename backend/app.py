@@ -35,6 +35,7 @@ from preflight import build_preflight
 from timeline_edl import validate_edl, EDLValidationError
 from workspace_access import resolve_workspace_membership, resolve_workspace_access, WorkspaceAccessConfigurationError
 from workspace_store import WorkspaceStore, WorkspaceDenied, WorkspaceConflict, WorkspaceNotFound
+from worker_auth import authenticate_worker, WorkerAuthConfigurationError, WorkerAuthenticationError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 class TikTokOAuthAccessLogRedaction(logging.Filter):
@@ -137,6 +138,19 @@ class ProviderAttemptReconciliationAction(BaseModel):
 class Claim(BaseModel):
     worker_id:str=Field(min_length=1,max_length=128)
     hostname:str|None=None
+class WorkerRegisterInput(BaseModel):
+    hostname:str|None=Field(default=None,max_length=255)
+class WorkerClaimInput(BaseModel):
+    hostname:str|None=Field(default=None,max_length=255)
+    job_type:str|None=Field(default=None,min_length=1,max_length=128)
+class WorkerLeaseInput(BaseModel):
+    lease_token:str=Field(min_length=1,max_length=256)
+class WorkerCompleteInput(WorkerLeaseInput):
+    result:dict[str,Any]=Field(default_factory=dict)
+class WorkerFailInput(WorkerLeaseInput):
+    error_code:str=Field(default="worker_error",min_length=1,max_length=128)
+    error_message:str=Field(default="Worker failed",max_length=2000)
+    retryable:bool=True
 class Lease(BaseModel):
     worker_id:str
     lease_token:str
@@ -1696,6 +1710,126 @@ def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=
         }
     except ValueError as e:
         raise HTTPException(409,str(e))
+
+def require_worker_identity(authorization):
+    try:
+        return authenticate_worker(
+            authorization,
+            credentials_json=os.getenv("NEXUS_WORKER_CREDENTIALS_JSON",""),
+        )
+    except WorkerAuthConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except WorkerAuthenticationError:
+        raise HTTPException(401,"Valid worker bearer credential required")
+
+
+def require_worker_generation(generation_token):
+    if not isinstance(generation_token,str) or not generation_token.strip() or len(generation_token)>256:
+        raise HTTPException(401,"Valid worker process generation is required")
+    return generation_token
+
+
+def resolve_worker_job_workspace(identity, job_id):
+    for workspace_id in identity.workspace_ids:
+        try:
+            queue.get(job_id,workspace_id=workspace_id)
+            return workspace_id
+        except JobNotFound:
+            continue
+    raise HTTPException(404,"Production job not found in worker workspace grants")
+
+
+@app.post("/api/worker/v1/register")
+def register_worker_v1(
+    body:WorkerRegisterInput,
+    authorization:str|None=Header(default=None),
+):
+    identity=require_worker_identity(authorization)
+    result=queue.register_worker(identity.worker_id,body.hostname)
+    return {
+        "worker_id":identity.worker_id,
+        "generation_token":result["generation_token"],
+        "workspace_ids":list(identity.workspace_ids),
+    }
+
+
+@app.post("/api/worker/v1/claim")
+def claim_worker_v1(
+    body:WorkerClaimInput,
+    authorization:str|None=Header(default=None),
+    x_nexus_worker_generation:str|None=Header(default=None),
+):
+    identity=require_worker_identity(authorization)
+    generation=require_worker_generation(x_nexus_worker_generation)
+    for workspace_id in identity.workspace_ids:
+        job=queue.claim(
+            identity.worker_id,body.hostname,job_type=body.job_type,
+            generation_token=generation,workspace_id=workspace_id,
+        )
+        if job is not None:
+            return {"job":job,"workspace_id":workspace_id}
+    return {"job":None,"workspace_id":None}
+
+
+@app.post("/api/worker/v1/jobs/{jid}/heartbeat")
+def heartbeat_worker_v1(
+    jid:str,body:WorkerLeaseInput,
+    authorization:str|None=Header(default=None),
+    x_nexus_worker_generation:str|None=Header(default=None),
+):
+    identity=require_worker_identity(authorization)
+    generation=require_worker_generation(x_nexus_worker_generation)
+    workspace_id=resolve_worker_job_workspace(identity,jid)
+    try:
+        return queue.heartbeat(
+            jid,identity.worker_id,body.lease_token,
+            generation_token=generation,workspace_id=workspace_id,
+        )
+    except JobNotFound:
+        raise HTTPException(404,"Production job not found")
+    except LeaseConflict as exc:
+        raise HTTPException(409,str(exc))
+
+
+@app.post("/api/worker/v1/jobs/{jid}/complete")
+def complete_worker_v1(
+    jid:str,body:WorkerCompleteInput,
+    authorization:str|None=Header(default=None),
+    x_nexus_worker_generation:str|None=Header(default=None),
+):
+    identity=require_worker_identity(authorization)
+    generation=require_worker_generation(x_nexus_worker_generation)
+    workspace_id=resolve_worker_job_workspace(identity,jid)
+    try:
+        return queue.finish(
+            jid,identity.worker_id,body.lease_token,body.result,
+            generation_token=generation,workspace_id=workspace_id,
+        )
+    except JobNotFound:
+        raise HTTPException(404,"Production job not found")
+    except LeaseConflict as exc:
+        raise HTTPException(409,str(exc))
+
+
+@app.post("/api/worker/v1/jobs/{jid}/fail")
+def fail_worker_v1(
+    jid:str,body:WorkerFailInput,
+    authorization:str|None=Header(default=None),
+    x_nexus_worker_generation:str|None=Header(default=None),
+):
+    identity=require_worker_identity(authorization)
+    generation=require_worker_generation(x_nexus_worker_generation)
+    workspace_id=resolve_worker_job_workspace(identity,jid)
+    try:
+        return queue.fail(
+            jid,identity.worker_id,body.lease_token,body.error_code,body.error_message,
+            body.retryable,generation_token=generation,workspace_id=workspace_id,
+        )
+    except JobNotFound:
+        raise HTTPException(404,"Production job not found")
+    except LeaseConflict as exc:
+        raise HTTPException(409,str(exc))
+
 
 @app.post("/api/jobs",status_code=201)
 def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
