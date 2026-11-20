@@ -20,8 +20,8 @@ class FFmpegAudioMixTests(unittest.TestCase):
 
     def test_builds_shell_free_two_track_mix_with_fades_and_gain(self):
         argv = build_audio_mix_argv([
-            {"path": str(self.one), "start_ms": 0, "duration_ms": 10000,
-             "gain": 1.0, "fade_in_ms": 100, "fade_out_ms": 500},
+            {"path": str(self.one), "start_ms": 0, "source_in_ms": 1500,
+             "duration_ms": 10000, "gain": 1.0, "fade_in_ms": 100, "fade_out_ms": 500},
             {"path": str(self.two), "start_ms": 500, "duration_ms": 12000,
              "gain": 0.25},
         ], str(self.output), output_duration_ms=12000)
@@ -29,6 +29,7 @@ class FFmpegAudioMixTests(unittest.TestCase):
         self.assertIn("-nostdin", argv)
         self.assertIn("-filter_complex", argv)
         graph = argv[argv.index("-filter_complex") + 1]
+        self.assertIn("atrim=start=1.500:duration=10.000", graph)
         self.assertIn("amix=inputs=2", graph)
         self.assertIn("alimiter=limit=0.95", graph)
         self.assertIn("volume=0.2500", graph)
