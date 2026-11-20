@@ -54,6 +54,18 @@ gh auth status
 
 You can select one task with `-Task BUILD-xxxxx` or override the base branch with `-Base branch-name`.
 
+## Detached Windows supervisor (connection-resilient run)
+
+For runs that must continue if the interactive PowerShell window or remote desktop session closes, start the scheduler as a separate hidden PowerShell process:
+
+```powershell
+.\scripts\start-devflow-detached.ps1 -MaxTasks 20
+```
+
+The launcher returns immediately with a PID, run metadata, stdout/stderr log paths, and a status-file path. The detached supervisor holds an exclusive scheduler lock for the full run, invokes the normal launcher (including its existing preflight), and writes a terminal `completed` or `failed` status. Logs and metadata are written beside the checkout under `<repo>-multiflow-logs`; worker state and the scheduler lease remain under `<repo>-multiflow-state`. Inspect the status JSON and log files to resume diagnosis after reconnecting. Do not delete the scheduler lock file while a supervisor is running; the OS file handle is the lock.
+
+This protects the local automation process from closure of the interactive PowerShell window. It does not restore a lost ChatGPT-to-Windows connector or prove that the coding-agent CLI/provider remains authenticated. A provider failure is recorded in the logs and worker state; rerun only after inspecting the failure and retained worktree. The normal dependency, open-PR, lease, validation, and Draft-PR safety gates remain in force.
+
 ## Flow and safety gates
 
 1. Select tasks in `ready` or `in_progress` whose dependencies are all `completed`.
