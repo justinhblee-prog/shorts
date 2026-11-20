@@ -123,3 +123,12 @@ a clean result. No user-facing endpoint accepts a caller's assertion that a file
 is clean. The scanner integration and production worker process must be deployed
 separately; the API queues work but does not synchronously render it. Artifact
 preview is only available after the lease-fenced worker has adopted the output.
+
+
+ClamAV scanning is opt-in via \`NEXUS_MEDIA_SCAN_ENABLED=true\`. The Compose API
+container has the ClamAV database mounted read-only. Start the updater profile
+(\`docker compose --profile media-scan up -d clamav-updater\`) before enabling
+scanning. If ClamAV is unavailable, times out, detects a threat, or cannot finish
+within its limits, the asset remains pending and cannot be submitted for render.
+The scan retry endpoint preserves the asset ID so operators can retry after
+scanner infrastructure is repaired.
