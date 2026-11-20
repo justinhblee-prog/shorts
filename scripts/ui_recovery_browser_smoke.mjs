@@ -104,10 +104,20 @@ async function waitForServer() {
       return card && card.textContent.includes("대기") &&
         !card.querySelector("[data-recover-development-job]");
     }, jobId);
-    await page.locator('[data-development-job="' + jobId + '"]').click();
+    const recoveredJobButton = page.locator('[data-development-job="' + jobId + '"]');
+    await recoveredJobButton.click();
     await page.waitForFunction(() =>
       document.querySelector("#developmentJobEvents").textContent.includes("quarantine_recovered")
     );
+    assert.equal(await recoveredJobButton.getAttribute("aria-pressed"), "true",
+      "clicking a job must select its detail panel");
+    const parentJobButton = page.locator('[data-development-job="browser-smoke-ui-parent"]');
+    await parentJobButton.press("Enter");
+    await page.waitForFunction(() =>
+      document.querySelector('[data-development-job="browser-smoke-ui-parent"]')?.getAttribute("aria-pressed") === "true"
+    );
+    assert.equal(await recoveredJobButton.getAttribute("aria-pressed"), "false",
+      "selecting another job must clear the previous selection");
     const events = await page.evaluate(async ({ tokenValue, id }) => {
       const result = await fetch("/api/development/jobs/" + encodeURIComponent(id) + "/events?limit=100", {
         headers: { "X-Review-Token": tokenValue },
