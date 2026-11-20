@@ -87,7 +87,9 @@ class TimelineRenderStore:
             if metadata["scan_status"] != "clean":
                 raise SnapshotError("all referenced assets must pass malware scanning")
             media = metadata.get("media_metadata")
-            if media is not None and not media.get("has_video"):
+            if media is not None and (
+                not isinstance(media, dict) or not media.get("has_video")
+            ):
                 raise SnapshotError("video clips must reference a probed video asset")
             if clip["source_out_ms"] > metadata.get("duration_ms", float("inf")):
                 raise EDLValidationError("source trim exceeds registered media duration")
@@ -96,7 +98,9 @@ class TimelineRenderStore:
             if metadata["scan_status"] != "clean":
                 raise SnapshotError("all referenced audio assets must pass malware scanning")
             media = metadata.get("media_metadata")
-            if media is not None and not media.get("has_audio"):
+            if media is not None and (
+                not isinstance(media, dict) or not media.get("has_audio")
+            ):
                 raise SnapshotError("audio tracks must reference a probed audio asset")
             if track["source_out_ms"] > metadata.get("duration_ms", float("inf")):
                 raise EDLValidationError("audio source trim exceeds registered media duration")
