@@ -131,3 +131,6 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - Remaining UI refinement: visually communicate dependency edges/ancestors and explicitly represent prerequisite IDs not included in the current API page.
 
 - Follow-up UI refinement: prerequisite chips are keyboard-operable navigation controls that scroll to and focus the persisted parent job card; unresolved IDs outside the current page are visibly labeled. Static frontend assertions and Chromium click/Enter checks were added.
+
+- A browser regression initially exposed that the list endpoint did not return dependency IDs: the store's single-job `get()` included them, but `list()` omitted them. Corrected `DevelopmentJobStore.list()` to fetch dependency edges for the returned IDs in one query and added a backend regression test.
+- Exact head `c2fab8b8b7bc3abcfe7cf9b96c83206d8d508a10` passed full backend validation, frontend syntax, dashboard and recovery/workstream/dependency-navigation Chromium smoke tests, and artifact upload in [run 44652954128](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128). Browser artifact: [14591602484](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128/artifacts/14591602484).
