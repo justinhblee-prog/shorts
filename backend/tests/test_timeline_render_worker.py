@@ -85,5 +85,31 @@ class TimelineRenderWorkerTests(unittest.TestCase):
         self.assertTrue((artifacts / artifact["storage_key"]).is_file())
 
 
+    def test_staged_output_is_removed_when_lease_generation_changes_before_adoption(self):
+        root = Path(self.temp.name)
+        staging, artifacts = root / "staging", root / "artifacts"
+        staging.mkdir()
+        store = RenderArtifactStore(self.queue, staging, artifacts)
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_" + "d" * 32,
+             "snapshot_sha256": "e" * 64, "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        staged = staging / ("rart_" + "f" * 32 + ".mp4")
+        def render(payload, stop_event):
+            staged.write_bytes(b"fixture")
+            self.queue.register_worker("timeline-worker")
+            return {"staged_path": str(staged)}
+        worker = TimelineRenderWorker(
+            self.queue, render, "timeline-worker", self.generation,
+            heartbeat_seconds=0.02, artifact_store=store,
+        )
+        self.assertFalse(worker.run_once())
+        self.assertFalse(staged.exists())
+        current = self.queue.get(queued["id"], workspace_id="ws_fixture")
+        self.assertEqual(current["status"], "running")
+
+
 if __name__ == "__main__":
     unittest.main()

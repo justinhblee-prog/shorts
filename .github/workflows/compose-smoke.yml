@@ -34,19 +34,20 @@ jobs:
         run: docker compose config --quiet
       - name: Build all service images
         run: docker compose build
-      - name: Start API, worker, scheduler, metrics collector and backup
+      - name: Start API, production worker, timeline renderer, scheduler, metrics collector and backup
         run: docker compose up -d
       - name: Verify service processes and API readiness
         run: |
           set -eu
           running="$(docker compose ps --status running --services)"
-          for service in api worker scheduler metrics-collector backup; do
+          for service in api worker timeline-worker scheduler metrics-collector backup; do
             printf '%s\n' "$running" | grep -qx "$service"
           done
           docker compose exec -T api python -c "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8502/api/ready',timeout=5); assert r.status == 200"
           docker compose exec -T worker python -c "import os; assert os.path.exists('/app/data')"
+          docker compose exec -T timeline-worker python -c "import os; assert os.path.exists('/app/data/render-staging')"
           docker compose exec -T scheduler python -c "import os; assert os.path.exists('/app/data')"
-          for service in api worker scheduler metrics-collector; do
+          for service in api worker timeline-worker scheduler metrics-collector; do
             healthy=0
             for attempt in $(seq 1 90); do
               cid="$(docker compose ps -q "$service")"

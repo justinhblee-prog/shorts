@@ -1,4 +1,5 @@
 import hashlib
+import os
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -164,6 +165,28 @@ class RenderArtifactStoreTests(unittest.TestCase):
         self.assertEqual(record["video_width"], 1280)
         self.assertEqual(record["video_height"], 720)
         self.assertEqual(record["audio_streams"], 1)
+
+
+    def test_reconciles_old_staged_outputs_and_workdirs_but_keeps_recent_files(self):
+        orphan = self.staging / ("rart_" + "b" * 32 + ".mp4")
+        orphan.write_bytes(b"orphan")
+        workdir = self.staging / ".timeline-work-abandoned"
+        workdir.mkdir()
+        (workdir / "source.media").write_bytes(b"source")
+        recent = self.staging / ("rart_" + "c" * 32 + ".mp4")
+        recent.write_bytes(b"recent")
+        os.utime(orphan, (0, 0))
+        os.utime(workdir, (0, 0))
+        result = self.store.reconcile_orphaned_staging_files(grace_seconds=3601)
+        self.assertEqual(result["removed_files"], 1)
+        self.assertEqual(result["removed_dirs"], 1)
+        self.assertFalse(orphan.exists())
+        self.assertFalse(workdir.exists())
+        self.assertTrue(recent.exists())
+
+    def test_staging_reconciliation_rejects_grace_shorter_than_render_timeout(self):
+        with self.assertRaises(ValueError):
+            self.store.reconcile_orphaned_staging_files(grace_seconds=3600)
 
 
 if __name__ == "__main__":

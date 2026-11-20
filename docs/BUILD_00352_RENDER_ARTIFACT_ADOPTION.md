@@ -42,14 +42,41 @@ checks path, size, suffix and checksum but does not claim media-stream validity.
 Without a store, the existing injected-renderer review handoff remains available
 for compatibility.
 
+## Concrete EDL renderer
+
+`TimelineFFmpegRenderer` implements the EDL v1 video/title/audio path.
+It resolves only clean workspace assets, copies them into a per-job private
+working directory, probes each source and rejects source trims beyond the real
+media duration. Video clips are composed onto a 1080x1920 portrait canvas;
+title text is passed through UTF-8 text files with drawtext expansion disabled.
+Audio clips use the existing bounded audio-mix builder, including source in-points,
+timeline delay, gain, fades and limiter. Both FFmpeg stages run with argv-only
+execution, no shell, bounded wall time/output bytes and lease-loss cancellation.
+The final MP4 is ffprobe-validated for H.264, 1080x1920 portrait dimensions,
+duration, size and audio presence before it is returned to the lease-fenced
+artifact store for checksum-backed adoption. FFmpeg and ffprobe inputs are
+restricted to local file/pipe protocols.
+
+The render job now carries its originating workspace and principal context so
+the asset store re-checks membership and clean scan status when opening media.
+A failed or lease-lost handoff removes the staged MP4. Worker startup also
+reconciles stale staging files/work directories and unindexed artifact files
+after conservative grace periods. EDL v1 now supports up to eight explicit
+audio clips with bounded gain, source trims and fades.
+
+The dedicated Compose service runs with no network, a read-only root
+filesystem, a bounded temporary filesystem, dropped Linux capabilities,
+no-new-privileges, and configured CPU, memory and process-count limits. The
+staging/artifact volume is shared with the API data volume; its disk quota still
+requires host-level enforcement.
+
 ## Remaining production gates
 
-- A concrete EDL renderer must produce the staged MP4 and call the safe audio
-  mix builder with trusted, staged inputs.
-- Pin FFmpeg/ffprobe versions and run them in a production-isolated container
-  with CPU, memory, disk, network and process-count limits.
+- Pin FFmpeg/ffprobe versions and validate codec/filter availability on target
+  platforms; the current image installs the distribution packages.
 - Run real-media integration and crash/lease-loss tests on the target runtime.
+- Connect an actual malware scanner to the asset quarantine transition.
 - Add authenticated upload/render/review APIs and retention cleanup.
-- CI tests use generated fixture bytes and a mocked ffprobe process. The actual
-  ffprobe binary, real FFmpeg rendering and production filesystem isolation
-  still require target-runtime validation.
+- CI tests execute a fake FFmpeg/ffprobe toolchain against generated fixtures;
+  the actual pinned binaries, representative real-media renders and production
+  filesystem isolation still require target-runtime validation.

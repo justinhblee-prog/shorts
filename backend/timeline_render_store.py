@@ -81,13 +81,11 @@ class TimelineRenderStore:
             raise ValueError("idempotency_key must contain 8 to 128 safe characters")
         normalized = validate_edl(payload)
         for clip in normalized["clips"]:
-            if clip["type"] != "video":
+            if clip["type"] == "title":
                 continue
             metadata = self.assets.get_asset(workspace_id, principal_id, clip["asset_id"])
             if metadata["scan_status"] != "clean":
                 raise SnapshotError("all referenced assets must pass malware scanning")
-            if clip["source_out_ms"] > metadata.get("duration_ms", float("inf")):
-                raise EDLValidationError("source trim exceeds registered media duration")
 
         serialized = json.dumps(normalized, ensure_ascii=False, sort_keys=True,
                                 separators=(",", ":"), allow_nan=False)
@@ -104,6 +102,8 @@ class TimelineRenderStore:
         job_payload = {
             "snapshot_id": snapshot_id,
             "snapshot_sha256": digest,
+            "workspace_id": workspace_id,
+            "principal_id": principal_id,
             "edl": normalized,
         }
         try:

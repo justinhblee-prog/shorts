@@ -39,8 +39,9 @@ def validate_edl(payload: Any) -> dict:
     """Validate and return a normalized copy of the supported EDL v1 subset.
 
     Supported payload shape: schema, version, timebase='milliseconds', clips[].
-    Each clip has id, type ('video'|'title'), start_ms, end_ms, and for video
-    clips an opaque asset_id plus source_in_ms/source_out_ms. Browser paths,
+    Each clip has id, type ('video'|'audio'|'title'), start_ms, end_ms, and for
+    media clips an opaque asset_id plus source_in_ms/source_out_ms. Audio clips
+    additionally define gain and fade bounds. Browser paths,
     URLs, filters, transitions and arbitrary renderer directives are rejected.
     """
     if not isinstance(payload, dict):
@@ -65,9 +66,14 @@ def validate_edl(payload: Any) -> dict:
             raise EDLValidationError(f"{prefix} must be an object")
         kind = raw.get("type")
         common = {"id", "type", "start_ms", "end_ms"}
-        expected = common | ({"asset_id", "source_in_ms", "source_out_ms"}
-                             if kind == "video" else {"text"} if kind == "title" else set())
-        if kind not in ("video", "title") or set(raw) != expected:
+        expected = common | (
+            {"asset_id", "source_in_ms", "source_out_ms"}
+            if kind == "video" else
+            {"asset_id", "source_in_ms", "source_out_ms", "gain", "fade_in_ms", "fade_out_ms"}
+            if kind == "audio" else
+            {"text"} if kind == "title" else set()
+        )
+        if kind not in ("video", "audio", "title") or set(raw) != expected:
             raise EDLValidationError(f"{prefix} has unsupported type or fields")
         clip_id = raw.get("id")
         if not isinstance(clip_id, str) or not _ID.fullmatch(clip_id) or clip_id in seen:
@@ -78,7 +84,7 @@ def validate_edl(payload: Any) -> dict:
         if start < 0 or end <= start or end > MAX_DURATION_MS:
             raise EDLValidationError(f"{prefix} has invalid timeline bounds")
         item = {"id": clip_id, "type": kind, "start_ms": start, "end_ms": end}
-        if kind == "video":
+        if kind in ("video", "audio"):
             asset_id = raw["asset_id"]
             if not isinstance(asset_id, str) or not _ID.fullmatch(asset_id):
                 raise EDLValidationError(f"{prefix}.asset_id must be an opaque identifier")
@@ -89,6 +95,19 @@ def validate_edl(payload: Any) -> dict:
             if not math.isclose(end - start, source_out - source_in, abs_tol=1.0):
                 raise EDLValidationError(f"{prefix} timeline and source durations differ")
             item.update(asset_id=asset_id, source_in_ms=source_in, source_out_ms=source_out)
+            if kind == "audio":
+                gain = _number(raw["gain"], f"{prefix}.gain")
+                fade_in = raw["fade_in_ms"]
+                fade_out = raw["fade_out_ms"]
+                duration = end - start
+                if not 0 <= gain <= 4:
+                    raise EDLValidationError(f"{prefix}.gain must be between 0 and 4")
+                for value, field in ((fade_in, "fade_in_ms"), (fade_out, "fade_out_ms")):
+                    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 60000:
+                        raise EDLValidationError(f"{prefix}.{field} is outside its allowed range")
+                if fade_in + fade_out > duration:
+                    raise EDLValidationError(f"{prefix} audio fades exceed clip duration")
+                item.update(gain=gain, fade_in_ms=fade_in, fade_out_ms=fade_out)
         else:
             title = raw["text"]
             if not isinstance(title, str) or not title.strip() or len(title) > MAX_TITLE_LENGTH:
@@ -96,6 +115,10 @@ def validate_edl(payload: Any) -> dict:
             item["text"] = title.strip()
         normalized.append(item)
 
+    if not any(item["type"] == "video" for item in normalized):
+        raise EDLValidationError("timeline must contain at least one video clip")
+    if sum(item["type"] == "audio" for item in normalized) > 8:
+        raise EDLValidationError("audio track count exceeds the supported limit of 8")
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
     return {"schema": SCHEMA, "version": VERSION, "timebase": "milliseconds", "clips": normalized}

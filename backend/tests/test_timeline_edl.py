@@ -70,5 +70,67 @@ class TimelineEDLTests(unittest.TestCase):
         self.assertEqual(payload, self.valid)
 
 
+    def test_normalizes_bounded_audio_tracks(self):
+        payload = {
+            "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+            "clips": [
+                {"id": "v1", "type": "video", "start_ms": 0, "end_ms": 5000,
+                 "asset_id": "asset_video", "source_in_ms": 0, "source_out_ms": 5000},
+                {"id": "a1", "type": "audio", "start_ms": 0, "end_ms": 5000,
+                 "asset_id": "asset_audio", "source_in_ms": 0, "source_out_ms": 5000,
+                 "gain": 0.5, "fade_in_ms": 100, "fade_out_ms": 250},
+            ],
+        }
+        normalized = validate_edl(payload)
+        self.assertEqual(normalized["clips"][1]["gain"], 0.5)
+        self.assertEqual(normalized["clips"][1]["fade_out_ms"], 250)
+
+    def test_rejects_unsafe_audio_gain_and_fades(self):
+        base = {
+            "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+            "clips": [{"id": "a1", "type": "audio", "start_ms": 0, "end_ms": 1000,
+                       "asset_id": "asset_audio", "source_in_ms": 0, "source_out_ms": 1000,
+                       "gain": 1.0, "fade_in_ms": 0, "fade_out_ms": 0}],
+        }
+        for field, value in (("gain", 9), ("gain", float("nan")),
+                             ("fade_in_ms", -1), ("fade_out_ms", 60001),
+                             ("fade_in_ms", 1001), ("fade_out_ms", 1001)):
+            payload = {"schema": base["schema"], "version": 1,
+                       "timebase": "milliseconds",
+                       "clips": [dict(base["clips"][0], **{field: value})]}
+            with self.subTest(field=field, value=value), self.assertRaises(EDLValidationError):
+                validate_edl(payload)
+        payload = {"schema": base["schema"], "version": 1,
+                   "timebase": "milliseconds",
+                   "clips": [dict(base["clips"][0], fade_in_ms=700, fade_out_ms=700)]}
+        with self.assertRaises(EDLValidationError):
+            validate_edl(payload)
+
+
+    def test_rejects_audio_only_render_timeline(self):
+        payload = {
+            "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+            "clips": [{"id": "a1", "type": "audio", "start_ms": 0, "end_ms": 1000,
+                       "asset_id": "asset_audio", "source_in_ms": 0, "source_out_ms": 1000,
+                       "gain": 1.0, "fade_in_ms": 0, "fade_out_ms": 0}],
+        }
+        with self.assertRaisesRegex(EDLValidationError, "video clip"):
+            validate_edl(payload)
+
+
+    def test_rejects_more_than_eight_audio_tracks(self):
+        video = {"id": "v1", "type": "video", "start_ms": 0, "end_ms": 1000,
+                 "asset_id": "asset_video", "source_in_ms": 0, "source_out_ms": 1000}
+        audios = [
+            {"id": f"a{i}", "type": "audio", "start_ms": 0, "end_ms": 1000,
+             "asset_id": f"asset_audio{i}", "source_in_ms": 0, "source_out_ms": 1000,
+             "gain": 1.0, "fade_in_ms": 0, "fade_out_ms": 0}
+            for i in range(9)
+        ]
+        with self.assertRaisesRegex(EDLValidationError, "audio track count"):
+            validate_edl({"schema": SCHEMA, "version": 1,
+                           "timebase": "milliseconds", "clips": [video, *audios]})
+
+
 if __name__ == "__main__":
     unittest.main()
