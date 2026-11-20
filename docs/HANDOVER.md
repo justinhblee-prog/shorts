@@ -1576,3 +1576,13 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - The media upload and EDL validation POST endpoints use a dedicated 10/minute default rate-limit bucket. Temporary upload names use the existing `.nexus-*.part` cleanup convention.
 - **Validation boundary:** all new scanner tests inject a fake ClamAV scanner; real uploads and live ClamAV scanning have not been run. No actual FFmpeg MP4 render has been run. If scan is disabled, assets remain non-renderable.
 - Next: add durable render-job state with token-fenced lease/heartbeat/recovery, then connect the renderer through a dedicated resource-limited worker and run real generated MP4 fixtures. Keep title overlays, source-clip audio mixing, cancellation and review handoff explicit and fail-closed. No publishing action is enabled.
+
+
+## BUILD — durable render job execution and review handoff (2026-11-20)
+
+- Added a separate `timeline_render` job type on the existing durable queue, with workspace ID, attempt, lease token, worker identity and heartbeat fencing. The render worker is a separate Compose service and does not share the production publishing worker process.
+- Worker re-resolves all video/audio asset IDs within the job workspace, requires clean ClamAV scan status and verifies file hashes before FFmpeg. It runs FFmpeg via POSIX `prlimit` in a killable process group, with CPU/memory/file-size/runtime bounds. Lease loss and operator cancellation terminate the process group.
+- Render outputs are adopted only while the queue job is still running under the exact worker/lease/attempt. A successful job transitions to `review_pending`; output path is kept internal and verified again before download. Stale output attempts are removed if the queue handoff fails.
+- Added API routes for enqueue, job status, queue/review events, artifact download, cancellation and explicit review decision. Review decisions are immutable audit events; `approved` does not trigger publishing.
+- Compose adds a dedicated render worker capped at 2 CPU / 3 GiB / 64 PIDs. CI creates a disposable MP4 with FFmpeg, runs it through the actual durable queue worker and verifies a 1080×1920 review-pending output, then removes the temporary DB/media.
+- **Validation limitation:** Compose smoke uses a fake clean ClamAV adapter; live antivirus scanning and external provider publishing are not exercised. Source-clip audio mixing and title overlays remain unsupported.
