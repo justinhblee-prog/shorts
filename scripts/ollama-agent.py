@@ -105,7 +105,7 @@ def parse_text_tool_call(content: str) -> list[dict[str, Any]]:
  if not content:
   return []
  candidates=[]
- for match in re.finditer(r"\x60\x60\x60(?:json)?\\s*(\\{.*?\\})\\s*\x60\x60\x60", content, re.IGNORECASE | re.DOTALL):
+ for match in re.finditer(r"\x60\x60\x60(?:json)?\s*(\{.*?\})\s*\x60\x60\x60", content, re.IGNORECASE | re.DOTALL):
   candidates.append(match.group(1))
  if not candidates:
   decoder=json.JSONDecoder()
