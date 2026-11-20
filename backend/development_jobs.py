@@ -290,20 +290,23 @@ class DevelopmentJobStore:
                 (safe_source_ref,),
             ).fetchone() is not None
 
-    def list(self, statuses=None, limit=100):
+    def list(self, statuses=None, limit=100, offset=0):
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
             raise ValueError("limit must be an integer from 1 to 500")
+        if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 100000:
+            raise ValueError("offset must be an integer from 0 to 100000")
         with self.db() as connection:
             if statuses:
                 values = tuple(statuses)
                 marks = ",".join("?" for _ in values)
                 rows = connection.execute(
-                    f"SELECT * FROM development_jobs WHERE status IN ({marks}) ORDER BY priority,created_at LIMIT ?",
-                    (*values, limit),
+                    f"SELECT * FROM development_jobs WHERE status IN ({marks}) ORDER BY priority,created_at,id LIMIT ? OFFSET ?",
+                    (*values, limit, offset),
                 ).fetchall()
             else:
                 rows = connection.execute(
-                    "SELECT * FROM development_jobs ORDER BY priority,created_at LIMIT ?", (limit,)
+                    "SELECT * FROM development_jobs ORDER BY priority,created_at,id LIMIT ? OFFSET ?",
+                    (limit, offset),
                 ).fetchall()
             jobs = [self._decode(row) for row in rows]
             if not jobs:
@@ -323,6 +326,21 @@ class DevelopmentJobStore:
             for job in jobs:
                 job["dependencies"] = by_job[job["id"]]
             return jobs
+
+    def count(self, statuses=None):
+        with self.db() as connection:
+            if statuses:
+                values = tuple(statuses)
+                marks = ",".join("?" for _ in values)
+                row = connection.execute(
+                    f"SELECT COUNT(*) AS total FROM development_jobs WHERE status IN ({marks})",
+                    values,
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT COUNT(*) AS total FROM development_jobs"
+                ).fetchone()
+            return int(row["total"])
 
     @staticmethod
     def _scope_key(scope):
