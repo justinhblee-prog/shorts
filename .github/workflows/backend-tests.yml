@@ -25,9 +25,14 @@ jobs:
       - run: sh scripts/validate.sh
       - name: Install CJK fallback fonts for readable browser artifacts
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes fonts-noto-cjk
+          if fc-list :lang=ko 2>/dev/null | grep -qiE 'Noto Sans CJK|Noto Sans KR|Noto Serif CJK'; then
+            echo "Korean-capable Noto font is already installed."
+            exit 0
+          fi
+          sudo apt-get update -qq -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+          sudo apt-get install --yes -qq -o Acquire::Retries=2 fonts-noto-cjk
           fc-cache --force
+          fc-list :lang=ko | grep -qiE 'Noto Sans CJK|Noto Sans KR|Noto Serif CJK'
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
