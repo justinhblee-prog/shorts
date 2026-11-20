@@ -61,16 +61,20 @@ class EDLFFmpegRendererTests(unittest.TestCase):
         self.assertIn("trim=start=0.100:duration=2.000", graph)
         self.assertIn("-an", argv)
 
-    def test_rejects_titles_gaps_overlaps_and_unresolved_assets(self):
+    def test_renders_black_gaps_and_rejects_titles_overlaps_and_unresolved_assets(self):
         title = dict(self.edl)
         title["clips"] = [{"id": "title1", "type": "title", "start_ms": 0, "end_ms": 2000, "text": "hello"}]
         with self.assertRaises(EDLRenderError):
             build_video_argv(title, {}, self.root / "out.mp4", ffmpeg_path=str(self.binary))
         gap = dict(self.edl)
         gap["clips"] = [self.edl["clips"][0], dict(self.edl["clips"][1], start_ms=3000, end_ms=5000)]
-        with self.assertRaises(EDLRenderError):
-            build_video_argv(gap, {"asset1": self.video, "asset2": self.video},
-                             self.root / "out.mp4", ffmpeg_path=str(self.binary))
+        gap_argv, gap_duration = build_video_argv(
+            gap, {"asset1": self.video, "asset2": self.video},
+            self.root / "gap.mp4", ffmpeg_path=str(self.binary),
+        )
+        self.assertEqual(gap_duration, 5000)
+        self.assertIn("color=c=black:s=1080x1920:r=30", gap_argv)
+        self.assertIn("concat=n=3:v=1:a=0", gap_argv[gap_argv.index("-filter_complex") + 1])
         overlap = dict(self.edl)
         overlap["clips"] = [self.edl["clips"][0],
             dict(self.edl["clips"][1], start_ms=1000, end_ms=3000)]
