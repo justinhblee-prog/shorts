@@ -84,5 +84,35 @@ class TimelineRenderStoreTests(unittest.TestCase):
             self.store.submit("ws_other", "bob", self.edl, "render-try-0005")
 
 
+    def test_queue_and_snapshot_roll_back_together_when_snapshot_insert_fails(self):
+        with self.store._db() as db:
+            db.execute("""
+                CREATE TRIGGER reject_test_snapshot
+                BEFORE INSERT ON timeline_edl_snapshots
+                BEGIN SELECT RAISE(ABORT, 'injected snapshot failure'); END
+            """)
+        with self.assertRaisesRegex(SnapshotConflict, "already exists"):
+            self.store.submit("ws_studio", "alice", self.edl, "render-atomic-0001")
+        self.assertEqual(self.queue.stats(workspace_id="ws_studio").get("total", 0), 0)
+        with self.store._db() as db:
+            count = db.execute(
+                "SELECT COUNT(*) FROM timeline_edl_snapshots"
+            ).fetchone()[0]
+            db.execute("DROP TRIGGER reject_test_snapshot")
+        self.assertEqual(count, 0)
+
+    def test_concurrent_style_replay_returns_same_snapshot_and_job(self):
+        first = self.store.submit(
+            "ws_studio", "alice", self.edl, "render-atomic-0002"
+        )
+        replay = self.store.submit(
+            "ws_studio", "alice", self.edl, "render-atomic-0002"
+        )
+        self.assertEqual(replay["snapshot_id"], first["snapshot_id"])
+        self.assertEqual(replay["render_job_id"], first["render_job_id"])
+        self.assertTrue(replay["replayed"])
+        self.assertEqual(self.queue.stats(workspace_id="ws_studio")["total"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
