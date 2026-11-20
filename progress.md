@@ -84,3 +84,15 @@
 - 보안 게이트: job-level contents/pull-requests/actions write 권한 최소화, read-only intake token과 PR publication token 분리, Windows runner 격리, LocalAppData 외부 저장, scope allowlist와 symlink 해석 검증, Aider child-process credential stripping, secrets/production data 경로 제외.
 - 필수 runner: self-hosted Windows + `nexus-local-ai` label, Actions runner >= 2.327.1, Python >= 3.11, Git Bash, Node >= 18, loopback Ollama, 정확한 `qwen2.5-coder:7b` 모델. `NEXUS_GITHUB_READ_TOKEN`, `NEXUS_APPROVED_SCOPES`, repository GITHUB_TOKEN 권한도 별도 확인해야 합니다.
 - Windows 실 runner 실행, LocalAppData 2회 실행 persistence, Ollama 생성 검증은 아직 수행되지 않았습니다. 승인 전 workflow dispatch/예약 활성화/merge/default branch 변경은 하지 않습니다.
+
+
+## 25. Mainline worker promotion package boundary — 2026-11-20
+
+- main...integration/nexus-aggregate-ui-core-2026-11-20 비교 결과 integration branch는 main보다 1,307 commits ahead / 5 behind이며 worker 외에 production pipeline, queue/scheduler, TikTok/YouTube, recommendation/metrics, frontend UI 등 광범위한 변경을 포함합니다. PR #415도 100 commits이며 base가 main이 아닌 integration branch입니다. 따라서 PR #415 전체를 Windows worker 활성화 목적으로 승격하지 않기로 결정했습니다.
+- 별도 main 기반 승격 PR의 최소 runtime 파일 12개: worker workflow, development_agent_executor.py, development_backlog_service.py, development_github_intake.py, development_job_worker.py, development_jobs.py, development_security.py, publish_development_reviews.py, recover_development_reviews.py, run_development_agent.py, seed_development_jobs.py, sync_development_backlog.py.
+- 함께 가져갈 worker 전용 테스트 12개: executor, scope normalization, backlog service, GitHub intake, job worker, jobs store, security, workflow contract, review publisher, run entrypoint, seed, backlog sync 테스트.
+- API 전용 test_development_job_api_security.py와 test_development_job_recovery_api.py는 standalone CLI worker 필수 항목이 아닙니다. 추후 dashboard API를 승격한다면 backend/app.py, 권한 변경, 해당 API 테스트를 하나의 별도 단위로 검토합니다.
+- 공통 검증 조정: backend/requirements.txt에 PyYAML>=6.0,<7.0 추가 필요. main의 scripts/validate.sh가 YAML 파서를 사용하지만 main requirements에는 PyYAML이 없습니다. backend-tests.yml push/PR path filter도 worker workflow 및 contract test가 요구하는 docs/README/.gitignore 변경을 검증하도록 갱신해야 합니다.
+- scripts/validate.sh는 main에 이미 있으며 compileall + 전체 backend unittest discovery를 수행합니다. 새 main 기반 브랜치에서 이 명령과 frontend syntax/workflow contract 검증을 수행해야 합니다.
+- 승격 제외: aggregate branch의 unrelated production pipeline, queue/scheduler, platform integrations, recommendation/metrics, frontend/dashboard, broad app.py changes.
+- 현재 상태: 파일 경계/import graph AUDITED. main 기반 승격 브랜치와 CI는 미생성/미실행. Windows 실 runner, 2회 실행 persistence, Ollama 생성은 NOT VERIFIED. merge/dispatch/schedule/default branch 변경 없음.
