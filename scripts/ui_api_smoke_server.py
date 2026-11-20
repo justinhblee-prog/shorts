@@ -52,6 +52,13 @@ def main() -> None:
             retention_status="no_data",
         )
 
+    history_probe = app.youtube_analytics_store.history(limit=500, workspace_id=None)
+    if len(history_probe) != 500:
+        raise RuntimeError(
+            "UI smoke analytics fixture is incomplete: expected 500 visible rows, "
+            f"received {len(history_probe)}"
+        )
+
     job_id = "browser-smoke-tiktok-publication"
     attempt_id = "browser-smoke-tiktok-attempt"
     app.tiktok_publish_store.begin(
@@ -99,7 +106,7 @@ def main() -> None:
         review_job["id"], "review_pending", "review_pending"
     )
 
-    print("UI API smoke fixture seeded: 501 YouTube, 1 TikTok snapshot, 1 review-ready job", flush=True)
+    print("UI API smoke fixture seeded: 501 YouTube, 1 TikTok snapshot, 1 review-ready job; history_probe_rows=500", flush=True)
     import uvicorn  # noqa: E402
 
     uvicorn.run(app.app, host="127.0.0.1", port=args.port, log_level="warning", access_log=False)
