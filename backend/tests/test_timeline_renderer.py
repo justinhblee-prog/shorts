@@ -85,6 +85,19 @@ class TimelineRendererTests(unittest.TestCase):
         self.assertIn("-fs", args)
         self.assertIn("libx264", args)
         self.assertNotIn("shell", args)
+        if os.name == "posix":
+            self.assertEqual(args[0], "prlimit")
+            self.assertIn("--", args)
+            self.assertTrue(any(item.startswith("--as=") for item in args))
+            self.assertTrue(any(item.startswith("--cpu=") for item in args))
+
+    def test_fails_closed_when_posix_resource_limiter_is_missing(self):
+        if os.name != "posix":
+            self.skipTest("POSIX resource limits are not available")
+        with patch("timeline_renderer.shutil.which", return_value=None):
+            with self.assertRaisesRegex(TimelineRenderError, "prlimit is required"):
+                self.renderer.render(self.edl, {"asset_1": self.asset})
+        self.assertEqual(self.calls, [])
 
     def test_rejects_asset_path_outside_media_root_before_process_start(self):
         outside = self.root.parent / "outside.mp4"
