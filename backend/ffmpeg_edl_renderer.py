@@ -99,7 +99,7 @@ def build_video_argv(edl, asset_paths, output_path, *, ffmpeg_path,
 class EDLFFmpegRenderer:
     """Callable renderer suitable for TimelineRenderWorker's renderer argument.
 
-    asset_resolver(workspace_id, asset_id) must return a verified private local
+    asset_resolver(workspace_id, principal_id, asset_id) must return a verified private local
     path. audio_tracks_resolver(payload) may return trusted, already-resolved
     track specifications for build_audio_mix_argv; it is never read from EDL.
     """
@@ -176,6 +176,9 @@ class EDLFFmpegRenderer:
         workspace_id = payload.get("workspace_id")
         if not isinstance(workspace_id, str) or not workspace_id:
             raise EDLRenderError("queue workspace identity is required for asset resolution")
+        principal_id = payload.get("creator_principal_id")
+        if not isinstance(principal_id, str) or not principal_id:
+            raise EDLRenderError("snapshot creator identity is required for asset authorization")
         edl = validate_edl(payload["edl"])
         if any(clip["type"] != "video" for clip in edl["clips"]):
             raise EDLRenderError("title clips are not supported by this renderer version")
@@ -183,7 +186,7 @@ class EDLFFmpegRenderer:
         for clip in edl["clips"]:
             asset_id = clip["asset_id"]
             if asset_id not in assets:
-                resolved = self.asset_resolver(workspace_id, asset_id)
+                resolved = self.asset_resolver(workspace_id, principal_id, asset_id)
                 path = _regular_file(resolved, "resolved clean workspace asset")
                 if path.stat().st_size > self.max_input_bytes:
                     raise EDLRenderError("source asset exceeds configured input byte limit")
