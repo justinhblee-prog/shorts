@@ -290,8 +290,10 @@ def set_brand_activation(slug:str,body:BrandActivation,x_review_token:str|None=H
         raise HTTPException(404,"Brand not found")
 
 @app.post("/api/production/jobs",status_code=201)
-def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.create")
+def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(default=None),
+                          x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.create")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
         brand = next((b for b in brand_store.list(active_only=True)
                       if body.brand in (b["slug"], b["name"])), None)
@@ -312,16 +314,18 @@ def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(de
             "risk_level": profile.get("risk_level", "standard"),
             "review_rules": profile.get("review_rules", []),
         }
-        return submit_production(queue,production_store,brief)
+        return submit_production(queue,production_store,brief,workspace_id=workspace_id)
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
     except ValueError as e:
         raise HTTPException(422,str(e))
 
 @app.get("/api/production/jobs/{job_id}")
-def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.read")
-    result=production_store.get(job_id)
+def get_production_job(job_id:str,x_review_token:str|None=Header(default=None),
+                       x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    result=production_store.get(job_id,workspace_id=workspace_id)
     if result is None: raise HTTPException(404,"Production job not found")
     return review_store.sanitize_production_record(result)
 
@@ -345,12 +349,14 @@ def production_integrity_report(
         raise HTTPException(409,str(e))
 
 @app.get("/api/production/jobs/{job_id}/provider-attempts")
-def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.read")
-    result=production_store.get(job_id)
+def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(default=None),
+                                      x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    result=production_store.get(job_id,workspace_id=workspace_id)
     if result is None:
         raise HTTPException(404,"Production job not found")
-    attempts=production_store.provider_attempts(job_id)
+    attempts=production_store.provider_attempts(job_id,workspace_id=workspace_id)
     # Provider response bodies and transport errors may contain credentials,
     # signed artifact URLs, or customer data. Expose only operational metadata;
     # recovery/adoption continues to read the protected response from storage.
@@ -497,6 +503,23 @@ def require_review_permission(token, permission):
     if not allowed:
         raise HTTPException(403,"Operator role does not grant this action")
     return operator_id
+
+def resolve_operator_workspace_scope(operator_id, workspace_id):
+    """Resolve an optional workspace selector against the authenticated operator membership."""
+    if workspace_id is None:
+        return None
+    try:
+        return resolve_workspace_access(
+            operator_id, workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE", "legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON", ""),
+            store=workspace_store,
+        )
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+
 
 
 
