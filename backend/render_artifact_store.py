@@ -158,9 +158,15 @@ class RenderArtifactStore:
         except Exception:
             if moved:
                 try:
-                    destination.unlink(missing_ok=True)
+                    if destination.exists() and not source.exists():
+                        os.replace(destination, source)
+                    else:
+                        destination.unlink(missing_ok=True)
                 except OSError:
-                    pass
+                    try:
+                        destination.unlink(missing_ok=True)
+                    except OSError:
+                        pass
             raise
         return {
             "artifact_id": artifact_id,
@@ -196,7 +202,7 @@ class RenderArtifactStore:
             }
             for path in self.artifact_root.iterdir():
                 if (path.is_symlink() or not path.is_file()
-                        or not re.fullmatch(r"rart_[a-f0-9]{32}\\.(mp4|m4a|aac)", path.name)
+                        or not re.fullmatch(r"rart_[a-f0-9]{32}\.(mp4|m4a|aac)", path.name)
                         or path.name in known):
                     continue
                 try:
