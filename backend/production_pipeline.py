@@ -664,7 +664,7 @@ class ProductionStore:
                        j.status AS queue_status,j.job_type,j.error_message
                 FROM production_runs r
                 JOIN pipeline_jobs j ON j.id=r.job_id
-                WHERE j.job_type='short_video_production' AND r.workspace_id IS ?
+                WHERE j.job_type='short_video_production'
                   AND r.status<>j.status
                   AND (r.status IN ('rendered','review_pending','approved','uploaded',
                                     'cancelled','failed_terminal')
