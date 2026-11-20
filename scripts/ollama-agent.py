@@ -94,7 +94,7 @@ def execute(root: Path,name: str,a: dict[str,Any]) -> str:
  raise ValueError(f"Unknown tool: {name}")
 
 def chat(model: str,messages: list[dict[str,Any]]) -> dict[str,Any]:
- body=json.dumps({"model":model,"messages":messages,"tools":TOOLS,"format":"json","stream":False,"options":{"temperature":0.1,"num_ctx":16384}}).encode()
+ body=json.dumps({"model":model,"messages":messages,"tools":TOOLS,"stream":False,"options":{"temperature":0.1,"num_ctx":16384}}).encode()
  req=urllib.request.Request(API,data=body,headers={"Content-Type":"application/json"})
  try:
   with urllib.request.urlopen(req,timeout=300) as response: return json.loads(response.read().decode())
@@ -141,9 +141,12 @@ def main() -> int:
  "If native tool calling is unavailable, request tools by returning exactly one JSON object with keys name and arguments, without Markdown.")
  messages=[{"role":"system","content":system},{"role":"user","content":f"Assigned task:\n{prompt}\n\nRepository root: {root}\nModel: {args.model}\nDo not claim checks passed unless run_check confirms exit_code=0."}]
  empty_responses=0
- for _ in range(args.max_turns):
-  msg=(chat(args.model,messages).get("message") or {})
+ repeated_calls: dict[str,int] = {}
+ for turn in range(1,args.max_turns+1):
+  response=chat(args.model,messages)
+  msg=(response.get("message") or {})
   calls=msg.get("tool_calls") or []
+  print(f"[ollama-agent] turn={turn} done_reason={response.get('done_reason','?')} content_chars={len(str(msg.get('content','')))} tool_calls={len(calls)} eval_count={response.get('eval_count','?')}",file=sys.stderr)
   if not calls:
    content=str(msg.get("content", ""))
    calls=parse_text_tool_call(content)
@@ -162,6 +165,10 @@ def main() -> int:
   messages.append(msg)
   for call in calls:
    fn=call.get("function") or {}; name=fn.get("name",""); arguments=fn.get("arguments") or {}
+   signature=json.dumps({"name":name,"arguments":arguments},sort_keys=True,ensure_ascii=False)
+   repeated_calls[signature]=repeated_calls.get(signature,0)+1
+   if repeated_calls[signature] > 5:
+    print(f"Agent repeated the same tool call more than five times: {name}; stopping to prevent a no-progress loop.",file=sys.stderr); return 5
    try: result=execute(root,name,arguments)
    except Exception as e: result=f"TOOL_ERROR: {type(e).__name__}: {e}"
    messages.append({"role":"tool","tool_name":name,"content":clip(str(result))})
