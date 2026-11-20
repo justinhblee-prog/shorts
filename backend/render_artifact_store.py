@@ -321,13 +321,14 @@ class RenderArtifactStore:
         limit = max(1, min(limit, 200))
         with self.queue.db() as db:
             rows = db.execute("""
-                SELECT artifact_id,job_id,workspace_id,snapshot_id,snapshot_sha256,
-                       artifact_sha256,byte_size,media_suffix,duration_ms,
-                       video_width,video_height,audio_streams,created_at,
-                       'review_pending' AS status
-                FROM render_artifacts
-                WHERE workspace_id=? AND status='review_pending'
-                ORDER BY created_at DESC,artifact_id DESC LIMIT ?
+                SELECT a.artifact_id,a.job_id,a.workspace_id,a.snapshot_id,a.snapshot_sha256,
+                       a.artifact_sha256,a.byte_size,a.media_suffix,a.duration_ms,
+                       a.video_width,a.video_height,a.audio_streams,a.created_at,
+                       j.status AS status
+                FROM render_artifacts a
+                JOIN pipeline_jobs j ON j.id=a.job_id AND j.workspace_id=a.workspace_id
+                WHERE a.workspace_id=? AND j.status='review_pending'
+                ORDER BY a.created_at DESC,a.artifact_id DESC LIMIT ?
             """, (workspace_id, limit)).fetchall()
         return [dict(row) for row in rows]
 
@@ -336,7 +337,7 @@ class RenderArtifactStore:
             raise ValueError("invalid artifact ID")
         with self.queue.db() as db:
             row = db.execute(
-                "SELECT * FROM render_artifacts WHERE artifact_id=? AND workspace_id=?",
+                "SELECT *, 'review_pending' AS status FROM render_artifacts WHERE artifact_id=? AND workspace_id=?",
                 (artifact_id, workspace_id),
             ).fetchone()
         if row is None:
