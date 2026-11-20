@@ -1271,12 +1271,14 @@ class ProductionTests(unittest.TestCase):
         self.assertIsNone(second["next_cursor"])
 
     def test_integrity_report_filters_queue_orphans_by_workspace(self):
-        queue = JobQueue(self.db_path)
+        db_path = Path(self.tmp.name) / "integrity-scope.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
         a = queue.enqueue("short_video_production", {"topic": "A"}, workspace_id="workspace-a")
         b = queue.enqueue("short_video_production", {"topic": "B"}, workspace_id="workspace-b")
-        report_a = self.store.integrity_report(queue, workspace_id="workspace-a")
-        report_b = self.store.integrity_report(queue, workspace_id="workspace-b")
-        report_legacy = self.store.integrity_report(queue)
+        report_a = store.integrity_report(queue, workspace_id="workspace-a")
+        report_b = store.integrity_report(queue, workspace_id="workspace-b")
+        report_legacy = store.integrity_report(queue)
         self.assertEqual([item["job_id"] for item in report_a["items"]], [a["id"]])
         self.assertEqual([item["job_id"] for item in report_b["items"]], [b["id"]])
         self.assertEqual(report_legacy["items"], [])
