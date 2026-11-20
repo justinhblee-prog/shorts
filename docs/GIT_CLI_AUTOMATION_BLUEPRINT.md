@@ -47,7 +47,7 @@ Public publishing remains outside automation. Provider compatibility, licensing,
 - The primary checkout is not used for concurrent edits.
 - Task metadata is stored in .devflow/tasks.json; Git branch, commit and PR state remain authoritative for delivery.
 - Default concurrency cap: three worktrees. Raise only after runner capacity and test isolation are measured.
-- A task starts only after dependencies and external gates are satisfied.
+- A dependent task starts only after its prerequisite task is marked completed after merge; `review_pending` PRs do not unlock downstream tasks. External gates must also be satisfied.
 - Validation runs in the same worktree proposed for review.
 - Every task ends in a Draft PR. Merge, release, deploy, production upload and public publishing remain human-controlled.
 
@@ -143,7 +143,7 @@ Git itself does not write code. A coding agent must be installed and invoked ins
 `scripts/devflow_autopilot.py` now connects the task manifest to a locally installed coding-agent CLI:
 
 1. Select the highest-priority `ready` or `in_progress` task (or an explicitly named task).
-2. Verify the primary checkout is clean and dependencies are review-ready.
+2. Verify the primary checkout is clean and all dependencies are completed/merged.
 3. Create a dedicated Git branch and worktree from the configured base.
 4. Invoke the configured coding agent in that worktree only.
 5. Run `scripts/devflow.py validate`; if validation fails, send the failure back to the same agent for a bounded repair attempt (default: two repairs).
