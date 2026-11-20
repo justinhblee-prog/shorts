@@ -286,12 +286,18 @@ class WorkspaceAssetStore:
             db.commit()
 
     def mark_scan_result(self, workspace_id, principal_id, asset_id, clean):
-        """Record scanner outcome; only a workspace admin/owner may change quarantine state."""
+        """Allow an admin to reject pending media, never to self-certify it as clean.
+
+        A clean transition is reserved for scan_pending_asset(), which verifies
+        the stored bytes and requires an explicit clean result from ClamAV.
+        """
         self.workspaces.require_membership(
             workspace_id, principal_id, minimum_roles={"owner", "admin"}
         )
         if not isinstance(clean, bool):
-            raise ValueError("clean must be a boolean scanner result")
+            raise ValueError("clean must be a boolean")
+        if clean:
+            raise AssetError("clean status can only be set by a successful malware scan")
         with self.db() as db:
             db.execute("BEGIN IMMEDIATE")
             cursor = db.execute("""
