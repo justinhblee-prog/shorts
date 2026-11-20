@@ -388,3 +388,10 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 - The first test run correctly exposed an event-order expectation error; the test now checks the release event immediately before the worker's subsequent claimed event.
 - Exact PR head 07b31e6e1180bcfb1e191d2a88b079b9953cacb4 passed backend validation, frontend syntax, both Chromium smoke tests, and artifact upload in run 44653917688, artifact https://github.com/justinhblee-prog/shorts/actions/runs/44653917688/artifacts/14591668407.
 - FLOW-CORE: PASS (hosted CI scope). Windows runner, persistent LocalAppData, live Ollama, and live provider checks remain BLOCKED/NOT VERIFIED. PR #415 remains Draft/open/unmerged.
+
+## 13. DAG mutation/claim concurrency gate — 2026-11-20
+
+- FLOW-CORE added a synchronized race regression between dependency insertion and worker claim with an active prerequisite lease.
+- The test asserts serialized outcomes: dependency insertion wins and the child is blocked, or worker claim wins and dependency mutation is rejected. A leased child can never silently gain an unresolved prerequisite.
+- Exact head 8a5364903526cc8ed56977bdec730206b514f778 passed backend validation, frontend syntax, both Chromium smoke tests, and artifact upload in [run 44654439190](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190), artifact [14592966229](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190/artifacts/14592966229).
+- FLOW-CORE hosted concurrency regression: PASS. Windows multi-process runner and LocalAppData persistence remain NOT VERIFIED; PR #415 remains Draft/open/unmerged.
