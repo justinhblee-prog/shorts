@@ -396,7 +396,10 @@ class YouTubeAnalyticsStore:
             has_production = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
             ).fetchone() is not None
-            if not has_production:
+            has_uploads = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_uploads'"
+            ).fetchone() is not None
+            if not has_production or not has_uploads:
                 if workspace_id is not None:
                     return []
                 clauses=[]
