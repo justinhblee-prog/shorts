@@ -50,7 +50,7 @@ if($Worker){
   $agent=[Diagnostics.Process]::new();$agent.StartInfo=$psi
   if(-not $agent.Start()){throw "Agent did not start."}
   $stdout=$agent.StandardOutput.ReadToEndAsync();$stderr=$agent.StandardError.ReadToEndAsync()
-  $agentTimeoutMs=[int]$task.timeout_seconds * 1000
+  $agentTimeoutMs=[int]$TaskTimeoutSeconds * 1000
   Write-Host "[WORKER] $id agent started; timeout=${agentTimeoutMs}ms; executable=$command"
   if(-not $agent.WaitForExit($agentTimeoutMs)){try{$agent.Kill($true)}catch{};throw "Agent timeout."}
   if($stdout.Result){Write-Output $stdout.Result};if($stderr.Result){Write-Output $stderr.Result}
@@ -123,7 +123,7 @@ while($queue.Count -gt 0 -or $active.Count -gt 0){
   @{id=$id;title=$t.title;worktree=$wt;branch=$branch;base=$baseBranch;prompt=$prompt;timeout_seconds=$TaskTimeoutSeconds}|ConvertTo-Json|Set-Content -LiteralPath $taskPath -Encoding utf8
   Set-State $statePath $id "queued" "branch=$branch"
   $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=(Get-Command pwsh).Source;$psi.WorkingDirectory=$root;$psi.UseShellExecute=$false
-  foreach($a in @("-NoProfile","-File",$PSCommandPath,"-Worker","-TaskFile",$taskPath,"-StateRoot",$stateDir)){[void]$psi.ArgumentList.Add($a)}
+  foreach($a in @("-NoProfile","-File",$PSCommandPath,"-Worker","-TaskFile",$taskPath,"-StateRoot",$stateDir,"-TaskTimeoutSeconds",[string]$TaskTimeoutSeconds)){[void]$psi.ArgumentList.Add($a)}
   $workerProcess=[Diagnostics.Process]::new();$workerProcess.StartInfo=$psi
   if(-not $workerProcess.Start()){throw "Could not start worker for $id."}
   $active.Add([pscustomobject]@{id=$id;process=$workerProcess;started=[DateTime]::UtcNow;worktree=$wt})
