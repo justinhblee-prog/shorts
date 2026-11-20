@@ -158,3 +158,16 @@ input:focus,select:focus,textarea:focus{outline:2px solid #9b8cff55;border-color
 }
 
 .render-job-console [hidden]{display:none!important}
+
+.render-history{margin:12px 0 10px;padding:12px;border:1px solid #2b3b53;border-radius:11px;background:#0b1523}
+.render-history-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.render-history-heading strong{color:#d5dff0;font-size:11px;letter-spacing:.02em}
+.render-history-list{display:grid;gap:7px}
+.render-history-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 10px;border:1px solid #293b53;border-radius:9px;background:#101d2e}
+.render-history-item.is-active{border-color:#7a72e0;background:#27244a55}
+.render-history-summary{min-width:0;display:grid;gap:4px}
+.render-history-name{color:#dce5f2;font-size:11px;font-weight:700;overflow-wrap:anywhere}
+.render-history-detail{color:#8294ae;font:10px var(--mono);overflow-wrap:anywhere}
+.render-history-empty{margin:8px 0;color:#8494ad;font-size:10px}
+#renderJobHistoryMore{margin-top:8px}
+@media(max-width:560px){.render-history-item{grid-template-columns:1fr}.render-history-item .button{width:100%}}
