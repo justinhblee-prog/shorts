@@ -172,6 +172,27 @@ class AiderDevelopmentExecutor:
         self._cancel_requested.set()
 
     @staticmethod
+    def _kill_windows_process_tree(process):
+        """Best-effort terminate Aider and every child process on Windows."""
+        try:
+            result = subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if result.returncode == 0:
+                return
+        except (OSError, subprocess.SubprocessError):
+            pass
+        try:
+            process.kill()
+        except OSError:
+            pass
+
+    @staticmethod
     def _terminate_process(process):
         try:
             if os.name == "nt":
@@ -179,20 +200,23 @@ class AiderDevelopmentExecutor:
             else:
                 os.killpg(process.pid, signal.SIGTERM)
         except (OSError, ProcessLookupError, ValueError):
-            try:
-                process.terminate()
-            except OSError:
-                pass
+            if os.name == "nt":
+                AiderDevelopmentExecutor._kill_windows_process_tree(process)
+            else:
+                try:
+                    process.terminate()
+                except OSError:
+                    pass
         try:
             process.wait(timeout=3)
         except subprocess.TimeoutExpired:
-            try:
-                if os.name == "nt":
-                    process.kill()
-                else:
+            if os.name == "nt":
+                AiderDevelopmentExecutor._kill_windows_process_tree(process)
+            else:
+                try:
                     os.killpg(process.pid, signal.SIGKILL)
-            except (OSError, ProcessLookupError):
-                process.kill()
+                except (OSError, ProcessLookupError):
+                    process.kill()
             process.wait()
 
     def _run(self, args, env, timeout):
