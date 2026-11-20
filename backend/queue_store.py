@@ -121,41 +121,61 @@ class JobQueue:
         if row is None: return None
         d=dict(row); d["payload"]=json.loads(d.pop("payload_json")); return d
 
-    def enqueue(self,job_type,payload,channel_name=None,priority=100,max_attempts=3,idempotency_key=None,workspace_id=None):
-        if not job_type.strip(): raise ValueError("job_type required")
+    def enqueue(self,job_type,payload,channel_name=None,priority=100,max_attempts=3,idempotency_key=None,workspace_id=None,connection=None):
+        """Create a job, optionally inside a caller-owned SQLite transaction.
+
+        When connection is supplied this method never begins, commits or rolls
+        back the transaction. This lets domain records and queue handoffs commit
+        atomically in the same database.
+        """
+        if not isinstance(job_type, str) or not job_type.strip():
+            raise ValueError("job_type required")
         if workspace_id is not None and (not isinstance(workspace_id,str) or not workspace_id.strip() or len(workspace_id)>128):
             raise ValueError("workspace_id must be a non-empty string of at most 128 characters")
-        jid=str(uuid.uuid4())
+        if connection is not None:
+            return self._enqueue_in_transaction(
+                connection, job_type, payload, channel_name, priority,
+                max_attempts, idempotency_key, workspace_id,
+            )
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
-            n=stamp(now())
-            if idempotency_key:
-                old=c.execute("SELECT * FROM pipeline_jobs WHERE idempotency_key=?",(idempotency_key,)).fetchone()
-                if old:
-                    try:
-                        old_payload=json.loads(old["payload_json"])
-                    except (TypeError, ValueError, json.JSONDecodeError) as exc:
-                        raise IdempotencyConflict(
-                            "Existing idempotency record cannot be safely compared"
-                        ) from exc
-                    if old["workspace_id"] != workspace_id:
-                        raise IdempotencyConflict(
-                            "Idempotency key is already bound to a different workspace"
-                        )
-                    if (old["job_type"] != job_type
-                            or old["channel_name"] != channel_name
-                            or old_payload != payload):
-                        raise IdempotencyConflict(
-                            "Idempotency key is already used by a different job request"
-                        )
-                    c.commit()
-                    return self.decode(old)
-            c.execute("""INSERT INTO pipeline_jobs(id,job_type,channel_name,payload_json,status,priority,max_attempts,available_at,idempotency_key,created_at,updated_at,workspace_id)
-              VALUES(?,?,?,?, 'queued',?,?,?,?,?,?,?)""",
-              (jid,job_type,channel_name,json.dumps(payload,ensure_ascii=False),int(priority),max(1,int(max_attempts)),n,idempotency_key,n,n,workspace_id))
-            self.event(c,jid,"enqueued",None,"queued",None,created_at=n)
-            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id IS ?",(jid,workspace_id)).fetchone(); c.commit()
-            return self.decode(row)
+            result = self._enqueue_in_transaction(
+                c, job_type, payload, channel_name, priority,
+                max_attempts, idempotency_key, workspace_id,
+            )
+            c.commit()
+            return result
+
+    def _enqueue_in_transaction(self,c,job_type,payload,channel_name,priority,
+                                max_attempts,idempotency_key,workspace_id):
+        jid=str(uuid.uuid4())
+        n=stamp(now())
+        if idempotency_key:
+            old=c.execute("SELECT * FROM pipeline_jobs WHERE idempotency_key=?",(idempotency_key,)).fetchone()
+            if old:
+                try:
+                    old_payload=json.loads(old["payload_json"])
+                except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                    raise IdempotencyConflict(
+                        "Existing idempotency record cannot be safely compared"
+                    ) from exc
+                if old["workspace_id"] != workspace_id:
+                    raise IdempotencyConflict(
+                        "Idempotency key is already bound to a different workspace"
+                    )
+                if (old["job_type"] != job_type
+                        or old["channel_name"] != channel_name
+                        or old_payload != payload):
+                    raise IdempotencyConflict(
+                        "Idempotency key is already used by a different job request"
+                    )
+                return self.decode(old)
+        c.execute("""INSERT INTO pipeline_jobs(id,job_type,channel_name,payload_json,status,priority,max_attempts,available_at,idempotency_key,created_at,updated_at,workspace_id)
+          VALUES(?,?,?,?, 'queued',?,?,?,?,?,?,?)""",
+          (jid,job_type,channel_name,json.dumps(payload,ensure_ascii=False),int(priority),max(1,int(max_attempts)),n,idempotency_key,n,n,workspace_id))
+        self.event(c,jid,"enqueued",None,"queued",None,created_at=n)
+        row=c.execute("SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id IS ?",(jid,workspace_id)).fetchone()
+        return self.decode(row)
 
     def _pause_production_in_transaction(self, c, reason, job_id, timestamp, actor="system"):
         """Persist pause and fence all running production jobs in caller transaction."""
