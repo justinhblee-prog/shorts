@@ -48,7 +48,7 @@ async function waitForServer() {
     assert.equal(await page.locator('#developmentJobList [data-workstream="UI"]').count(), 1,
       "UI-scoped jobs must appear in their own workstream lane");
     assert.match(await page.locator('#developmentJobList [data-workstream="UI"]').textContent(),
-      /WINDOWS UI workstream/,
+      /WINDOWS-UI workstream/,
       "case-insensitive Windows backslash paths must classify into the UI lane");
     assert.equal(await page.locator('#developmentJobList [data-workstream="CORE"]').count(), 1,
       "backend-scoped jobs must appear in the Core workstream lane");
