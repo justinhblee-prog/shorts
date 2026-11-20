@@ -29,6 +29,8 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         self.ffprobe = self.root / "ffprobe"
         self.ffmpeg.write_bytes(b"fixture-binary")
         self.ffprobe.write_bytes(b"fixture-binary")
+        self.font = self.root / "font.ttf"
+        self.font.write_bytes(b"font-fixture")
         self.commands = []
 
         def resolver(workspace_id, principal_id, asset_id):
@@ -42,6 +44,14 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
             Path(argv[-1]).write_bytes(b"encoded-media-fixture")
             return {"returncode": 0}
 
+        self.resolver = resolver
+        self.runner = runner
+        self.source_probe = patch(
+            "timeline_ffmpeg_renderer.probe_source_media",
+            return_value={"duration_ms": 12000, "has_video": True, "has_audio": True},
+        )
+        self.source_probe.start()
+        self.addCleanup(self.source_probe.stop)
         self.renderer = TimelineFFmpegRenderer(
             self.staging, resolver, self.ffmpeg, self.ffprobe,
             width=720, height=1280, fps=30, process_runner=runner,
@@ -139,14 +149,15 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         self.assertEqual(len(self.commands), 1)
 
     def test_rejects_titles_gaps_untrusted_assets_and_audio_past_end(self):
-        title = json.loads(json.dumps(self.payload))
-        title["edl"]["clips"][0] = {
+        title_only = json.loads(json.dumps(self.payload))
+        title_only["edl"]["clips"] = [{
             "id": "title1", "type": "title", "start_ms": 0,
-            "end_ms": 5000, "text": "Not rendered yet",
-        }
-        self._rehash(title)
-        with self.assertRaisesRegex(TimelineRenderError, "title clips"):
-            self.renderer(title, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
+            "end_ms": 5000, "text": "Title without video",
+        }]
+        title_only["edl"]["audio_tracks"] = []
+        self._rehash(title_only)
+        with self.assertRaisesRegex(TimelineRenderError, "at least one video clip"):
+            self.renderer(title_only, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
 
         gap = json.loads(json.dumps(self.payload))
         gap["edl"]["clips"][0]["start_ms"] = 100
@@ -166,6 +177,36 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         self._rehash(past_end)
         with self.assertRaisesRegex(TimelineRenderError, "extends beyond"):
             self.renderer(past_end, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
+
+    def test_renders_title_overlay_from_bounded_utf8_text_file(self):
+        titled = json.loads(json.dumps(self.payload))
+        titled["edl"]["clips"].append({
+            "id": "title1", "type": "title", "start_ms": 1000,
+            "end_ms": 3000, "text": "Safe title 100%",
+        })
+        self._rehash(titled)
+        renderer = TimelineFFmpegRenderer(
+            self.staging, self.resolver, self.ffmpeg, self.ffprobe,
+            width=720, height=1280, fps=30, process_runner=self.runner,
+            font_path=self.font,
+        )
+        probe = {
+            "duration_ms": 5000, "byte_size": 23,
+            "video_streams": [{"width": 720, "height": 1280, "codec": "h264"}],
+            "audio_streams": 1, "audio_codecs": ["aac"],
+        }
+        with patch("timeline_ffmpeg_renderer.probe_media", return_value=probe):
+            result = renderer(
+                titled, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+        self.assertTrue(Path(result["staged_path"]).is_file())
+        video_graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
+        self.assertIn("drawtext=", video_graph)
+        self.assertIn("expansion=none", video_graph)
+        self.assertIn("textfile=", video_graph)
+        self.assertIn("between(t,1.000,3.000)", video_graph)
+
 
     def test_rejects_asset_checksum_mismatch_and_lease_cancellation(self):
         bad = TimelineFFmpegRenderer(
