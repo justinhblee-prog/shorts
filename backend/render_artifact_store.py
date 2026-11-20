@@ -119,15 +119,20 @@ class RenderArtifactStore:
                 # Re-check after acquiring the write lock, immediately before
                 # moving the file. No other worker can reclaim this lease here.
                 self.queue.assert_lease(job, worker_id, lease_token, timestamp, workspace_id)
-                with source.open("rb") as stream:
+                # Flush file data before rename. Windows requires a writable
+                # handle for FlushFileBuffers; the staging file is worker-owned.
+                with source.open("rb+") as stream:
                     os.fsync(stream.fileno())
                 os.replace(source, destination)
                 moved = True
-                dir_fd = os.open(self.artifact_root, os.O_RDONLY)
-                try:
-                    os.fsync(dir_fd)
-                finally:
-                    os.close(dir_fd)
+                # POSIX supports fsync on directory descriptors. Windows does
+                # not expose equivalent directory handles through os.open.
+                if os.name != "nt":
+                    dir_fd = os.open(self.artifact_root, os.O_RDONLY)
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
                 db.execute("""
                     INSERT INTO render_artifacts
                     (artifact_id,job_id,workspace_id,snapshot_id,snapshot_sha256,
