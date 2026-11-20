@@ -152,6 +152,10 @@ async function waitForServer() {
     checkpoint("authenticated core API endpoints verified");
     const reviewCard = page.locator("#reviewList .review-card").filter({ hasText: reviewJob.job_id });
     await reviewCard.waitFor({ state: "visible" });
+    await page.locator("#workspaceSearch").fill("Browser Smoke");
+    await page.keyboard.press("Enter");
+    assert.match(await page.evaluate(() => document.activeElement.textContent), /Browser Smoke/);
+    checkpoint("global keyboard search finds live authenticated review content");
     await page.locator("#reviewSearch").fill("no-such-review-item");
     await page.waitForFunction(() => document.querySelector("#reviewSearchStatus").textContent.includes("0 / 1"));
     assert.equal(await reviewCard.isVisible(), false);
