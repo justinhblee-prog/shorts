@@ -233,3 +233,6 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 
 
 - Provider journal follow-up: provider execution attempts and provider reconciliation audit rows now persist nullable workspace ownership inherited from their `production_runs` parent. Existing rows are backfilled; insert triggers derive ownership from the parent rather than request data. `provider_attempts()` now returns the persisted workspace field. Regression tests cover tenant inheritance and preservation of legacy unassigned records.
+
+
+- Production API workspace scoping: production job creation, production detail and provider-attempt read endpoints accept `X-Nexus-Workspace-Id`. The value is resolved against the authenticated operator's configured or durable workspace membership, never trusted directly. Create persists the resolved workspace on the queue parent; production/provider journal reads apply SQL workspace filters. Omitting the header intentionally preserves legacy global operator access. This is an operator-console isolation capability, not customer identity/authentication or complete B2B tenant isolation.
