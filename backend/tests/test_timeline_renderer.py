@@ -49,6 +49,8 @@ class TimelineRendererTests(unittest.TestCase):
                 "source_out_ms": 6000,
             }],
         }
+        self.font = self.root / "NotoSansCJK-Regular.ttc"
+        self.font.write_bytes(b"font fixture")
         self.calls = []
 
         def runner(args, **kwargs):
@@ -64,6 +66,7 @@ class TimelineRendererTests(unittest.TestCase):
             max_output_bytes=1024 * 1024,
             runner=runner,
             inspector=FakeInspector(),
+            font_path=self.font,
         )
 
     def tearDown(self):
@@ -143,19 +146,26 @@ class TimelineRendererTests(unittest.TestCase):
                 import shutil
                 shutil.rmtree(outside)
 
-    def test_rejects_title_until_safe_text_renderer_is_available(self):
+    def test_renders_title_overlay_from_private_text_file_without_filter_interpolation(self):
         payload = {
-            "schema": SCHEMA,
-            "version": 1,
-            "timebase": "milliseconds",
-            "clips": [{
-                "id": "title-1", "type": "title",
-                "start_ms": 0, "end_ms": 1000, "text": "Hello",
-            }],
+            **self.edl,
+            "clips": [
+                self.edl["clips"][0],
+                {"id": "title-1", "type": "title", "start_ms": 1000, "end_ms": 3000,
+                 "text": "Hello %{metadata}, [drawtext]"},
+            ],
         }
-        with self.assertRaisesRegex(TimelineRenderError, "Title clips"):
-            self.renderer.render(payload, {})
-        self.assertEqual(self.calls, [])
+        result = self.renderer.render(payload, {"asset_1": self.asset})
+        args, kwargs = self.calls[0]
+        graph = args[args.index("-filter_complex") + 1]
+        self.assertIn("drawtext=fontfile=", graph)
+        self.assertIn("expansion=none", graph)
+        self.assertIn("textfile=", graph)
+        self.assertIn("enable='between(t\\\\,1.000\\\\,3.000)'", graph)
+        self.assertNotIn("Hello", graph)
+        self.assertTrue((self.root / result["media_path"]).is_file())
+        self.assertEqual(list(self.root.glob(".*.title-*.txt")), [])
+        self.assertEqual(kwargs["cwd"], str(self.root / "renders"))
 
     def test_rejects_invalid_edl_and_arbitrary_paths(self):
         payload = {**self.edl, "remote_url": "https://example.invalid/video.mp4"}
@@ -177,8 +187,38 @@ class TimelineRendererTests(unittest.TestCase):
         args, _ = self.calls[0]
         self.assertIn("-stream_loop", args)
         self.assertIn("aac", args)
-        self.assertIn("1:a:0", args)
+        graph = args[args.index("-filter_complex") + 1]
+        self.assertIn("[0:a:0]", graph)
+        self.assertIn("[1:a:0]", graph)
+        self.assertIn("amix=inputs=2", graph)
+        self.assertIn("[mixed]", args)
         self.assertTrue((self.root / result["media_path"]).is_file())
+
+    def test_preserves_source_clip_audio_without_background_asset(self):
+        self.renderer.inspector = FakeInspector({
+            "status": "inspected", "width": 1080, "height": 1920,
+            "duration_seconds": 5.0, "audio_track_present": True,
+        })
+        self.renderer.render(self.edl, {"asset_1": self.asset})
+        args, _ = self.calls[0]
+        graph = args[args.index("-filter_complex") + 1]
+        self.assertIn("[0:a:0]", graph)
+        self.assertIn("concat=n=1:v=0:a=1[outa]", graph)
+        self.assertIn("[outa]", args)
+        self.assertNotIn("-an", args)
+
+    def test_rejects_title_overlay_outside_video_timeline(self):
+        payload = {
+            **self.edl,
+            "clips": [
+                self.edl["clips"][0],
+                {"id": "title-1", "type": "title", "start_ms": 4000, "end_ms": 6000,
+                 "text": "Out of bounds"},
+            ],
+        }
+        with self.assertRaisesRegex(TimelineRenderError, "inside the rendered video timeline"):
+            self.renderer.render(payload, {"asset_1": self.asset})
+        self.assertEqual(self.calls, [])
 
     def test_rejects_gaps_or_overlaps_in_timeline_order(self):
         payload = {
@@ -275,7 +315,7 @@ class TimelineRendererTests(unittest.TestCase):
 
     def test_inspection_failure_removes_partial_artifact(self):
         self.renderer.inspector = FakeInspector(error=RuntimeError("probe failure"))
-        with self.assertRaisesRegex(TimelineRenderError, "failed media validation"):
+        with self.assertRaisesRegex(TimelineRenderError, "Source video failed media inspection"):
             self.renderer.render(self.edl, {"asset_1": self.asset})
         self.assertEqual(list(self.root.glob(".*.part.mp4")), [])
 
