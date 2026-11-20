@@ -360,3 +360,6 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 - Clean-main promotion branch `promotion/nexus-worker-mainline-2026-11-20` and Draft PR #416 created; main-targeted CI run 44649765794 is in progress.
 - Windows runner, cross-run persistence, Ollama generation: NOT VERIFIED.
 - Dedicated promotion branch/PR created for review; no merge, workflow dispatch, schedule activation, or default-branch change performed.
+
+
+- Promotion PR #416 clean-main CI runs 44649765794 and 44649800067 passed at exact head `20d9f522184654a11a75214a9fba81c5adabb660` (dependency install + full `scripts/validate.sh`). A later CI-only commit `13f9b1308a660e2a1799aba2c5aba39212008217` adds explicit worker-workflow YAML parsing; no exact-head run has yet been observed for that additional step.
