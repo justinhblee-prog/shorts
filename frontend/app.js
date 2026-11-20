@@ -817,7 +817,6 @@
     const summary=data.summary||{},counts=summary.by_status||{};
     const metrics=[["전체",summary.total||0],["실행 중",(counts.running||0)+(counts.leased||0)],["온라인 Worker",summary.online_workers||0],["등록 Worker",summary.known_workers||0],["활성 Lease",summary.active_leases||0],["만료 Lease",summary.expired_leases||0],["대기",counts.ready||0],["선행 대기",counts.blocked||0],["Draft PR 검토 대기",counts.review_pending||0],["재시도",counts.retry_wait||0],["격리",counts.quarantined||0],["완료",counts.completed||0]];
     $("developmentJobMetrics").innerHTML=metrics.map(([label,value])=>'<div class="development-job-metric"><small>'+esc(label)+'</small><strong>'+Number(value).toLocaleString()+'</strong></div>').join("");
-    const jobs=data.jobs||[];
     const workers=workerData.workers||[];
     const workerLabel=workers.length?workers.map(worker=>worker.worker_id+(worker.hostname?" @ "+worker.hostname:"")+" "+(worker.is_online?"온라인":"오프라인")+(worker.current_job_id?" · "+worker.current_job_id:"")).join(" / "):"등록된 Worker 없음";
     const health=$("developmentJobHealth");
