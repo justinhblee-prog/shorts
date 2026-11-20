@@ -577,6 +577,20 @@ class TikTokPublishStore:
             rows = c.execute(query, tuple(params)).fetchall()
         return [dict(row) for row in rows]
 
+    def list_metrics_eligible_scoped(self, workspace_id, limit=200):
+        """Return only published video identities owned by one workspace (NULL is legacy)."""
+        bounded=max(1,min(int(limit),500))
+        with self.db() as c:
+            rows=c.execute("""
+                SELECT p.job_id,p.video_id,p.status,p.privacy_level,p.updated_at
+                FROM tiktok_publications p
+                LEFT JOIN production_runs pr ON pr.job_id=p.job_id
+                WHERE p.status='publish_complete' AND p.video_id IS NOT NULL
+                  AND pr.workspace_id IS ?
+                ORDER BY p.updated_at DESC,p.job_id LIMIT ?
+            """,(workspace_id,bounded)).fetchall()
+        return [dict(row) for row in rows]
+
     def list_recent(self, limit=100):
         """Return bounded TikTok publication records with immutable event histories."""
         limit = max(1, min(int(limit), 200))
