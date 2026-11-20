@@ -5,6 +5,7 @@ This worker claims only timeline_render jobs and never invokes publishing provid
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import signal
 import socket
@@ -72,7 +73,7 @@ def _fail_if_owned(job, code, message, retryable):
     return True
 
 
-def _discard_unadopted_output(result):
+def _discard_unadopted_output(result, workspace_id):
     relative_path = result.get("media_path") if isinstance(result, dict) else None
     media_root = getattr(asset_store, "media_root", None)
     if not isinstance(relative_path, str) or media_root is None:
@@ -82,7 +83,12 @@ def _discard_unadopted_output(result):
         return
     try:
         resolved = candidate.resolve(strict=True)
-        resolved.relative_to(Path(media_root).resolve())
+        root = Path(media_root).resolve()
+        resolved.relative_to(root)
+        namespace = hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
+        workspace_output_root = (root / namespace / "render-outputs").resolve(strict=True)
+        workspace_output_root.relative_to(root)
+        resolved.relative_to(workspace_output_root)
         resolved.unlink(missing_ok=True)
     except (OSError, ValueError):
         return
@@ -173,7 +179,7 @@ def run_once():
         if output_adopted:
             _discard_stale_adoption(job)
         elif render_result is not None:
-            _discard_unadopted_output(render_result)
+            _discard_unadopted_output(render_result, job["workspace_id"])
         if not lost_lease.is_set():
             _fail_if_owned(job, "render_cancelled", str(exc), retryable=True)
         print(f"render_cancelled job={job['id']}")
