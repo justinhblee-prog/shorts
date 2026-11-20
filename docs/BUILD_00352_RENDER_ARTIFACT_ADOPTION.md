@@ -163,3 +163,12 @@ be recorded while the corresponding queue job is \`review_pending\` and a
 lease-fenced artifact row exists for the exact snapshot hash. The review record
 captures the adopted artifact hash, preventing a later artifact replacement
 from changing what was approved.
+
+
+The Compose smoke workflow now runs \`timeline_render_real_media_smoke.py\`
+inside the isolated render-worker image. It generates a short local color+audio
+source clip, renders a title card plus timeline gap and video segment with the
+real FFmpeg binary, validates the MP4 with ffprobe, checks audio/video streams,
+adopts the artifact under a live worker lease, and records a reviewer decision
+bound to the final artifact checksum. The workflow result is the validation
+gate; a source-level test or fake subprocess is not treated as equivalent.
