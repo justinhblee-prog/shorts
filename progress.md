@@ -257,3 +257,11 @@
 - PR #416 security review reconfirmed the workflow uses a dedicated Windows runner label, checks runner version, installs backend/Aider virtual environments outside the workspace, persists SQLite under LocalAppData, and strips credentials from the Aider child process. However, the OS-level sandbox, low-privilege account, ACL isolation, outbound egress policy, and secret inventory remain unverified. The executor still runs with the Windows runner account's OS-level authority; prompt restrictions are not a security boundary.
 - PR #415 and #416 are separate by design: aggregate dashboard/API product integration versus standalone Windows worker promotion. Do not combine or merge automatically.
 - Next work: resolve why PR #415 reports mergeable=false; inspect current head ancestry and required checks, then re-run exact-head CI only after the branch is stable. Continue static security review of worker workflow and executor. No default-branch changes, workflow dispatch, merge, deployment, or live provider action.
+
+## 33. Frontend syntax regression found and fixed — 2026-11-20
+
+- A newer aggregate workflow run [44655701077](https://github.com/justinhblee-prog/shorts/actions/runs/44655701077) failed at `sh scripts/validate.sh` before browser tests. The exact error was `SyntaxError: Identifier 'jobs' has already been declared` in `frontend/app.js:820`.
+- Root cause: `loadDevelopmentJobs()` declared `const jobs=[...developmentJobRecords.values()]` and then redeclared `const jobs=data.jobs||[]` in the same function scope. The latter was redundant; all rendering should use the accumulated, pagination-aware `jobs` collection.
+- Removed only the duplicate declaration, retaining the accumulated collection and worker list. Fix commit: `32236825b4b2e15ed4dba4a5d26d0692cad0d9d8`.
+- Exact-head CI for the fix has not yet been returned by the PR-triggered run lookup. Do not mark this fix PASS until scripts/validate.sh, frontend syntax, both Chromium suites, and artifact upload complete on the exact head.
+- PR #415 remains Draft/open/unmerged. Its mergeability flag has fluctuated during rapid branch updates; inspect GitHub's current mergeability and checks after the branch settles. No merge/deployment/default-branch change.
