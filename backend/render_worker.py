@@ -88,6 +88,14 @@ def _discard_unadopted_output(result):
         return
 
 
+def _discard_stale_adoption(job):
+    discard = getattr(output_store, "discard_if_stale", None)
+    if callable(discard):
+        discard(
+            job["id"], job["workspace_id"], job["attempt"], job["lease_token"]
+        )
+
+
 def run_once():
     global active_job_id, active_stop_event
     job = queue.claim(
@@ -162,25 +170,33 @@ def run_once():
         )
         print(f"render_review_pending job={job['id']} render={output['render_id']}")
     except TimelineRenderCancelled as exc:
-        if render_result is not None and not output_adopted:
+        if output_adopted:
+            _discard_stale_adoption(job)
+        elif render_result is not None:
             _discard_unadopted_output(render_result)
         if not lost_lease.is_set():
             _fail_if_owned(job, "render_cancelled", str(exc), retryable=True)
         print(f"render_cancelled job={job['id']}")
     except (LeaseConflict, RenderOutputLeaseConflict):
-        if render_result is not None and not output_adopted:
+        if output_adopted:
+            _discard_stale_adoption(job)
+        elif render_result is not None:
             _discard_unadopted_output(render_result)
         lost_lease.set()
         stop_render.set()
         print(f"render_lease_lost job={job['id']}")
     except (RenderAssetError, TimelineRenderError, EDLValidationError) as exc:
-        if render_result is not None and not output_adopted:
+        if output_adopted:
+            _discard_stale_adoption(job)
+        elif render_result is not None:
             _discard_unadopted_output(render_result)
         if not lost_lease.is_set():
             _fail_if_owned(job, "render_validation_failed", str(exc), retryable=False)
         print(f"render_failed job={job['id']} code=render_validation_failed")
     except Exception as exc:
-        if render_result is not None and not output_adopted:
+        if output_adopted:
+            _discard_stale_adoption(job)
+        elif render_result is not None:
             _discard_unadopted_output(render_result)
         if not lost_lease.is_set():
             _fail_if_owned(job, "render_worker_error", "Render worker failed unexpectedly", retryable=False)
