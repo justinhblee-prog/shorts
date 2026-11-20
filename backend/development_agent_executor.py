@@ -194,29 +194,33 @@ class AiderDevelopmentExecutor:
 
     @staticmethod
     def _terminate_process(process):
-        try:
-            if os.name == "nt":
-                process.send_signal(getattr(subprocess, "CTRL_BREAK_EVENT", signal.SIGTERM))
-            else:
-                os.killpg(process.pid, signal.SIGTERM)
-        except (OSError, ProcessLookupError, ValueError):
-            if os.name == "nt":
-                AiderDevelopmentExecutor._kill_windows_process_tree(process)
-            else:
+        if os.name == "nt":
+            # Lease loss is a hard ownership boundary: terminate the entire
+            # Aider process tree before waiting for the root process.
+            AiderDevelopmentExecutor._kill_windows_process_tree(process)
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
                 try:
-                    process.terminate()
+                    process.kill()
                 except OSError:
                     pass
+                process.wait()
+            return
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except (OSError, ProcessLookupError, ValueError):
+            try:
+                process.terminate()
+            except OSError:
+                pass
         try:
             process.wait(timeout=3)
         except subprocess.TimeoutExpired:
-            if os.name == "nt":
-                AiderDevelopmentExecutor._kill_windows_process_tree(process)
-            else:
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except (OSError, ProcessLookupError):
-                    process.kill()
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (OSError, ProcessLookupError):
+                process.kill()
             process.wait()
 
     def _run(self, args, env, timeout):
