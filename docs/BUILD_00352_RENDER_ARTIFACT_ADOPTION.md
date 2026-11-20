@@ -132,3 +132,25 @@ scanning. If ClamAV is unavailable, times out, detects a threat, or cannot finis
 within its limits, the asset remains pending and cannot be submitted for render.
 The scan retry endpoint preserves the asset ID so operators can retry after
 scanner infrastructure is repaired.
+
+
+## Dedicated render worker service
+
+A separate \`timeline-render-worker\` process now consumes only
+\`timeline_render\` jobs. It uses the configured local FFmpeg/ffprobe binaries,
+workspace-authorized clean assets, and the lease-fenced artifact store. SIGTERM
+cancels an active FFmpeg render and returns the job to the retryable queue state
+rather than leaving a long-running render active until lease expiry.
+
+Compose applies a read-only container root filesystem, a bounded 512 MiB
+\`/tmp\`, dropped Linux capabilities, \`no-new-privileges\`, a 4 GiB memory cap,
+2 CPU limit, 128-process limit, and a 90-second shutdown grace period. The
+worker shares the existing \`nexus_data\` volume so private source assets,
+staging files, adopted artifacts and SQLite state remain inside the current
+backup-covered data tree. Source assets are accessed through the hash-verified
+read path; the container-level data volume remains writable for SQLite and
+render output.
+
+The container image installs a local DejaVu font for deterministic title cards.
+The service is wired in Compose but has not yet been validated by running a
+real render against production-like media or by measuring its resource limits.
