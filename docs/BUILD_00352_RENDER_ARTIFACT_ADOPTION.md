@@ -44,15 +44,14 @@ for compatibility.
 
 ## Remaining production gates
 
-- Run the concrete EDL renderer with pinned real FFmpeg/ffprobe binaries and
-  validate playable real-media outputs on the target worker runtime.
-- Pin FFmpeg/ffprobe versions and run them in a production-isolated container
-  with CPU, memory, disk, network and process-count limits.
-- Run real-media integration and crash/lease-loss tests on the target runtime.
-- Add authenticated upload/render/review APIs and retention cleanup.
-- CI tests use generated fixture bytes and a mocked ffprobe process. The actual
-  ffprobe binary, real FFmpeg rendering and production filesystem isolation
-  still require target-runtime validation.
+- Validate representative customer media on the target worker runtime, including unusual codecs, variable frame rates and long-duration inputs.
+- Run crash/restart and lease-loss fault injection against the target persistent filesystem.
+- Configure production ClamAV database freshness and verify fail-closed scan behavior before enabling uploads.
+- Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service.
+- Run an end-to-end API upload → malware scan → render queue → worker adoption → review preview test with production-like authentication and storage.
+- Production load, disk quota, network egress policy and resource measurements remain deployment gates.
+
+Unit tests intentionally use fake FFmpeg/ffprobe processes for fast deterministic validation. The Compose integration workflow separately executes the pinned image binaries against generated real media and validates the resulting MP4 with ffprobe.
 
 ## Concrete EDL renderer increment
 
@@ -153,8 +152,10 @@ read path; the container-level data volume remains writable for SQLite and
 render output.
 
 The container image installs a local DejaVu font for deterministic title cards.
-The service is wired in Compose but has not yet been validated by running a
-real render against production-like media or by measuring its resource limits.
+The Compose CI smoke now verifies the worker's configured memory, CPU, PID,
+read-only-root, capability-drop and no-new-privileges settings, then executes
+a real FFmpeg/ffprobe fixture render. Production workload sizing and host-level
+resource enforcement still require deployment validation.
 
 
 Timeline review decisions are stored separately from production-run decisions,
@@ -174,13 +175,12 @@ bound to the final artifact checksum. The workflow result is the validation
 gate; a source-level test or fake subprocess is not treated as equivalent.
 
 
-Latest Compose integration smoke validation completed successfully on the current
-implementation: the dedicated worker container started healthy, the real-media
-FFmpeg render produced a probed MP4 with video and audio streams, artifact
-adoption completed under the worker lease, the pending review item was visible,
-and an immutable artifact-hash-bound approval was recorded. This validates the
-small synthetic fixture in CI; it does not replace production media, ClamAV
-signature freshness, binary checksum pinning, or production resource-load tests.
+Latest verified Compose run on commit 5639093fbed73ed9422bf5a3ef108cee9701f157
+passed the worker security-limit assertions, generated real-media FFmpeg render,
+ffprobe stream validation, lease-fenced artifact adoption, pending review,
+artifact-hash-bound approval and encrypted backup/restore checks. The CPU limit
+assertion accepts Docker's supported CpuQuota or NanoCpus representation; it
+does not weaken the required two-CPU cap.
 
 
 ## FFmpeg/ffprobe binary pinning
@@ -195,8 +195,8 @@ the built container image by immutable digest so the image-baked manifest itself
 cannot change unnoticed during rollout.
 
 
-The latest Compose CI run passed the image build and worker startup with binary
-manifest verification enabled, followed by the real-media FFmpeg/ffprobe render,
-artifact adoption, review approval and backup/restore smoke. The worker would
-not have reached healthy state if either configured media binary failed its
-image-baked checksum check.
+The same Compose run built the image and started the worker only after its
+image-baked FFmpeg/ffprobe checksum manifest was verified. It then passed the
+real-media render/review and encrypted backup/restore smoke. The independent
+backend validation suite also passed; the browser smoke was still running at
+the time this document was updated.
