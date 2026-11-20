@@ -1020,16 +1020,19 @@ def get_render_job_events(
         job=queue.get(job_id,workspace_id=workspace_id)
         if job["job_type"]!="timeline_render":
             raise JobNotFound()
-        return {"events":[
-            {
-                "event_id":event["id"],
-                "event_type":event["event_type"],
-                "from_status":event["from_status"],
-                "to_status":event["to_status"],
-                "created_at":event["created_at"],
-                "details":event["details"],
-            } for event in queue.events(job_id,workspace_id=workspace_id)
-        ]}
+        return {
+            "events":[
+                {
+                    "event_id":event["id"],
+                    "event_type":event["event_type"],
+                    "from_status":event["from_status"],
+                    "to_status":event["to_status"],
+                    "created_at":event["created_at"],
+                    "details":event["details"],
+                } for event in queue.events(job_id,workspace_id=workspace_id)
+            ],
+            "review_events":render_output_store.events(job_id,workspace_id),
+        }
     except JobNotFound:
         raise HTTPException(404,"Render job not found")
 
