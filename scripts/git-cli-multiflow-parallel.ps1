@@ -3,7 +3,7 @@ param(
  [switch]$Worker,[string]$TaskFile,[string]$StateRoot,[string]$TaskId,[string]$Base,
  [ValidateRange(1,3)][int]$MaxParallel=3,
  [ValidateRange(60,86400)][int]$TaskTimeoutSeconds=3600,
- [ValidateRange(1,20)][int]$MaxTasks=3
+ [ValidateRange(1,20)][int]$MaxTasks=20
 )
 $ErrorActionPreference="Stop"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required."}
