@@ -866,8 +866,10 @@ def cleanup_production_media(job_id:str,x_review_token:str|None=Header(default=N
 
 @app.post("/api/youtube/upload/{job_id}",status_code=201)
 def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
-                         x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.execute")
+                         x_review_token:str|None=Header(default=None),
+                         x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"publish.execute")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     try:
         return youtube_publisher.upload_approved(
             job_id,body.media_path,review_store,body.title,body.description,
@@ -879,8 +881,10 @@ def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
 
 
 @app.get("/api/youtube/uploads/{job_id}")
-def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publishing.read")
+def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None),
+                       x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"publishing.read")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     result=youtube_upload_store.get(job_id)
     if result is None:
         raise HTTPException(404,"YouTube upload record not found")
@@ -889,8 +893,10 @@ def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
 
 @app.post("/api/youtube/uploads/{job_id}/reconcile")
 def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
-                              x_review_token:str|None=Header(default=None)):
+                              x_review_token:str|None=Header(default=None),
+                              x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_operator=require_review_permission(x_review_token,"publish.reconcile")
+    require_production_workspace(job_id,authenticated_operator,x_nexus_workspace_id)
     if body.operator_id != authenticated_operator:
         raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
     if not body.confirmed:
@@ -908,8 +914,10 @@ def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
 
 @app.post("/api/youtube/uploads/{job_id}/resolve-late-result")
 def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
-                                x_review_token:str|None=Header(default=None)):
+                                x_review_token:str|None=Header(default=None),
+                                x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_operator=require_review_permission(x_review_token,"publish.reconcile")
+    require_production_workspace(job_id,authenticated_operator,x_nexus_workspace_id)
     if body.operator_id != authenticated_operator:
         raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
     try:
@@ -1081,8 +1089,10 @@ def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
 
 @app.post("/api/tiktok/publish/{job_id}",status_code=201)
 def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
-                         x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.execute")
+                         x_review_token:str|None=Header(default=None),
+                         x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"publish.execute")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     staged_path=require_canonical_staged_media(job_id,body.media_path)
     try:
         return tiktok_publisher.publish_private_approved(
@@ -1097,8 +1107,10 @@ def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
 
 
 @app.get("/api/tiktok/publications/{job_id}")
-def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publishing.read")
+def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=None),
+                            x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"publishing.read")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     result=tiktok_publish_store.get(job_id)
     if result is None:
         raise HTTPException(404,"TikTok publication record not found")
@@ -1107,8 +1119,10 @@ def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=Non
 
 @app.post("/api/tiktok/publications/{job_id}/reconcile")
 def reconcile_tiktok_publication(job_id:str,body:TikTokPublicationReconciliation,
-                                 x_review_token:str|None=Header(default=None)):
+                                 x_review_token:str|None=Header(default=None),
+                                 x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_operator=require_review_permission(x_review_token,"publish.reconcile")
+    require_production_workspace(job_id,authenticated_operator,x_nexus_workspace_id)
     if body.operator_id != authenticated_operator:
         raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
     try:
@@ -1120,8 +1134,10 @@ def reconcile_tiktok_publication(job_id:str,body:TikTokPublicationReconciliation
 
 
 @app.post("/api/tiktok/publications/{job_id}/refresh-status")
-def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.reconcile")
+def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(default=None),
+                                       x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"publish.reconcile")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     try:
         return tiktok_publisher.refresh_status(job_id)
     except TikTokPublishError as e:
