@@ -45,7 +45,7 @@ def _filter_path(value):
 
 def _probe_source(path, ffprobe_path, expected_kind, timeout_seconds):
     argv = [
-        ffprobe_path, "-v", "error", "-show_entries",
+        ffprobe_path, "-protocol_whitelist", "file,pipe", "-v", "error", "-show_entries",
         "format=duration:stream=codec_type", "-of", "json", str(path),
     ]
     try:
@@ -96,10 +96,10 @@ def build_timeline_ffmpeg_argv(edl, staged_assets, output_path, *,
         key = clip["asset_id"]
         if key not in input_indexes:
             input_indexes[key] = len(input_indexes)
-            argv.extend(["-i", str(asset_path)])
+            argv.extend(["-protocol_whitelist", "file,pipe", "-i", str(asset_path)])
     if audio_mix_path is not None:
         audio_index = len(input_indexes)
-        argv.extend(["-i", str(audio_mix_path)])
+        argv.extend(["-protocol_whitelist", "file,pipe", "-i", str(audio_mix_path)])
     else:
         audio_index = None
 
