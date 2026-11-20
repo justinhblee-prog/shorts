@@ -797,12 +797,23 @@
       return '<div class="development-job-event"><b>'+esc(event.event_type)+' · '+esc(transition)+'</b><small>'+esc(event.created_at||"")+' · '+esc(event.actor||"system")+esc(details)+'</small></div>';
     }).join(""):'<div class="empty-state">기록된 변경 이력이 없습니다.</div>';
   }
-  async function loadDevelopmentJobs(){
+  let developmentJobOffset=0;
+  let developmentJobHasMore=false;
+  const developmentJobRecords=new Map();
+  async function loadDevelopmentJobs(append=false){
     if(!token)return;
+    const offset=append?developmentJobOffset:0;
     const [data,workerData]=await Promise.all([
-      api("/api/development/jobs?limit=200"),
+      api("/api/development/jobs?limit=200&offset="+offset),
       api("/api/development/workers?limit=50")
     ]);
+    const pageJobs=data.jobs||[];
+    if(!append)developmentJobRecords.clear();
+    pageJobs.forEach(job=>developmentJobRecords.set(String(job.id),job));
+    const jobs=[...developmentJobRecords.values()];
+    const pagination=data.pagination||{};
+    developmentJobOffset=Number(pagination.next_offset??(offset+pageJobs.length));
+    developmentJobHasMore=Boolean(pagination.has_more);
     const summary=data.summary||{},counts=summary.by_status||{};
     const metrics=[["전체",summary.total||0],["실행 중",(counts.running||0)+(counts.leased||0)],["온라인 Worker",summary.online_workers||0],["등록 Worker",summary.known_workers||0],["활성 Lease",summary.active_leases||0],["만료 Lease",summary.expired_leases||0],["대기",counts.ready||0],["선행 대기",counts.blocked||0],["Draft PR 검토 대기",counts.review_pending||0],["재시도",counts.retry_wait||0],["격리",counts.quarantined||0],["완료",counts.completed||0]];
     $("developmentJobMetrics").innerHTML=metrics.map(([label,value])=>'<div class="development-job-metric"><small>'+esc(label)+'</small><strong>'+Number(value).toLocaleString()+'</strong></div>').join("");
@@ -811,7 +822,12 @@
     const workerLabel=workers.length?workers.map(worker=>worker.worker_id+(worker.hostname?" @ "+worker.hostname:"")+" "+(worker.is_online?"온라인":"오프라인")+(worker.current_job_id?" · "+worker.current_job_id:"")).join(" / "):"등록된 Worker 없음";
     const health=$("developmentJobHealth");
     if(health){health.textContent="Worker: "+workerLabel+" · 최근 갱신: "+(summary.latest_updated_at||"기록 없음")+" · 최근 성공 검증: "+(summary.latest_validation_ref||"아직 없음");}
-    $("developmentJobCount").textContent=jobs.length+" JOBS";
+    const totalJobs=Number(pagination.total??summary.total??jobs.length);
+    $("developmentJobCount").textContent=jobs.length+" / "+totalJobs+" JOBS";
+    const paginationStatus=$("developmentJobPaginationStatus");
+    if(paginationStatus)paginationStatus.textContent=jobs.length+" / "+totalJobs+"개 작업 표시";
+    const loadMoreButton=$("loadMoreDevelopmentJobs");
+    if(loadMoreButton)loadMoreButton.hidden=!developmentJobHasMore;
     const jobById=new Map(jobs.map(job=>[String(job.id),job]));
     const laneForJob=job=>{
       const paths=Array.isArray(job.scope)?job.scope:[];
@@ -847,7 +863,7 @@
         const parentStatus=parent?(developmentStatusLabels[parent.status]||parent.status):"현재 목록 외";
         return parent
           ? '<span role="button" tabindex="0" class="development-job-dependency development-job-dependency-link" data-focus-development-job="'+esc(id)+'" aria-label="선행 작업 '+esc(label)+' 카드로 이동">'+esc(label)+' · '+esc(parentStatus)+' ↗</span>'
-          : '<span class="development-job-dependency development-job-dependency-missing" role="status">'+esc(label)+' · 현재 목록 외</span>';
+          : '<button type="button" class="development-job-dependency development-job-dependency-missing" data-load-prerequisite-id="'+esc(id)+'" aria-label="선행 작업 '+esc(label)+' 추가 목록에서 찾기">'+esc(label)+' · 현재 목록 외 · 더 불러오기</button>';
       }).join(""):'<span class="development-job-dependency development-job-dependency-none">선행 작업 없음</span>';
       const recovery=status==="quarantined"?'<button type="button" class="button button-outline development-job-recover" data-recover-development-job="'+esc(job.id)+'">격리 작업 복구</button>':"";
       return '<div class="development-job-card" id="development-job-card-'+esc(job.id)+'"><button type="button" class="development-job-item" data-development-job="'+esc(job.id)+'" aria-pressed="false"><div class="development-job-item-head"><b>'+esc(job.title||job.id)+'</b><span class="development-job-status '+esc(status)+'">'+esc(developmentStatusLabels[status]||status)+'</span></div><p>'+esc(job.description||"")+'</p><small>'+esc(job.id)+' · 시도 '+esc(attempts)+esc(worker)+'</small><p>작업 범위: '+esc(scope)+'</p></button><div class="development-job-detail"><div class="development-job-dependencies"><small>선행 작업</small>'+dependencyMarkup+'</div><small>'+esc(lease)+' · '+esc(updated)+'</small><p>변경 파일: '+esc(changed)+'</p><small>'+esc(evidence)+'</small><small>'+esc(review)+'</small></div>'+recovery+'</div>';
@@ -939,6 +955,7 @@
   $("clearToken").addEventListener("click",()=>{token="";reviewer="";$("tokenInput").value="";$("reviewerInput").value="";$("queueOperator").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadDevelopmentJobs").addEventListener("click",()=>loadDevelopmentJobs().catch(e=>toast(e.message)));
+  $("loadMoreDevelopmentJobs").addEventListener("click",()=>loadDevelopmentJobs(true).catch(e=>toast(e.message)));
   $("developmentJobList").addEventListener("keydown",event=>{
     const dependencyButton=event.target.closest("[data-focus-development-job]");
     if(dependencyButton&&(event.key==="Enter"||event.key===" ")){
@@ -947,6 +964,28 @@
     }
   });
   $("developmentJobList").addEventListener("click",async event=>{
+    const missingDependencyButton=event.target.closest("[data-load-prerequisite-id]");
+    if(missingDependencyButton){
+      event.preventDefault();
+      const targetId=missingDependencyButton.getAttribute("data-load-prerequisite-id");
+      if(developmentJobHasMore){
+        try{
+          await loadDevelopmentJobs(true);
+          const targetCard=$("development-job-card-"+targetId);
+          const targetButton=targetCard?.querySelector("[data-development-job]");
+          if(targetCard&&targetButton){
+            targetCard.scrollIntoView({behavior:"smooth",block:"center"});
+            targetButton.focus({preventScroll:true});
+            toast("추가 목록에서 선행 작업을 찾았습니다.");
+          }else{
+            toast("다음 작업 페이지를 불러왔습니다. 선행 작업이 나타나지 않으면 다시 눌러주세요.");
+          }
+        }catch(error){toast(error.message);}
+      }else{
+        toast("현재 조회 범위에서 선행 작업을 찾지 못했습니다. 목록을 새로 고쳐주세요.");
+      }
+      return;
+    }
     const dependencyButton=event.target.closest("[data-focus-development-job]");
     if(dependencyButton){
       event.preventDefault();
