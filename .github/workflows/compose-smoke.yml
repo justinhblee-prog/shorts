@@ -88,6 +88,7 @@ jobs:
               "readonly_rootfs": host.get("ReadonlyRootfs"),
               "cap_drop": host.get("CapDrop"),
               "security_opt": host.get("SecurityOpt"),
+  "network_mode": host.get("NetworkMode"),
           }
           print("timeline_render_worker_security_limits=" + json.dumps(observed, sort_keys=True))
           assert observed["memory"] == 4 * 1024**3, observed
@@ -97,6 +98,7 @@ jobs:
           ), observed
           assert observed["pids_limit"] == 128, observed
           assert observed["readonly_rootfs"] is True, observed
+assert observed["network_mode"] == "none", observed
           assert "ALL" in (observed["cap_drop"] or []), observed
           assert any("no-new-privileges" in item for item in (observed["security_opt"] or [])), observed
           PY
