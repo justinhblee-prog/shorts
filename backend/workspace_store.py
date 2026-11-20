@@ -1,5 +1,5 @@
 """Durable SQLite workspace registry; authentication remains the caller's responsibility."""
-import os, re, sqlite3, uuid
+import json, os, re, sqlite3, uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -171,3 +171,36 @@ class WorkspaceStore:
               WHERE m.principal_id=? AND m.status='active' AND w.status='active'
               ORDER BY w.created_at,w.id""", (principal,)).fetchall()
         return [dict(row) for row in rows]
+
+    def list_members(self, workspace_id, actor_principal_id):
+        wid = _wid(workspace_id)
+        actor = _principal(actor_principal_id)
+        self.require_membership(wid, actor)
+        with self.db() as db:
+            rows = db.execute("""SELECT principal_id,role,status,created_at,updated_at
+              FROM workspace_memberships WHERE workspace_id=? AND status='active'
+              ORDER BY created_at,principal_id""", (wid,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_audit_events(self, workspace_id, actor_principal_id, *, limit=50, offset=0):
+        wid = _wid(workspace_id)
+        actor = _principal(actor_principal_id)
+        if (isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100
+                or isinstance(offset, bool) or not isinstance(offset, int)
+                or not 0 <= offset <= 1000000):
+            raise ValueError("audit pagination must use limit 1-100 and offset 0-1000000")
+        self.require_membership(wid, actor, minimum_roles={"owner", "admin"})
+        with self.db() as db:
+            rows = db.execute("""SELECT id,actor_principal_id,subject_principal_id,
+                event_type,details,created_at FROM workspace_audit_events
+                WHERE workspace_id=? ORDER BY id DESC LIMIT ? OFFSET ?""",
+                (wid, limit, offset)).fetchall()
+        events = []
+        for row in rows:
+            event = dict(row)
+            try:
+                event["details"] = json.loads(event["details"])
+            except (TypeError, ValueError):
+                event["details"] = {}
+            events.append(event)
+        return events
