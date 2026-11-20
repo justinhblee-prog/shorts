@@ -124,3 +124,12 @@ The customer identity provider and account contract must be selected before impl
 - Follow-up hardening now resolves the authenticated operator's workspace membership for `POST /api/production/jobs/{job_id}/execute` and `POST /api/production/jobs/{job_id}/adopt-recovered-render`. Both apply SQL-level parent/child scope; execution rejects a workspace-owned job when the selector is omitted, and recovered media staging uses the resolved workspace namespace. API tests cover missing, mismatched, and valid execution scope. This is still operator authorization, not independent worker identity authentication.
 - Worker identity is still not independently authenticated/bound to an allow-list of workspaces. The request's `worker_id` and lease token are not a substitute for a trusted worker credential-to-workspace grant. Do not accept a workspace ID supplied by a worker as authorization. A trusted worker identity contract and per-workspace grant registry are prerequisites for customer-safe worker execution.
 - Customer OIDC identity and full resource-family partitioning remain unimplemented. Existing unassigned (`NULL`) rows must remain unassigned pending evidence-backed migration.
+
+
+### 2026-11-20 media lifecycle scope hardening
+
+- Operator media staging now resolves authenticated workspace membership, reads the production parent with SQL workspace scope, and stages files only under the opaque workspace namespace. Missing workspace selection is denied for workspace-owned jobs.
+- Staged media metadata and review-stage mutations now pass the resolved workspace into `ProductionStore.artifact` / `ProductionStore.stage`; both methods verify the parent production row's workspace inside the write transaction before changing child/parent state.
+- Media cleanup now checks the parent production workspace first and passes the scope into `MediaStager.cleanup_uploaded`. Tenant cleanup intentionally remains fail-closed because the YouTube upload store is not yet workspace-scoped; no global upload lookup is treated as proof of tenant ownership.
+- API and store tests cover missing/mismatched/valid media staging scope, fail-closed tenant cleanup, and SQL workspace fences for artifact/stage mutations.
+- This does not complete worker identity binding, customer authentication, review/publishing/analytics family partitioning, or the full asset registry.
