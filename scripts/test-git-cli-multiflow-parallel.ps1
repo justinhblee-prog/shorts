@@ -22,7 +22,8 @@ try{
   policy=@{default_base="main";max_parallel_worktrees=2;auto_merge=$false;auto_deploy=$false}
   tasks=@(
    @{id="BUILD-99001";title="parallel fixture A";status="ready";priority=1;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
-   @{id="BUILD-99002";title="parallel fixture B";status="ready";priority=2;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")}
+   @{id="BUILD-99002";title="parallel fixture B";status="ready";priority=2;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
+   @{id="BUILD-99003";title="dependent fixture C";status="ready";priority=3;depends_on=@("BUILD-99001");scope=@("must remain gated");acceptance=@("must not run before dependency completion")}
   )
  }
  $manifest|ConvertTo-Json -Depth 20|Set-Content (Join-Path $seed ".devflow/tasks.json") -Encoding utf8
@@ -79,7 +80,12 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
   if($stateData.tasks.$id.status -ne "draft_pr_created"){throw "Unexpected final state for ${id}: $($stateData.tasks.$id.status)"}
  }
  $remoteBranches=@(& git --git-dir=$origin branch --list "autopilot/*")
- if($remoteBranches.Count -lt 2){throw "Expected both worker branches to be pushed to the local bare origin."}
+ if($remoteBranches.Count -ne 2){throw "Expected exactly two independent worker branches; dependency-gated task must not run."}
+ & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 2 -MaxTasks 3 -TaskTimeoutSeconds 60
+ if($LASTEXITCODE -ne 0){throw "Idempotent rerun exited with $LASTEXITCODE."}
+ $branchesAfterRerun=@(& git --git-dir=$origin branch --list "autopilot/*")
+ if($branchesAfterRerun.Count -ne 2){throw "Completed Draft PR tasks were dispatched again on rerun."}
+ if($stateData.tasks."BUILD-99003"){throw "Dependency-gated task unexpectedly entered worker state."}
  Write-Host "PASS: two fake agents overlapped (start delta $($delta)ms), produced Draft PR states, and pushed isolated branches."
 }finally{
  $env:PATH=$originalPath
