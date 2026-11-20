@@ -119,7 +119,11 @@ class RenderOutputStore:
             path = candidate.resolve(strict=True)
             path.relative_to(self.media_root)
             namespace = hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
-            workspace_output_root = (self.media_root / namespace / "render-outputs").resolve(strict=True)
+            namespace_dir = self.media_root / namespace
+            workspace_output_candidate = namespace_dir / "render-outputs"
+            if namespace_dir.is_symlink() or workspace_output_candidate.is_symlink():
+                raise RenderOutputError("Workspace output namespace must not be a symlink")
+            workspace_output_root = workspace_output_candidate.resolve(strict=True)
             workspace_output_root.relative_to(self.media_root)
             path.relative_to(workspace_output_root)
         except (OSError, ValueError) as exc:
@@ -243,7 +247,11 @@ class RenderOutputStore:
                 resolved = candidate.resolve(strict=True)
                 resolved.relative_to(self.media_root)
                 namespace = hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
-                workspace_output_root = (self.media_root / namespace / "render-outputs").resolve(strict=True)
+                namespace_dir = self.media_root / namespace
+                workspace_output_candidate = namespace_dir / "render-outputs"
+                if namespace_dir.is_symlink() or workspace_output_candidate.is_symlink():
+                    raise RenderOutputError("Workspace output namespace must not be a symlink")
+                workspace_output_root = workspace_output_candidate.resolve(strict=True)
                 workspace_output_root.relative_to(self.media_root)
                 resolved.relative_to(workspace_output_root)
                 resolved.unlink(missing_ok=True)
