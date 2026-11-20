@@ -140,7 +140,7 @@
         "Do not modify .devflow/tasks.json or unrelated files"
       ],
       "external_gates": [],
-      "notes": "Retry with text-fallback tool results supplied as user-context messages instead of fabricated native tool-call history. Empty assistant turns are no longer appended to conversation history. Draft PR only."
+      "notes": "Retry with repeated directory discovery blocked and list_files example narrowed to scripts/. The model previously alternated list_files/read_file without editing; duplicate calls now return actionable feedback instead of repeating indefinitely. Draft PR only."
     }
   ]
 }
