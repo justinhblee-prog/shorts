@@ -2790,3 +2790,13 @@ Implement the secure FFmpeg/MP4 render worker rather than revisiting the already
 - The backend suite additionally verified the FFmpeg process-group cancellation path, queue lease fencing, workspace path confinement, immutable review audit and stale output cleanup.
 - PR [#422](https://github.com/justinhblee-prog/shorts/pull/422) remains Draft / Open / Unmerged. No publishing or production rollout was performed.
 - Live ClamAV database scanning, user media upload, external provider publishing and production acceptance remain unverified. The Compose render fixture injects a clean scanner adapter.
+
+
+## BUILD — timeline render/review UI exact-head validation (2026-11-20)
+
+- Draft PR [#425](https://github.com/justinhblee-prog/shorts/pull/425) connects the timeline editor to workspace MP4 upload, server EDL validation, idempotent render enqueue, status/cancel, authenticated MP4 preview/download and explicit approve/reject review.
+- Exact UI head `35aede3ebf2659d6f6a24b60e2b116cf5184bc37` passed **865 backend tests** and Chromium desktop/mobile smoke [run 44708689692](https://github.com/justinhblee-prog/shorts/actions/runs/44708689692). Browser smoke verified render controls, MP4-only selection, disabled review actions until the artifact is loaded, workspace isolation, Korean rendering, review and responsive flows.
+- The same UI head passed six-service Compose integration [run 44708689724](https://github.com/justinhblee-prog/shorts/actions/runs/44708689724), including real FFmpeg/ffprobe rendering through the durable worker, review-pending handoff and encrypted backup/restore.
+- UI stores only render job ID and workspace ID locally; review tokens remain in the existing authenticated session. Switching workspace invalidates cached asset IDs but preserves the job/workspace pair for returning to the original workspace.
+- Known UI/renderer limits remain: title overlays and source-clip audio mixing are unsupported; separate M4A audio is accepted. ClamAV must be enabled and report `clean`. Preview currently buffers the MP4 into a Blob URL.
+- PRs #422 and #425 remain Draft / Open / Unmerged. No provider publishing or production rollout occurred.
