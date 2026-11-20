@@ -221,3 +221,5 @@ The customer identity provider and account contract must be selected before impl
 - TikTok analytics coverage now joins publication job IDs to `production_runs.workspace_id`; scoped status omits global collector state and reports only the selected workspace's publication/snapshot counts.
 - `/api/youtube/analytics/collection-status` and `/api/publishing/analytics-status` now require the authenticated operator's resolved workspace scope. Historical analytics endpoints were already workspace-filtered; these status surfaces previously exposed cross-workspace aggregate coverage and collector state.
 - Added YouTube and TikTok store tests for workspace A/B coverage separation and zero-result unknown workspace behavior. CI validation pending for this change set; do not mark validated until Backend and Compose runs pass.
+
+- Both analytics status routes now reject omitted workspace selectors with HTTP 403, preventing legacy operator requests from falling back to global cross-workspace aggregates. The scoped API regression test verifies explicit workspace propagation.
