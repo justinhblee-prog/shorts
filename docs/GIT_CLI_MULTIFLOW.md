@@ -49,3 +49,7 @@ If the planner reports `No eligible tasks without an existing open PR`, it found
 ## Parallel worker state and recovery
 
 The runner stores `state.json`, per-task lease files, and task prompt snapshots in a sibling `*-multiflow-state` directory. A worker owns an exclusive lease for its task until it exits. Worker failures and timeouts are recorded; their worktrees are deliberately retained for inspection. A task recorded as `draft_pr_created` is not dispatched again. A stale `running` state is eligible for recovery only after the OS lease is no longer held. Failed tasks can be retried by a later scheduler invocation after the failed worktree and state have been reviewed; automatic in-run retry is not enabled yet. The scheduler does not mark manifest tasks completed, merge PRs, or deploy.
+
+## Automated parallel integration test
+
+CI runs `scripts/test-git-cli-multiflow-parallel.ps1` on Windows PowerShell 7. The harness creates a temporary bare Git remote and isolated fixture repository, injects a fake `gh` CLI and fake Agent process, dispatches two independent tasks, and verifies overlapping Agent start times, independent pushed branches, and durable `draft_pr_created` states. It does not access production task entries, GitHub credentials, or create real pull requests. This verifies process-level concurrency and the worker-to-Draft-PR pipeline using local fixtures; it does not validate any particular external Agent vendor integration.
