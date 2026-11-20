@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
- [switch]$Worker,[string]$TaskFile,[string]$StateRoot,[string]$Task,
+ [switch]$Worker,[string]$TaskFile,[string]$StateRoot,[string]$Task,[string]$Base,
  [ValidateRange(1,3)][int]$MaxParallel=3,
  [ValidateRange(60,86400)][int]$TaskTimeoutSeconds=3600,
  [ValidateRange(1,20)][int]$MaxTasks=3
@@ -112,12 +112,13 @@ while($queue.Count -gt 0 -or $active.Count -gt 0){
   $wt=Join-Path $wtRoot "$($id.ToLowerInvariant())-$stamp";$branch="autopilot/$($id.ToLowerInvariant())-$stamp"
   New-Item -ItemType Directory -Force -Path $wtRoot|Out-Null
   & git -C $root fetch origin --prune;if($LASTEXITCODE -ne 0){throw "git fetch failed."}
-  & git -C $root worktree add -b $branch $wt "origin/$($manifest.policy.default_base)";if($LASTEXITCODE -ne 0){throw "worktree creation failed for $id."}
+   $baseBranch=if($Base){$Base}else{[string]$manifest.policy.default_base}
+  & git -C $root worktree add -b $branch $wt "origin/$baseBranch";if($LASTEXITCODE -ne 0){throw "worktree creation failed for $id."}
   $prompt=Join-Path $wt ".devflow-agent-task.md"
   $lines=@("# $id - $($t.title)","Scope:")+@($t.scope|ForEach-Object{"- $_"})+@("Acceptance:")+@($t.acceptance|ForEach-Object{"- $_"})+@("Do not edit task manifest, bypass gates, merge, deploy, publish, or change credentials.")
   Set-Content -LiteralPath $prompt -Value ($lines -join [Environment]::NewLine) -Encoding utf8
   $taskPath=Join-Path $stateDir "$id-$stamp.json"
-  @{id=$id;title=$t.title;worktree=$wt;branch=$branch;base=$manifest.policy.default_base;prompt=$prompt;timeout_seconds=$TaskTimeoutSeconds}|ConvertTo-Json|Set-Content -LiteralPath $taskPath -Encoding utf8
+  @{id=$id;title=$t.title;worktree=$wt;branch=$branch;base=$baseBranch;prompt=$prompt;timeout_seconds=$TaskTimeoutSeconds}|ConvertTo-Json|Set-Content -LiteralPath $taskPath -Encoding utf8
   Set-State $statePath $id "queued" "branch=$branch"
   $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=(Get-Command pwsh).Source;$psi.WorkingDirectory=$root;$psi.UseShellExecute=$false
   foreach($a in @("-NoProfile","-File",$PSCommandPath,"-Worker","-TaskFile",$taskPath,"-StateRoot",$stateDir)){[void]$psi.ArgumentList.Add($a)}
