@@ -117,7 +117,7 @@
         "Do not modify .devflow/tasks.json or unrelated project files"
       ],
       "external_gates": [],
-      "notes": "Automation verification task created after successful real Windows Runner + local Ollama smoke test; keep Draft PR only."
+      "notes": "Automation retry after pinning the task base to the approved Agent branch and correcting worker failure propagation. Draft PR only; no merge or deployment."
     }
   ]
 }
