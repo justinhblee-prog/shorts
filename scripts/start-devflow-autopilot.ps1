@@ -13,15 +13,16 @@ $ErrorActionPreference="Stop"
 if($Plan -or $Run){
  $runner=Join-Path $PSScriptRoot "git-cli-multiflow.ps1"
  if(-not(Test-Path $runner)){throw "Git CLI multi-flow runner missing: $runner"}
- $argsList=@()
- if($Plan){$argsList+="-Plan"}
- if($Run){$argsList+="-Run"}
- if($Task){$argsList+=@("-Task",$Task)}
- if($Base){$argsList+=@("-Base",$Base)}
- if($AgentCommand){$argsList+=@("-AgentCommand",$AgentCommand)}
- if($AgentArgsJson){$argsList+=@("-AgentArgsJson",$AgentArgsJson)}
- $argsList+=@("-MaxTasks",$MaxTasks)
- & $runner @argsList
+ # Named splatting prevents JSON agent arguments from shifting into MaxTasks.
+ # Plan is read-only and must not forward agent configuration at all.
+ $runnerParams=@{ MaxTasks=$MaxTasks }
+ if($Plan){$runnerParams.Plan=$true}
+ if($Run){$runnerParams.Run=$true}
+ if($Task){$runnerParams.Task=$Task}
+ if($Base){$runnerParams.Base=$Base}
+ if($Run -and $AgentCommand){$runnerParams.AgentCommand=$AgentCommand}
+ if($Run -and $AgentArgsJson){$runnerParams.AgentArgsJson=$AgentArgsJson}
+ & $runner @runnerParams
  if($LASTEXITCODE -ne 0){throw "Multi-flow runner failed (exit $LASTEXITCODE)."}
  exit 0
 }
