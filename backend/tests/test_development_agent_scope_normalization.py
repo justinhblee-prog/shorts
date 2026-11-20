@@ -30,15 +30,20 @@ class ApprovedScopeNormalizationTests(unittest.TestCase):
         self.assertNotIn(secret, output.getvalue())
         self.assertIn("[REDACTED]", output.getvalue())
 
-    def test_nested_directories_are_marked_and_traversal_is_not_rewritten(self):
+    def test_nested_directories_are_marked_and_traversal_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "backend" / "tools").mkdir(parents=True)
+            with self.assertRaisesRegex(ValueError, "traversal-free"):
+                _normalize_approved_scopes(
+                    {"github:issue:acme/app#2": ["backend/tools", "../outside"]},
+                    root,
+                )
             scopes = _normalize_approved_scopes(
-                {"github:issue:acme/app#2": ["backend/tools", "../outside"]},
+                {"github:issue:acme/app#2": ["backend/tools"]},
                 root,
             )
-        self.assertEqual(scopes, {"github:issue:acme/app#2": ["backend/tools/", "../outside"]})
+        self.assertEqual(scopes, {"github:issue:acme/app#2": ["backend/tools/"]})
 
 
 if __name__ == "__main__":
