@@ -19,6 +19,11 @@ on:
           - "1"
           - "2"
           - "3"
+      agent_smoke_test:
+        description: Run one isolated real Agent CLI request instead of project tasks
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -55,7 +60,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Agent CLI preflight failed." }
           Write-Host "PASS: self-hosted Windows runner, GitHub auth, clean checkout and Agent CLI configuration."
 
+      - name: Run isolated real Agent CLI smoke test
+        if: github.event_name == 'workflow_dispatch' && inputs.agent_smoke_test
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "$PWD/scripts/test-real-agent-cli.ps1" -TimeoutSeconds 180
+          if ($LASTEXITCODE -ne 0) { throw "Real Agent CLI smoke test failed with exit code $LASTEXITCODE." }
+
       - name: Run real multi-flow workers
+        if: github.event_name != 'workflow_dispatch' || inputs.agent_smoke_test != true
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
