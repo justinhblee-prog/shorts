@@ -285,3 +285,11 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Schedule creation, listing, activation, outbox status, and dead-letter retry use the authenticated operator's resolved workspace scope.
 - Due dispatch propagates the schedule's workspace ID into the durable queue job; outbox rows inherit scope from their parent schedule.
 - Regression coverage covers workspace A/B schedule isolation, dispatch propagation, and preservation of legacy orphan outbox records. Code head `effc7a497b9c64b2fbcef1b8d1b7bb3c004f5117` passed Backend tests + Chromium browser smoke (run `44688516667`) and Compose integration build/readiness/backup/restore (run `44688516822`).
+
+## Additional workspace isolation — publishing, analytics, finance, opportunities
+
+- Publishing job endpoints verify the authenticated workspace against the immutable production parent before reading or mutating YouTube/TikTok publication records.
+- YouTube video analytics routes resolve video ownership through the upload record and enforce the same workspace check. Analytics history uses publication-to-production joins and workspace filtering.
+- Financial ledger and scored opportunity records now persist nullable workspace ownership. Finance writes with a job ID must match its production parent; finance reports and opportunity lists are workspace-scoped. Legacy rows stay in the unassigned NULL namespace.
+- Public trend signals and default brand profiles are treated as shared platform reference data; generated production work retains workspace ownership.
+- Latest CI for these additions is pending at handover update; recheck backend validation/Chromium and Compose integration before marking complete.
