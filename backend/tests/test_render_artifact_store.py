@@ -98,5 +98,31 @@ class RenderArtifactStoreTests(unittest.TestCase):
             self.store.get(result["artifact_id"], "ws_test")
 
 
+    def test_rejects_expired_lease_before_moving_output(self):
+        with self.queue.db() as db:
+            db.execute(
+                "UPDATE pipeline_jobs SET lease_expires_at=? WHERE id=?",
+                ("2000-01-01T00:00:00+00:00", self.job["id"]),
+            )
+        with self.assertRaises(LeaseConflict):
+            self.adopt()
+        self.assertTrue(self.staged.exists())
+        self.assertEqual(list(self.artifacts.iterdir()), [])
+
+    def test_database_failure_rolls_back_adoption_and_removes_moved_file(self):
+        with self.queue.db() as db:
+            db.execute("""
+                CREATE TRIGGER reject_artifact_insert
+                BEFORE INSERT ON render_artifacts
+                BEGIN SELECT RAISE(ABORT, 'injected artifact insert failure'); END
+            """)
+        with self.assertRaisesRegex(Exception, "injected artifact insert failure"):
+            self.adopt()
+        self.assertTrue(self.staged.exists())
+        self.assertEqual(list(self.artifacts.iterdir()), [])
+        with self.queue.db() as db:
+            db.execute("DROP TRIGGER reject_artifact_insert")
+
+
 if __name__ == "__main__":
     unittest.main()
