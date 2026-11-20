@@ -45,7 +45,7 @@ def probe_media(path, ffprobe_path, *, max_duration_ms=3_600_000,
 
     argv = [
         str(binary), "-v", "error",
-        "-show_entries",
+        "-protocol_whitelist", "file,pipe", "-show_entries",
         "format=duration,size:stream=codec_type,codec_name,width,height,sample_rate,channels",
         "-of", "json", str(media),
     ]
@@ -111,40 +111,3 @@ def probe_media(path, ffprobe_path, *, max_duration_ms=3_600_000,
         "audio_streams": len(audio),
         "audio_codecs": [item.get("codec_name") for item in audio],
     }
-
-
-def has_audio_stream(path, ffprobe_path, *, timeout_seconds=15):
-    """Return whether a local media file has at least one audio stream."""
-    media = Path(path)
-    binary = Path(ffprobe_path)
-    if not media.is_absolute() or media.is_symlink() or not media.is_file():
-        raise FFprobeValidationError("source media must be an absolute regular non-symlink file")
-    if not binary.is_absolute() or binary.is_symlink() or not binary.is_file():
-        raise FFprobeValidationError("ffprobe binary must be an absolute regular non-symlink file")
-    if (isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float))
-            or not math.isfinite(timeout_seconds) or not 1 <= timeout_seconds <= 60):
-        raise FFprobeValidationError("ffprobe timeout is outside configured limits")
-    argv = [
-        str(binary), "-v", "error", "-select_streams", "a:0",
-        "-show_entries", "stream=codec_type", "-of", "json", str(media),
-    ]
-    try:
-        completed = subprocess.run(
-            argv, shell=False, check=False, capture_output=True,
-            text=True, timeout=float(timeout_seconds),
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise FFprobeValidationError("source ffprobe exceeded its timeout") from exc
-    except OSError as exc:
-        raise FFprobeValidationError("source ffprobe could not be started") from exc
-    if completed.returncode != 0:
-        raise FFprobeValidationError("source ffprobe rejected the media file")
-    try:
-        result = json.loads(completed.stdout)
-    except (TypeError, ValueError) as exc:
-        raise FFprobeValidationError("source ffprobe returned invalid JSON") from exc
-    streams = result.get("streams") if isinstance(result, dict) else None
-    if not isinstance(streams, list) or len(streams) > 16:
-        raise FFprobeValidationError("source ffprobe returned an invalid stream list")
-    return any(isinstance(item, dict) and item.get("codec_type") == "audio"
-               for item in streams)
