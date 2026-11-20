@@ -144,6 +144,39 @@ class EDLFFmpegRendererTests(unittest.TestCase):
         self.assertIn("adelay=0|0", graph)
         self.assertIn("adelay=2000|2000", graph)
 
+
+    def test_renderer_resolves_video_assets_and_renders_title_only_segments(self):
+        font = self.root / "font.ttf"
+        font.write_bytes(b"fixture font")
+        edl = {
+            "schema": "nexus-edit-decision-list", "version": 1,
+            "timebase": "milliseconds",
+            "clips": [
+                {"id": "title1", "type": "title", "start_ms": 0,
+                 "end_ms": 1000, "text": "Opening title"},
+                {"id": "clip1", "type": "video", "asset_id": "asset1",
+                 "start_ms": 1000, "end_ms": 3000,
+                 "source_in_ms": 0, "source_out_ms": 2000},
+            ],
+        }
+        resolved = []
+        renderer = EDLFFmpegRenderer(
+            self.root / "staging", str(self.binary),
+            lambda workspace, principal, asset: resolved.append(asset) or self.video,
+            title_font_path=str(font),
+        )
+        with patch("ffmpeg_edl_renderer.subprocess.Popen", side_effect=FakeProcess) as popen:
+            result = renderer(
+                {"workspace_id": "ws1", "creator_principal_id": "principal1",
+                 "edl": edl}, threading.Event()
+            )
+        self.assertEqual(resolved, ["asset1"])
+        self.assertEqual(popen.call_count, 1)
+        graph = popen.call_args.args[0][popen.call_args.args[0].index("-filter_complex") + 1]
+        self.assertIn("drawtext=", graph)
+        self.assertIn("concat=n=2:v=1:a=0", graph)
+        self.assertTrue(Path(result["staged_path"]).is_file())
+
     def test_renderer_cancels_before_start_when_lease_is_lost(self):
         renderer = EDLFFmpegRenderer(
             self.root / "staging", str(self.binary),
