@@ -160,7 +160,7 @@ class RenderAssetStore:
         digest = hashlib.sha256()
         try:
             with tempfile.NamedTemporaryFile(
-                mode="wb", dir=directory, prefix=".render-asset-", suffix=".part", delete=False
+                mode="wb", dir=directory, prefix=".nexus-render-asset-", suffix=".part", delete=False
             ) as output:
                 temporary_path = Path(output.name)
                 async for chunk in chunks:
