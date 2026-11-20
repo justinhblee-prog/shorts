@@ -100,6 +100,10 @@ async function waitForServer() {
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
     checkpoint("authenticated dashboard loaded");
+    const authenticatedText = await page.locator("body").innerText();
+    assert.equal([...authenticatedText].filter(character => character === "\uFFFD").length, 0);
+    assert.equal(await page.locator("html").getAttribute("lang"), "ko");
+    checkpoint("authenticated Korean content has no replacement glyphs");
     const liveApiChecks = await page.evaluate(async token => {
       const paths = [
         "/api/brands",
