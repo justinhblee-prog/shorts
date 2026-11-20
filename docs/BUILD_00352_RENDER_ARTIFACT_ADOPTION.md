@@ -44,8 +44,8 @@ for compatibility.
 
 ## Remaining production gates
 
-- A concrete EDL renderer must produce the staged MP4 and call the safe audio
-  mix builder with trusted, staged inputs.
+- Run the concrete EDL renderer with pinned real FFmpeg/ffprobe binaries and
+  validate playable real-media outputs on the target worker runtime.
 - Pin FFmpeg/ffprobe versions and run them in a production-isolated container
   with CPU, memory, disk, network and process-count limits.
 - Run real-media integration and crash/lease-loss tests on the target runtime.
@@ -65,12 +65,11 @@ workspace ID into the renderer and the snapshot creator principal ID is carried
 in the internal queue payload. The `create_edl_render_worker` factory wires
 the resolver, renderer and lease-fenced artifact store together.
 
-This renderer is deliberately fail-closed and currently supports only
-contiguous, non-overlapping video clips beginning at timeline zero. It rejects
-title clips, gaps and overlaps rather than silently producing incorrect timing.
-Source-clip audio is currently omitted; audio is supplied only through the
-trusted audio-track resolver. Those EDL features need explicit semantics and
-separate implementation.
+The renderer is deliberately fail-closed. It supports video clips, black
+segments for explicit gaps, and title cards when a trusted font is configured.
+It rejects overlaps and transitions until their semantics are implemented.
+When ffprobe is configured, it validates source duration and mixes available
+source audio; separately resolved trusted audio beds can be mixed as well.
 
 The CI renderer tests use a fake subprocess executable and generated fixture
 bytes. They prove argv construction, audio-mix/mux orchestration, cancellation
