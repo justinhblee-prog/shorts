@@ -90,3 +90,10 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Removed the apt package-manager dependency from hosted UI validation. Korean text is still checked in Chromium; the browser uses installed OS fallback fonts rather than waiting on network package installation.
 
 - Follow-up CI correction: navigation browser assertions now exercise the new distinct feature anchors instead of legacy section anchors; legacy assertion caused a stale selector timeout and did not indicate a UI runtime failure.
+
+
+## Expanded timeline interaction verification — 2026-11-20
+
+- Exact code head `c34bc061f887d66bb699961f337c572462ecd4cc` passed [run 44669819398](https://github.com/justinhblee-prog/shorts/actions/runs/44669819398): 736 backend tests, frontend syntax, Chromium desktop/mobile, Korean glyph checks, authenticated review/analytics workflows and timeline interaction coverage.
+- Timeline checks verify two title clips, selection, reorder, in/out trim values, downloaded JSON EDL structure (`rendered: false`), deletion and empty-state recovery.
+- Fresh browser artifact: [14599428350](https://github.com/justinhblee-prog/shorts/actions/runs/44669819398/artifacts/14599428350). Compose integration smoke [44669819487](https://github.com/justinhblee-prog/shorts/actions/runs/44669819487) passed service startup/readiness and scheduled isolated backup/restore.
