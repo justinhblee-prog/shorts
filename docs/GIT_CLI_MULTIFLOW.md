@@ -4,7 +4,7 @@ The Git CLI multi-flow runner chains eligible BUILD tasks without asking for a n
 
 ## One-time Windows setup
 
-Install PowerShell 7 or newer and GitHub CLI (`gh`), authenticate once with `gh auth login`, and run the commands below in PowerShell 7 (`pwsh`) from the repository root. The runner requires PowerShell 7 because it uses .NET `ProcessStartInfo.ArgumentList`. The executable and argument format must match an agent CLI already installed on the machine; the runner deliberately does not assume Codex, Claude, or another vendor.
+Install PowerShell 7 or newer, Git, Python 3.11+, GitHub CLI (`gh`), and the coding-agent CLI you intend to use. Authenticate GitHub once with `gh auth login` and authenticate the Agent CLI using its own documented login flow. Run all commands in PowerShell 7 (`pwsh`) from the repository root. The runner requires PowerShell 7 because it uses .NET `ProcessStartInfo.ArgumentList`. The executable and argument format must match an agent CLI already installed on the machine; the runner deliberately does not assume Codex, Claude, or another vendor.
 
 ```powershell
 $env:DEVFLOW_AGENT_COMMAND = "C:\path\to\your-agent.exe"
@@ -52,4 +52,4 @@ The runner stores `state.json`, per-task lease files, and task prompt snapshots 
 
 ## Automated parallel integration test
 
-CI runs `scripts/test-git-cli-multiflow-parallel.ps1` on Windows PowerShell 7. The harness creates a temporary bare Git remote and isolated fixture repository, injects a fake `gh` CLI and fake Agent process, dispatches two independent tasks, and verifies overlapping Agent start times, independent pushed branches, durable `draft_pr_created` states, dependency gating, and no duplicate redispatch on a second scheduler invocation. It does not access production task entries, GitHub credentials, or create real pull requests. This verifies process-level concurrency and the worker-to-Draft-PR pipeline using local fixtures; it does not validate any particular external Agent vendor integration.
+CI also validates the Agent CLI argument contract and rejects credential-like CLI arguments. It cannot authenticate to or certify a specific third-party Agent provider. CI runs `scripts/test-git-cli-multiflow-parallel.ps1` on Windows PowerShell 7. The harness creates a temporary bare Git remote and isolated fixture repository, injects a fake `gh` CLI and fake Agent process, dispatches two independent tasks, and verifies overlapping Agent start times, independent pushed branches, durable `draft_pr_created` states, dependency gating, and no duplicate redispatch on a second scheduler invocation. It does not access production task entries, GitHub credentials, or create real pull requests. This verifies process-level concurrency and the worker-to-Draft-PR pipeline using local fixtures; it does not validate any particular external Agent vendor integration.
