@@ -11,7 +11,7 @@ import time
 
 class TimelineRenderWorker:
     def __init__(self, queue, renderer, worker_id, generation_token,
-                 heartbeat_seconds=10):
+                 heartbeat_seconds=10, artifact_store=None):
         if not callable(renderer):
             raise TypeError("renderer callback is required")
         if not worker_id or not generation_token:
@@ -23,6 +23,7 @@ class TimelineRenderWorker:
         self.worker_id = worker_id
         self.generation_token = generation_token
         self.heartbeat_seconds = heartbeat_seconds
+        self.artifact_store = artifact_store
 
     def run_once(self):
         job = self.queue.claim(
@@ -52,13 +53,25 @@ class TimelineRenderWorker:
             result = self.renderer(job["payload"], stop_event=lost)
             if lost.is_set():
                 raise RuntimeError("timeline render lease was lost")
-            self.queue.finish(
-                job["id"], self.worker_id, job["lease_token"],
-                {"render_result": result, "snapshot_id": job["payload"]["snapshot_id"],
-                 "review_required": True},
-                generation_token=self.generation_token,
-                workspace_id=job["workspace_id"],
-            )
+            if self.artifact_store is not None:
+                if not isinstance(result, dict) or "staged_path" not in result:
+                    raise RuntimeError("renderer must return staged_path when artifact adoption is enabled")
+                adopted = self.artifact_store.adopt(
+                    job["id"], self.worker_id, job["lease_token"],
+                    self.generation_token, job["workspace_id"],
+                    job["payload"]["snapshot_id"],
+                    job["payload"]["snapshot_sha256"], result["staged_path"],
+                )
+                if lost.is_set():
+                    raise RuntimeError("timeline render lease was lost")
+            else:
+                self.queue.finish(
+                    job["id"], self.worker_id, job["lease_token"],
+                    {"render_result": result, "snapshot_id": job["payload"]["snapshot_id"],
+                     "review_required": True},
+                    generation_token=self.generation_token,
+                    workspace_id=job["workspace_id"],
+                )
             return True
         except Exception as exc:
             if not lost.is_set():
