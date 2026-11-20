@@ -332,3 +332,5 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - YouTube and TikTok analytics status APIs now resolve `X-Nexus-Workspace-Id` against the authenticated operator membership.
 - Tenant status derives publication coverage only from parent production jobs in the selected workspace and deliberately omits global collector run counters/errors.
 - Added regression tests for workspace-specific coverage and unknown workspace isolation. CI validation is pending.
+
+- Analytics coverage status endpoints fail closed when `X-Nexus-Workspace-Id` is omitted; the requested workspace is checked against the authenticated operator's membership.
