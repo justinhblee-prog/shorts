@@ -283,3 +283,13 @@
 - Fix commit: `f121b08fb61008747e8d693b3186a24ba1b34ebc`.
 - New exact-head CI is pending. Do not mark recovery browser validation PASS until both browser suites and artifact upload succeed on this commit.
 - PR #415 remains Draft/open/unmerged; PR #416 remains separate. No merge, deployment, workflow activation, or default-branch change.
+
+
+## 36. Recovery browser smoke regex escaping corrected — 2026-11-20
+
+- Exact-head CI runs [44656231085](https://github.com/justinhblee-prog/shorts/actions/runs/44656231085) and [44656245665](https://github.com/justinhblee-prog/shorts/actions/runs/44656245665) both passed backend validation, frontend syntax, Chromium installation, and dashboard browser smoke, but failed when Node parsed `scripts/ui_recovery_browser_smoke.mjs`.
+- Root cause: the pagination matcher was committed with over-escaped regular-expression tokens (`\\\\d` and `\\\\/` in the JavaScript source), producing an invalid regex literal. This is a test-source syntax defect, not a product/API failure.
+- Corrected the matcher to accept decimal counts and an escaped literal slash: `/^([0-9]+) \\/ ([0-9]+)개 작업 표시$/`. The assertion still compares loaded and total counts numerically.
+- Fix commit: `5c875d25c64b252ce84553f663aee15ef1eb920e`.
+- Exact-head CI for this correction has not yet been returned. Do not mark recovery browser validation PASS until the new run completes both browser suites and artifact upload.
+- PR #415 remains Draft/open/unmerged; PR #416 remains separate. No merge, deployment, workflow activation, or default-branch change.
