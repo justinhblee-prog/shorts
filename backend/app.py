@@ -1596,7 +1596,7 @@ def list_development_jobs(
         "summary":development_job_store.summary(),
         "pagination":{
             "limit":limit,"offset":offset,"total":total,
-            "has_more":next_offset<total,
+            "has_more":bool(jobs) and next_offset<total,
             "next_offset":next_offset if next_offset<total else None,
         },
     }
