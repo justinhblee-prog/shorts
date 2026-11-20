@@ -30,6 +30,7 @@ class FFmpegAudioMixTests(unittest.TestCase):
         self.assertIn("-protocol_whitelist", argv)
         self.assertIn("file,pipe", argv)
         self.assertIn("-filter_complex", argv)
+        self.assertIn("-threads", argv)
         graph = argv[argv.index("-filter_complex") + 1]
         self.assertIn("amix=inputs=2", graph)
         self.assertIn("alimiter=limit=0.95", graph)
