@@ -137,16 +137,26 @@ def main() -> int:
  "Never modify .devflow/tasks.json, credentials, secrets, or files outside this worktree. "
  "Do not use network access, external APIs, arbitrary shell commands, deployment, or publishing. "
  "Make focused changes, inspect your diff, and run applicable predefined checks. "
- "If blocked, explain precisely; never fabricate success.")
+ "If blocked, explain precisely; never fabricate success. "
+ "If native tool calling is unavailable, request tools by returning exactly one JSON object with keys name and arguments, without Markdown.")
  messages=[{"role":"system","content":system},{"role":"user","content":f"Assigned task:\n{prompt}\n\nRepository root: {root}\nModel: {args.model}\nDo not claim checks passed unless run_check confirms exit_code=0."}]
+ empty_responses=0
  for _ in range(args.max_turns):
   msg=(chat(args.model,messages).get("message") or {})
   calls=msg.get("tool_calls") or []
   if not calls:
-   calls=parse_text_tool_call(str(msg.get("content", "")))
+   content=str(msg.get("content", ""))
+   calls=parse_text_tool_call(content)
    if not calls:
+    if not content.strip():
+     empty_responses += 1
+     if empty_responses <= 2:
+      messages.append({"role":"assistant","content":""})
+      messages.append({"role":"user","content":"Your previous response was empty. Continue the assigned implementation now. Use one available tool. If tool calling is unavailable, output exactly one JSON object such as {\\\"name\\\":\\\"list_files\\\",\\\"arguments\\\":{\\\"path\\\":\\\".\\\"}} with no Markdown."})
+      continue
+     print("Agent repeatedly returned an empty response; refusing to report success.",file=sys.stderr); return 4
     messages.append(msg)
-    print(msg.get("content","(Agent returned no final text.)")); return 0
+    print(content); return 0
    # Normalize JSON-in-text calls to Ollama's native tool-call message shape.
    msg={"role":"assistant","content":"","tool_calls":calls}
   messages.append(msg)
