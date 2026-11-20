@@ -129,3 +129,5 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - Code commits: `cb627da0ae91934ccebbcc3cb602054efd78b39c`, `03bb8a8cf23ecf5d98468696e5ca35b7cc19d029`.
 - CI runs 44652238309, 44652246574, 44652255170 are pending exact-head completion; no PASS is claimed yet.
 - Remaining UI refinement: visually communicate dependency edges/ancestors and explicitly represent prerequisite IDs not included in the current API page.
+
+- Follow-up UI refinement: prerequisite chips are keyboard-operable navigation controls that scroll to and focus the persisted parent job card; unresolved IDs outside the current page are visibly labeled. Static frontend assertions and Chromium click/Enter checks were added.
