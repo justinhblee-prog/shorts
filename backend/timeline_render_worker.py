@@ -5,6 +5,7 @@ completion as proof of publication; successful renders enter review_pending.
 """
 from __future__ import annotations
 
+import inspect
 import threading
 
 
@@ -49,7 +50,23 @@ class TimelineRenderWorker:
         heartbeat = threading.Thread(target=beat, daemon=True)
         heartbeat.start()
         try:
-            result = self.renderer(job["payload"], stop_event=lost)
+            try:
+                parameters = inspect.signature(self.renderer).parameters.values()
+                accepts_context = any(
+                    item.name in {"workspace_id", "principal_id"}
+                    or item.kind == inspect.Parameter.VAR_KEYWORD
+                    for item in parameters
+                )
+            except (TypeError, ValueError):
+                accepts_context = False
+            if accepts_context:
+                result = self.renderer(
+                    job["payload"], stop_event=lost,
+                    workspace_id=job["workspace_id"],
+                    principal_id=job["payload"].get("creator_principal_id"),
+                )
+            else:
+                result = self.renderer(job["payload"], stop_event=lost)
             if lost.is_set():
                 raise RuntimeError("timeline render lease was lost")
             if self.artifact_store is not None:
