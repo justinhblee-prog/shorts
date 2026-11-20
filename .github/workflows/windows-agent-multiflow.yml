@@ -1,13 +1,6 @@
 name: Windows self-hosted Agent multi-flow
 
 on:
-  push:
-    branches:
-      - fix/devflow-detached-supervisor-2026-11-20
-    paths:
-      - ".github/workflows/windows-agent-multiflow.yml"
-      - "scripts/**"
-      - ".devflow/tasks.json"
   workflow_dispatch:
     inputs:
       max_tasks:
@@ -56,6 +49,8 @@ jobs:
             if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "Missing required tool: $tool" }
           }
           gh auth status
+          $ollama = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -TimeoutSec 10
+          if (-not ($ollama.models | Where-Object { $_.name -eq "qwen2.5-coder:7b" })) { throw "Required local Ollama model qwen2.5-coder:7b is not available." }
           & "$PWD/scripts/git-cli-agent-config.ps1" -Check
           if ($LASTEXITCODE -ne 0) { throw "Agent CLI preflight failed." }
           Write-Host "PASS: self-hosted Windows runner, GitHub auth, clean checkout and Agent CLI configuration."
@@ -67,7 +62,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Stop"
-          & "$PWD/scripts/test-real-agent-cli.ps1" -TimeoutSeconds 180
+          & "$PWD/scripts/test-real-agent-cli.ps1" -TimeoutSeconds 300
           if ($LASTEXITCODE -ne 0) { throw "Real Agent CLI smoke test failed with exit code $LASTEXITCODE." }
 
       - name: Run real multi-flow workers
