@@ -329,3 +329,10 @@
 - Added one shared in-flight promise for all development-job page loads. Concurrent refresh/load-more/prerequisite actions now await the same request. Refresh and load-more controls are disabled while the request is active and restored in `finally`, including failure paths.
 - Chromium recovery smoke now deliberately double-clicks a prerequisite while the next-page request is delayed, asserts exactly one API request, confirms controls are disabled in flight and re-enabled afterward, and verifies the target parent is focused.
 - Added static frontend assertions for the in-flight promise guard and disabled-control lifecycle. Exact-head CI pending; do not report this increment validated until both browser suites and backend validation pass.
+
+## 41. Pagination duplicate-request guard — validation result — 2026-11-20
+
+- Exact code head `cd15e38c2154e4c219e8d9083087d456fd026022` passed the complete PR workflow in [run 44658960036](https://github.com/justinhblee-prog/shorts/actions/runs/44658960036): `scripts/validate.sh` passed 898 backend tests, frontend JavaScript syntax passed, dashboard Chromium smoke passed, recovery/workstream/dependency/pagination Chromium smoke passed, and browser artifacts uploaded [14594781618](https://github.com/justinhblee-prog/shorts/actions/runs/44658960036/artifacts/14594781618).
+- The first regression-smoke attempt failed because the test's Playwright route matcher was incorrectly escaped as a regular-expression literal. Corrected the matcher and reran the full exact-head workflow; the final run above passed. This was a test-harness syntax issue, not an application runtime failure.
+- The delayed-response double-click regression now confirms one page request for two rapid prerequisite clicks, disabled pagination controls while pending, re-enabled controls after settlement, and correct parent-card focus.
+- FLOW-UI/FLOW-QA: PASS for hosted Chromium fixture. No production/Windows/Ollama claims are implied.
