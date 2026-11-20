@@ -1,0 +1,349 @@
+# NEXUS STUDIO PRO — Development Job Orchestration
+
+**Checkpoint:** BUILD-00320 (Windows local-runner toolchain and Python isolation)  
+**Updated:** 2026-11-19  
+**Repository:** https://github.com/justinhblee-prog/shorts  
+**Status:** BUILD-00319 exact PR head `95844080e8635354ab8f8e2511c4b64b5bfe91ae` passed GitHub Actions run [44437965780](https://github.com/justinhblee-prog/shorts/actions/runs/44437965780). BUILD-00320 exact PR head `d91bab89b2659b2080c7f0749291fbee240b2ccd` passed GitHub Actions run [44472930435](https://github.com/justinhblee-prog/shorts/actions/runs/44472930435): 764 backend tests, repository validation, and frontend syntax check. Live Windows runner/Ollama execution remains unverified.
+
+## 1. Why this exists
+
+The development process must be driven by a durable job graph, not by repeated chat prompts or a model being invoked on a timer. A workflow run is not a completed development job. A job is complete only when its source change, regression test, validation result, and review artifact are recorded and independently verifiable.
+
+This is a development-control plane. It is separate from the product's existing content-production queue and recurring publishing scheduler.
+
+## 2. Verified repository baseline (2026-11-17)
+
+- Default branch is `main`; the repository is Python-based.
+- `main` contains the product runtime queue and scheduler: `backend/queue_store.py`, `backend/scheduler.py`, and `backend/scheduler_store.py`. These manage content-production work and scheduled production dispatch, not the engineering backlog.
+- The bootstrap local-model workflow and `nexus-development-job-worker.yml` scheduled worker workflow exist only on development branches/Draft PRs until reviewed and merged. Their schedules are not active from `main` yet.
+- Workflow run [44061280928](https://github.com/justinhblee-prog/shorts/actions/runs/44061280928) completed with a successful Actions conclusion. The agent step and focused queue test step completed, but the workflow detected no meaningful product diff and skipped Draft PR creation. This is an automation execution, not a delivered code change.
+- Open Draft PRs #313–#318 form a sequential development branch chain. Each PR's base is the preceding development branch; they must be reviewed and validated in dependency order.
+- Open Draft PRs #319 and #320 each contain only a one-line `.gitignore` change (`.aider*`) and are not evidence of product development. Keep them Draft; do not merge them as feature work.
+- GitHub reports 208 open issues, but that count includes pull requests and must not be represented as 208 remaining development tasks.
+- Current self-hosted runner availability was not established by the read-only evidence. A completed past run does not prove a runner is online now.
+
+## 3. Target operating model
+
+1. **Discover:** collect open issues, Draft PRs, repository roadmap, TODO/FIXME markers, test gaps, and known deployment blockers.
+2. **Normalize:** convert findings into stable job IDs; deduplicate by scope and affected files; link each job to source evidence.
+3. **Plan:** define prerequisites, conflict domains, priority, risk, acceptance criteria, and validation commands.
+4. **Schedule:** select only jobs whose prerequisites are complete; run independent jobs in parallel only when their file/resource conflict sets do not overlap.
+5. **Lease:** atomically claim each job with owner, lease expiry, heartbeat, and fencing token; prevent duplicate execution.
+6. **Execute:** give each worker one bounded job, exact scope, repository state, and required evidence.
+7. **Verify:** require a meaningful source diff AND a regression test, run the relevant suite, inspect the diff, and record CI evidence. No-op runs are failed/no-op jobs, never completions.
+8. **Review:** publish Draft PRs only. Never auto-merge, close, deploy, publish, or alter secrets.
+9. **Advance:** after a job passes its completion gate, unlock dependent jobs automatically. Retry transient failures with bounded backoff; quarantine repeated or ambiguous failures.
+10. **Observe:** expose truthful states, worker heartbeats, active leases, changed paths, test outcomes, PR links, and blockers in the dashboard.
+
+## 4. Initial job graph
+
+The following are implementation jobs for the engineering automation itself. They are not claims that the product backlog has been fully inventoried.
+
+| Job ID | Work item | Depends on | Completion evidence |
+|---|---|---|---|
+| DEV-ORCH-001 | Persist normalized development jobs, source references, dependencies, and status history | — | schema + migration + repository tests |
+| DEV-ORCH-002 | Implement dependency-aware ready-job selection and cycle detection | 001 | deterministic scheduler tests |
+| DEV-ORCH-003 | Add atomic leases, heartbeat, expiry recovery, and fencing | 001, 002 | concurrent claim and stale-worker tests |
+| DEV-ORCH-004 | Implement bounded worker execution contract and result/evidence recording | 001–003 | worker lifecycle tests |
+| DEV-ORCH-005 | Add completion gate: source diff, regression test, validation, and review artifact required | 004 | no-op and test-only rejection tests |
+| DEV-ORCH-006 | Add retry/backoff, dead-letter/quarantine, and operator recovery | 001–005 | retry/recovery/idempotency tests |
+| DEV-ORCH-007 | Connect GitHub Issues/PRs/Actions as read-only evidence sources; reconcile without auto-merging | 001–006 | fixture-backed integration tests |
+| DEV-ORCH-008 | Add truthful development-job API and dashboard view | 001–007 | API/UI tests and live-state contract |
+| DEV-ORCH-009 | Wire scheduled/manual GitHub Actions dispatch and prove autonomous continuation on the default branch | 001–008 | observed end-to-end run creating a real Draft PR from a meaningful code+test diff |\n| DEV-ORCH-010 | Verify real Ollama worker end-to-end execution and dependent-job advancement | 009 | real model-generated product diff, passing tests, Draft PR, and unlocked dependent job |
+
+### Product backlog intake (separate graph)
+
+After the control plane is reliable, create product jobs from the actual open PR/issue inventory and the BUILD roadmap. Preserve the existing PR dependency chain (#313 → #314 → #315 → #316 → #317 → #318) for review; do not silently retarget or merge it. Inspect each PR's diff and CI before classifying it as ready, blocked, duplicate, or incomplete. The two no-op automation PRs (#319/#320) remain excluded from feature-completion counts.
+
+## 5. Job state machine
+
+`discovered → ready → leased → running → verifying → review_pending → completed`
+
+Failure paths:
+
+- transient failure: `running → retry_wait → ready` (bounded attempts and backoff)
+- lease loss: `leased/running → lease_expired → ready` only after fencing old worker writes
+- repeated/ambiguous failure: `failed → quarantined` pending operator review
+- no meaningful diff: `verifying → no_op` (not completed)
+- tests fail: `verifying → retry_wait` or `quarantined`, depending on failure class
+- external approval/security/cost/data-loss decision: `blocked_external`
+
+All state changes must be append-only in the job event history and guarded by compare-and-swap/fencing semantics.
+
+## 6. Parallelism rules
+
+- Parallelize only jobs with satisfied dependencies and disjoint declared write/resource scopes.
+- Canonicalize approved symlink targets and compare scopes using normalized separators, dot segments and case-folding; unsafe, absolute or traversal scopes conflict conservatively with all other scopes.
+- Serialize changes to shared schemas, migrations, central API contracts, workflow files, and the same feature module unless an explicit integration plan exists.
+- Reserve an integration job to reconcile parallel outputs and run the full validation suite.
+- Limit concurrency by available trusted workers and resource budget; never equate multiple agent invocations with useful parallel progress.
+
+## 7. Safety and truthfulness gates
+
+- Least-privilege GitHub permissions; no secrets in prompts, logs, or browser code.
+- Draft PR only; no auto-merge or auto-deploy.
+- Do not execute untrusted PR code on the self-hosted runner.
+- No destructive migrations, data resets, external publishing, or paid-provider calls without explicit approval.
+- Report the exact changed files, commit, PR, tests, and unresolved blockers for every completed stage.
+- Distinguish workflow success, test success, code-change success, and product/runtime validation.
+- Never claim background continuation unless a scheduled workflow is on the default branch, a trusted runner is online, and an actual subsequent run is observed.
+
+## 8. Implemented prototype and remaining gates
+
+The current Draft PR #321 contains the following prototype components:
+
+- `backend/development_jobs.py`: SQLite-backed job graph, dependency checks, leases, heartbeat/fencing, append-only events, retry/quarantine, and completion evidence gate.
+- `backend/development_job_worker.py`: bounded worker lifecycle, heartbeat, retries, and idle polling; a cycle stops after any claimed job attempt so a second task cannot run against validated or partial worktree changes.
+- `backend/tests/test_development_worker_workflow_contract.py`: regression checks for the two-hour schedule, manual dispatch, trusted runner/model, split GitHub credentials, and stable Draft PR branch.
+- `backend/development_github_intake.py`: read-only GitHub Issues/PR/Actions intake, deduplication, and explicit per-issue file-scope approval.
+- `backend/development_backlog_service.py`: sync → register → worker cycle coordinator.
+- `backend/run_development_agent.py`: one-cycle runner that seeds the engineering graph and injects the local Aider/Ollama executor.
+- `backend/development_agent_executor.py`: constrained Aider executor with protected-path checks, credential-stripped child environment, scoped diff check, and repository validation.
+- `.github/workflows/nexus-development-job-worker.yml`: scheduled/manual self-hosted runner workflow, Draft PR creation, and a post-publication verification step using the action's exact PR URL/head SHA outputs.
+- Automated Draft PR publication reuses the stable `automation/nexus-development-cycle` branch so scheduled runs update the same review surface instead of creating a new PR branch every cycle.
+- `backend/app.py` and `frontend/app.js`: authenticated read-only development-job API and live status/event panel; lease tokens and raw error details are redacted. `backend/tests/test_development_job_api_security.py` covers the access-control and redaction contract.
+- The monitor summary now reports active and expired lease counts, latest update time, and the most recent successful validation reference; the UI exposes these alongside the job list.
+- `development_workers` persists runner presence, hostname, active job, last-seen heartbeat, and clean shutdown state. The authenticated `/api/development/workers` endpoint and monitor distinguish online from stale/offline workers.
+
+The new runner and workflow are code-level implementations, not proof of autonomous operation. CI on hosted Linux validates the Python code and fixtures; it does not validate the Windows self-hosted runner, Ollama availability, real model edits, GitHub token permissions, or scheduled execution from `main`.
+
+Before enabling the workflow on the default branch, configure `NEXUS_GITHUB_READ_TOKEN` as a fine-grained token limited to read-only Issues, Pull requests, Actions, and repository metadata. Configure `NEXUS_APPROVED_SCOPES` only with explicitly approved issue-to-path mappings. The workflow's built-in `GITHUB_TOKEN` is kept separate and is used only by the Draft-PR publication action.
+
+### Persistent runner state (BUILD-00316)
+
+The development-job database must survive separate scheduled GitHub Actions jobs. The workflow now sets `NEXUS_DEVELOPMENT_DB` to `%LOCALAPPDATA%\NexusStudioPro\shorts\development.sqlite3` (falling back to `%USERPROFILE%\AppData\Local`) before the worker starts. This path is outside `GITHUB_WORKSPACE`, because the checkout action cleans the workspace and would otherwise remove an untracked SQLite file between runs.
+
+Use one trusted persistent Windows runner host/account for this local database. Multiple runners with the same label would have separate local job graphs; no shared database or off-host backup is provided by this change. The database contains engineering job state and audit events, not product media or provider credentials. Do not delete the LocalAppData directory as part of routine runner cleanup.
+
+The workflow-contract test checks that the path is configured before the worker cycle and is outside the checkout. Hosted CI does not prove that the Windows runner actually reuses the database across separate runs; that remains an end-to-end release gate.
+
+### BUILD-00317 — exact Draft PR review-artifact completion gate
+
+The worker now records validated source changes as review_pending; this state is not terminal and does not unlock dependent jobs. The worker releases its lease but keeps the file scope reserved, and it stops after the first changed job in a cycle so another job cannot run against the same uncommitted worktree.
+
+After peter-evans/create-pull-request@v7 runs, backend/publish_development_reviews.py performs GET-only GitHub API verification. It checks that the returned PR belongs to the configured repository, is open, unmerged and Draft, targets the default branch, uses the expected automation head branch, and has the exact head SHA returned by the action. It then reads the complete PR file list and requires every changed path recorded for the job to be present before DevelopmentJobStore.publish_review_artifact records the PR URL/head SHA and transitions the job to completed.
+
+If the action returns no PR URL/head SHA, the PR is not Draft/open, the head SHA changes, the base/head branch differs, the API read fails, or a changed file is missing, the job remains review_pending; dependent jobs remain blocked. No PR mutation, approval, merge, deployment or public publishing is performed by the verification script.
+
+Regression coverage includes successful publication, missing files, head-SHA mismatch, non-Draft/closed PR, branch/base mismatch, repository mismatch, idempotent same-head recording, dependency blocking until publication, review-pending scope reservation, and one changed job per worker cycle. Hosted CI remains fixture-backed; it does not prove the Windows runner or real Ollama execution.
+
+### BUILD-00318 — safe orphaned review_pending recovery
+
+Implemented on `build/build-00318-orphaned-review-pending-recovery`; see [BUILD_00318.md](BUILD_00318.md).
+
+- Added paginated read-only discovery of open pull requests and a recovery path for the stable automation branch.
+- Recovery requires exactly one open, unmerged Draft PR with the expected head/base repositories and branch names. It then re-reads that exact PR and verifies the full head SHA and every changed file through the existing publication gate.
+- Zero or multiple matching PRs leave the job and immutable event history unchanged.
+- Added `backend/recover_development_reviews.py` and a manual `workflow_dispatch` mode named `recover`. This mode skips Aider/Ollama execution and Draft PR creation.
+- No automatic requeue, branch mutation, PR mutation, merge, or deployment is performed. A no-match case requires operator inspection of the persistent runner worktree/branch before any separate requeue decision.
+- Regression tests cover exact recovery, no-match preservation, ambiguous candidates, and no-op when there are no pending jobs. CI and live self-hosted-runner verification remain pending.
+
+### BUILD-00319 — bounded autonomous continuation
+
+Implemented on `build/build-00319-bounded-autonomous-continuation`.
+
+- Added a `remaining_cycles` workflow-dispatch input (default 5, hard maximum 10).
+- After a development run produces or updates the stable Draft PR, and only after the exact PR URL/head SHA review-artifact step succeeds, the workflow dispatches the same workflow again on the default branch with the remaining count decremented.
+- Each invocation remains one bounded development cycle. The worker stops after the first changed job because the worktree must be published and verified before another job can safely use it.
+- A run with no new PR change, missing PR evidence, failed validation, or recovery-only mode does not dispatch another development run.
+- The chain is serialized by the existing workflow concurrency group. It never merges, deploys, or publicly publishes.
+- The scheduled workflow remains a two-hour fallback. This is bounded chained continuation, not an always-on daemon and not proof of a live runner. It still requires this workflow to be merged into `main`, a continuously available trusted Windows runner with Ollama/Aider, and correctly configured GitHub secrets/permissions.
+- The workflow contract test covers the bounded decrement, maximum, verified-PR gating, and dispatch endpoint.
+
+### Remaining ordered gates
+
+1. Review the stacked control-plane PR chain (#321 → #328) in dependency order; no PR is merged without explicit user approval.
+2. After the workflow is deliberately integrated into main, configure the fine-grained NEXUS_GITHUB_READ_TOKEN and explicit NEXUS_APPROVED_SCOPES mappings.
+3. Verify the trusted Windows self-hosted runner toolchain, isolated Python environments, Ollama model access, and persistent LocalAppData database across at least two separate workflow runs.
+4. Verify a real Ollama-generated scoped diff, exact open Draft PR publication, successful review-artifact recording, and dependent-job advancement.
+5. Verify the read-only API/dashboard against that real runner cycle; then continue product integration and the remaining release gates.
+
+
+### BUILD-00320 — Windows runner preflight and isolated Python environments
+
+Implemented on `build/build-00320-windows-validation-shell-preflight` (Draft PR #328).
+
+- Fail fast before model execution unless the trusted Windows runner has Python 3.11+, Git Bash/POSIX sh, Node.js 18+, a responding loopback Ollama API, and the exact `qwen2.5-coder:7b` model tag.
+- Replace substring model matching with exact CLI/API tag checks so similarly named variants cannot satisfy the runtime gate.
+- Create separate per-run workspace virtual environments for backend requirements and Aider. Do not install backend or Aider packages into the runner user's global/user Python site-packages.
+- Add both ephemeral virtual-environment folders to `.gitignore`; this is required so the worker's clean-worktree guard and changed-file scope check do not treat installed packages as model-generated changes.
+- Pass the backend interpreter explicitly through `NEXUS_BACKEND_PYTHON` and the Aider executable through `NEXUS_AIDER_EXECUTABLE`; repository validation therefore uses the backend dependency environment while Aider remains isolated.
+- Add PyYAML as an explicit backend validation dependency because `scripts/validate.sh` parses `compose.yaml`.
+- Add workflow-contract tests and executor tests for the explicit Aider path. Draft PR #328 initial implementation head `d91bab89b2659b2080c7f0749291fbee240b2ccd` passed run [44472930435](https://github.com/justinhblee-prog/shorts/actions/runs/44472930435) (764 tests). The later code/test head `0e66b04125709c73e415e71c6e2e7a11c2c91fb2` passed exact-head run [44473385233](https://github.com/justinhblee-prog/shorts/actions/runs/44473385233) (765 tests). This is hosted CI only; it does not prove the owner's Windows runner, Ollama model, or local disk persistence.
+
+
+### BUILD-00321 — preserve paginated GitHub Actions run intake
+
+A code audit found that `GitHubReadOnlyClient._get_pages` already unwraps the Actions API response envelope and flattens paginated workflow-run rows. `list_workflow_runs` then attempted to unwrap `workflow_runs` a second time, silently dropping every real workflow run from the development-agent intake snapshot. This hid failed/in-progress Actions evidence from the job orchestrator.
+
+The fix returns the flattened rows directly. Regression coverage uses two realistic GitHub Actions response envelopes connected by a Link `rel="next"` header, verifies both workflow runs/conclusions are retained, and asserts both HTTP requests are GET-only. The previous unit fixture was corrected to match the shared helper's real return contract. This does not change issue import rules or allow workflow runs to become executable jobs; they remain evidence context only. Exact-head backend CI passed run [44508180651](https://github.com/justinhblee-prog/shorts/actions/runs/44508180651); live self-hosted-runner behavior remains unverified.
+
+
+### BUILD-00355 — global GitHub issue deduplication
+
+The intake no longer derives global idempotency from `store.list(limit=500)`, which was only a bounded display/queue page. The job store now has a partial index on non-null `source_ref`, an indexed lookup method, and a duplicate check for `github:issue:` references inside the `BEGIN IMMEDIATE` job-creation transaction. Seeded documentation references retain their existing non-unique semantics. The intake checks the full store and treats a conflict discovered after its preflight read as a duplicate skip. Tests cover an imported issue outside the first 500 ordered jobs and a simulated concurrent insertion between preflight and create. Exact-head backend CI passed run [44510490935](https://github.com/justinhblee-prog/shorts/actions/runs/44510490935) with 768 tests; live runner operation is not claimed.
+
+
+### BUILD-00356 — bounded GitHub backlog pagination
+
+The read-only intake client now caps each Issues, PR and Actions feed at five 100-record pages. This avoids fetching thousands of historical Actions runs on every scheduled cycle. The snapshot records a per-feed truncation flag and the backlog sync response exposes it; operators can distinguish a complete snapshot from a capped one. The client also rejects pagination links that point outside the GitHub API host. Tests cover the five-page stop and metadata propagation. Exact-head backend CI passed run [44511056511](https://github.com/justinhblee-prog/shorts/actions/runs/44511056511) with 771 tests; no live GitHub rate-limit or self-hosted runner execution is claimed.
+
+
+### BUILD-00357 — GitHub repository path validation
+The read-only intake now validates owner and repository as separate single path segments before constructing GitHub API URLs. Traversal-like segments, slashes, whitespace, query and fragment delimiters are rejected before network access; valid organization/repository names containing supported hyphens, underscores and dots remain accepted. Exact-head backend CI passed run [44511457164](https://github.com/justinhblee-prog/shorts/actions/runs/44511457164) with 773 tests.
+
+
+### BUILD-00366 — explicit file and directory scope semantics
+Approved existing directory paths are normalized to a trailing slash against the trusted repository root before backlog import. A trailing slash is the only recursive-scope marker at the durable evidence gate; file scopes, including extensionless files such as `LICENSE`, authorize only that exact path. The executor and SQLite `mark_review_pending` gate enforce the same rule. Traversal and symlink escapes remain rejected by executor path validation.
+
+
+### BUILD-00368 — fail closed when lease heartbeat is uncertain
+- A heartbeat database/transport exception now marks the lease as lost immediately; it is not treated as a harmless transient error while a long-running executor keeps editing.
+- Cancellable executors receive a cancellation signal. The Aider executor checks it before each subprocess and while waiting, then terminates the active process group and rejects subsequent commands.
+- A job whose lease becomes uncertain is not advanced to review_pending. It remains under durable lease fencing and can be reclaimed only through the existing expiry/recovery path.
+- Regression coverage includes a heartbeat transport failure and active child-process cancellation. Exact-head hosted CI pending; Windows process-tree semantics and real runner behavior remain separate integration gates.
+
+
+### BUILD-00368 — hosted regression result
+Exact code head `f6c69af52204ebfccce88a48114291c4fb6946e8` passed GitHub Actions Backend tests run [44530628392](https://github.com/justinhblee-prog/shorts/actions/runs/44530628392): **797 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Heartbeat transport failure and active child-process cancellation tests passed. Hosted Linux only; Windows self-hosted process-tree behavior and live runner recovery remain separate integration gates.
+
+
+### BUILD-00368 — final heartbeat-loss validation
+Updated code head `076ac8733ab003af15c675426524c7bcd465f1f8` passed GitHub Actions Backend tests run [44531177231](https://github.com/justinhblee-prog/shorts/actions/runs/44531177231): **798 tests**, `scripts/validate.sh` and `node --check frontend/app.js`. Transport/database heartbeat errors and definitive fencing-token rejection both cancel the executor; active child-process cancellation passed. Hosted Linux only; Windows runner behavior remains a separate gate.
+
+
+### BUILD-00369 — normalize stale completion-fence rejection
+- Treat `DevelopmentJobConflict` from the durable `mark_review_pending` gate as a normal `lease_lost` outcome, including expiry/fencing that occurs after the executor returns but before evidence persistence.
+- Preserve the durable store's fencing checks; no stale worker can write review-pending evidence.
+- Add regression coverage proving the runner returns normally and the job remains unadvanced when the completion fence rejects the worker. Exact-head hosted CI pending.
+
+
+### BUILD-00370 — redact at the durable evidence boundary
+- Apply the shared redactor within `DevelopmentJobStore.mark_review_pending` and `fail`, not only in the Worker wrapper.
+- Sanitize validation references, successful result summaries, failure summaries and immutable event payloads before they are committed to SQLite.
+- Add direct-store tests that inject token and database credential strings and verify neither job records nor event history retain the values. Exact-head hosted CI pending.
+
+
+### BUILD-00370 — direct persistence validation
+Code head `d6af913a2325a4a390f9bcb788f473670cf018b4` passed GitHub Actions run [44532160221](https://github.com/justinhblee-prog/shorts/actions/runs/44532160221): **800 tests**, `scripts/validate.sh` and frontend syntax validation. Direct-store tests confirm redaction at the final SQLite write boundary for successful evidence, failure evidence and immutable event details. Hosted Linux only.
+
+
+### BUILD-00371 — preserve safe context after redaction
+- Match only the credential value following a sensitive key; do not redact every subsequent character in the diagnostic.
+- Support quoted JSON strings, unquoted credential tokens and multiline JSON object values.
+- Preserve following workflow-stage/error context while keeping credential values and service-account payloads redacted. Exact-head hosted CI pending.
+
+
+### BUILD-00371 — exact-head redaction regression result
+PR code head `72a5f89ef332b717222d1c68d792483cd9524cf1` passed GitHub Actions run [44532715391](https://github.com/justinhblee-prog/shorts/actions/runs/44532715391): **802 tests**, `scripts/validate.sh` and frontend syntax validation. Safe diagnostic context after inline and multiline credential values is preserved.
+
+
+### BUILD-00372 — redact imported backlog text
+- Apply the shared redactor inside `DevelopmentJobStore.create` to title, description and each acceptance criterion before the INSERT.
+- Cover both GitHub issue intake and direct store callers at the final persistence boundary.
+- Preserve non-sensitive task instructions and source-reference identity; redact credential-bearing text before durable storage. Exact-head hosted CI pending.
+
+
+### BUILD-00372 — exact-head backlog sanitization result
+Code head `43b223c49f4e95f4bb830476b259bebcbb16e6df` passed GitHub Actions run [44533179406](https://github.com/justinhblee-prog/shorts/actions/runs/44533179406): **803 tests**, `scripts/validate.sh` and frontend syntax validation. Imported titles, descriptions and acceptance criteria are redacted before SQLite persistence.
+
+
+### BUILD-00372 — preserve leading backlog context
+- Redact the complete description/acceptance value before applying storage bounds.
+- Keep the leading 8,000 description characters and 2,000 characters per acceptance item so issue summaries and initial requirements remain visible.
+- Add tests for the bounded prefix behavior. Updated exact-head hosted CI pending.
+
+
+### BUILD-00372 — final exact-head result
+Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [44533656519](https://github.com/justinhblee-prog/shorts/actions/runs/44533656519): **804 tests**, `scripts/validate.sh` and frontend syntax validation. Backlog credentials are redacted and field bounds preserve the leading issue summary and acceptance context.
+
+
+### BUILD-00378 — redact imported source references
+- Sanitize `source_ref` before SQLite persistence and before writing the immutable creation event.
+- Use the sanitized value for GitHub issue source-reference duplicate checks so the persisted identity and deduplication identity match.
+- Add regression coverage for secret removal from both the job row and event history, plus duplicate handling.
+- Draft PR #374: https://github.com/justinhblee-prog/shorts/pull/374. Code head `2c1342338cd6a0cb978cd8e575fc3eb18dd4f2d4` passed GitHub Actions runs [44535753188](https://github.com/justinhblee-prog/shorts/actions/runs/44535753188) and [44535765648](https://github.com/justinhblee-prog/shorts/actions/runs/44535765648): backend validation, `scripts/validate.sh`, and `node --check frontend/app.js` all passed. Hosted Linux only; Windows local-runner and production execution remain unverified. No Windows local-runner execution is claimed.
+- Apply the same sanitization in `source_ref_exists` so preflight duplicate checks compare against the stored canonical value.
+
+
+## BUILD-00379 — validate imported repository identity
+- Reject malformed repository owner/name values in `normalize_issue` before constructing a durable source reference or fallback GitHub URL.
+- Reuse the same owner/repository segment rules as the read-only GitHub API path validator.
+- Add regressions for traversal, extra path segments, query injection, empty segments and newline injection. Code head `7d55d319ad512f885f7a12dccae315c34766e44f` passed GitHub Actions run [44537566649](https://github.com/justinhblee-prog/shorts/actions/runs/44537566649): **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js`. Hosted Linux only; Windows local-runner and production execution remain unverified.
+
+- Stabilize the existing TikTok poll-backoff regression by using 30/65-second and 90/125-second test timestamps around the 60/120-second thresholds, avoiding a wall-clock scheduling race caused by second-resolution SQLite timestamps.
+
+
+### BUILD-00379 — final exact-head validation
+- Final head `42d29e6d438c97da338764de72149ebbacf69151` passed **806 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538127436](https://github.com/justinhblee-prog/shorts/actions/runs/44538127436) and [44538117994](https://github.com/justinhblee-prog/shorts/actions/runs/44538117994).
+- Both exact-head runs passed after stabilizing the TikTok poll-backoff test's time-boundary fixtures. Hosted Linux only; Windows local-runner and production execution remain unverified.
+
+
+## BUILD-00380 — fence worker-presence heartbeats after shutdown
+- Add a presence heartbeat update that succeeds only while the worker remains online with the same active job ID.
+- Prevent a delayed heartbeat thread from resurrecting an offline worker or restoring a stale `current_job_id` after the worker has cleared its job and stopped.
+- Add a regression that blocks a heartbeat across shutdown and verifies the late completion cannot reactivate presence. Exact-head CI pending.
+
+
+### BUILD-00380 — exact-head validation
+- Code head `cefe34668203cf922f50688b4bcff7c246712123` passed **807 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44538922403](https://github.com/justinhblee-prog/shorts/actions/runs/44538922403) and [44538962283](https://github.com/justinhblee-prog/shorts/actions/runs/44538962283).
+- The delayed-heartbeat shutdown regression passed in both runs. Hosted Linux only; Windows local-runner and production execution remain unverified.
+
+
+## BUILD-00381 — case-insensitive scope conflict detection
+- Compare normalized scope paths with `casefold()` before detecting equal, parent/child and directory/file conflicts.
+- This prevents parallel job leases from treating differently cased Windows paths as disjoint when they refer to the same physical file.
+- Add regression coverage for case-only file differences, directory casing and independent paths. Exact-head CI pending.
+
+- Normalize slash direction, repeated separators and `.` segments, then compare scope paths with `casefold()` before checking exact, parent/child and directory/file conflicts. Unsafe/absolute/traversal scopes conservatively conflict with every other scope.
+
+
+### BUILD-00381 — exact-head validation
+- Final head `d28864929dbaf71e4aed68f6f07127112455b0a3` passed **808 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44539840507](https://github.com/justinhblee-prog/shorts/actions/runs/44539840507) and [44539829594](https://github.com/justinhblee-prog/shorts/actions/runs/44539829594).
+- The Windows case/separator/traversal scope-conflict regression passed in both runs. Hosted Linux only; actual Windows multi-runner scheduling remains unverified.
+
+
+## BUILD-00382 — canonicalize approved symlink scopes
+- Resolve approved scope paths to their canonical repository-relative targets before they are persisted in the durable job graph.
+- Ensure symlink aliases to the same file or directory reserve the same scheduler write scope, preventing parallel jobs from bypassing overlap detection.
+- Add file and directory symlink regressions. Exact-head CI pending.
+
+
+### BUILD-00382 — exact-head validation
+- Code head `a94482501ac192c11039bb9cb8974ee47df8575e` passed **809 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44540567494](https://github.com/justinhblee-prog/shorts/actions/runs/44540567494) and [44540594755](https://github.com/justinhblee-prog/shorts/actions/runs/44540594755).
+- The approved file/directory symlink alias canonicalization regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.
+
+- Add a concurrent two-worker scheduler regression proving differently cased/backslash-vs-slash aliases cannot both be claimed at once.
+
+
+### BUILD-00382 — final exact-head validation
+- Final head `dbcbf2d54a21ae78380b282faaeeb213eed76c3d` passed **810 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44541640154](https://github.com/justinhblee-prog/shorts/actions/runs/44541640154) and [44541653671](https://github.com/justinhblee-prog/shorts/actions/runs/44541653671).
+- Both the approved symlink-alias canonicalization test and concurrent worker scope-alias claim regression passed in both runs. Hosted Linux only; Windows self-hosted symlink/junction behavior remains unverified.
+
+
+## BUILD-00383 — align executor scope matching with Windows path semantics
+- Normalize path separators and case before checking whether a changed file is within its declared scope.
+- Keep explicit directory markers mandatory for recursive matching.
+- Add regressions for case-only file names, case-insensitive directories, backslash input and extensionless file containment. Exact-head CI pending.
+
+
+### BUILD-00383 — exact-head validation
+- Code head `86de6e72313c627f49ee2c2204c200fa74191918` passed **811 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44542261551](https://github.com/justinhblee-prog/shorts/actions/runs/44542261551) and [44542296386](https://github.com/justinhblee-prog/shorts/actions/runs/44542296386).
+- The case/separator-insensitive changed-file scope regression passed in both runs. Hosted Linux only; Windows local-runner execution remains unverified.
+
+
+## BUILD-00384 — align durable completion scope checks with Windows path semantics
+- Apply case-folded, slash-normalized path matching at the durable `mark_review_pending` gate, matching the scheduler and Aider executor rules.
+- Preserve exact file matching, explicit recursive directory scopes, and path-component boundaries.
+- Add regressions for differently cased file/directory scopes and sibling-directory boundary rejection. Exact-head CI pending.
+
+
+### BUILD-00384 — exact-head validation
+- Code head `58034c67387c5fb648623603c40320582a2aa95e` passed **814 tests**, `scripts/validate.sh`, and `node --check frontend/app.js` in GitHub Actions runs [44544093165](https://github.com/justinhblee-prog/shorts/actions/runs/44544093165) and [44544133397](https://github.com/justinhblee-prog/shorts/actions/runs/44544133397).
+- Case-insensitive file and directory completion-scope regressions passed in both runs. Hosted Linux only; Windows local-runner execution remains unverified.
+
+
+### DEV-ORCH-005 implementation follow-up — BUILD-00385
+The trusted runner now requires a second worktree read after executor completion. The worker requires an executor verification hook, compares its actual tracked/untracked Git paths with the claimed list, and quarantines missing or mismatched evidence before review-pending.
+
+Exact-head validation: head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and frontend syntax validation in [run 44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). Hosted Linux only; Windows local runner and live autonomous continuation remain unverified.
