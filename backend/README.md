@@ -518,7 +518,7 @@ docker compose run --rm --no-deps backup python backup_restore.py backup --db /a
 Restore only after stopping API, worker, scheduler, metrics collector and backup services:
 
 ```bash
-docker compose stop api worker scheduler metrics-collector backup
+docker compose stop api worker render-worker scheduler metrics-collector backup
 docker compose run --rm --no-deps --entrypoint python backup backup_restore.py restore --archive /backups/ARCHIVE_NAME.tar.gz --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --confirm-restore
 docker compose up -d
 ```
