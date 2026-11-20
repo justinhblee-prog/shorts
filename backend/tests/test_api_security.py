@@ -29,6 +29,7 @@ class ApiSecurityTests(unittest.TestCase):
         }
         with (
             mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.production_store, "get", return_value={"workspace_id": None}),
             mock.patch.object(app_module.youtube_upload_store, "get", return_value=upload),
         ):
             safe_upload = app_module.get_youtube_upload(
@@ -36,6 +37,7 @@ class ApiSecurityTests(unittest.TestCase):
             )
         with (
             mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.production_store, "get", return_value={"workspace_id": None}),
             mock.patch.object(app_module.tiktok_publish_store, "get", return_value=tiktok),
         ):
             safe_tiktok = app_module.get_tiktok_publication(
@@ -881,6 +883,9 @@ class ApiSecurityTests(unittest.TestCase):
                 app_module, "require_review_permission", return_value="operator-7"
             ) as authorize,
             mock.patch.object(
+                app_module.production_store, "get", return_value={"workspace_id": None}
+            ),
+            mock.patch.object(
                 app_module.youtube_upload_store, "reconcile",
                 return_value={"status": "failed"},
             ) as youtube_reconcile,
@@ -942,6 +947,9 @@ class ApiSecurityTests(unittest.TestCase):
             mock.patch.object(
                 app_module, "require_review_permission", return_value="operator-1"
             ) as authorize,
+            mock.patch.object(
+                app_module.production_store, "get", return_value={"workspace_id": None}
+            ),
             mock.patch.object(
                 app_module.tiktok_publish_store, "reconcile",
                 side_effect=app_module.TikTokPublishError(
