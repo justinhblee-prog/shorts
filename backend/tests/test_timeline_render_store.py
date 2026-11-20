@@ -84,5 +84,23 @@ class TimelineRenderStoreTests(unittest.TestCase):
             self.store.submit("ws_other", "bob", self.edl, "render-try-0005")
 
 
+    def test_render_job_contains_authorized_workspace_principal_and_audio_asset(self):
+        audio = self.assets.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"audio-fixture"), "bed.wav"
+        )
+        self.assets.mark_scan_result("ws_studio", "alice", audio["asset_id"], True)
+        edl = {**self.edl, "clips": [
+            dict(self.edl["clips"][0]),
+            {"id": "audio-1", "type": "audio", "start_ms": 0, "end_ms": 5000,
+             "asset_id": audio["asset_id"], "source_in_ms": 0, "source_out_ms": 5000,
+             "gain": 0.35, "fade_in_ms": 100, "fade_out_ms": 300},
+        ]}
+        result = self.store.submit("ws_studio", "alice", edl, "render-audio-0001")
+        job = self.queue.get(result["render_job_id"], workspace_id="ws_studio")
+        self.assertEqual(job["payload"]["workspace_id"], "ws_studio")
+        self.assertEqual(job["payload"]["principal_id"], "alice")
+        self.assertEqual(job["payload"]["edl"]["clips"][1]["type"], "audio")
+
+
 if __name__ == "__main__":
     unittest.main()
