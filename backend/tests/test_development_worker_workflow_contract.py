@@ -47,6 +47,26 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", self.source)
         self.assertIn('cron: "17 */2 * * *"', self.source)
 
+    def test_untrusted_pull_request_events_cannot_trigger_worker_execution(self):
+        trigger_block = self.source.split("permissions:", 1)[0]
+        self.assertIn("workflow_dispatch:", trigger_block)
+        self.assertIn("schedule:", trigger_block)
+        for event in ("pull_request:", "pull_request_target:", "workflow_run:", "issue_comment:"):
+            self.assertNotIn(event, trigger_block)
+
+    def test_workflow_token_uses_only_permissions_needed_for_worker_operations(self):
+        top_level = self.source.split("jobs:", 1)[0]
+        job_block = self.source.split("  development-cycle:", 1)[1]
+        job_permissions = job_block.split("    steps:", 1)[0]
+        self.assertIn("contents: read", top_level)
+        self.assertIn("pull-requests: write", top_level)
+        self.assertIn("actions: write", top_level)
+        self.assertNotIn("issues:", top_level)
+        self.assertIn("contents: write", job_permissions)
+        self.assertIn("pull-requests: write", job_permissions)
+        self.assertIn("actions: write", job_permissions)
+        self.assertNotIn("issues:", job_permissions)
+
     def test_only_trusted_self_hosted_windows_runner_is_targeted(self):
         self.assertIn("runs-on: [self-hosted, windows, nexus-local-ai]", self.source)
         self.assertIn("ollama list", self.source)
