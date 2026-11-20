@@ -786,16 +786,30 @@
     $("integrityMore").style.display=report.has_more?"inline-flex":"none";
   }
   const developmentStatusLabels={ready:"대기",blocked:"선행 작업 대기",leased:"할당됨",running:"실행 중",review_pending:"Draft PR 검토 대기",retry_wait:"재시도 대기",quarantined:"격리",completed:"완료",failed:"실패",cancelled:"취소"};
+  let developmentJobEventsRequest=0;
   async function loadDevelopmentJobEvents(jobId){
     const host=$("developmentJobEvents");
+    const requestId=++developmentJobEventsRequest;
+    host.setAttribute("aria-busy","true");
     host.innerHTML='<div class="empty-state">작업 이력을 불러오는 중...</div>';
-    const data=await api("/api/development/jobs/"+encodeURIComponent(jobId)+"/events?limit=100");
-    const events=data.events||[];
-    host.innerHTML=events.length?events.map(event=>{
-      const transition=(event.from_status||"—")+" → "+(event.to_status??"—");
-      const details=event.details&&Object.keys(event.details).length?" · "+JSON.stringify(event.details):"";
-      return '<div class="development-job-event"><b>'+esc(event.event_type)+' · '+esc(transition)+'</b><small>'+esc(event.created_at||"")+' · '+esc(event.actor||"system")+esc(details)+'</small></div>';
-    }).join(""):'<div class="empty-state">기록된 변경 이력이 없습니다.</div>';
+    try{
+      const data=await api("/api/development/jobs/"+encodeURIComponent(jobId)+"/events?limit=100");
+      if(requestId!==developmentJobEventsRequest||hostDevelopmentJobSelected!==jobId)return;
+      const events=data.events||[];
+      host.innerHTML=events.length?events.map(event=>{
+        const transition=(event.from_status||"—")+" → "+(event.to_status??"—");
+        const details=event.details&&Object.keys(event.details).length?" · "+JSON.stringify(event.details):"";
+        return '<div class="development-job-event"><b>'+esc(event.event_type)+' · '+esc(transition)+'</b><small>'+esc(event.created_at||"")+' · '+esc(event.actor||"system")+esc(details)+'</small></div>';
+      }).join(""):'<div class="empty-state">기록된 변경 이력이 없습니다.</div>';
+    }catch(error){
+      if(requestId!==developmentJobEventsRequest||hostDevelopmentJobSelected!==jobId)return;
+      host.innerHTML='<div class="empty-state development-job-events-error" role="alert">작업 이력을 불러오지 못했습니다. '+esc(error.message)+' <button type="button" class="button button-quiet button-small" data-retry-development-events="'+esc(jobId)+'">다시 시도</button></div>';
+      throw error;
+    }finally{
+      if(requestId===developmentJobEventsRequest&&hostDevelopmentJobSelected===jobId){
+        host.setAttribute("aria-busy","false");
+      }
+    }
   }
   let developmentJobOffset=0;
   let developmentJobSnapshotAt=null;
@@ -976,6 +990,12 @@
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadDevelopmentJobs").addEventListener("click",()=>loadDevelopmentJobs().catch(e=>toast(e.message)));
   $("loadMoreDevelopmentJobs").addEventListener("click",()=>loadDevelopmentJobs(true).catch(e=>toast(e.message)));
+  $("developmentJobEvents").addEventListener("click",event=>{
+    const retryButton=event.target.closest("[data-retry-development-events]");
+    if(!retryButton)return;
+    const jobId=retryButton.getAttribute("data-retry-development-events");
+    loadDevelopmentJobEvents(jobId).catch(error=>toast(error.message));
+  });
   $("developmentJobList").addEventListener("keydown",event=>{
     const dependencyButton=event.target.closest("[data-focus-development-job]");
     if(dependencyButton&&(event.key==="Enter"||event.key===" ")){
