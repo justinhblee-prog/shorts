@@ -2,10 +2,26 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Inventory date:** 2026-11-19  
+**Inventory date:** 2026-11-20  
 **Inventory source:** `docs/BUILD_STATUS.md`, `docs/OPERATOR_RUNBOOK.md`, `docs/HANDOVER.md`, `docs/PLATFORM_POLICY_MATRIX.md`, current Draft PR chain.
 
-## Current checkpoint — 2026-11-19
+## Current checkpoint — 2026-11-20
+
+- Default branch remains `main` at the observed head `851b414262cc6bef8ec374ed0e7a25921521b295`. No development PR has been merged and no direct push to `main` was performed.
+- Protected PRs [#311–#315](https://github.com/justinhblee-prog/shorts/pulls) were individually verified Open / Draft / Unmerged. Seven other Open / non-Draft PRs (#362, #363, #368, #370, #371, #372 and #373) were converted back to Draft. A follow-up `is:open draft:false` query returned zero results. The latest 200 PR records contained 196 open, 4 closed and 0 merged PRs.
+- Aggregate candidate PR [#415](https://github.com/justinhblee-prog/shorts/pull/415) remains Draft / Open / Unmerged. Its docs-inclusive head `479a0c7e17ec58f7d96259090781c2af180e6285` passed run [44671093602](https://github.com/justinhblee-prog/shorts/actions/runs/44671093602), including 907 backend tests and dashboard/recovery/workstream/DAG Chromium checks. This is hosted CI evidence, not production deployment evidence.
+- Windows worker promotion PR [#416](https://github.com/justinhblee-prog/shorts/pull/416) remains Draft / Open / Unmerged. Head `5918673b9d5d9517414e349feac34e9d689719c4` passed backend/workflow validation in run [44674566688](https://github.com/justinhblee-prog/shorts/actions/runs/44674566688) (620 backend tests). Dedicated low-privilege Windows runner isolation, filesystem ACL and network-egress audit, secret inventory, actual Windows execution, cross-run LocalAppData persistence, real Ollama generation, and Draft-PR publish/recovery round-trip remain unverified activation gates.
+- Premium UI PR [#417](https://github.com/justinhblee-prog/shorts/pull/417) remains Draft / Open / Unmerged and targets the approved 2026-11-19 purple/indigo/blue dashboard reference. The observed UI branch continued advancing while validation ran. Earlier browser smoke runs failed at the analytics export enablement assertion even though backend validation and Compose integration passed; the latest observed branch head requires its own exact-head run.
+- Workspace/analytics diagnostic PR [#419](https://github.com/justinhblee-prog/shorts/pull/419) remains Draft / Open / Unmerged. It asserts workspace propagation, reports the actual per-platform analytics-history response counts, and checks the disposable fixture's store visibility. Initial backend run [44692106029](https://github.com/justinhblee-prog/shorts/actions/runs/44692106029) and Compose run [44692106015](https://github.com/justinhblee-prog/shorts/actions/runs/44692106015) were in progress when this checkpoint was written; no pass is claimed yet.
+- PR [#418](https://github.com/justinhblee-prog/shorts/pull/418) is a stale-base duplicate superseded by PR #419. It remains Draft / Open / Unmerged; do not merge it.
+- The user reported Ollama installed and 64 GB RAM. This does not establish that a dedicated self-hosted runner is registered/online, isolated, able to access the model, or has completed a real local generation and Draft-PR publication/recovery cycle.
+- The browser timeline editor remains a local preview and EDL JSON export; it does not render MP4. Secure source-asset upload/ownership, durable render jobs, restricted FFmpeg execution, audio mixing and real output validation remain unimplemented.
+- The approved dashboard screenshot still requires user visual acceptance. Browser screenshots and hosted Chromium tests are candidate evidence, not user acceptance or physical-device/accessibility validation.
+- Live script/voice/video providers, OAuth consent, private YouTube/TikTok test publishing, live analytics, production-host deployment, production-data backup/restore, financial reconciliation and real cohort ROI remain external release gates.
+- The mandatory launch-gate score remains **1/8 (12.5%)**. No overall project-completion percentage is asserted.
+- `docs/RELEASE_READINESS.md` is present on this candidate branch but is not present on the observed `main` branch; it becomes mainline documentation only after a separately approved integration. No workflow dispatch, schedule activation, runner-setting change, secret change, deployment or live provider action was performed.
+
+## Previous checkpoint — 2026-11-19
 
 - Core lane: PR [#323](https://github.com/justinhblee-prog/shorts/pull/323), Open / Draft / Unmerged. Latest Core code checkpoint `59ec8286f6c216345955593dd82a1047851fad4d` passed 725 backend tests [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693) and health-aware five-service Compose integration [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702). Worker, scheduler, metrics collector and backup healthchecks were healthy; the backup marker and encrypted isolated restore passed. BUILD-00345–00351 add restore rollback, path-overlap, symlink-root, archive-size, offline-restore, cleanup-warning and container health protections.
 - Latest Core engineering items: BUILD-00336–00340 (bounded/fair indexed TikTok scan, query-plan guard, collector lease/OAuth coverage, synthetic 10k-row scan); BUILD-00341–00344 (Compose service integration, AES-256-GCM backup, isolated restore, wrong-key failure without DB modification). Synthetic due scan measured 0.65 ms for 10k publications and 10k snapshots on the CI runner.
