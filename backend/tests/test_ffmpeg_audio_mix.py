@@ -64,7 +64,7 @@ class FFmpegAudioMixTests(unittest.TestCase):
         graph = argv[argv.index("-filter_complex") + 1]
         self.assertIn("atrim=start=1.250:duration=4.000", graph)
         self.assertIn("adelay=750|750", graph)
-        self.assertLess(graph.index("afade=t=in"), graph.index("adelay=750|750"))
+        self.assertLess(graph.index("afade=t=out"), graph.index("adelay=750|750"))
 
 
 if __name__ == "__main__":
