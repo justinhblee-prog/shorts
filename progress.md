@@ -73,3 +73,14 @@
 - `backend/requirements.txt` exists on `main`, but that alone is insufficient: the workflow's Python entrypoints and contract tests are not present there. Copying only the workflow file to `main` would create a broken activation and is explicitly not the next step.
 - Required promotion unit must be dependency-complete and reviewed as one stack: worker workflow + worker/executor/backlog/intake/review-publication modules + seed/data contracts + tests + any required backend dependencies. Before proposing activation, compare every imported module and referenced path against `main`, then run the main-targeted CI suite on the promotion branch.
 - No promotion PR, default-branch update, workflow dispatch, merge, or runner execution was performed. This is a verified activation dependency, not a claim that the Windows runner is offline.
+
+
+## 24. Worker activation dependency closure — 2026-11-20
+
+- 2차 import/call-site 감사를 수행해 누락 범위를 확장했습니다. `main`에는 `development_jobs.py`, `development_job_worker.py`, `development_github_intake.py`, `development_backlog_service.py`, `development_security.py`, `seed_development_jobs.py`, `development_agent_executor.py`, `publish_development_reviews.py`, `recover_development_reviews.py`, `run_development_agent.py` 및 worker workflow가 모두 없습니다.
+- import 연결 확인: entrypoint → executor/backlog/intake/store/security/seed; executor → worker/security; backlog → worker/intake; worker → store/security; intake → store; store → security; seed → store; recovery → store/review publisher; review publisher → store.
+- workflow contract test도 `main`에 없습니다. worker 전용 unit/regression tests, orchestration design contract, workflow path filters 및 validation script 연계까지 promotion closure에 포함해야 합니다. 테스트 파일명은 실제 branch tree와 CI discovery를 기준으로 확정합니다.
+- `backend/requirements.txt`는 `main`에 이미 존재합니다. 현재 확인한 worker import는 표준 라이브러리와 기존 backend dependency set을 사용하므로 promotion 시 dependency diff를 재검토하고 불필요한 전체 requirements 교체를 피합니다.
+- 보안 게이트: job-level contents/pull-requests/actions write 권한 최소화, read-only intake token과 PR publication token 분리, Windows runner 격리, LocalAppData 외부 저장, scope allowlist와 symlink 해석 검증, Aider child-process credential stripping, secrets/production data 경로 제외.
+- 필수 runner: self-hosted Windows + `nexus-local-ai` label, Actions runner >= 2.327.1, Python >= 3.11, Git Bash, Node >= 18, loopback Ollama, 정확한 `qwen2.5-coder:7b` 모델. `NEXUS_GITHUB_READ_TOKEN`, `NEXUS_APPROVED_SCOPES`, repository GITHUB_TOKEN 권한도 별도 확인해야 합니다.
+- Windows 실 runner 실행, LocalAppData 2회 실행 persistence, Ollama 생성 검증은 아직 수행되지 않았습니다. 승인 전 workflow dispatch/예약 활성화/merge/default branch 변경은 하지 않습니다.
