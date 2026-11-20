@@ -155,5 +155,51 @@ class TimelineRenderWorkerTests(unittest.TestCase):
             )
 
 
+    def test_resolves_legacy_job_creator_from_immutable_snapshot_owner(self):
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_" + "9" * 32,
+             "snapshot_sha256": "a" * 64, "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        seen = []
+
+        def render(payload, stop_event, workspace_id, principal_id):
+            seen.append((workspace_id, principal_id))
+            return {"rendered": True}
+
+        worker = TimelineRenderWorker(
+            self.queue, render, "timeline-worker", self.generation,
+            heartbeat_seconds=0.02,
+            principal_resolver=lambda workspace_id, payload: "alice",
+        )
+        self.assertTrue(worker.run_once())
+        self.assertEqual(seen, [("ws_fixture", "alice")])
+
+    def test_rejects_creator_identity_conflicting_with_snapshot_owner(self):
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_" + "8" * 32,
+             "snapshot_sha256": "b" * 64, "creator_principal_id": "mallory",
+             "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        invoked = []
+
+        def render(payload, stop_event, workspace_id, principal_id):
+            invoked.append(principal_id)
+            return {"rendered": True}
+
+        worker = TimelineRenderWorker(
+            self.queue, render, "timeline-worker", self.generation,
+            heartbeat_seconds=0.02,
+            principal_resolver=lambda workspace_id, payload: "alice",
+        )
+        self.assertFalse(worker.run_once())
+        self.assertEqual(invoked, [])
+        failed = self.queue.get(queued["id"], workspace_id="ws_fixture")
+        self.assertEqual(failed["status"], "failed_retriable")
+
+
 if __name__ == "__main__":
     unittest.main()
