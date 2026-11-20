@@ -337,7 +337,10 @@ class RenderArtifactStore:
             raise ValueError("invalid artifact ID")
         with self.queue.db() as db:
             row = db.execute(
-                "SELECT *, 'review_pending' AS status FROM render_artifacts WHERE artifact_id=? AND workspace_id=?",
+                """SELECT a.*,j.status AS status
+                   FROM render_artifacts a
+                   JOIN pipeline_jobs j ON j.id=a.job_id AND j.workspace_id=a.workspace_id
+                   WHERE a.artifact_id=? AND a.workspace_id=?""",
                 (artifact_id, workspace_id),
             ).fetchone()
         if row is None:
