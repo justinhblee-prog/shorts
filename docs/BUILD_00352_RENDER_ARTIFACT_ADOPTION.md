@@ -75,7 +75,7 @@ requires host-level enforcement.
 - Pin FFmpeg/ffprobe versions and validate codec/filter availability on target
   platforms; the current image installs the distribution packages.
 - Run real-media integration and crash/lease-loss tests on the target runtime.
-- Connect an actual malware scanner to the asset quarantine transition.
+- `WorkspaceAssetStore.scan_pending_asset()` now defaults to the production ClamAV adapter and leaves assets quarantined on missing binaries, stale/unavailable databases, timeout or scan errors. The authenticated upload/quarantine API still needs to invoke this transition, and the target deployment must enable and health-check the ClamAV database updater.
 - Add authenticated upload/render/review APIs and retention cleanup.
 - CI tests execute a fake FFmpeg/ffprobe toolchain against generated fixtures;
   the actual pinned binaries, representative real-media renders and production
