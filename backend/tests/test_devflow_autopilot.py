@@ -29,6 +29,25 @@ class DevflowAutopilotTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "dependency is not review-ready"):
             autopilot.choose_task(data, "BUILD-2")
 
+    def test_review_pending_dependency_is_not_treated_as_merged(self):
+        data = {"tasks": [
+            {"id": "BUILD-1", "priority": 1, "status": "review_pending", "depends_on": []},
+            {"id": "BUILD-2", "priority": 2, "status": "ready", "depends_on": ["BUILD-1"]},
+        ]}
+        with self.assertRaisesRegex(RuntimeError, "dependency is not review-ready"):
+            autopilot.choose_task(data, "BUILD-2")
+
+    def test_agent_environment_does_not_forward_credentials(self):
+        from unittest.mock import patch
+        with patch.dict("os.environ", {
+            "PATH": "/bin", "HOME": "/tmp/home",
+            "OPENAI_API_KEY": "do-not-forward",
+            "GITHUB_TOKEN": "do-not-forward",
+            "AWS_SECRET_ACCESS_KEY": "do-not-forward",
+        }, clear=True):
+            env = autopilot.agent_environment()
+        self.assertEqual(env, {"PATH": "/bin", "HOME": "/tmp/home"})
+
     def test_does_not_select_external_blocked_task(self):
         data = {"tasks": [
             {"id": "BUILD-1", "priority": 1, "status": "blocked_external", "depends_on": []}
