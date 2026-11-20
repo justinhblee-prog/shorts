@@ -32,7 +32,7 @@ def main() -> None:
 
     import app  # noqa: E402 - environment and DB path must be set first
 
-    app.workspace_store.create("Browser Smoke Workspace", "operator")
+    app.workspace_store.create("Browser Smoke Workspace", "legacy-operator")
 
     today = date.today()
     start_date = (today - timedelta(days=1)).isoformat()
