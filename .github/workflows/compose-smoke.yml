@@ -17,6 +17,8 @@ jobs:
   compose:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      COMPOSE_PROFILES: render
     steps:
       - uses: actions/checkout@v4
       - name: Prepare encrypted non-production backup environment
@@ -32,6 +34,16 @@ jobs:
           PY
       - name: Verify Compose configuration
         run: docker compose config --quiet
+      - name: Verify render worker is opt-in
+        run: |
+          set -eu
+          default_services="$(env -u COMPOSE_PROFILES docker compose config --services)"
+          if printf '%s\n' "$default_services" | grep -qx "timeline-render-worker"; then
+            echo "timeline-render-worker must not start in the default Compose profile"
+            exit 1
+          fi
+          render_services="$(COMPOSE_PROFILES=render docker compose config --services)"
+          printf '%s\n' "$render_services" | grep -qx "timeline-render-worker"
       - name: Build all service images
         run: docker compose build
       - name: Start API, worker, scheduler, metrics collector and backup
