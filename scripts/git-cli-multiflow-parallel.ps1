@@ -7,6 +7,7 @@ param(
 )
 $ErrorActionPreference="Stop"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required."}
+. (Join-Path $PSScriptRoot "devflow-agent-process.ps1")
 function Read-State([string]$Path){
  if(-not(Test-Path $Path)){return @{schema_version=1;tasks=@{}}}
  return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8|ConvertFrom-Json -AsHashtable)
@@ -55,8 +56,7 @@ if($Worker){
    if($textPlaceholderCount -eq 1){$value=$value.Replace("{prompt_text}",$promptText)}
    $value.Replace("{task_id}",$id).Replace("{worktree}",$taskData.worktree)
   }
-  $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=$command;$psi.WorkingDirectory=$taskData.worktree;$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
-  foreach($a in $expanded){[void]$psi.ArgumentList.Add($a)}
+  $psi=New-DevflowAgentProcessStartInfo -Command $command -Arguments @($expanded) -WorkingDirectory $taskData.worktree
   $agent=[Diagnostics.Process]::new();$agent.StartInfo=$psi
   if(-not $agent.Start()){throw "Agent did not start."}
   $stdout=$agent.StandardOutput.ReadToEndAsync();$stderr=$agent.StandardError.ReadToEndAsync()
@@ -132,18 +132,21 @@ while($queue.Count -gt 0 -or $active.Count -gt 0){
   $taskPath=Join-Path $stateDir "$id-$stamp.json"
   @{id=$id;title=$t.title;worktree=$wt;branch=$branch;base=$baseBranch;prompt=$prompt;timeout_seconds=$TaskTimeoutSeconds}|ConvertTo-Json|Set-Content -LiteralPath $taskPath -Encoding utf8
   Set-State $statePath $id "queued" "branch=$branch"
-  $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=(Get-Command pwsh).Source;$psi.WorkingDirectory=$root;$psi.UseShellExecute=$false
+  $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=(Get-Command pwsh).Source;$psi.WorkingDirectory=$root;$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
   foreach($a in @("-NoProfile","-File",$PSCommandPath,"-Worker","-TaskFile",$taskPath,"-StateRoot",$stateDir,"-TaskTimeoutSeconds",[string]$TaskTimeoutSeconds)){[void]$psi.ArgumentList.Add($a)}
   $workerProcess=[Diagnostics.Process]::new();$workerProcess.StartInfo=$psi
   if(-not $workerProcess.Start()){throw "Could not start worker for $id."}
-  $active.Add([pscustomobject]@{id=$id;process=$workerProcess;started=[DateTime]::UtcNow;worktree=$wt})
+  $workerStdout=$workerProcess.StandardOutput.ReadToEndAsync();$workerStderr=$workerProcess.StandardError.ReadToEndAsync()
+  $active.Add([pscustomobject]@{id=$id;process=$workerProcess;stdout=$workerStdout;stderr=$workerStderr;started=[DateTime]::UtcNow;worktree=$wt})
   Write-Host "[MULTIFLOW] Started $id on $branch"
  }
  Start-Sleep -Seconds 2
  for($i=$active.Count-1;$i -ge 0;$i--){
   $item=$active[$i];$item.process.Refresh()
   if($item.process.HasExited){
-   if($item.process.ExitCode -ne 0){Write-Warning "$($item.id) failed; worktree retained at $($item.worktree)."}
+   if($item.stdout.Result){Write-Output $item.stdout.Result}
+   if($item.stderr.Result){Write-Warning "$($item.id) stderr: $($item.stderr.Result)"}
+   if($item.process.ExitCode -ne 0){Write-Warning "$($item.id) failed (exit $($item.process.ExitCode)); worktree retained at $($item.worktree)."}
    $active.RemoveAt($i)
   }elseif(([DateTime]::UtcNow-$item.started).TotalSeconds -gt $TaskTimeoutSeconds+90){
    try{$item.process.Kill($true)}catch{}
