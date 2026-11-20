@@ -210,3 +210,12 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Initial backend CI on commit `fafd6cd97706333244588dbe15615800f99851b2` exposed a test failure because workspace validation was initially placed after the artifact fetch. This was corrected in commits `fd29bb5485935d2752b866e801a389044c7bb284` and `75fe913185aefe16896889838c55d5a65bcbcb21`; the latest correction moves validation ahead of DNS/fetch and requires scoped upload proof for cleanup.
 - Revalidation on exact latest head `b3e0f1e64ac940347435f6194741da5a0315c5d9` is running: [Backend run 44679594027](https://github.com/justinhblee-prog/shorts/actions/runs/44679594027), [Compose run 44679594008](https://github.com/justinhblee-prog/shorts/actions/runs/44679594008). Do not count either as passed until completed.
 - Important limitation: no authoritative workspace ID is yet propagated from production job creation through queue, worker, provider recovery, upload records, and asset authorization. Existing recovered-render adoption still uses the legacy media namespace. This slice is a storage primitive and safety gate, not complete tenant isolation.
+
+
+## Queue workspace ownership foundation — 2026-11-20
+
+- Added nullable `workspace_id` to `pipeline_jobs` with a non-destructive SQLite startup migration and a workspace/status/creation index.
+- `JobQueue.enqueue(..., workspace_id=...)` persists explicit ownership; claimed job objects retain that field for worker handoff. Existing legacy jobs remain unassigned (`NULL`).
+- Global idempotency keys fail closed when reused from another workspace, preventing a duplicate request from returning another workspace's job. The existing global uniqueness constraint remains pending a reviewed migration to composite workspace/key uniqueness.
+- Regression tests cover queue-to-claim ownership continuity, cross-workspace idempotency rejection and invalid workspace values.
+- This does **not** yet provide tenant API authorization, workspace-filtered claims, workspace-scoped job events, production records, provider attempts, review or publishing data. No customer identity is inferred from operator credentials or request-supplied IDs.
