@@ -114,7 +114,7 @@ recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_D
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
-private_media_root=Path(os.getenv("NEXUS_PRIVATE_MEDIA_ROOT","data/private-media")).resolve()
+private_media_root=Path(os.getenv("NEXUS_PRIVATE_MEDIA_ROOT") or "data/private-media").resolve()
 workspace_asset_store=WorkspaceAssetStore(
     os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"), private_media_root,
     workspace_store,
@@ -124,8 +124,8 @@ timeline_render_store=TimelineRenderStore(
     os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),
     workspace_asset_store, workspace_store, queue,
 )
-render_staging_root=Path(os.getenv("NEXUS_RENDER_STAGING_ROOT","data/render-staging")).resolve()
-render_artifact_root=Path(os.getenv("NEXUS_RENDER_ARTIFACT_ROOT","data/render-artifacts")).resolve()
+render_staging_root=Path(os.getenv("NEXUS_RENDER_STAGING_ROOT") or "data/render-staging").resolve()
+render_artifact_root=Path(os.getenv("NEXUS_RENDER_ARTIFACT_ROOT") or "data/render-artifacts").resolve()
 render_artifact_store=RenderArtifactStore(
     queue, render_staging_root, render_artifact_root,
     max_bytes=int(os.getenv("NEXUS_RENDER_MAX_OUTPUT_BYTES",str(2_000_000_000))),
