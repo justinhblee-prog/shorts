@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Updated:** 2026-11-19
+**Updated:** 2026-11-20
 
 ## Business objective
 
@@ -2714,3 +2714,19 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
 - Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
 - Exact-head validation passed on `59ec8286f6c216345955593dd82a1047851fad4d`: backend [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693), **725 tests**; Compose [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702), all five services healthy, fresh successful-backup marker present, encrypted isolated restore passed, wrong-key restore rejected without changing the target DB. CI-only; no production-host or production-data recovery is claimed.
+
+
+## UI workspace and analytics browser-smoke checkpoint — 2026-11-20
+
+- Workspace-scoped opportunity persistence and analytics-history reads remain security boundaries. The resolved operator `workspace_id` must be passed to every scoped store operation; the regression suite asserts that the selected workspace reaches `OpportunityStore.save`.
+- Premium UI PR [#417](https://github.com/justinhblee-prog/shorts/pull/417) current head `83e3ffe1f5aefccf79d5b2316a02b8b55d12ca59` passed exact-head backend/Chromium run [44696710904](https://github.com/justinhblee-prog/shorts/actions/runs/44696710904) and Compose run [44696710854](https://github.com/justinhblee-prog/shorts/actions/runs/44696710854). The UI uses the approved purple/indigo/blue Cyber Magic direction and local-first Korean font fallback; Chromium verified typography, Korean glyph rendering, navigation, keyboard access, responsive desktop/mobile layout, and authenticated review/analytics interactions.
+- The global workspace selector is now connected on the #417 UI branch: it loads `GET /api/operator/workspaces`, validates a persisted selection against returned memberships, stores the selected workspace locally, and the central API wrapper sends `X-Nexus-Workspace-Id`. Browser smoke verified the selected workspace header is sent and removed again when returning to the unscoped default. This is request/CI evidence, not production tenant-isolation certification.
+- Analytics smoke on the current #419 validation head returned HTTP 200 with 500 YouTube and 1 TikTok history row; keyset pagination produced a 502-row CSV, and partial API failure feedback plus desktop/mobile and keyboard checks passed.
+- PR [#419](https://github.com/justinhblee-prog/shorts/pull/419) head `968bdd5e247a2fe45d616f937551f59a9652b64f` initially failed two backend assertions because the current merged UI base explicitly passes `workspace_id=None` for the default workspace while the older mock expectations omitted that keyword. Commit `6691d760fe0b66edb76c55c4e95c346050889111` updates the assertions to verify the explicit default scope. That exact head passed **809 backend tests plus the full Chromium desktop/mobile smoke** in [run 44697286582](https://github.com/justinhblee-prog/shorts/actions/runs/44697286582), and Compose integration in [run 44697286662](https://github.com/justinhblee-prog/shorts/actions/runs/44697286662), including encrypted backup, isolated restore and wrong-key rejection.
+- The earlier analytics CSV enablement smoke failure's original root cause is still not conclusively isolated. The fixture visibility assertion and response diagnostics make future failures actionable; do not claim workspace filtering caused the original failure.
+- PRs #417 and #419 remain Draft / Open / Unmerged. PR [#418](https://github.com/justinhblee-prog/shorts/pull/418) remains a superseded stale-base duplicate and must not be merged. The current repository search for `is:open draft:false` returned zero results; no PR was promoted or merged.
+- CI evidence above uses hosted disposable fixtures and test databases. It does not establish production-host deployment, production data isolation, real provider access, or user acceptance of the rendered design.
+
+### Next engineering priority
+
+Implement the secure FFmpeg/MP4 render worker rather than revisiting the already-connected workspace toolbar. Preserve the current timeline/EDL behavior while adding: owned source-asset registration and hash-verified staging; durable render-job state and lease/recovery semantics; an allowlisted FFmpeg invocation without shell interpolation or arbitrary paths/URLs; bounded CPU, memory, input size and runtime; audio mixing; ffprobe-based output validation; checksum-backed atomic artifact adoption; and a human-review gate before any publishable output. Add regression coverage for traversal/symlink inputs, malformed EDL, oversized media, timeout/cancellation and interrupted renders. Live provider and production publishing actions remain out of scope without explicit authorization.

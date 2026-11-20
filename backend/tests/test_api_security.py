@@ -441,10 +441,15 @@ class ApiSecurityTests(unittest.TestCase):
         ]
         with (
             mock.patch("app.require_review_access"),
+            mock.patch("app.resolve_operator_workspace_scope", return_value="test-workspace"),
             mock.patch("app.competitor_store.list_videos", return_value=videos),
-            mock.patch("app.opportunity_store.save", side_effect=lambda result, **kwargs: result),
+            mock.patch("app.opportunity_store.save", side_effect=lambda result, **kwargs: result) as save,
         ):
-            result = create_opportunity_score(body, x_review_token="test-token")
+            result = create_opportunity_score(
+                body, x_review_token="test-token", x_nexus_workspace_id="test-workspace"
+            )
+        save.assert_called_once()
+        self.assertEqual(save.call_args.kwargs["workspace_id"], "test-workspace")
         self.assertEqual(result["competitive_context"]["observed_videos"], 2)
         self.assertEqual(result["competitive_context"]["topic_matched_videos"], 2)
         self.assertEqual(result["competitive_context"]["median_matched_views"], 10000)

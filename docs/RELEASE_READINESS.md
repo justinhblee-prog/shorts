@@ -2,10 +2,26 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Inventory date:** 2026-11-19  
+**Inventory date:** 2026-11-20  
 **Inventory source:** `docs/BUILD_STATUS.md`, `docs/OPERATOR_RUNBOOK.md`, `docs/HANDOVER.md`, `docs/PLATFORM_POLICY_MATRIX.md`, current Draft PR chain.
 
-## Current checkpoint — 2026-11-19
+## Current checkpoint — 2026-11-20
+
+- Default branch remains `main` at `851b414262cc6bef8ec374ed0e7a25921521b295`. No development PR was merged and no direct push to `main` was performed.
+- GitHub branch metadata reports `main` as `protected=false`; repository ruleset coverage could not be independently verified through the available read interface. This run made no settings change. Before enabling any autonomous workflow with repository write permission, the owner should verify/enforce required PR reviews and CI checks for `main`; the automation must continue to avoid direct pushes and merges.
+- Protected PRs [#311–#315](https://github.com/justinhblee-prog/shorts/pulls) were individually verified Open / Draft / Unmerged. The current repository search for `is:open draft:false` returned zero results. PR #318 and the other active development PRs remain open Draft candidates; no merge was performed.
+- Aggregate candidate PR [#415](https://github.com/justinhblee-prog/shorts/pull/415) and Windows worker promotion PR [#416](https://github.com/justinhblee-prog/shorts/pull/416) remain separate Draft tracks. Windows runner activation, isolation, filesystem ACL/network-egress audit, secret inventory, cross-run persistence, real Ollama generation and Draft-PR publish/recovery remain unverified.
+- Premium Cyber Magic UI PR [#417](https://github.com/justinhblee-prog/shorts/pull/417) current head `83e3ffe1f5aefccf79d5b2316a02b8b55d12ca59` passed exact-head backend/Chromium run [44696710904](https://github.com/justinhblee-prog/shorts/actions/runs/44696710904) and Compose run [44696710854](https://github.com/justinhblee-prog/shorts/actions/runs/44696710854). The approved purple/indigo/blue visual direction and Korean typography were exercised in Chromium, including desktop/mobile, keyboard, review and analytics flows. The screenshot still requires the user's visual acceptance; automated rendering is not that approval.
+- Workspace/analytics diagnostic PR [#419](https://github.com/justinhblee-prog/shorts/pull/419) remains Draft / Open / Unmerged. Exact head `6691d760fe0b66edb76c55c4e95c346050889111` passed **809 backend tests and full Chromium desktop/mobile smoke** in [run 44697286582](https://github.com/justinhblee-prog/shorts/actions/runs/44697286582). The smoke verified the workspace header transition, Korean glyph rendering, authenticated API/review flows, 500 YouTube + 1 TikTok analytics rows, 502-row CSV pagination, partial API failure feedback and keyboard/responsive checks. The same exact head passed Compose integration [run 44697286662](https://github.com/justinhblee-prog/shorts/actions/runs/44697286662), including encrypted backup, isolated restore and wrong-key rejection. These are CI/disposable-data results only.
+- PR [#418](https://github.com/justinhblee-prog/shorts/pull/418) is a superseded stale-base duplicate; it remains Draft / Open / Unmerged and must not be merged.
+- The #417 UI branch now connects the global workspace selector to `GET /api/operator/workspaces`, persists only a returned/validated workspace ID, and adds `X-Nexus-Workspace-Id` through the central API wrapper. Browser smoke verifies header propagation and reset to the unscoped default. This is not a production tenant-isolation certification.
+- The user reported Ollama installed and 64 GB RAM. This does not establish that a dedicated self-hosted runner is registered/online, isolated, able to access the model, or has completed a real local generation and Draft-PR publication/recovery cycle.
+- The browser timeline editor remains a local preview and EDL JSON export; it does not render MP4. Owned source-asset lifecycle, durable render jobs, restricted FFmpeg execution, audio mixing and real output validation remain unimplemented. The next engineering priority is the secure FFmpeg/MP4 render worker; see the updated BUILD_STATUS checkpoint.
+- Live script/voice/video providers, OAuth consent, private YouTube/TikTok test publishing, live analytics, production-host deployment, production-data backup/restore, financial reconciliation and real cohort ROI remain external release gates.
+- The mandatory launch-gate score remains **1/8 (12.5%)**. No overall project-completion percentage is asserted.
+- `docs/RELEASE_READINESS.md` is present on this candidate branch but not on the observed `main` branch; it becomes mainline documentation only after a separately approved integration. No workflow dispatch, schedule activation, runner-setting change, secret change, deployment or live provider action was performed.
+
+## Previous checkpoint — 2026-11-19
 
 - Core lane: PR [#323](https://github.com/justinhblee-prog/shorts/pull/323), Open / Draft / Unmerged. Latest Core code checkpoint `59ec8286f6c216345955593dd82a1047851fad4d` passed 725 backend tests [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693) and health-aware five-service Compose integration [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702). Worker, scheduler, metrics collector and backup healthchecks were healthy; the backup marker and encrypted isolated restore passed. BUILD-00345–00351 add restore rollback, path-overlap, symlink-root, archive-size, offline-restore, cleanup-warning and container health protections.
 - Latest Core engineering items: BUILD-00336–00340 (bounded/fair indexed TikTok scan, query-plan guard, collector lease/OAuth coverage, synthetic 10k-row scan); BUILD-00341–00344 (Compose service integration, AES-256-GCM backup, isolated restore, wrong-key failure without DB modification). Synthetic due scan measured 0.65 ms for 10k publications and 10k snapshots on the CI runner.
@@ -208,3 +224,8 @@ These are additional readiness constraints documented by the project, not comple
 - BUILD-00343 passed Compose run [44499051491](https://github.com/justinhblee-prog/shorts/actions/runs/44499051491): AES-256-GCM encrypted archive creation, plaintext rejection, isolated restore, and SQLite integrity check. Production encryption-key custody and off-host recovery remain pending.
 
 - BUILD-00344 extends the encrypted backup CI smoke with a wrong-key restore attempt; it must fail authentication without changing the target database, before the correct-key restore is allowed.
+
+
+### Next engineering priority
+
+The premium UI topbar currently renders a static `글로벌 워크스페이스` label, and the central frontend API helper sends `X-Review-Token` but no `X-Nexus-Workspace-ID`. The backend already exposes `GET /api/operator/workspaces` and workspace-scoped endpoints. The next security-critical task is to wire the workspace picker, persist the validated selection, propagate the workspace header on all scoped calls, and add two-workspace cross-tenant denial tests. Do not claim multi-tenant UI integration until those tests pass. Next after that: a secure, restricted FFmpeg worker that produces and validates actual MP4 output.
