@@ -127,8 +127,6 @@ class JobQueue:
             raise ValueError("job_type required")
         if workspace_id is not None and (not isinstance(workspace_id,str) or not workspace_id.strip() or len(workspace_id)>128):
             raise ValueError("workspace_id must be a non-empty string of at most 128 characters")
-        if workspace_id is not None and (not isinstance(workspace_id,str) or not workspace_id.strip() or len(workspace_id)>128):
-            raise ValueError("workspace_id must be a non-empty string of at most 128 characters")
         if connection is not None:
             return self._enqueue_in_transaction(
                 connection, job_type, payload, channel_name, priority,
