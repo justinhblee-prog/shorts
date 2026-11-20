@@ -4,7 +4,7 @@ The Git CLI multi-flow runner chains eligible BUILD tasks without asking for a n
 
 ## One-time Windows setup
 
-Run these commands in PowerShell from the repository root. The executable and argument format must match an agent CLI already installed on the machine; the runner deliberately does not assume Codex, Claude, or another vendor.
+Install PowerShell 7 or newer and GitHub CLI (`gh`), authenticate once with `gh auth login`, and run the commands below in PowerShell 7 (`pwsh`) from the repository root. The runner requires PowerShell 7 because it uses .NET `ProcessStartInfo.ArgumentList`. The executable and argument format must match an agent CLI already installed on the machine; the runner deliberately does not assume Codex, Claude, or another vendor.
 
 ```powershell
 $env:DEVFLOW_AGENT_COMMAND = "C:\path\to\your-agent.exe"
@@ -15,7 +15,12 @@ The argument JSON must be an array and must contain `{prompt_file}`. Optional pl
 
 ## Run
 
+The planner checks open pull requests through the authenticated GitHub CLI. Without `gh` authentication it can display candidates, but duplicate-PR status is unverified; execution always requires authenticated `gh` access.
+
 ```powershell
+# Confirm GitHub CLI access before planning
+gh auth status
+
 # Preview eligible tasks without changing the repository
 .\scripts\start-devflow-autopilot.ps1 -Plan
 
@@ -35,4 +40,8 @@ You can select one task with `-Task BUILD-xxxxx` or override the base branch wit
 6. Run `scripts/devflow.py validate`, block likely secret files, run staged diff checks, commit, push, and create a Draft PR.
 7. Leave dependency completion under human control. A dependent task cannot run until its prerequisite is reviewed, merged, and explicitly marked `completed` in `.devflow/tasks.json`.
 
-The current implementation chains task runs sequentially. It does not claim concurrent agent execution. `blocked_external` tasks are never auto-run. Merge, deployment, publishing, credential changes, and external provider spend are never automated.
+The current implementation chains task runs sequentially. `max_parallel_worktrees` is a safety cap on existing worktrees, not a promise that multiple coding agents run concurrently. True concurrent agent scheduling is not implemented yet. `blocked_external` tasks are never auto-run. Merge, deployment, publishing, credential changes, and external provider spend are never automated.
+
+## Empty queue behavior
+
+If the planner reports `No eligible tasks without an existing open PR`, it found no task that simultaneously passes the dependency/status gates and the open-PR duplicate check. `blocked_external` tasks remain excluded until their external prerequisites are explicitly resolved; do not change their status merely to force execution.
