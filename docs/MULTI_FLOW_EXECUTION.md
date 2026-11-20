@@ -379,3 +379,12 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 
 - QA exposed a real API contract gap: `DevelopmentJobStore.list()` omitted persisted dependency edges even though `get()` returned them. The dashboard list endpoint therefore could not render the actual DAG parent links. Fixed the list query with one bounded dependency lookup for the returned job IDs (avoids per-job N+1 queries), and added a regression test for parent/child/independent jobs.
 - Exact code head `c2fab8b8b7bc3abcfe7cf9b96c83206d8d508a10` passed all CI steps in [run 44652954128](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128): backend validation, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation Chromium smoke, and artifact upload [14591602484](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128/artifacts/14591602484).
+
+## 12. Core DAG audit-event integrity — 2026-11-20
+
+- FLOW-CORE review found automatic retry promotion and dependency release changed durable job status without immutable audit events.
+- Updated claim_ready() to record retry_due (retry_wait → ready) and dependencies_satisfied (blocked → ready) in the same SQLite transaction as each guarded state change.
+- Dependency release now requires at least one prerequisite and all prerequisites completed. Added regression assertions for both events.
+- The first test run correctly exposed an event-order expectation error; the test now checks the release event immediately before the worker's subsequent claimed event.
+- Exact PR head 07b31e6e1180bcfb1e191d2a88b079b9953cacb4 passed backend validation, frontend syntax, both Chromium smoke tests, and artifact upload in run 44653917688, artifact https://github.com/justinhblee-prog/shorts/actions/runs/44653917688/artifacts/14591668407.
+- FLOW-CORE: PASS (hosted CI scope). Windows runner, persistent LocalAppData, live Ollama, and live provider checks remain BLOCKED/NOT VERIFIED. PR #415 remains Draft/open/unmerged.
