@@ -2,7 +2,7 @@
 param([switch]$Plan,[switch]$Run,[string]$Task,[string]$Base,[string]$AgentCommand=$env:DEVFLOW_AGENT_COMMAND,[string]$AgentArgsJson=$env:DEVFLOW_AGENT_ARGS_JSON,[ValidateRange(1,20)][int]$MaxTasks=3
 )
 $ErrorActionPreference="Stop"
-function Git($repo,[string[]]$GitArgs){ & git -C $repo @GitArgs; if($LASTEXITCODE -ne 0){throw "git failed (exit $LASTEXITCODE)"} }
+function Invoke-GitCli($repo,[string[]]$GitArgs){ & git -C $repo @GitArgs; if($LASTEXITCODE -ne 0){throw "git failed (exit $LASTEXITCODE)"} }
 function Root { $r=& git rev-parse --show-toplevel 2>$null; if($LASTEXITCODE -ne 0 -or -not $r){throw "Run inside a Git checkout."}; $r.Trim() }
 function Eligible($m,$allow) {
  $states=@("ready","in_progress")
@@ -44,7 +44,7 @@ foreach($t in $tasks){
  $id=[string]$t.id;$slug=$id.ToLowerInvariant();$stamp=Get-Date -Format "yyyyMMdd-HHmmss";$branch="autopilot/$slug-$stamp"
  $wtroot=Join-Path (Split-Path $root -Parent) ((Split-Path $root -Leaf)+"-worktrees");$wt=Join-Path $wtroot "$slug-$stamp"
  New-Item -ItemType Directory -Force -Path $wtroot|Out-Null
- Git $root @("fetch","origin","--prune");Git $root @("worktree","add","-b",$branch,$wt,"origin/$Base")
+ Invoke-GitCli $root @("fetch","origin","--prune");Git $root @("worktree","add","-b",$branch,$wt,"origin/$Base")
  $prompt=Join-Path $wt ".devflow-agent-task.md"
  $body=@("# $id - $($t.title)","Scope:",(@($t.scope)|ForEach-Object{"- $_"}),"Acceptance:",(@($t.acceptance)|ForEach-Object{"- $_"}),"Rules: inspect existing code, implement real behavior, run tests, document blockers; never merge, deploy, publish, change credentials, or mark dependencies complete.")
  Set-Content -LiteralPath $prompt -Value ($body -join [Environment]::NewLine) -Encoding utf8
@@ -54,7 +54,7 @@ foreach($t in $tasks){
  if(-not(& git -C $wt status --porcelain)){throw "Agent made no changes; worktree retained: $wt"}
  & python (Join-Path $wt "scripts/devflow.py") validate;if($LASTEXITCODE -ne 0){throw "Validation failed; worktree retained: $wt"}
  foreach($n in @(".env",".env.local","credentials.json","secrets.json")){if(Get-ChildItem $wt -Force -Recurse -File -Filter $n -ErrorAction SilentlyContinue|Where-Object{$_.FullName -notmatch '[\\/](\.git|node_modules|\.venv)[\\/]'}){throw "Potential secret file blocks commit: $n"}}
- Git $wt @("add","-A");Git $wt @("diff","--cached","--check");Git $wt @("commit","-m","BUILD: $id - $($t.title)");Git $wt @("push","-u","origin",$branch)
+ Invoke-GitCli $wt @("add","-A");Git $wt @("diff","--cached","--check");Git $wt @("commit","-m","BUILD: $id - $($t.title)");Git $wt @("push","-u","origin",$branch)
  $prbody="Task: $id - $($t.title). Validation passed before commit. Draft only; no merge, deployment, publishing, or dependency status changes."
  & gh pr create --draft --base $Base --head $branch --title "BUILD: $id - $($t.title)" --body $prbody
  if($LASTEXITCODE -ne 0){throw "Push succeeded but PR creation failed; worktree retained: $wt"}
