@@ -213,9 +213,18 @@ class MediaStager:
                 raise MediaStagingError("Artifact has an invalid Content-Length") from exc
         storage_dir = self._storage_dir(workspace_id)
         storage_dir.mkdir(parents=True, exist_ok=True)
+        if workspace_id is not None:
+            # Do not follow a pre-planted namespace symlink outside the media root.
+            if storage_dir.is_symlink():
+                raise MediaStagingError("Workspace media namespace must not be a symlink")
+            resolved_storage_dir = storage_dir.resolve()
+            if resolved_storage_dir.parent != self.media_dir:
+                raise MediaStagingError("Workspace media namespace escaped the media root")
+        else:
+            resolved_storage_dir = self.media_dir
         filename = hashlib.sha256(str(job_id).encode("utf-8")).hexdigest() + ".mp4"
-        destination = (storage_dir / filename).resolve()
-        destination.relative_to(storage_dir.resolve())
+        destination = (resolved_storage_dir / filename).resolve()
+        destination.relative_to(resolved_storage_dir)
         temporary = None
         total = 0
         prefix = b""
