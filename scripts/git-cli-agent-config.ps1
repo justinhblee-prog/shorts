@@ -45,8 +45,8 @@ if($Check -or $Configure){
  & gh auth status *> $null
  if($LASTEXITCODE -ne 0){throw "GitHub CLI is not authenticated. Run: gh auth login"}
  $command=if($AgentCommand){$AgentCommand}else{$env:DEVFLOW_AGENT_COMMAND}
- $args=if($AgentArgsJson){$AgentArgsJson}else{$env:DEVFLOW_AGENT_ARGS_JSON}
- Test-AgentConfig $command $args
+ $resolvedAgentArgsJson=if($AgentArgsJson){$AgentArgsJson}else{$env:DEVFLOW_AGENT_ARGS_JSON}
+ Test-AgentConfig $command $resolvedAgentArgsJson
  $resolved=Get-Command $command -ErrorAction SilentlyContinue
  if(-not $resolved -and -not(Test-Path -LiteralPath $command)){throw "Agent CLI executable is not installed or not on PATH: $command"}
  Write-Host "PASS: PowerShell $($PSVersionTable.PSVersion), Git, Python, GitHub CLI authentication, clean checkout, task manifest, and Agent CLI configuration."
