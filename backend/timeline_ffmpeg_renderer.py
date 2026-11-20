@@ -260,7 +260,7 @@ class TimelineFFmpegRenderer:
                 "-threads", "2",
                 "-r", str(self.fps), "-pix_fmt", "yuv420p",
                 "-t", self._seconds(duration_ms), "-movflags", "+faststart",
-                str(video_path),
+                "-fs", str(self.max_output_bytes), str(video_path),
             ])
             self._run(argv, stop_event)
 
@@ -285,6 +285,7 @@ class TimelineFFmpegRenderer:
                 audio_argv = build_audio_mix_argv(
                     prepared_audio, str(audio_path), ffmpeg_path=self.ffmpeg_path,
                     output_duration_ms=duration_ms,
+                    max_output_bytes=self.max_output_bytes,
                 )
                 self._run(audio_argv, stop_event)
                 mux_argv = [
@@ -293,7 +294,7 @@ class TimelineFFmpegRenderer:
                     "-protocol_whitelist", "file,pipe", "-i", str(audio_path),
                     "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "copy",
                     "-t", self._seconds(duration_ms), "-movflags", "+faststart",
-                    str(final_path),
+                    "-fs", str(self.max_output_bytes), str(final_path),
                 ]
                 self._run(mux_argv, stop_event)
             else:
