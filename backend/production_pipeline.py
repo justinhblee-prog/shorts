@@ -1481,10 +1481,13 @@ def submit_production(queue, store, brief, workspace_id=None):
         raise ValueError("Production blocked by policy preflight: "
                          + ", ".join(policy_report["blocking_reasons"]))
     clean["policy_report"] = policy_report
-    job = queue.enqueue("short_video_production", clean,
-                        channel_name=clean["brand"],
-                        idempotency_key=brief.get("idempotency_key"),
-                        workspace_id=workspace_id)
+    enqueue_options = {
+        "channel_name": clean["brand"],
+        "idempotency_key": brief.get("idempotency_key"),
+    }
+    if workspace_id is not None:
+        enqueue_options["workspace_id"] = workspace_id
+    job = queue.enqueue("short_video_production", clean, **enqueue_options)
     if not store.get(job["id"]):
         store.create(job["id"], clean)
     return {"job": job, "production": store.get(job["id"])}
