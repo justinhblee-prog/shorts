@@ -46,9 +46,29 @@ def secret_candidates(path: Path) -> list[str]:
 
 def validate(root: Path) -> None:
     run(["git", "diff", "--check"], root)
-    shell = shutil.which("bash") or shutil.which("sh")
-    if not shell:
-        raise RuntimeError("bash/sh not found; install Git for Windows or use the configured Linux runner")
+    shell = None
+    if sys.platform == "win32":
+        # Prefer Git for Windows' bundled Bash. WindowsApps\bash.exe may be
+        # only a WSL launcher and fail on machines without a WSL distribution.
+        git = shutil.which("git")
+        if git:
+            for parent in Path(git).resolve().parents:
+                for relative in (("bin", "bash.exe"), ("usr", "bin", "bash.exe")):
+                    candidate = parent.joinpath(*relative)
+                    if candidate.is_file():
+                        shell = str(candidate)
+                        break
+                if shell:
+                    break
+        if not shell:
+            raise RuntimeError(
+                "Git for Windows Bash was not found. A WindowsApps WSL bash shim "
+                "is not a valid substitute; repair/install Git for Windows."
+            )
+    else:
+        shell = shutil.which("bash") or shutil.which("sh")
+        if not shell:
+            raise RuntimeError("bash/sh not found; install a POSIX shell or use the configured Linux runner")
     run([shell, "scripts/validate.sh"], root)
 
 def cmd_start(args: argparse.Namespace) -> None:
@@ -69,7 +89,7 @@ def cmd_start(args: argparse.Namespace) -> None:
 
 def cmd_validate(args: argparse.Namespace) -> None:
     validate(repo_root(Path.cwd()))
-    print("Validation passed: git diff --check + scripts/validate.sh")
+    print("Validation passed: git diff --check + scripts/validate.sh (Git Bash on Windows)")
 
 def cmd_finish(args: argparse.Namespace) -> None:
     root = repo_root(Path.cwd())
