@@ -234,3 +234,10 @@
 - Added regression assertions for both transition events. The first CI attempt exposed an assertion-order mistake (the subsequent worker claim is the newest event); corrected the test to assert the release event immediately before the claim event.
 - Exact head 07b31e6e1180bcfb1e191d2a88b079b9953cacb4 passed all backend validation, frontend syntax, both Chromium smoke suites, and artifact upload in PR run 44653917688; push run 44653909005 also passed. Browser artifact: https://github.com/justinhblee-prog/shorts/actions/runs/44653917688/artifacts/14591668407.
 - This is hosted Linux/fixture validation. Windows self-hosted execution, LocalAppData persistence, Ollama generation, OAuth, live media rendering, and live publishing remain NOT VERIFIED. PR #415 remains Draft/open/unmerged.
+
+## 30. DAG mutation versus worker-claim race regression — 2026-11-20
+
+- Added a barrier-synchronized concurrency regression that races dependency insertion against worker claim while the prerequisite is actively leased.
+- The accepted outcomes are mutually exclusive: dependency insertion wins and the child remains blocked/unclaimable, or claim wins and dependency insertion is rejected because the child is already leased. The test rejects any state where a child is leased while acquiring an unresolved prerequisite.
+- Exact head 8a5364903526cc8ed56977bdec730206b514f778 passed all CI steps in [PR run 44654439190](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190): backend validation, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation Chromium smoke, and artifact upload [14592966229](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190/artifacts/14592966229).
+- FLOW-CORE concurrency guard: PASS within hosted SQLite test scope. No real multi-process Windows runner or LocalAppData persistence claim. PR #415 remains Draft/open/unmerged.
