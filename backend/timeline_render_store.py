@@ -227,11 +227,13 @@ class TimelineRenderStore:
 
     def review_decide(self, workspace_id, reviewer_id, snapshot_id, decision, comment=""):
         self.workspaces.require_membership(workspace_id, reviewer_id)
-        if decision not in {"approved", "rejected", "revision_requested"}:
+        if not isinstance(decision, str) or decision not in {
+            "approved", "rejected", "revision_requested"
+        }:
             raise ValueError("unsupported timeline review decision")
         if not isinstance(comment, str) or len(comment) > 4000:
             raise ValueError("review comment must be at most 4000 characters")
-        if any(ord(ch) < 32 and ch not in "\n\t" for ch in comment):
+        if any((ord(ch) < 32 and ch not in "\n\t") or ord(ch) == 127 for ch in comment):
             raise ValueError("review comment contains unsupported control characters")
         timestamp = datetime.now(timezone.utc).isoformat()
         with self._db() as db:
