@@ -7,6 +7,7 @@ ready. Filesystem isolation and quotas still belong to the worker/container laye
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import sqlite3
@@ -75,12 +76,19 @@ class WorkspaceAssetStore:
                     sha256 TEXT NOT NULL CHECK(length(sha256) = 64),
                     storage_name TEXT NOT NULL UNIQUE,
                     scan_status TEXT NOT NULL CHECK(scan_status IN ('pending','clean','rejected')),
+                    duration_ms INTEGER,
+                    media_metadata_json TEXT,
                     status TEXT NOT NULL CHECK(status IN ('active','deleted')),
                     created_at TEXT NOT NULL,
                     retention_until TEXT NOT NULL,
                     UNIQUE(workspace_id, sha256)
                 )
             """)
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(workspace_media_assets)")}
+            if "duration_ms" not in columns:
+                db.execute("ALTER TABLE workspace_media_assets ADD COLUMN duration_ms INTEGER")
+            if "media_metadata_json" not in columns:
+                db.execute("ALTER TABLE workspace_media_assets ADD COLUMN media_metadata_json TEXT")
             db.execute("""CREATE INDEX IF NOT EXISTS idx_workspace_assets_owner
                           ON workspace_media_assets(workspace_id, owner_principal_id, status)""")
 
@@ -193,13 +201,21 @@ class WorkspaceAssetStore:
         with self.db() as db:
             row = db.execute("""
                 SELECT id,workspace_id,owner_principal_id,original_name,byte_size,
-                       sha256,scan_status,status,created_at,retention_until
+                       sha256,scan_status,duration_ms,media_metadata_json,status,created_at,retention_until
                 FROM workspace_media_assets
                 WHERE id=? AND workspace_id=? AND status='active'
             """, (asset_id, workspace_id)).fetchone()
         if row is None:
             raise AssetNotFound("asset not found in this workspace")
-        return dict(row)
+        result = dict(row)
+        try:
+            result["media_metadata"] = (
+                json.loads(result.pop("media_metadata_json"))
+                if result.get("media_metadata_json") else None
+            )
+        except (TypeError, ValueError) as exc:
+            raise AssetError("asset media metadata is corrupted") from exc
+        return result
 
     def open_clean_asset(self, workspace_id, principal_id, asset_id):
         """Return a private file handle only for clean, active, workspace-owned media."""
@@ -221,6 +237,93 @@ class WorkspaceAssetStore:
         except Exception:
             handle.close()
             raise
+
+
+
+    def scan_pending_asset(self, workspace_id, principal_id, asset_id, scanner, probe):
+        """Run ClamAV and ffprobe; only both explicit successes release quarantine."""
+        from media_scanner import MediaInfectedError, MediaScanError
+
+        self.workspaces.require_membership(
+            workspace_id, principal_id, minimum_roles=_ALLOWED_ROLES
+        )
+        metadata = self.get_asset(workspace_id, principal_id, asset_id)
+        if metadata["scan_status"] == "clean" and metadata.get("media_metadata"):
+            return metadata
+        if metadata["scan_status"] != "pending":
+            raise AssetError("asset is not awaiting malware scanning")
+        if not callable(probe):
+            raise ValueError("a trusted source-media probe is required")
+        path = self._workspace_dir(workspace_id) / (asset_id + ".blob")
+        if path.is_symlink() or not path.is_file():
+            raise AssetNotFound("pending asset binary is unavailable")
+        def fingerprint():
+            digest = hashlib.sha256()
+            size = 0
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    size += len(chunk)
+                    digest.update(chunk)
+            return digest.hexdigest(), size
+        before_hash, before_size = fingerprint()
+        if before_hash != metadata["sha256"] or before_size != metadata["byte_size"]:
+            raise AssetError("asset integrity verification failed before scanning")
+        try:
+            scan_result = scanner.scan(path)
+        except MediaInfectedError as exc:
+            self._set_pending_scan_status(workspace_id, asset_id, "rejected")
+            raise AssetError("malware scanner rejected the uploaded asset") from exc
+        except MediaScanError as exc:
+            raise AssetError("malware scan could not confirm clean media; asset remains quarantined") from exc
+        if not isinstance(scan_result, dict) or scan_result.get("status") != "clean":
+            raise AssetError("malware scanner did not explicitly confirm clean media")
+        try:
+            media = probe(path)
+        except Exception as exc:
+            raise AssetError("source media probe could not confirm a supported media stream") from exc
+        if (not isinstance(media, dict)
+                or isinstance(media.get("duration_ms"), bool)
+                or not isinstance(media.get("duration_ms"), int)
+                or media["duration_ms"] < 1
+                or media.get("byte_size") != before_size
+                or not (media.get("has_video") or media.get("has_audio"))):
+            raise AssetError("source media probe returned incomplete or inconsistent metadata")
+        after_hash, after_size = fingerprint()
+        if after_hash != before_hash or after_size != before_size:
+            raise AssetError("asset changed while malware and media probes were running")
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            cursor = db.execute("""
+                UPDATE workspace_media_assets
+                SET scan_status='clean',duration_ms=?,media_metadata_json=?
+                WHERE id=? AND workspace_id=? AND status='active' AND scan_status='pending'
+            """, (media["duration_ms"], json.dumps(media, sort_keys=True),
+                  asset_id, workspace_id))
+            if cursor.rowcount != 1:
+                current = db.execute("""
+                    SELECT scan_status FROM workspace_media_assets
+                    WHERE id=? AND workspace_id=? AND status='active'
+                """, (asset_id, workspace_id)).fetchone()
+                db.rollback()
+                if current is None or current["scan_status"] != "clean":
+                    raise AssetNotFound("pending asset changed during scanning")
+            else:
+                db.commit()
+        return self.get_asset(workspace_id, principal_id, asset_id)
+
+    def _set_pending_scan_status(self, workspace_id, asset_id, status):
+        if status not in ("clean", "rejected"):
+            raise ValueError("invalid scanner result")
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            cursor = db.execute("""
+                UPDATE workspace_media_assets SET scan_status=?
+                WHERE id=? AND workspace_id=? AND status='active' AND scan_status='pending'
+            """, (status, asset_id, workspace_id))
+            if cursor.rowcount != 1:
+                db.rollback()
+                raise AssetNotFound("pending asset not found in this workspace")
+            db.commit()
 
     def mark_scan_result(self, workspace_id, principal_id, asset_id, clean):
         """Record scanner outcome; only a workspace admin/owner may change quarantine state."""
