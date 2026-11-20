@@ -9,9 +9,9 @@ services:
       NEXUS_DB_PATH: /app/data/nexus.sqlite3
       NEXUS_MEDIA_DIR: /app/data/media
       NEXUS_MEDIA_SCAN_ENABLED: ${NEXUS_MEDIA_SCAN_ENABLED:-false}
-      NEXUS_PRIVATE_MEDIA_ROOT: /app/data/private-media
+      NEXUS_PRIVATE_MEDIA_ROOT: /app/data/media/private-assets
       NEXUS_RENDER_STAGING_ROOT: /tmp/nexus-render-staging
-      NEXUS_RENDER_ARTIFACT_ROOT: /app/data/render-artifacts
+      NEXUS_RENDER_ARTIFACT_ROOT: /app/data/media/render-artifacts
       NEXUS_FFPROBE_PATH: /usr/bin/ffprobe
     ports:
       - "8502:8502"
@@ -69,9 +69,9 @@ services:
     env_file: .env
     environment:
       NEXUS_DB_PATH: /app/data/nexus.sqlite3
-      NEXUS_PRIVATE_MEDIA_ROOT: /app/data/private-media
-      NEXUS_RENDER_STAGING_ROOT: /app/data/render-staging
-      NEXUS_RENDER_ARTIFACT_ROOT: /app/data/render-artifacts
+      NEXUS_PRIVATE_MEDIA_ROOT: /app/data/media/private-assets
+      NEXUS_RENDER_STAGING_ROOT: /app/data/media/render-staging
+      NEXUS_RENDER_ARTIFACT_ROOT: /app/data/media/render-artifacts
       NEXUS_FFMPEG_PATH: /usr/bin/ffmpeg
       NEXUS_FFPROBE_PATH: /usr/bin/ffprobe
       NEXUS_TITLE_FONT_PATH: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
@@ -93,7 +93,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-    init: true
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=512m
