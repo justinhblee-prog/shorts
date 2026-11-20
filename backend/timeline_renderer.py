@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import hashlib
 import os
-import resource
+try:
+    import resource
+except ImportError:  # Windows development environments do not expose POSIX rlimits.
+    resource = None
 import subprocess
 import tempfile
 import uuid
@@ -75,7 +78,7 @@ class TimelineRenderer:
 
     @staticmethod
     def _resource_limits(memory_bytes: int, cpu_seconds: int, output_bytes: int):
-        if os.name != "posix":
+        if os.name != "posix" or resource is None:
             return None
 
         def apply():
