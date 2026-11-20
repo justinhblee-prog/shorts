@@ -132,21 +132,23 @@ def _probe(ffprobe_path: str | Sequence[str], media_path: Path, timeout_seconds:
         duration = float(fmt.get("duration"))
     except (TypeError, ValueError):
         duration = 0
+    format_name = str(fmt.get("format_name", ""))
     if (stream.get("codec_name") != "h264" or stream.get("width") != 1080
-            or stream.get("height") != 1920 or not (0 < duration <= 3600)):
+            or stream.get("height") != 1920 or "mp4" not in format_name.split(",")
+            or not (0 < duration <= 3600)):
         raise RenderExecutionError("rendered artifact does not match the required MP4 profile")
     return {"duration_seconds": duration, "codec": "h264",
-            "width": 1080, "height": 1920, "format_name": str(fmt.get("format_name", ""))[:80]}
+            "width": 1080, "height": 1920, "format_name": format_name[:80]}
 
 
 def execute_ffmpeg_render(argv: Sequence[str], output_root: str | os.PathLike,
-                          final_name: str, *, ffprobe_path: str = "ffprobe",
+                          final_name: str, *, ffprobe_path: str | Sequence[str] = "ffprobe",
                           timeout_seconds: int = 900,
                           max_output_bytes: int = 512 * 1024 * 1024) -> dict:
     """Execute a prebuilt argv, probe output, hash it and atomically adopt it.
 
-    The argv must end in a path inside output_root. The final artifact name is
-    generated/validated here; failed or partial output is always removed.
+    The argv must end with the literal {output} placeholder. It is replaced with
+    a private temporary path inside output_root; failed output is always removed.
     """
     root = _regular_output_root(output_root)
     if (not isinstance(final_name, str) or not final_name.endswith(".mp4")
@@ -183,9 +185,13 @@ def execute_ffmpeg_render(argv: Sequence[str], output_root: str | os.PathLike,
                 digest.update(chunk)
         if size == 0:
             raise RenderExecutionError("rendered artifact is empty")
-        if destination.exists() or destination.is_symlink():
-            raise RenderExecutionError("final artifact appeared before atomic adoption")
-        os.replace(temporary, destination)
+        try:
+            # Hard-link creation is atomic and fails if the destination already
+            # exists; unlike os.replace it cannot silently overwrite another job.
+            os.link(temporary, destination)
+        except FileExistsError as exc:
+            raise RenderExecutionError("final artifact appeared before atomic adoption") from exc
+        temporary.unlink()
         return {"path": destination.name, "size_bytes": size,
                 "sha256": digest.hexdigest(), "probe": probe,
                 "status": "review_pending"}
