@@ -618,7 +618,7 @@ This is a tested low-level primitive, **not yet an end-to-end render worker**. I
 
 The authenticated `POST /api/render/assets` endpoint streams only MP4 video or M4A/MP4 audio into an opaque workspace namespace. It enforces per-type byte limits, verifies the MP4-family signature, computes SHA-256, and atomically registers the asset with its authenticated owner and workspace. `GET /api/render/assets` lists only the selected workspace's assets. `POST /api/render/validate-edl` validates EDL v1 and resolves every video `asset_id` against the authenticated workspace; it never returns filesystem paths.
 
-Malware scanning follows `NEXUS_MEDIA_SCAN_ENABLED`. If scanning is disabled, uploads are stored with `scan_status=disabled` and are **not render-resolvable**. Rendering requires a clean ClamAV result and a fresh SHA-256/size match at resolution time. Enable scanning only after configuring the ClamAV database/updater. This milestone still does not enqueue or execute render jobs.
+Malware scanning follows `NEXUS_MEDIA_SCAN_ENABLED`. If scanning is disabled, uploads are stored with `scan_status=disabled` and are **not render-resolvable**. Rendering requires a clean ClamAV result and a fresh SHA-256/size match at resolution time. Enable scanning only after configuring the ClamAV database/updater. The asset registry itself does not execute jobs; the separate durable queue and render worker described below perform that work.
 
 Uploads and EDL validation use the dedicated `media` rate-limit bucket (default 10 requests/minute; configure `NEXUS_API_MEDIA_RATE_LIMIT_PER_MINUTE`). Video EDL clips must resolve to registered `video` assets; an audio asset ID cannot be substituted for a video source.
 
