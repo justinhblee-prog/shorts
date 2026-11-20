@@ -34,17 +34,19 @@
         "Production filesystem isolation and resource limits"
       ],
       "implemented_increment": [
-        "Bounded argv-only FFmpeg subprocess execution with timeout and output-size checks",
-        "Process-group termination on timeout or output-limit breach",
-        "ffprobe profile validation, SHA-256 fingerprint and atomic private artifact adoption",
-        "Unit fixtures cover successful adoption, destination collision and unsafe output names"
+        "Workspace-scoped private asset staging with server-side SHA-256, size limits, quarantine state and hash verification on access",
+        "Immutable normalized EDL v1 snapshots with database update/delete guards and workspace authorization",
+        "Idempotent timeline_render queue handoff carrying snapshot ID, digest and normalized EDL",
+        "Lease-fenced timeline worker with heartbeat, generation-token checks and review_pending completion",
+        "Shell-free FFmpeg audio-mix argv builder with bounded tracks, trims, fades, gain and limiter",
+        "Regression tests for asset isolation, snapshot immutability, queue handoff, worker transitions and audio argv validation"
       ],
       "remaining": [
-        "Integrate with authenticated workspace-owned source asset registry and immutable EDL job snapshot",
-        "Integrate generic durable queue lease/heartbeat fencing and crash reconciliation",
-        "Use real pinned FFmpeg and ffprobe binaries in an isolated worker container",
-        "Enforce CPU, memory, disk, network and process-count quotas outside this Python module",
-        "Add actual audio-mix support and real-media integration tests"
+        "Connect a real scanner and ffprobe probe; persist trusted media duration and reject source trims beyond actual duration",
+        "Integrate audio mixing and video rendering into a concrete EDL renderer with staged outputs and atomic adoption only after lease validation",
+        "Run pinned FFmpeg and ffprobe binaries in an isolated worker container with CPU, memory, disk, network and process-count quotas",
+        "Add real-media integration tests and crash/lease-loss tests that prove no stale worker can adopt or publish output",
+        "Expose authenticated upload, render submission and review APIs with production filesystem permissions and retention cleanup"
       ]
     },
     {
