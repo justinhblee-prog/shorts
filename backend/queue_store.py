@@ -329,7 +329,7 @@ class JobQueue:
             c.execute("BEGIN IMMEDIATE"); n=stamp(now())
             self._assert_worker_generation(c, worker, generation_token)
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
-            self.assert_lease(row,worker,token,n)
+            self.assert_lease(row,worker,token,n,workspace_id)
             c.execute("""UPDATE pipeline_jobs SET status='review_pending',worker_id=NULL,lease_token=NULL,
               lease_expires_at=NULL,completed_at=?,updated_at=? WHERE id=?""",(n,n,jid))
             self.event(c,jid,"completed","running","review_pending",worker,{"result":result or {}},created_at=n)
@@ -340,7 +340,7 @@ class JobQueue:
             c.execute("BEGIN IMMEDIATE"); n=stamp(now())
             self._assert_worker_generation(c, worker, generation_token)
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
-            self.assert_lease(row,worker,token,n)
+            self.assert_lease(row,worker,token,n,workspace_id)
             retry=bool(retryable and row["attempt"]<row["max_attempts"]); status="failed_retriable" if retry else "failed_terminal"
             c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
               available_at=?,updated_at=?,error_code=?,error_message=? WHERE id=?""",(status,n,n,error_code,error_message[:2000],jid))
