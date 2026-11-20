@@ -394,6 +394,18 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
                     x_nexus_worker_generation=generation,
                 )
                 self.assertEqual(completed["status"], "review_pending")
+                rotated = api.register_worker_v1(
+                    api.WorkerRegisterInput(hostname="replacement-worker"),
+                    authorization="Bearer " + token,
+                )
+                self.assertNotEqual(rotated["generation_token"], generation)
+                with self.assertRaises(HTTPException) as stale_generation:
+                    api.claim_worker_v1(
+                        api.WorkerClaimInput(hostname="isolated-worker"),
+                        authorization="Bearer " + token,
+                        x_nexus_worker_generation=generation,
+                    )
+                self.assertEqual(stale_generation.exception.status_code, 409)
                 with self.assertRaises(HTTPException) as legacy_disabled:
                     api.claim(
                         api.Claim(worker_id="worker-alpha", hostname="isolated-worker"),
