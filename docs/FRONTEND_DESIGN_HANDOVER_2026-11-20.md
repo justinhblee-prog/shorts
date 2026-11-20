@@ -155,3 +155,11 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Added FastAPI TestClient coverage for token-derived ownership, authenticated listing, member role enforcement, unauthenticated access, and SQLite-mode cross-workspace denial even when the legacy config would grant access.
 - Current principal type is still a configured operator identity, not a customer account. No production auth-mode switch, customer identity integration, migration, asset upload, or MP4 rendering is enabled.
 - Exact-head CI for this implementation: [Backend tests run 44675134276](https://github.com/justinhblee-prog/shorts/actions/runs/44675134276); [Compose integration run 44675134115](https://github.com/justinhblee-prog/shorts/actions/runs/44675134115).
+
+ 
+## Workspace API validation correction — 2026-11-20
+
+- The first API-test attempt exposed that this repository's pinned Starlette environment requires `httpx2` for `TestClient`, which is not a declared project dependency. Tests were changed to call the FastAPI route functions directly with isolated auth/store patches; no new runtime dependency was introduced.
+- Corrected the revoked-membership test to revoke a non-owner member, preserving the invariant that the last owner cannot be removed.
+- Added explicit RBAC protection to the operator workspace list endpoint.
+- Revalidation is required on the corrected branch head; the earlier backend run failed on the initial test harness and must not be counted as a passing result.
