@@ -77,6 +77,7 @@ services:
       NEXUS_RENDER_ARTIFACT_ROOT: /app/data/media/render-artifacts
       NEXUS_FFMPEG_PATH: /usr/bin/ffmpeg
       NEXUS_FFPROBE_PATH: /usr/bin/ffprobe
+      NEXUS_RENDER_BINARY_MANIFEST: /usr/share/nexus-media-binaries.sha256
       NEXUS_TITLE_FONT_PATH: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
       NEXUS_RENDER_MAX_DURATION_MS: ${NEXUS_RENDER_MAX_DURATION_MS:-3600000}
       NEXUS_MAX_ASSET_BYTES: ${NEXUS_MAX_ASSET_BYTES:-500000000}
