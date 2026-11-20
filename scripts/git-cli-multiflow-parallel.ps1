@@ -1,8 +1,9 @@
 [CmdletBinding()]
 param(
- [switch]$Worker,[string]$TaskFile,[string]$StateRoot,
+ [switch]$Worker,[string]$TaskFile,[string]$StateRoot,[string]$Task,
  [ValidateRange(1,3)][int]$MaxParallel=3,
- [ValidateRange(60,86400)][int]$TaskTimeoutSeconds=3600
+ [ValidateRange(60,86400)][int]$TaskTimeoutSeconds=3600,
+ [ValidateRange(1,20)][int]$MaxTasks=3
 )
 $ErrorActionPreference="Stop"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required."}
@@ -83,6 +84,7 @@ $open=& gh pr list --state open --json title --limit 100;if($LASTEXITCODE -ne 0)
 $openIds=@($open|ConvertFrom-Json|ForEach-Object{$m=[regex]::Match([string]$_.title,'BUILD-[0-9]{5}');if($m.Success){$m.Value}})
 $eligible=@()
 foreach($t in @($manifest.tasks|Where-Object{$_.status -in @("ready","in_progress")}|Sort-Object priority)){
+ if($Task -and $t.id -ne $Task){continue}
  if($openIds -contains [string]$t.id){continue}
  $ready=$true
  foreach($d in @($t.depends_on)){$dep=@($manifest.tasks|Where-Object{$_.id -eq $d})|Select-Object -First 1;if(-not $dep -or $dep.status -ne "completed"){$ready=$false;break}}
@@ -92,7 +94,7 @@ if(-not $eligible.Count){Write-Host "No runnable tasks. Open-PR, dependency, and
 $stateDir=[IO.Path]::GetFullPath($StateRoot);New-Item -ItemType Directory -Force -Path $stateDir|Out-Null
 $statePath=Join-Path $stateDir "state.json";$state=Read-State $statePath
 $queue=[Collections.Generic.Queue[object]]::new()
-foreach($t in $eligible){
+foreach($t in @($eligible|Select-Object -First $MaxTasks)){
  $prior=$state.tasks[[string]$t.id]
  if($prior -and $prior.status -eq "draft_pr_created"){continue}
  if($prior -and $prior.status -eq "running"){
