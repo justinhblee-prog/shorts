@@ -11,7 +11,8 @@ import threading
 
 class TimelineRenderWorker:
     def __init__(self, queue, renderer, worker_id, generation_token,
-                 heartbeat_seconds=10, artifact_store=None, shutdown_event=None):
+                 heartbeat_seconds=10, artifact_store=None, shutdown_event=None,
+                 principal_resolver=None):
         if not callable(renderer):
             raise TypeError("renderer callback is required")
         if not worker_id or not generation_token:
@@ -25,6 +26,7 @@ class TimelineRenderWorker:
         self.heartbeat_seconds = heartbeat_seconds
         self.artifact_store = artifact_store
         self.shutdown_event = shutdown_event
+        self.principal_resolver = principal_resolver
 
     def run_once(self):
         job = self.queue.claim(
@@ -56,6 +58,12 @@ class TimelineRenderWorker:
         staged_path = None
         adopted = False
         try:
+            principal_id = job["payload"].get("creator_principal_id")
+            if self.principal_resolver is not None:
+                resolved_principal = self.principal_resolver(job["workspace_id"], job["payload"])
+                if principal_id is not None and principal_id != resolved_principal:
+                    raise RuntimeError("render job creator does not match immutable snapshot owner")
+                principal_id = resolved_principal
             try:
                 parameters = inspect.signature(self.renderer).parameters
                 accepts_kwargs = any(
@@ -64,7 +72,7 @@ class TimelineRenderWorker:
                 )
                 context = {
                     "workspace_id": job["workspace_id"],
-                    "principal_id": job["payload"].get("creator_principal_id"),
+                    "principal_id": principal_id,
                 }
                 context = {
                     key: value for key, value in context.items()
