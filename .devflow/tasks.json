@@ -118,6 +118,29 @@
       ],
       "external_gates": [],
       "notes": "Reattempt after removing JSON-constrained mode from Ollama tool requests. A real local model tool-call diagnostic now runs before worker scheduling and reports done_reason, output length, and tool-call counts. Repeated identical tool calls are bounded to prevent no-progress loops. Draft PR only; no merge or deployment."
+    },
+    {
+      "id": "BUILD-00356",
+      "title": "Add offline regression tests for Ollama tool-call protocol",
+      "priority": 5,
+      "status": "ready",
+      "depends_on": [],
+      "base_branch": "fix/devflow-detached-supervisor-2026-11-20",
+      "scope": [
+        "scripts/ollama-agent.py",
+        "scripts/test_ollama_agent_protocol.py",
+        ".github/workflows/git-cli-autopilot.yml"
+      ],
+      "acceptance": [
+        "Add standard-library unit tests for fenced JSON tool-call parsing, raw JSON parsing, malformed responses, and unknown tool rejection",
+        "Mock urllib.request.urlopen and verify the local Ollama endpoint, model, tools payload, and absence of forced JSON response format",
+        "Verify the test suite requires no live Ollama service, network access, credentials, or paid API",
+        "Update Git CLI autopilot CI to compile and execute the new offline unit tests",
+        "Run Python compilation and inspect the final diff; do not claim unit tests passed unless actually executed",
+        "Do not modify .devflow/tasks.json or unrelated files"
+      ],
+      "external_gates": [],
+      "notes": "Small real-worker validation task after the local model passed the JSON-text tool-call diagnostic. Intended to verify the no-format Ollama request path with deterministic offline tests. Draft PR only."
     }
   ]
 }
