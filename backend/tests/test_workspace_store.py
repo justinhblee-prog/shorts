@@ -48,7 +48,7 @@ class WorkspaceStoreTests(unittest.TestCase):
             db.rollback()
             with self.assertRaises(sqlite3.IntegrityError): db.execute("DELETE FROM workspace_audit_events")
     def test_input_validation(self):
-        for name, owner in (("", "alice"), ("x"*121,"alice"), ("Studio"," ")):
+        for name, owner in (("", "alice"), ("x"*121,"alice"), ("Studio"," "), ("Studio","alice\\nops")):
             with self.assertRaises(ValueError): self.store.create(name,owner)
 
 if __name__ == "__main__": unittest.main()
