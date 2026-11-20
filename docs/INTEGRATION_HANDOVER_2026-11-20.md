@@ -195,3 +195,10 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - Tests insert a higher-priority job between pages and prove the snapshot still returns each original job once. API tests cover invalid timestamp rejection and pagination metadata; Chromium verifies the snapshot is sent on cross-page prerequisite lookup.
 - Exact code head `46b337bad16648a0d7ed6753c42ffe3d63033569` passed [run 44659993665](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665): 901 backend tests, frontend syntax, both Chromium suites, and artifact [14595685407](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665/artifacts/14595685407).
 - Hosted CI does not prove production multi-process SQLite behavior or Windows runner persistence; those remain separate gates.
+
+## 22. Windows-style workstream path normalization — 2026-11-20
+
+- Fixed case-sensitive workstream classification for Windows runner scopes. The UI classifier now normalizes backslashes, repeated separators, leading `./`, whitespace, and case before applying lane prefixes.
+- The Chromium fixture includes `Frontend\App.js` and verifies the resulting job is grouped under UI. Static frontend tests assert the normalization logic.
+- Exact code head `006805df47d5cf493a2ad5e95396f074170ce416` passed [run 44660726931](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931): 901 backend tests, frontend syntax, both Chromium suites, and artifact [14594589376](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931/artifacts/14594589376).
+- Hosted Windows-path fixture validation is not equivalent to executing on a real Windows self-hosted runner; that integration gate remains open.
