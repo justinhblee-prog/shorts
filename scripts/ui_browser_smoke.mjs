@@ -218,6 +218,13 @@ async function waitForServer() {
     const authenticatedText = await page.locator("body").innerText();
     assert.equal([...authenticatedText].filter(character => character === "\uFFFD").length, 0);
     assert.equal(await page.locator("html").getAttribute("lang"), "ko");
+    assert.equal(await page.locator("#renderJobTitle").isVisible(), true);
+    assert.equal(await page.locator("#timelineRenderSubmit").isVisible(), true);
+    assert.equal(await page.locator("#renderJobRefresh").isEnabled(), true);
+    assert.equal(await page.locator("#renderArtifactLoad").isDisabled(), true);
+    assert.equal(await page.locator("#renderJobApprove").isDisabled(), true);
+    assert.equal(await page.locator("#timelineMediaInput").getAttribute("accept"), "video/mp4,.mp4");
+    checkpoint("durable render and human-review controls are present and safely gated");
     checkpoint("authenticated Korean content has no replacement glyphs");
     const liveApiChecks = await page.evaluate(async ({ token, workspaceId }) => {
       const paths = [
