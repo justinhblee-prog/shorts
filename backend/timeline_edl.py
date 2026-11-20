@@ -93,7 +93,7 @@ def validate_edl(payload: Any) -> dict:
             title = raw["text"]
             if not isinstance(title, str) or not title.strip() or len(title) > MAX_TITLE_LENGTH:
                 raise EDLValidationError(f"{prefix}.text must contain 1 to {MAX_TITLE_LENGTH} characters")
-            if any((ord(ch) < 32 and ch not in "\\n\\t") or ord(ch) == 127 for ch in title):
+            if any((ord(ch) < 32 and ch not in "\n\t") or ord(ch) == 127 for ch in title):
                 raise EDLValidationError(f"{prefix}.text contains unsupported control characters")
             item["text"] = title.strip()
         normalized.append(item)
