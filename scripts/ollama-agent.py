@@ -148,7 +148,7 @@ def main() -> int:
  prompt=prompt_path.read_text(encoding="utf-8-sig")
  system=("You are a coding agent in one assigned Git worktree. You must inspect, implement, and validate the assigned task using the available tools. "
  "IMPORTANT: Your first response MUST be a tool request, not an explanation. "
- "When requesting a tool, output exactly one JSON object such as {\\\"name\\\":\\\"list_files\\\",\\\"arguments\\\":{\\\"path\\\":\\\".\\\"}}. Replace the example name and arguments with the selected tool. Do not use Markdown or surrounding prose. "
+ "When requesting a tool, output exactly one JSON object such as {\\\"name\\\":\\\"list_files\\\",\\\"arguments\\\":{\\\"path\\\":\\\"scripts\\\"}}. Replace the example name and arguments with the selected tool. Do not use Markdown or surrounding prose. "
  "After each tool result, request the next tool the same way. When all work is complete, provide a concise final summary. "
  "Never modify .devflow/tasks.json, credentials, secrets, or files outside this worktree. "
  "Do not use network access, external APIs, arbitrary shell commands, deployment, or publishing. "
@@ -186,10 +186,15 @@ def main() -> int:
    print(f"[ollama-agent] invoking_tool={name} argument_keys={sorted(arguments.keys())} text_fallback={text_fallback}",file=sys.stderr)
    signature=json.dumps({"name":name,"arguments":arguments},sort_keys=True,ensure_ascii=False)
    repeated_calls[signature]=repeated_calls.get(signature,0)+1
-   if repeated_calls[signature] > 5:
-    print(f"Agent repeated the same tool call more than five times: {name}; stopping to prevent a no-progress loop.",file=sys.stderr); return 5
-   try: result=execute(root,name,arguments)
-   except Exception as e: result=f"TOOL_ERROR: {type(e).__name__}: {e}"
+   if name=="list_files" and repeated_calls[signature] > 1:
+    result="TOOL_ERROR: You already listed this directory. Do not list it again; use the existing listing to inspect a specific scoped file or make the required edit."
+   elif name=="read_file" and repeated_calls[signature] > 2:
+    result="TOOL_ERROR: You already read this file twice. Do not read it again; use the available content and proceed with the implementation."
+   elif repeated_calls[signature] > 4:
+    print(f"Agent repeated the same tool call too many times: {name}; stopping to prevent a no-progress loop.",file=sys.stderr); return 5
+   else:
+    try: result=execute(root,name,arguments)
+    except Exception as e: result=f"TOOL_ERROR: {type(e).__name__}: {e}"
    if text_fallback:
     messages.append({"role":"user","content":f"Tool result for {name}:\\n{clip(str(result))}\\nUse this result to continue the assigned task. If another tool is needed, request it with exactly one JSON object containing name and arguments."})
    else:
