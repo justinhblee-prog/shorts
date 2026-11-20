@@ -107,6 +107,71 @@ class TimelineRenderApiTests(unittest.TestCase):
         self.assertFalse(result["rendered"])
         self.assertEqual(result["status_url"], f"/api/timeline/renders/{result['snapshot_id']}")
 
+
+    def test_status_exposes_preview_only_after_artifact_adoption(self):
+        class FakeDB:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def execute(self, *args):
+                return self
+            def fetchone(self):
+                return {"artifact_id": "rart_" + "d" * 32}
+
+        class FakeQueue:
+            def db(self): return FakeDB()
+            def get(self, job_id, workspace_id=None):
+                return {"status": "review_pending", "error_code": None,
+                        "error_message": None, "created_at": "created",
+                        "updated_at": "updated"}
+
+        class FakeSnapshotStore:
+            def get(self, workspace_id, principal_id, snapshot_id):
+                return {"snapshot_id": snapshot_id, "render_job_id": "job_fixture",
+                        "payload_sha256": "c" * 64}
+
+        class FakeArtifactStore:
+            def get(self, artifact_id, workspace_id):
+                return {"artifact_id": artifact_id, "byte_size": 1234,
+                        "duration_ms": 5000, "video_width": 1080,
+                        "video_height": 1920, "audio_streams": 1}
+
+        with patch.object(api, "require_review_permission", return_value="alice"), \
+             patch.object(api, "resolve_workspace_access", return_value="ws_studio"), \
+             patch.object(api, "timeline_render_store", FakeSnapshotStore()), \
+             patch.object(api, "queue", FakeQueue()), \
+             patch.object(api, "render_artifact_store", FakeArtifactStore()):
+            result = api.get_timeline_render_status(
+                "edl_" + "b" * 32, "review-token", "ws_studio"
+            )
+        self.assertEqual(result["status"], "review_pending")
+        self.assertTrue(result["rendered"])
+        self.assertEqual(result["artifact"]["duration_ms"], 5000)
+        self.assertIn("/preview", result["artifact"]["preview_url"])
+
+    def test_preview_resolves_only_workspace_owned_artifact(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as temp:
+            artifact_id = "rart_" + "e" * 32
+            media = Path(temp) / (artifact_id + ".mp4")
+            media.write_bytes(b"private-preview")
+            class FakeArtifactStore:
+                artifact_root = Path(temp)
+                def get(self, requested_id, workspace_id):
+                    self.assertion = (requested_id, workspace_id)
+                    return {"storage_key": media.name}
+            store = FakeArtifactStore()
+            with patch.object(api, "require_review_permission", return_value="alice"), \
+                 patch.object(api, "resolve_workspace_access", return_value="ws_studio"), \
+                 patch.object(api, "render_artifact_store", store):
+                response = api.preview_timeline_artifact(
+                    artifact_id, "review-token", "ws_studio"
+                )
+            self.assertEqual(Path(response.path), media)
+            self.assertEqual(store.assertion, (artifact_id, "ws_studio"))
+            self.assertEqual(response.media_type, "video/mp4")
+
     def test_render_submission_denies_non_member_before_queueing(self):
         store = FakeTimelineStore()
         with patch.object(api, "require_review_permission", return_value="mallory"), \
