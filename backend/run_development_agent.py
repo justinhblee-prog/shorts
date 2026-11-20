@@ -41,10 +41,10 @@ def _normalize_approved_scopes(scopes, repo_root, repository=None):
         for raw in paths:
             if not isinstance(raw, str) or not raw.strip() or len(raw) > 512 or "\x00" in raw:
                 raise ValueError("approved scope paths must be non-empty strings of at most 512 characters")
-            portable = raw.strip().replace("\\\\", "/")
+            portable = raw.strip().replace("\\", "/")
             posix = PurePosixPath(portable)
             windows = PureWindowsPath(raw.strip())
-            if posix.is_absolute() or windows.is_absolute() or windows.drive or ".." in posix.parts:
+            if not posix.parts or posix.as_posix() in {".", ""} or posix.is_absolute() or windows.is_absolute() or windows.drive or ".." in posix.parts:
                 raise ValueError("approved scope paths must be repository-relative and traversal-free")
             candidate = Path(*posix.parts)
             resolved = (root / candidate).resolve()
