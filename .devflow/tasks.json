@@ -117,7 +117,7 @@
         "Do not modify .devflow/tasks.json or unrelated project files"
       ],
       "external_gates": [],
-      "notes": "Retry after correcting Ollama tool response schema (`tool_name`), Qwen JSON fallback, base branch, worker failure propagation, and evidence upload. Draft PR only."
+      "notes": "Retry using JSON-constrained local Ollama turns, in addition to text-call parsing, tool_name schema, empty-turn guard, and corrected worktree base. Draft PR only."
     }
   ]
 }
