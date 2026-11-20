@@ -1,0 +1,99 @@
+name: Git CLI autopilot validation
+
+on:
+  pull_request:
+    paths:
+      - "scripts/git-cli-autopilot.ps1"
+      - "scripts/git-cli-multiflow.ps1"
+      - "scripts/start-devflow-autopilot.ps1"
+      - "scripts/devflow.py"
+      - ".github/workflows/git-cli-autopilot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: git-cli-autopilot-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  powershell:
+    name: PowerShell syntax and safe-mode checks
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $files = @(
+            "scripts/git-cli-autopilot.ps1",
+            "scripts/git-cli-multiflow.ps1",
+            "scripts/start-devflow-autopilot.ps1"
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $file), [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.ToString() }
+              throw "PowerShell parse failed: $file"
+            }
+            Write-Host "Parsed: $file"
+          }
+          $env:GH_TOKEN = "${{ github.token }}"
+          $plan = & "$PWD/scripts/git-cli-multiflow.ps1" -Plan 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { throw "Multi-flow planner smoke failed: $plan" }
+          if ($plan -match "BUILD-00352") {
+            throw "Planner included BUILD-00352 even though its task already has an open PR."
+          }
+          Write-Host "Planner correctly excludes tasks represented by open PRs."
+          Write-Host $plan
+      - name: Launcher plan ignores configured agent JSON
+        shell: pwsh
+        run: |
+          $env:DEVFLOW_AGENT_ARGS_JSON = '["--prompt-file","{prompt_file}"]'
+          $env:DEVFLOW_AGENT_COMMAND = 'agent-that-is-not-installed'
+          & "$PWD/scripts/start-devflow-autopilot.ps1" -Plan -MaxTasks 3
+          if (-not $?) { throw "Launcher plan smoke failed with agent env configured." }
+      - name: Confirm Codex is not referenced by launcher
+        shell: pwsh
+        run: |
+          $launcher = Get-Content "scripts/start-devflow-autopilot.ps1" -Raw
+          if ($launcher -match "(?i)codex") { throw "Launcher must not depend on Codex." }
+      - name: Confirm no implicit merge or deployment commands
+        shell: pwsh
+        run: |
+          foreach ($path in @("scripts/git-cli-autopilot.ps1", "scripts/git-cli-multiflow.ps1")) {
+            $script = Get-Content $path -Raw
+            if ($script -match "(?im)^\\s*gh\\s+pr\\s+merge") { throw "Automatic merge is forbidden: $path" }
+            if ($script -match "(?im)^\\s*vercel\\s+deploy") { throw "Automatic deployment is forbidden: $path" }
+          }
+
+  python:
+    name: Git workflow helper validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile helper
+        run: python -m py_compile scripts/devflow.py
+      - name: Validate task manifest
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path(".devflow/tasks.json").read_text(encoding="utf-8"))
+          assert isinstance(data.get("tasks"), list)
+          assert data.get("policy", {}).get("max_parallel_worktrees", 0) == 3
+          assert data["policy"].get("auto_merge") is False
+          assert data["policy"].get("auto_deploy") is False
+          print(f"Validated {len(data['tasks'])} task entries and safety policy.")
+          PY
