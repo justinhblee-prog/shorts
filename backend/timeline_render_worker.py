@@ -11,7 +11,7 @@ import threading
 
 class TimelineRenderWorker:
     def __init__(self, queue, renderer, worker_id, generation_token,
-                 heartbeat_seconds=10, artifact_store=None):
+                 heartbeat_seconds=10, artifact_store=None, shutdown_event=None):
         if not callable(renderer):
             raise TypeError("renderer callback is required")
         if not worker_id or not generation_token:
@@ -24,6 +24,7 @@ class TimelineRenderWorker:
         self.generation_token = generation_token
         self.heartbeat_seconds = heartbeat_seconds
         self.artifact_store = artifact_store
+        self.shutdown_event = shutdown_event
 
     def run_once(self):
         job = self.queue.claim(
@@ -38,6 +39,9 @@ class TimelineRenderWorker:
 
         def beat():
             while not stop.wait(self.heartbeat_seconds):
+                if self.shutdown_event is not None and self.shutdown_event.is_set():
+                    lost.set()
+                    return
                 try:
                     self.queue.heartbeat(
                         job["id"], self.worker_id, job["lease_token"],
