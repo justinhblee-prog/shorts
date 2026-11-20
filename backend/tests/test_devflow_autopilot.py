@@ -68,6 +68,17 @@ class DevflowAutopilotTests(unittest.TestCase):
             ["A", "B"],
         )
 
+    def test_parallel_dispatch_treats_parent_scope_as_conflict(self):
+        data = {"policy": {"max_parallel_worktrees": 3}, "tasks": [
+            {"id": "A", "priority": 1, "status": "ready", "depends_on": [], "scope": ["backend"]},
+            {"id": "B", "priority": 2, "status": "ready", "depends_on": [], "scope": ["backend/render worker"]},
+            {"id": "C", "priority": 3, "status": "ready", "depends_on": [], "scope": ["frontend"]},
+        ]}
+        self.assertEqual(
+            [task["id"] for task in parallel.select_parallel_tasks(data, 3)],
+            ["A", "C"],
+        )
+
     def test_parallel_dispatch_requires_merged_dependencies(self):
         data = {"policy": {"max_parallel_worktrees": 3}, "tasks": [
             {"id": "A", "priority": 1, "status": "review_pending", "depends_on": [], "scope": ["backend"]},
