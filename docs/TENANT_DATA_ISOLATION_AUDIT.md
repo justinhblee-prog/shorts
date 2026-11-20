@@ -141,3 +141,9 @@ The customer identity provider and account contract must be selected before impl
 - Compose integration smoke passed [run 44686719048](https://github.com/justinhblee-prog/shorts/actions/runs/44686719048), including service build/start/readiness and scheduled backup + isolated restore.
 - Fresh browser screenshot artifact: [14607235689](https://github.com/justinhblee-prog/shorts/actions/runs/44686718970/artifacts/14607235689) (5.37 MB).
 - Subsequent commits `c186cef` and `e8c226e` are documentation-only worker identity contract/handover updates; no code changed after the verified code/test head.
+
+
+### Tenant job read default-deny refinement — 2026-11-20
+
+- Production detail, provider-attempt detail, queue job detail, and queue event endpoints now reject workspace-owned records when the operator omits the workspace selector. Previously, a missing selector could still reach a globally keyed read even though cross-workspace selectors were validated.
+- Tests explicitly cover omitted workspace scope as well as valid and mismatched membership for production and queue reads.
