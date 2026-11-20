@@ -8,6 +8,7 @@ workspace asset callback; arbitrary paths and URLs never come from the EDL.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import signal
@@ -189,6 +190,15 @@ class TimelineFFmpegRenderer:
             raise TimelineRenderError("asset owner principal is required")
 
         edl = validate_edl(payload["edl"])
+        snapshot_sha256 = payload.get("snapshot_sha256")
+        if not isinstance(snapshot_sha256, str) or len(snapshot_sha256) != 64:
+            raise TimelineRenderError("render job snapshot digest is missing or invalid")
+        canonical = json.dumps(
+            edl, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"), allow_nan=False,
+        ).encode("utf-8")
+        if hashlib.sha256(canonical).hexdigest() != snapshot_sha256:
+            raise TimelineRenderError("render job EDL does not match its immutable snapshot digest")
         clips = sorted(edl["clips"], key=lambda item: (item["start_ms"], item["id"]))
         if any(clip["type"] != "video" for clip in clips):
             raise TimelineRenderError("title clips are not yet supported by the safe renderer")
