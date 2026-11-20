@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -215,9 +216,10 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
             def stage(self, *args, **kwargs):
                 return None
 
+        missing_media_path = Path(self.temp.name) / "not-created.mp4"
         class FakeStager:
             def staged_path(self, job_id, workspace_id=None):
-                return os.path.join(self.temp.name, "not-created.mp4")
+                return missing_media_path
             def stage(self, job_id, url, workspace_id=None):
                 return {"media_path": "opaque/video.mp4", "sha256": "a" * 64,
                         "size_bytes": 100, "content_type": "video/mp4"}
