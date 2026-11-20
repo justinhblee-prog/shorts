@@ -30,9 +30,15 @@ def _regular_file(value, field):
     return path.resolve(strict=True)
 
 
+def _escape_filter_value(value):
+    return (str(value).replace("\\", "\\\\").replace(":", "\\:")
+            .replace("'", "\\'").replace(",", "\\,").replace(";", "\\;")
+            .replace("[", "\\[").replace("]", "\\]"))
+
+
 def build_video_argv(edl, asset_paths, output_path, *, ffmpeg_path,
-                     width=1080, height=1920, fps=30):
-    """Build a shell-free FFmpeg graph for ordered clips with explicit black gaps."""
+                     width=1080, height=1920, fps=30, title_font_path=None):
+    """Build a shell-free FFmpeg graph with black gaps and configured title cards."""
     normalized = validate_edl(edl)
     if not isinstance(asset_paths, dict):
         raise EDLRenderError("asset_paths must be resolved by the trusted asset layer")
@@ -46,18 +52,23 @@ def build_video_argv(edl, asset_paths, output_path, *, ffmpeg_path,
     ):
         if isinstance(value, bool) or not isinstance(value, int) or value not in allowed:
             raise EDLRenderError(f"{name} is outside configured limits")
-    clips = normalized["clips"]
-    if any(clip["type"] != "video" for clip in clips):
-        raise EDLRenderError("title clips are not supported by this renderer version")
-    ordered = sorted(clips, key=lambda clip: (clip["start_ms"], clip["id"]))
-    resolved = []
-    for clip in ordered:
-        path = asset_paths.get(clip["asset_id"])
-        if path is None:
-            raise EDLRenderError("a referenced clean workspace asset was not resolved")
-        resolved.append(_regular_file(path, "resolved asset"))
-    if set(asset_paths) - {clip["asset_id"] for clip in ordered}:
-        raise EDLRenderError("asset resolver returned unused asset paths")
+    ordered = sorted(normalized["clips"], key=lambda clip: (clip["start_ms"], clip["id"]))
+    video_clips = [clip for clip in ordered if clip["type"] == "video"]
+    title_clips = [clip for clip in ordered if clip["type"] == "title"]
+    font = None
+    if title_clips:
+        if title_font_path is None:
+            raise EDLRenderError("title clips require a configured trusted font file")
+        font = _regular_file(title_font_path, "title font")
+    elif title_font_path is not None:
+        font = _regular_file(title_font_path, "title font")
+
+    used_assets = {clip["asset_id"] for clip in video_clips}
+    if set(asset_paths) != used_assets:
+        raise EDLRenderError("asset resolver paths must exactly match referenced video assets")
+    resolved = {}
+    for asset_id, value in asset_paths.items():
+        resolved[asset_id] = _regular_file(value, "resolved asset")
 
     output = Path(output_path)
     if not output.is_absolute() or output.is_symlink() or output.suffix.lower() != ".mp4":
@@ -66,41 +77,59 @@ def build_video_argv(edl, asset_paths, output_path, *, ffmpeg_path,
         raise EDLRenderError("video output directory must already exist")
 
     argv = [str(binary), "-nostdin", "-hide_banner", "-y", "-threads", "2"]
-    for path in resolved:
-        argv.extend(["-i", str(path)])
+    video_indexes = {}
+    for index, clip in enumerate(video_clips):
+        video_indexes[clip["id"]] = index
+        argv.extend(["-i", str(resolved[clip["asset_id"]])])
 
     filters = []
     labels = []
     timeline_cursor = 0.0
-    gap_number = 0
+    synthetic_index = len(video_clips)
     max_end = max(clip["end_ms"] for clip in ordered)
-    for index, clip in enumerate(ordered):
+    for segment_index, clip in enumerate(ordered):
         start_ms = clip["start_ms"]
         if start_ms < timeline_cursor - 1.0:
-            raise EDLRenderError("overlapping video clips are not supported")
+            raise EDLRenderError("overlapping timeline clips are not supported")
         gap_ms = start_ms - timeline_cursor
         if gap_ms > 1.0:
-            gap_input = len(ordered) + gap_number
-            gap_label = f"gap{gap_number}"
+            gap_label = f"gap{segment_index}"
             argv.extend([
                 "-f", "lavfi", "-t", f"{gap_ms / 1000.0:.3f}",
                 "-i", f"color=c=black:s={width}x{height}:r={fps}",
             ])
             filters.append(
-                f"[{gap_input}:v:0]setpts=PTS-STARTPTS,format=yuv420p[{gap_label}]"
+                f"[{synthetic_index}:v:0]setpts=PTS-STARTPTS,format=yuv420p[{gap_label}]"
             )
             labels.append(f"[{gap_label}]")
-            gap_number += 1
+            synthetic_index += 1
 
-        duration = (clip["source_out_ms"] - clip["source_in_ms"]) / 1000.0
-        source_start = clip["source_in_ms"] / 1000.0
-        label = f"v{index}"
-        filters.append(
-            f"[{index}:v:0]trim=start={source_start:.3f}:duration={duration:.3f},"
-            f"setpts=PTS-STARTPTS,scale={width}:{height}:force_original_aspect_ratio=decrease,"
-            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
-            f"fps={fps},setsar=1,format=yuv420p[{label}]"
-        )
+        duration = (clip["end_ms"] - clip["start_ms"]) / 1000.0
+        label = f"segment{segment_index}"
+        if clip["type"] == "video":
+            index = video_indexes[clip["id"]]
+            source_duration = (clip["source_out_ms"] - clip["source_in_ms"]) / 1000.0
+            source_start = clip["source_in_ms"] / 1000.0
+            filters.append(
+                f"[{index}:v:0]trim=start={source_start:.3f}:duration={source_duration:.3f},"
+                f"setpts=PTS-STARTPTS,scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
+                f"fps={fps},setsar=1,format=yuv420p[{label}]"
+            )
+        else:
+            argv.extend([
+                "-f", "lavfi", "-t", f"{duration:.3f}",
+                "-i", f"color=c=black:s={width}x{height}:r={fps}",
+            ])
+            escaped_font = _escape_filter_value(font)
+            escaped_text = _escape_filter_value(clip["text"].replace("\r", " ").replace("\n", " "))
+            filters.append(
+                f"[{synthetic_index}:v:0]drawtext=fontfile='{escaped_font}':"
+                f"text='{escaped_text}':expansion=none:fontcolor=white:fontsize=72:"
+                "x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.55:"
+                f"boxborderw=24,format=yuv420p[{label}]"
+            )
+            synthetic_index += 1
         labels.append(f"[{label}]")
         timeline_cursor = clip["end_ms"]
 
