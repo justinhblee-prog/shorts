@@ -95,7 +95,7 @@ def validate_edl(payload: Any) -> dict:
                 not isinstance(title, str)
                 or not title.strip()
                 or len(title) > MAX_TITLE_LENGTH
-                or any(ord(char) < 32 and char not in "\\n\\r\\t" for char in title)
+                or any(ord(char) < 32 and char not in "\n\r\t" for char in title)
             ):
                 raise EDLValidationError(
                     f"{prefix}.text must contain 1 to {MAX_TITLE_LENGTH} printable characters"
