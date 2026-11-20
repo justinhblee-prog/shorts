@@ -3,7 +3,7 @@
 Date: 2026-11-20  
 Promotion PR: #416  
 Branch: `promotion/nexus-worker-mainline-2026-11-20`  
-Reviewed head: `4320759c2bf4719e086b6e42ca661d722b42f18e`  
+Reviewed code head: `fc012073d4dc447b4d2e871840bb2b1f56fc836b`  
 Status: Static review and repository CI complete; operational activation blocked.
 
 ## Review scope
@@ -20,7 +20,7 @@ Status: Static review and repository CI complete; operational activation blocked
 
 1. Backlog intake is read-only. Only open, labeled issues are candidates; issue text does not infer file scope.
 2. Import requires an explicit `NEXUS_APPROVED_SCOPES` mapping. Missing configuration becomes an empty mapping and therefore fails closed.
-3. Scope validation rejects traversal, protected paths, repository escapes, and symlink targets resolving to protected paths.
+3. Approval configuration is bounded (64 KiB JSON, at most 500 issue entries and 100 paths per issue), tied to canonical issue references in the configured repository, and rejects absolute paths, traversal, duplicate paths, and paths that resolve outside the repository. Executor validation additionally rejects protected paths and symlink targets resolving to protected paths.
 4. The coding child process receives an isolated user configuration home and has workflow/Git/provider credentials and credential-helper configuration removed.
 5. The executor requires a clean worktree, checks all changed paths against the declared scope, runs `git diff --check` and `scripts/validate.sh`, and requires a validation evidence reference.
 6. Lease heartbeats use fencing tokens; expired leases revoke the old token before the job can be claimed again. SQLite write paths use `BEGIN IMMEDIATE`.
@@ -56,7 +56,7 @@ The workflow-level token requests `contents: read`, `pull-requests: write`, and 
 
 ## CI evidence
 
-Latest PR head `4320759c2bf4719e086b6e42ca661d722b42f18e` was validated by [Backend tests run 44650657207](https://github.com/justinhblee-prog/shorts/actions/runs/44650657207), which completed successfully on that exact commit. All job steps passed:
+Code head `fc012073d4dc447b4d2e871840bb2b1f56fc836b` passed the full backend validation and worker workflow YAML parse in [Backend tests run 44651878820](https://github.com/justinhblee-prog/shorts/actions/runs/44651878820). The run completed successfully on that exact commit. All job steps passed:
 - dependency installation
 - `sh scripts/validate.sh` (Python compile check and full backend unittest discovery)
 - explicit PyYAML parse of the worker workflow
