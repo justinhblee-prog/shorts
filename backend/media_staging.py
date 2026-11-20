@@ -130,7 +130,12 @@ class MediaStager:
                 "sha256": digest.hexdigest(), "content_type": "video/mp4"}
 
     def cleanup_uploaded(self, job_id, upload_store, workspace_id=None):
-        """Delete only this job's staged file, and only after durable upload confirmation."""
+        """Delete a staged file only when upload ownership can be verified."""
+        if workspace_id is not None:
+            # Current upload records are keyed only by job_id. Until that store
+            # supports workspace-scoped reads, a global lookup is not proof of
+            # tenant ownership and must never authorize tenant-file deletion.
+            raise MediaStagingError("Workspace-scoped upload confirmation is not available")
         upload = upload_store.get(job_id)
         if upload is None or upload.get("status") != "uploaded" or not upload.get("video_id"):
             raise MediaStagingError("Media can be removed only after a confirmed YouTube upload")
@@ -168,6 +173,8 @@ class MediaStager:
         return {"removed": removed, "count": len(removed)}
 
     def stage(self, job_id, artifact_url, workspace_id=None):
+        # Validate tenant context before DNS resolution or any outbound request.
+        self._workspace_namespace(workspace_id)
         parsed = urlsplit(artifact_url or "")
         host = (parsed.hostname or "").lower().rstrip(".")
         if parsed.scheme != "https" or not host or parsed.username or parsed.password:
