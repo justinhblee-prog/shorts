@@ -366,11 +366,11 @@ class TikTokMetricsStore:
             """).fetchall()
         return {row["video_id"]: row["collected_at"] for row in rows}
 
-    def history(self, publication_store, video_id=None, limit=100, since=None, offset=0, before_collected_at=None, before_id=None):
+    def history(self, publication_store, video_id=None, limit=100, since=None, offset=0, before_collected_at=None, before_id=None, workspace_id=None):
         limit=max(1,min(int(limit),500))
         offset=max(0,min(int(offset),10000000))
-        clauses=["p.status='publish_complete'","p.video_id IS NOT NULL"]
-        params=[]
+        clauses=["p.status='publish_complete'","p.video_id IS NOT NULL","pr.workspace_id IS ?"]
+        params=[workspace_id]
         if video_id:
             clauses.append("p.video_id=?")
             params.append(video_id)
@@ -387,6 +387,7 @@ class TikTokMetricsStore:
                      COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
               FROM tiktok_video_metric_snapshots s
               JOIN tiktok_publications p ON p.video_id=s.video_id
+              JOIN production_runs pr ON pr.job_id=p.job_id
               WHERE {where}
               ORDER BY s.collected_at DESC,s.id DESC LIMIT ? OFFSET ?
             """,(*params,limit,offset)).fetchall()
