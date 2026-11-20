@@ -90,6 +90,20 @@ class QueueTests(unittest.TestCase):
    self.q.events(b["id"],workspace_id="workspace-a")
   self.assertEqual(self.q.claim("worker-a",workspace_id="workspace-a"),None)
 
+ def test_workspace_scope_is_enforced_on_worker_lease_transitions(self):
+  queued=self.q.enqueue("render",{},workspace_id="workspace-a")
+  claimed=self.q.claim("worker-a",workspace_id="workspace-a")
+  with self.assertRaisesRegex(LeaseConflict,"different workspace"):
+   self.q.heartbeat(queued["id"],"worker-a",claimed["lease_token"],workspace_id="workspace-b")
+  with self.assertRaisesRegex(LeaseConflict,"different workspace"):
+   self.q.finish(queued["id"],"worker-a",claimed["lease_token"],workspace_id="workspace-b")
+  with self.assertRaisesRegex(LeaseConflict,"different workspace"):
+   self.q.fail(queued["id"],"worker-a",claimed["lease_token"],"err","failed",workspace_id="workspace-b")
+  still_running=self.q.get(queued["id"],workspace_id="workspace-a")
+  self.assertEqual(still_running["status"],"running")
+  completed=self.q.finish(queued["id"],"worker-a",claimed["lease_token"],workspace_id="workspace-a")
+  self.assertEqual(completed["status"],"review_pending")
+
  def test_workspace_filtered_claim_rejects_invalid_workspace(self):
   with self.assertRaises(ValueError):
    self.q.claim("worker-a",workspace_id=" ")
