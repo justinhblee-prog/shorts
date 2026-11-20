@@ -54,9 +54,9 @@ Tests cover persistence through claim, cross-workspace idempotency rejection, an
 
 ## Implemented slice — workspace-filtered queue and production parent ownership
 
-- Queue claim can apply an explicit `workspace_id` predicate in SQL; queue `get` and `events` accept the same scope and return `JobNotFound` for mismatched ownership. The default unscoped behavior remains for legacy operator workflows and is not customer-safe authorization.
+- Queue claim can apply an explicit `workspace_id` predicate in SQL; queue `get` and `events` accept the same scope and return `JobNotFound` for mismatched ownership. Heartbeat, finish and fail can additionally validate the claimed row's workspace before accepting a worker lease transition. The default unscoped behavior remains for legacy operator workflows and is not customer-safe authorization.
 - ProductionStore adds nullable `production_runs.workspace_id` with a non-destructive migration and index. When the matching queue table exists, creating a production run derives ownership from the durable parent queue job and rejects missing/non-production parents or a conflicting existing ownership value.
-- Tests cover workspace-only claim selection, cross-workspace get/event denial, invalid claim scope, production ownership inheritance and mismatch rejection.
+- Tests cover workspace-only claim selection, cross-workspace get/event denial, wrong-workspace lease transition rejection, invalid claim scope, production ownership inheritance and mismatch rejection.
 
 Still outstanding: authenticated worker-to-workspace binding; API routes do not yet derive trusted workspace context; job event rows do not yet carry workspace_id independently; worker lease/heartbeat/finish/fail methods and provider attempt/reconciliation queries still rely on job ID and must be guarded by a trusted parent scope; existing production runs with NULL ownership remain unassigned. Do not pass request-supplied workspace IDs as proof of identity.
 
