@@ -2,7 +2,7 @@
   "schema_version": 1,
   "policy": {
     "max_parallel_worktrees": 3,
-    "default_base": "feat/engineering-orchestrator-2026-11-20",
+    "default_base": "fix/devflow-detached-supervisor-2026-11-20",
     "pull_requests": "draft",
     "auto_merge": false,
     "auto_deploy": false,
