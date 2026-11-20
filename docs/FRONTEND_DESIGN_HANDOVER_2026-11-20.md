@@ -182,3 +182,11 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Compose: [run 44675851532](https://github.com/justinhblee-prog/shorts/actions/runs/44675851532) — service image build, process/readiness checks and cleanup passed.
 - Test coverage includes workspace creation ownership spoofing rejection, member-scoped listing, membership administration, audit visibility, SQLite EDL cross-tenant denial, and principal control-character validation.
 - Production remains on legacy workspace config mode by default; no environment setting or production deployment was changed.
+
+
+## Tenant data isolation audit — 2026-11-20
+
+- Completed source-schema inventory across queue, production, review/policy, brand profiles, scheduling, YouTube/TikTok publishing and OAuth, finance/intelligence, and media staging.
+- Confirmed that most tenant-owned records do not yet carry `workspace_id`; workspace membership on the EDL validator alone is not multi-tenant data isolation.
+- Added `docs/TENANT_DATA_ISOLATION_AUDIT.md` with phased, additive migration and rollout gates. No existing data was changed or backfilled.
+- Customer identity provider selection is an external security/service contract. No customer login provider was guessed, configured, or activated.
