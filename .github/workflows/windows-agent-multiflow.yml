@@ -61,7 +61,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Stop"
-          $count = [int]" ${{ inputs.max_tasks }} ".Trim()
+          $rawCount = "${{ inputs.max_tasks }}"
+          if ([string]::IsNullOrWhiteSpace($rawCount)) { $rawCount = "3" }
+          $count = [int]$rawCount
           if ($count -lt 1 -or $count -gt 3) { throw "max_tasks must be between 1 and 3." }
           & "$PWD/scripts/start-devflow-autopilot.ps1" -Run -MaxTasks $count
           if ($LASTEXITCODE -ne 0) { throw "Real Agent multi-flow run failed with exit code $LASTEXITCODE." }
