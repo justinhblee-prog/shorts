@@ -21,14 +21,74 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  actions: write
 
 concurrency:
   group: nexus-development-job-worker
   cancel-in-progress: false
 
 jobs:
+  recover-reviews:
+    # Read-only recovery is isolated from the write-capable development job.
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'recover'
+    runs-on: [self-hosted, windows, nexus-local-ai]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out default branch for read-only recovery
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Configure persistent development-job state
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stateRoot = $env:LOCALAPPDATA
+          if (-not $stateRoot) {
+            if (-not $env:USERPROFILE) { throw "Windows runner has neither LOCALAPPDATA nor USERPROFILE." }
+            $stateRoot = Join-Path $env:USERPROFILE "AppData\Local"
+          }
+          $stateRoot = Join-Path $stateRoot "NexusStudioPro\shorts"
+          New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
+          $database = Join-Path $stateRoot "development.sqlite3"
+          $workspace = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
+          $databaseFull = [System.IO.Path]::GetFullPath($database)
+          if ($databaseFull.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) { throw "Development job state must be outside GITHUB_WORKSPACE." }
+          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_DEVELOPMENT_DB=$databaseFull" -Encoding utf8
+      - name: Install isolated backend runtime dependencies
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stateRoot = $env:LOCALAPPDATA
+          if (-not $stateRoot) { $stateRoot = Join-Path $env:USERPROFILE "AppData\Local" }
+          $toolRoot = Join-Path $stateRoot "NexusStudioPro\tooling"
+          $toolRootFull = [System.IO.Path]::GetFullPath($toolRoot).TrimEnd('\') + '\'
+          $workspace = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\') + '\'
+          if ($toolRootFull.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) { throw "Persistent runner tooling must be outside GITHUB_WORKSPACE." }
+          New-Item -ItemType Directory -Force -Path $toolRoot | Out-Null
+          $backendVenv = Join-Path $toolRoot "backend-venv"
+          $backendPython = Join-Path $backendVenv "Scripts\python.exe"
+          if (-not (Test-Path $backendPython)) {
+            if (Test-Path $backendVenv) { throw "Backend virtual environment exists but is incomplete; refusing destructive repair." }
+            python -m venv $backendVenv
+            if ($LASTEXITCODE -ne 0) { throw "Backend virtual environment creation failed." }
+          }
+          & $backendPython -m pip install -r backend/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "Backend dependency installation failed." }
+          Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_BACKEND_PYTHON=$backendPython" -Encoding utf8
+      - name: Recover orphaned review-pending jobs (read-only)
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NEXUS_REVIEW_HEAD_REF: automation/nexus-development-cycle
+          NEXUS_REVIEW_BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          & $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py
+          if ($LASTEXITCODE -ne 0) { throw "Review recovery found pending or ambiguous work; no job was requeued." }
   development-cycle:
     # Requires the repository-owned Windows runner with Ollama and
     # qwen2.5-coder:7b installed. Scheduled workflows run from the default branch.
@@ -196,22 +256,6 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "NEXUS_AIDER_EXECUTABLE=$aiderExecutable" -Encoding utf8
           & $aiderExecutable --version
           if ($LASTEXITCODE -ne 0) { throw "Aider CLI verification failed." }
-
-      - name: Recover orphaned review-pending jobs (read-only)
-        if: github.event.inputs.mode == 'recover'
-        shell: powershell
-        env:
-          GITHUB_TOKEN: ${{ secrets.NEXUS_GITHUB_READ_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          NEXUS_REVIEW_HEAD_REF: automation/nexus-development-cycle
-          NEXUS_REVIEW_BASE_REF: ${{ github.event.repository.default_branch }}
-        run: |
-          $ErrorActionPreference = "Stop"
-          if (-not $env:GITHUB_TOKEN) {
-            throw "Configure NEXUS_GITHUB_READ_TOKEN as a fine-grained read-only GitHub token."
-          }
-          & $env:NEXUS_BACKEND_PYTHON backend/recover_development_reviews.py
-          if ($LASTEXITCODE -ne 0) { throw "Review recovery found pending or ambiguous work; no job was requeued." }
 
       - name: Execute one dependency-aware development cycle
         if: github.event.inputs.mode != 'recover'
