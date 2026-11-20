@@ -1711,6 +1711,13 @@ def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=
     except ValueError as e:
         raise HTTPException(409,str(e))
 
+def require_legacy_worker_api_compatibility():
+    if os.getenv("NEXUS_WORKER_CREDENTIALS_JSON","").strip():
+        raise HTTPException(
+            410,"Legacy operator-token worker endpoints are disabled when worker credentials are configured"
+        )
+
+
 def require_worker_identity(authorization):
     try:
         return authenticate_worker(
@@ -1840,22 +1847,26 @@ def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
         raise HTTPException(409,str(e))
 @app.post("/api/jobs/claim")
 def claim(body:Claim,x_review_token:str|None=Header(default=None)):
+    require_legacy_worker_api_compatibility()
     require_review_permission(x_review_token,"worker.execute")
     return {"job":queue.claim(body.worker_id,body.hostname)}
 @app.post("/api/jobs/{jid}/heartbeat")
 def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None)):
+    require_legacy_worker_api_compatibility()
     require_review_permission(x_review_token,"worker.execute")
     try: return queue.heartbeat(jid,body.worker_id,body.lease_token)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/complete")
 def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None)):
+    require_legacy_worker_api_compatibility()
     require_review_permission(x_review_token,"worker.execute")
     try: return queue.finish(jid,body.worker_id,body.lease_token,body.result)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/fail")
 def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None)):
+    require_legacy_worker_api_compatibility()
     require_review_permission(x_review_token,"worker.execute")
     try: return queue.fail(jid,body.worker_id,body.lease_token,body.error_code,body.error_message,body.retryable)
     except JobNotFound: raise HTTPException(404,"Job not found")
