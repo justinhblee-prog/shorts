@@ -72,7 +72,7 @@ The finish command re-runs validation, checks staged diff hygiene, blocks likely
 
 | Task | Priority | State | Execution |
 |---|---:|---|---|
-| BUILD-00352 secure FFmpeg worker | 1 | Ready | First; establishes render interfaces |
+| BUILD-00352 secure FFmpeg worker | 1 | In progress | First; establishes render interfaces |
 | BUILD-00353 real provider validation | 2 | External gate | After worker interface; needs credentials and approved spend |
 | BUILD-00354 production deployment/recovery | 3 | External gate | After real media flow; needs target host and authorization |
 
@@ -98,20 +98,22 @@ Do not point a worktree at the Guardian repository. Keep the primary checkout cl
 
 ## 6. Automation boundary
 
-Automated by the Git CLI helper:
-- clean-checkout guard;
+Automated by the Git CLI helper and local supervisor:
+- clean-checkout guard and remote-base refresh;
+- priority selection from ready/in-progress task manifest entries;
+- dependency gating (downstream work waits for completed/merged prerequisites);
 - isolated task branch/worktree creation;
-- repository validation;
+- configured coding-agent CLI invocation inside the task worktree;
+- bounded validation/repair loop and repository validation;
 - diff hygiene and conservative secret-filename checks;
 - commit, push and Draft PR creation.
 
 Not automated yet:
-- autonomous task selection from live issue/PR state;
-- spawning an AI coding agent (requires a supported agent CLI and explicit credential/spend boundary);
-- semantic conflict resolution;
+- multi-agent parallel scheduling and dynamic task discovery from live issue/PR state;
+- semantic conflict resolution and automatic review-feedback handling;
 - PR approval/merge, production deployment or public publishing.
 
-Git itself does not write code. A coding agent must be installed and invoked inside the worktree. The next safe increment is a provider-specific agent adapter with bounded command, repository scope, token budget, timeout and human stop control.
+The coding agent must be installed and authenticated locally. The supervisor uses a restricted environment allowlist, but the chosen agent's own sandbox, account usage limits and billing controls must also be configured before execution.
 
 ## 7. Risk controls
 
