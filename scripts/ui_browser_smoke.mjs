@@ -128,7 +128,7 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineEditor").count(), 1, "local timeline editor missing");
     await page.locator("#timelineMediaInput").setInputFiles({name:"not-a-video.txt",mimeType:"text/plain",buffer:Buffer.from("invalid")});
     assert.equal(await page.locator(".timeline-clip").count(), 0, "non-video file must be rejected");
-    assert.match(await page.locator("#timelineStatus").textContent(), /동영상 형식이 아닙니다/);
+    assert.match(await page.locator("#timelineStatus").textContent(), /MP4 형식만 지원합니다/);
     await page.locator("#timelineTitleInput").fill("First title");
     await page.locator("#timelineAddTitle").click();
     await page.locator("#timelineTitleInput").fill("Second title");
@@ -218,6 +218,13 @@ async function waitForServer() {
     const authenticatedText = await page.locator("body").innerText();
     assert.equal([...authenticatedText].filter(character => character === "\uFFFD").length, 0);
     assert.equal(await page.locator("html").getAttribute("lang"), "ko");
+    assert.equal(await page.locator("#renderJobTitle").isVisible(), true);
+    assert.equal(await page.locator("#timelineRenderSubmit").isVisible(), true);
+    assert.equal(await page.locator("#renderJobRefresh").isEnabled(), true);
+    assert.equal(await page.locator("#renderArtifactLoad").isDisabled(), true);
+    assert.equal(await page.locator("#renderJobApprove").isDisabled(), true);
+    assert.equal(await page.locator("#timelineMediaInput").getAttribute("accept"), "video/mp4,.mp4");
+    checkpoint("durable render and human-review controls are present and safely gated");
     checkpoint("authenticated Korean content has no replacement glyphs");
     const liveApiChecks = await page.evaluate(async ({ token, workspaceId }) => {
       const paths = [
