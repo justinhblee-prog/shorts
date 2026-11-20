@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import queue_store
-from queue_store import JobQueue, LeaseConflict, IdempotencyConflict
+from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflict
 
 class QueueTests(unittest.TestCase):
  def setUp(self):
