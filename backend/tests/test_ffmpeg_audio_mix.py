@@ -55,5 +55,16 @@ class FFmpegAudioMixTests(unittest.TestCase):
             )
 
 
+    def test_audio_mix_applies_source_trim_before_timeline_delay(self):
+        argv = build_audio_mix_argv([{
+            "path": str(self.one), "start_ms": 750,
+            "source_in_ms": 1250, "duration_ms": 4000,
+            "gain": 0.5,
+        }], str(self.output), output_duration_ms=5000)
+        graph = argv[argv.index("-filter_complex") + 1]
+        self.assertIn("atrim=start=1.250:duration=4.000", graph)
+        self.assertIn("adelay=750|750", graph)
+
+
 if __name__ == "__main__":
     unittest.main()
