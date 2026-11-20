@@ -2759,3 +2759,13 @@ Implement the secure FFmpeg/MP4 render worker rather than revisiting the already
 - Assets are render-resolvable only after an explicit clean ClamAV scan and a fresh hash/size verification. If `NEXUS_MEDIA_SCAN_ENABLED` is disabled, uploads are marked `disabled` and fail closed at EDL resolution. Configure the ClamAV database/updater before enabling this flow.
 - Regression coverage includes cross-workspace denial, tamper detection, symlinked namespaces, scanner failure, unscanned assets, invalid content types/signatures, upload limits, and API workspace binding.
 - **Scope boundary:** no durable render-job queue, lease/recovery worker, deletion lifecycle, real MP4 rendering, title overlay, source-clip audio mix, approval or publishing is enabled yet.
+
+
+## BUILD — workspace render asset registry exact-head validation (2026-11-20)
+
+- Exact head `ef3c40bb55bc2aedc4398c30915e224b6dd81904` passed **842 backend tests** and Chromium desktop/mobile smoke in [Backend run 44703693909](https://github.com/justinhblee-prog/shorts/actions/runs/44703693909).
+- Browser smoke continued to verify Korean rendering, workspace selector/header scope, authenticated review and audit history, analytics history (500 YouTube + 1 TikTok), 502-row CSV pagination, partial API errors, keyboard and responsive checks.
+- The same head passed five-service Compose integration in [Compose run 44703693898](https://github.com/justinhblee-prog/shorts/actions/runs/44703693898), including encrypted backup creation, isolated restore, wrong-key rejection and cleanup.
+- Render uploads and EDL validation use a dedicated `media` rate-limit bucket (default 10/minute, configurable with `NEXUS_API_MEDIA_RATE_LIMIT_PER_MINUTE`). Video EDL IDs are type-checked and cannot resolve to audio assets.
+- ClamAV scanning was exercised only through injected unit-test adapters; no real media upload, live ClamAV database scan, or FFmpeg MP4 render was executed. With scanning disabled, uploads are marked unscanned and are not render-resolvable.
+- PR [#421](https://github.com/justinhblee-prog/shorts/pull/421) remains Draft / Open / Unmerged. No render job execution or publishing is enabled.
