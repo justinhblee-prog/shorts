@@ -381,12 +381,16 @@ def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(d
 
 @app.post("/api/production/jobs/{job_id}/adopt-recovered-render")
 def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionAction,
-                                      x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"media.manage")
-    production=production_store.get(job_id)
+                                      x_review_token:str|None=Header(default=None),
+                                      x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    production=production_store.get(job_id,workspace_id=workspace_id)
     if production is None:
         raise HTTPException(404,"Production job not found")
-    attempts=production_store.provider_attempts(job_id)
+    if production.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
+    attempts=production_store.provider_attempts(job_id,workspace_id=workspace_id)
     attempt=next((item for item in attempts
                   if item["id"]==body.provider_attempt_id),None)
     if attempt is None or attempt["stage"]!="rendering":
@@ -399,7 +403,7 @@ def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionActi
         video_url=response.get("video_url") if isinstance(response,dict) else None
         if not isinstance(video_url,str) or not video_url.startswith("https://"):
             raise HTTPException(409,"Stored provider response has no HTTPS video URL")
-        staged=media_stager.stage(job_id,video_url)
+        staged=media_stager.stage(job_id,video_url,workspace_id=workspace_id)
         inspected=MediaInspector().inspect(media_stager.media_dir / staged["media_path"])
         result=production_store.adopt_recovered_render(
             job_id,body.provider_attempt_id,staged,inspected)
@@ -413,10 +417,14 @@ def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionActi
         raise HTTPException(409,str(e))
 
 @app.post("/api/production/jobs/{job_id}/execute")
-def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.execute")
+def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None),
+                           x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.execute")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        job=queue.get(job_id)
+        job=queue.get(job_id,workspace_id=workspace_id)
+        if job.get("workspace_id") is not None and workspace_id is None:
+            raise HTTPException(403,"Workspace scope is required for this production job")
         if job["job_type"]!="short_video_production":
             raise HTTPException(409,"Job is not a short-video production job")
         if job["status"]!="running" or job["worker_id"]!=body.worker_id or job["lease_token"]!=body.lease_token:
