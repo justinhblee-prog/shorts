@@ -269,3 +269,11 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 
 - Production detail/provider-attempt reads and queue job/event reads now deny workspace-owned records if no workspace selector is supplied; a selector is resolved against the authenticated operator's membership first.
 - Regression tests cover omitted selector (403), mismatched membership (403), and valid workspace scope. This closes the legacy global-read fallback for these job-level endpoints only; other resource families remain under audit.
+
+
+## Review workflow workspace scope — 2026-11-20
+
+- Review inbox, approved queue, and publishing overview now resolve `X-Nexus-Workspace-Id` through authenticated operator membership before reading review rows.
+- Review decisions and policy-evidence changes are workspace-fenced in the store transaction; omitted scope can see/act only on legacy unassigned rows.
+- New regression coverage verifies workspace A cannot list or decide workspace B's review job, while a matching workspace can complete the review.
+- CI for latest code commit `c9cf95ba92ad53d8708b0d3816243606650c0427` is pending at handover time.
