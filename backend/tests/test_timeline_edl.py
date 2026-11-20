@@ -107,5 +107,16 @@ class TimelineEDLTests(unittest.TestCase):
             validate_edl(payload)
 
 
+    def test_rejects_audio_only_render_timeline(self):
+        payload = {
+            "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+            "clips": [{"id": "a1", "type": "audio", "start_ms": 0, "end_ms": 1000,
+                       "asset_id": "asset_audio", "source_in_ms": 0, "source_out_ms": 1000,
+                       "gain": 1.0, "fade_in_ms": 0, "fade_out_ms": 0}],
+        }
+        with self.assertRaisesRegex(EDLValidationError, "video clip"):
+            validate_edl(payload)
+
+
 if __name__ == "__main__":
     unittest.main()
