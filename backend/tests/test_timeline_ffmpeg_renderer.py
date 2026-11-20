@@ -108,8 +108,8 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         self.assertTrue(path.is_file())
         self.assertEqual(path.parent, self.staging)
         self.assertRegex(path.name, r"^rart_[a-f0-9]{32}\.mp4$")
-        self.assertEqual(result["probe"]["width"], 1080)
-        self.assertEqual(result["probe"]["height"], 1920)
+        self.assertEqual(result["probe"]["video_streams"][0]["width"], 1080)
+        self.assertEqual(result["probe"]["video_streams"][0]["height"], 1920)
         self.assertEqual(result["probe"]["audio_streams"], 1)
         self.assertCountEqual(self.assets.opened, ["asset_video", "asset_audio"])
         self.assertEqual(len(list(self.staging.glob(".timeline-work-*"))), 0)
@@ -118,7 +118,6 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         edl = json.loads(json.dumps(self.edl))
         edl["clips"][0]["source_out_ms"] = 6000
         edl["clips"][0]["end_ms"] = 6000
-        edl["clips"][1]["end_ms"] = 6000
         result = None
         with self.assertRaisesRegex(TimelineFFmpegError, "source trim"):
             self.renderer({
