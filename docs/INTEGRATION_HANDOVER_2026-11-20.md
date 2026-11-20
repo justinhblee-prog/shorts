@@ -202,3 +202,13 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - The Chromium fixture includes `Frontend\App.js` and verifies the resulting job is grouped under UI. Static frontend tests assert the normalization logic.
 - Exact code head `006805df47d5cf493a2ad5e95396f074170ce416` passed [run 44660726931](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931): 901 backend tests, frontend syntax, both Chromium suites, and artifact [14594589376](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931/artifacts/14594589376).
 - Hosted Windows-path fixture validation is not equivalent to executing on a real Windows self-hosted runner; that integration gate remains open.
+
+## 23. Worker scope and review-artifact hardening — 2026-11-20
+
+- Added executor validation that rejects symlinks in declared scope path components and nested symlinks inside recursive directories. This blocks pre-existing repository symlink aliases from bypassing declared file scope. It does not provide OS-level containment against runtime process/network/filesystem side effects; dedicated runner isolation remains mandatory.
+- Hardened review publication against PR-head races: after retrieving all PR changed-file pages, the publisher re-reads PR metadata and compares the full identity/state snapshot. A head SHA/ref, base ref/repository, draft, open/merged, or identity change aborts publication and leaves jobs review-pending.
+- Added regressions for nested/ancestor symlink scopes and PR head mutation during file enumeration.
+- PR #415 exact head `724e6d96ac51456aafa1bea972caaff9da4e9c7b` passed 903 backend tests, frontend syntax, dashboard and recovery Chromium smoke, and Compose integration: [run 44664154255](https://github.com/justinhblee-prog/shorts/actions/runs/44664154255).
+- PR #416 exact head `0093970caf426798840db748234e41cfa6b03eff` passed 617 backend tests and worker workflow YAML validation: [run 44664146137](https://github.com/justinhblee-prog/shorts/actions/runs/44664146137).
+- Frontend visual browser artifact was refreshed at UI head `ceb5a8e0f62e94d45747a750a22fbadfc0f06492`; Korean CJK fallback fonts are installed in CI before screenshots. Artifact [14596602680](https://github.com/justinhblee-prog/shorts/actions/runs/44663912006/artifacts/14596602680). Desktop and 320px mobile captures are browser evidence, not a production deployment.
+- All three PRs remain Draft/open/unmerged. No workflow dispatch, runner activation, deployment, secret changes, or merge was performed.
