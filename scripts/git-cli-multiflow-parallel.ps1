@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
- [switch]$Worker,[string]$TaskFile,[string]$StateRoot,[string]$Task,[string]$Base,
+ [switch]$Worker,[string]$TaskFile,[string]$StateRoot,[string]$TaskId,[string]$Base,
  [ValidateRange(1,3)][int]$MaxParallel=3,
  [ValidateRange(60,86400)][int]$TaskTimeoutSeconds=3600,
  [ValidateRange(1,20)][int]$MaxTasks=3
@@ -30,8 +30,9 @@ function Set-State([string]$Path,[string]$Id,[string]$Status,[string]$Detail){
  }finally{$lock.Dispose()}
 }
 if($Worker){
- $task=Get-Content -LiteralPath $TaskFile -Raw -Encoding UTF8|ConvertFrom-Json
- $id=[string]$task.id;$statePath=Join-Path $StateRoot "state.json"
+ $taskData=Get-Content -LiteralPath $TaskFile -Raw -Encoding UTF8|ConvertFrom-Json
+ $id=[string]$taskData.id
+ if(-not $id){throw "Task file has no task id: $TaskFile"}$statePath=Join-Path $StateRoot "state.json"
  $leaseDir=Join-Path $StateRoot "leases";New-Item -ItemType Directory -Force -Path $leaseDir|Out-Null
  $leasePath=Join-Path $leaseDir "$id.lease"
  $lease=$null
@@ -44,7 +45,7 @@ if($Worker){
   if(-not $command -or -not $argsJson){throw "Agent CLI configuration missing."}
   $agentArgs=ConvertFrom-Json -InputObject $argsJson;if($agentArgs -isnot [array]){$agentArgs=@($agentArgs)}
   if(@($agentArgs|Where-Object{$_ -eq "{prompt_file}"}).Count -eq 0){throw "Agent args must include {prompt_file}."}
-  $expanded=foreach($a in $agentArgs){([string]$a).Replace("{prompt_file}",$task.prompt).Replace("{task_id}",$id).Replace("{worktree}",$task.worktree)}
+  $expanded=foreach($a in $agentArgs){([string]$a).Replace("{prompt_file}",$taskData.prompt).Replace("{task_id}",$id).Replace("{worktree}",$task.worktree)}
   $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=$command;$psi.WorkingDirectory=$task.worktree;$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
   foreach($a in $expanded){[void]$psi.ArgumentList.Add($a)}
   $agent=[Diagnostics.Process]::new();$agent.StartInfo=$psi
@@ -86,7 +87,7 @@ $open=& gh pr list --state open --json title --limit 100;if($LASTEXITCODE -ne 0)
 $openIds=@($open|ConvertFrom-Json|ForEach-Object{$m=[regex]::Match([string]$_.title,'BUILD-[0-9]{5}');if($m.Success){$m.Value}})
 $eligible=@()
 foreach($t in @($manifest.tasks|Where-Object{$_.status -in @("ready","in_progress")}|Sort-Object priority)){
- if($Task -and $t.id -ne $Task){continue}
+ if($TaskId -and $t.id -ne $TaskId){continue}
  if($openIds -contains [string]$t.id){continue}
  $ready=$true
  foreach($d in @($t.depends_on)){$dep=@($manifest.tasks|Where-Object{$_.id -eq $d})|Select-Object -First 1;if(-not $dep -or $dep.status -ne "completed"){$ready=$false;break}}
