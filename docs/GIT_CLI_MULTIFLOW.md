@@ -6,12 +6,6 @@ The Git CLI multi-flow runner chains eligible BUILD tasks without asking for a n
 
 Install PowerShell 7 or newer, Git, Python 3.11+, GitHub CLI (`gh`), and the coding-agent CLI you intend to use. Authenticate GitHub once with `gh auth login` and authenticate the Agent CLI using its own documented login flow. Run all commands in PowerShell 7 (`pwsh`) from the repository root. The runner requires PowerShell 7 because it uses .NET `ProcessStartInfo.ArgumentList`. The executable and argument format must match an agent CLI already installed on the machine; the runner deliberately does not assume Codex, Claude, or another vendor.
 
-```powershell
-$env:DEVFLOW_AGENT_COMMAND = "C:\path\to\your-agent.exe"
-$env:DEVFLOW_AGENT_ARGS_JSON = '["--prompt-file","{prompt_file}"]'
-```
-
-The argument JSON must be an array and must contain `{prompt_file}`. Optional placeholders are `{task_id}` and `{worktree}`. Use the agent's documented prompt-file argument syntax.
 
 ## Agent CLI configuration and preflight
 
