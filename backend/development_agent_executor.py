@@ -276,6 +276,25 @@ class AiderDevelopmentExecutor:
             or candidate.suffix.lower() in _FORBIDDEN_SUFFIXES
         )
 
+    def _reject_scope_symlinks(self, scope_path):
+        """Reject symlinks anywhere under an authorized scope to prevent path escapes."""
+        scope_path = Path(scope_path)
+        cursor = self.repo_root
+        for part in scope_path.relative_to(self.repo_root).parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                raise NonRetryableDevelopmentJobError(
+                    "job scope traverses a symbolic link; symlink-backed scopes are not allowed"
+                )
+        if scope_path.is_dir():
+            for current, directories, files in os.walk(scope_path, followlinks=False):
+                for name in (*directories, *files):
+                    candidate = Path(current) / name
+                    if candidate.is_symlink():
+                        raise NonRetryableDevelopmentJobError(
+                            "job scope contains a symbolic link; symlink-backed scopes are not allowed"
+                        )
+
     def _validated_scope(self, job):
         scope = job.get("scope")
         if not isinstance(scope, list) or not scope:
@@ -292,7 +311,9 @@ class AiderDevelopmentExecutor:
                 normalized = normalized[2:]
             if self._is_protected_scope_path(normalized):
                 raise NonRetryableDevelopmentJobError("job scope includes a protected secret or data path")
-            resolved = (self.repo_root / normalized).resolve()
+            scope_path = self.repo_root / normalized
+            self._reject_scope_symlinks(scope_path)
+            resolved = scope_path.resolve()
             try:
                 resolved_relative = resolved.relative_to(self.repo_root)
             except ValueError as error:
