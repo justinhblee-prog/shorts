@@ -103,6 +103,29 @@ class EDLFFmpegRendererTests(unittest.TestCase):
         self.assertTrue(all(call.kwargs["shell"] is False for call in popen.call_args_list))
         self.assertTrue(Path(result["staged_path"]).is_relative_to(self.root / "staging"))
 
+
+    def test_mixes_source_clip_audio_using_source_trim_and_timeline_offsets(self):
+        ffprobe = self.root / "ffprobe"
+        ffprobe.write_bytes(b"fixture ffprobe")
+        renderer = EDLFFmpegRenderer(
+            self.root / "staging", str(self.binary),
+            lambda workspace, principal, asset: self.video,
+            ffprobe_path=str(ffprobe),
+        )
+        with patch("ffmpeg_edl_renderer.has_audio_stream", return_value=True), \
+             patch("ffmpeg_edl_renderer.subprocess.Popen", side_effect=FakeProcess) as popen:
+            result = renderer(
+                {"workspace_id": "ws1", "creator_principal_id": "principal1",
+                 "edl": self.edl}, threading.Event()
+            )
+        self.assertTrue(Path(result["staged_path"]).is_file())
+        self.assertEqual(popen.call_count, 3)
+        mix_argv = popen.call_args_list[1].args[0]
+        graph = mix_argv[mix_argv.index("-filter_complex") + 1]
+        self.assertIn("atrim=start=0.100:duration=2.000", graph)
+        self.assertIn("adelay=0|0", graph)
+        self.assertIn("adelay=2000|2000", graph)
+
     def test_renderer_cancels_before_start_when_lease_is_lost(self):
         renderer = EDLFFmpegRenderer(
             self.root / "staging", str(self.binary),
