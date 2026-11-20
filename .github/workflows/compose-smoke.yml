@@ -61,12 +61,29 @@ jobs:
         run: |
           set -eu
           cid="$(docker compose ps -q timeline-render-worker)"
-          test "$(docker inspect --format '{{.HostConfig.Memory}}' "$cid")" = "4294967296"
-          test "$(docker inspect --format '{{.HostConfig.CpuQuota}}' "$cid")" = "200000"
-          test "$(docker inspect --format '{{.HostConfig.PidsLimit}}' "$cid")" = "128"
-          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$cid")" = "true"
-          docker inspect --format '{{json .HostConfig.CapDrop}}' "$cid" | grep -q 'ALL'
-          docker inspect --format '{{json .HostConfig.SecurityOpt}}' "$cid" | grep -q 'no-new-privileges'
+          docker inspect "$cid" > /tmp/timeline-render-worker-inspect.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          container = json.loads(Path("/tmp/timeline-render-worker-inspect.json").read_text())[0]
+          host = container["HostConfig"]
+          observed = {
+              "memory": host.get("Memory"),
+              "cpu_quota": host.get("CpuQuota"),
+              "pids_limit": host.get("PidsLimit"),
+              "readonly_rootfs": host.get("ReadonlyRootfs"),
+              "cap_drop": host.get("CapDrop"),
+              "security_opt": host.get("SecurityOpt"),
+          }
+          print("timeline_render_worker_security_limits=" + json.dumps(observed, sort_keys=True))
+          assert observed["memory"] == 4 * 1024**3, observed
+          assert observed["cpu_quota"] == 200000, observed
+          assert observed["pids_limit"] == 128, observed
+          assert observed["readonly_rootfs"] is True, observed
+          assert "ALL" in (observed["cap_drop"] or []), observed
+          assert any("no-new-privileges" in item for item in (observed["security_opt"] or [])), observed
+          PY
       - name: Verify real FFmpeg EDL render, artifact adoption and review
         run: docker compose exec -T timeline-render-worker python timeline_render_real_media_smoke.py
       - name: Verify scheduled backup and isolated restore
