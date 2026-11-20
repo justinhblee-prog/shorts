@@ -842,7 +842,7 @@
     const laneForJob=job=>{
       const paths=Array.isArray(job.scope)?job.scope:[];
       const lanes=new Set(paths.map(path=>{
-        const value=String(path||"");
+        const value=String(path||"").trim().replace(/\\/g,"/").replace(/\/+/g,"/").replace(/^\.\//,"").toLowerCase();
         if(value.startsWith("frontend/"))return "UI";
         if(value.startsWith(".github/workflows/")||value.startsWith("scripts/"))return "AUTOMATION";
         if(value.startsWith("backend/tests/")||value.startsWith("backend/test_"))return "QA";
