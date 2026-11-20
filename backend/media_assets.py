@@ -166,6 +166,14 @@ class MediaAssetStore:
         name = name.strip(" .")[:128]
         return name or "video"
 
+    def _ensure_workspace(self, workspace_id):
+        with self.db() as connection:
+            row = connection.execute(
+                "SELECT status FROM workspaces WHERE id=?", (workspace_id,)
+            ).fetchone()
+        if row is None or row["status"] != "active":
+            raise MediaAssetRejected("An active registered workspace is required for media upload")
+
     def _workspace_dir(self, workspace_id, create=False):
         workspace_id = self._workspace_id(workspace_id)
         namespace = hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
@@ -252,6 +260,7 @@ class MediaAssetStore:
         if not hasattr(stream, "read"):
             raise MediaAssetRejected("Upload stream is invalid")
 
+        self._ensure_workspace(workspace_id)
         directory = self._workspace_dir(workspace_id, create=True)
         temporary = None
         destination = None
@@ -312,6 +321,8 @@ class MediaAssetStore:
                 raise MediaAssetUnavailable(
                     "Malware scanner failed; upload was not stored"
                 ) from exc
+            if isinstance(scan_result, dict) and scan_result.get("status") == "infected":
+                raise MediaAssetRejected("Malware scanner rejected the uploaded media")
             if not isinstance(scan_result, dict) or scan_result.get("status") != "clean":
                 raise MediaAssetUnavailable(
                     "Malware scanner did not explicitly confirm a clean upload"
