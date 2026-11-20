@@ -2,7 +2,7 @@
 
 **Baseline:** v0.1  
 **Repository:** https://github.com/justinhblee-prog/shorts  
-**Updated:** 2026-11-19
+**Updated:** 2026-11-20
 
 ## Business objective
 
@@ -2714,3 +2714,13 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 - Extend Compose integration smoke to wait for and assert all five services are healthy, and verify the backup success marker.
 - Add unit coverage for process identity, stale/future markers, invalid ages and symlink markers.
 - Exact-head validation passed on `59ec8286f6c216345955593dd82a1047851fad4d`: backend [run 44506870693](https://github.com/justinhblee-prog/shorts/actions/runs/44506870693), **725 tests**; Compose [run 44506870702](https://github.com/justinhblee-prog/shorts/actions/runs/44506870702), all five services healthy, fresh successful-backup marker present, encrypted isolated restore passed, wrong-key restore rejected without changing the target DB. CI-only; no production-host or production-data recovery is claimed.
+
+
+## UI workspace and analytics browser-smoke checkpoint — 2026-11-20
+
+- Workspace-scoped opportunity persistence and analytics-history reads are security boundaries. The resolved operator `workspace_id` must remain attached to every scoped store operation; tests must assert propagation rather than weaken the application call.
+- PR [#417](https://github.com/justinhblee-prog/shorts/pull/417) backend validation passed on earlier heads, but Chromium browser smoke repeatedly failed at the analytics CSV enablement assertion (`scripts/ui_browser_smoke.mjs:245`). The API returned a valid as-of status while the export control remained disabled, indicating the page received no usable history rows or did not expose them to the UI. This is not treated as a passing browser validation.
+- Compose integration passed on earlier PR #417 runs, including the five-service health and isolated encrypted backup/restore smoke. These synthetic CI results do not establish deployment-host behavior.
+- PR [#419](https://github.com/justinhblee-prog/shorts/pull/419) adds an explicit workspace-propagation assertion, per-platform analytics response-count diagnostics in Chromium, and a disposable-server assertion that the seeded history is visible through the store query. Initial head `386814f7da70e2f4c9742ea654a6c815b16d391b` has backend and Compose runs [44692106029](https://github.com/justinhblee-prog/shorts/actions/runs/44692106029) and [44692106015](https://github.com/justinhblee-prog/shorts/actions/runs/44692106015) in progress at the checkpoint; the result must be inspected before acceptance.
+- PR [#418](https://github.com/justinhblee-prog/shorts/pull/418) is a stale-base duplicate of the workspace assertion follow-up. It remains Draft / Open / Unmerged and is explicitly superseded by PR #419; do not merge it.
+- The diagnostics are test-only. They do not alter production workspace authorization, fabricate analytics, or claim live account data.
