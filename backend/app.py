@@ -110,7 +110,7 @@ performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.s
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
-private_media_root=os.getenv("NEXUS_PRIVATE_MEDIA_ROOT","data/private-media")
+private_media_root=os.getenv("NEXUS_PRIVATE_MEDIA_ROOT",str(Path("data/private-media").resolve()))
 render_staging_root=os.getenv("NEXUS_RENDER_STAGING_ROOT","data/render-staging")
 render_artifact_root=os.getenv("NEXUS_RENDER_ARTIFACT_ROOT","data/render-artifacts")
 asset_store=WorkspaceAssetStore(
@@ -787,7 +787,7 @@ def submit_timeline_render(
         raise HTTPException(403,str(exc))
     except SnapshotConflict as exc:
         raise HTTPException(409,str(exc))
-    except SnapshotError as exc:
+    except (SnapshotError,AssetError) as exc:
         raise HTTPException(422,str(exc))
     except (EDLValidationError,ValueError) as exc:
         raise HTTPException(422,str(exc))
