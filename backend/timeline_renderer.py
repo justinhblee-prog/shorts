@@ -148,10 +148,10 @@ class TimelineRenderer:
             command.extend([
                 "-ss", f"{clip['source_in_ms'] / 1000:.3f}",
                 "-t", f"{(clip['source_out_ms'] - clip['source_in_ms']) / 1000:.3f}",
-                "-i", str(path),
+                "-protocol_whitelist", "file,pipe", "-i", str(path),
             ])
         if audio_path is not None:
-            command.extend(["-stream_loop", "-1", "-i", str(audio_path)])
+            command.extend(["-stream_loop", "-1", "-protocol_whitelist", "file,pipe", "-i", str(audio_path)])
         command.extend([
             "-filter_complex", ";".join(filter_parts),
             "-map", "[outv]",
@@ -192,6 +192,9 @@ class TimelineRenderer:
         except OSError as exc:
             temporary_path.unlink(missing_ok=True)
             raise TimelineRenderError("FFmpeg could not be started") from exc
+        except Exception as exc:
+            temporary_path.unlink(missing_ok=True)
+            raise TimelineRenderError("FFmpeg execution failed") from exc
 
         if completed.returncode != 0:
             temporary_path.unlink(missing_ok=True)
@@ -230,7 +233,7 @@ class TimelineRenderer:
                 "audio_track_present": report.get("audio_track_present", False),
                 "status": "rendered_unreviewed",
             }
-        except (MediaInspectionError, OSError, TimelineRenderError) as exc:
+        except Exception as exc:
             temporary_path.unlink(missing_ok=True)
             if isinstance(exc, TimelineRenderError):
                 raise
