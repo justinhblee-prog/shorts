@@ -11,9 +11,9 @@ function Eligible($m,$allow) {
   if($ok){$t}
  }
 }
-function RunAgent($exe,[string[]]$args,$cwd){
+function RunAgent($exe,[string[]]$AgentArgs,$cwd){
  $p=[System.Diagnostics.ProcessStartInfo]::new(); $p.FileName=$exe; $p.WorkingDirectory=$cwd; $p.UseShellExecute=$false; $p.RedirectStandardOutput=$true; $p.RedirectStandardError=$true
- foreach($a in $args){[void]$p.ArgumentList.Add($a)}
+ foreach($a in $AgentArgs){[void]$p.ArgumentList.Add($a)}
  $proc=[System.Diagnostics.Process]::new();$proc.StartInfo=$p
  if(-not $proc.Start()){throw "Agent failed to start."}
  $out=$proc.StandardOutput.ReadToEndAsync();$err=$proc.StandardError.ReadToEndAsync();$proc.WaitForExit()
