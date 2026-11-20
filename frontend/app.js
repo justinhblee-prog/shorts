@@ -846,7 +846,7 @@
         const label=parent?(parent.title||id):id;
         const parentStatus=parent?(developmentStatusLabels[parent.status]||parent.status):"현재 목록 외";
         return parent
-          ? '<button type="button" class="development-job-dependency" data-focus-development-job="'+esc(id)+'" aria-label="선행 작업 '+esc(label)+' 카드로 이동">'+esc(label)+' · '+esc(parentStatus)+' ↗</button>'
+          ? '<span role="button" tabindex="0" class="development-job-dependency development-job-dependency-link" data-focus-development-job="'+esc(id)+'" aria-label="선행 작업 '+esc(label)+' 카드로 이동">'+esc(label)+' · '+esc(parentStatus)+' ↗</span>'
           : '<span class="development-job-dependency development-job-dependency-missing" role="status">'+esc(label)+' · 현재 목록 외</span>';
       }).join(""):'<span class="development-job-dependency development-job-dependency-none">선행 작업 없음</span>';
       const recovery=status==="quarantined"?'<button type="button" class="button button-outline development-job-recover" data-recover-development-job="'+esc(job.id)+'">격리 작업 복구</button>':"";
@@ -939,6 +939,13 @@
   $("clearToken").addEventListener("click",()=>{token="";reviewer="";$("tokenInput").value="";$("reviewerInput").value="";$("queueOperator").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadDevelopmentJobs").addEventListener("click",()=>loadDevelopmentJobs().catch(e=>toast(e.message)));
+  $("developmentJobList").addEventListener("keydown",event=>{
+    const dependencyButton=event.target.closest("[data-focus-development-job]");
+    if(dependencyButton&&(event.key==="Enter"||event.key===" ")){
+      event.preventDefault();
+      dependencyButton.click();
+    }
+  });
   $("developmentJobList").addEventListener("click",async event=>{
     const dependencyButton=event.target.closest("[data-focus-development-job]");
     if(dependencyButton){
