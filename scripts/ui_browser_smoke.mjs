@@ -135,8 +135,12 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineTitleOverlay").isVisible(), true);
     await page.locator("#timelineRemove").click();
     assert.equal(await page.locator(".timeline-clip").count(), 1, "timeline clip removal failed");
+    assert.equal(await page.locator("#timelineTitleOverlay").textContent(), "First title");
+    assert.equal(await page.locator("#timelineTitleOverlay").isVisible(), true, "remaining title preview did not recover");
     await page.locator("#timelineRemove").click();
     assert.equal(await page.locator(".timeline-clip").count(), 0, "timeline empty state recovery failed");
+    assert.equal(await page.locator("#timelineTitleOverlay").isVisible(), false);
+    assert.equal(await page.locator("#timelinePreviewEmpty").isVisible(), true);
     const destinations = ["home","trendList","trendRecommendations","productionForm","productionPipeline","reviewList","publishingOverview","analyticsHistory","queueDetails"];
     const navLinks = page.locator(".main-nav a");
     for (let index = 0; index < destinations.length; index++) {
