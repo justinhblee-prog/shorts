@@ -72,11 +72,29 @@ async function waitForServer() {
       '#developmentJobList [data-load-prerequisite-id="browser-smoke-pagination-204"]'
     );
     await crossPagePrerequisite.waitFor({ state: "visible" });
-    await crossPagePrerequisite.click();
+    let crossPageRequestCount = 0;
+    await page.route("**/api/development/jobs?limit=200&offset=200", async route => {
+      crossPageRequestCount += 1;
+      await new Promise(resolve => setTimeout(resolve, 250));
+      await route.continue();
+    });
+    await page.evaluate(() => {
+      const button = document.querySelector(
+        '#developmentJobList [data-load-prerequisite-id="browser-smoke-pagination-204"]'
+      );
+      button.click();
+      button.click();
+    });
+    assert.equal(await page.locator("#loadMoreDevelopmentJobs").isDisabled(), true,
+      "pagination controls must be disabled while a page request is in flight");
     const crossPageParent = page.locator(
       '[data-development-job="browser-smoke-pagination-204"]'
     );
     await crossPageParent.waitFor({ state: "visible" });
+    assert.equal(crossPageRequestCount, 1,
+      "rapid duplicate prerequisite clicks must share one in-flight page request");
+    assert.equal(await page.locator("#loadMoreDevelopmentJobs").isDisabled(), false,
+      "pagination controls must be re-enabled after the page request settles");
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-development-job")),
       "browser-smoke-pagination-204",
       "loading another page from a missing prerequisite must focus the persisted parent");
