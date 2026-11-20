@@ -1584,12 +1584,22 @@ def list_development_jobs(
     status:str|None=None,
     limit:int=Query(default=100,ge=1,le=500),
     offset:int=Query(default=0,ge=0,le=100000),
+    created_before:str|None=Query(default=None,max_length=64),
     x_review_token:str|None=Header(default=None),
 ):
     require_review_permission(x_review_token,"operations.read")
     statuses=[item.strip() for item in status.split(",") if item.strip()] if status else None
-    jobs=development_job_store.list(statuses=statuses,limit=limit,offset=offset)
-    total=development_job_store.count(statuses=statuses)
+    try:
+        snapshot_at=(
+            development_job_store.normalize_snapshot_timestamp(created_before)
+            if created_before is not None else development_job_store.snapshot_created_at()
+        )
+        jobs=development_job_store.list(
+            statuses=statuses,limit=limit,offset=offset,created_before=snapshot_at
+        )
+        total=development_job_store.count(statuses=statuses,created_before=snapshot_at)
+    except ValueError as error:
+        raise HTTPException(422,str(error))
     next_offset=offset+len(jobs)
     return {
         "jobs":[_public_development_job(job) for job in jobs],
@@ -1598,6 +1608,7 @@ def list_development_jobs(
             "limit":limit,"offset":offset,"total":total,
             "has_more":bool(jobs) and next_offset<total,
             "next_offset":next_offset if next_offset<total else None,
+            "snapshot_at":snapshot_at,
         },
     }
 
