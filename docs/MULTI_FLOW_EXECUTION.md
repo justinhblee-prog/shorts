@@ -401,3 +401,11 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 - FLOW-UI/FLOW-QA expanded the recovery Chromium smoke to check click selection, Enter-key selection of a second job, aria-pressed state transfer, and actual event-detail panel content switching.
 - Exact head 17ee4a515767b9e05b5c20b00eb240024365f807 passed backend validation, frontend syntax, both Chromium smoke suites, and artifact upload in [run 44654934989](https://github.com/justinhblee-prog/shorts/actions/runs/44654934989), artifact [14592123441](https://github.com/justinhblee-prog/shorts/actions/runs/44654934989/artifacts/14592123441).
 - FLOW-UI/FLOW-QA: PASS within hosted fixture/browser scope. Live production/provider validation remains separately gated.
+
+## 15. API pagination and cross-page DAG lookup — 2026-11-20
+
+- FLOW-CORE added bounded offset pagination and total-count support to the development-job store/API. The API returns next_offset and has_more with deterministic ordering.
+- FLOW-UI accumulates pages, exposes loaded/total counts and a load-more action, and can resolve an out-of-page prerequisite by fetching another page then focusing its parent card.
+- FLOW-QA fixture exceeds 200 jobs and places a real prerequisite on the final page. Browser smoke verifies parent discovery, focus, final loaded/total counts, and the load-more control's hidden state. CSS explicitly enforces hidden on the styled button.
+- Exact aggregate head c59beaa1eb69b599b198d7a9fce3735a0235485d passed backend validation (898 tests), frontend syntax, both Chromium browser suites, and artifact upload in [run 44657078245](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245), artifact [14594141209](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245/artifacts/14594141209).
+- FLOW-CORE/FLOW-UI/FLOW-QA: PASS within hosted fixture scope. Real Windows/Ollama/provider gates remain NOT VERIFIED.
