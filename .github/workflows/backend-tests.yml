@@ -35,9 +35,9 @@ jobs:
         with:
           node-version: "20"
       - name: Install Korean font fallback for browser screenshots
-        timeout-minutes: 5
+        timeout-minutes: 3
         continue-on-error: true
-        run: sudo apt-get update -qq -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 && sudo apt-get install -y --no-install-recommends fonts-noto-cjk && sudo fc-cache -f
+        run: sudo timeout --kill-after=5s 75s apt-get update -qq -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 && sudo timeout --kill-after=5s 75s apt-get install -y --no-install-recommends fonts-noto-cjk && sudo fc-cache -f
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install chromium
       - run: node scripts/ui_browser_smoke.mjs
