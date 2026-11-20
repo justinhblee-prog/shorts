@@ -357,6 +357,6 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 
 ### Current status
 - Exact file boundary and runtime import graph: AUDITED.
-- Clean-main promotion branch and main-targeted CI: NOT YET CREATED/RUN.
+- Clean-main promotion branch `promotion/nexus-worker-mainline-2026-11-20` and Draft PR #416 created; main-targeted CI run 44649765794 is in progress.
 - Windows runner, cross-run persistence, Ollama generation: NOT VERIFIED.
-- No branch promotion, workflow dispatch, schedule activation, merge, or default-branch change performed.
+- Dedicated promotion branch/PR created for review; no merge, workflow dispatch, schedule activation, or default-branch change performed.
