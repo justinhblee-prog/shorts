@@ -120,6 +120,9 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
         try:
             with patch.dict(os.environ, {"NEXUS_WORKSPACE_AUTH_MODE": "sqlite"}):
                 with patch.object(api, "require_review_permission", return_value="alice"):
+                    with self.assertRaises(HTTPException) as missing_scope:
+                        api.get_production_job(job["id"])
+                    self.assertEqual(missing_scope.exception.status_code, 403)
                     visible = api.get_production_job(
                         job["id"], x_nexus_workspace_id="ws_alice"
                     )
@@ -146,6 +149,9 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
         try:
             with patch.dict(os.environ, {"NEXUS_WORKSPACE_AUTH_MODE": "sqlite"}):
                 with patch.object(api, "require_review_permission", return_value="alice"):
+                    with self.assertRaises(HTTPException) as missing_scope:
+                        api.get_events(job["id"])
+                    self.assertEqual(missing_scope.exception.status_code, 403)
                     events = api.get_events(
                         job["id"], x_nexus_workspace_id="ws_alice"
                     )
