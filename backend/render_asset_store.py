@@ -114,18 +114,23 @@ class RenderAssetStore:
 
     def _asset_directory(self, workspace_id):
         namespace = hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
-        directory = self.media_root / namespace / "render-assets"
-        if directory.is_symlink():
+        workspace_dir = self.media_root / namespace
+        directory = workspace_dir / "render-assets"
+        if workspace_dir.is_symlink() or directory.is_symlink():
             raise RenderAssetError("Workspace render asset directory must not be a symlink")
         try:
             self.media_root.mkdir(parents=True, exist_ok=True)
-            directory.mkdir(parents=True, exist_ok=True)
-            resolved = directory.resolve(strict=True)
+            resolved = directory.resolve(strict=False)
             resolved.relative_to(self.media_root)
+            resolved.mkdir(parents=True, exist_ok=True)
+            if directory.is_symlink() or resolved.is_symlink():
+                raise RenderAssetError("Workspace render asset directory must not be a symlink")
+            resolved = resolved.resolve(strict=True)
+            resolved.relative_to(self.media_root)
+        except RenderAssetError:
+            raise
         except (OSError, ValueError) as exc:
             raise RenderAssetError("Workspace render asset directory escaped media storage") from exc
-        if directory.is_symlink():
-            raise RenderAssetError("Workspace render asset directory must not be a symlink")
         return resolved
 
     async def register_stream(
