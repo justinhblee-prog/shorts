@@ -227,3 +227,6 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Production runs persist nullable `workspace_id`, inherited from the matching durable production queue row at creation. Mismatched ownership on duplicate create is rejected.
 - Regression coverage added for workspace-filtered claim, cross-workspace reads/events, invalid scope, production ownership inheritance and mismatch rejection.
 - Authenticated workspace context is still not wired to API/worker routes. Do not treat request-provided workspace IDs as trusted identity; provider attempts, reconciliation and event ownership still need complete parent-scope enforcement.
+
+
+- Follow-up: heartbeat, finish and fail queue transitions now accept an optional workspace scope and reject lease operations when the persisted job belongs to a different workspace. Regression tests verify rejected cross-workspace transitions do not change the running job, while the correct workspace can complete it.
