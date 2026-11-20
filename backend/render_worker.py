@@ -86,7 +86,11 @@ def _discard_unadopted_output(result, workspace_id):
         root = Path(media_root).resolve()
         resolved.relative_to(root)
         namespace = hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
-        workspace_output_root = (root / namespace / "render-outputs").resolve(strict=True)
+        namespace_dir = root / namespace
+        workspace_output_candidate = namespace_dir / "render-outputs"
+        if namespace_dir.is_symlink() or workspace_output_candidate.is_symlink():
+            return
+        workspace_output_root = workspace_output_candidate.resolve(strict=True)
         workspace_output_root.relative_to(root)
         resolved.relative_to(workspace_output_root)
         resolved.unlink(missing_ok=True)
