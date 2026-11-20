@@ -7,6 +7,7 @@ on:
       - "scripts/git-cli-multiflow.ps1"
       - "scripts/git-cli-multiflow-parallel.ps1"
       - "scripts/test-git-cli-multiflow-parallel.ps1"
+      - "scripts/git-cli-agent-config.ps1"
       - "scripts/start-devflow-autopilot.ps1"
       - "scripts/devflow.py"
       - ".github/workflows/git-cli-autopilot.yml"
@@ -38,6 +39,7 @@ jobs:
             "scripts/git-cli-multiflow.ps1",
             "scripts/git-cli-multiflow-parallel.ps1",
             "scripts/test-git-cli-multiflow-parallel.ps1",
+            "scripts/git-cli-agent-config.ps1",
             "scripts/start-devflow-autopilot.ps1"
           )
           foreach ($file in $files) {
@@ -60,6 +62,14 @@ jobs:
           }
           Write-Host "Planner correctly excludes tasks represented by open PRs."
           Write-Host $plan
+      - name: Validate Agent CLI configuration contract
+        shell: pwsh
+        run: |
+          & "$PWD/scripts/git-cli-agent-config.ps1" -ValidateOnly -AgentCommand "fixture-agent" -AgentArgsJson '["--prompt-file","{prompt_file}"]'
+          if (-not $?) { throw "Valid Agent CLI configuration was rejected." }
+          $failed = $false
+          try { & "$PWD/scripts/git-cli-agent-config.ps1" -ValidateOnly -AgentCommand "fixture-agent" -AgentArgsJson '["--token","fake-secret","{prompt_file}"]' } catch { $failed = $true }
+          if (-not $failed) { throw "Credential-like Agent CLI arguments were not rejected." }
       - name: Exercise two isolated workers concurrently
         shell: pwsh
         run: |
@@ -80,7 +90,7 @@ jobs:
       - name: Confirm no implicit merge or deployment commands
         shell: pwsh
         run: |
-          foreach ($path in @("scripts/git-cli-autopilot.ps1", "scripts/git-cli-multiflow.ps1")) {
+          foreach ($path in @("scripts/git-cli-autopilot.ps1", "scripts/git-cli-multiflow.ps1", "scripts/git-cli-multiflow-parallel.ps1")) {
             $script = Get-Content $path -Raw
             if ($script -match "(?im)^\\s*gh\\s+pr\\s+merge") { throw "Automatic merge is forbidden: $path" }
             if ($script -match "(?im)^\\s*vercel\\s+deploy") { throw "Automatic deployment is forbidden: $path" }
