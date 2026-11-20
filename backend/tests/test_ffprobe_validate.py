@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from ffprobe_validate import FFprobeValidationError, probe_media
+from ffprobe_validate import FFprobeValidationError, probe_media, has_audio_stream
 
 
 class FFprobeValidationTests(unittest.TestCase):
@@ -84,6 +84,22 @@ class FFprobeValidationTests(unittest.TestCase):
         with patch("ffprobe_validate.subprocess.run", return_value=result):
             with self.assertRaisesRegex(FFprobeValidationError, "invalid media"):
                 probe_media(self.media, self.binary)
+
+
+    def test_detects_optional_source_audio_stream_without_shell(self):
+        result = SimpleNamespace(
+            returncode=0, stdout=json.dumps({"streams": [{"codec_type": "audio"}]}),
+            stderr="",
+        )
+        with patch("ffprobe_validate.subprocess.run", return_value=result) as run:
+            self.assertTrue(has_audio_stream(self.media, self.binary))
+        args, kwargs = run.call_args
+        self.assertIn("-select_streams", args[0])
+        self.assertIn("a:0", args[0])
+        self.assertIs(kwargs["shell"], False)
+        silent = SimpleNamespace(returncode=0, stdout='{"streams":[]}', stderr="")
+        with patch("ffprobe_validate.subprocess.run", return_value=silent):
+            self.assertFalse(has_audio_stream(self.media, self.binary))
 
     def test_rejects_relative_paths_symlinks_and_invalid_limits(self):
         with self.assertRaises(FFprobeValidationError):
