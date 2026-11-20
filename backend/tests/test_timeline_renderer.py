@@ -1,6 +1,8 @@
 import hashlib
 import os
+import signal
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -216,6 +218,32 @@ class TimelineRendererTests(unittest.TestCase):
         with self.assertRaisesRegex(TimelineRenderError, "not registered"):
             self.renderer.render(self.edl, {"asset_1": self.asset}, audio_asset_id="remote")
         self.assertEqual(self.calls, [])
+
+    def test_lease_cancellation_terminates_ffmpeg_process_group(self):
+        class FakeProcess:
+            pid = 4242
+            returncode = None
+
+            def poll(self):
+                return self.returncode
+
+            def wait(self, timeout=None):
+                self.returncode = -signal.SIGTERM
+                return self.returncode
+
+        process = FakeProcess()
+        stop_event = threading.Event()
+        self.renderer.runner = None
+        with (
+            patch("timeline_renderer.subprocess.Popen", return_value=process) as popen,
+            patch("timeline_renderer.time.sleep", side_effect=lambda delay: stop_event.set()),
+            patch("timeline_renderer.os.killpg") as kill_group,
+        ):
+            with self.assertRaises(TimelineRenderCancelled):
+                self.renderer._execute(["prlimit", "--", "ffmpeg"], self.root, stop_event)
+        popen.assert_called_once()
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
+        kill_group.assert_called_once_with(4242, signal.SIGTERM)
 
     def test_stop_event_cancels_before_ffmpeg_start(self):
         stop_event = __import__("threading").Event()
