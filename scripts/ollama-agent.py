@@ -93,8 +93,11 @@ def execute(root: Path,name: str,a: dict[str,Any]) -> str:
   return f"exit_code={r.returncode}\n{clip(r.stdout+r.stderr)}"
  raise ValueError(f"Unknown tool: {name}")
 
-def chat(model: str,messages: list[dict[str,Any]]) -> dict[str,Any]:
- body=json.dumps({"model":model,"messages":messages,"tools":TOOLS,"stream":False,"options":{"temperature":0.1,"num_ctx":16384}}).encode()
+def chat(model: str,messages: list[dict[str,Any]],with_tools: bool=True,json_mode: bool=False) -> dict[str,Any]:
+ payload={"model":model,"messages":messages,"stream":False,"options":{"temperature":0.1,"num_ctx":16384,"num_predict":8192}}
+ if with_tools: payload["tools"]=TOOLS
+ if json_mode: payload["format"]="json"
+ body=json.dumps(payload).encode()
  req=urllib.request.Request(API,data=body,headers={"Content-Type":"application/json"})
  try:
   with urllib.request.urlopen(req,timeout=300) as response: return json.loads(response.read().decode())
@@ -137,6 +140,71 @@ def parse_text_tool_call(content: str) -> list[dict[str, Any]]:
     return [{"function":{"name":name,"arguments":arguments}}]
  return []
 
+def scoped_json_patch(root: Path, prompt: str, model: str) -> int:
+ """One-shot fallback for local models that cannot sustain tool conversations."""
+ scope=[]
+ in_scope=False
+ for line in prompt.splitlines():
+  stripped=line.strip()
+  if stripped.lower()=="scope:": in_scope=True; continue
+  if in_scope and stripped.lower() in {"acceptance:","acceptance criteria:"}: break
+  if in_scope and stripped.startswith("- "):
+   value=stripped[2:].strip().replace("\\\\","/")
+   if value and not value.startswith("/") and ".." not in Path(value).parts:
+    scope.append(value)
+ if not scope:
+  print("Scoped patch fallback cannot identify task scope.",file=sys.stderr); return 6
+ context=[]; allowed=[]
+ for item in scope:
+  target=safe_path(root,item)
+  if target.is_file():
+   if target.stat().st_size<=MAX_FILE_BYTES:
+    context.append({"path":item,"content":target.read_text(encoding="utf-8")})
+   allowed.append(item)
+  elif target.is_dir():
+   allowed.append(item.rstrip("/")+"/")
+   for child in sorted(target.rglob("*")):
+    if child.is_file() and child.stat().st_size<=MAX_FILE_BYTES and child.suffix.lower() in {".py",".ps1",".yml",".yaml",".md",".json"}:
+     rel=child.relative_to(root).as_posix()
+     if set(Path(rel).parts)&BLOCKED_PARTS or child.name in BLOCKED_NAMES: continue
+     context.append({"path":rel,"content":child.read_text(encoding="utf-8")})
+     if len(context)>=20: break
+  else:
+   allowed.append(item)
+ user_payload={"task":prompt,"allowed_scope":allowed,"existing_files":context}
+ messages=[
+  {"role":"system","content":"You are a coding agent. Return ONLY one valid JSON object with keys summary and files. files must be an array of objects with path and complete UTF-8 content. Include only files that need changes. Do not use Markdown fences. Every output path must be within allowed_scope. Never change secrets, task manifests, or files outside scope. Do not claim tests passed."},
+  {"role":"user","content":json.dumps(user_payload,ensure_ascii=False)}
+ ]
+ try:
+  response=chat(model,messages,with_tools=False,json_mode=True)
+  content=str((response.get("message") or {}).get("content",""))
+  decoder=json.JSONDecoder(); parsed=None
+  for index,char in enumerate(content):
+   if char=="{":
+    try: parsed,end=decoder.raw_decode(content[index:]); break
+    except json.JSONDecodeError: continue
+  if not isinstance(parsed,dict) or not isinstance(parsed.get("files"),list):
+   print("Scoped patch fallback returned no valid {summary, files} JSON object.",file=sys.stderr); return 7
+  changed=0; seen=set()
+  for entry in parsed["files"]:
+   if not isinstance(entry,dict) or not isinstance(entry.get("path"),str) or not isinstance(entry.get("content"),str):
+    raise ValueError("Patch entries require string path and content.")
+   relative=Path(entry["path"]).as_posix()
+   if relative in seen: raise ValueError(f"Duplicate patch path: {relative}")
+   seen.add(relative)
+   if not any(relative==item or item.endswith("/") and relative.startswith(item) for item in allowed):
+    raise ValueError(f"Patch path is outside assigned scope: {relative}")
+   write_file(root,relative,entry["content"]); changed+=1
+  if changed==0:
+   print("Scoped patch fallback produced no file changes.",file=sys.stderr); return 8
+  print(f"[ollama-agent] scoped_patch_files={changed} summary={str(parsed.get('summary',''))[:240]}")
+  return 0
+ except Exception as exc:
+  print(f"Scoped patch fallback failed: {type(exc).__name__}: {exc}",file=sys.stderr)
+  return 9
+
+
 def main() -> int:
  ap=argparse.ArgumentParser()
  ap.add_argument("--prompt-file",required=True)
@@ -155,6 +223,8 @@ def main() -> int:
  "Make focused changes, inspect your diff, and run applicable predefined checks. If blocked, explain precisely; never fabricate success.")
  messages=[{"role":"system","content":system},{"role":"user","content":f"Assigned task:\n{prompt}\n\nRepository root: {root}\nModel: {args.model}\nDo not claim checks passed unless run_check confirms exit_code=0."}]
  empty_responses=0
+ write_count=0
+ text_tool_count=0
  repeated_calls: dict[str,int] = {}
  for turn in range(1,args.max_turns+1):
   response=chat(args.model,messages)
@@ -176,11 +246,18 @@ def main() -> int:
       messages.append({"role":"user","content":"Your previous response was empty. Continue the assigned implementation now. Use one available tool. If tool calling is unavailable, output exactly one JSON object such as {\\\"name\\\":\\\"list_files\\\",\\\"arguments\\\":{\\\"path\\\":\\\".\\\"}} with no Markdown."})
       continue
      print("Agent repeatedly returned an empty response; refusing to report success.",file=sys.stderr); return 4
+    if write_count==0 and turn>=4:
+     print('[ollama-agent] switching to scoped one-shot patch mode after read-only tool exploration.',file=sys.stderr)
+     return scoped_json_patch(root,prompt,args.model)
     messages.append(msg)
     print(content); return 0
    text_fallback=True
+   text_tool_count += len(calls)
   else:
    messages.append(msg)
+  if turn>=8 and write_count==0 and text_tool_count>=5:
+   print('[ollama-agent] switching to scoped one-shot patch mode after repeated text tool calls.',file=sys.stderr)
+   return scoped_json_patch(root,prompt,args.model)
   for call in calls:
    fn=call.get("function") or {}; name=fn.get("name",""); arguments=fn.get("arguments") or {}
    print(f"[ollama-agent] invoking_tool={name} argument_keys={sorted(arguments.keys())} text_fallback={text_fallback}",file=sys.stderr)
@@ -195,6 +272,7 @@ def main() -> int:
    else:
     try: result=execute(root,name,arguments)
     except Exception as e: result=f"TOOL_ERROR: {type(e).__name__}: {e}"
+   if name=="write_file" and not str(result).startswith("TOOL_ERROR:"): write_count += 1
    if text_fallback:
     messages.append({"role":"user","content":f"Tool result for {name}:\\n{clip(str(result))}\\nUse this result to continue the assigned task. If another tool is needed, request it with exactly one JSON object containing name and arguments."})
    else:
