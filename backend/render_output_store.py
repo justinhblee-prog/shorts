@@ -240,6 +240,10 @@ class RenderOutputStore:
             if not candidate.is_symlink():
                 resolved = candidate.resolve(strict=True)
                 resolved.relative_to(self.media_root)
+                namespace = hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
+                workspace_output_root = (self.media_root / namespace / "render-outputs").resolve(strict=True)
+                workspace_output_root.relative_to(self.media_root)
+                resolved.relative_to(workspace_output_root)
                 resolved.unlink(missing_ok=True)
         except (OSError, ValueError):
             pass
