@@ -1,5 +1,7 @@
 import os
 import logging
+import asyncio
+import tempfile
 import secrets
 from typing import Any, Literal
 from datetime import datetime, timedelta, timezone
@@ -35,6 +37,11 @@ from preflight import build_preflight
 from timeline_edl import validate_edl, EDLValidationError
 from workspace_access import resolve_workspace_membership, resolve_workspace_access, WorkspaceAccessConfigurationError
 from workspace_store import WorkspaceStore, WorkspaceDenied, WorkspaceConflict, WorkspaceNotFound
+from workspace_asset_store import WorkspaceAssetStore, AssetError, AssetNotFound, AssetConflict
+from timeline_render_store import TimelineRenderStore, SnapshotError, SnapshotConflict
+from render_artifact_store import RenderArtifactStore, ArtifactAdoptionError
+from ffprobe_validate import probe_source_media, FFprobeValidationError
+from media_scanner import ClamAVScanner, MediaScanError
 from worker_auth import authenticate_worker, WorkerAuthConfigurationError, WorkerAuthenticationError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
@@ -74,6 +81,7 @@ app.add_middleware(
         "control": int(os.getenv("NEXUS_API_CONTROL_RATE_LIMIT_PER_MINUTE", "30")),
         "review": int(os.getenv("NEXUS_API_REVIEW_RATE_LIMIT_PER_MINUTE", "60")),
         "production": int(os.getenv("NEXUS_API_PRODUCTION_RATE_LIMIT_PER_MINUTE", "30")),
+        "media": int(os.getenv("NEXUS_API_MEDIA_RATE_LIMIT_PER_MINUTE", "5")),
     },
 )
 trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
@@ -107,6 +115,19 @@ recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_D
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
+DB_PATH=os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3")
+private_media_root=Path(os.getenv("NEXUS_PRIVATE_MEDIA_ROOT") or "data/private-media").resolve()
+workspace_asset_store=WorkspaceAssetStore(
+    DB_PATH, private_media_root, workspace_store,
+    max_asset_bytes=int(os.getenv("NEXUS_MAX_MEDIA_BYTES",str(256*1024*1024))),
+)
+timeline_render_store=TimelineRenderStore(DB_PATH,workspace_asset_store,workspace_store,queue)
+render_staging_root=Path(os.getenv("NEXUS_RENDER_STAGING_ROOT") or "data/render-staging").resolve()
+render_artifact_root=Path(os.getenv("NEXUS_RENDER_ARTIFACT_ROOT") or "data/render-artifacts").resolve()
+render_artifact_store=RenderArtifactStore(
+    queue,render_staging_root,render_artifact_root,
+    max_bytes=int(os.getenv("NEXUS_RENDER_MAX_OUTPUT_BYTES",str(512*1024*1024))),
+)
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -115,6 +136,11 @@ class Enqueue(BaseModel):
     priority:int=100
     max_attempts:int=3
     idempotency_key:str|None=None
+
+class TimelineRenderSubmitInput(BaseModel):
+    model_config = {"extra": "forbid"}
+    edl:dict[str,Any]
+    idempotency_key:str=Field(min_length=8,max_length=128)
 
 class QueueControlAction(BaseModel):
     operator_id:str=Field(min_length=1,max_length=128)
