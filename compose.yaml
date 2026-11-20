@@ -10,7 +10,7 @@ services:
       NEXUS_MEDIA_DIR: /app/data/media
       NEXUS_MEDIA_SCAN_ENABLED: ${NEXUS_MEDIA_SCAN_ENABLED:-false}
       NEXUS_PRIVATE_MEDIA_ROOT: /app/data/media/private-assets
-      NEXUS_RENDER_STAGING_ROOT: /tmp/nexus-render-staging
+      NEXUS_RENDER_STAGING_ROOT: /app/data/media/render-staging
       NEXUS_RENDER_ARTIFACT_ROOT: /app/data/media/render-artifacts
       NEXUS_FFPROBE_PATH: /usr/bin/ffprobe
       NEXUS_MAX_ASSET_BYTES: ${NEXUS_MAX_ASSET_BYTES:-500000000}
