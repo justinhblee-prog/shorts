@@ -230,3 +230,9 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - UI smoke on code head `cd19128c5ba57ed60c57ac5d44c677bd35955de5` passed 736 tests, frontend syntax and Chromium smoke; screenshot artifact: [14599030081](https://github.com/justinhblee-prog/shorts/actions/runs/44666941969/artifacts/14599030081). The newer exact-head visual-token/offline-font assertions and KPI accent refinements are still running in CI; do not present the earlier artifact as the final latest build.
 - Detailed handover: `docs/FRONTEND_DESIGN_HANDOVER_2026-11-20.md` on PR #417 branch.
 - PR #417 remains Draft/open/unmerged. The user must review the actual screenshot before UI design acceptance. Some sidebar destinations intentionally share current feature sections; a standalone video timeline editor is not claimed complete.
+
+
+## 26. Latest frontend QA artifact and DAG transition hardening
+
+- Frontend branch head `2c351e3f0696333435227a2fd1bb9de92ddf4fe0` passed exact-head browser validation: 736 backend tests, Korean glyph rendering (zero replacement glyphs), premium typography, approved navigation, Ctrl+K live review search, authenticated review/audit flow, analytics pagination/CSV, partial API error handling and responsive desktop/mobile. Fresh screenshot artifact: [14599326297](https://github.com/justinhblee-prog/shorts/actions/runs/44668155728/artifacts/14599326297). Compose integration smoke also passed [44668155732](https://github.com/justinhblee-prog/shorts/actions/runs/44668155732).
+- Core branch additionally hardens both expired-lease reclamation and due-retry promotion: jobs with incomplete prerequisites transition to `blocked`, not `ready`; audit events record unresolved prerequisite count. Regressions cover both paths. Exact-head CI is running on code head `5d98c8453827867db6757e40bb99325741c2032d` and documentation head `340b6ea56a6ae0b38449ad52bc9c38681d3fe7ef`.
