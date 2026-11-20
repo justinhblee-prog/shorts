@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import time
 import uuid
 from datetime import datetime, timezone
@@ -258,6 +259,43 @@ class RenderArtifactStore:
                     continue
             db.commit()
         return {"removed": removed, "removed_bytes": removed_bytes}
+
+
+    def reconcile_orphaned_staging_files(self, grace_seconds=7200):
+        """Remove abandoned render outputs/workdirs after a crash.
+
+        The grace period must exceed the maximum configured render duration.
+        Cleanup takes the same SQLite write lock as adoption so it cannot race
+        a worker committing a staged artifact.
+        """
+        if (isinstance(grace_seconds, bool)
+                or not isinstance(grace_seconds, (int, float))
+                or grace_seconds < 3601):
+            raise ValueError("staging grace period must exceed the 1-hour render limit")
+        cutoff = time.time() - grace_seconds
+        removed_files = removed_dirs = removed_bytes = 0
+        with self.queue.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            for path in self.staging_root.iterdir():
+                if path.is_symlink():
+                    continue
+                try:
+                    stat = path.stat()
+                    if stat.st_mtime > cutoff:
+                        continue
+                    if path.is_file() and re.fullmatch(r"rart_[a-f0-9]{32}\\.mp4", path.name):
+                        size = stat.st_size
+                        path.unlink()
+                        removed_files += 1
+                        removed_bytes += size
+                    elif path.is_dir() and re.fullmatch(r"\\.timeline-work-[A-Za-z0-9_-]+", path.name):
+                        shutil.rmtree(path)
+                        removed_dirs += 1
+                except FileNotFoundError:
+                    continue
+            db.commit()
+        return {"removed_files": removed_files, "removed_dirs": removed_dirs,
+                "removed_bytes": removed_bytes}
 
     def get(self, artifact_id, workspace_id):
         if not isinstance(artifact_id, str) or not _ARTIFACT_ID.fullmatch(artifact_id):
