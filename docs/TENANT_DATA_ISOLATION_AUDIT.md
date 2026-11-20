@@ -147,3 +147,13 @@ The customer identity provider and account contract must be selected before impl
 
 - Production detail, provider-attempt detail, queue job detail, and queue event endpoints now reject workspace-owned records when the operator omits the workspace selector. Previously, a missing selector could still reach a globally keyed read even though cross-workspace selectors were validated.
 - Tests explicitly cover omitted workspace scope as well as valid and mismatched membership for production and queue reads.
+
+
+## Review workflow workspace isolation — 2026-11-20
+
+- Review pending/approved queues are filtered by the authenticated operator's resolved `X-Nexus-Workspace-Id`; omitted scope returns only legacy rows whose `workspace_id IS NULL`.
+- Review approval, rejection, revision requests, and policy-evidence writes verify the production row and durable queue row against the same workspace inside the transaction. A mismatched or omitted scope for workspace-owned jobs is reported as not found.
+- Review history and policy-evidence history validate the parent production row's workspace before returning events.
+- Publishing overview and approved-review lists are derived only from the scoped approved-review query, preventing those list routes from enumerating other workspaces' job IDs.
+- Regression tests added for cross-workspace review list isolation, decision denial, history denial, and successful same-workspace approval. CI for commit `c9cf95ba92ad53d8708b0d3816243606650c0427` is running; do not treat it as passed until both Backend tests and Compose integration smoke complete.
+- This remains operator-workspace isolation, not customer OIDC identity or full tenant isolation for publishing credentials, analytics, finance, trends, brand configuration, and other non-review domains.
