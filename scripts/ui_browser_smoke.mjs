@@ -101,6 +101,14 @@ async function waitForServer() {
     checkpoint("premium typography and Korean text rendering verified");
     assert.equal(await page.locator(".main-nav a").count(), 9);
     assert.equal(await page.locator(".main-nav .nav-settings").count(), 1);
+    assert.equal(await page.locator("#timelineEditor").count(), 1, "local timeline editor missing");
+    await page.locator("#timelineTitleInput").fill("Browser smoke title");
+    await page.locator("#timelineAddTitle").click();
+    assert.equal(await page.locator(".timeline-clip").count(), 1, "timeline title clip was not added");
+    assert.equal(await page.locator("#timelineInspector").isVisible(), true);
+    await page.locator("#timelineMoveDown").click();
+    await page.locator("#timelineRemove").click();
+    assert.equal(await page.locator(".timeline-clip").count(), 0, "timeline clip removal failed");
     const destinations = ["home","trendList","trendRecommendations","productionForm","productionPipeline","reviewList","publishingOverview","analyticsHistory","queueDetails"];
     const navLinks = page.locator(".main-nav a");
     for (let index = 0; index < destinations.length; index++) {
