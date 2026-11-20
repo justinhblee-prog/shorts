@@ -42,6 +42,8 @@ class RenderJobApiTests(unittest.TestCase):
         second = sample_job()
         first["created_at"] = "2026-11-20T00:00:02+00:00"
         second["created_at"] = "2026-11-20T00:00:01+00:00"
+        first["status"] = second["status"] = "review_pending"
+        cursor_id = str(uuid4())
         with (
             patch.object(app_module, "require_review_permission", return_value="operator-a") as auth,
             patch.object(app_module, "resolve_operator_workspace_scope", return_value="workspace-a"),
@@ -50,7 +52,7 @@ class RenderJobApiTests(unittest.TestCase):
             result = app_module.list_render_jobs(
                 limit=2, status="review_pending",
                 before_created_at="2026-11-19T23:59:00+00:00",
-                before_job_id=str(uuid4()),
+                before_job_id=cursor_id,
                 x_review_token="token", x_nexus_workspace_id="workspace-a",
             )
         auth.assert_called_once_with("token", "production.read")
@@ -58,7 +60,7 @@ class RenderJobApiTests(unittest.TestCase):
             workspace_id="workspace-a", job_type="timeline_render",
             status="review_pending", limit=2,
             before_created_at="2026-11-19T23:59:00+00:00",
-            before_job_id=list_jobs.call_args.kwargs["before_job_id"],
+            before_job_id=cursor_id,
         )
         self.assertEqual(len(result["items"]), 2)
         self.assertEqual(result["items"][0]["job_id"], first["id"])
