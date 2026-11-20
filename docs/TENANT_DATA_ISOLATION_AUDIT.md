@@ -157,3 +157,11 @@ The customer identity provider and account contract must be selected before impl
 - Publishing overview and approved-review lists are derived only from the scoped approved-review query, preventing those list routes from enumerating other workspaces' job IDs.
 - Regression tests cover cross-workspace review list isolation, decision denial, policy-evidence mutation denial, history denial, and successful same-workspace approval. Code head `7dc2b1742256832a744810188fdff1638668e6d7` passed Backend tests (run `44687938486`, including `scripts/validate.sh`, Korean font fallback, Chromium browser smoke, and artifact upload) and Compose integration smoke (run `44687938515`, including build, readiness, backup, and isolated restore).
 - This remains operator-workspace isolation, not customer OIDC identity or full tenant isolation for publishing credentials, analytics, finance, trends, brand configuration, and other non-review domains.
+
+
+## Scheduled production workspace ownership — 2026-11-20
+
+- `production_schedules.workspace_id` is added with a nullable, non-destructive migration; existing schedules remain in the legacy NULL namespace.
+- Schedule create/list/activation and outbox status/retry APIs resolve the authenticated operator's workspace membership and filter by the resolved workspace. Requests without a workspace selector see only legacy NULL-owned schedules.
+- Scheduler dispatch reads the schedule's workspace ownership from its parent row and passes it to `JobQueue.enqueue`, preserving the same tenant boundary on generated production jobs. Outbox rows remain parent-owned; legacy orphan outbox rows are retained and exposed as unassigned legacy records rather than discarded.
+- Added regression coverage for workspace-scoped schedule listing/activation, dispatch ownership propagation, and outbox filtering. Latest CI for `effc7a497b9c64b2fbcef1b8d1b7bb3c004f5117` is running; verify Backend tests and Compose integration before marking validated.
