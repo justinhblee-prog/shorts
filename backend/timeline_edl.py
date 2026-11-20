@@ -117,6 +117,8 @@ def validate_edl(payload: Any) -> dict:
 
     if not any(item["type"] == "video" for item in normalized):
         raise EDLValidationError("timeline must contain at least one video clip")
+    if sum(item["type"] == "audio" for item in normalized) > 8:
+        raise EDLValidationError("audio track count exceeds the supported limit of 8")
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
     return {"schema": SCHEMA, "version": VERSION, "timebase": "milliseconds", "clips": normalized}
