@@ -85,5 +85,38 @@ class TimelineRenderWorkerTests(unittest.TestCase):
         self.assertTrue((artifacts / artifact["storage_key"]).is_file())
 
 
+    def test_discards_staged_output_when_renderer_reports_lost_lease(self):
+        root = Path(self.temp.name)
+        staging = root / "staging"
+        artifacts = root / "artifacts"
+        staging.mkdir()
+        store = RenderArtifactStore(self.queue, staging, artifacts)
+        staged = staging / "abandoned.mp4"
+
+        def lose_lease(payload, stop_event):
+            staged.write_bytes(b"orphan-render")
+            stop_event.set()
+            return {"staged_path": str(staged)}
+
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_" + "d" * 32,
+             "snapshot_sha256": "e" * 64, "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        worker = TimelineRenderWorker(
+            self.queue, lose_lease, "timeline-worker", self.generation,
+            heartbeat_seconds=0.02, artifact_store=store,
+        )
+        self.assertFalse(worker.run_once())
+        self.assertFalse(staged.exists())
+        with self.queue.db() as db:
+            self.assertEqual(
+                db.execute("SELECT COUNT(*) FROM render_artifacts WHERE job_id=?",
+                           (queued["id"],)).fetchone()[0],
+                0,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
