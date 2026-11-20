@@ -1590,7 +1590,7 @@ Added composite indexes for publication video/status lookups and metric video/ti
 
 ## BUILD — durable render worker exact-head CI result (2026-11-20)
 
-- Exact head `12f7a70e29c2e905364873ad2b9b349a3dd54eb7` passed 864 backend tests and Chromium desktop/mobile smoke [run 44706888144](https://github.com/justinhblee-prog/shorts/actions/runs/44706888144).
-- Six-service Compose integration passed [run 44706888290](https://github.com/justinhblee-prog/shorts/actions/runs/44706888290). The smoke generated a real MP4 with FFmpeg, queued a `timeline_render` job in an isolated temporary DB, exercised the actual render worker and FFmpeg/ffprobe pipeline, verified 1080×1920 output plus `review_pending` status, then discarded all temporary data. The same run passed encrypted backup, isolated restore, wrong-key rejection and teardown.
+- Exact head `49436a2a4b3ac01d308fc42329fc2078ab38d66c` passed 865 backend tests and Chromium desktop/mobile smoke [run 44708253723](https://github.com/justinhblee-prog/shorts/actions/runs/44708253723).
+- Six-service Compose integration passed [run 44708253747](https://github.com/justinhblee-prog/shorts/actions/runs/44708253747). The smoke generated a real MP4 with FFmpeg, queued a `timeline_render` job in an isolated temporary DB, exercised the actual render worker and FFmpeg/ffprobe pipeline, verified 1080×1920 output plus `review_pending` status, then discarded all temporary data. The same run passed encrypted backup, isolated restore, wrong-key rejection and teardown.
 - The scanner is injected as clean in the disposable fixture. This is real FFmpeg rendering, but not a live ClamAV scan or external provider publishing test.
 - Next: add the front-end render-job status/review surface, source-clip audio mixing and safe title overlays; retain manual review and keep publishing separate.
