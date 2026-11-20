@@ -1,4 +1,5 @@
 import os, sqlite3, tempfile, unittest
+from unittest.mock import patch
 from workspace_store import WorkspaceStore, WorkspaceDenied, WorkspaceConflict
 
 class WorkspaceStoreTests(unittest.TestCase):
@@ -7,6 +8,18 @@ class WorkspaceStoreTests(unittest.TestCase):
         self.store=WorkspaceStore(os.path.join(self.tmp.name,"nexus.sqlite3"))
         self.store.create("Studio","alice","ws_studio")
     def tearDown(self): self.tmp.cleanup()
+    def test_default_database_path_uses_shared_environment_setting(self):
+        configured = os.path.join(self.tmp.name, "configured.sqlite3")
+        with patch.dict(os.environ, {"NEXUS_DB_PATH": configured}):
+            store = WorkspaceStore()
+        self.assertEqual(store.db_path, configured)
+        self.assertTrue(os.path.exists(configured))
+    def test_explicit_database_path_overrides_environment_setting(self):
+        configured = os.path.join(self.tmp.name, "configured.sqlite3")
+        explicit = os.path.join(self.tmp.name, "explicit.sqlite3")
+        with patch.dict(os.environ, {"NEXUS_DB_PATH": configured}):
+            store = WorkspaceStore(explicit)
+        self.assertEqual(store.db_path, explicit)
     def test_atomic_owner_creation_and_cross_workspace_denial(self):
         self.assertEqual(self.store.require_membership("ws_studio","alice")["role"],"owner")
         with self.assertRaises(WorkspaceDenied): self.store.require_membership("ws_studio","mallory")
