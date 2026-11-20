@@ -393,25 +393,45 @@ class YouTubeAnalyticsStore:
         limit=max(1,min(int(limit),500))
         offset=max(0,min(int(offset),10000000))
         with self.db() as connection:
-            clauses=["pr.workspace_id IS ?"]
-            params=[workspace_id]
-            if video_id:
-                clauses.append("h.video_id=?")
-                params.append(video_id)
-            if since:
-                clauses.append("h.collected_at>=?")
-                params.append(since)
-            if before_collected_at is not None and before_id is not None:
-                clauses.append("(h.collected_at<? OR (h.collected_at=? AND h.id<?))")
-                params.extend((before_collected_at,before_collected_at,int(before_id)))
-            where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
-            rows=connection.execute(
-                "SELECT h.* FROM youtube_analytics_history h "
-                "JOIN youtube_uploads u ON u.video_id=h.video_id "
-                "JOIN production_runs pr ON pr.job_id=u.job_id"+where+
-                " ORDER BY h.collected_at DESC,h.id DESC LIMIT ? OFFSET ?",
-                (*params,limit,offset),
-            ).fetchall()
+            has_production = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+            ).fetchone() is not None
+            if not has_production:
+                if workspace_id is not None:
+                    return []
+                clauses=[]
+                params=[]
+                if video_id:
+                    clauses.append("video_id=?"); params.append(video_id)
+                if since:
+                    clauses.append("collected_at>=?"); params.append(since)
+                if before_collected_at is not None and before_id is not None:
+                    clauses.append("(collected_at<? OR (collected_at=? AND id<?))")
+                    params.extend((before_collected_at,before_collected_at,int(before_id)))
+                where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
+                rows=connection.execute(
+                    "SELECT * FROM youtube_analytics_history"+where+
+                    " ORDER BY collected_at DESC,id DESC LIMIT ? OFFSET ?",
+                    (*params,limit,offset),
+                ).fetchall()
+            else:
+                clauses=["pr.workspace_id IS ?"]
+                params=[workspace_id]
+                if video_id:
+                    clauses.append("h.video_id=?"); params.append(video_id)
+                if since:
+                    clauses.append("h.collected_at>=?"); params.append(since)
+                if before_collected_at is not None and before_id is not None:
+                    clauses.append("(h.collected_at<? OR (h.collected_at=? AND h.id<?))")
+                    params.extend((before_collected_at,before_collected_at,int(before_id)))
+                where=" WHERE "+" AND ".join(clauses)
+                rows=connection.execute(
+                    "SELECT h.* FROM youtube_analytics_history h "
+                    "JOIN youtube_uploads u ON u.video_id=h.video_id "
+                    "JOIN production_runs pr ON pr.job_id=u.job_id"+where+
+                    " ORDER BY h.collected_at DESC,h.id DESC LIMIT ? OFFSET ?",
+                    (*params,limit,offset),
+                ).fetchall()
         result=[]
         for row in rows:
             item=dict(row)
