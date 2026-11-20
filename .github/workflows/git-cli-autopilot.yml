@@ -9,6 +9,7 @@ on:
       - "scripts/test-git-cli-multiflow-parallel.ps1"
       - "scripts/git-cli-agent-config.ps1"
       - "scripts/start-devflow-autopilot.ps1"
+      - "scripts/start-devflow-detached.ps1"
       - "scripts/devflow.py"
       - ".github/workflows/git-cli-autopilot.yml"
   workflow_dispatch:
@@ -40,7 +41,8 @@ jobs:
             "scripts/git-cli-multiflow-parallel.ps1",
             "scripts/test-git-cli-multiflow-parallel.ps1",
             "scripts/git-cli-agent-config.ps1",
-            "scripts/start-devflow-autopilot.ps1"
+            "scripts/start-devflow-autopilot.ps1",
+            "scripts/start-devflow-detached.ps1"
           )
           foreach ($file in $files) {
             $tokens = $null
@@ -87,6 +89,16 @@ jobs:
           $env:DEVFLOW_AGENT_COMMAND = 'agent-that-is-not-installed'
           & "$PWD/scripts/start-devflow-autopilot.ps1" -Plan -MaxTasks 3
           if (-not $?) { throw "Launcher plan smoke failed with agent env configured." }
+      - name: Verify detached supervisor safety contract
+        shell: pwsh
+        run: |
+          $script = Get-Content "scripts/start-devflow-detached.ps1" -Raw
+          foreach ($required in @("Start-Process", "WindowStyle Hidden", "scheduler.lock", "FileShare]::None", "stdout_log", "stderr_log", "status_file")) {
+            if ($script -notmatch [regex]::Escape($required)) { throw "Detached supervisor contract missing: $required" }
+          }
+          if ($script -match "(?i)codex|bypass-permissions|dangerously-skip-permissions") {
+            throw "Detached supervisor must not add Codex or permission-bypass behavior."
+          }
       - name: Confirm Codex is not referenced by launcher
         shell: pwsh
         run: |
