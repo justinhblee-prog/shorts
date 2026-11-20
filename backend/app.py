@@ -987,8 +987,9 @@ def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None),
     operator_id=require_review_permission(x_review_token,"review.read")
     workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     production_store.reconcile_review_pending(queue)
+    timeline_limit=max(1,min(int(limit),200))
     timeline_items=(
-        timeline_render_store.list_pending_reviews(workspace_id,operator_id,limit)
+        timeline_render_store.list_pending_reviews(workspace_id,operator_id,timeline_limit)
         if workspace_id is not None else []
     )
     return {
