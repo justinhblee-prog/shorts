@@ -160,6 +160,25 @@ class RenderOutputStoreTests(unittest.TestCase):
                 self.job["id"], self.workspace, "reviewer-a", "rejected", "Second decision"
             )
 
+    def test_rejects_output_path_inside_another_workspace_namespace(self):
+        namespace = hashlib.sha256(b"workspace-b").hexdigest()
+        foreign_dir = self.media_root / namespace / "render-outputs"
+        foreign_dir.mkdir(parents=True)
+        foreign = foreign_dir / ("d" * 32 + ".mp4")
+        payload = b"verified-render-output"
+        foreign.write_bytes(payload)
+        result = {
+            **self.result,
+            "media_path": foreign.relative_to(self.media_root).as_posix(),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "size_bytes": len(payload),
+        }
+        with self.assertRaisesRegex(RenderOutputError, "workspace namespace"):
+            self.outputs.adopt(
+                self.job["id"], self.workspace, self.worker,
+                self.claimed["lease_token"], self.claimed["attempt"], result,
+            )
+
     def test_rejects_invalid_output_metadata_and_path_escape(self):
         invalid = {**self.result, "width": 720}
         with self.assertRaisesRegex(RenderOutputError, "dimensions"):
