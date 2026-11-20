@@ -1,6 +1,7 @@
 [CmdletBinding(DefaultParameterSetName = "Prepare")]
 param(
- [Parameter(Mandatory=$true,ParameterSetName="Prepare")][string]$Task,
+ [Parameter(ParameterSetName="Prepare")][string]$Task,
+ [Parameter(ParameterSetName="Prepare")][switch]$Next,
  [Parameter(ParameterSetName="Prepare")][string]$Base,
  [Parameter(Mandatory=$true,ParameterSetName="Finalize")][switch]$Finalize,
  [Parameter(Mandatory=$true,ParameterSetName="Status")][switch]$Status,
@@ -21,11 +22,28 @@ if($Status){
  Write-Host "=== Worktrees ==="; Invoke-Git -GitArgs @("-C",$root,"worktree","list"); exit 0
 }
 if($PSCmdlet.ParameterSetName -eq "Prepare"){
- $entry=@($manifest.tasks|Where-Object{$_.id -eq $Task})|Select-Object -First 1
+ if($Next -or -not $Task){
+  $entry=$null
+  foreach($candidate in @($manifest.tasks | Where-Object{$_.status -in @("ready","in_progress")} | Sort-Object priority)){
+   $eligible=$true
+   foreach($depId in @($candidate.depends_on)){
+    $dep=@($manifest.tasks|Where-Object{$_.id -eq $depId})|Select-Object -First 1
+    if(-not $dep -or $dep.status -ne "completed"){$eligible=$false;break}
+   }
+   if($eligible){$entry=$candidate;break}
+  }
+  if(-not $entry){throw "No runnable task found: all remaining tasks are completed or blocked by dependencies."}
+  $Task=$entry.id
+  Write-Host "[GIT AUTOPILOT] Selected next eligible task: $Task"
+ } else {
+  $entry=@($manifest.tasks|Where-Object{$_.id -eq $Task})|Select-Object -First 1
+ }
  if(-not $entry){throw "Unknown task: $Task"}
  if($entry.status -notin @("ready","in_progress")){throw "Task is not runnable: $Task ($($entry.status))"}
  foreach($depId in @($entry.depends_on)){ $dep=@($manifest.tasks|Where-Object{$_.id -eq $depId})|Select-Object -First 1; if(-not $dep -or $dep.status -ne "completed"){throw "Dependency is not completed: $depId"} }
  if(-not $Base){$Base=$manifest.policy.default_base}; if(-not $Base){throw "No base branch configured."}
+ $worktreeCount=(@(& git -C $root worktree list --porcelain | Where-Object{$_ -like "worktree *"}).Count - 1)
+ if($worktreeCount -ge [int]$manifest.policy.max_parallel_worktrees){throw "Parallel worktree limit reached ($worktreeCount/$($manifest.policy.max_parallel_worktrees))."}
  $dirty=& git -C $root status --porcelain; if($LASTEXITCODE -ne 0){throw "Cannot inspect primary checkout."}; if($dirty){throw "Primary checkout is dirty. No files changed; commit or stash first."}
  Invoke-Git -GitArgs @("-C",$root,"fetch","origin","--prune")
  $baseRef="refs/remotes/origin/$Base"; & git -C $root show-ref --verify --quiet $baseRef
