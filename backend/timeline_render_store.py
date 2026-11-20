@@ -108,16 +108,16 @@ class TimelineRenderStore:
                 raise SnapshotError("all referenced assets must pass malware scanning")
             if clip["source_out_ms"] > metadata.get("duration_ms", float("inf")):
                 raise EDLValidationError("source trim exceeds registered media duration")
+        for track in normalized["audio_tracks"]:
+            metadata = self.assets.get_asset(workspace_id, principal_id, track["asset_id"])
+            if metadata["scan_status"] != "clean":
+                raise SnapshotError("all referenced audio assets must pass malware scanning")
+            if track["source_out_ms"] > metadata.get("duration_ms", float("inf")):
+                raise EDLValidationError("audio source trim exceeds registered media duration")
 
         serialized = json.dumps(normalized, ensure_ascii=False, sort_keys=True,
                                 separators=(",", ":"), allow_nan=False)
         digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-        existing = self._existing(workspace_id, idempotency_key)
-        if existing:
-            if existing["payload_sha256"] != digest:
-                raise SnapshotConflict("idempotency key was already used for a different EDL")
-            return self._public(existing, replayed=True)
-
         snapshot_id = "edl_" + uuid.uuid4().hex
         job_key = "timeline:" + workspace_id + ":" + idempotency_key
         now = datetime.now(timezone.utc).isoformat()
@@ -128,15 +128,25 @@ class TimelineRenderStore:
             "edl": normalized,
         }
         try:
-            job = self.queue.enqueue(
-                "timeline_render", job_payload, idempotency_key=job_key,
-                workspace_id=workspace_id, max_attempts=3,
-            )
-        except IdempotencyConflict as exc:
-            raise SnapshotConflict("render idempotency key conflicts with an existing queue job") from exc
-        try:
             with self._db() as db:
                 db.execute("BEGIN IMMEDIATE")
+                existing = db.execute("""
+                    SELECT * FROM timeline_edl_snapshots
+                    WHERE workspace_id=? AND idempotency_key=?
+                """, (workspace_id, idempotency_key)).fetchone()
+                if existing:
+                    existing = dict(existing)
+                    if existing["payload_sha256"] != digest:
+                        raise SnapshotConflict(
+                            "idempotency key was already used for a different EDL"
+                        )
+                    db.commit()
+                    return self._public(existing, replayed=True)
+
+                job = self.queue.enqueue(
+                    "timeline_render", job_payload, idempotency_key=job_key,
+                    workspace_id=workspace_id, max_attempts=3, connection=db,
+                )
                 db.execute("""
                     INSERT INTO timeline_edl_snapshots
                     (id,workspace_id,creator_principal_id,idempotency_key,payload_json,
@@ -145,6 +155,10 @@ class TimelineRenderStore:
                 """, (snapshot_id, workspace_id, principal_id, idempotency_key,
                       serialized, digest, job["id"], now))
                 db.commit()
+        except IdempotencyConflict as exc:
+            raise SnapshotConflict(
+                "render idempotency key conflicts with an existing queue job"
+            ) from exc
         except sqlite3.IntegrityError as exc:
             raise SnapshotConflict("snapshot idempotency key already exists") from exc
         return {
