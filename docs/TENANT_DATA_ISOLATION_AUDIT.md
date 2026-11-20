@@ -15,7 +15,7 @@ The following SQLite stores currently define tables without a `workspace_id` col
 
 | Area | Tables / resources | Risk if shared by customer workspaces |
 |---|---|---|
-| Queue and operations | `pipeline_jobs` has nullable `workspace_id`; `job_events`, `production_reconciliation_events`, worker control/registry remain globally keyed | Legacy/unassigned jobs remain global; event/reconciliation queries and worker operations still need workspace scoping |
+| Queue and operations | `pipeline_jobs` has nullable `workspace_id` and supports workspace-filtered claim/get/events primitives; `production_runs` inherits nullable workspace ownership from its queue parent; `job_events`, `production_reconciliation_events`, worker control/registry remain globally keyed | Legacy/unassigned jobs remain global; event/reconciliation queries and worker operations still need workspace scoping |
 | Production | `production_runs`, `production_artifacts`, `provider_execution_attempts`, provider reconciliation events | Script/render artifact and provider-attempt exposure |
 | Review and policy | `review_decisions`, `policy_evidence_events` | Customer review notes, approvals and rights declarations mixed |
 | Brand configuration | `brand_profiles` | Brand profiles and editorial rules shared globally |
@@ -50,6 +50,15 @@ Tests cover persistence through claim, cross-workspace idempotency rejection, an
 - Claim selection is still global and worker execution/reconciliation is not yet tenant-filtered.
 - Job events, production runs, artifacts and provider attempts do not yet have consistent workspace ownership.
 - Global idempotency uniqueness is conservative but does not provide per-workspace idempotency; migration to a composite key requires a separately reviewed SQLite table rebuild and compatibility plan.
+
+
+## Implemented slice — workspace-filtered queue and production parent ownership
+
+- Queue claim can apply an explicit `workspace_id` predicate in SQL; queue `get` and `events` accept the same scope and return `JobNotFound` for mismatched ownership. The default unscoped behavior remains for legacy operator workflows and is not customer-safe authorization.
+- ProductionStore adds nullable `production_runs.workspace_id` with a non-destructive migration and index. When the matching queue table exists, creating a production run derives ownership from the durable parent queue job and rejects missing/non-production parents or a conflicting existing ownership value.
+- Tests cover workspace-only claim selection, cross-workspace get/event denial, invalid claim scope, production ownership inheritance and mismatch rejection.
+
+Still outstanding: authenticated worker-to-workspace binding; API routes do not yet derive trusted workspace context; job event rows do not yet carry workspace_id independently; worker lease/heartbeat/finish/fail methods and provider attempt/reconciliation queries still rely on job ID and must be guarded by a trusted parent scope; existing production runs with NULL ownership remain unassigned. Do not pass request-supplied workspace IDs as proof of identity.
 
 ## Required migration sequence
 
