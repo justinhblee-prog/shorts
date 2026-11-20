@@ -48,6 +48,32 @@ class ProductionTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_production_run_inherits_workspace_from_durable_queue_job(self):
+        db_path = Path(self.tmp.name) / "shared.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        queued = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-alpha"
+        )
+        store.create(queued["id"], self.brief)
+        self.assertEqual(store.get(queued["id"])["workspace_id"], "workspace-alpha")
+
+    def test_production_run_rejects_workspace_mismatch_on_recreate(self):
+        db_path = Path(self.tmp.name) / "mismatch.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        queued = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-alpha"
+        )
+        store.create(queued["id"], self.brief)
+        with queue.db() as conn:
+            conn.execute(
+                "UPDATE pipeline_jobs SET workspace_id=? WHERE id=?",
+                ("workspace-beta", queued["id"]),
+            )
+        with self.assertRaisesRegex(ValueError, "workspace ownership mismatch"):
+            store.create(queued["id"], self.brief)
+
     def test_artifact_and_provider_attempt_adoption_commit_atomically(self):
         job_id = "job-atomic-provider-adoption"
         self.store.create(job_id, self.brief)
