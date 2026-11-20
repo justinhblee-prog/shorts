@@ -79,22 +79,22 @@ def main():
     signal.signal(signal.SIGINT, handle_shutdown)
     registration = queue.register_worker(WORKER_ID, socket.gethostname())
     generation_token = registration["generation_token"]
-    staging_cleanup = artifact_store.reconcile_orphaned_staging_files()
-    print(
-        f"timeline_staging_reconciled files={staging_cleanup['removed_files']} "
-        f"dirs={staging_cleanup['removed_dirs']} bytes={staging_cleanup['removed_bytes']}"
-    )
-    worker = TimelineRenderWorker(
-        queue, renderer, WORKER_ID, generation_token,
-        heartbeat_seconds=HEARTBEAT_SECONDS,
-        artifact_store=artifact_store,
-        shutdown_event=stopping,
-    )
-    print(
-        f"timeline_worker_started id={WORKER_ID} lease_seconds={LEASE_SECONDS} "
-        f"heartbeat_seconds={HEARTBEAT_SECONDS}"
-    )
     try:
+        staging_cleanup = artifact_store.reconcile_orphaned_staging_files()
+        print(
+            f"timeline_staging_reconciled files={staging_cleanup['removed_files']} "
+            f"dirs={staging_cleanup['removed_dirs']} bytes={staging_cleanup['removed_bytes']}"
+        )
+        worker = TimelineRenderWorker(
+            queue, renderer, WORKER_ID, generation_token,
+            heartbeat_seconds=HEARTBEAT_SECONDS,
+            artifact_store=artifact_store,
+            shutdown_event=stopping,
+        )
+        print(
+            f"timeline_worker_started id={WORKER_ID} lease_seconds={LEASE_SECONDS} "
+            f"heartbeat_seconds={HEARTBEAT_SECONDS}"
+        )
         while not stopping.is_set():
             if queue.is_paused():
                 stopping.wait(IDLE_SECONDS)
