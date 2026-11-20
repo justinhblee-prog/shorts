@@ -222,3 +222,6 @@
 - PR #415 remains Draft/open/unmerged; no merge, deployment, default-branch change, runner activation, or live provider action.
 
 - Follow-up UI behavior: prerequisite labels are now keyboard-operable links that scroll to and focus the persisted parent job card. Parent IDs not present in the current API page are rendered with an explicit “현재 목록 외” state. Playwright covers click and Enter activation.
+
+- Found and corrected the actual DAG contract defect: list responses did not include persisted dependency IDs (only single-job reads did). The list query now returns dependency edges for all returned jobs without N+1 queries; a backend regression test covers parent, child, and independent jobs.
+- Exact head `c2fab8b8b7bc3abcfe7cf9b96c83206d8d508a10` passed all 17 CI steps in [run 44652954128](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128), including full backend tests, frontend syntax, both Chromium smoke tests, and artifact upload [14591602484](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128/artifacts/14591602484).
