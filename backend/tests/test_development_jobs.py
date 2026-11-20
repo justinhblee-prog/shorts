@@ -279,6 +279,45 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                 connection.execute("UPDATE development_job_events SET actor='tampered' WHERE id=?",
                                    (event_id,))
 
+    def test_expired_lease_with_unfinished_prerequisite_returns_to_blocked(self):
+        parent = self.store.create("Expired child prerequisite")
+        child = self.store.create("Expired dependent")
+        self.store.add_dependency(child["id"], parent["id"])
+        with self.store.db() as connection:
+            connection.execute(
+                """UPDATE development_jobs SET status='running',worker_id='stale-worker',
+                   lease_token='stale-token',lease_expires_at='2000-01-01T00:00:00+00:00',
+                   attempts=1 WHERE id=?""",
+                (child["id"],),
+            )
+
+        claimed = self.store.claim_ready("new-worker")
+        self.assertEqual(claimed["id"], parent["id"])
+        self.assertEqual(self.store.get(child["id"])["status"], "blocked")
+        event = self.store.events(child["id"])[-1]
+        self.assertEqual(event["event_type"], "lease_expired")
+        self.assertEqual(event["to_status"], "blocked")
+        self.assertEqual(event["details"]["unresolved_dependencies"], 1)
+
+    def test_due_retry_with_unfinished_prerequisite_returns_to_blocked(self):
+        parent = self.store.create("Retry child prerequisite")
+        child = self.store.create("Retry dependent")
+        self.store.add_dependency(child["id"], parent["id"])
+        with self.store.db() as connection:
+            connection.execute(
+                """UPDATE development_jobs SET status='retry_wait',attempts=1,
+                   retry_after='2000-01-01T00:00:00+00:00' WHERE id=?""",
+                (child["id"],),
+            )
+
+        claimed = self.store.claim_ready("retry-worker")
+        self.assertEqual(claimed["id"], parent["id"])
+        self.assertEqual(self.store.get(child["id"])["status"], "blocked")
+        event = self.store.events(child["id"])[-1]
+        self.assertEqual(event["event_type"], "retry_due")
+        self.assertEqual(event["to_status"], "blocked")
+        self.assertEqual(event["details"]["unresolved_dependencies"], 1)
+
     def test_retry_wait_is_reclaimed_and_non_retryable_failure_quarantines(self):
         job = self.store.create("Retry", max_attempts=3)
         first = self.store.claim_ready("worker-a")
