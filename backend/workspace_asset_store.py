@@ -222,6 +222,62 @@ class WorkspaceAssetStore:
             handle.close()
             raise
 
+
+    def scan_pending_asset(self, workspace_id, principal_id, asset_id, scanner):
+        """Run a real scanner and atomically move pending media to clean/rejected."""
+        from media_scanner import MediaInfectedError, MediaScanError
+
+        self.workspaces.require_membership(
+            workspace_id, principal_id, minimum_roles=_ALLOWED_ROLES
+        )
+        metadata = self.get_asset(workspace_id, principal_id, asset_id)
+        if metadata["scan_status"] == "clean":
+            return metadata
+        if metadata["scan_status"] != "pending":
+            raise AssetError("asset is not awaiting malware scanning")
+        path = self._workspace_dir(workspace_id) / (asset_id + ".blob")
+        if path.is_symlink() or not path.is_file():
+            raise AssetNotFound("pending asset binary is unavailable")
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if digest.hexdigest() != metadata["sha256"]:
+            raise AssetError("asset integrity verification failed before malware scan")
+
+        try:
+            result = scanner.scan(path)
+        except MediaInfectedError as exc:
+            self._set_pending_scan_status(workspace_id, asset_id, "rejected")
+            raise AssetError("malware scanner rejected the uploaded asset") from exc
+        except MediaScanError as exc:
+            # Scanner unavailable, timed out or exceeded a limit: leave quarantined.
+            raise AssetError("malware scan could not confirm clean media; asset remains quarantined") from exc
+        if not isinstance(result, dict) or result.get("status") != "clean":
+            raise AssetError("malware scanner did not explicitly confirm clean media")
+        self._set_pending_scan_status(workspace_id, asset_id, "clean")
+        return self.get_asset(workspace_id, principal_id, asset_id)
+
+    def _set_pending_scan_status(self, workspace_id, asset_id, status):
+        if status not in ("clean", "rejected"):
+            raise ValueError("invalid scanner result")
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            cursor = db.execute("""
+                UPDATE workspace_media_assets SET scan_status=?
+                WHERE id=? AND workspace_id=? AND status='active' AND scan_status='pending'
+            """, (status, asset_id, workspace_id))
+            if cursor.rowcount != 1:
+                current = db.execute("""
+                    SELECT scan_status FROM workspace_media_assets
+                    WHERE id=? AND workspace_id=? AND status='active'
+                """, (asset_id, workspace_id)).fetchone()
+                db.rollback()
+                if current is not None and current["scan_status"] == status:
+                    return
+                raise AssetNotFound("pending asset not found in this workspace")
+            db.commit()
+
     def mark_scan_result(self, workspace_id, principal_id, asset_id, clean):
         """Record scanner outcome; only a workspace admin/owner may change quarantine state."""
         self.workspaces.require_membership(
