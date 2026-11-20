@@ -70,5 +70,18 @@ class FFmpegAudioMixTests(unittest.TestCase):
         self.assertLess(graph.index("afade=t=out"), graph.index("adelay=750|750"))
 
 
+    def test_audio_mix_enforces_optional_output_byte_ceiling(self):
+        argv = build_audio_mix_argv(
+            [{"path": str(self.one), "duration_ms": 1000}],
+            str(self.output), max_output_bytes=4096,
+        )
+        self.assertEqual(argv[argv.index("-fs") + 1], "4096")
+        with self.assertRaises(AudioMixError):
+            build_audio_mix_argv(
+                [{"path": str(self.one), "duration_ms": 1000}],
+                str(self.output), max_output_bytes=0,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
