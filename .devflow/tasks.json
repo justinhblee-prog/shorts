@@ -56,7 +56,10 @@
         "Route-level tests for upload quarantine, upload byte limits, workspace-scoped submission and non-member denial",
         "Optional fail-closed ClamAV scan gate for private workspace uploads; only trusted clean attestation promotes assets from pending",
         "Workspace-scoped scan retry endpoint and audit event for successful ClamAV promotion",
-        "Compose opt-in NEXUS_MEDIA_SCAN_ENABLED wiring for API container"
+        "Compose opt-in NEXUS_MEDIA_SCAN_ENABLED wiring for API container",
+        "Dedicated timeline_render_worker_main process with worker generation registration, heartbeat and graceful SIGTERM cancellation/requeue",
+        "Compose timeline-render-worker service with read-only root filesystem, bounded tmpfs, dropped capabilities, no-new-privileges and CPU/memory/PID limits",
+        "DejaVu local font installed for deterministic title cards; render staging and artifacts remain under backup-covered nexus_data media tree"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
@@ -67,9 +70,10 @@
         "Implement title overlays, gaps, overlaps, transitions and source-clip audio semantics in the EDL renderer",
         "Configure the concrete worker factory and pinned FFmpeg/ffprobe binaries in the target worker runtime",
         "Implement overlap transitions and explicit project-duration/trailing-gap semantics in the EDL schema and renderer",
-        "Deploy and validate the pinned FFmpeg/ffprobe render worker with isolated filesystem, CPU, memory and process quotas",
         "Exercise end-to-end API upload → malware scan → render queue → worker adoption → review preview using real media",
-        "Enable and validate ClamAV database updater profile in target deployment before allowing workspace media uploads to render"
+        "Enable and validate ClamAV database updater profile in target deployment before allowing workspace media uploads to render",
+        "Run real FFmpeg/ffprobe media fixtures through the Compose worker and verify playable MP4, lease-loss cancellation, review preview and resource caps",
+        "Pin the FFmpeg/ffprobe container image or binary checksums for reproducible production execution"
       ]
     },
     {
