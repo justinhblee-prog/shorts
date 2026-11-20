@@ -41,6 +41,30 @@ The backend already has a provider-agnostic script/voice/render production pipel
    - Delete only after terminal render state and retention expiry; never delete the only source copy before confirmed output and approval.
    - Keep durable hashes/metadata/audit records after binary cleanup.
 
+
+## Implemented backend render path — not yet exposed as an end-user API
+
+The backend now contains a concrete EDL v1 renderer and a dedicated
+`timeline_worker.py` process. The renderer accepts only validated workspace
+asset IDs, re-checks membership and clean scan state, probes source duration,
+and composes video clips on a 1080x1920 canvas with timed title overlays.
+Explicit EDL audio clips are mixed through the bounded audio-bed builder with
+source in-points, timeline offsets, gain, fades and limiter. FFmpeg is invoked
+with argv arrays and no shell; render time and output bytes are bounded, and
+worker lease loss or shutdown cancels the process. The final staged MP4 is
+ffprobe-validated and then adopted by the lease-fenced artifact store into
+`review_pending`.
+
+Compose now runs this as a separate `timeline-worker` service and mounts
+private source, staging and artifact storage on the shared data volume. The
+container image includes FFmpeg/ffprobe and the configured DejaVu font.
+
+The automated integration tests use fake FFmpeg/ffprobe executables and
+synthetic fixtures. They verify command composition, asset authorization,
+source-trim checks, title/audio mapping, cancellation and artifact handoff.
+They do not establish codec compatibility with production media or enforce
+container CPU/memory/disk/network quotas.
+
 ## API contract proposal (not implemented)
 
 - `POST /api/media/assets`: authenticated streamed upload; returns opaque `asset_id`, size, hash, probe summary and scan status.
@@ -62,9 +86,9 @@ The backend already has a provider-agnostic script/voice/render production pipel
 
 - No authenticated source-asset upload/registry API with workspace ownership and retention.
 - No EDL schema validator or durable render-job model.
-- No restricted FFmpeg render worker wired to the timeline editor.
+- The dedicated render worker exists, but authenticated upload and render-submission APIs are not yet exposed to the browser editor.
 - No tenant isolation contract in the existing local timeline UI.
-- Real renderer output and browser-to-backend end-to-end test are not yet available.
+- Real-media validation with pinned binaries and browser-to-backend end-to-end tests are not yet available.
 
 Until these gates are implemented and validated, the UI must continue to label its export as an EDL only and must not imply that an MP4 has been rendered.
 
