@@ -311,3 +311,4 @@ input:focus,select:focus,textarea:focus{border-color:#9b7bff;box-shadow:0 0 0 3p
 .development-job-pagination .panel-description{margin:0;font-size:11px}
 .development-job-dependency-missing{border:1px dashed var(--line);background:transparent;color:var(--muted);font:inherit;text-align:left;cursor:pointer}
 .development-job-dependency-missing:hover,.development-job-dependency-missing:focus-visible{border-color:var(--cyan);color:var(--cyan);outline:none}
+.development-job-pagination button[hidden]{display:none}
