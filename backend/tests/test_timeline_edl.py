@@ -70,5 +70,40 @@ class TimelineEDLTests(unittest.TestCase):
         self.assertEqual(payload, self.valid)
 
 
+    def test_normalizes_bounded_audio_tracks_and_rejects_unsafe_values(self):
+        payload = {
+            **self.valid,
+            "audio_tracks": [{
+                "id": "music-1", "asset_id": "asset_audio",
+                "start_ms": 0, "source_in_ms": 500, "source_out_ms": 4500,
+                "gain": 0.5, "fade_in_ms": 100, "fade_out_ms": 200,
+            }],
+        }
+        result = validate_edl(payload)
+        self.assertEqual(result["audio_tracks"][0]["source_in_ms"], 500)
+        self.assertEqual(result["audio_tracks"][0]["gain"], 0.5)
+        for mutation in (
+            {"gain": 9}, {"fade_in_ms": 5000}, {"asset_id": "../outside"},
+            {"start_ms": -1}, {"source_out_ms": 500},
+        ):
+            invalid = {
+                **payload,
+                "audio_tracks": [{**payload["audio_tracks"][0], **mutation}],
+            }
+            with self.subTest(mutation=mutation), self.assertRaises(EDLValidationError):
+                validate_edl(invalid)
+
+    def test_rejects_too_many_audio_tracks_and_unknown_audio_fields(self):
+        track = {
+            "id": "music0", "asset_id": "asset_audio",
+            "start_ms": 0, "source_in_ms": 0, "source_out_ms": 1000,
+        }
+        too_many = [{**track, "id": f"music{i}"} for i in range(9)]
+        with self.assertRaises(EDLValidationError):
+            validate_edl({**self.valid, "audio_tracks": too_many})
+        with self.assertRaises(EDLValidationError):
+            validate_edl({**self.valid, "audio_tracks": [{**track, "filter": "amovie"}]})
+
+
 if __name__ == "__main__":
     unittest.main()
