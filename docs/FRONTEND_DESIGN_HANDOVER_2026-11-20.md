@@ -120,3 +120,16 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Added regression coverage for the selected title overlay remaining visible after removing another clip, and for overlay/empty-state cleanup after the last clip is removed. Object URLs are released when the editor page unloads.
 - Compose integration smoke passed [run 44670853253](https://github.com/justinhblee-prog/shorts/actions/runs/44670853253).
 - Latest browser artifact: [14600126059](https://github.com/justinhblee-prog/shorts/actions/runs/44670853201/artifacts/14600126059) (5.38 MB).
+
+
+## Vercel browser preview — 2026-11-20
+
+- A standalone Vercel project `nexus-studio-pro-preview` was created in the user's `justinhblee-9540` team without connecting a Git repository, adding environment variables, or configuring automatic deployments.
+- Canonical browser preview (Vercel deployment target: **preview**, state: **READY**): https://nexus-studio-pro-preview-9u0f9wjoc-justinhblee-9540.vercel.app
+- Snapshot source: branch `ui/nexus-premium-visual-refresh-2026-11-20`, commit `f34348f6030221ca3e4c09857861d274f8948a77`.
+- The preview includes the six static frontend files: `index.html`, `app.js`, `styles.css`, `cyber-magic.css`, `nexus-premium.css`, and `nexus-approved-design.css`.
+- Project-level Vercel Authentication protection is enabled for **all** deployment targets. No custom domains are configured.
+- This is a static UI snapshot, not a connected production stack: relative `/api/*` requests have no deployed FastAPI backend, and authenticated API-backed actions will not operate until a separately approved backend environment is connected.
+- The project is intentionally not linked to Git; subsequent commits do not auto-deploy. Refresh the preview only after a new snapshot is explicitly built from a verified branch/commit.
+- Vercel also registered an initial protected production-target bootstrap deployment during project initialization. It has no custom domain and is covered by the same project-wide Vercel Authentication protection. **Do not use it as the review URL**; the preview URL above is the intended review target.
+- No production repository, main branch, secrets, or existing Vercel project was modified.
