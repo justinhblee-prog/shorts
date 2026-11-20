@@ -137,6 +137,16 @@ class RenderOutputStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(RenderOutputError, "checksum"):
             self.outputs.get_reviewable(self.job["id"], self.workspace)
 
+    def test_review_refuses_to_decide_on_a_tampered_artifact(self):
+        self.adopt_and_finish()
+        output = self.outputs.get_reviewable(self.job["id"], self.workspace)
+        output["path"].write_bytes(b"tampered before review")
+        with self.assertRaisesRegex(RenderOutputError, "checksum"):
+            self.outputs.decide(
+                self.job["id"], self.workspace, "reviewer-a", "approved", "Looks good"
+            )
+        self.assertEqual(self.outputs.events(self.job["id"], self.workspace), [])
+
     def test_human_review_decision_is_workspace_scoped_and_one_time(self):
         self.adopt_and_finish()
         approved = self.outputs.decide(
