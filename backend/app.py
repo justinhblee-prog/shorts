@@ -1773,7 +1773,7 @@ def claim_worker_v1(
     try:
         for workspace_id in identity.workspace_ids:
             job=queue.claim(
-                identity.worker_id,body.hostname,job_type=body.job_type,
+                identity.worker_id,body.hostname,job_type="short_video_production",
                 generation_token=generation,workspace_id=workspace_id,
             )
             if job is not None:
