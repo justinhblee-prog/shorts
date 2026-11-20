@@ -1,7 +1,7 @@
 # Tenant Data Isolation Audit and Migration Plan
 
 **Date:** 2026-11-20  
-**Status:** Inventory complete; first isolated media-staging primitive implemented; end-to-end workspace propagation and tenant data migration remain incomplete.
+**Status:** Inventory complete; media staging is workspace-capable and the durable queue now stores nullable workspace ownership; API-to-worker authoritative propagation and tenant data migration remain incomplete.
 
 ## Executive finding
 
@@ -15,7 +15,7 @@ The following SQLite stores currently define tables without a `workspace_id` col
 
 | Area | Tables / resources | Risk if shared by customer workspaces |
 |---|---|---|
-| Queue and operations | `pipeline_jobs`, `job_events`, `production_reconciliation_events`, worker control/registry | Job enumeration, idempotency collisions, cross-tenant queue/event visibility |
+| Queue and operations | `pipeline_jobs` has nullable `workspace_id`; `job_events`, `production_reconciliation_events`, worker control/registry remain globally keyed | Legacy/unassigned jobs remain global; event/reconciliation queries and worker operations still need workspace scoping |
 | Production | `production_runs`, `production_artifacts`, `provider_execution_attempts`, provider reconciliation events | Script/render artifact and provider-attempt exposure |
 | Review and policy | `review_decisions`, `policy_evidence_events` | Customer review notes, approvals and rights declarations mixed |
 | Brand configuration | `brand_profiles` | Brand profiles and editorial rules shared globally |
@@ -39,6 +39,17 @@ This is a storage primitive only, not an end-to-end tenant boundary:
 - Workspace-scoped cleanup deliberately fails closed until upload records themselves support workspace-scoped reads; a global `get(job_id)` result is not sufficient ownership evidence.
 
 Tests added for same-job cross-workspace path separation, opaque directory names, invalid-ID rejection before network access, and cleanup isolation.
+
+
+## Implemented slice — durable queue workspace ownership
+
+`backend/queue_store.py` now adds a nullable `workspace_id` column to `pipeline_jobs` using a non-destructive startup migration and indexes `(workspace_id, status, created_at)`. New enqueue calls may persist an explicit workspace ID, and the field is carried through the existing row decoder into claimed worker job objects. The global idempotency-key constraint is intentionally retained for compatibility; a key already associated with a different workspace fails closed with `IdempotencyConflict` rather than returning another workspace's job. Existing rows remain `NULL` and are not auto-assigned.
+
+Tests cover persistence through claim, cross-workspace idempotency rejection, and invalid workspace values. This is schema/queue groundwork only:
+- Current production and generic enqueue API routes do not yet derive workspace IDs from a verified customer identity.
+- Claim selection is still global and worker execution/reconciliation is not yet tenant-filtered.
+- Job events, production runs, artifacts and provider attempts do not yet have consistent workspace ownership.
+- Global idempotency uniqueness is conservative but does not provide per-workspace idempotency; migration to a composite key requires a separately reviewed SQLite table rebuild and compatibility plan.
 
 ## Required migration sequence
 
