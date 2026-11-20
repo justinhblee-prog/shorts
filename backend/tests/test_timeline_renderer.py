@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from timeline_edl import SCHEMA
-from timeline_renderer import TimelineRenderer, TimelineRenderError
+from timeline_renderer import TimelineRenderer, TimelineRenderError, TimelineRenderCancelled
 
 
 class FakeInspector:
@@ -80,6 +80,8 @@ class TimelineRendererTests(unittest.TestCase):
         args, kwargs = self.calls[0]
         self.assertFalse(kwargs["shell"])
         self.assertEqual(kwargs["timeout"], 30)
+        self.assertIs(kwargs["stdout"], __import__("subprocess").DEVNULL)
+        self.assertIs(kwargs["stderr"], __import__("subprocess").DEVNULL)
         self.assertIn("-nostdin", args)
         self.assertIn("-filter_complex", args)
         self.assertIn("-fs", args)
@@ -214,6 +216,14 @@ class TimelineRendererTests(unittest.TestCase):
         with self.assertRaisesRegex(TimelineRenderError, "not registered"):
             self.renderer.render(self.edl, {"asset_1": self.asset}, audio_asset_id="remote")
         self.assertEqual(self.calls, [])
+
+    def test_stop_event_cancels_before_ffmpeg_start(self):
+        stop_event = __import__("threading").Event()
+        stop_event.set()
+        with self.assertRaises(TimelineRenderCancelled):
+            self.renderer.render(self.edl, {"asset_1": self.asset}, stop_event=stop_event)
+        self.assertEqual(self.calls, [])
+        self.assertEqual(list(self.root.glob(".*.part.mp4")), [])
 
     def test_timeout_cleans_partial_output(self):
         def timeout_runner(args, **kwargs):
