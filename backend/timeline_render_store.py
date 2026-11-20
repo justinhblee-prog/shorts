@@ -86,6 +86,15 @@ class TimelineRenderStore:
             metadata = self.assets.get_asset(workspace_id, principal_id, clip["asset_id"])
             if metadata["scan_status"] != "clean":
                 raise SnapshotError("all referenced assets must pass malware scanning")
+            media = metadata.get("media_metadata")
+            if not isinstance(media, dict) or not isinstance(metadata.get("duration_ms"), int):
+                raise SnapshotError("all referenced assets must pass source-media probing")
+            if clip["source_out_ms"] > metadata["duration_ms"]:
+                raise EDLValidationError("source trim exceeds probed media duration")
+            if clip["type"] == "video" and not media.get("has_video"):
+                raise EDLValidationError("video clip asset has no probed video stream")
+            if clip["type"] == "audio" and not media.get("has_audio"):
+                raise EDLValidationError("audio clip asset has no probed audio stream")
 
         serialized = json.dumps(normalized, ensure_ascii=False, sort_keys=True,
                                 separators=(",", ":"), allow_nan=False)
