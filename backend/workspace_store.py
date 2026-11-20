@@ -162,3 +162,12 @@ class WorkspaceStore:
               VALUES(?,?,?,'member.revoked','{}',?)""",(wid,actor,subject,now))
             db.commit()
         return {"workspace_id":wid,"principal_id":subject,"status":"revoked"}
+
+    def list_for_principal(self, principal_id):
+        principal = _principal(principal_id)
+        with self.db() as db:
+            rows = db.execute("""SELECT w.id,w.name,w.status,m.role,m.created_at AS membership_created_at
+              FROM workspaces w JOIN workspace_memberships m ON m.workspace_id=w.id
+              WHERE m.principal_id=? AND m.status='active' AND w.status='active'
+              ORDER BY w.created_at,w.id""", (principal,)).fetchall()
+        return [dict(row) for row in rows]
