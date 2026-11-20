@@ -301,7 +301,7 @@
 - The loaded/total status was equal (`217 / 217`), and the API correctly returned `has_more=false`. The defect was CSS cascade: `.button` sets `display:inline-flex`, overriding the browser's user-agent `[hidden] { display:none }` rule. The application correctly set the element's `hidden` property, but the button remained rendered.
 - Fixed by adding the explicit author rule `#loadMoreDevelopmentJobs[hidden]{display:none}` before the shared button styles. This preserves the API pagination contract and the existing button styling when more pages exist.
 - Fix commit: `b9d1a23eda3522c07404d89f662f3d2e0bf9a0ad`.
-- Exact-head CI has not yet been observed. Do not mark browser validation PASS until the recovery smoke and artifact upload succeed on this exact commit.
+- Exact-head CI passed after the CSS fix in [run 44656809713](https://github.com/justinhblee-prog/shorts/actions/runs/44656809713); the recovery smoke and artifact upload both succeeded.
 - PR #415 remains Draft/open/unmerged; PR #416 remains separate. No merge, deployment, workflow activation, or default-branch change.
 
 
@@ -309,7 +309,16 @@
 
 - CSS fix commit `b9d1a23eda3522c07404d89f662f3d2e0bf9a0ad` passed exact-head PR workflow [44656809713](https://github.com/justinhblee-prog/shorts/actions/runs/44656809713), all 17 steps successful.
 - Verified on that exact code head: backend validation (`scripts/validate.sh`), frontend syntax, Korean font fallback, Playwright installation, Chromium installation, dashboard browser smoke, recovery/workstream/dependency-navigation/recovery audit browser smoke, and artifact upload.
-- Browser evidence artifact: [14592949007](https://github.com/justinhblee-prog/shorts/actions/runs/44656809713/artifacts/14594293817) (confirm artifact ID from run metadata before relying on this link; CI job confirms successful upload).
+- Browser evidence artifact: [14592949007](https://github.com/justinhblee-prog/shorts/actions/runs/44656809713/artifacts/14592949007) (confirm artifact ID from run metadata before relying on this link; CI job confirms successful upload).
 - The regression now verifies the load-more control is actually hidden once all records are loaded; the CSS explicitly honors the `hidden` attribute despite the shared `.button { display:inline-flex }` rule.
 - Exact code-head validation: PASS. Documentation-only follow-up commit may become the PR head and is not represented as a separately executed code test; the tested code tree is unchanged.
 - PR #415 remains Draft/open/unmerged. PR #416 remains separate. No merge, deployment, workflow activation, or default-branch change.
+
+## 39. Development-job API pagination and cross-page DAG lookup — 2026-11-20
+
+- Added bounded offset pagination to DevelopmentJobStore.list() and count(statuses), with stable ordering by priority, created_at, and id. The read API now returns limit, offset, total, has_more, and next_offset metadata.
+- The UI now accumulates pages, displays loaded/total counts, provides a load-more control, and turns an out-of-page prerequisite into an actionable fetch-and-focus control. When the parent is found on a later page, its card is rendered and focused; the dependency is then shown as a normal in-page navigation link.
+- Recovery browser fixture now contains more than 200 jobs and a real dependency whose parent is on the final page. Chromium smoke verifies cross-page lookup, loaded/total equality, focus transfer, and hiding the load-more control after the last page.
+- A browser regression exposed that the shared .button display rule overrode the browser's default [hidden] rule. Added an explicit #loadMoreDevelopmentJobs[hidden] display:none rule. The earlier failing runs are retained as evidence of the defect and its diagnosis.
+- Exact aggregate head c59beaa1eb69b599b198d7a9fce3735a0235485d passed all 17 steps in [PR run 44657078245](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245): 898 backend tests, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation/cross-page pagination Chromium smoke, and artifact upload [14594141209](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245/artifacts/14594141209).
+- FLOW-CORE/FLOW-UI/FLOW-QA pagination gate: PASS in hosted SQLite + Chromium fixtures. New jobs inserted ahead of the current offset are intentionally picked up by refresh, not by an in-flight page sequence. PR #415 remains Draft/open/unmerged.
