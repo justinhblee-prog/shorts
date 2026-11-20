@@ -125,6 +125,39 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(store.provider_attempts(
             first["id"], workspace_id="workspace-two"), [])
 
+    def test_artifact_and_stage_mutations_require_matching_workspace(self):
+        db_path = Path(self.tmp.name) / "workspace-write-fence.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        queued = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-alpha"
+        )
+        store.create(queued["id"], self.brief)
+        with self.assertRaises(KeyError):
+            store.artifact(
+                queued["id"], "rendering", "video",
+                "https://renderer.example/video.mp4", {},
+                workspace_id="workspace-beta",
+            )
+        with self.assertRaises(KeyError):
+            store.stage(
+                queued["id"], "review", "review_pending",
+                workspace_id="workspace-beta",
+            )
+        store.artifact(
+            queued["id"], "rendering", "video",
+            "https://renderer.example/video.mp4", {},
+            workspace_id="workspace-alpha",
+        )
+        store.stage(
+            queued["id"], "rendering", "rendered",
+            workspace_id="workspace-alpha",
+        )
+        self.assertEqual(
+            store.get(queued["id"], workspace_id="workspace-alpha")["status"],
+            "rendered",
+        )
+
     def test_artifact_and_provider_attempt_adoption_commit_atomically(self):
         job_id = "job-atomic-provider-adoption"
         self.store.create(job_id, self.brief)
