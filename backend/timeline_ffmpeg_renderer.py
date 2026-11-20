@@ -197,8 +197,14 @@ class TimelineFFmpegRenderer:
         snapshot_sha256 = payload.get("snapshot_sha256")
         if not isinstance(snapshot_sha256, str) or len(snapshot_sha256) != 64:
             raise TimelineRenderError("render job snapshot digest is missing or invalid")
+        # Preserve the original EDL v1 digest for queued jobs created before
+        # optional audio_tracks became part of the normalized snapshot payload.
+        digest_payload = edl
+        if "audio_tracks" not in payload["edl"]:
+            digest_payload = dict(edl)
+            digest_payload.pop("audio_tracks", None)
         canonical = json.dumps(
-            edl, ensure_ascii=False, sort_keys=True,
+            digest_payload, ensure_ascii=False, sort_keys=True,
             separators=(",", ":"), allow_nan=False,
         ).encode("utf-8")
         if hashlib.sha256(canonical).hexdigest() != snapshot_sha256:
