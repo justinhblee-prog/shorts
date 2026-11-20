@@ -186,7 +186,7 @@ class RenderWorkerTests(unittest.TestCase):
         render_worker.output_store, render_worker.renderer = outputs, renderer
         render_worker.run_once()
         self.assertEqual(queue.fail_calls[0][0][3], "render_validation_failed")
-        self.assertFalse(queue.fail_calls[0][1]["retryable"])
+        self.assertFalse(queue.fail_calls[0][0][5])
         self.assertEqual(queue.finish_calls, [])
         self.assertEqual(renderer.calls, [])
 
