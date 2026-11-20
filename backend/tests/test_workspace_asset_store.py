@@ -97,6 +97,17 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(AssetError, "integrity"):
             self.store.open_clean_asset("ws_studio", "alice", result["asset_id"])
 
+    def test_resolves_verified_clean_asset_path_for_authorized_render_worker(self):
+        payload = b"render-source"
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(payload), "source.mp4"
+        )
+        self.store.mark_scan_result("ws_studio", "alice", result["asset_id"], True)
+        path = self.store.resolve_clean_asset_path("ws_studio", "alice", result["asset_id"])
+        self.assertTrue(path.is_absolute())
+        self.assertEqual(path.read_bytes(), payload)
+        with self.assertRaises(WorkspaceDenied):
+            self.store.resolve_clean_asset_path("ws_studio", "mallory", result["asset_id"])
     def test_viewer_cannot_register_or_mark_scan_result(self):
         self.workspaces.add_member("ws_studio", "alice", "viewer", "viewer")
         with self.assertRaises(WorkspaceDenied):
