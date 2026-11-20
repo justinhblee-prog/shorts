@@ -147,3 +147,7 @@ input::placeholder,textarea::placeholder{color:#797594}
  .metrics-grid{gap:7px}.metric-card{padding:11px}.metric-card strong{font-size:22px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Feature destinations: keep anchored modules clear of the sticky workspace toolbar. */
+.main-nav a[href^="#"]{scroll-margin-top:104px}
+#productionPipeline,#trendList,#trendRecommendations,#productionForm,#reviewList,#publishingOverview,#analyticsHistory,#queueDetails{scroll-margin-top:104px}
