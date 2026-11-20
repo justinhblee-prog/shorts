@@ -79,7 +79,7 @@ class RenderAssetApiTests(unittest.TestCase):
                 )
         self.assertEqual(result["status"], "validated")
         self.assertFalse(result["render_enabled"])
-        resolve.assert_called_once_with("workspace-a", ["a" * 32])
+        resolve.assert_called_once_with("workspace-a", ["a" * 32], expected_asset_type="video")
 
     def test_edl_validation_does_not_leak_internal_paths(self):
         edl = {
