@@ -470,9 +470,14 @@ class DevelopmentJobStore:
                         "blocked", "ready", "system", {}, timestamp,
                     )
             candidates = connection.execute(
-                """SELECT * FROM development_jobs
-                   WHERE status='ready' AND attempts<max_attempts
-                   ORDER BY priority,created_at"""
+                """SELECT * FROM development_jobs j
+                   WHERE j.status='ready' AND j.attempts<j.max_attempts
+                     AND NOT EXISTS (
+                       SELECT 1 FROM development_job_dependencies d
+                       JOIN development_jobs parent ON parent.id=d.depends_on_id
+                       WHERE d.job_id=j.id AND parent.status<>'completed'
+                     )
+                   ORDER BY j.priority,j.created_at"""
             ).fetchall()
             active_rows = connection.execute(
                 """SELECT scope_json FROM development_jobs
@@ -684,16 +689,24 @@ class DevelopmentJobStore:
             if row["status"] != "quarantined":
                 raise DevelopmentJobConflict("only quarantined jobs can be manually recovered")
             timestamp = _stamp(_now())
+            unresolved = connection.execute(
+                """SELECT COUNT(*) AS total FROM development_job_dependencies d
+                   JOIN development_jobs parent ON parent.id=d.depends_on_id
+                   WHERE d.job_id=? AND parent.status<>'completed'""",
+                (job_id,),
+            ).fetchone()["total"]
+            next_status = "blocked" if unresolved else "ready"
             connection.execute(
-                """UPDATE development_jobs SET status='ready',attempts=0,
+                """UPDATE development_jobs SET status=?,attempts=0,
                    worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,retry_after=NULL,
                    changed_files_json=NULL,tests_passed=NULL,validation_ref=NULL,
                    result_summary=?,updated_at=? WHERE id=? AND status='quarantined'""",
-                ("Operator recovery: " + safe_reason, timestamp, job_id),
+                (next_status, "Operator recovery: " + safe_reason, timestamp, job_id),
             )
             self._event(
-                connection, job_id, "quarantine_recovered", "quarantined", "ready",
-                actor, {"reason": safe_reason, "previous_attempts": row["attempts"]}, timestamp,
+                connection, job_id, "quarantine_recovered", "quarantined", next_status,
+                actor, {"reason": safe_reason, "previous_attempts": row["attempts"],
+                        "unresolved_dependencies": unresolved}, timestamp,
             )
             connection.commit()
         return self.get(job_id)
