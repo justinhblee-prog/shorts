@@ -11,6 +11,7 @@ on:
       - "scripts/git-cli-agent-config.ps1"
       - "scripts/start-devflow-autopilot.ps1"
       - "scripts/start-devflow-detached.ps1"
+      - "scripts/devflow-agent-process.ps1"
       - "scripts/devflow.py"
       - ".github/workflows/git-cli-autopilot.yml"
   workflow_dispatch:
@@ -44,7 +45,8 @@ jobs:
             "scripts/test-devflow-detached.ps1",
             "scripts/git-cli-agent-config.ps1",
             "scripts/start-devflow-autopilot.ps1",
-            "scripts/start-devflow-detached.ps1"
+            "scripts/start-devflow-detached.ps1",
+            "scripts/devflow-agent-process.ps1"
           )
           foreach ($file in $files) {
             $tokens = $null
