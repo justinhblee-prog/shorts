@@ -171,3 +171,5 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Added `GET /api/operator/workspaces/{workspace_id}/audit`; only workspace owners/admins with `media.manage` can read immutable audit events. Pagination is bounded to 1–100 rows and a maximum offset of 1,000,000.
 - API tests cover viewer/member read boundaries and owner/admin-only audit visibility.
 - Latest implementation is being revalidated after these additions; prior green run 44675317760 covers the earlier API code revision, not these final additions.
+
+- Principal identifiers are now rejected when they contain ASCII control characters; the first CI attempt caught a multiline conditional syntax typo, which was corrected in commit `b7efea5629c3fcf4f8f7cbca7c0fefe75e7d176f`. Final CI must validate this correction.
