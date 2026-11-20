@@ -297,14 +297,51 @@ class RenderArtifactStore:
         return {"removed_files": removed_files, "removed_dirs": removed_dirs,
                 "removed_bytes": removed_bytes}
 
+
+    def list_pending(self, workspace_id, limit=50):
+        if not isinstance(workspace_id, str) or not workspace_id:
+            raise ValueError("workspace_id is required")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
+            raise ValueError("limit must be between 1 and 200")
+        with self.queue.db() as db:
+            rows = db.execute("""
+                SELECT a.artifact_id,a.job_id,a.snapshot_id,a.artifact_sha256,
+                       a.byte_size,a.duration_ms,a.video_width,a.video_height,
+                       a.audio_streams,a.created_at
+                FROM render_artifacts a
+                JOIN pipeline_jobs j ON j.id=a.job_id
+                WHERE a.workspace_id=? AND j.status='review_pending'
+                ORDER BY a.created_at DESC,a.artifact_id
+                LIMIT ?
+            """, (workspace_id, limit)).fetchall()
+        results = []
+        for row in rows:
+            record = self.get(row["artifact_id"], workspace_id)
+            results.append({
+                "artifact_id": record["artifact_id"],
+                "job_id": record["job_id"],
+                "snapshot_id": record["snapshot_id"],
+                "sha256": record["artifact_sha256"],
+                "byte_size": record["byte_size"],
+                "duration_ms": record["duration_ms"],
+                "width": record["video_width"],
+                "height": record["video_height"],
+                "audio_streams": record["audio_streams"],
+                "created_at": record["created_at"],
+                "status": record["status"],
+            })
+        return results
+
     def get(self, artifact_id, workspace_id):
         if not isinstance(artifact_id, str) or not _ARTIFACT_ID.fullmatch(artifact_id):
             raise ValueError("invalid artifact ID")
         with self.queue.db() as db:
-            row = db.execute(
-                "SELECT * FROM render_artifacts WHERE artifact_id=? AND workspace_id=?",
-                (artifact_id, workspace_id),
-            ).fetchone()
+            row = db.execute("""
+                SELECT a.*,j.status AS status
+                FROM render_artifacts a
+                JOIN pipeline_jobs j ON j.id=a.job_id
+                WHERE a.artifact_id=? AND a.workspace_id=?
+            """, (artifact_id, workspace_id)).fetchone()
         if row is None:
             raise ArtifactAdoptionError("artifact not found")
         result = dict(row)
