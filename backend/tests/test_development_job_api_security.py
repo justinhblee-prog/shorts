@@ -50,7 +50,7 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         with (
             mock.patch.object(app_module, "require_review_permission"),
             mock.patch.object(app_module.development_job_store, "list", return_value=[{"id": "page-item"}]) as listed,
-            mock.patch.object(app_module.development_job_store, "count", return_value=240),
+            mock.patch.object(app_module.development_job_store, "count", return_value=240) as counted,
             mock.patch.object(app_module.development_job_store, "summary", return_value={}),
         ):
             result = app_module.list_development_jobs(
@@ -61,7 +61,7 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
             statuses=["ready", "blocked"], limit=80, offset=160,
             created_before="2026-11-20T00:00:00+00:00",
         )
-        app_module.development_job_store.count.assert_called_once_with(
+        counted.assert_called_once_with(
             statuses=["ready", "blocked"], created_before="2026-11-20T00:00:00+00:00"
         )
         self.assertEqual(result["pagination"], {
