@@ -95,7 +95,7 @@ class TimelineRenderWorker:
 
 def create_edl_render_worker(queue, asset_store, worker_id, generation_token,
                              staging_root, ffmpeg_path, artifact_store, *,
-                             audio_tracks_resolver=None, width=1080, height=1920,
+                             audio_tracks_resolver=None, ffprobe_path=None, width=1080, height=1920,
                              fps=30, max_input_bytes=2_000_000_000,
                              timeout_seconds=3600, heartbeat_seconds=10):
     """Wire the EDL renderer, workspace asset authorization and artifact adoption."""
@@ -109,7 +109,7 @@ def create_edl_render_worker(queue, asset_store, worker_id, generation_token,
 
     renderer = EDLFFmpegRenderer(
         staging_root, ffmpeg_path, resolve_asset,
-        audio_tracks_resolver=audio_tracks_resolver,
+        audio_tracks_resolver=audio_tracks_resolver, ffprobe_path=ffprobe_path,
         width=width, height=height, fps=fps,
         max_input_bytes=max_input_bytes, timeout_seconds=timeout_seconds,
     )
