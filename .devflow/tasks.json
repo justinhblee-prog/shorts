@@ -140,7 +140,7 @@
         "Do not modify .devflow/tasks.json or unrelated files"
       ],
       "external_gates": [],
-      "notes": "Retry after simplifying the model instructions to require tool-first JSON requests and broadening normalization for common Qwen JSON tool-call shapes. Bounded response previews are emitted for diagnosis. Draft PR only."
+      "notes": "Retry with additional trace of parsed JSON-text tool calls and invoked tool names. Previous failure was due to repeated empty model responses after short non-native outputs; diagnose exact tool-call sequence before changing task logic. Draft PR only."
     }
   ]
 }
