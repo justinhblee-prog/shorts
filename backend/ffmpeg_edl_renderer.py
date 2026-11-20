@@ -93,7 +93,7 @@ def build_video_argv(edl, asset_paths, output_path, *, ffmpeg_path,
         "-pix_fmt", "yuv420p", "-threads", "2", "-movflags", "+faststart",
         "-t", f"{previous_end / 1000.0:.3f}", str(output),
     ])
-    return argv, previous_end
+    return argv, round(previous_end)
 
 
 class EDLFFmpegRenderer:
@@ -171,6 +171,8 @@ class EDLFFmpegRenderer:
                 process.wait()
 
     def __call__(self, payload, stop_event):
+        if stop_event.is_set():
+            raise EDLRenderError("render lease was lost before FFmpeg launch")
         if not isinstance(payload, dict) or not isinstance(payload.get("edl"), dict):
             raise EDLRenderError("render queue payload is malformed")
         workspace_id = payload.get("workspace_id")
