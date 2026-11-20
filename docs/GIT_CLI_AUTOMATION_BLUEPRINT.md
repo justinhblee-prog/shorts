@@ -1,4 +1,4 @@
-# Git CLI Development Automation Blueprint — v0.1
+# Git CLI Development Automation Blueprint — v0.2
 
 Repository: justinhblee-prog/shorts  
 Primary workflow: Git CLI + isolated Git worktrees + GitHub CLI (gh)  
@@ -135,42 +135,43 @@ Git itself does not write code. A coding agent must be installed and invoked ins
 ## 9. Version history
 
 - v0.1: Whole-lifecycle map, dependency-aware task manifest, Git CLI worktree helper and guarded Draft-PR completion flow.
+- v0.2: Bounded local coding-agent supervisor with task selection, isolated worktree, validation/repair loop and Draft-PR handoff.
 
 
 ## 10. One-command autonomous coding flow — v0.2 increment
 
-\`scripts/devflow_autopilot.py\` now connects the task manifest to a locally installed coding-agent CLI:
+`scripts/devflow_autopilot.py` now connects the task manifest to a locally installed coding-agent CLI:
 
-1. Select the highest-priority \`ready\` or \`in_progress\` task (or an explicitly named task).
+1. Select the highest-priority `ready` or `in_progress` task (or an explicitly named task).
 2. Verify the primary checkout is clean and dependencies are review-ready.
 3. Create a dedicated Git branch and worktree from the configured base.
 4. Invoke the configured coding agent in that worktree only.
-5. Run \`scripts/devflow.py validate\`; if validation fails, send the failure back to the same agent for a bounded repair attempt (default: two repairs).
-6. Mark the task \`review_pending\` only after validation succeeds, then commit, push and open a Draft PR through the existing Git CLI helper.
+5. Run `scripts/devflow.py validate`; if validation fails, send the failure back to the same agent for a bounded repair attempt (default: two repairs).
+6. Mark the task `review_pending` only after validation succeeds, then commit, push and open a Draft PR through the existing Git CLI helper.
 
 Configure the agent once in the workstation environment. Example for Codex CLI:
 
 **PowerShell**
-\`\`\`powershell
+```powershell
 $env:DEVFLOW_AGENT_COMMAND_JSON='["codex","exec","--full-auto"]'
 $env:DEVFLOW_BASE='feat/ffmpeg-render-execution-guard-2026-11-20'
 python scripts/devflow_autopilot.py --task BUILD-00352
-\`\`\`
+```
 
-The command is a JSON argument array, not a shell command string. The supervisor appends the task prompt as the final argument and launches the process with \`shell=False\`. The agent executable, authentication and any usage limits must already be configured on that workstation. The supervisor does not create credentials or silently authorize provider spend.
+The command is a JSON argument array, not a shell command string. The supervisor appends the task prompt as the final argument and launches the process with `shell=False`. The agent process receives a restricted environment allowlist (PATH and basic home/temp/system variables); API keys, cloud credentials, CI tokens and provider secrets are not forwarded. The agent executable, local authentication and usage limits must already be configured on that workstation. The supervisor does not create credentials or silently authorize provider spend.
 
 Options:
-- \`--task BUILD-00352\`: resume a specific ready/in-progress task; omit to select the highest-priority runnable task.
-- \`--base BRANCH\`: choose the exact existing base branch.
-- \`--max-repairs 2\`: bounded repair attempts (maximum 3).
-- \`--agent-timeout 3600\`: per-attempt timeout in seconds.
+- `--task BUILD-00352`: resume a specific ready/in-progress task; omit to select the highest-priority runnable task.
+- `--base BRANCH`: choose the exact existing base branch.
+- `--max-repairs 2`: bounded repair attempts (maximum 3).
+- `--agent-timeout 3600`: per-attempt timeout in seconds.
 
 Safety boundaries:
 - One task/worktree at a time in this initial supervisor; it is not yet a multi-agent parallel scheduler.
 - Primary checkout must be clean. Existing worktrees are never overwritten or deleted automatically.
 - The coding agent is instructed not to modify task state, use secrets, publish, deploy, merge, force-push or run destructive Git commands.
-- The supervisor only marks \`review_pending\` after repository validation passes; external gates remain open.
+- The supervisor only marks `review_pending` after repository validation passes; external gates remain open.
 - Draft PR creation and CI may trigger GitHub workflows. Merge, deploy, provider calls and public publishing remain human-controlled.
 - If the agent CLI is absent, the task stops before creating a worktree. If it fails after worktree creation, the worktree is retained for inspection.
 
-This is an executable local automation runner, not a claim that the current ChatGPT session can execute commands on the user's Windows workstation. The first end-to-end run requires the configured agent CLI and authenticated \`git\`/\`gh\` on that workstation.
+This is an executable local automation runner, not a claim that the current ChatGPT session can execute commands on the user's Windows workstation. The first end-to-end run requires the configured agent CLI and authenticated `git`/`gh` on that workstation.
