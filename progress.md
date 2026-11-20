@@ -225,3 +225,12 @@
 
 - Found and corrected the actual DAG contract defect: list responses did not include persisted dependency IDs (only single-job reads did). The list query now returns dependency edges for all returned jobs without N+1 queries; a backend regression test covers parent, child, and independent jobs.
 - Exact head `c2fab8b8b7bc3abcfe7cf9b96c83206d8d508a10` passed all 17 CI steps in [run 44652954128](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128), including full backend tests, frontend syntax, both Chromium smoke tests, and artifact upload [14591602484](https://github.com/justinhblee-prog/shorts/actions/runs/44652954128/artifacts/14591602484).
+
+## 29. Core DAG transition audit hardening — 2026-11-20
+
+- Core review found two automatic transitions that changed job status without appending immutable audit events: due retry promotion (retry_wait → ready) and dependency release (blocked → ready).
+- Updated DevelopmentJobStore.claim_ready() to process due retries and eligible blocked jobs under the existing BEGIN IMMEDIATE transaction, recording retry_due and dependencies_satisfied events for each successful guarded transition.
+- Dependency release now explicitly requires at least one persisted prerequisite and verifies every prerequisite is completed; it does not silently promote a legacy blocked row with no dependency edges.
+- Added regression assertions for both transition events. The first CI attempt exposed an assertion-order mistake (the subsequent worker claim is the newest event); corrected the test to assert the release event immediately before the claim event.
+- Exact head 07b31e6e1180bcfb1e191d2a88b079b9953cacb4 passed all backend validation, frontend syntax, both Chromium smoke suites, and artifact upload in PR run 44653917688; push run 44653909005 also passed. Browser artifact: https://github.com/justinhblee-prog/shorts/actions/runs/44653917688/artifacts/14591668407.
+- This is hosted Linux/fixture validation. Windows self-hosted execution, LocalAppData persistence, Ollama generation, OAuth, live media rendering, and live publishing remain NOT VERIFIED. PR #415 remains Draft/open/unmerged.
