@@ -97,25 +97,34 @@ class SQLiteRateLimitStore:
         }
 
 
+class _UploadBodyTooLarge(Exception):
+    pass
+
+
 class ApiRateLimitMiddleware:
-    """Apply persistent per-client limits with explicit trusted-proxy handling."""
+    """Apply persistent per-client limits and bound multipart media request bodies."""
 
     MAX_FORWARDED_FOR_BYTES = 4096
     MAX_FORWARDED_HOPS = 20
+    UPLOAD_OVERHEAD_BYTES = 64 * 1024
 
     def __init__(self, app, store, limits=None, window_seconds=60,
-                 trusted_proxy_cidrs=None):
+                 trusted_proxy_cidrs=None, upload_max_bytes=256 * 1024 * 1024):
         self.app = app
         self.store = store
         self.window_seconds = int(window_seconds)
         self.limits = {
             "default": 120, "auth": 20, "publish": 10,
-            "control": 30, "review": 60, "production": 30,
+            "control": 30, "review": 60, "production": 30, "media": 10,
         }
         if limits:
             self.limits.update({key: int(value) for key, value in limits.items()})
         if any(value < 1 for value in self.limits.values()):
             raise ValueError("all API rate limits must be positive")
+        self.upload_max_bytes = int(upload_max_bytes)
+        if not 1 <= self.upload_max_bytes <= 2 * 1024 * 1024 * 1024:
+            raise ValueError("upload_max_bytes must be between 1 byte and 2 GiB")
+        self.upload_request_max_bytes = self.upload_max_bytes + self.UPLOAD_OVERHEAD_BYTES
         if trusted_proxy_cidrs is None:
             trusted_proxy_cidrs = ""
         if isinstance(trusted_proxy_cidrs, str):
@@ -192,6 +201,8 @@ class ApiRateLimitMiddleware:
             return "review"
         if path.startswith("/api/production/"):
             return "production"
+        if path.startswith("/api/media/"):
+            return "media"
         if path.startswith("/api/"):
             return "default"
         return None
@@ -233,4 +244,67 @@ class ApiRateLimitMiddleware:
                 message = dict(message)
                 message["headers"] = list(message.get("headers", [])) + headers
             await send(message)
+
+        is_media_upload = method == "POST" and path == "/api/media/assets"
+        if is_media_upload:
+            content_lengths = [
+                value for name, value in scope.get("headers", [])
+                if name.lower() == b"content-length"
+            ]
+            if len(content_lengths) > 1:
+                body = b'{"detail":"Invalid upload Content-Length"}'
+                await send_with_rate_headers({
+                    "type": "http.response.start", "status": 400,
+                    "headers": [(b"content-type", b"application/json"),
+                                (b"content-length", str(len(body)).encode("ascii"))],
+                })
+                await send_with_rate_headers({"type": "http.response.body", "body": body})
+                return
+            if content_lengths:
+                try:
+                    declared = int(content_lengths[0].decode("ascii"))
+                except (UnicodeDecodeError, ValueError):
+                    declared = -1
+                if declared < 0:
+                    body = b'{"detail":"Invalid upload Content-Length"}'
+                    await send_with_rate_headers({
+                        "type": "http.response.start", "status": 400,
+                        "headers": [(b"content-type", b"application/json"),
+                                    (b"content-length", str(len(body)).encode("ascii"))],
+                    })
+                    await send_with_rate_headers({"type": "http.response.body", "body": body})
+                    return
+                if declared > self.upload_request_max_bytes:
+                    body = b'{"detail":"Upload request exceeds the configured media size limit"}'
+                    await send_with_rate_headers({
+                        "type": "http.response.start", "status": 413,
+                        "headers": [(b"content-type", b"application/json"),
+                                    (b"content-length", str(len(body)).encode("ascii"))],
+                    })
+                    await send_with_rate_headers({"type": "http.response.body", "body": body})
+                    return
+
+            received = 0
+
+            async def receive_limited():
+                nonlocal received
+                message = await receive()
+                if message.get("type") == "http.request":
+                    received += len(message.get("body", b""))
+                    if received > self.upload_request_max_bytes:
+                        raise _UploadBodyTooLarge()
+                return message
+
+            try:
+                await self.app(scope, receive_limited, send_with_rate_headers)
+            except _UploadBodyTooLarge:
+                body = b'{"detail":"Upload request exceeds the configured media size limit"}'
+                await send_with_rate_headers({
+                    "type": "http.response.start", "status": 413,
+                    "headers": [(b"content-type", b"application/json"),
+                                (b"content-length", str(len(body)).encode("ascii"))],
+                })
+                await send_with_rate_headers({"type": "http.response.body", "body": body})
+            return
+
         await self.app(scope, receive, send_with_rate_headers)
