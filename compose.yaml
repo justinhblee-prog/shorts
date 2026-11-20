@@ -13,6 +13,7 @@ services:
       NEXUS_RENDER_STAGING_ROOT: /app/data/media/render-staging
       NEXUS_RENDER_ARTIFACT_ROOT: /app/data/media/render-artifacts
       NEXUS_FFPROBE_PATH: /usr/bin/ffprobe
+      NEXUS_TITLE_FONT_PATH: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
       NEXUS_MAX_ASSET_BYTES: ${NEXUS_MAX_ASSET_BYTES:-500000000}
       NEXUS_MAX_MEDIA_BYTES: ${NEXUS_MAX_ASSET_BYTES:-500000000}
       NEXUS_MAX_RENDER_BYTES: ${NEXUS_MAX_RENDER_BYTES:-2000000000}
