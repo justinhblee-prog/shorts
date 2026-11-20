@@ -158,16 +158,18 @@ class ScheduleStore:
         limit = _bounded_limit(limit, "limit", 500)
         with self.db() as c:
             if now is None:
-                rows = c.execute("""SELECT * FROM schedule_dispatch_outbox
-                    WHERE status='pending' ORDER BY created_at LIMIT ?""",
+                rows = c.execute("""SELECT o.*,s.workspace_id FROM schedule_dispatch_outbox o
+                    JOIN production_schedules s ON s.id=o.schedule_id
+                    WHERE o.status='pending' ORDER BY o.created_at LIMIT ?""",
                     (limit,)).fetchall()
             else:
                 if now.tzinfo is None:
                     raise ValueError("now must be timezone-aware")
-                rows = c.execute("""SELECT * FROM schedule_dispatch_outbox
-                    WHERE status='pending' AND
-                    (next_attempt_at IS NULL OR next_attempt_at<=?)
-                    ORDER BY created_at LIMIT ?""",
+                rows = c.execute("""SELECT o.*,s.workspace_id FROM schedule_dispatch_outbox o
+                    JOIN production_schedules s ON s.id=o.schedule_id
+                    WHERE o.status='pending' AND
+                    (o.next_attempt_at IS NULL OR o.next_attempt_at<=?)
+                    ORDER BY o.created_at LIMIT ?""",
                     (_stamp(now), limit)).fetchall()
             return [dict(row) for row in rows]
 
@@ -339,7 +341,8 @@ class ScheduleStore:
                 payload = json.loads(item["payload_json"])
                 job = queue.enqueue("short_video_production", payload,
                     channel_name=payload["brand"],
-                    idempotency_key="schedule:" + item["schedule_id"] + ":" + item["scheduled_for"])
+                    idempotency_key="schedule:" + item["schedule_id"] + ":" + item["scheduled_for"],
+                    workspace_id=item["workspace_id"])
                 with self.db() as c:
                     c.execute("BEGIN IMMEDIATE")
                     # The queue may have accepted the idempotent job while this
