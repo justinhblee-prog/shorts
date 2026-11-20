@@ -6,6 +6,7 @@ FFmpeg/ffprobe binaries have been configured on the target host.
 from __future__ import annotations
 
 import os
+import sqlite3
 import signal
 import socket
 import threading
@@ -56,6 +57,22 @@ if len(WORKER_ID) > 128:
     raise ValueError("NEXUS_RENDER_WORKER_ID must be at most 128 characters")
 
 
+def _resolve_snapshot_creator(workspace_id, payload):
+    snapshot_id = payload.get("snapshot_id")
+    snapshot_sha256 = payload.get("snapshot_sha256")
+    if not isinstance(snapshot_id, str) or not isinstance(snapshot_sha256, str):
+        raise RuntimeError("render job is missing its snapshot identity")
+    with sqlite3.connect(DB_PATH, timeout=30) as db:
+        row = db.execute("""
+            SELECT creator_principal_id,payload_sha256
+            FROM timeline_edl_snapshots
+            WHERE id=? AND workspace_id=?
+        """, (snapshot_id, workspace_id)).fetchone()
+    if row is None or row[1] != snapshot_sha256:
+        raise RuntimeError("render job does not match a workspace-owned immutable snapshot")
+    return row[0]
+
+
 def build_worker():
     queue = JobQueue(DB_PATH, LEASE_SECONDS)
     workspaces = WorkspaceStore(DB_PATH)
@@ -79,6 +96,7 @@ def build_worker():
         heartbeat_seconds=HEARTBEAT_SECONDS,
         artifact_store=artifact_store,
         shutdown_event=stopping,
+        principal_resolver=_resolve_snapshot_creator,
     )
     return queue, worker, stopping, artifact_store
 
