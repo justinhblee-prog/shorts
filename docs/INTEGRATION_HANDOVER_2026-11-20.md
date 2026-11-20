@@ -150,3 +150,9 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - The invariant is that a child cannot become leased and simultaneously gain an unresolved dependency: either dependency insertion commits first and the child remains blocked, or the worker claim commits first and dependency insertion is rejected by the active-job mutation guard.
 - Exact head 8a5364903526cc8ed56977bdec730206b514f778 passed full hosted CI in [run 44654439190](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190), including backend validation, frontend syntax, both Chromium smoke suites, and artifact upload [14592966229](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190/artifacts/14592966229).
 - This proves the tested SQLite transaction boundary under concurrent test threads; it does not establish Windows runner isolation or cross-process LocalAppData persistence. PR #415 remains Draft/open/unmerged.
+
+## 16. UI job selection/detail interaction verification — 2026-11-20
+
+- Expanded scripts/ui_recovery_browser_smoke.mjs to verify that selecting a development job marks its action button aria-pressed=true, selecting another job with Enter clears the previous selection, and the event-detail panel refreshes to the selected job's distinct event history.
+- Exact head 17ee4a515767b9e05b5c20b00eb240024365f807 passed all PR CI steps in [run 44654934989](https://github.com/justinhblee-prog/shorts/actions/runs/44654934989): backend validation, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation and keyboard-selection/detail-switching smoke, artifact upload [14592123441](https://github.com/justinhblee-prog/shorts/actions/runs/44654934989/artifacts/14592123441).
+- This is hosted Chromium against deterministic API fixtures; it verifies the interaction contract, not a live authenticated production environment.
