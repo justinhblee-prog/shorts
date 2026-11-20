@@ -21,7 +21,8 @@ def _private_regular_file(value, field):
 
 
 def build_audio_mix_argv(tracks, output_path, *, ffmpeg_path="ffmpeg",
-                         output_duration_ms=None, sample_rate=48000):
+                         output_duration_ms=None, sample_rate=48000,
+                         max_output_bytes=None):
     """Build a bounded, shell-free audio mix command for 1-8 trusted tracks.
 
     Track fields: path, start_ms, duration_ms, gain (linear 0..4), fade_in_ms,
@@ -33,6 +34,11 @@ def build_audio_mix_argv(tracks, output_path, *, ffmpeg_path="ffmpeg",
         raise AudioMixError("FFmpeg executable is invalid")
     if isinstance(sample_rate, bool) or sample_rate not in (44100, 48000):
         raise AudioMixError("sample_rate must be 44100 or 48000")
+    if max_output_bytes is not None and (
+        isinstance(max_output_bytes, bool) or not isinstance(max_output_bytes, int)
+        or max_output_bytes < 1
+    ):
+        raise AudioMixError("max_output_bytes must be a positive integer")
     if output_duration_ms is not None and (
         isinstance(output_duration_ms, bool) or not isinstance(output_duration_ms, int)
         or not 1 <= output_duration_ms <= 3_600_000
@@ -99,6 +105,10 @@ def build_audio_mix_argv(tracks, output_path, *, ffmpeg_path="ffmpeg",
         "-filter_complex", ";".join(filters), "-map", "[mixed]",
         "-t", f"{total_ms / 1000:.3f}", "-ar", str(sample_rate), "-threads", "2",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
-        str(output),
+    ])
+    if max_output_bytes is not None:
+        argv.extend(["-fs", str(max_output_bytes)])
+    argv.append(str(output))
+    return argv
     ])
     return argv
