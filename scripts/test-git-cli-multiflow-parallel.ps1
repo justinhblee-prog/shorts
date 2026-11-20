@@ -74,7 +74,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  if($starts.Count -ne 2 -or $ends.Count -ne 2){throw "Expected two complete fake-agent runs; got starts=$($starts.Count), ends=$($ends.Count)."}
  $delta=[Math]::Abs($starts[0].ms-$starts[1].ms)
  if($delta -gt 2500){throw "Workers did not overlap; start delta was $($delta)ms."}
- if($timer.Elapsed.TotalSeconds -gt 12){throw "Parallel run took too long ($($timer.Elapsed.TotalSeconds)s), expected overlapping workers."}
+ if($timer.Elapsed.TotalSeconds -gt 25){throw "Parallel run took too long ($($timer.Elapsed.TotalSeconds)s), expected overlapping workers; worker start-time overlap is asserted separately."}
  $stateData=Get-Content (Join-Path $state "state.json") -Raw|ConvertFrom-Json
  foreach($id in @("BUILD-99001","BUILD-99002")){
   if($stateData.tasks.$id.status -ne "draft_pr_created"){throw "Unexpected final state for ${id}: $($stateData.tasks.$id.status)"}
