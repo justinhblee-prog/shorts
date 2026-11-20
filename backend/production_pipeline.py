@@ -488,13 +488,14 @@ class ProductionStore:
                 "stage":attempt["stage"],"state":"not_executed_confirmed",
                 "operator_id":operator_id.strip(),"reconciled_at":timestamp}
 
-    def provider_attempts(self, job_id, unresolved_only=False):
+    def provider_attempts(self, job_id, unresolved_only=False, workspace_id=None):
         where=" AND state IN ('request_started','outcome_unknown','response_received')" if unresolved_only else ""
         with self.db() as c:
             rows=c.execute("""SELECT id,job_id,workspace_id,stage,attempt_number,idempotency_key,
                 state,provider_request_id,response_json,error,started_at,completed_at
-                FROM provider_execution_attempts WHERE job_id=?""" + where +
-                " ORDER BY started_at,id",(job_id,)).fetchall()
+                FROM provider_execution_attempts
+                WHERE job_id=? AND (? IS NULL OR workspace_id=?)""" + where +
+                " ORDER BY started_at,id",(job_id,workspace_id,workspace_id)).fetchall()
             return [dict(row) for row in rows]
 
     def adopt_recovered_render(self, job_id, attempt_id, staged, inspection):
@@ -1083,9 +1084,13 @@ class ProductionStore:
             })
         return build_script_originality_report(script_text, previous, threshold)
 
-    def get(self, job_id):
+    def get(self, job_id, workspace_id=None):
         with self.db() as c:
-            run = c.execute("SELECT * FROM production_runs WHERE job_id=?", (job_id,)).fetchone()
+            if workspace_id is None:
+                run = c.execute("SELECT * FROM production_runs WHERE job_id=?", (job_id,)).fetchone()
+            else:
+                run = c.execute("SELECT * FROM production_runs WHERE job_id=? AND workspace_id=?",
+                                (job_id,workspace_id)).fetchone()
             if run is None:
                 return None
             artifacts = c.execute(
@@ -1468,7 +1473,7 @@ class ProductionPipeline:
             raise
 
 
-def submit_production(queue, store, brief):
+def submit_production(queue, store, brief, workspace_id=None):
     """Create a durable queue job and its production record; no provider call occurs here."""
     clean = ProductionPipeline.validate_brief(brief)
     policy_report = evaluate_content_policy(clean)
@@ -1478,7 +1483,8 @@ def submit_production(queue, store, brief):
     clean["policy_report"] = policy_report
     job = queue.enqueue("short_video_production", clean,
                         channel_name=clean["brand"],
-                        idempotency_key=brief.get("idempotency_key"))
+                        idempotency_key=brief.get("idempotency_key"),
+                        workspace_id=workspace_id)
     if not store.get(job["id"]):
         store.create(job["id"], clean)
     return {"job": job, "production": store.get(job["id"])}
