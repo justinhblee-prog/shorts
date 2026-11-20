@@ -91,8 +91,15 @@ def validate_edl(payload: Any) -> dict:
             item.update(asset_id=asset_id, source_in_ms=source_in, source_out_ms=source_out)
         else:
             title = raw["text"]
-            if not isinstance(title, str) or not title.strip() or len(title) > MAX_TITLE_LENGTH:
-                raise EDLValidationError(f"{prefix}.text must contain 1 to {MAX_TITLE_LENGTH} characters")
+            if (
+                not isinstance(title, str)
+                or not title.strip()
+                or len(title) > MAX_TITLE_LENGTH
+                or any(ord(char) < 32 and char not in "\\n\\r\\t" for char in title)
+            ):
+                raise EDLValidationError(
+                    f"{prefix}.text must contain 1 to {MAX_TITLE_LENGTH} printable characters"
+                )
             item["text"] = title.strip()
         normalized.append(item)
 
