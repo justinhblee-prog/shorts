@@ -48,17 +48,18 @@
         "Existing FFmpeg audio-mix builder connected to EDL audio clips with source in-points, timeline delays, gain, fades and limiter",
         "Lease-loss cancellation, bounded process execution/output size, ffprobe output validation and staged MP4 cleanup on failed artifact adoption",
         "Dedicated timeline_worker.py runtime registered with generation fencing and shutdown cancellation; Compose timeline-worker service shares private media, staging and artifact volume",
-        "Compose integration smoke now starts and health-checks the dedicated timeline render worker"
+        "Compose integration smoke now starts and health-checks the dedicated timeline render worker",
+        "Crash cleanup for abandoned staged MP4s and per-job working directories on timeline worker startup, with a grace period longer than maximum render timeout",
+        "FFmpeg and ffprobe input protocols restricted to local file and pipe; output profile checked for one H.264 1080x1920 video stream"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
-        "Run pinned FFmpeg and ffprobe binaries in an isolated worker container with CPU, memory, disk, network and process-count quotas",
         "Add real-media integration tests and crash/lease-loss tests against the production runtime",
         "Expose authenticated upload, render submission and review APIs with production filesystem permissions and retention cleanup",
-        "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
         "Pin actual FFmpeg/ffprobe binaries and verify supported codecs/filter capabilities on target Windows and isolated Linux worker runtimes",
         "Run representative real-media renders, process-tree crash/lease-loss tests and resource-limit enforcement in the production worker container",
-        "Expose authenticated source-asset upload and timeline render submission/status APIs for the browser editor"
+        "Expose authenticated source-asset upload and timeline render submission/status APIs for the browser editor",
+        "Enforce a host-level disk quota for the shared private-media/render volume; Compose enforces no network, read-only root, tmpfs, CPU, memory and process-count limits"
       ]
     },
     {
