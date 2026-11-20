@@ -137,6 +137,10 @@ class TimelineRendererTests(unittest.TestCase):
     def test_audio_is_mapped_only_from_registered_asset_id(self):
         audio = self.root / "voice.m4a"
         audio.write_bytes(b"trusted audio")
+        self.renderer.inspector = FakeInspector({
+            "status": "inspected", "width": 1080, "height": 1920,
+            "duration_seconds": 5.0, "audio_track_present": True,
+        })
         result = self.renderer.render(
             self.edl, {"asset_1": self.asset, "voice_1": audio},
             audio_asset_id="voice_1",
