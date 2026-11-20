@@ -94,7 +94,7 @@ CDN compatibility is not universal. Add only the exact trusted hostnames require
 - Back up the persistent SQLite volume and test restoration before real operation.
 - **Restore is an offline maintenance operation.** Stop the API, worker, scheduler, metrics collector and backup service before restoring. The restore command refuses to proceed when SQLite `-wal`, `-shm` or `-journal` sidecars exist; do not delete those files manually to bypass the guard. Close/checkpoint the database cleanly, restore, verify integrity, inspect the command result's `cleanup_warnings` array for retained pre-restore copies, then restart services.
   ```bash
-  docker compose stop api worker scheduler metrics-collector backup
+  docker compose stop api worker render-worker scheduler metrics-collector backup
   docker compose run --rm --no-deps --entrypoint python backup /app/backend/backup_restore.py restore --archive /backups/ARCHIVE_NAME.tar.gz.enc --confirm-restore
   docker compose up -d
   ```
@@ -736,3 +736,11 @@ This protects local database consistency only. It does not make the external pro
 - Check `docker compose ps` and require API, worker, scheduler, metrics collector and backup to report `healthy`.
 - The backup service updates `/backups/.last-success` only after an encrypted archive is successfully created. Set `NEXUS_BACKUP_HEALTH_MAX_AGE_SECONDS` to adjust the maximum acceptable age; default is 48 hours for a daily schedule.
 - A process health probe confirms the expected PID-1 worker/scheduler/collector command is alive; it does not replace operational monitoring of job throughput or provider errors.
+
+
+### Render worker operations
+
+- Start the dedicated renderer with `docker compose up -d render-worker`; inspect it with `docker compose ps render-worker` and `docker compose logs --tail=200 render-worker`.
+- The renderer is resource-capped independently from the production worker (2 CPU, 3 GiB RAM, 64 PIDs). Do not raise these limits without reviewing host capacity and the per-process `prlimit` settings.
+- Before database restore or media-root maintenance, stop `render-worker` with the other services. Running jobs lose their lease and are retried; do not manually delete a running job's source assets.
+- Render jobs finish in `review_pending`. Reviewers must inspect the MP4 artifact and explicitly approve or reject it. Approval is not a publish command; provider publishing remains a separate, explicitly authorized workflow.

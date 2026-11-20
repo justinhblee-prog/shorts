@@ -9,7 +9,9 @@ import hashlib
 import math
 import os
 import shutil
+import signal
 import subprocess
+import time
 import uuid
 from pathlib import Path
 from typing import Mapping
@@ -20,6 +22,10 @@ from timeline_edl import validate_edl, EDLValidationError
 
 class TimelineRenderError(RuntimeError):
     """Raised when a timeline cannot be rendered safely or validated."""
+
+
+class TimelineRenderCancelled(TimelineRenderError):
+    """Raised when a render loses its lease or receives a cancellation request."""
 
 
 class TimelineRenderer:
@@ -47,7 +53,7 @@ class TimelineRenderer:
         self.max_output_bytes = int(max_output_bytes or os.getenv("NEXUS_RENDER_MAX_OUTPUT_BYTES", str(512 * 1024 * 1024)))
         self.max_memory_bytes = int(max_memory_bytes or os.getenv("NEXUS_RENDER_MAX_MEMORY_BYTES", str(2 * 1024 * 1024 * 1024)))
         self.max_cpu_seconds = int(max_cpu_seconds or os.getenv("NEXUS_RENDER_MAX_CPU_SECONDS", "900"))
-        self.runner = runner or subprocess.run
+        self.runner = runner
         self.inspector = inspector or MediaInspector(analyze_signals=False)
 
         if not (1 <= self.timeout_seconds <= 3600):
@@ -78,12 +84,74 @@ class TimelineRenderer:
             raise TimelineRenderError("Render asset exceeds the configured size limit")
         return resolved
 
-    def render(self, edl, asset_paths, output_dir=None, audio_asset_id=None):
+    @staticmethod
+    def _terminate_process(process):
+        if process.poll() is not None:
+            return
+        try:
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGTERM)
+            else:
+                process.terminate()
+        except ProcessLookupError:
+            return
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:
+                if os.name == "posix":
+                    os.killpg(process.pid, signal.SIGKILL)
+                else:
+                    process.kill()
+            except ProcessLookupError:
+                pass
+            process.wait()
+
+    def _execute(self, command, cwd, stop_event=None):
+        if stop_event is not None and stop_event.is_set():
+            raise TimelineRenderCancelled("Render cancelled before FFmpeg start")
+        if self.runner is not None:
+            return self.runner(
+                command,
+                shell=False,
+                check=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=self.timeout_seconds,
+                cwd=str(cwd),
+            )
+        if os.name != "posix":
+            raise TimelineRenderError("Production FFmpeg rendering requires a POSIX worker")
+        process = subprocess.Popen(
+            command,
+            shell=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=str(cwd),
+            start_new_session=True,
+        )
+        deadline = time.monotonic() + self.timeout_seconds
+        while True:
+            return_code = process.poll()
+            if return_code is not None:
+                return subprocess.CompletedProcess(command, return_code)
+            if stop_event is not None and stop_event.is_set():
+                self._terminate_process(process)
+                raise TimelineRenderCancelled("Render cancelled after lease loss or operator request")
+            if time.monotonic() >= deadline:
+                self._terminate_process(process)
+                raise TimelineRenderError("FFmpeg render exceeded the configured time limit")
+            time.sleep(0.1)
+
+    def render(self, edl, asset_paths, output_dir=None, audio_asset_id=None, stop_event=None):
         """Render validated video clips; asset_paths must come from an ownership-checked registry.
 
         Title cards are rejected until the renderer has a safe, deterministic font/text
         implementation. Audio, when supplied, is a separately registered workspace asset
-        mixed as the output narration/music track; no EDL path or URL is ever interpreted.
+        used as the output narration/music track; source-clip audio mixing is not implemented
+        in this slice. No EDL path or URL is ever interpreted.
         """
         try:
             normalized = validate_edl(edl)
@@ -193,16 +261,10 @@ class TimelineRenderer:
             raise TimelineRenderError("Production FFmpeg rendering requires a POSIX worker with prlimit")
 
         try:
-            completed = self.runner(
-                command,
-                shell=False,
-                check=False,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=self.timeout_seconds,
-                cwd=str(resolved_dir),
-            )
+            completed = self._execute(command, resolved_dir, stop_event=stop_event)
+        except (TimelineRenderCancelled, TimelineRenderError):
+            temporary_path.unlink(missing_ok=True)
+            raise
         except subprocess.TimeoutExpired as exc:
             temporary_path.unlink(missing_ok=True)
             raise TimelineRenderError("FFmpeg render exceeded the configured time limit") from exc
@@ -243,6 +305,12 @@ class TimelineRenderer:
                     digest.update(block)
                 os.fsync(stream.fileno())
             os.replace(temporary_path, final_path)
+            if os.name == "posix":
+                directory_fd = os.open(resolved_dir, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
             return {
                 "render_id": render_id,
                 "media_path": final_path.relative_to(self.media_root).as_posix(),
@@ -258,4 +326,7 @@ class TimelineRenderer:
             temporary_path.unlink(missing_ok=True)
             if isinstance(exc, TimelineRenderError):
                 raise
-            raise TimelineRenderError("Rendered output failed media validation") from exc
+            detail = str(exc).replace(str(self.media_root), "<media-root>")[-240:]
+            raise TimelineRenderError(
+                f"Rendered output failed media validation ({type(exc).__name__}): {detail}"
+            ) from exc

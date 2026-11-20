@@ -32,6 +32,7 @@ from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
 from render_asset_store import RenderAssetStore, RenderAssetError, RenderAssetNotFound
+from render_output_store import RenderOutputStore, RenderOutputError, RenderOutputNotFound
 from preflight import build_preflight
 from timeline_edl import validate_edl, EDLValidationError
 from workspace_access import resolve_workspace_membership, resolve_workspace_access, WorkspaceAccessConfigurationError
@@ -110,6 +111,10 @@ schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
 render_asset_store=RenderAssetStore(
+    os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),
+    os.getenv("NEXUS_MEDIA_DIR","data/media"),
+)
+render_output_store=RenderOutputStore(
     os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),
     os.getenv("NEXUS_MEDIA_DIR","data/media"),
 )
@@ -885,14 +890,223 @@ def validate_render_edl(
             "workspace_id":workspace_id,
             "edl":normalized,
             "asset_count":len(set(asset_ids)),
-            "render_enabled":False,
-            "message":"EDL and workspace asset ownership validated; durable render jobs are not enabled yet.",
+            "render_enabled":True,
+            "message":"EDL and workspace asset ownership validated; a durable render job can now be queued.",
         }
     except EDLValidationError as exc:
         raise HTTPException(422,str(exc))
     except RenderAssetNotFound as exc:
         raise HTTPException(404,str(exc))
     except RenderAssetError as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.post("/api/render/jobs",status_code=202)
+def enqueue_render_job(
+    body:dict[str,Any],
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+    idempotency_key:str|None=Header(default=None,alias="Idempotency-Key"),
+):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(403,"An explicit workspace is required to queue a render")
+    try:
+        edl=validate_edl(body.get("edl"))
+        if any(clip["type"]!="video" for clip in edl["clips"]):
+            raise HTTPException(422,"Title clips are not yet supported by the FFmpeg renderer")
+        video_ids=[clip["asset_id"] for clip in edl["clips"]]
+        render_asset_store.resolve_asset_paths(
+            workspace_id,video_ids,expected_asset_type="video"
+        )
+        audio_asset_id=body.get("audio_asset_id")
+        if audio_asset_id is not None:
+            render_asset_store.resolve_asset_paths(
+                workspace_id,[audio_asset_id],expected_asset_type="audio"
+            )
+        if idempotency_key is not None and (not idempotency_key.strip() or len(idempotency_key)>128):
+            raise HTTPException(422,"Idempotency-Key must contain 1 to 128 characters")
+        job=queue.enqueue(
+            "timeline_render",
+            {"edl":edl,"audio_asset_id":audio_asset_id},
+            channel_name="render",
+            priority=100,
+            max_attempts=2,
+            idempotency_key=idempotency_key,
+            workspace_id=workspace_id,
+        )
+        return {
+            "job_id":job["id"],
+            "job_type":job["job_type"],
+            "status":job["status"],
+            "attempt":job["attempt"],
+            "created_at":job["created_at"],
+            "workspace_id":workspace_id,
+        }
+    except EDLValidationError as exc:
+        raise HTTPException(422,str(exc))
+    except RenderAssetNotFound as exc:
+        raise HTTPException(404,str(exc))
+    except RenderAssetError as exc:
+        raise HTTPException(422,str(exc))
+    except IdempotencyConflict as exc:
+        raise HTTPException(409,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
+def _render_job_view(job, workspace_id):
+    events=queue.events(job["id"],workspace_id=workspace_id)
+    completed=next((event for event in reversed(events) if event["event_type"]=="completed"),None)
+    result=(completed or {}).get("details",{}).get("result")
+    output=None
+    if job["status"]=="review_pending":
+        output=render_output_store.get_reviewable(job["id"],workspace_id)
+        output={key:value for key,value in output.items() if key!="path"}
+    return {
+        "job_id":job["id"],
+        "job_type":job["job_type"],
+        "status":job["status"],
+        "attempt":job["attempt"],
+        "max_attempts":job["max_attempts"],
+        "created_at":job["created_at"],
+        "updated_at":job["updated_at"],
+        "error_code":job["error_code"],
+        "error_message":job["error_message"],
+        "payload":job["payload"],
+        "result":result,
+        "output":output,
+    }
+
+
+@app.get("/api/render/jobs/{job_id}")
+def get_render_job(
+    job_id:str,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(403,"An explicit workspace is required to inspect render jobs")
+    try:
+        job=queue.get(job_id,workspace_id=workspace_id)
+        if job["job_type"]!="timeline_render":
+            raise JobNotFound()
+        return _render_job_view(job,workspace_id)
+    except JobNotFound:
+        raise HTTPException(404,"Render job not found")
+    except RenderOutputNotFound:
+        raise HTTPException(409,"Render job is awaiting output reconciliation")
+
+
+@app.get("/api/render/jobs/{job_id}/events")
+def get_render_job_events(
+    job_id:str,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(403,"An explicit workspace is required to inspect render events")
+    try:
+        job=queue.get(job_id,workspace_id=workspace_id)
+        if job["job_type"]!="timeline_render":
+            raise JobNotFound()
+        return {
+            "events":[
+                {
+                    "event_id":event["id"],
+                    "event_type":event["event_type"],
+                    "from_status":event["from_status"],
+                    "to_status":event["to_status"],
+                    "created_at":event["created_at"],
+                    "details":event["details"],
+                } for event in queue.events(job_id,workspace_id=workspace_id)
+            ],
+            "review_events":render_output_store.events(job_id,workspace_id),
+        }
+    except JobNotFound:
+        raise HTTPException(404,"Render job not found")
+
+
+@app.get("/api/render/jobs/{job_id}/artifact")
+def download_render_artifact(
+    job_id:str,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(403,"An explicit workspace is required to download render output")
+    try:
+        job=queue.get(job_id,workspace_id=workspace_id)
+        if job["job_type"]!="timeline_render" or job["status"]!="review_pending":
+            raise RenderOutputNotFound("Render output is not ready for review")
+        output=render_output_store.get_reviewable(job_id,workspace_id)
+        return FileResponse(
+            output["path"],media_type="video/mp4",
+            filename="nexus-render-"+output["render_id"]+".mp4",
+        )
+    except (JobNotFound,RenderOutputNotFound):
+        raise HTTPException(404,"Render output not found")
+
+
+@app.post("/api/render/jobs/{job_id}/cancel")
+def cancel_render_job(
+    job_id:str,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(403,"An explicit workspace is required to cancel render jobs")
+    try:
+        job=queue.get(job_id,workspace_id=workspace_id)
+        if job["job_type"]!="timeline_render":
+            raise JobNotFound()
+        cancelled=queue.cancel(
+            job_id,reason="Cancelled by workspace operator",workspace_id=workspace_id
+        )
+        return {"job_id":cancelled["id"],"status":cancelled["status"]}
+    except JobNotFound:
+        raise HTTPException(404,"Render job not found")
+    except ValueError as exc:
+        raise HTTPException(409,str(exc))
+
+
+@app.post("/api/render/jobs/{job_id}/review")
+def decide_render_review(
+    job_id:str,
+    body:dict[str,Any],
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    reviewer_id=require_review_permission(x_review_token,"review.decide")
+    workspace_id=resolve_operator_workspace_scope(reviewer_id,x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(403,"An explicit workspace is required to review render output")
+    decision=body.get("decision")
+    note=body.get("note","")
+    if not isinstance(decision,str) or decision not in {"approved","rejected"}:
+        raise HTTPException(422,"Decision must be approved or rejected")
+    if not isinstance(note,str) or len(note)>2000:
+        raise HTTPException(422,"Review note must be at most 2000 characters")
+    try:
+        job=queue.get(job_id,workspace_id=workspace_id)
+        if job["job_type"]!="timeline_render" or job["status"]!="review_pending":
+            raise RenderOutputNotFound("Render output is not awaiting review")
+        output=render_output_store.decide(job_id,workspace_id,reviewer_id,decision,note)
+        return {key:value for key,value in output.items() if key!="path"}
+    except (JobNotFound,RenderOutputNotFound):
+        raise HTTPException(404,"Render output not found")
+    except ValueError as exc:
+        raise HTTPException(409,str(exc))
+    except RenderOutputError as exc:
         raise HTTPException(422,str(exc))
 
 

@@ -148,7 +148,7 @@ class MediaInspector:
         try:
             result = self.runner(
                 [
-                    self.ffprobe_path, "-nostdin", "-v", "error",
+                    self.ffprobe_path, "-v", "error",
                     "-protocol_whitelist", "file,pipe",
                     "-show_entries",
                     "format=format_name,duration,size:"
@@ -166,7 +166,7 @@ class MediaInspector:
         except OSError as exc:
             raise MediaInspectionError("ffprobe could not be executed") from exc
         if result.returncode != 0:
-            detail = (result.stderr or "").strip()[:500]
+            detail = (result.stderr or "").strip()[-500:]
             raise MediaInspectionError("ffprobe rejected the media file" + (": " + detail if detail else ""))
         try:
             payload = json.loads(result.stdout)

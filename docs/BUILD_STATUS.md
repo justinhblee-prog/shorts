@@ -2769,3 +2769,34 @@ Implement the secure FFmpeg/MP4 render worker rather than revisiting the already
 - Render uploads and EDL validation use a dedicated `media` rate-limit bucket (default 10/minute, configurable with `NEXUS_API_MEDIA_RATE_LIMIT_PER_MINUTE`). Video EDL IDs are type-checked and cannot resolve to audio assets.
 - ClamAV scanning was exercised only through injected unit-test adapters; no real media upload, live ClamAV database scan, or FFmpeg MP4 render was executed. With scanning disabled, uploads are marked unscanned and are not render-resolvable.
 - PR [#421](https://github.com/justinhblee-prog/shorts/pull/421) remains Draft / Open / Unmerged. No render job execution or publishing is enabled.
+
+
+## BUILD — durable render queue and isolated worker (2026-11-20)
+
+- Added `render_output_store.py` to bind output adoption to the exact running queue job, workspace, worker ID, lease token and attempt. It verifies the MP4 path, dimensions, duration, size and SHA-256 before recording the artifact.
+- Added a dedicated `render_worker.py` that claims only `timeline_render` jobs, heartbeats its lease, resolves workspace-owned video/audio assets again, invokes the restricted FFmpeg renderer, and finishes the job as `review_pending`. It does not use the production publishing worker or provider APIs.
+- FFmpeg now runs as a POSIX process group with bounded stdout/stderr, CPU/address-space/file-size limits and a wall-clock timeout. Lease loss, cancellation or shutdown terminates the process group. Stale unadopted outputs are discarded; adopted outputs are pruned if their queue attempt fails before review handoff.
+- Added workspace-scoped render job enqueue/status/events/artifact/cancel/review endpoints. Review decisions are immutable audit events; approval is not publication. Job responses never expose lease tokens, worker IDs or local filesystem paths.
+- Added an isolated Compose `render-worker` service with 2 CPU, 3 GiB memory, 64 process limit and 45-second graceful shutdown. Compose CI now runs a real FFmpeg fixture through the durable queue/worker/output-store path in a disposable DB/media directory.
+- Exact head `49436a2a4b3ac01d308fc42329fc2078ab38d66c` passed **865 backend tests** and Chromium desktop/mobile smoke in [Backend run 44708253723](https://github.com/justinhblee-prog/shorts/actions/runs/44708253723). The same exact head passed six-service Compose integration in [Compose run 44708253747](https://github.com/justinhblee-prog/shorts/actions/runs/44708253747), including a real FFmpeg/ffprobe render through the durable queue worker, 1080×1920 output validation, review-pending handoff, encrypted backup, isolated restore and wrong-key rejection. The smoke uses a fake clean-scanner adapter; it does not validate a live ClamAV database or publish to a provider.
+- Scope still excludes title overlays, source-clip audio mixing, and any automatic publication. Human review remains the final gate.
+
+
+## BUILD — durable render worker exact-head validation (2026-11-20)
+
+- Exact head `12f7a70e29c2e905364873ad2b9b349a3dd54eb7` passed **864 backend tests** and Chromium desktop/mobile smoke [run 44706888144](https://github.com/justinhblee-prog/shorts/actions/runs/44706888144).
+- The same exact head passed six-service Compose integration [run 44706888290](https://github.com/justinhblee-prog/shorts/actions/runs/44706888290). The disposable smoke generated an MP4 source with FFmpeg, registered it through the workspace asset store using a fake clean-scanner adapter, enqueued a durable `timeline_render` job, ran the actual render worker/FFmpeg/ffprobe pipeline, verified a 1080×1920 artifact and `review_pending` handoff, then discarded the temporary DB and media. Output fixture: 164,286 bytes; SHA-256 `f510e86175e3dad73566303772f25c055f150cacc167ff920b97aaae01d2496f`.
+- Compose also verified the six services, encrypted backup creation, isolated restore, wrong-key rejection without target DB modification, and teardown.
+- The backend suite additionally verified the FFmpeg process-group cancellation path, queue lease fencing, workspace path confinement, immutable review audit and stale output cleanup.
+- PR [#422](https://github.com/justinhblee-prog/shorts/pull/422) remains Draft / Open / Unmerged. No publishing or production rollout was performed.
+- Live ClamAV database scanning, user media upload, external provider publishing and production acceptance remain unverified. The Compose render fixture injects a clean scanner adapter.
+
+
+## BUILD — timeline render/review UI exact-head validation (2026-11-20)
+
+- Draft PR [#425](https://github.com/justinhblee-prog/shorts/pull/425) connects the timeline editor to workspace MP4 upload, server EDL validation, idempotent render enqueue, status/cancel, authenticated MP4 preview/download and explicit approve/reject review.
+- Exact UI head `35aede3ebf2659d6f6a24b60e2b116cf5184bc37` passed **865 backend tests** and Chromium desktop/mobile smoke [run 44708689692](https://github.com/justinhblee-prog/shorts/actions/runs/44708689692). Browser smoke verified render controls, MP4-only selection, disabled review actions until the artifact is loaded, workspace isolation, Korean rendering, review and responsive flows.
+- The same UI head passed six-service Compose integration [run 44708689724](https://github.com/justinhblee-prog/shorts/actions/runs/44708689724), including real FFmpeg/ffprobe rendering through the durable worker, review-pending handoff and encrypted backup/restore.
+- UI stores only render job ID and workspace ID locally; review tokens remain in the existing authenticated session. Switching workspace invalidates cached asset IDs but preserves the job/workspace pair for returning to the original workspace.
+- Known UI/renderer limits remain: title overlays and source-clip audio mixing are unsupported; separate M4A audio is accepted. ClamAV must be enabled and report `clean`. Preview currently buffers the MP4 into a Blob URL.
+- PRs #422 and #425 remain Draft / Open / Unmerged. No provider publishing or production rollout occurred.

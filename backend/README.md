@@ -518,7 +518,7 @@ docker compose run --rm --no-deps backup python backup_restore.py backup --db /a
 Restore only after stopping API, worker, scheduler, metrics collector and backup services:
 
 ```bash
-docker compose stop api worker scheduler metrics-collector backup
+docker compose stop api worker render-worker scheduler metrics-collector backup
 docker compose run --rm --no-deps --entrypoint python backup backup_restore.py restore --archive /backups/ARCHIVE_NAME.tar.gz --db /app/data/nexus.sqlite3 --media-dir /app/data/media --output /backups --confirm-restore
 docker compose up -d
 ```
@@ -611,13 +611,29 @@ The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewa
 
 Current constraints: clips must be ordered and contiguous; the total timeline is capped at 180 seconds; aggregate registered input bytes are bounded; optional audio is used as the output narration/music track (source-clip audio mixing is not implemented); title clips are rejected.
 
-This is a tested low-level primitive, **not yet an end-to-end render worker**. It is intentionally not connected to the API or queue until workspace-owned asset registration, workspace-scoped durable render-job state, lease/recovery semantics and an authenticated submission contract are implemented. Title clips are rejected for now rather than passed through unsafe text/filter interpolation. No automatic approval or publishing occurs.
+The primitive is now connected to the workspace-owned asset registry and the dedicated lease-fenced `timeline_render` queue worker described below. Compose CI exercises a real one-second MP4 render through that worker and verifies the review-pending handoff. Title clips remain rejected rather than passed through unsafe text/filter interpolation; source-clip audio mixing and automatic publishing are not implemented.
 
 
 ### BUILD — workspace-scoped render asset registry
 
 The authenticated `POST /api/render/assets` endpoint streams only MP4 video or M4A/MP4 audio into an opaque workspace namespace. It enforces per-type byte limits, verifies the MP4-family signature, computes SHA-256, and atomically registers the asset with its authenticated owner and workspace. `GET /api/render/assets` lists only the selected workspace's assets. `POST /api/render/validate-edl` validates EDL v1 and resolves every video `asset_id` against the authenticated workspace; it never returns filesystem paths.
 
-Malware scanning follows `NEXUS_MEDIA_SCAN_ENABLED`. If scanning is disabled, uploads are stored with `scan_status=disabled` and are **not render-resolvable**. Rendering requires a clean ClamAV result and a fresh SHA-256/size match at resolution time. Enable scanning only after configuring the ClamAV database/updater. This milestone still does not enqueue or execute render jobs.
+Malware scanning follows `NEXUS_MEDIA_SCAN_ENABLED`. If scanning is disabled, uploads are stored with `scan_status=disabled` and are **not render-resolvable**. Rendering requires a clean ClamAV result and a fresh SHA-256/size match at resolution time. Enable scanning only after configuring the ClamAV database/updater. The asset registry itself does not execute jobs; the separate durable queue and render worker described below perform that work.
 
 Uploads and EDL validation use the dedicated `media` rate-limit bucket (default 10 requests/minute; configure `NEXUS_API_MEDIA_RATE_LIMIT_PER_MINUTE`). Video EDL clips must resolve to registered `video` assets; an audio asset ID cannot be substituted for a video source.
+
+
+### Durable timeline render jobs
+
+- Queue a workspace-scoped job with `POST /api/render/jobs` (EDL v1 plus optional registered audio asset ID and optional `Idempotency-Key`). The API revalidates video/audio ownership and clean-scan state before enqueueing.
+- Inspect `GET /api/render/jobs/{job_id}` and `/events`; download the output through `/artifact`; cancel queued/running work with `POST /cancel`; submit an explicit `approved` or `rejected` decision through `POST /review`. Review decisions are append-only audited and never publish automatically.
+- The dedicated Compose `render-worker` claims only `timeline_render` jobs, renews a fenced queue lease, resolves asset IDs again inside the job workspace, and runs FFmpeg in its own container (`cpus: 2.0`, `mem_limit: 3g`, `pids_limit: 64`). FFmpeg runs in a killable POSIX process group; lease loss/operator cancellation terminates that group.
+- Successful output is adopted only while the queue lease and attempt still match. The output is not exposed until the queue transitions to `review_pending`; output metadata contains no local filesystem path. A stale attempt cannot complete or overwrite a newer attempt's review state.
+- The Compose integration smoke now generates a disposable source MP4, enqueues a render job in a temporary database, runs the actual worker/FFmpeg/ffprobe path, verifies a 1080×1920 MP4 and review-pending handoff, then discards the temporary database and media.
+- This worker has no publishing-provider integration. Source-clip audio mixing, title overlays, and automated publication remain unsupported.
+
+
+Exact-head validation for the durable queue/worker integration: 865 backend tests and Chromium desktop/mobile smoke passed in [run 44708253723](https://github.com/justinhblee-prog/shorts/actions/runs/44708253723). Six-service Compose integration passed in [run 44708253747](https://github.com/justinhblee-prog/shorts/actions/runs/44708253747), including a real FFmpeg/ffprobe render through the queue worker and a review-pending handoff, plus encrypted backup/restore and wrong-key rejection. The render fixture injects a clean scanner; live ClamAV and provider publishing remain untested.
+
+
+The timeline editor now exposes the durable render API through Draft PR [#425](https://github.com/justinhblee-prog/shorts/pull/425). Its exact head passed Chromium desktop/mobile smoke and the backend suite in [run 44708689692](https://github.com/justinhblee-prog/shorts/actions/runs/44708689692), and six-service Compose/real FFmpeg integration in [run 44708689724](https://github.com/justinhblee-prog/shorts/actions/runs/44708689724). The UI uploads only MP4/M4A workspace assets, requires a clean scan, and gates approve/reject behind loading the completed MP4 preview. No automatic provider publishing is wired.

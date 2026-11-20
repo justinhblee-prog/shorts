@@ -34,6 +34,7 @@ Open the single-page operations dashboard at **http://localhost:8502/**. Enter t
 |---|---|
 | API | FastAPI dashboard and protected operational endpoints |
 | Worker | Claims and executes short-video production jobs |
+| Render Worker | Runs workspace-scoped FFmpeg jobs in a CPU/memory-limited container and hands outputs to human review |
 | Scheduler | Dispatches due interval schedules into the durable queue |
 
 All services share the persistent `nexus_data` volume. The scheduler uses a SQLite singleton leader lease with a fencing token, so multiple instances can safely run with only one active dispatcher; crashed leaders are replaced after lease expiry. This remains a single-host SQLite baseline, not a horizontally scalable multi-host production deployment.
