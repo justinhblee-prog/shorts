@@ -828,7 +828,7 @@
       if(event.key!=="Enter")return;
       const query=globalSearch.value.trim().toLocaleLowerCase("ko");
       if(!query)return;
-      const candidates=[...document.querySelectorAll("main h1,main h2,main h3,main label,main .panel-kicker,main .section-index")];
+      const candidates=[...document.querySelectorAll("main h1,main h2,main h3,main label,main .panel-kicker,main .section-index,main .data-item,main .review-card,main .pipeline-step,main .cyber-approval-item,main .cyber-calendar-event,main .analytics-table tr")].filter(node=>node.getClientRects().length>0);
       const match=candidates.find(node=>(node.textContent||"").toLocaleLowerCase("ko").includes(query));
       if(match){match.scrollIntoView({behavior:"smooth",block:"center"});match.setAttribute("tabindex","-1");match.focus({preventScroll:true});}
       else{toast("검색어와 일치하는 화면 항목을 찾지 못했습니다.");}
