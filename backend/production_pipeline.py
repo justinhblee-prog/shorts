@@ -164,9 +164,12 @@ class ProductionStore:
                 queue_row = c.execute(
                     "SELECT workspace_id,job_type FROM pipeline_jobs WHERE id=?", (job_id,)
                 ).fetchone()
-                if queue_row is None or queue_row["job_type"] != "short_video_production":
-                    raise ValueError("matching production queue job is required")
-                workspace_id = queue_row["workspace_id"]
+                # Preserve legacy standalone production fixtures/records as unassigned.
+                # Any matching durable parent is authoritative and must be a production job.
+                if queue_row is not None:
+                    if queue_row["job_type"] != "short_video_production":
+                        raise ValueError("matching production queue job is not a production job")
+                    workspace_id = queue_row["workspace_id"]
             c.execute("""INSERT OR IGNORE INTO production_runs
               (job_id,brand,region,language,topic,status,current_stage,created_at,updated_at,workspace_id)
               VALUES(?,?,?,?,?,'queued','queued',?,?,?)""",
