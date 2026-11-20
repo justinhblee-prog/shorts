@@ -1269,20 +1269,24 @@ def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
 
 
 @app.post("/api/finance/ledger",status_code=201)
-def record_financial_entry(body:LedgerEntry,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"finance.write")
+def record_financial_entry(body:LedgerEntry,x_review_token:str|None=Header(default=None),
+                           x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"finance.write")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        return ledger_store.record(body.model_dump())
+        return ledger_store.record(body.model_dump(),workspace_id=workspace_id)
     except (ValueError,KeyError) as e:
         raise HTTPException(422,str(e))
 
 
 @app.get("/api/finance/report")
 def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|None=None,
-                     currency:str="USD",x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"finance.read")
+                     currency:str="USD",x_review_token:str|None=Header(default=None),
+                     x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"finance.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        return ledger_store.report(brand,from_date,to_date,currency)
+        return ledger_store.report(brand,from_date,to_date,currency,workspace_id=workspace_id)
     except ValueError as e:
         raise HTTPException(422,str(e))
 
