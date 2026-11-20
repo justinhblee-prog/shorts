@@ -220,3 +220,5 @@
 - Hosted CI runs 44652238309, 44652246574, and 44652255170 were started for these changes. Exact-head PASS remains pending until all steps, including both Chromium smoke tests and artifact upload, succeed.
 - Next UI increment: make prerequisite relationships easier to follow as a visual DAG and handle prerequisites omitted by API pagination explicitly. Keep source status authoritative and never infer execution state.
 - PR #415 remains Draft/open/unmerged; no merge, deployment, default-branch change, runner activation, or live provider action.
+
+- Follow-up UI behavior: prerequisite labels are now keyboard-operable links that scroll to and focus the persisted parent job card. Parent IDs not present in the current API page are rendered with an explicit “현재 목록 외” state. Playwright covers click and Enter activation.
