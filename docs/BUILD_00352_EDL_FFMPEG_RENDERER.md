@@ -23,7 +23,7 @@ Construct `TimelineFFmpegRenderer` with:
 
 `workspace_asset_resolver(asset_store)` supplies a resolver that requires clean workspace assets and returns their trusted SHA-256. The renderer copies each resolved asset into a per-job private work directory and verifies the copied bytes against the trusted digest before passing paths to FFmpeg.
 
-Pass the renderer to `TimelineRenderWorker` and pass a `RenderArtifactStore` as `artifact_store`. The worker supplies workspace and creator identity to renderers that accept that context. It passes its lease-loss event into the renderer; FFmpeg processes are run without a shell, with bounded runtime and cancellation.
+Pass the renderer to `TimelineRenderWorker` and pass a `RenderArtifactStore` as `artifact_store`. The optional `backend/timeline_render_worker_service.py` entrypoint builds these dependencies from environment variables and is available through the Compose `render` profile. It claims only `timeline_render` jobs and has a separate stable worker identity. The worker supplies workspace and creator identity to renderers that accept that context. It passes its lease-loss and graceful-shutdown events into the renderer; FFmpeg processes are run without a shell, with bounded runtime and cancellation.
 
 On success the renderer returns a staged MP4 path. The artifact store rechecks the live lease, generation and EDL snapshot binding before atomically adopting it into private artifact storage and moving the queue row to `review_pending`. This is not publishing.
 
@@ -35,5 +35,5 @@ On success the renderer returns a staged MP4 path. The artifact store rechecks t
 - A real malware scanner and trusted input-media probe must populate clean status and actual source duration metadata.
 - Title overlays, transitions, subtitles and richer timeline compositing need explicit schema and rendering semantics before implementation.
 - The renderer currently requires contiguous video clips. Timeline gaps/overlaps need an explicit black-frame/overlay policy.
-- The production worker service must configure this renderer and the trusted workspace asset resolver; this repository increment supplies the implementation and tests, not a deployed worker.
+- The optional worker service is implemented but not enabled by default. Authenticated API upload/render submission routes and production worker orchestration are not yet wired.
 - No real-media, production isolation or publishing success is claimed.
