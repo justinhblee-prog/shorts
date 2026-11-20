@@ -227,3 +227,5 @@ The customer identity provider and account contract must be selected before impl
 - YouTube Analytics detail lookup now also joins through the parent production job and enforces `workspace_id` at the store query, in addition to the API membership check. Regression coverage checks same-workspace visibility and cross-workspace denial.
 
 - Direct-call regression exposed FastAPI's `Header` sentinel as a truthy default; the guard now explicitly accepts only a non-empty string. The failing CI case was fixed in code commit `3a28f0a06d6341ef61a42bcfaa32da233c5dd101`; rerun is pending.
+
+- Browser smoke now sends the selected workspace header to `/api/publishing/analytics-status`; the first run correctly surfaced the new default-deny contract as a stale smoke fixture (HTTP 403). Updated fixture validation is pending.
