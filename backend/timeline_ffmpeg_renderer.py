@@ -286,6 +286,7 @@ class TimelineFFmpegRenderer:
                     audio_tracks.append({
                         "path": str(staged_assets[asset_id]),
                         "start_ms": round(clip["start_ms"]),
+                        "source_in_ms": round(clip["source_in_ms"]),
                         "duration_ms": round(clip["end_ms"] - clip["start_ms"]),
                         "gain": clip["gain"],
                         "fade_in_ms": clip["fade_in_ms"],
