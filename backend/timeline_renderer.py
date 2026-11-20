@@ -126,13 +126,21 @@ class TimelineRenderer:
         if total_duration <= 0 or total_duration > 180:
             raise TimelineRenderError("Rendered timeline duration is outside the supported range")
 
-        target_dir = Path(output_dir or self.media_root / "renders")
-        target_dir.mkdir(parents=True, exist_ok=True)
+        target_dir = Path(output_dir) if output_dir is not None else self.media_root / "renders"
+        if not target_dir.is_absolute():
+            target_dir = self.media_root / target_dir
         if target_dir.is_symlink():
             raise TimelineRenderError("Render output directory must not be a symlink")
         try:
+            target_dir = target_dir.resolve(strict=False)
+            target_dir.relative_to(self.media_root)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            if target_dir.is_symlink():
+                raise TimelineRenderError("Render output directory must not be a symlink")
             resolved_dir = target_dir.resolve(strict=True)
             resolved_dir.relative_to(self.media_root)
+        except TimelineRenderError:
+            raise
         except (OSError, ValueError) as exc:
             raise TimelineRenderError("Render output directory escaped the media root") from exc
 
