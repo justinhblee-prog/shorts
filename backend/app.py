@@ -1583,12 +1583,23 @@ def list_development_workers(
 def list_development_jobs(
     status:str|None=None,
     limit:int=Query(default=100,ge=1,le=500),
+    offset:int=Query(default=0,ge=0,le=100000),
     x_review_token:str|None=Header(default=None),
 ):
     require_review_permission(x_review_token,"operations.read")
     statuses=[item.strip() for item in status.split(",") if item.strip()] if status else None
-    return {"jobs":[_public_development_job(job) for job in development_job_store.list(statuses=statuses,limit=limit)],
-            "summary":development_job_store.summary()}
+    jobs=development_job_store.list(statuses=statuses,limit=limit,offset=offset)
+    total=development_job_store.count(statuses=statuses)
+    next_offset=offset+len(jobs)
+    return {
+        "jobs":[_public_development_job(job) for job in jobs],
+        "summary":development_job_store.summary(),
+        "pagination":{
+            "limit":limit,"offset":offset,"total":total,
+            "has_more":next_offset<total,
+            "next_offset":next_offset if next_offset<total else None,
+        },
+    }
 
 
 @app.get("/api/development/jobs/{job_id}/events")
