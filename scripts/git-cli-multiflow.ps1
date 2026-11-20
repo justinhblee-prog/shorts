@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$Plan,[switch]$Run,[string]$Task,[string]$Base,[string]$AgentCommand=$env:DEVFLOW_AGENT_COMMAND,[string]$AgentArgsJson=$env:DEVFLOW_AGENT_ARGS_JSON,[ValidateRange(1,20)][int]$MaxTasks=3)
+param([switch]$Plan,[switch]$Run,[string]$Task,[string]$Base,[string]$AgentCommand=$env:DEVFLOW_AGENT_COMMAND,[string]$AgentArgsJson=$env:DEVFLOW_AGENT_ARGS_JSON,[ValidateRange(1,20)][int]$MaxTasks=20)
 $ErrorActionPreference="Stop"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required. Start this script with pwsh."}
 if($Run){
