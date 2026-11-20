@@ -35,6 +35,7 @@ class ScheduleStore:
             c.executescript("""
             CREATE TABLE IF NOT EXISTS production_schedules(
               id TEXT PRIMARY KEY, name TEXT NOT NULL, interval_seconds INTEGER NOT NULL,
+              workspace_id TEXT,
               payload_json TEXT NOT NULL, next_run_at TEXT NOT NULL,
               active INTEGER NOT NULL DEFAULT 1, last_enqueued_at TEXT,
               created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -57,6 +58,11 @@ class ScheduleStore:
               updated_at TEXT NOT NULL
             );
             """)
+            schedule_columns = {row["name"] for row in c.execute(
+                "PRAGMA table_info(production_schedules)").fetchall()}
+            if "workspace_id" not in schedule_columns:
+                c.execute("ALTER TABLE production_schedules ADD COLUMN workspace_id TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_schedule_workspace_active ON production_schedules(workspace_id,active,next_run_at)")
             columns = {row["name"] for row in c.execute(
                 "PRAGMA table_info(schedule_dispatch_outbox)").fetchall()}
             if "next_attempt_at" not in columns:
@@ -80,9 +86,11 @@ class ScheduleStore:
         finally:
             c.close()
 
-    def create(self, name, interval_seconds, payload, start_at=None):
+    def create(self, name, interval_seconds, payload, start_at=None, workspace_id=None):
         if not name.strip():
             raise ValueError("schedule name is required")
+        if workspace_id is not None and (not isinstance(workspace_id, str) or not workspace_id.strip() or len(workspace_id) > 128):
+            raise ValueError("workspace_id must be a non-empty string of at most 128 characters")
         if isinstance(interval_seconds, bool) or not isinstance(interval_seconds, int):
             raise ValueError("interval_seconds must be an integer")
         interval = interval_seconds
@@ -102,17 +110,17 @@ class ScheduleStore:
             due = _stamp(start if start is not None else now)
             stamp = _stamp(now)
             c.execute("""INSERT INTO production_schedules
-              (id,name,interval_seconds,payload_json,next_run_at,active,created_at,updated_at)
-              VALUES(?,?,?,?,?,1,?,?)""",
-              (sid, name.strip(), interval, json.dumps(payload, ensure_ascii=False), due, stamp, stamp))
-            return self.get(sid, c)
+              (id,name,interval_seconds,workspace_id,payload_json,next_run_at,active,created_at,updated_at)
+              VALUES(?,?,?,?,?,?,1,?,?)""",
+              (sid, name.strip(), interval, workspace_id, json.dumps(payload, ensure_ascii=False), due, stamp, stamp))
+            return self.get(sid, c, workspace_id=workspace_id)
 
-    def get(self, sid, c=None):
+    def get(self, sid, c=None, workspace_id=None):
         if c is not None:
-            row = c.execute("SELECT * FROM production_schedules WHERE id=?", (sid,)).fetchone()
+            row = c.execute("SELECT * FROM production_schedules WHERE id=? AND workspace_id IS ?", (sid, workspace_id)).fetchone()
             return self._decode(row)
         with self.db() as db:
-            return self.get(sid, db)
+            return self.get(sid, db, workspace_id=workspace_id)
 
     @staticmethod
     def _decode(row):
@@ -123,19 +131,19 @@ class ScheduleStore:
         d["active"] = bool(d["active"])
         return d
 
-    def list(self):
+    def list(self, workspace_id=None):
         with self.db() as c:
             return [self._decode(r) for r in c.execute(
-                "SELECT * FROM production_schedules ORDER BY created_at DESC")]
+                "SELECT * FROM production_schedules WHERE workspace_id IS ? ORDER BY created_at DESC", (workspace_id,))]
 
-    def set_active(self, sid, active):
+    def set_active(self, sid, active, workspace_id=None):
         if not isinstance(active, bool):
             raise ValueError("active must be a boolean")
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             stamp = _stamp(datetime.now(timezone.utc))
-            cur = c.execute("UPDATE production_schedules SET active=?,updated_at=? WHERE id=?",
-                            (int(bool(active)), stamp, sid))
+            cur = c.execute("UPDATE production_schedules SET active=?,updated_at=? WHERE id=? AND workspace_id IS ?",
+                            (int(bool(active)), stamp, sid, workspace_id))
             if not cur.rowcount:
                 return None
             if not active:
@@ -144,27 +152,29 @@ class ScheduleStore:
                 c.execute("""UPDATE schedule_dispatch_outbox
                     SET status='cancelled',last_error='Schedule deactivated before dispatch'
                     WHERE schedule_id=? AND status='pending'""", (sid,))
-            return self.get(sid, c)
+            return self.get(sid, c, workspace_id=workspace_id)
 
     def pending_dispatches(self, limit=100, now=None):
         limit = _bounded_limit(limit, "limit", 500)
         with self.db() as c:
             if now is None:
-                rows = c.execute("""SELECT * FROM schedule_dispatch_outbox
-                    WHERE status='pending' ORDER BY created_at LIMIT ?""",
+                rows = c.execute("""SELECT o.*,s.workspace_id FROM schedule_dispatch_outbox o
+                    LEFT JOIN production_schedules s ON s.id=o.schedule_id
+                    WHERE o.status='pending' ORDER BY o.created_at LIMIT ?""",
                     (limit,)).fetchall()
             else:
                 if now.tzinfo is None:
                     raise ValueError("now must be timezone-aware")
-                rows = c.execute("""SELECT * FROM schedule_dispatch_outbox
-                    WHERE status='pending' AND
-                    (next_attempt_at IS NULL OR next_attempt_at<=?)
-                    ORDER BY created_at LIMIT ?""",
+                rows = c.execute("""SELECT o.*,s.workspace_id FROM schedule_dispatch_outbox o
+                    LEFT JOIN production_schedules s ON s.id=o.schedule_id
+                    WHERE o.status='pending' AND
+                    (o.next_attempt_at IS NULL OR o.next_attempt_at<=?)
+                    ORDER BY o.created_at LIMIT ?""",
                     (_stamp(now), limit)).fetchall()
             return [dict(row) for row in rows]
 
 
-    def outbox_status(self, limit=20, now=None):
+    def outbox_status(self, limit=20, now=None, workspace_id=None):
         limit = _bounded_limit(limit, "limit", 100)
         current = now or datetime.now(timezone.utc)
         if current.tzinfo is None:
@@ -172,24 +182,28 @@ class ScheduleStore:
         current_s = _stamp(current)
         with self.db() as c:
             counts = {row["status"]: row["n"] for row in c.execute(
-                "SELECT status,COUNT(*) n FROM schedule_dispatch_outbox GROUP BY status")}
-            pending_retries = c.execute("""SELECT COUNT(*) FROM schedule_dispatch_outbox
-                WHERE status='pending' AND next_attempt_at IS NOT NULL
-                AND next_attempt_at>?""", (current_s,)).fetchone()[0]
-            pending_ready = c.execute("""SELECT COUNT(*) FROM schedule_dispatch_outbox
-                WHERE status='pending' AND
-                (next_attempt_at IS NULL OR next_attempt_at<=?)""",
-                (current_s,)).fetchone()[0]
-            rows = c.execute("""SELECT id,schedule_id,scheduled_for,status,attempts,
-                last_error,created_at,next_attempt_at FROM schedule_dispatch_outbox
-                ORDER BY CASE status WHEN 'dead_letter' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
-                created_at DESC LIMIT ?""", (limit,)).fetchall()
+                "SELECT o.status,COUNT(*) n FROM schedule_dispatch_outbox o LEFT JOIN production_schedules s ON s.id=o.schedule_id WHERE s.workspace_id IS ? GROUP BY o.status", (workspace_id,))}
+            pending_retries = c.execute("""SELECT COUNT(*) FROM schedule_dispatch_outbox o
+                LEFT JOIN production_schedules s ON s.id=o.schedule_id
+                WHERE s.workspace_id IS ? AND o.status='pending'
+                AND o.next_attempt_at IS NOT NULL AND o.next_attempt_at>?""", (workspace_id, current_s)).fetchone()[0]
+            pending_ready = c.execute("""SELECT COUNT(*) FROM schedule_dispatch_outbox o
+                LEFT JOIN production_schedules s ON s.id=o.schedule_id
+                WHERE s.workspace_id IS ? AND o.status='pending' AND
+                (o.next_attempt_at IS NULL OR o.next_attempt_at<=?)""",
+                (workspace_id, current_s)).fetchone()[0]
+            rows = c.execute("""SELECT o.id,o.schedule_id,o.scheduled_for,o.status,o.attempts,
+                o.last_error,o.created_at,o.next_attempt_at FROM schedule_dispatch_outbox o
+                LEFT JOIN production_schedules s ON s.id=o.schedule_id
+                WHERE s.workspace_id IS ?
+                ORDER BY CASE o.status WHEN 'dead_letter' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+                o.created_at DESC LIMIT ?""", (workspace_id, limit)).fetchall()
             return {"counts": counts, "items": [dict(row) for row in rows],
                     "pending_retries": pending_retries, "pending_ready": pending_ready}
 
 
 
-    def retry_dead_letter(self, outbox_id):
+    def retry_dead_letter(self, outbox_id, workspace_id=None):
         """Explicitly requeue a dead-letter item without changing its idempotency key."""
         if not isinstance(outbox_id, str) or not outbox_id.strip():
             raise ValueError("outbox_id is required")
@@ -202,7 +216,8 @@ class ScheduleStore:
                 AND EXISTS (
                     SELECT 1 FROM production_schedules s
                     WHERE s.id=schedule_dispatch_outbox.schedule_id AND s.active=1
-                )""", (outbox_id,))
+                    AND s.workspace_id IS ?
+                )""", (outbox_id, workspace_id))
             if not cur.rowcount:
                 return None
             row = c.execute("SELECT * FROM schedule_dispatch_outbox WHERE id=?",
@@ -331,7 +346,8 @@ class ScheduleStore:
                 payload = json.loads(item["payload_json"])
                 job = queue.enqueue("short_video_production", payload,
                     channel_name=payload["brand"],
-                    idempotency_key="schedule:" + item["schedule_id"] + ":" + item["scheduled_for"])
+                    idempotency_key="schedule:" + item["schedule_id"] + ":" + item["scheduled_for"],
+                    workspace_id=item["workspace_id"])
                 with self.db() as c:
                     c.execute("BEGIN IMMEDIATE")
                     # The queue may have accepted the idempotent job while this

@@ -27,6 +27,34 @@ class MediaStagerTests(unittest.TestCase):
         self.assertEqual(result["sha256"],hashlib.sha256(self.payload).hexdigest())
         self.assertEqual(result["size_bytes"],len(self.payload))
 
+    def test_workspace_paths_are_isolated_and_opaque(self):
+        a = self.stager.stage("same-job", "https://cdn.example.test/video.mp4", workspace_id="workspace-a")
+        b = self.stager.stage("same-job", "https://cdn.example.test/video.mp4", workspace_id="workspace-b")
+        self.assertNotEqual(a["media_path"], b["media_path"])
+        path_a = self.stager.staged_path("same-job", "workspace-a")
+        path_b = self.stager.staged_path("same-job", "workspace-b")
+        self.assertNotEqual(path_a.parent, path_b.parent)
+        self.assertTrue(path_a.is_file())
+        self.assertTrue(path_b.is_file())
+        self.assertNotIn("workspace-a", str(path_a))
+        self.assertNotIn("workspace-b", str(path_b))
+
+    def test_workspace_id_is_validated_before_artifact_download(self):
+        with self.assertRaises(MediaStagingError):
+            self.stager.stage("job-1", "https://cdn.example.test/video.mp4", workspace_id="../other")
+        self.assertEqual(self.calls, [])
+
+    def test_workspace_cleanup_fails_closed_without_scoped_upload_store(self):
+        self.stager.stage("same-job", "https://cdn.example.test/video.mp4", workspace_id="workspace-a")
+        self.stager.stage("same-job", "https://cdn.example.test/video.mp4", workspace_id="workspace-b")
+        class UploadStore:
+            def get(self, job_id):
+                return {"status": "uploaded", "video_id": "yt-123"}
+        with self.assertRaisesRegex(MediaStagingError, "Workspace-scoped upload confirmation"):
+            self.stager.cleanup_uploaded("same-job", UploadStore(), workspace_id="workspace-a")
+        self.assertTrue(self.stager.staged_path("same-job", "workspace-a").exists())
+        self.assertTrue(self.stager.staged_path("same-job", "workspace-b").exists())
+
     def test_rejects_non_allowlisted_host_before_network(self):
         with self.assertRaises(MediaStagingError):
             self.stager.stage("job-1","https://evil.example/video.mp4")

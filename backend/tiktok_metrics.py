@@ -366,11 +366,11 @@ class TikTokMetricsStore:
             """).fetchall()
         return {row["video_id"]: row["collected_at"] for row in rows}
 
-    def history(self, publication_store, video_id=None, limit=100, since=None, offset=0, before_collected_at=None, before_id=None):
+    def history(self, publication_store, video_id=None, limit=100, since=None, offset=0, before_collected_at=None, before_id=None, workspace_id=None):
         limit=max(1,min(int(limit),500))
         offset=max(0,min(int(offset),10000000))
-        clauses=["p.status='publish_complete'","p.video_id IS NOT NULL"]
-        params=[]
+        clauses=["p.status='publish_complete'","p.video_id IS NOT NULL","pr.workspace_id IS ?"]
+        params=[workspace_id]
         if video_id:
             clauses.append("p.video_id=?")
             params.append(video_id)
@@ -382,19 +382,35 @@ class TikTokMetricsStore:
             params.extend((before_collected_at,before_collected_at,int(before_id)))
         where=" AND ".join(clauses)
         with self.db() as c:
-            rows=c.execute(f"""
-              SELECT DISTINCT s.*,p.status AS publication_status,
-                     COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
-              FROM tiktok_video_metric_snapshots s
-              JOIN tiktok_publications p ON p.video_id=s.video_id
-              WHERE {where}
-              ORDER BY s.collected_at DESC,s.id DESC LIMIT ? OFFSET ?
-            """,(*params,limit,offset)).fetchall()
+            has_production=c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+            ).fetchone() is not None
+            if not has_production:
+                if workspace_id is not None:
+                    return []
+                rows=c.execute(f"""
+                  SELECT DISTINCT s.*,p.status AS publication_status,
+                         COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
+                  FROM tiktok_video_metric_snapshots s
+                  JOIN tiktok_publications p ON p.video_id=s.video_id
+                  WHERE {" AND ".join(clauses[:2] + clauses[3:])}
+                  ORDER BY s.collected_at DESC,s.id DESC LIMIT ? OFFSET ?
+                """,(*params[1:],limit,offset)).fetchall()
+            else:
+                rows=c.execute(f"""
+                  SELECT DISTINCT s.*,p.status AS publication_status,
+                         COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
+                  FROM tiktok_video_metric_snapshots s
+                  JOIN tiktok_publications p ON p.video_id=s.video_id
+                  LEFT JOIN production_runs pr ON pr.job_id=p.job_id
+                  WHERE {where}
+                  ORDER BY s.collected_at DESC,s.id DESC LIMIT ? OFFSET ?
+                """,(*params,limit,offset)).fetchall()
         return [dict(row) for row in rows]
 
-    def recent_metrics(self, publication_store, limit=100):
+    def recent_metrics(self, publication_store, limit=100, workspace_id=None):
         limit = max(1, min(int(limit), 200))
-        eligible = publication_store.list_metrics_eligible(limit=limit)
+        eligible = publication_store.list_metrics_eligible_scoped(workspace_id,limit=limit)
         by_video = {x["video_id"]: x for x in eligible}
         if not by_video:
             return []
@@ -420,21 +436,26 @@ class TikTokMetricsStore:
             items.append(item)
         return items
 
-    def status(self, publication_store, freshness_seconds=43200):
-        # Aggregate coverage in SQLite instead of materializing every published
-        # identity and every snapshot timestamp in Python. Both stores share the
-        # same database file; keep the join and counts in one read transaction.
+    def status(self, publication_store, freshness_seconds=43200, workspace_id=None):
+        # Aggregate coverage in SQLite without materializing publication identities.
         cutoff = _stamp(_now() - timedelta(seconds=max(0, freshness_seconds)))
         with self.db() as c:
-            row = c.execute(
-                "SELECT * FROM tiktok_metrics_collection_state WHERE id=1"
-            ).fetchone()
-            coverage = c.execute("""
-              WITH eligible AS (
-                SELECT DISTINCT video_id
-                FROM tiktok_publications
-                WHERE status='publish_complete' AND video_id IS NOT NULL
-              ),
+            if workspace_id is None:
+                row = c.execute(
+                    "SELECT * FROM tiktok_metrics_collection_state WHERE id=1"
+                ).fetchone()
+                eligible_sql = """SELECT DISTINCT video_id FROM tiktok_publications
+                    WHERE status='publish_complete' AND video_id IS NOT NULL"""
+                params = (cutoff,)
+            else:
+                row = None
+                eligible_sql = """SELECT DISTINCT tp.video_id FROM tiktok_publications tp
+                    JOIN production_runs pr ON pr.job_id=tp.job_id
+                    WHERE tp.status='publish_complete' AND tp.video_id IS NOT NULL
+                      AND pr.workspace_id=?"""
+                params = (workspace_id, cutoff)
+            coverage = c.execute(f"""
+              WITH eligible AS ({eligible_sql}),
               latest AS (
                 SELECT s.video_id,MAX(s.collected_at) AS collected_at
                 FROM tiktok_video_metric_snapshots AS s
@@ -449,7 +470,7 @@ class TikTokMetricsStore:
                      MAX(latest.collected_at) AS latest_snapshot_at
               FROM eligible
               LEFT JOIN latest ON latest.video_id=eligible.video_id
-            """, (cutoff,)).fetchone()
+            """, params).fetchone()
         published = int(coverage["published_videos"] or 0)
         with_snapshot = int(coverage["with_snapshot"] or 0)
         stale = int(coverage["stale_snapshots"] or 0)

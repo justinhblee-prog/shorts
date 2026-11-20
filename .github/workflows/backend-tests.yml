@@ -23,11 +23,13 @@ jobs:
           python-version: "3.11"
       - run: pip install -r backend/requirements.txt
       - run: sh scripts/validate.sh
-      - name: Install CJK fallback fonts for readable browser artifacts
+      - name: Verify Korean font fallback without package-manager dependency
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes fonts-noto-cjk
-          fc-cache --force
+          if command -v fc-list >/dev/null 2>&1 && fc-list :lang=ko 2>/dev/null | grep -qiE 'Noto Sans CJK|Noto Sans KR|Noto Serif CJK|Nanum|UnDotum'; then
+            echo "Korean-capable system font is available."
+          else
+            echo "::notice::No known Korean fontconfig family detected; Chromium will use the OS/browser fallback stack and the browser smoke will validate rendered glyphs."
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

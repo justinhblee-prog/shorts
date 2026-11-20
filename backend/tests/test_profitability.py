@@ -44,6 +44,24 @@ class ProfitabilityTests(unittest.TestCase):
   empty=analyze_competition("AI agents",[],FakeCompetitorStore())
   self.assertEqual(empty["observed_videos"],0)
 
+ def test_opportunity_store_is_workspace_scoped_and_migrates_legacy_rows(self):
+  with tempfile.TemporaryDirectory() as d:
+   path=str(Path(d)/"db.sqlite")
+   import sqlite3
+   with sqlite3.connect(path) as db:
+    db.execute("""CREATE TABLE scored_opportunities(
+     id TEXT PRIMARY KEY,title TEXT NOT NULL,priority_score REAL NOT NULL,
+     currency TEXT NOT NULL,scenario_json TEXT NOT NULL,created_at TEXT NOT NULL)""")
+    db.execute("INSERT INTO scored_opportunities VALUES('legacy','Legacy',1,'USD','{}','2026-01-01')")
+   store=OpportunityStore(path)
+   store.save(score_opportunity(BASE),workspace_id="workspace-a")
+   store.save(score_opportunity({**BASE,"title":"B"}),workspace_id="workspace-b")
+   self.assertEqual([item["title"] for item in store.list(workspace_id="workspace-a")],
+                    ["AI workflow short"])
+   self.assertEqual([item["title"] for item in store.list(workspace_id="workspace-b")],
+                    ["B"])
+   self.assertEqual([item["title"] for item in store.list()],["Legacy"])
+
  def test_store_persists_ranked_scenarios(self):
   with tempfile.TemporaryDirectory() as d:
    store=OpportunityStore(str(Path(d)/"db.sqlite"))

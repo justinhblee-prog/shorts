@@ -42,6 +42,8 @@ async function waitForServer() {
     const checkpoint = message => process.stdout.write("[ui-smoke] " + message + "\\n");
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
+    const remoteFontRequests = [];
+    page.on("request", request => { if (/fonts\.(googleapis|gstatic)\.com/i.test(request.url())) remoteFontRequests.push(request.url()); });
     await page.route("https://fonts.googleapis.com/**", route =>
       route.fulfill({ status: 200, contentType: "text/css", body: "" })
     );
@@ -76,7 +78,90 @@ async function waitForServer() {
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     fs.mkdirSync("artifacts", { recursive: true });
     assert.match(await page.title(), /NEXUS STUDIO PRO/);
-    assert.equal(await page.locator(".main-nav a").count(), 5);
+    assert.equal(await page.locator('link[href="/assets/nexus-premium.css"]').count(), 1);
+    const visualSystem = await page.evaluate(() => ({
+      font: getComputedStyle(document.body).fontFamily,
+      background: getComputedStyle(document.body).backgroundColor,
+      heroColumns: getComputedStyle(document.querySelector(".hero")).gridTemplateColumns,
+      koreanReplacementGlyphs: (document.body.innerText.match(/\uFFFD/g) || []).length,
+      premiumStylesheet: [...document.styleSheets].some(sheet => sheet.href?.endsWith("/assets/nexus-premium.css")),
+      approvedStylesheet: [...document.styleSheets].some(sheet => sheet.href?.endsWith("/assets/nexus-approved-design.css")),
+      sidebarWidth: getComputedStyle(document.querySelector(".topbar")).width,
+      mainOffset: getComputedStyle(document.querySelector("main")).marginLeft,
+      violetAccent: getComputedStyle(document.body).getPropertyValue("--violet").trim(),
+    }));
+    assert.match(visualSystem.font, /Pretendard Variable|Pretendard|Noto Sans KR/);
+    assert.equal(visualSystem.koreanReplacementGlyphs, 0);
+    assert.equal(visualSystem.premiumStylesheet, true);
+    assert.equal(visualSystem.approvedStylesheet, true);
+    assert.equal(visualSystem.sidebarWidth, "258px");
+    assert.equal(visualSystem.mainOffset, "258px");
+    assert.equal(visualSystem.violetAccent, "#a58bff");
+    assert.deepEqual(remoteFontRequests, [], "Korean UI fonts must not depend on Google Fonts network requests");
+    checkpoint("premium typography and Korean text rendering verified");
+    assert.equal(await page.locator(".main-nav a").count(), 9);
+    assert.equal(await page.locator(".main-nav .nav-settings").count(), 1);
+    assert.equal(await page.locator("#timelineEditor").count(), 1, "local timeline editor missing");
+    await page.locator("#timelineMediaInput").setInputFiles({name:"not-a-video.txt",mimeType:"text/plain",buffer:Buffer.from("invalid")});
+    assert.equal(await page.locator(".timeline-clip").count(), 0, "non-video file must be rejected");
+    assert.match(await page.locator("#timelineStatus").textContent(), /동영상 형식이 아닙니다/);
+    await page.locator("#timelineTitleInput").fill("First title");
+    await page.locator("#timelineAddTitle").click();
+    await page.locator("#timelineTitleInput").fill("Second title");
+    await page.locator("#timelineAddTitle").click();
+    assert.equal(await page.locator(".timeline-clip").count(), 2, "timeline title clips were not added");
+    assert.equal(await page.locator("#timelineInspector").isVisible(), true);
+    await page.locator(".timeline-clip-select").nth(1).click();
+    await page.locator("#timelineMoveUp").click();
+    assert.match(await page.locator(".timeline-clip-select").first().textContent(), /Second title/, "timeline reorder failed");
+    await page.locator("#timelineIn").fill("1");
+    await page.locator("#timelineOut").fill("4");
+    await page.locator("#timelineApplyTrim").click();
+    assert.match(await page.locator(".timeline-clip").first().textContent(), /1\.0s — 4\.0s/, "timeline trim values were not applied");
+    const [timelineDownload] = await Promise.all([
+      page.waitForEvent("download"),
+      page.locator("#timelineExport").click(),
+    ]);
+    const timelinePath = await timelineDownload.path();
+    const editDecisionList = JSON.parse(fs.readFileSync(timelinePath, "utf8"));
+    assert.equal(editDecisionList.format, "nexus-edit-decision-list");
+    assert.equal(editDecisionList.rendered, false);
+    assert.equal(editDecisionList.clips.length, 2);
+    assert.equal(editDecisionList.clips[0].text, "Second title");
+    assert.equal(await page.locator("#timelineTotalDuration").textContent(), "8.0s");
+    await page.locator("#timelinePlaySelected").click();
+    assert.match(await page.locator("#timelineStatus").textContent(), /타이틀 미리보기/);
+    assert.equal(await page.locator("#timelineTitleOverlay").textContent(), "Second title");
+    assert.equal(await page.locator("#timelineTitleOverlay").isVisible(), true);
+    await page.locator("#timelineRemove").click();
+    assert.equal(await page.locator(".timeline-clip").count(), 1, "timeline clip removal failed");
+    assert.equal(await page.locator("#timelineTitleOverlay").textContent(), "First title");
+    assert.equal(await page.locator("#timelineTitleOverlay").isVisible(), true, "remaining title preview did not recover");
+    await page.locator("#timelineRemove").click();
+    assert.equal(await page.locator(".timeline-clip").count(), 0, "timeline empty state recovery failed");
+    assert.equal(await page.locator("#timelineTitleOverlay").isVisible(), false);
+    assert.equal(await page.locator("#timelinePreviewEmpty").isVisible(), true);
+    const destinations = ["home","trendList","trendRecommendations","productionForm","productionPipeline","reviewList","publishingOverview","analyticsHistory","queueDetails"];
+    const navLinks = page.locator(".main-nav a");
+    for (let index = 0; index < destinations.length; index++) {
+      const link = navLinks.nth(index);
+      assert.equal(await link.getAttribute("href"), "#" + destinations[index], "navigation destination mismatch: " + destinations[index]);
+      assert.equal(await page.locator("#" + destinations[index]).count(), 1, "missing feature destination: " + destinations[index]);
+      await link.click();
+      assert.equal(await link.getAttribute("aria-current"), "page", "navigation active state missing: " + destinations[index]);
+      assert.equal(await page.evaluate(() => location.hash), "#" + destinations[index]);
+    }
+    for (const label of ["대시보드","트렌드 탐색","콘텐츠 기획","AI 제작","영상 편집","검수·정책","게시 관리","성과 분석","작업 관리"]) assert.equal(await page.locator(".main-nav a").filter({ hasText: label }).count(), 1, "missing navigation item: " + label);
+    assert.equal(await page.locator("#workspaceSearch").count(), 1);
+    await page.keyboard.press("Control+k");
+    assert.equal(await page.evaluate(() => document.activeElement.id), "workspaceSearch");
+    await page.locator("#workspaceSearch").fill("수익성 평가");
+    await page.keyboard.press("Enter");
+    assert.match(await page.evaluate(() => document.activeElement.textContent), /수익성 평가/);
+    await page.locator("#openSettingsNav").click();
+    assert.equal(await page.locator("#settingsDialog").evaluate(node => node.open), true);
+    await page.locator("#settingsDialog .dialog-close button").click();
+    checkpoint("approved navigation, keyboard search and settings entry verified");
     assert.equal(await page.locator("#studio").count(), 1);
     assert.equal(await page.locator("#discovery").count(), 1);
     assert.equal(await page.locator("#review").count(), 1);
@@ -88,7 +173,29 @@ async function waitForServer() {
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
     checkpoint("authenticated dashboard loaded");
-    const liveApiChecks = await page.evaluate(async token => {
+    const workspaceSelector = page.locator("#workspaceSelector");
+    assert.equal(await workspaceSelector.locator("option").count(), 2,
+      "authenticated workspace membership was not loaded");
+    const workspaceId = await workspaceSelector.locator("option").nth(1).getAttribute("value");
+    assert.ok(workspaceId, "workspace option must have a stable ID");
+    const scopedWorkspaceRequest = page.waitForRequest(request =>
+      request.url().includes("/api/queue/stats") &&
+      request.headers()["x-nexus-workspace-id"] === workspaceId
+    );
+    await workspaceSelector.selectOption(workspaceId);
+    await scopedWorkspaceRequest;
+    const legacyWorkspaceRequest = page.waitForRequest(request =>
+      request.url().includes("/api/queue/stats") &&
+      !request.headers()["x-nexus-workspace-id"]
+    );
+    await workspaceSelector.selectOption("");
+    await legacyWorkspaceRequest;
+    checkpoint("workspace selector and request-level workspace isolation verified");
+    const authenticatedText = await page.locator("body").innerText();
+    assert.equal([...authenticatedText].filter(character => character === "\uFFFD").length, 0);
+    assert.equal(await page.locator("html").getAttribute("lang"), "ko");
+    checkpoint("authenticated Korean content has no replacement glyphs");
+    const liveApiChecks = await page.evaluate(async ({ token, workspaceId }) => {
       const paths = [
         "/api/brands",
         "/api/queue/stats",
@@ -96,11 +203,15 @@ async function waitForServer() {
         "/api/publishing/analytics-status",
       ];
       return Promise.all(paths.map(async path => {
-        const response = await fetch(path, { headers: { "X-Review-Token": token } });
+        const headers = { "X-Review-Token": token };
+        if (path === "/api/publishing/analytics-status") {
+          headers["X-Nexus-Workspace-Id"] = workspaceId;
+        }
+        const response = await fetch(path, { headers });
         const body = await response.json();
         return { path, status: response.status, body };
       }));
-    }, "nexus-ui-browser-smoke-token-2026-11-19-32chars");
+    }, { token: "nexus-ui-browser-smoke-token-2026-11-19-32chars", workspaceId });
     assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200]);
     assert.ok(Array.isArray(liveApiChecks[0].body.brands));
     assert.ok(Number.isFinite(Number(liveApiChecks[1].body.total)));
@@ -113,6 +224,10 @@ async function waitForServer() {
     checkpoint("authenticated core API endpoints verified");
     const reviewCard = page.locator("#reviewList .review-card").filter({ hasText: reviewJob.job_id });
     await reviewCard.waitFor({ state: "visible" });
+    await page.locator("#workspaceSearch").fill("Browser Smoke");
+    await page.keyboard.press("Enter");
+    assert.match(await page.evaluate(() => document.activeElement.textContent), /Browser Smoke/);
+    checkpoint("global keyboard search finds live authenticated review content");
     await page.locator("#reviewSearch").fill("no-such-review-item");
     await page.waitForFunction(() => document.querySelector("#reviewSearchStatus").textContent.includes("0 / 1"));
     assert.equal(await reviewCard.isVisible(), false);
@@ -183,10 +298,11 @@ async function waitForServer() {
     await page.keyboard.press("Enter");
     assert.equal(await page.evaluate(() => document.activeElement.id), "home");
 
-    for (const section of ["studio", "discovery", "review", "operations"]) {
-      const link = page.locator('.main-nav a[href="#' + section + '"]');
+    for (const section of ["trendList", "trendRecommendations", "productionForm", "productionPipeline", "reviewList", "publishingOverview", "analyticsHistory", "queueDetails"]) {
+      const link = page.locator('.main-nav a[href="#' + section + '"]').first();
       await link.click();
       assert.equal(await link.getAttribute("aria-current"), "page");
+      assert.equal(await page.evaluate(() => location.hash), "#" + section);
     }
 
     for (const width of [390, 320]) {
@@ -200,7 +316,7 @@ async function waitForServer() {
         dimensions.document <= dimensions.viewport,
         "horizontal page overflow at " + width + "px: " + JSON.stringify(dimensions)
       );
-      const targets = await page.locator(".main-nav a").evaluateAll(links =>
+      const targets = await page.locator(".main-nav a, .main-nav button").evaluateAll(links =>
         links.map(link => {
           const rect = link.getBoundingClientRect();
           return { width: rect.width, height: rect.height };

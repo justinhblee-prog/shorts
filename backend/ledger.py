@@ -14,7 +14,7 @@ class LedgerStore:
         with self.db() as c:
             c.executescript("""
             CREATE TABLE IF NOT EXISTS financial_ledger(
-              id TEXT PRIMARY KEY, job_id TEXT, brand TEXT NOT NULL, region TEXT NOT NULL,
+              id TEXT PRIMARY KEY, job_id TEXT, workspace_id TEXT, brand TEXT NOT NULL, region TEXT NOT NULL,
               entry_type TEXT NOT NULL, amount REAL NOT NULL CHECK(amount>=0),
               currency TEXT NOT NULL, source_type TEXT NOT NULL, source_reference TEXT NOT NULL,
               occurred_at TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
@@ -23,6 +23,10 @@ class LedgerStore:
             CREATE INDEX IF NOT EXISTS idx_ledger_brand_date ON financial_ledger(brand,occurred_at);
             CREATE INDEX IF NOT EXISTS idx_ledger_job ON financial_ledger(job_id);
             """)
+            columns={row["name"] for row in c.execute("PRAGMA table_info(financial_ledger)")}
+            if "workspace_id" not in columns:
+                c.execute("ALTER TABLE financial_ledger ADD COLUMN workspace_id TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_ledger_workspace_date ON financial_ledger(workspace_id,occurred_at)")
     @contextmanager
     def db(self):
         c=sqlite3.connect(self.db_path,timeout=30); c.row_factory=sqlite3.Row
@@ -30,7 +34,7 @@ class LedgerStore:
         try: yield c; c.commit()
         except Exception: c.rollback(); raise
         finally: c.close()
-    def record(self,data):
+    def record(self,data,workspace_id=None):
         typ=data["entry_type"]; src=data["source_type"]
         if typ not in self.TYPES: raise ValueError("Unsupported ledger entry_type")
         if src not in self.SOURCES: raise ValueError("Unsupported source_type")
@@ -44,19 +48,30 @@ class LedgerStore:
         datetime.fromisoformat(when.replace("Z","+00:00"))
         now=datetime.now(timezone.utc).isoformat()
         rowid=str(uuid.uuid4())
+        if workspace_id is not None and (
+                not isinstance(workspace_id,str) or not workspace_id.strip()
+                or len(workspace_id)>128):
+            raise ValueError("workspace_id must be a non-empty string of at most 128 characters")
         with self.db() as c:
+            job_id=data.get("job_id")
+            if job_id:
+                parent=c.execute("SELECT workspace_id FROM production_runs WHERE job_id=?",(job_id,)).fetchone()
+                if parent is None or parent["workspace_id"] != workspace_id:
+                    raise ValueError("financial entry job is outside the selected workspace")
             c.execute("""INSERT OR IGNORE INTO financial_ledger
-              (id,job_id,brand,region,entry_type,amount,currency,source_type,
+              (id,job_id,workspace_id,brand,region,entry_type,amount,currency,source_type,
                source_reference,occurred_at,note,created_at)
-              VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-              (rowid,data.get("job_id"),data["brand"],data["region"],typ,amount,
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+              (rowid,job_id,workspace_id,data["brand"],data["region"],typ,amount,
                currency,src,ref,when,data.get("note","")[:2000],now))
             row=c.execute("""SELECT * FROM financial_ledger WHERE
               source_type=? AND source_reference=? AND entry_type=?""",
               (src,ref,typ)).fetchone()
+            if row["workspace_id"] != workspace_id:
+                raise ValueError("financial source reference already belongs to another workspace")
             return dict(row)
-    def report(self,brand=None,from_date=None,to_date=None,currency="USD"):
-        clauses=["currency=?"]; args=[currency.upper()]
+    def report(self,brand=None,from_date=None,to_date=None,currency="USD",workspace_id=None):
+        clauses=["currency=?","workspace_id IS ?"]; args=[currency.upper(),workspace_id]
         if brand: clauses.append("brand=?"); args.append(brand)
         if from_date: clauses.append("occurred_at>=?"); args.append(from_date)
         if to_date: clauses.append("occurred_at<=?"); args.append(to_date)

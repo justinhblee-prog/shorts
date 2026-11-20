@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import queue_store
-from queue_store import JobQueue, LeaseConflict, IdempotencyConflict
+from queue_store import JobQueue, JobNotFound, LeaseConflict, IdempotencyConflict
 
 class QueueTests(unittest.TestCase):
  def setUp(self):
@@ -69,6 +69,72 @@ class QueueTests(unittest.TestCase):
    self.q.enqueue("script",{"topic":"y"},idempotency_key="once")
   with self.assertRaises(IdempotencyConflict):
    self.q.enqueue("render",{"topic":"x"},idempotency_key="once")
+
+ def test_queue_stats_and_cancellation_are_workspace_scoped(self):
+  first=self.q.enqueue("short_video_production",{"topic":"A"},workspace_id="workspace-a")
+  second=self.q.enqueue("short_video_production",{"topic":"B"},workspace_id="workspace-b")
+  self.assertEqual(self.q.stats(workspace_id="workspace-a")["total"],1)
+  self.assertEqual(self.q.stats(workspace_id="workspace-b")["total"],1)
+  self.assertEqual(self.q.stats()["total"],0)
+  with self.assertRaises(JobNotFound):
+   self.q.cancel(second["id"],workspace_id="workspace-a")
+  cancelled=self.q.cancel(second["id"],workspace_id="workspace-b")
+  self.assertEqual(cancelled["status"],"cancelled")
+  self.assertEqual(self.q.stats(workspace_id="workspace-b")["cancelled"],1)
+
+ def test_workspace_id_is_persisted_through_queue_claim(self):
+  queued=self.q.enqueue("short_video_production",{"topic":"tenant"},workspace_id="workspace-a")
+  self.assertEqual(queued["workspace_id"],"workspace-a")
+  claimed=self.q.claim("worker-tenant",job_type="short_video_production")
+  self.assertEqual(claimed["id"],queued["id"])
+  self.assertEqual(claimed["workspace_id"],"workspace-a")
+
+ def test_workspace_filtered_claim_never_claims_another_workspace(self):
+  a=self.q.enqueue("render",{"tenant":"a"},workspace_id="workspace-a")
+  b=self.q.enqueue("render",{"tenant":"b"},workspace_id="workspace-b")
+  claimed=self.q.claim("worker-a",workspace_id="workspace-a")
+  self.assertEqual(claimed["id"],a["id"])
+  self.assertEqual(claimed["workspace_id"],"workspace-a")
+  self.assertEqual(self.q.get(b["id"],workspace_id="workspace-b")["id"],b["id"])
+  self.assertEqual(self.q.events(a["id"])[0]["workspace_id"],"workspace-a")
+  with self.assertRaises(queue_store.JobNotFound):
+   self.q.get(b["id"],workspace_id="workspace-a")
+  with self.assertRaises(queue_store.JobNotFound):
+   self.q.events(b["id"],workspace_id="workspace-a")
+  self.assertEqual(self.q.claim("worker-a",workspace_id="workspace-a"),None)
+
+ def test_workspace_scope_is_enforced_on_worker_lease_transitions(self):
+  queued=self.q.enqueue("render",{},workspace_id="workspace-a")
+  claimed=self.q.claim("worker-a",workspace_id="workspace-a")
+  with self.assertRaisesRegex(LeaseConflict,"different workspace"):
+   self.q.heartbeat(queued["id"],"worker-a",claimed["lease_token"],workspace_id="workspace-b")
+  with self.assertRaisesRegex(LeaseConflict,"different workspace"):
+   self.q.finish(queued["id"],"worker-a",claimed["lease_token"],workspace_id="workspace-b")
+  with self.assertRaisesRegex(LeaseConflict,"different workspace"):
+   self.q.fail(queued["id"],"worker-a",claimed["lease_token"],"err","failed",workspace_id="workspace-b")
+  still_running=self.q.get(queued["id"],workspace_id="workspace-a")
+  self.assertEqual(still_running["status"],"running")
+  completed=self.q.finish(queued["id"],"worker-a",claimed["lease_token"],workspace_id="workspace-a")
+  self.assertEqual(completed["status"],"review_pending")
+
+ def test_workspace_filtered_claim_rejects_invalid_workspace(self):
+  with self.assertRaises(ValueError):
+   self.q.claim("worker-a",workspace_id=" ")
+
+ def test_idempotency_key_cannot_return_another_workspaces_job(self):
+  first=self.q.enqueue("short_video_production",{"topic":"same"},
+                       idempotency_key="tenant-shared-key",workspace_id="workspace-a")
+  with self.assertRaisesRegex(IdempotencyConflict,"different workspace"):
+   self.q.enqueue("short_video_production",{"topic":"same"},
+                  idempotency_key="tenant-shared-key",workspace_id="workspace-b")
+  self.assertEqual(self.q.get(first["id"])["workspace_id"],"workspace-a")
+
+ def test_workspace_id_validation_rejects_empty_and_oversized_values(self):
+  for workspace_id in ("", " " , "x" * 129, 123):
+   with self.subTest(workspace_id=workspace_id):
+    with self.assertRaises(ValueError):
+     self.q.enqueue("render",{},workspace_id=workspace_id)
+
  def test_exclusive_claim_and_fenced_completion(self):
   j=self.q.enqueue("render",{}); a=self.q.claim("worker-a")
   self.assertEqual(a["id"],j["id"]); self.assertIsNone(self.q.claim("worker-b"))

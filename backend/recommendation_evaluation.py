@@ -257,7 +257,7 @@ class RecommendationEvaluationStore:
         with self.db() as c:
             c.executescript("""
             CREATE TABLE IF NOT EXISTS recommendation_runs(
-              id TEXT PRIMARY KEY, region TEXT, generated_at TEXT NOT NULL,
+              id TEXT PRIMARY KEY, region TEXT, workspace_id TEXT, generated_at TEXT NOT NULL,
               candidate_count INTEGER NOT NULL, scoring_method TEXT NOT NULL,
               platform TEXT NOT NULL DEFAULT 'youtube');
             CREATE TABLE IF NOT EXISTS recommendation_candidates(
@@ -280,6 +280,9 @@ class RecommendationEvaluationStore:
                 c.execute("ALTER TABLE recommendation_runs ADD COLUMN signature TEXT NOT NULL DEFAULT ''")
             if "platform" not in columns:
                 c.execute("ALTER TABLE recommendation_runs ADD COLUMN platform TEXT NOT NULL DEFAULT 'youtube'")
+            if "workspace_id" not in columns:
+                c.execute("ALTER TABLE recommendation_runs ADD COLUMN workspace_id TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_recommendation_runs_workspace ON recommendation_runs(workspace_id,platform,generated_at)")
 
     @contextmanager
     def db(self):
@@ -296,7 +299,7 @@ class RecommendationEvaluationStore:
         finally:
             c.close()
 
-    def record_run(self, region, items, generated_at=None, platform="youtube"):
+    def record_run(self, region, items, generated_at=None, platform="youtube", workspace_id=None):
         if not isinstance(platform, str) or platform not in ("youtube", "tiktok"):
             raise ValueError("platform must be youtube or tiktok")
         if region is not None:
@@ -378,8 +381,9 @@ class RecommendationEvaluationStore:
             c.execute("BEGIN IMMEDIATE")
             previous = c.execute("""SELECT id,candidate_count FROM recommendation_runs
                 WHERE region IS ? AND signature=? AND generated_at>=? AND platform=?
+                  AND workspace_id IS ?
                 ORDER BY generated_at DESC LIMIT 1""",
-                (region, signature, cutoff, platform)).fetchone()
+                (region, signature, cutoff, platform, workspace_id)).fetchone()
             if previous:
                 return {
                     "run_id": previous["id"],
@@ -387,9 +391,9 @@ class RecommendationEvaluationStore:
                     "deduplicated": True,
                 }
             c.execute("""INSERT INTO recommendation_runs
-              (id,region,generated_at,candidate_count,scoring_method,signature,platform)
-              VALUES(?,?,?,?,?,?,?)""",
-              (run_id, region, timestamp, len(rows), "editorial_v1", signature, platform))
+              (id,region,workspace_id,generated_at,candidate_count,scoring_method,signature,platform)
+              VALUES(?,?,?,?,?,?,?,?)""",
+              (run_id, region, workspace_id, timestamp, len(rows), "editorial_v1", signature, platform))
             c.executemany("""INSERT INTO recommendation_candidates
               (id,run_id,trend_id,trend_title,trend_region,brand_slug,brand_name,
                recommendation_rank,recommendation_score,score_breakdown_json,
@@ -411,7 +415,7 @@ class RecommendationEvaluationStore:
         }
 
     def link_production(self, trend_id, brand_slug, job_id, selected_at=None,
-                        platform="youtube", run_id=None):
+                        platform="youtube", run_id=None, workspace_id=None):
         if not isinstance(platform, str) or platform not in ("youtube", "tiktok"):
             raise ValueError("platform must be youtube or tiktok")
         if not isinstance(run_id, str) or not run_id.strip() or len(run_id) > 64:
@@ -426,12 +430,25 @@ class RecommendationEvaluationStore:
         timestamp = _normalized_timestamp(_now() if selected_at is None else selected_at, "selected_at")
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            has_production=c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+            ).fetchone() is not None
+            parent_guard=(
+                " AND EXISTS (SELECT 1 FROM production_runs p "
+                "WHERE p.job_id=? AND p.workspace_id IS r.workspace_id)"
+                if has_production else ""
+            )
+            if not has_production and workspace_id is not None:
+                return {"linked": False, "reason": "production_workspace_ownership_unavailable"}
+            params=[run_id,str(trend_id),str(brand_slug),platform,workspace_id]
+            if has_production:
+                params.append(str(job_id))
             row = c.execute("""SELECT c.id FROM recommendation_candidates c
                 JOIN recommendation_runs r ON r.id=c.run_id
                 WHERE c.run_id=? AND c.trend_id=? AND c.brand_slug=?
                   AND c.selected_job_id IS NULL AND r.platform=?
-                LIMIT 1""",
-                (run_id, str(trend_id), str(brand_slug), platform)).fetchone()
+                  AND r.workspace_id IS ?""" + parent_guard + " LIMIT 1",
+                tuple(params)).fetchone()
             if row is None:
                 return {"linked": False, "reason": "no_matching_candidate_in_recommendation_run"}
             changed = c.execute("""UPDATE recommendation_candidates
@@ -441,7 +458,7 @@ class RecommendationEvaluationStore:
             return {"linked": bool(changed), "candidate_id": row["id"] if changed else None,
                     "run_id": run_id}
 
-    def evaluate(self, performance, platform="youtube"):
+    def evaluate(self, performance, platform="youtube", workspace_id=None):
         if platform not in ("youtube", "tiktok"):
             raise ValueError("platform must be youtube or tiktok")
         measured = {}
@@ -482,7 +499,9 @@ class RecommendationEvaluationStore:
                 FROM recommendation_candidates c
                 JOIN recommendation_runs r ON r.id=c.run_id
                 WHERE c.selected_job_id IS NOT NULL AND r.platform=?
-                ORDER BY r.generated_at,c.recommendation_rank,c.selected_job_id""",(platform,)).fetchall()
+                  AND r.workspace_id IS ?
+                ORDER BY r.generated_at,c.recommendation_rank,c.selected_job_id""",
+                (platform,workspace_id)).fetchall()
         # One outcome per production job. A unique constraint also prevents
         # accidentally attaching one job to multiple candidate exposures.
         observations = []

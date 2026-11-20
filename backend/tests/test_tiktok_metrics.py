@@ -77,6 +77,31 @@ class TikTokMetricsTests(unittest.TestCase):
             [1200, 80, 12, 5],
         )
 
+    def test_status_coverage_is_scoped_to_workspace_publications(self):
+        self._publish("job-a","video-a")
+        self._publish("job-b","video-b")
+        with self.store.db() as connection:
+            connection.execute(
+                "CREATE TABLE production_runs(job_id TEXT PRIMARY KEY,workspace_id TEXT)"
+            )
+            connection.executemany(
+                "INSERT INTO production_runs(job_id,workspace_id) VALUES(?,?)",
+                [("job-a","workspace-a"),("job-b","workspace-b")]
+            )
+        self.store.save_snapshot("job-a",{
+            "id":"video-a","view_count":100,"like_count":5,"comment_count":1,"share_count":2
+        })
+        self.store.save_snapshot("job-b",{
+            "id":"video-b","view_count":200,"like_count":10,"comment_count":2,"share_count":4
+        })
+        scoped=self.store.status(self.publications,workspace_id="workspace-a")
+        self.assertEqual(scoped["coverage"]["published_videos"],1)
+        self.assertEqual(scoped["coverage"]["with_snapshot"],1)
+        self.assertIsNone(scoped["last_attempt_at"])
+        self.assertEqual(
+            self.store.status(self.publications,workspace_id="workspace-c")["coverage"]["published_videos"],0
+        )
+
     def test_history_can_find_a_published_video_outside_the_recent_200(self):
         self.store.save_snapshot("job-1", {
             "id": "video-1", "view_count": 123, "like_count": 4,
@@ -132,6 +157,18 @@ class TikTokMetricsTests(unittest.TestCase):
             "idx_tiktok_publications_video_status" in details
             or "idx_tiktok_publications_due_scan" in details,
             details,
+        )
+
+    def test_unassigned_legacy_tiktok_history_remains_visible_without_tenant_scope(self):
+        self.store.save_snapshot("job-1", {
+            "id": "video-1", "view_count": 10, "like_count": 2,
+            "comment_count": 1, "share_count": 0,
+        })
+        with self.store.db() as connection:
+            connection.execute("CREATE TABLE production_runs(job_id TEXT PRIMARY KEY,workspace_id TEXT)")
+        self.assertEqual(len(self.store.history(self.publications,video_id="video-1")),1)
+        self.assertEqual(
+            self.store.history(self.publications,video_id="video-1",workspace_id="workspace-a"),[]
         )
 
     def test_history_since_filters_before_applying_limit(self):

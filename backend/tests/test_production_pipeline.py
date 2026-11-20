@@ -48,6 +48,116 @@ class ProductionTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_production_run_inherits_workspace_from_durable_queue_job(self):
+        db_path = Path(self.tmp.name) / "shared.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        queued = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-alpha"
+        )
+        store.create(queued["id"], self.brief)
+        self.assertEqual(store.get(queued["id"])["workspace_id"], "workspace-alpha")
+
+    def test_production_run_rejects_workspace_mismatch_on_recreate(self):
+        db_path = Path(self.tmp.name) / "mismatch.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        queued = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-alpha"
+        )
+        store.create(queued["id"], self.brief)
+        with queue.db() as conn:
+            conn.execute(
+                "UPDATE pipeline_jobs SET workspace_id=? WHERE id=?",
+                ("workspace-beta", queued["id"]),
+            )
+        with self.assertRaisesRegex(ValueError, "workspace ownership mismatch"):
+            store.create(queued["id"], self.brief)
+
+    def test_provider_attempt_and_reconciliation_inherit_parent_workspace(self):
+        db_path = Path(self.tmp.name) / "provider-tenant.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        queued = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-provider"
+        )
+        store.create(queued["id"], self.brief)
+        key = store.begin_provider_attempt(queued["id"], "rendering", 1)
+        attempt = store.provider_attempts(queued["id"])[0]
+        self.assertEqual(attempt["workspace_id"], "workspace-provider")
+        store.confirm_provider_attempt_not_executed(
+            queued["id"], attempt["id"], "operator-1",
+            "provider-console:request-not-found",
+            "Provider history confirms the request was not executed",
+        )
+        with store.db() as conn:
+            event = conn.execute(
+                "SELECT workspace_id FROM provider_attempt_reconciliation_events WHERE job_id=?",
+                (queued["id"],),
+            ).fetchone()
+        self.assertEqual(event["workspace_id"], "workspace-provider")
+
+    def test_legacy_provider_attempt_remains_unassigned(self):
+        job_id = "legacy-provider-unassigned"
+        self.store.create(job_id, self.brief)
+        key = self.store.begin_provider_attempt(job_id, "script", 1)
+        attempt = self.store.provider_attempts(job_id)[0]
+        self.assertIsNone(attempt["workspace_id"])
+
+    def test_production_and_provider_journal_reads_are_workspace_scoped(self):
+        db_path = Path(self.tmp.name) / "scoped-production-reads.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        first = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-one"
+        )
+        second = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-two"
+        )
+        store.create(first["id"], self.brief)
+        store.create(second["id"], self.brief)
+        key = store.begin_provider_attempt(first["id"], "script", 1)
+        self.assertEqual(store.get(first["id"], workspace_id="workspace-one")["job_id"],
+                         first["id"])
+        self.assertIsNone(store.get(first["id"], workspace_id="workspace-two"))
+        self.assertEqual(len(store.provider_attempts(
+            first["id"], workspace_id="workspace-one")), 1)
+        self.assertEqual(store.provider_attempts(
+            first["id"], workspace_id="workspace-two"), [])
+
+    def test_artifact_and_stage_mutations_require_matching_workspace(self):
+        db_path = Path(self.tmp.name) / "workspace-write-fence.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        queued = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-alpha"
+        )
+        store.create(queued["id"], self.brief)
+        with self.assertRaises(KeyError):
+            store.artifact(
+                queued["id"], "rendering", "video",
+                "https://renderer.example/video.mp4", {},
+                workspace_id="workspace-beta",
+            )
+        with self.assertRaises(KeyError):
+            store.stage(
+                queued["id"], "review", "review_pending",
+                workspace_id="workspace-beta",
+            )
+        store.artifact(
+            queued["id"], "rendering", "video",
+            "https://renderer.example/video.mp4", {},
+            workspace_id="workspace-alpha",
+        )
+        store.stage(
+            queued["id"], "rendering", "rendered",
+            workspace_id="workspace-alpha",
+        )
+        self.assertEqual(
+            store.get(queued["id"], workspace_id="workspace-alpha")["status"],
+            "rendered",
+        )
+
     def test_artifact_and_provider_attempt_adoption_commit_atomically(self):
         job_id = "job-atomic-provider-adoption"
         self.store.create(job_id, self.brief)
@@ -1159,6 +1269,19 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(set(first_ids + second_ids), set(created))
         self.assertFalse(second["has_more"])
         self.assertIsNone(second["next_cursor"])
+
+    def test_integrity_report_filters_queue_orphans_by_workspace(self):
+        db_path = Path(self.tmp.name) / "integrity-scope.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        a = queue.enqueue("short_video_production", {"topic": "A"}, workspace_id="workspace-a")
+        b = queue.enqueue("short_video_production", {"topic": "B"}, workspace_id="workspace-b")
+        report_a = store.integrity_report(queue, workspace_id="workspace-a")
+        report_b = store.integrity_report(queue, workspace_id="workspace-b")
+        report_legacy = store.integrity_report(queue)
+        self.assertEqual([item["job_id"] for item in report_a["items"]], [a["id"]])
+        self.assertEqual([item["job_id"] for item in report_b["items"]], [b["id"]])
+        self.assertEqual(report_legacy["items"], [])
 
     def test_integrity_report_rejects_malformed_cursor(self):
         queue = JobQueue(self.store.db_path)

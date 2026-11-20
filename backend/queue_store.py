@@ -39,7 +39,7 @@ class JobQueue:
               worker_id TEXT, lease_token TEXT, lease_expires_at TEXT,
               idempotency_key TEXT UNIQUE, error_code TEXT, error_message TEXT,
               created_at TEXT NOT NULL, updated_at TEXT NOT NULL, started_at TEXT,
-              completed_at TEXT);
+              completed_at TEXT, workspace_id TEXT);
             CREATE INDEX IF NOT EXISTS idx_jobs_claim ON pipeline_jobs(status,available_at,priority,created_at);
             CREATE INDEX IF NOT EXISTS idx_jobs_lease ON pipeline_jobs(status,lease_expires_at);
             CREATE TABLE IF NOT EXISTS job_events(
@@ -88,6 +88,10 @@ class JobQueue:
             INSERT OR IGNORE INTO worker_control(id,paused,updated_at)
               VALUES(1,0,'1970-01-01T00:00:00+00:00');
             """)
+            job_columns = {row["name"] for row in c.execute("PRAGMA table_info(pipeline_jobs)")}
+            if "workspace_id" not in job_columns:
+                c.execute("ALTER TABLE pipeline_jobs ADD COLUMN workspace_id TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_jobs_workspace_status ON pipeline_jobs(workspace_id,status,created_at)")
             worker_columns = {row["name"] for row in c.execute("PRAGMA table_info(worker_registry)")}
             if "generation_token" not in worker_columns:
                 c.execute("ALTER TABLE worker_registry ADD COLUMN generation_token TEXT")
@@ -117,8 +121,10 @@ class JobQueue:
         if row is None: return None
         d=dict(row); d["payload"]=json.loads(d.pop("payload_json")); return d
 
-    def enqueue(self,job_type,payload,channel_name=None,priority=100,max_attempts=3,idempotency_key=None):
+    def enqueue(self,job_type,payload,channel_name=None,priority=100,max_attempts=3,idempotency_key=None,workspace_id=None):
         if not job_type.strip(): raise ValueError("job_type required")
+        if workspace_id is not None and (not isinstance(workspace_id,str) or not workspace_id.strip() or len(workspace_id)>128):
+            raise ValueError("workspace_id must be a non-empty string of at most 128 characters")
         jid=str(uuid.uuid4())
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
@@ -132,6 +138,10 @@ class JobQueue:
                         raise IdempotencyConflict(
                             "Existing idempotency record cannot be safely compared"
                         ) from exc
+                    if old["workspace_id"] != workspace_id:
+                        raise IdempotencyConflict(
+                            "Idempotency key is already bound to a different workspace"
+                        )
                     if (old["job_type"] != job_type
                             or old["channel_name"] != channel_name
                             or old_payload != payload):
@@ -140,11 +150,11 @@ class JobQueue:
                         )
                     c.commit()
                     return self.decode(old)
-            c.execute("""INSERT INTO pipeline_jobs(id,job_type,channel_name,payload_json,status,priority,max_attempts,available_at,idempotency_key,created_at,updated_at)
-              VALUES(?,?,?,?, 'queued',?,?,?,?,?,?)""",
-              (jid,job_type,channel_name,json.dumps(payload,ensure_ascii=False),int(priority),max(1,int(max_attempts)),n,idempotency_key,n,n))
+            c.execute("""INSERT INTO pipeline_jobs(id,job_type,channel_name,payload_json,status,priority,max_attempts,available_at,idempotency_key,created_at,updated_at,workspace_id)
+              VALUES(?,?,?,?, 'queued',?,?,?,?,?,?,?)""",
+              (jid,job_type,channel_name,json.dumps(payload,ensure_ascii=False),int(priority),max(1,int(max_attempts)),n,idempotency_key,n,n,workspace_id))
             self.event(c,jid,"enqueued",None,"queued",None,created_at=n)
-            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit()
+            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id IS ?",(jid,workspace_id)).fetchone(); c.commit()
             return self.decode(row)
 
     def _pause_production_in_transaction(self, c, reason, job_id, timestamp, actor="system"):
@@ -243,7 +253,7 @@ class JobQueue:
                 or row["status"] != "online"):
             raise LeaseConflict("Worker process generation is no longer current")
 
-    def claim(self,worker_id,hostname=None,job_type=None,generation_token=None):
+    def claim(self,worker_id,hostname=None,job_type=None,generation_token=None,workspace_id=None):
         if not worker_id.strip(): raise ValueError("worker_id required")
         token=str(uuid.uuid4())
         with self.db() as c:
@@ -271,19 +281,23 @@ class JobQueue:
             if production_paused and job_type == "short_video_production":
                 c.commit()
                 return None
+            if workspace_id is not None and (not isinstance(workspace_id,str) or not workspace_id.strip() or len(workspace_id)>128):
+                raise ValueError("workspace_id must be a non-empty string of at most 128 characters")
+            filters = ["status IN ('queued','failed_retriable')","available_at<=?","attempt<max_attempts"]
+            params = [n]
+            if workspace_id is not None:
+                filters.append("workspace_id=?")
+                params.append(workspace_id)
             if job_type:
-                row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
-                  AND available_at<=? AND attempt<max_attempts AND job_type=?
-                  ORDER BY priority,created_at LIMIT 1""",(n,job_type)).fetchone()
+                filters.append("job_type=?")
+                params.append(job_type)
             elif production_paused:
-                row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
-                  AND available_at<=? AND attempt<max_attempts
-                  AND job_type!='short_video_production'
-                  ORDER BY priority,created_at LIMIT 1""",(n,)).fetchone()
-            else:
-                row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
-                  AND available_at<=? AND attempt<max_attempts
-                  ORDER BY priority,created_at LIMIT 1""",(n,)).fetchone()
+                filters.append("job_type!='short_video_production'")
+            row=c.execute(
+                "SELECT * FROM pipeline_jobs WHERE " + " AND ".join(filters)
+                + " ORDER BY priority,created_at LIMIT 1",
+                params,
+            ).fetchone()
             if row is None: c.commit(); return None
             c.execute("""UPDATE pipeline_jobs SET status='running',worker_id=?,lease_token=?,lease_expires_at=?,
               attempt=attempt+1,started_at=COALESCE(started_at,?),updated_at=?,error_code=NULL,error_message=NULL
@@ -292,61 +306,74 @@ class JobQueue:
             self.event(c,row["id"],"claimed",row["status"],"running",worker_id,{"attempt":claimed["attempt"],"lease_expires_at":expiry},created_at=n)
             c.commit(); return self.decode(claimed)
 
-    def assert_lease(self,row,worker,token,n):
+    def assert_lease(self,row,worker,token,n,workspace_id=None):
         if row is None: raise JobNotFound()
+        if workspace_id is not None and row["workspace_id"] != workspace_id:
+            raise LeaseConflict("Worker lease belongs to a different workspace")
         if row["status"]!="running" or row["worker_id"]!=worker or row["lease_token"]!=token or not row["lease_expires_at"] or row["lease_expires_at"]<=n:
             raise LeaseConflict("Lease expired or no longer owned by this worker")
 
-    def heartbeat(self,jid,worker,token,generation_token=None):
+    def heartbeat(self,jid,worker,token,generation_token=None,workspace_id=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds))
             self._assert_worker_generation(c, worker, generation_token)
-            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); self.assert_lease(row,worker,token,n)
+            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); self.assert_lease(row,worker,token,n,workspace_id)
             c.execute("UPDATE pipeline_jobs SET lease_expires_at=?,updated_at=? WHERE id=?",(expiry,n,jid))
             c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",(n,worker))
             self.event(c,jid,"heartbeat","running","running",worker,{"lease_expires_at":expiry},created_at=n)
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
-    def finish(self,jid,worker,token,result=None,generation_token=None):
+    def finish(self,jid,worker,token,result=None,generation_token=None,workspace_id=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE"); n=stamp(now())
             self._assert_worker_generation(c, worker, generation_token)
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
-            self.assert_lease(row,worker,token,n)
+            self.assert_lease(row,worker,token,n,workspace_id)
             c.execute("""UPDATE pipeline_jobs SET status='review_pending',worker_id=NULL,lease_token=NULL,
               lease_expires_at=NULL,completed_at=?,updated_at=? WHERE id=?""",(n,n,jid))
             self.event(c,jid,"completed","running","review_pending",worker,{"result":result or {}},created_at=n)
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
-    def fail(self,jid,worker,token,error_code,error_message,retryable=True,generation_token=None):
+    def fail(self,jid,worker,token,error_code,error_message,retryable=True,generation_token=None,workspace_id=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE"); n=stamp(now())
             self._assert_worker_generation(c, worker, generation_token)
             row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
-            self.assert_lease(row,worker,token,n)
+            self.assert_lease(row,worker,token,n,workspace_id)
             retry=bool(retryable and row["attempt"]<row["max_attempts"]); status="failed_retriable" if retry else "failed_terminal"
             c.execute("""UPDATE pipeline_jobs SET status=?,worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,
               available_at=?,updated_at=?,error_code=?,error_message=? WHERE id=?""",(status,n,n,error_code,error_message[:2000],jid))
             self.event(c,jid,"failed","running",status,worker,{"error_code":error_code,"retryable":retry},created_at=n)
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
-    def get(self,jid):
+    def get(self,jid,workspace_id=None):
         with self.db() as c:
-            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            if workspace_id is None:
+                row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            else:
+                row=c.execute("SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id=?",(jid,workspace_id)).fetchone()
             if row is None: raise JobNotFound()
             return self.decode(row)
 
-    def events(self,jid):
+    def events(self,jid,workspace_id=None):
         with self.db() as c:
-            return [{**dict(r),"details":json.loads(r["details_json"])} for r in c.execute("SELECT * FROM job_events WHERE job_id=? ORDER BY id",(jid,))]
+            owner=c.execute("SELECT workspace_id FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            if owner is None or (workspace_id is not None and owner["workspace_id"] != workspace_id):
+                raise JobNotFound()
+            return [{**dict(r),"details":json.loads(r["details_json"])} for r in c.execute(
+                "SELECT e.*,j.workspace_id FROM job_events e JOIN pipeline_jobs j ON j.id=e.job_id "
+                "WHERE e.job_id=? ORDER BY e.id",(jid,))]
 
-    def cancel(self,jid,reason="Cancelled by operator"):
+    def cancel(self,jid,reason="Cancelled by operator",workspace_id=None):
         reason = str(reason)[:2000]
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             n=stamp(now())
-            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            row=c.execute(
+                "SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id IS ?",
+                (jid,workspace_id),
+            ).fetchone()
             if row is None: raise JobNotFound()
             if row["status"] in ("uploaded","cancelled","failed_terminal"):
                 raise ValueError("Job is already terminal")
@@ -401,14 +428,14 @@ class JobQueue:
             c.commit()
             return self.decode(out)
 
-    def ambiguous_production_jobs(self, limit=100):
+    def ambiguous_production_jobs(self, limit=100, workspace_id=None):
         """List production jobs blocked because an external provider outcome is unknown."""
         bounded = max(1, min(int(limit), 200))
         with self.db() as c:
             rows = c.execute("""SELECT id,status,attempt,max_attempts,
                     error_code,error_message,updated_at
                 FROM pipeline_jobs
-                WHERE job_type='short_video_production'
+                WHERE job_type='short_video_production' AND workspace_id IS ?
                   AND (
                     (status='failed_terminal'
                      AND error_code IN (
@@ -419,10 +446,10 @@ class JobQueue:
                     (status='cancelled'
                      AND error_code='cancelled_external_outcome_ambiguous')
                   )
-                ORDER BY updated_at DESC,id LIMIT ?""", (bounded,)).fetchall()
+                ORDER BY updated_at DESC,id LIMIT ?""", (workspace_id,bounded)).fetchall()
             return [dict(row) for row in rows]
 
-    def reconcile_production_retry(self, job_id, operator_id, evidence_reference, note):
+    def reconcile_production_retry(self, job_id, operator_id, evidence_reference, note, workspace_id=None):
         """Authorize exactly one new attempt only after an operator proves no side effect occurred.
 
         The global production pause is intentionally retained. Resuming the queue is a
@@ -441,7 +468,8 @@ class JobQueue:
             c.execute("BEGIN IMMEDIATE")
             timestamp = stamp(now())
             row = c.execute("""SELECT * FROM pipeline_jobs
-                WHERE id=? AND job_type='short_video_production'""", (job_id,)).fetchone()
+                WHERE id=? AND job_type='short_video_production' AND workspace_id IS ?""",
+                (job_id,workspace_id)).fetchone()
             if row is None:
                 raise JobNotFound()
             expected_status = (
@@ -502,11 +530,13 @@ class JobQueue:
             c.commit()
             return self.decode(result)
 
-    def production_reconciliation_events(self, job_id):
+    def production_reconciliation_events(self, job_id, workspace_id=None):
         with self.db() as c:
-            return [dict(row) for row in c.execute("""SELECT * FROM
-                production_reconciliation_events WHERE job_id=? ORDER BY id""",
-                (job_id,)).fetchall()]
+            return [dict(row) for row in c.execute("""SELECT e.*,j.workspace_id FROM
+                production_reconciliation_events e JOIN pipeline_jobs j ON j.id=e.job_id
+                WHERE e.job_id=? AND (? IS NULL OR j.workspace_id=?)
+                ORDER BY e.id""",
+                (job_id,workspace_id,workspace_id)).fetchall()]
 
     def recover(self):
         recovered=0; terminal=0
@@ -666,7 +696,9 @@ class JobQueue:
                 row["status"] = "stale"
         return rows
 
-    def stats(self):
+    def stats(self,workspace_id=None):
         with self.db() as c:
-            d={r["status"]:r["n"] for r in c.execute("SELECT status,COUNT(*) n FROM pipeline_jobs GROUP BY status")}
+            d={r["status"]:r["n"] for r in c.execute(
+                "SELECT status,COUNT(*) n FROM pipeline_jobs WHERE workspace_id IS ? GROUP BY status",
+                (workspace_id,))}
             d["total"]=sum(d.values()); return d

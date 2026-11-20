@@ -29,6 +29,7 @@ class ApiSecurityTests(unittest.TestCase):
         }
         with (
             mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.production_store, "get", return_value={"workspace_id": None}),
             mock.patch.object(app_module.youtube_upload_store, "get", return_value=upload),
         ):
             safe_upload = app_module.get_youtube_upload(
@@ -36,6 +37,7 @@ class ApiSecurityTests(unittest.TestCase):
             )
         with (
             mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.production_store, "get", return_value={"workspace_id": None}),
             mock.patch.object(app_module.tiktok_publish_store, "get", return_value=tiktok),
         ):
             safe_tiktok = app_module.get_tiktok_publication(
@@ -219,7 +221,10 @@ class ApiSecurityTests(unittest.TestCase):
             endpoint = getattr(route, "endpoint", None)
             if endpoint is None:
                 continue
-            if "x_review_token" not in endpoint.__annotations__:
+            if path.startswith("/api/worker/v1/"):
+                if "authorization" not in endpoint.__annotations__:
+                    unprotected.append(path)
+            elif "x_review_token" not in endpoint.__annotations__:
                 unprotected.append(path)
         self.assertEqual(unprotected, [])
 
@@ -437,7 +442,7 @@ class ApiSecurityTests(unittest.TestCase):
         with (
             mock.patch("app.require_review_access"),
             mock.patch("app.competitor_store.list_videos", return_value=videos),
-            mock.patch("app.opportunity_store.save", side_effect=lambda result: result),
+            mock.patch("app.opportunity_store.save", side_effect=lambda result, **kwargs: result),
         ):
             result = create_opportunity_score(body, x_review_token="test-token")
         self.assertEqual(result["competitive_context"]["observed_videos"], 2)
@@ -704,7 +709,7 @@ class ApiSecurityTests(unittest.TestCase):
                         limit=13, offset=0, cursor='page-cursor', x_review_token=reviewer_token
                     ), expected
                 )
-                report.assert_called_once_with(app_module.queue, limit=13, offset=0, cursor='page-cursor')
+                report.assert_called_once_with(app_module.queue, limit=13, offset=0, cursor='page-cursor', workspace_id=None)
                 with self.assertRaises(HTTPException) as denied:
                     app_module.production_integrity_report(
                         limit=13, offset=17, cursor='page-cursor', x_review_token=analyst_token
@@ -881,6 +886,9 @@ class ApiSecurityTests(unittest.TestCase):
                 app_module, "require_review_permission", return_value="operator-7"
             ) as authorize,
             mock.patch.object(
+                app_module.production_store, "get", return_value={"workspace_id": None}
+            ),
+            mock.patch.object(
                 app_module.youtube_upload_store, "reconcile",
                 return_value={"status": "failed"},
             ) as youtube_reconcile,
@@ -942,6 +950,9 @@ class ApiSecurityTests(unittest.TestCase):
             mock.patch.object(
                 app_module, "require_review_permission", return_value="operator-1"
             ) as authorize,
+            mock.patch.object(
+                app_module.production_store, "get", return_value={"workspace_id": None}
+            ),
             mock.patch.object(
                 app_module.tiktok_publish_store, "reconcile",
                 side_effect=app_module.TikTokPublishError(
@@ -1227,3 +1238,71 @@ if __name__ == "__main__":
             with self.assertRaises(HTTPException) as caught:
                 publishing_analytics_history(platform="youtube",as_of="2026-11-19T10:00:00",x_review_token="token")
         self.assertEqual(caught.exception.status_code,422)
+
+
+    def test_timeline_edl_validation_requires_workspace_membership(self):
+        from app import validate_timeline_edl
+        payload = {
+            "schema": "nexus-edit-decision-list", "version": 1,
+            "timebase": "milliseconds",
+            "clips": [{
+                "id": "clip-1", "type": "video", "start_ms": 0, "end_ms": 1000,
+                "asset_id": "asset_1", "source_in_ms": 0, "source_out_ms": 1000,
+            }],
+        }
+        membership = json.dumps({"producer-1": ["workspace-a"], "producer-2": ["workspace-b"]})
+        with (
+            mock.patch.object(app_module, "require_review_permission", return_value="producer-1"),
+            mock.patch.dict(os.environ, {"NEXUS_OPERATOR_WORKSPACES_JSON": membership}),
+        ):
+            accepted = validate_timeline_edl(
+                payload, x_review_token="operator-token",
+                x_nexus_workspace_id="workspace-a",
+            )
+            self.assertTrue(accepted["valid"])
+            self.assertFalse(accepted["rendered"])
+            self.assertEqual(accepted["workspace_id"], "workspace-a")
+            with self.assertRaises(HTTPException) as denied:
+                validate_timeline_edl(
+                    payload, x_review_token="operator-token",
+                    x_nexus_workspace_id="workspace-b",
+                )
+            self.assertEqual(denied.exception.status_code, 403)
+
+    def test_timeline_edl_validation_fails_closed_without_workspace_configuration(self):
+        from app import validate_timeline_edl
+        payload = {
+            "schema": "nexus-edit-decision-list", "version": 1,
+            "timebase": "milliseconds",
+            "clips": [{
+                "id": "clip-1", "type": "video", "start_ms": 0, "end_ms": 1000,
+                "asset_id": "asset_1", "source_in_ms": 0, "source_out_ms": 1000,
+            }],
+        }
+        with (
+            mock.patch.object(app_module, "require_review_permission", return_value="producer-1"),
+            mock.patch.dict(os.environ, {"NEXUS_OPERATOR_WORKSPACES_JSON": ""}),
+        ):
+            with self.assertRaises(HTTPException) as missing:
+                validate_timeline_edl(
+                    payload, x_review_token="operator-token",
+                    x_nexus_workspace_id="workspace-a",
+                )
+            self.assertEqual(missing.exception.status_code, 503)
+            with self.assertRaises(HTTPException) as missing_header:
+                validate_timeline_edl(payload, x_review_token="operator-token")
+            self.assertEqual(missing_header.exception.status_code, 503)
+
+    def test_timeline_edl_validation_rejects_bad_edl_after_workspace_authorization(self):
+        from app import validate_timeline_edl
+        membership = json.dumps({"producer-1": ["workspace-a"]})
+        with (
+            mock.patch.object(app_module, "require_review_permission", return_value="producer-1"),
+            mock.patch.dict(os.environ, {"NEXUS_OPERATOR_WORKSPACES_JSON": membership}),
+        ):
+            with self.assertRaises(HTTPException) as invalid:
+                validate_timeline_edl(
+                    {"schema": "wrong", "version": 99, "timebase": "frames", "clips": []},
+                    x_review_token="operator-token", x_nexus_workspace_id="workspace-a",
+                )
+            self.assertEqual(invalid.exception.status_code, 422)

@@ -101,7 +101,8 @@ class ProductionStore:
             CREATE TABLE IF NOT EXISTS production_runs(
               job_id TEXT PRIMARY KEY, brand TEXT NOT NULL, region TEXT NOT NULL,
               language TEXT NOT NULL, topic TEXT NOT NULL, status TEXT NOT NULL,
-              current_stage TEXT, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+              current_stage TEXT, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+              workspace_id TEXT);
             CREATE TABLE IF NOT EXISTS production_artifacts(
               id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES production_runs(job_id),
               stage TEXT NOT NULL, artifact_type TEXT NOT NULL, artifact_url TEXT,
@@ -113,6 +114,7 @@ class ProductionStore:
               idempotency_key TEXT NOT NULL UNIQUE, state TEXT NOT NULL,
               provider_request_id TEXT, response_json TEXT, error TEXT,
               started_at TEXT NOT NULL, completed_at TEXT,
+              workspace_id TEXT,
               UNIQUE(job_id,stage,attempt_number));
             CREATE INDEX IF NOT EXISTS idx_provider_attempt_state
               ON provider_execution_attempts(state,started_at);
@@ -121,16 +123,52 @@ class ProductionStore:
               provider_attempt_id TEXT NOT NULL, stage TEXT NOT NULL,
               operator_id TEXT NOT NULL, evidence_reference TEXT NOT NULL,
               note TEXT NOT NULL, resolution TEXT NOT NULL,
-              created_at TEXT NOT NULL);
+              created_at TEXT NOT NULL, workspace_id TEXT);
             CREATE INDEX IF NOT EXISTS idx_provider_reconciliation_job
               ON provider_attempt_reconciliation_events(job_id,created_at);
             """)
+            run_columns = {row[1] for row in c.execute("PRAGMA table_info(production_runs)").fetchall()}
+            if "workspace_id" not in run_columns:
+                c.execute("ALTER TABLE production_runs ADD COLUMN workspace_id TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_production_runs_workspace_status ON production_runs(workspace_id,status,updated_at)")
             columns = {row[1] for row in c.execute(
                 "PRAGMA table_info(provider_execution_attempts)").fetchall()}
             if "adopted_at" not in columns:
                 c.execute("ALTER TABLE provider_execution_attempts ADD COLUMN adopted_at TEXT")
             if "adopted_artifact_sha256" not in columns:
                 c.execute("ALTER TABLE provider_execution_attempts ADD COLUMN adopted_artifact_sha256 TEXT")
+            if "workspace_id" not in columns:
+                c.execute("ALTER TABLE provider_execution_attempts ADD COLUMN workspace_id TEXT")
+            reconciliation_columns = {row[1] for row in c.execute(
+                "PRAGMA table_info(provider_attempt_reconciliation_events)").fetchall()}
+            if "workspace_id" not in reconciliation_columns:
+                c.execute("ALTER TABLE provider_attempt_reconciliation_events ADD COLUMN workspace_id TEXT")
+            c.execute("""UPDATE provider_execution_attempts
+                SET workspace_id=(SELECT workspace_id FROM production_runs
+                                  WHERE production_runs.job_id=provider_execution_attempts.job_id)
+                WHERE workspace_id IS NULL""")
+            c.execute("""UPDATE provider_attempt_reconciliation_events
+                SET workspace_id=(SELECT workspace_id FROM production_runs
+                                  WHERE production_runs.job_id=provider_attempt_reconciliation_events.job_id)
+                WHERE workspace_id IS NULL""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_provider_attempt_workspace_state ON provider_execution_attempts(workspace_id,state,started_at)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_provider_reconcile_workspace_job ON provider_attempt_reconciliation_events(workspace_id,job_id,created_at)")
+            c.execute("""CREATE TRIGGER IF NOT EXISTS trg_provider_attempt_workspace_insert
+                AFTER INSERT ON provider_execution_attempts
+                BEGIN
+                  UPDATE provider_execution_attempts
+                  SET workspace_id=(SELECT workspace_id FROM production_runs
+                                     WHERE production_runs.job_id=NEW.job_id)
+                  WHERE id=NEW.id;
+                END""")
+            c.execute("""CREATE TRIGGER IF NOT EXISTS trg_provider_reconcile_workspace_insert
+                AFTER INSERT ON provider_attempt_reconciliation_events
+                BEGIN
+                  UPDATE provider_attempt_reconciliation_events
+                  SET workspace_id=(SELECT workspace_id FROM production_runs
+                                     WHERE production_runs.job_id=NEW.job_id)
+                  WHERE id=NEW.id;
+                END""")
     
     @contextmanager
     def db(self):
@@ -151,11 +189,28 @@ class ProductionStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             timestamp = utc_now()
+            queue_table = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
+            ).fetchone()
+            workspace_id = None
+            if queue_table:
+                queue_row = c.execute(
+                    "SELECT workspace_id,job_type FROM pipeline_jobs WHERE id=?", (job_id,)
+                ).fetchone()
+                # Preserve legacy standalone production fixtures/records as unassigned.
+                # Any matching durable parent is authoritative and must be a production job.
+                if queue_row is not None:
+                    if queue_row["job_type"] != "short_video_production":
+                        raise ValueError("matching production queue job is not a production job")
+                    workspace_id = queue_row["workspace_id"]
             c.execute("""INSERT OR IGNORE INTO production_runs
-              (job_id,brand,region,language,topic,status,current_stage,created_at,updated_at)
-              VALUES(?,?,?,?,?,'queued','queued',?,?)""",
+              (job_id,brand,region,language,topic,status,current_stage,created_at,updated_at,workspace_id)
+              VALUES(?,?,?,?,?,'queued','queued',?,?,?)""",
               (job_id, brief["brand"], brief["region"], brief["language"],
-               brief["topic"], timestamp, timestamp))
+               brief["topic"], timestamp, timestamp, workspace_id))
+            stored = c.execute("SELECT workspace_id FROM production_runs WHERE job_id=?", (job_id,)).fetchone()
+            if stored is None or stored["workspace_id"] != workspace_id:
+                raise ValueError("production and queue workspace ownership mismatch")
 
     @staticmethod
     def _assert_worker_lease(c, job_id, worker_id, lease_token, now_value=None):
@@ -174,9 +229,16 @@ class ProductionStore:
             )
 
     def stage(self, job_id, stage, status="running", error=None,
-              worker_id=None, lease_token=None):
+              worker_id=None, lease_token=None, workspace_id=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if workspace_id is not None:
+                parent = c.execute(
+                    "SELECT 1 FROM production_runs WHERE job_id=? AND workspace_id=?",
+                    (job_id, workspace_id),
+                ).fetchone()
+                if parent is None:
+                    raise KeyError(job_id)
             timestamp = utc_now()
             if worker_id is not None or lease_token is not None:
                 self._assert_worker_lease(c, job_id, worker_id, lease_token, timestamp)
@@ -185,7 +247,7 @@ class ProductionStore:
                 # Keep this in the same transaction as the fenced stage transition.
                 c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
             updated=c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
-                         WHERE job_id=?""", (stage, status, error, timestamp, job_id))
+                         WHERE job_id=? AND (? IS NULL OR workspace_id=?)""", (stage, status, error, timestamp, job_id, workspace_id, workspace_id))
             if updated.rowcount != 1:
                 raise KeyError(job_id)
 
@@ -236,7 +298,8 @@ class ProductionStore:
                             )
 
     def artifact(self, job_id, stage, artifact_type, url, metadata,
-                 worker_id=None, lease_token=None, provider_attempt=None):
+                 worker_id=None, lease_token=None, provider_attempt=None,
+                 workspace_id=None):
         if artifact_type in ("audio", "video") and (
             not isinstance(url, str) or not url.startswith(("https://", "http://"))
         ):
@@ -245,6 +308,13 @@ class ProductionStore:
             raise ValueError("artifact URL must be a string or null")
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if workspace_id is not None:
+                parent = c.execute(
+                    "SELECT 1 FROM production_runs WHERE job_id=? AND workspace_id=?",
+                    (job_id, workspace_id),
+                ).fetchone()
+                if parent is None:
+                    raise KeyError(job_id)
             timestamp = utc_now()
             if worker_id is not None or lease_token is not None:
                 self._assert_worker_lease(c, job_id, worker_id, lease_token, timestamp)
@@ -433,13 +503,14 @@ class ProductionStore:
                 "stage":attempt["stage"],"state":"not_executed_confirmed",
                 "operator_id":operator_id.strip(),"reconciled_at":timestamp}
 
-    def provider_attempts(self, job_id, unresolved_only=False):
+    def provider_attempts(self, job_id, unresolved_only=False, workspace_id=None):
         where=" AND state IN ('request_started','outcome_unknown','response_received')" if unresolved_only else ""
         with self.db() as c:
-            rows=c.execute("""SELECT id,job_id,stage,attempt_number,idempotency_key,
+            rows=c.execute("""SELECT id,job_id,workspace_id,stage,attempt_number,idempotency_key,
                 state,provider_request_id,response_json,error,started_at,completed_at
-                FROM provider_execution_attempts WHERE job_id=?""" + where +
-                " ORDER BY started_at,id",(job_id,)).fetchall()
+                FROM provider_execution_attempts
+                WHERE job_id=? AND (? IS NULL OR workspace_id=?)""" + where +
+                " ORDER BY started_at,id",(job_id,workspace_id,workspace_id)).fetchall()
             return [dict(row) for row in rows]
 
     def adopt_recovered_render(self, job_id, attempt_id, staged, inspection):
@@ -654,7 +725,7 @@ class ProductionStore:
             "unresolved": len(unresolved), "unresolved_jobs": unresolved,
         }
 
-    def integrity_report(self, queue, limit=50, offset=0, cursor=None):
+    def integrity_report(self, queue, limit=50, offset=0, cursor=None, workspace_id=None):
         """Return a read-only, bounded explanation of production/queue state mismatches."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
             raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
@@ -679,24 +750,25 @@ class ProductionStore:
             mismatch_total = c.execute("""
                 SELECT COUNT(*) FROM production_runs r
                 JOIN pipeline_jobs j ON j.id=r.job_id
-                WHERE j.job_type='short_video_production'
+                WHERE j.job_type='short_video_production' AND r.workspace_id IS ?
                   AND r.status<>j.status
                   AND (r.status IN ('rendered','review_pending','approved','uploaded',
                                     'cancelled','failed_terminal')
                        OR j.status IN ('review_pending','approved','uploaded',
                                        'cancelled','failed_terminal'))
-            """).fetchone()[0]
+            """,(workspace_id,)).fetchone()[0]
             queue_orphan_total = c.execute("""
                 SELECT COUNT(*) FROM pipeline_jobs j
                 LEFT JOIN production_runs r ON r.job_id=j.id
-                WHERE j.job_type='short_video_production' AND r.job_id IS NULL
-            """).fetchone()[0]
+                WHERE j.job_type='short_video_production' AND j.workspace_id IS ?
+                  AND r.job_id IS NULL
+            """,(workspace_id,)).fetchone()[0]
             production_orphan_total = c.execute("""
                 SELECT COUNT(*) FROM production_runs r
                 LEFT JOIN pipeline_jobs j
                   ON j.id=r.job_id AND j.job_type='short_video_production'
-                WHERE j.id IS NULL
-            """).fetchone()[0]
+                WHERE r.workspace_id IS ? AND j.id IS NULL
+            """,(workspace_id,)).fetchone()[0]
             report_rows_sql = """
                 SELECT * FROM (
                   SELECT 'state_mismatch' AS record_kind,1 AS sort_group,
@@ -711,7 +783,7 @@ class ProductionStore:
                          j.updated_at AS queue_updated_at
                   FROM production_runs r
                   JOIN pipeline_jobs j ON j.id=r.job_id
-                  WHERE j.job_type='short_video_production'
+                  WHERE j.job_type='short_video_production' AND r.workspace_id IS ?
                     AND r.status<>j.status
                     AND (r.status IN ('rendered','review_pending','approved','uploaded',
                                       'cancelled','failed_terminal')
@@ -729,7 +801,8 @@ class ProductionStore:
                          j.updated_at AS queue_updated_at
                   FROM pipeline_jobs j
                   LEFT JOIN production_runs r ON r.job_id=j.id
-                  WHERE j.job_type='short_video_production' AND r.job_id IS NULL
+                  WHERE j.job_type='short_video_production' AND j.workspace_id IS ?
+                    AND r.job_id IS NULL
                   UNION ALL
                   SELECT 'production_without_queue' AS record_kind,0 AS sort_group,
                          r.job_id,r.status AS production_status,r.current_stage,
@@ -741,7 +814,7 @@ class ProductionStore:
                   FROM production_runs r
                   LEFT JOIN pipeline_jobs j
                     ON j.id=r.job_id AND j.job_type='short_video_production'
-                  WHERE j.id IS NULL
+                  WHERE r.workspace_id IS ? AND j.id IS NULL
                 )
             """
             if cursor_key is not None:
@@ -749,12 +822,13 @@ class ProductionStore:
                     report_rows_sql
                     + " WHERE sort_group>? OR (sort_group=? AND job_id>?)"
                     + " ORDER BY sort_group,job_id LIMIT ?",
-                    (cursor_key[0], cursor_key[0], cursor_key[1], bounded + 1),
+                    (workspace_id,workspace_id,workspace_id,
+                     cursor_key[0], cursor_key[0], cursor_key[1], bounded + 1),
                 ).fetchall()
             else:
                 rows = c.execute(
                     report_rows_sql + " ORDER BY sort_group,job_id LIMIT ? OFFSET ?",
-                    (bounded + 1, page_offset),
+                    (workspace_id,workspace_id,workspace_id,bounded + 1, page_offset),
                 ).fetchall()
             has_more = len(rows) > bounded
             rows = rows[:bounded]
@@ -1028,9 +1102,13 @@ class ProductionStore:
             })
         return build_script_originality_report(script_text, previous, threshold)
 
-    def get(self, job_id):
+    def get(self, job_id, workspace_id=None):
         with self.db() as c:
-            run = c.execute("SELECT * FROM production_runs WHERE job_id=?", (job_id,)).fetchone()
+            if workspace_id is None:
+                run = c.execute("SELECT * FROM production_runs WHERE job_id=?", (job_id,)).fetchone()
+            else:
+                run = c.execute("SELECT * FROM production_runs WHERE job_id=? AND workspace_id=?",
+                                (job_id,workspace_id)).fetchone()
             if run is None:
                 return None
             artifacts = c.execute(
@@ -1413,7 +1491,7 @@ class ProductionPipeline:
             raise
 
 
-def submit_production(queue, store, brief):
+def submit_production(queue, store, brief, workspace_id=None):
     """Create a durable queue job and its production record; no provider call occurs here."""
     clean = ProductionPipeline.validate_brief(brief)
     policy_report = evaluate_content_policy(clean)
@@ -1421,9 +1499,13 @@ def submit_production(queue, store, brief):
         raise ValueError("Production blocked by policy preflight: "
                          + ", ".join(policy_report["blocking_reasons"]))
     clean["policy_report"] = policy_report
-    job = queue.enqueue("short_video_production", clean,
-                        channel_name=clean["brand"],
-                        idempotency_key=brief.get("idempotency_key"))
+    enqueue_options = {
+        "channel_name": clean["brand"],
+        "idempotency_key": brief.get("idempotency_key"),
+    }
+    if workspace_id is not None:
+        enqueue_options["workspace_id"] = workspace_id
+    job = queue.enqueue("short_video_production", clean, **enqueue_options)
     if not store.get(job["id"]):
         store.create(job["id"], clean)
     return {"job": job, "production": store.get(job["id"])}

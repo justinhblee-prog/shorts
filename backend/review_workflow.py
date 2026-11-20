@@ -159,7 +159,7 @@ class ReviewStore:
         finally:
             c.close()
 
-    def list_pending(self, limit=50):
+    def list_pending(self, limit=50, workspace_id=None):
         limit = max(1, min(int(limit), 200))
         with self.db() as c:
             has_queue = c.execute(
@@ -169,8 +169,8 @@ class ReviewStore:
             queue_join = " LEFT JOIN pipeline_jobs j ON j.id=r.job_id" if has_queue else ""
             rows = c.execute(
                 "SELECT r.*" + payload_column + " FROM production_runs r" + queue_join +
-                " WHERE r.status='review_pending' ORDER BY r.updated_at ASC LIMIT ?",
-                (limit,)
+                " WHERE r.status='review_pending' AND r.workspace_id IS ? ORDER BY r.updated_at ASC LIMIT ?",
+                (workspace_id, limit)
             ).fetchall()
             return [self._with_job_context(self._with_artifacts(c, dict(row)))
                     for row in rows]
@@ -190,7 +190,7 @@ class ReviewStore:
         return run
 
 
-    def list_approved(self, limit=50):
+    def list_approved(self, limit=50, workspace_id=None):
         limit = max(1, min(int(limit), 200))
         with self.db() as c:
             has_queue = c.execute(
@@ -200,8 +200,8 @@ class ReviewStore:
             queue_join = " LEFT JOIN pipeline_jobs j ON j.id=r.job_id" if has_queue else ""
             rows = c.execute(
                 "SELECT r.*" + payload_column + " FROM production_runs r" + queue_join +
-                " WHERE r.status='approved' ORDER BY r.updated_at DESC LIMIT ?",
-                (limit,)
+                " WHERE r.status='approved' AND r.workspace_id IS ? ORDER BY r.updated_at DESC LIMIT ?",
+                (workspace_id, limit)
             ).fetchall()
             return [self._with_job_context(self._with_artifacts(c, dict(row)))
                     for row in rows]
@@ -229,7 +229,7 @@ class ReviewStore:
         run["brand_profile"] = profile
         return ReviewStore.sanitize_production_record(run)
 
-    def update_policy_evidence(self, job_id, reviewer_id, declarations):
+    def update_policy_evidence(self, job_id, reviewer_id, declarations, workspace_id=None):
         """Persist explicit operator attestations and recompute the policy report."""
         reviewer_id = str(reviewer_id or "").strip()
         if not reviewer_id or len(reviewer_id) > 128:
@@ -250,9 +250,11 @@ class ReviewStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             run = c.execute(
-                "SELECT status FROM production_runs WHERE job_id=?", (job_id,)
+                "SELECT status,workspace_id FROM production_runs WHERE job_id=?", (job_id,)
             ).fetchone()
             if run is None:
+                raise ReviewNotFound(job_id)
+            if run["workspace_id"] != workspace_id:
                 raise ReviewNotFound(job_id)
             if run["status"] != "review_pending":
                 raise ReviewConflict("Policy evidence can only be updated while review is pending")
@@ -262,8 +264,8 @@ class ReviewStore:
             if not has_queue:
                 raise ReviewConflict("Durable queue payload is unavailable for policy evidence")
             job = c.execute(
-                "SELECT payload_json,status FROM pipeline_jobs WHERE id=? AND job_type='short_video_production'",
-                (job_id,),
+                "SELECT payload_json,status FROM pipeline_jobs WHERE id=? AND job_type='short_video_production' AND workspace_id IS ?",
+                (job_id, workspace_id),
             ).fetchone()
             if job is None or job["status"] != "review_pending":
                 raise ReviewConflict("Queue job is not in review_pending state")
@@ -306,8 +308,8 @@ class ReviewStore:
             )
             updated_payload["policy_report"] = report
             c.execute(
-                "UPDATE pipeline_jobs SET payload_json=?,updated_at=? WHERE id=?",
-                (json.dumps(updated_payload, ensure_ascii=False), timestamp, job_id),
+                "UPDATE pipeline_jobs SET payload_json=?,updated_at=? WHERE id=? AND workspace_id IS ?",
+                (json.dumps(updated_payload, ensure_ascii=False), timestamp, job_id, workspace_id),
             )
             cursor = c.execute("""
               INSERT INTO policy_evidence_events
@@ -327,10 +329,10 @@ class ReviewStore:
                 "created_at": timestamp,
             }
 
-    def policy_evidence_history(self, job_id):
+    def policy_evidence_history(self, job_id, workspace_id=None):
         with self.db() as c:
             exists = c.execute(
-                "SELECT 1 FROM production_runs WHERE job_id=?", (job_id,)
+                "SELECT 1 FROM production_runs WHERE job_id=? AND workspace_id IS ?", (job_id, workspace_id)
             ).fetchone()
             if exists is None:
                 raise ReviewNotFound(job_id)
@@ -346,7 +348,7 @@ class ReviewStore:
                 "created_at": row["created_at"],
             } for row in rows]
 
-    def decide(self, job_id, decision, reviewer_id, comment=""):
+    def decide(self, job_id, decision, reviewer_id, comment="", workspace_id=None):
         if decision not in self.DECISIONS:
             raise ValueError("Unsupported review decision")
         reviewer_id = str(reviewer_id or "").strip()
@@ -361,7 +363,7 @@ class ReviewStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             run = c.execute(
-                "SELECT * FROM production_runs WHERE job_id=?", (job_id,)
+                "SELECT * FROM production_runs WHERE job_id=? AND workspace_id IS ?", (job_id, workspace_id)
             ).fetchone()
             if run is None:
                 raise ReviewNotFound(job_id)
@@ -421,9 +423,9 @@ class ReviewStore:
                   json.dumps(snapshot, ensure_ascii=False), timestamp))
             updated=c.execute("""
               UPDATE production_runs SET status=?,current_stage='review',
-                error=?,updated_at=? WHERE job_id=? AND status='review_pending'
+                error=?,updated_at=? WHERE job_id=? AND status='review_pending' AND workspace_id IS ?
             """, (decision, comment if decision != "approved" else None,
-                  timestamp, job_id))
+                  timestamp, job_id, workspace_id))
             if updated.rowcount != 1:
                 raise ReviewConflict("Review state changed concurrently")
 
@@ -438,7 +440,7 @@ class ReviewStore:
                     "Durable queue is unavailable; review decision cannot be committed"
                 )
             queued = c.execute(
-                "SELECT job_type,status FROM pipeline_jobs WHERE id=?", (job_id,)
+                "SELECT job_type,status FROM pipeline_jobs WHERE id=? AND workspace_id IS ?", (job_id, workspace_id)
             ).fetchone()
             if queued is None:
                 raise ReviewConflict(
@@ -453,8 +455,8 @@ class ReviewStore:
               UPDATE pipeline_jobs SET status=?,worker_id=NULL,
                 lease_token=NULL,lease_expires_at=NULL,updated_at=?
               WHERE id=? AND job_type='short_video_production'
-                AND status='review_pending'
-            """, (decision, timestamp, job_id))
+                AND status='review_pending' AND workspace_id IS ?
+            """, (decision, timestamp, job_id, workspace_id))
             if queue_updated.rowcount != 1:
                 raise ReviewConflict("Queue review state changed concurrently")
             events_table = c.execute(
@@ -481,10 +483,11 @@ class ReviewStore:
             return {"production": self._with_artifacts(c, dict(row)),
                     "decision": decisions[-1], "history": decisions}
 
-    def history(self, job_id):
+    def history(self, job_id, workspace_id=None):
         with self.db() as c:
             exists = c.execute(
-                "SELECT 1 FROM production_runs WHERE job_id=?", (job_id,)
+                "SELECT 1 FROM production_runs WHERE job_id=? AND workspace_id IS ?",
+                (job_id, workspace_id)
             ).fetchone()
             if exists is None:
                 raise ReviewNotFound(job_id)

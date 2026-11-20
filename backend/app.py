@@ -32,6 +32,10 @@ from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
 from preflight import build_preflight
+from timeline_edl import validate_edl, EDLValidationError
+from workspace_access import resolve_workspace_membership, resolve_workspace_access, WorkspaceAccessConfigurationError
+from workspace_store import WorkspaceStore, WorkspaceDenied, WorkspaceConflict, WorkspaceNotFound
+from worker_auth import authenticate_worker, WorkerAuthConfigurationError, WorkerAuthenticationError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 class TikTokOAuthAccessLogRedaction(logging.Filter):
@@ -101,6 +105,7 @@ ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
 
 class Enqueue(BaseModel):
@@ -133,6 +138,19 @@ class ProviderAttemptReconciliationAction(BaseModel):
 class Claim(BaseModel):
     worker_id:str=Field(min_length=1,max_length=128)
     hostname:str|None=None
+class WorkerRegisterInput(BaseModel):
+    hostname:str|None=Field(default=None,max_length=255)
+class WorkerClaimInput(BaseModel):
+    hostname:str|None=Field(default=None,max_length=255)
+    job_type:str|None=Field(default=None,min_length=1,max_length=128)
+class WorkerLeaseInput(BaseModel):
+    lease_token:str=Field(min_length=1,max_length=256)
+class WorkerCompleteInput(WorkerLeaseInput):
+    result:dict[str,Any]=Field(default_factory=dict)
+class WorkerFailInput(WorkerLeaseInput):
+    error_code:str=Field(default="worker_error",min_length=1,max_length=128)
+    error_message:str=Field(default="Worker failed",max_length=2000)
+    retryable:bool=True
 class Lease(BaseModel):
     worker_id:str
     lease_token:str
@@ -259,6 +277,14 @@ class TrendProductionDraft(BaseModel):
     idempotency_key:str|None=None
     recommendation_run_id:str|None=Field(default=None,min_length=1,max_length=64)
 
+class WorkspaceCreateInput(BaseModel):
+    model_config = {"extra": "forbid"}
+    name:str=Field(min_length=1,max_length=120)
+
+class WorkspaceMemberInput(BaseModel):
+    principal_id:str=Field(min_length=1,max_length=128)
+    role:Literal["admin","editor","viewer"]="editor"
+
 @app.get("/api/brands")
 def list_brands(active_only:bool=False):
     return {"brands":brand_store.list(active_only)}
@@ -278,8 +304,10 @@ def set_brand_activation(slug:str,body:BrandActivation,x_review_token:str|None=H
         raise HTTPException(404,"Brand not found")
 
 @app.post("/api/production/jobs",status_code=201)
-def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.create")
+def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(default=None),
+                          x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.create")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
         brand = next((b for b in brand_store.list(active_only=True)
                       if body.brand in (b["slug"], b["name"])), None)
@@ -300,17 +328,21 @@ def create_production_job(body:ProductionBrief,x_review_token:str|None=Header(de
             "risk_level": profile.get("risk_level", "standard"),
             "review_rules": profile.get("review_rules", []),
         }
-        return submit_production(queue,production_store,brief)
+        return submit_production(queue,production_store,brief,workspace_id=workspace_id)
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
     except ValueError as e:
         raise HTTPException(422,str(e))
 
 @app.get("/api/production/jobs/{job_id}")
-def get_production_job(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.read")
-    result=production_store.get(job_id)
+def get_production_job(job_id:str,x_review_token:str|None=Header(default=None),
+                       x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    result=production_store.get(job_id,workspace_id=workspace_id)
     if result is None: raise HTTPException(404,"Production job not found")
+    if result.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
     return review_store.sanitize_production_record(result)
 
 @app.get("/api/production/integrity-report")
@@ -319,13 +351,15 @@ def production_integrity_report(
     offset:int=Query(default=0, ge=0, le=1000000),
     cursor:str|None=Query(default=None, max_length=512),
     x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
 ):
-    require_review_permission(x_review_token,"production.read")
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     if cursor is not None and offset != 0:
         raise HTTPException(422,"offset cannot be combined with cursor pagination")
     try:
         return production_store.integrity_report(
-            queue,limit=limit,offset=offset,cursor=cursor
+            queue,limit=limit,offset=offset,cursor=cursor,workspace_id=workspace_id
         )
     except ValueError as e:
         if str(e) == "Invalid integrity report cursor":
@@ -333,12 +367,16 @@ def production_integrity_report(
         raise HTTPException(409,str(e))
 
 @app.get("/api/production/jobs/{job_id}/provider-attempts")
-def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.read")
-    result=production_store.get(job_id)
+def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(default=None),
+                                      x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    result=production_store.get(job_id,workspace_id=workspace_id)
     if result is None:
         raise HTTPException(404,"Production job not found")
-    attempts=production_store.provider_attempts(job_id)
+    if result.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
+    attempts=production_store.provider_attempts(job_id,workspace_id=workspace_id)
     # Provider response bodies and transport errors may contain credentials,
     # signed artifact URLs, or customer data. Expose only operational metadata;
     # recovery/adoption continues to read the protected response from storage.
@@ -363,12 +401,16 @@ def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(d
 
 @app.post("/api/production/jobs/{job_id}/adopt-recovered-render")
 def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionAction,
-                                      x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"media.manage")
-    production=production_store.get(job_id)
+                                      x_review_token:str|None=Header(default=None),
+                                      x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    production=production_store.get(job_id,workspace_id=workspace_id)
     if production is None:
         raise HTTPException(404,"Production job not found")
-    attempts=production_store.provider_attempts(job_id)
+    if production.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
+    attempts=production_store.provider_attempts(job_id,workspace_id=workspace_id)
     attempt=next((item for item in attempts
                   if item["id"]==body.provider_attempt_id),None)
     if attempt is None or attempt["stage"]!="rendering":
@@ -381,7 +423,7 @@ def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionActi
         video_url=response.get("video_url") if isinstance(response,dict) else None
         if not isinstance(video_url,str) or not video_url.startswith("https://"):
             raise HTTPException(409,"Stored provider response has no HTTPS video URL")
-        staged=media_stager.stage(job_id,video_url)
+        staged=media_stager.stage(job_id,video_url,workspace_id=workspace_id)
         inspected=MediaInspector().inspect(media_stager.media_dir / staged["media_path"])
         result=production_store.adopt_recovered_render(
             job_id,body.provider_attempt_id,staged,inspected)
@@ -395,10 +437,14 @@ def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionActi
         raise HTTPException(409,str(e))
 
 @app.post("/api/production/jobs/{job_id}/execute")
-def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.execute")
+def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None),
+                           x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.execute")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        job=queue.get(job_id)
+        job=queue.get(job_id,workspace_id=workspace_id)
+        if job.get("workspace_id") is not None and workspace_id is None:
+            raise HTTPException(403,"Workspace scope is required for this production job")
         if job["job_type"]!="short_video_production":
             raise HTTPException(409,"Job is not a short-video production job")
         if job["status"]!="running" or job["worker_id"]!=body.worker_id or job["lease_token"]!=body.lease_token:
@@ -486,20 +532,155 @@ def require_review_permission(token, permission):
         raise HTTPException(403,"Operator role does not grant this action")
     return operator_id
 
+def resolve_operator_workspace_scope(operator_id, workspace_id):
+    """Resolve an optional workspace selector against the authenticated operator membership."""
+    if workspace_id is None or not isinstance(workspace_id, str):
+        return None
+    try:
+        return resolve_workspace_access(
+            operator_id, workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE", "legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON", ""),
+            store=workspace_store,
+        )
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+
+
+def require_production_workspace(job_id, operator_id, workspace_selector):
+    """Require an existing production parent inside the authenticated workspace."""
+    workspace_id=resolve_operator_workspace_scope(operator_id,workspace_selector)
+    production=production_store.get(job_id,workspace_id=workspace_id)
+    if production is None:
+        raise HTTPException(404,"Production job not found")
+    if production.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
+    return workspace_id
+
+
+@app.get("/api/operator/workspaces")
+def list_operator_workspaces(x_review_token:str|None=Header(default=None)):
+    """List only workspaces belonging to the authenticated operator principal."""
+    operator_id=require_review_permission(x_review_token,"workspace.read")
+    return {"workspaces":workspace_store.list_for_principal(operator_id)}
+
+
+@app.post("/api/operator/workspaces",status_code=201)
+def create_operator_workspace(body:WorkspaceCreateInput,
+                              x_review_token:str|None=Header(default=None)):
+    """Create an operator-owned workspace; owner identity always comes from the token."""
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        return workspace_store.create(body.name,operator_id)
+    except WorkspaceConflict as exc:
+        raise HTTPException(409,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
+
+@app.get("/api/operator/workspaces/{workspace_id}/members")
+def list_operator_workspace_members(workspace_id:str,
+                                    x_review_token:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        return {"members":workspace_store.list_members(workspace_id,operator_id)}
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.get("/api/operator/workspaces/{workspace_id}/audit")
+def list_operator_workspace_audit(workspace_id:str,limit:int=50,offset:int=0,
+                                  x_review_token:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        return {"events":workspace_store.list_audit_events(
+            workspace_id,operator_id,limit=limit,offset=offset
+        )}
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.post("/api/operator/workspaces/{workspace_id}/members")
+def add_operator_workspace_member(workspace_id:str,body:WorkspaceMemberInput,
+                                  x_review_token:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        return workspace_store.add_member(workspace_id,operator_id,body.principal_id,body.role)
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except WorkspaceNotFound as exc:
+        raise HTTPException(404,str(exc))
+    except WorkspaceConflict as exc:
+        raise HTTPException(409,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.delete("/api/operator/workspaces/{workspace_id}/members/{principal_id}")
+def revoke_operator_workspace_member(workspace_id:str,principal_id:str,
+                                     x_review_token:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        return workspace_store.revoke_member(workspace_id,operator_id,principal_id)
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except WorkspaceNotFound as exc:
+        raise HTTPException(404,str(exc))
+    except WorkspaceConflict as exc:
+        raise HTTPException(409,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.post("/api/timeline/edl/validate")
+def validate_timeline_edl(
+    payload:dict,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    """Validate an EDL within an explicitly configured operator workspace."""
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        workspace_id=resolve_workspace_access(
+            operator_id, x_nexus_workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE", "legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON", ""),
+            store=workspace_store,
+        )
+        normalized=validate_edl(payload)
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+    except EDLValidationError as exc:
+        raise HTTPException(422,str(exc))
+    return {"valid":True,"rendered":False,"workspace_id":workspace_id,"edl":normalized}
+
 
 @app.get("/api/review/pending")
-def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"review.read")
+def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None),
+                    x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"review.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     production_store.reconcile_review_pending(queue)
-    return {"items":review_store.list_pending(limit)}
+    return {"items":review_store.list_pending(limit,workspace_id=workspace_id)}
 
 
 
 @app.get("/api/publishing/overview")
-def publishing_overview(x_review_token:str|None=Header(default=None)):
+def publishing_overview(x_review_token:str|None=Header(default=None),
+                        x_nexus_workspace_id:str|None=Header(default=None)):
     """Return a bounded cross-platform publication status summary."""
-    require_review_permission(x_review_token,"review.read")
-    items=review_store.list_approved(200)
+    operator_id=require_review_permission(x_review_token,"review.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    items=review_store.list_approved(200,workspace_id=workspace_id)
     summary={
         "total":len(items),
         "youtube":{"uploaded":0,"processing":0,"failed":0,"pending":0,"uncertain":0},
@@ -529,9 +710,11 @@ def publishing_overview(x_review_token:str|None=Header(default=None)):
 
 
 @app.get("/api/review/approved")
-def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"review.read")
-    items=review_store.list_approved(limit)
+def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None),
+                     x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"review.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    items=review_store.list_approved(limit,workspace_id=workspace_id)
     pending=[]
     for item in items:
         upload=youtube_upload_store.get(item["job_id"])
@@ -560,13 +743,15 @@ def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
 @app.post("/api/review/{job_id}/policy-evidence")
 def update_review_policy_evidence(
     job_id:str, body:PolicyEvidenceInput,
-    x_review_token:str|None=Header(default=None)
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None)
 ):
     authenticated_reviewer=require_review_permission(x_review_token,"review.evidence")
+    workspace_id=resolve_operator_workspace_scope(authenticated_reviewer,x_nexus_workspace_id)
     declarations=body.model_dump(exclude={"reviewer_id"},exclude_none=True)
     try:
         return review_store.update_policy_evidence(
-            job_id,authenticated_reviewer,declarations
+            job_id,authenticated_reviewer,declarations,workspace_id=workspace_id
         )
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
@@ -578,10 +763,12 @@ def update_review_policy_evidence(
 
 @app.post("/api/review/{job_id}/approve")
 def approve_review(job_id:str, body:ReviewDecision,
-                   x_review_token:str|None=Header(default=None)):
+                   x_review_token:str|None=Header(default=None),
+                   x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_reviewer=require_review_permission(x_review_token,"review.decide")
+    workspace_id=resolve_operator_workspace_scope(authenticated_reviewer,x_nexus_workspace_id)
     try:
-        return review_store.decide(job_id,"approved",authenticated_reviewer,body.comment)
+        return review_store.decide(job_id,"approved",authenticated_reviewer,body.comment,workspace_id=workspace_id)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -592,10 +779,12 @@ def approve_review(job_id:str, body:ReviewDecision,
 
 @app.post("/api/review/{job_id}/reject")
 def reject_review(job_id:str, body:ReviewDecision,
-                  x_review_token:str|None=Header(default=None)):
+                  x_review_token:str|None=Header(default=None),
+                  x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_reviewer=require_review_permission(x_review_token,"review.decide")
+    workspace_id=resolve_operator_workspace_scope(authenticated_reviewer,x_nexus_workspace_id)
     try:
-        return review_store.decide(job_id,"rejected",authenticated_reviewer,body.comment)
+        return review_store.decide(job_id,"rejected",authenticated_reviewer,body.comment,workspace_id=workspace_id)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -606,10 +795,12 @@ def reject_review(job_id:str, body:ReviewDecision,
 
 @app.post("/api/review/{job_id}/request-revision")
 def request_revision(job_id:str, body:ReviewDecision,
-                     x_review_token:str|None=Header(default=None)):
+                     x_review_token:str|None=Header(default=None),
+                     x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_reviewer=require_review_permission(x_review_token,"review.decide")
+    workspace_id=resolve_operator_workspace_scope(authenticated_reviewer,x_nexus_workspace_id)
     try:
-        return review_store.decide(job_id,"revision_requested",authenticated_reviewer,body.comment)
+        return review_store.decide(job_id,"revision_requested",authenticated_reviewer,body.comment,workspace_id=workspace_id)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -619,10 +810,12 @@ def request_revision(job_id:str, body:ReviewDecision,
 
 
 @app.get("/api/review/{job_id}/history")
-def review_history(job_id:str, x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"review.read")
+def review_history(job_id:str, x_review_token:str|None=Header(default=None),
+                   x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"review.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        return {"items":review_store.history(job_id)}
+        return {"items":review_store.history(job_id,workspace_id=workspace_id)}
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
 
@@ -630,11 +823,15 @@ def review_history(job_id:str, x_review_token:str|None=Header(default=None)):
 
 
 @app.post("/api/production/jobs/{job_id}/stage-media")
-def stage_production_media(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"media.manage")
-    production=production_store.get(job_id)
+def stage_production_media(job_id:str,x_review_token:str|None=Header(default=None),
+                           x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    production=production_store.get(job_id,workspace_id=workspace_id)
     if production is None:
         raise HTTPException(404,"Production job not found")
+    if production.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
     if production["status"] not in ("rendered","review_pending","approved"):
         raise HTTPException(409,"Only rendered production jobs can be staged")
     video=next((item for item in production["artifacts"]
@@ -642,20 +839,25 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
     if video is None:
         raise HTTPException(409,"Rendered video artifact is not available")
     try:
-        existing=media_stager.staged_path(job_id)
+        existing=media_stager.staged_path(job_id,workspace_id=workspace_id)
         if existing.is_file() and not existing.is_symlink():
             staged=media_stager.fingerprint(existing)
             staged["already_staged"]=True
         else:
-            staged=media_stager.stage(job_id,video["artifact_url"])
+            staged=media_stager.stage(job_id,video["artifact_url"],workspace_id=workspace_id)
         metadata=dict(video.get("metadata") or {})
         previous=metadata.get("media_staging") or {}
         if (previous.get("sha256")!=staged.get("sha256")
                 or previous.get("size_bytes")!=staged.get("size_bytes")
                 or previous.get("media_path")!=staged.get("media_path")):
             metadata["media_staging"]=staged
-            production_store.artifact(job_id,"rendering","video",video["artifact_url"],metadata)
-            production_store.stage(job_id,"review","review_pending")
+            production_store.artifact(
+                job_id,"rendering","video",video["artifact_url"],metadata,
+                workspace_id=workspace_id,
+            )
+            production_store.stage(
+                job_id,"review","review_pending",workspace_id=workspace_id
+            )
             staged["review_required"]=True
         return staged
     except MediaStagingError as e:
@@ -663,18 +865,27 @@ def stage_production_media(job_id:str,x_review_token:str|None=Header(default=Non
 
 
 @app.post("/api/production/jobs/{job_id}/cleanup-media")
-def cleanup_production_media(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"media.manage")
+def cleanup_production_media(job_id:str,x_review_token:str|None=Header(default=None),
+                             x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    production=production_store.get(job_id,workspace_id=workspace_id)
+    if production is None:
+        raise HTTPException(404,"Production job not found")
+    if production.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
     try:
-        return media_stager.cleanup_uploaded(job_id,youtube_upload_store)
+        return media_stager.cleanup_uploaded(job_id,youtube_upload_store,workspace_id=workspace_id)
     except MediaStagingError as e:
         raise HTTPException(409,str(e))
 
 
 @app.post("/api/youtube/upload/{job_id}",status_code=201)
 def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
-                         x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.execute")
+                         x_review_token:str|None=Header(default=None),
+                         x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"publish.execute")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     try:
         return youtube_publisher.upload_approved(
             job_id,body.media_path,review_store,body.title,body.description,
@@ -686,8 +897,10 @@ def upload_youtube_video(job_id:str,body:YouTubeUploadRequest,
 
 
 @app.get("/api/youtube/uploads/{job_id}")
-def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publishing.read")
+def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None),
+                       x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"publishing.read")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     result=youtube_upload_store.get(job_id)
     if result is None:
         raise HTTPException(404,"YouTube upload record not found")
@@ -696,7 +909,8 @@ def get_youtube_upload(job_id:str,x_review_token:str|None=Header(default=None)):
 
 @app.post("/api/youtube/uploads/{job_id}/reconcile")
 def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
-                              x_review_token:str|None=Header(default=None)):
+                              x_review_token:str|None=Header(default=None),
+                              x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_operator=require_review_permission(x_review_token,"publish.reconcile")
     if body.operator_id != authenticated_operator:
         raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
@@ -704,6 +918,7 @@ def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
         raise HTTPException(422,"Explicit operator confirmation is required")
     if body.outcome=="uploaded" and not body.video_id:
         raise HTTPException(422,"A verified YouTube video ID is required")
+    require_production_workspace(job_id,authenticated_operator,x_nexus_workspace_id)
     try:
         return youtube_upload_store.reconcile(
             job_id,body.outcome,body.video_id,body.note,body.operator_id,
@@ -715,10 +930,12 @@ def reconcile_youtube_upload(job_id:str,body:YouTubeUploadReconciliation,
 
 @app.post("/api/youtube/uploads/{job_id}/resolve-late-result")
 def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
-                                x_review_token:str|None=Header(default=None)):
+                                x_review_token:str|None=Header(default=None),
+                                x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_operator=require_review_permission(x_review_token,"publish.reconcile")
     if body.operator_id != authenticated_operator:
         raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
+    require_production_workspace(job_id,authenticated_operator,x_nexus_workspace_id)
     try:
         return youtube_upload_store.resolve_late_success(
             job_id,body.operator_id,body.note,body.video_id,
@@ -729,8 +946,13 @@ def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
 
 
 @app.post("/api/youtube/videos/{video_id}/refresh-metrics")
-def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
+def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=None),
+                            x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    job_id=youtube_upload_store.job_for_video(video_id)
+    if not job_id:
+        raise HTTPException(404,"YouTube video not found")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     try:
         return youtube_publisher.refresh_metrics(video_id)
     except YouTubeUploadError as e:
@@ -738,8 +960,13 @@ def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=
 
 
 @app.post("/api/youtube/videos/{video_id}/refresh-analytics")
-def refresh_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
+def refresh_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=None),
+                              x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    job_id=youtube_upload_store.job_for_video(video_id)
+    if not job_id:
+        raise HTTPException(404,"YouTube video not found")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     try:
         return youtube_analytics_collector.collect_video(video_id)
     except ValueError as e:
@@ -749,19 +976,32 @@ def refresh_youtube_analytics(video_id:str,x_review_token:str|None=Header(defaul
 
 
 @app.get("/api/youtube/videos/{video_id}/analytics")
-def get_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
-    result=youtube_analytics_store.get(video_id)
+def get_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=None),
+                          x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    job_id=youtube_upload_store.job_for_video(video_id)
+    if not job_id:
+        raise HTTPException(404,"YouTube video not found")
+    workspace_id=require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
+    result=youtube_analytics_store.get(video_id,workspace_id=workspace_id)
     if result is None:
         raise HTTPException(404,"YouTube Analytics report has not been collected")
     return result
 
 
 @app.get("/api/youtube/analytics/collection-status")
-def youtube_analytics_collection_status(x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
+def youtube_analytics_collection_status(
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    if not isinstance(x_nexus_workspace_id,str) or not x_nexus_workspace_id.strip():
+        raise HTTPException(403,"Workspace scope is required for analytics status")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     freshness=max(300,int(os.getenv("YOUTUBE_ANALYTICS_MIN_AGE_SECONDS","86400")))
-    return youtube_analytics_store.status(freshness_seconds=freshness)
+    return youtube_analytics_store.status(
+        freshness_seconds=freshness,workspace_id=workspace_id
+    )
 
 
 
@@ -888,8 +1128,10 @@ def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
 
 @app.post("/api/tiktok/publish/{job_id}",status_code=201)
 def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
-                         x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.execute")
+                         x_review_token:str|None=Header(default=None),
+                         x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"publish.execute")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     staged_path=require_canonical_staged_media(job_id,body.media_path)
     try:
         return tiktok_publisher.publish_private_approved(
@@ -904,8 +1146,10 @@ def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
 
 
 @app.get("/api/tiktok/publications/{job_id}")
-def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publishing.read")
+def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=None),
+                            x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"publishing.read")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     result=tiktok_publish_store.get(job_id)
     if result is None:
         raise HTTPException(404,"TikTok publication record not found")
@@ -914,10 +1158,12 @@ def get_tiktok_publication(job_id:str,x_review_token:str|None=Header(default=Non
 
 @app.post("/api/tiktok/publications/{job_id}/reconcile")
 def reconcile_tiktok_publication(job_id:str,body:TikTokPublicationReconciliation,
-                                 x_review_token:str|None=Header(default=None)):
+                                 x_review_token:str|None=Header(default=None),
+                                 x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_operator=require_review_permission(x_review_token,"publish.reconcile")
     if body.operator_id != authenticated_operator:
         raise HTTPException(403,"Reconciliation operator must match the authenticated principal")
+    require_production_workspace(job_id,authenticated_operator,x_nexus_workspace_id)
     try:
         return tiktok_publish_store.reconcile(job_id,body.outcome,body.operator_id,
             body.note,video_id=body.video_id,confirmed=body.confirmed,
@@ -927,8 +1173,10 @@ def reconcile_tiktok_publication(job_id:str,body:TikTokPublicationReconciliation
 
 
 @app.post("/api/tiktok/publications/{job_id}/refresh-status")
-def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.reconcile")
+def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(default=None),
+                                       x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"publish.reconcile")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     try:
         return tiktok_publisher.refresh_status(job_id)
     except TikTokPublishError as e:
@@ -966,11 +1214,17 @@ def refresh_due_tiktok_publications(
 
 
 @app.get("/api/publishing/analytics-status")
-def publishing_analytics_status(x_review_token:str|None=Header(default=None)):
-    """Summarize analytics freshness and coverage without exposing provider credentials."""
-    require_review_permission(x_review_token,"analytics.read")
-    youtube=youtube_analytics_store.status()
-    tiktok=tiktok_metrics_store.status(tiktok_publish_store)
+def publishing_analytics_status(
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    """Summarize workspace-scoped analytics coverage without exposing provider credentials."""
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    if not x_nexus_workspace_id:
+        raise HTTPException(403,"Workspace scope is required for analytics status")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    youtube=youtube_analytics_store.status(workspace_id=workspace_id)
+    tiktok=tiktok_metrics_store.status(tiktok_publish_store,workspace_id=workspace_id)
     safe_fields=("platform","status","last_attempt_at","last_success_at",
                  "latest_snapshot_at","last_batch","coverage",
                  "available_metrics","unavailable_metrics","read_only")
@@ -986,9 +1240,11 @@ def publishing_analytics_history(
     before_collected_at:str|None=None,before_id:int|None=None,
     as_of:str|None=None,
     x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
 ):
     """Return stored, read-only metric snapshots for trend comparison."""
-    require_review_permission(x_review_token,"analytics.read")
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     if platform not in {"all","youtube","tiktok"}:
         raise HTTPException(422,"platform must be all, youtube, or tiktok")
     if video_id is not None and (
@@ -1034,12 +1290,14 @@ def publishing_analytics_history(
     if platform in {"all","youtube"}:
         result["youtube"]=youtube_analytics_store.history(
             video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset,
-            before_collected_at=before_collected_at,before_id=before_id
+            before_collected_at=before_collected_at,before_id=before_id,
+            workspace_id=workspace_id
         )
     if platform in {"all","tiktok"}:
         result["tiktok"]=tiktok_metrics_store.history(
             tiktok_publish_store,video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset,
-            before_collected_at=before_collected_at,before_id=before_id
+            before_collected_at=before_collected_at,before_id=before_id,
+            workspace_id=workspace_id
         )
     return {
         "platform":platform,"video_id":video_id,"days":bounded_days,"as_of":normalized_as_of,
@@ -1051,29 +1309,37 @@ def publishing_analytics_history(
 
 
 @app.get("/api/tiktok/metrics")
-def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
+def tiktok_metrics(limit:int=100,x_review_token:str|None=Header(default=None),
+                   x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     bounded=max(1,min(limit,200))
-    items=tiktok_metrics_store.recent_metrics(tiktok_publish_store,bounded)
+    items=tiktok_metrics_store.recent_metrics(
+        tiktok_publish_store,bounded,workspace_id=workspace_id
+    )
     return {"items":items,"count":len(items),"limit":bounded,
             "source":"TikTok Display API v2","read_only":True,"ranking_score_adjustment":0}
 
 
 @app.post("/api/finance/ledger",status_code=201)
-def record_financial_entry(body:LedgerEntry,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"finance.write")
+def record_financial_entry(body:LedgerEntry,x_review_token:str|None=Header(default=None),
+                           x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"finance.write")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        return ledger_store.record(body.model_dump())
+        return ledger_store.record(body.model_dump(),workspace_id=workspace_id)
     except (ValueError,KeyError) as e:
         raise HTTPException(422,str(e))
 
 
 @app.get("/api/finance/report")
 def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|None=None,
-                     currency:str="USD",x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"finance.read")
+                     currency:str="USD",x_review_token:str|None=Header(default=None),
+                     x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"finance.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        return ledger_store.report(brand,from_date,to_date,currency)
+        return ledger_store.report(brand,from_date,to_date,currency,workspace_id=workspace_id)
     except ValueError as e:
         raise HTTPException(422,str(e))
 
@@ -1082,15 +1348,19 @@ def financial_report(brand:str|None=None,from_date:str|None=None,to_date:str|Non
 @app.get("/api/performance/insights")
 def performance_insights(brand:str|None=None,
                          platform:Literal["youtube","tiktok"]="youtube",
-                         x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
-    return performance_analyzer.analyze(brand,platform=platform)
+                         x_review_token:str|None=Header(default=None),
+                         x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return performance_analyzer.analyze(brand,platform=platform,workspace_id=workspace_id)
 
 
 
 @app.post("/api/schedules",status_code=201)
-def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"schedules.manage")
+def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=None),
+                    x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"schedules.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     brand=next((b for b in brand_store.list(active_only=True)
                 if body.brand in (b["slug"],b["name"])),None)
     if brand is None: raise HTTPException(422,"Unknown or inactive brand")
@@ -1099,29 +1369,35 @@ def create_schedule(body:ScheduleInput,x_review_token:str|None=Header(default=No
     payload={"brand":brand["name"],"region":body.region,
              "language":body.language,"topic":body.topic,
              "platforms":[body.platform]}
-    try:return schedule_store.create(body.name,body.interval_seconds,payload,body.start_at)
+    try:return schedule_store.create(body.name,body.interval_seconds,payload,body.start_at,workspace_id=workspace_id)
     except ValueError as e:raise HTTPException(422,str(e))
 
 
 @app.get("/api/schedules")
-def list_schedules(x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"schedules.manage")
-    return {"items":schedule_store.list()}
+def list_schedules(x_review_token:str|None=Header(default=None),
+                   x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"schedules.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return {"items":schedule_store.list(workspace_id=workspace_id)}
 
 
 
 @app.get("/api/schedules/outbox")
-def schedule_outbox(x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"schedules.manage")
-    return schedule_store.outbox_status()
+def schedule_outbox(x_review_token:str|None=Header(default=None),
+                    x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"schedules.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return schedule_store.outbox_status(workspace_id=workspace_id)
 
 
 
 @app.post("/api/schedules/outbox/{outbox_id}/retry")
-def retry_schedule_outbox(outbox_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"schedules.manage")
+def retry_schedule_outbox(outbox_id:str,x_review_token:str|None=Header(default=None),
+                          x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"schedules.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        result=schedule_store.retry_dead_letter(outbox_id)
+        result=schedule_store.retry_dead_letter(outbox_id,workspace_id=workspace_id)
     except ValueError as e:
         raise HTTPException(422,str(e))
     if result is None:
@@ -1131,9 +1407,11 @@ def retry_schedule_outbox(outbox_id:str,x_review_token:str|None=Header(default=N
 
 @app.put("/api/schedules/{schedule_id}/activation")
 def activate_schedule(schedule_id:str,active:bool,
-                      x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"schedules.manage")
-    result=schedule_store.set_active(schedule_id,active)
+                      x_review_token:str|None=Header(default=None),
+                      x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"schedules.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    result=schedule_store.set_active(schedule_id,active,workspace_id=workspace_id)
     if result is None:raise HTTPException(404,"Schedule not found")
     return result
 
@@ -1159,8 +1437,10 @@ def list_trends(region:str|None=None,source:str|None=None,q:str|None=None,limit:
 
 @app.post("/api/trends/{trend_id}/draft-production",status_code=201)
 def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
-                                x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.create")
+                                x_review_token:str|None=Header(default=None),
+                                x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.create")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
         trend=trend_store.get(trend_id)
         if trend is None:
@@ -1197,12 +1477,13 @@ def draft_production_from_trend(trend_id:str,body:TrendProductionDraft,
                 "published_at":trend.get("published_at"),"region":region,
             },
         }
-        submitted=submit_production(queue,production_store,brief)
+        submitted=submit_production(queue,production_store,brief,workspace_id=workspace_id)
         attribution = None
         if body.recommendation_run_id:
             attribution = recommendation_evaluation_store.link_production(
                 trend_id,brand["slug"],submitted["job"]["id"],
-                platform=body.platform,run_id=body.recommendation_run_id
+                platform=body.platform,run_id=body.recommendation_run_id,
+                workspace_id=workspace_id
             )
         submitted["recommendation_attribution"] = attribution or {
             "linked": False, "reason": "not_a_captured_recommendation_selection"
@@ -1267,8 +1548,10 @@ class OpportunityInput(BaseModel):
 
 
 @app.post("/api/opportunities/score",status_code=201)
-def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"opportunities.manage")
+def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Header(default=None),
+                             x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"opportunities.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
         data=body.model_dump()
         channel_ids=data.pop("competitor_channel_ids",[])
@@ -1284,15 +1567,15 @@ def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Heade
             **benchmark,"competition_pressure_index":round(pressure,3) if pressure is not None else None,
             "score_adjustment":-penalty if observed else 0.0,
         }
-        return opportunity_store.save(result)
+        return opportunity_store.save(result,workspace_id=workspace_id)
     except ValueError as e:
         raise HTTPException(422,str(e))
 
 
-def _build_trend_recommendations(region, limit, platform="youtube"):
+def _build_trend_recommendations(region, limit, platform="youtube", workspace_id=None):
     trends=trend_store.list(region=region,limit=200)
     brands=brand_store.list(active_only=True)
-    performance=performance_analyzer.analyze(platform=platform)
+    performance=performance_analyzer.analyze(platform=platform,workspace_id=workspace_id)
     performance_by_brand={item["brand"]:item for item in performance.get("brands",[])}
     return rank_trend_candidates(
         trends,brands,competitor_store,limit,
@@ -1315,20 +1598,28 @@ def _trend_recommendation_payload(ranked):
 @app.get("/api/trends/recommendations")
 def trend_recommendations(region:str|None=None,limit:int=30,
                           platform:Literal["youtube","tiktok"]="youtube",
-                          x_review_token:str|None=Header(default=None)):
+                          x_review_token:str|None=Header(default=None),
+                          x_nexus_workspace_id:str|None=Header(default=None)):
     """Read-only recommendation retrieval; does not create an evaluation exposure."""
-    require_review_permission(x_review_token,"recommendations.read")
-    return _trend_recommendation_payload(_build_trend_recommendations(region,limit,platform))
+    operator_id=require_review_permission(x_review_token,"recommendations.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return _trend_recommendation_payload(
+        _build_trend_recommendations(region,limit,platform,workspace_id=workspace_id)
+    )
 
 
 @app.post("/api/trends/recommendations/snapshot")
 def capture_trend_recommendations(region:str|None=None,limit:int=30,
                                   platform:Literal["youtube","tiktok"]="youtube",
-                                  x_review_token:str|None=Header(default=None)):
+                                  x_review_token:str|None=Header(default=None),
+                                  x_nexus_workspace_id:str|None=Header(default=None)):
     """Explicitly capture a platform-specific recommendation exposure."""
-    require_review_permission(x_review_token,"recommendations.manage")
-    ranked=_build_trend_recommendations(region,limit,platform)
-    exposure=recommendation_evaluation_store.record_run(region,ranked,platform=platform)
+    operator_id=require_review_permission(x_review_token,"recommendations.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    ranked=_build_trend_recommendations(region,limit,platform,workspace_id=workspace_id)
+    exposure=recommendation_evaluation_store.record_run(
+        region,ranked,platform=platform,workspace_id=workspace_id
+    )
     return {
         **_trend_recommendation_payload(ranked),
         "evaluation_run_id":exposure["run_id"],
@@ -1338,18 +1629,23 @@ def capture_trend_recommendations(region:str|None=None,limit:int=30,
 
 @app.get("/api/recommendations/evaluation")
 def recommendation_evaluation(platform:Literal["youtube","tiktok"]="youtube",
-                               x_review_token:str|None=Header(default=None)):
+                               x_review_token:str|None=Header(default=None),
+                               x_nexus_workspace_id:str|None=Header(default=None)):
     """Report chronological holdout diagnostics for one platform only."""
-    require_review_permission(x_review_token,"recommendations.read")
+    operator_id=require_review_permission(x_review_token,"recommendations.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     return recommendation_evaluation_store.evaluate(
-        performance_analyzer.analyze(platform=platform),platform=platform
+        performance_analyzer.analyze(platform=platform,workspace_id=workspace_id),
+        platform=platform,workspace_id=workspace_id
     )
 
 
 @app.get("/api/opportunities")
-def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
-    return {"opportunities":opportunity_store.list(limit)}
+def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None),
+                       x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return {"opportunities":opportunity_store.list(limit,workspace_id=workspace_id)}
 
 @app.get("/api/health")
 def health():
@@ -1371,9 +1667,11 @@ def readiness():
         "checks": {"queue_store": "ok", "scheduler_store": "ok"},
     }
 @app.get("/api/queue/stats")
-def stats(x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.read")
-    return queue.stats()
+def stats(x_review_token:str|None=Header(default=None),
+          x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"queue.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return queue.stats(workspace_id=workspace_id)
 @app.get("/api/queue/control")
 def queue_control(x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"queue.read")
@@ -1383,16 +1681,23 @@ def queue_control(x_review_token:str|None=Header(default=None)):
     }
 
 @app.get("/api/production/reconciliation")
-def list_production_reconciliation(limit:int=100,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.read")
-    return {"jobs":review_store._sanitize_review_value(queue.ambiguous_production_jobs(limit))}
+def list_production_reconciliation(limit:int=100,x_review_token:str|None=Header(default=None),
+                                  x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"queue.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return {"jobs":review_store._sanitize_review_value(
+        queue.ambiguous_production_jobs(limit,workspace_id=workspace_id)
+    )}
 
 @app.get("/api/production/jobs/{job_id}/reconciliation")
-def get_production_reconciliation(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.read")
+def get_production_reconciliation(job_id:str,x_review_token:str|None=Header(default=None),
+                                  x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        queue.get(job_id)
-        return {"events":review_store._sanitize_review_value(queue.production_reconciliation_events(job_id))}
+        queue.get(job_id,workspace_id=workspace_id)
+        return {"events":review_store._sanitize_review_value(
+            queue.production_reconciliation_events(job_id,workspace_id=workspace_id))}
     except JobNotFound:
         raise HTTPException(404,"Job not found")
 
@@ -1404,11 +1709,14 @@ def reconcile_production_retry(job_id:str,body:ProductionReconciliationAction,
         raise HTTPException(422,"operator_id, evidence_reference and note must not be blank")
     try:
         job=queue.reconcile_production_retry(
-            job_id,body.operator_id,body.evidence_reference,body.note)
+            job_id,body.operator_id,body.evidence_reference,body.note,
+            workspace_id=workspace_id)
         return {
             "job":review_store.sanitize_production_record(job),
             "production_paused":queue.is_paused(),
-            "events":review_store._sanitize_review_value(queue.production_reconciliation_events(job_id)),
+            "events":review_store._sanitize_review_value(
+                queue.production_reconciliation_events(job_id,workspace_id=workspace_id)
+            ),
         }
     except JobNotFound:
         raise HTTPException(404,"Production job not found")
@@ -1442,39 +1750,192 @@ def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=
     except ValueError as e:
         raise HTTPException(409,str(e))
 
-@app.post("/api/jobs",status_code=201)
-def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.enqueue")
+def require_legacy_worker_api_compatibility():
+    if os.getenv("NEXUS_WORKER_CREDENTIALS_JSON","").strip():
+        raise HTTPException(
+            410,"Legacy operator-token worker endpoints are disabled when worker credentials are configured"
+        )
+
+
+def require_worker_identity(authorization):
     try:
-        return queue.enqueue(**body.model_dump())
+        return authenticate_worker(
+            authorization,
+            credentials_json=os.getenv("NEXUS_WORKER_CREDENTIALS_JSON",""),
+        )
+    except WorkerAuthConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except WorkerAuthenticationError:
+        raise HTTPException(401,"Valid worker bearer credential required")
+
+
+def require_worker_generation(generation_token):
+    if not isinstance(generation_token,str) or not generation_token.strip() or len(generation_token)>256:
+        raise HTTPException(401,"Valid worker process generation is required")
+    return generation_token
+
+
+def resolve_worker_job_workspace(identity, job_id):
+    for workspace_id in identity.workspace_ids:
+        try:
+            queue.get(job_id,workspace_id=workspace_id)
+            return workspace_id
+        except JobNotFound:
+            continue
+    raise HTTPException(404,"Production job not found in worker workspace grants")
+
+
+@app.post("/api/worker/v1/register")
+def register_worker_v1(
+    body:WorkerRegisterInput,
+    authorization:str|None=Header(default=None),
+):
+    identity=require_worker_identity(authorization)
+    result=queue.register_worker(identity.worker_id,body.hostname)
+    return {
+        "worker_id":identity.worker_id,
+        "generation_token":result["generation_token"],
+        "workspace_ids":list(identity.workspace_ids),
+    }
+
+
+@app.post("/api/worker/v1/claim")
+def claim_worker_v1(
+    body:WorkerClaimInput,
+    authorization:str|None=Header(default=None),
+    x_nexus_worker_generation:str|None=Header(default=None),
+):
+    identity=require_worker_identity(authorization)
+    generation=require_worker_generation(x_nexus_worker_generation)
+    if body.job_type not in (None,"short_video_production"):
+        raise HTTPException(422,"Worker credential is not authorized for this job type")
+    try:
+        for workspace_id in identity.workspace_ids:
+            job=queue.claim(
+                identity.worker_id,body.hostname,job_type="short_video_production",
+                generation_token=generation,workspace_id=workspace_id,
+            )
+            if job is not None:
+                return {"job":job,"workspace_id":workspace_id}
+        return {"job":None,"workspace_id":None}
+    except LeaseConflict as exc:
+        raise HTTPException(409,str(exc))
+
+
+@app.post("/api/worker/v1/jobs/{jid}/heartbeat")
+def heartbeat_worker_v1(
+    jid:str,body:WorkerLeaseInput,
+    authorization:str|None=Header(default=None),
+    x_nexus_worker_generation:str|None=Header(default=None),
+):
+    identity=require_worker_identity(authorization)
+    generation=require_worker_generation(x_nexus_worker_generation)
+    workspace_id=resolve_worker_job_workspace(identity,jid)
+    try:
+        return queue.heartbeat(
+            jid,identity.worker_id,body.lease_token,
+            generation_token=generation,workspace_id=workspace_id,
+        )
+    except JobNotFound:
+        raise HTTPException(404,"Production job not found")
+    except LeaseConflict as exc:
+        raise HTTPException(409,str(exc))
+
+
+@app.post("/api/worker/v1/jobs/{jid}/complete")
+def complete_worker_v1(
+    jid:str,body:WorkerCompleteInput,
+    authorization:str|None=Header(default=None),
+    x_nexus_worker_generation:str|None=Header(default=None),
+):
+    identity=require_worker_identity(authorization)
+    generation=require_worker_generation(x_nexus_worker_generation)
+    workspace_id=resolve_worker_job_workspace(identity,jid)
+    try:
+        return queue.finish(
+            jid,identity.worker_id,body.lease_token,body.result,
+            generation_token=generation,workspace_id=workspace_id,
+        )
+    except JobNotFound:
+        raise HTTPException(404,"Production job not found")
+    except LeaseConflict as exc:
+        raise HTTPException(409,str(exc))
+
+
+@app.post("/api/worker/v1/jobs/{jid}/fail")
+def fail_worker_v1(
+    jid:str,body:WorkerFailInput,
+    authorization:str|None=Header(default=None),
+    x_nexus_worker_generation:str|None=Header(default=None),
+):
+    identity=require_worker_identity(authorization)
+    generation=require_worker_generation(x_nexus_worker_generation)
+    workspace_id=resolve_worker_job_workspace(identity,jid)
+    try:
+        return queue.fail(
+            jid,identity.worker_id,body.lease_token,body.error_code,body.error_message,
+            body.retryable,generation_token=generation,workspace_id=workspace_id,
+        )
+    except JobNotFound:
+        raise HTTPException(404,"Production job not found")
+    except LeaseConflict as exc:
+        raise HTTPException(409,str(exc))
+
+
+@app.post("/api/jobs",status_code=201)
+def enqueue(body:Enqueue,x_review_token:str|None=Header(default=None),
+            x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"queue.enqueue")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try:
+        return queue.enqueue(**body.model_dump(),workspace_id=workspace_id)
     except IdempotencyConflict as e:
         raise HTTPException(409,str(e))
 @app.post("/api/jobs/claim")
-def claim(body:Claim,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"worker.execute")
-    return {"job":queue.claim(body.worker_id,body.hostname)}
+def claim(body:Claim,x_review_token:str|None=Header(default=None),
+          x_nexus_workspace_id:str|None=Header(default=None)):
+    require_legacy_worker_api_compatibility()
+    operator_id=require_review_permission(x_review_token,"worker.execute")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return {"job":queue.claim(body.worker_id,body.hostname,workspace_id=workspace_id)}
 @app.post("/api/jobs/{jid}/heartbeat")
-def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"worker.execute")
-    try: return queue.heartbeat(jid,body.worker_id,body.lease_token)
+def heartbeat(jid:str,body:Lease,x_review_token:str|None=Header(default=None),
+              x_nexus_workspace_id:str|None=Header(default=None)):
+    require_legacy_worker_api_compatibility()
+    operator_id=require_review_permission(x_review_token,"worker.execute")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try: return queue.heartbeat(jid,body.worker_id,body.lease_token,workspace_id=workspace_id)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/complete")
-def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"worker.execute")
-    try: return queue.finish(jid,body.worker_id,body.lease_token,body.result)
+def complete(jid:str,body:Complete,x_review_token:str|None=Header(default=None),
+             x_nexus_workspace_id:str|None=Header(default=None)):
+    require_legacy_worker_api_compatibility()
+    operator_id=require_review_permission(x_review_token,"worker.execute")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try: return queue.finish(jid,body.worker_id,body.lease_token,body.result,workspace_id=workspace_id)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/fail")
-def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"worker.execute")
-    try: return queue.fail(jid,body.worker_id,body.lease_token,body.error_code,body.error_message,body.retryable)
+def fail(jid:str,body:Fail,x_review_token:str|None=Header(default=None),
+         x_nexus_workspace_id:str|None=Header(default=None)):
+    require_legacy_worker_api_compatibility()
+    operator_id=require_review_permission(x_review_token,"worker.execute")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try: return queue.fail(
+        jid,body.worker_id,body.lease_token,body.error_code,body.error_message,
+        body.retryable,workspace_id=workspace_id
+    )
     except JobNotFound: raise HTTPException(404,"Job not found")
     except LeaseConflict as e: raise HTTPException(409,str(e))
 @app.post("/api/jobs/{jid}/cancel")
-def cancel(jid:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.control")
-    try: return queue.cancel(jid)
+def cancel(jid:str,x_review_token:str|None=Header(default=None),
+           x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"queue.control")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try:
+        queue.get(jid,workspace_id=workspace_id)
+        return queue.cancel(jid,workspace_id=workspace_id)
     except JobNotFound: raise HTTPException(404,"Job not found")
     except ValueError as e: raise HTTPException(409,str(e))
 @app.post("/api/queue/recover")
@@ -1486,14 +1947,27 @@ def workers(x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"operations.read")
     return {"workers":queue.workers()}
 @app.get("/api/jobs/{jid}")
-def get_job(jid:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.read")
-    try: return review_store.sanitize_production_record(queue.get(jid))
+def get_job(jid:str,x_review_token:str|None=Header(default=None),
+            x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try:
+        result=queue.get(jid,workspace_id=workspace_id)
+        if result.get("workspace_id") is not None and workspace_id is None:
+            raise HTTPException(403,"Workspace scope is required for this job")
+        return review_store.sanitize_production_record(result)
     except JobNotFound: raise HTTPException(404,"Job not found")
 @app.get("/api/jobs/{jid}/events")
-def get_events(jid:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.read")
-    try: queue.get(jid); return {"events":review_store.sanitize_queue_events(queue.events(jid))}
+def get_events(jid:str,x_review_token:str|None=Header(default=None),
+               x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try:
+        job=queue.get(jid,workspace_id=workspace_id)
+        if job.get("workspace_id") is not None and workspace_id is None:
+            raise HTTPException(403,"Workspace scope is required for this job")
+        return {"events":review_store.sanitize_queue_events(
+            queue.events(jid,workspace_id=workspace_id))}
     except JobNotFound: raise HTTPException(404,"Job not found")
 
 

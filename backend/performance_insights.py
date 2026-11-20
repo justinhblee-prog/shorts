@@ -149,10 +149,10 @@ class PerformanceAnalyzer:
         finally:
             c.close()
 
-    def _analyze_tiktok(self, brand=None):
+    def _analyze_tiktok(self, brand=None, workspace_id=None):
         with self.db() as connection:
-            where = "WHERE p.status='publish_complete'"
-            args = []
+            where = "WHERE p.status='publish_complete' AND r.workspace_id IS ?"
+            args = [workspace_id]
             if brand:
                 where += " AND r.brand=?"
                 args.append(brand)
@@ -174,8 +174,8 @@ class PerformanceAnalyzer:
                   ON a.job_id=r.job_id AND a.stage='rendering' AND a.artifact_type='video'
                 LEFT JOIN tiktok_video_metric_snapshots s ON s.video_id=p.video_id
             """ + where + " ORDER BY r.brand,r.region,r.job_id,s.collected_at", args).fetchall()
-            ledger_where = "WHERE 1=1"
-            ledger_args = []
+            ledger_where = "WHERE workspace_id IS ?"
+            ledger_args = [workspace_id]
             if brand:
                 ledger_where += " AND brand=?"
                 ledger_args.append(brand)
@@ -373,14 +373,14 @@ class PerformanceAnalyzer:
             },
         }
 
-    def analyze(self, brand=None, platform="youtube"):
+    def analyze(self, brand=None, platform="youtube", workspace_id=None):
         if platform == "tiktok":
-            return self._analyze_tiktok(brand)
+            return self._analyze_tiktok(brand,workspace_id=workspace_id)
         if platform != "youtube":
             raise ValueError("platform must be youtube or tiktok")
         with self.db() as c:
-            where = "WHERE r.status IN ('uploaded','approved')"
-            args = []
+            where = "WHERE r.status IN ('uploaded','approved') AND r.workspace_id IS ?"
+            args = [workspace_id]
             if brand:
                 where += " AND r.brand=?"
                 args.append(brand)
@@ -404,8 +404,8 @@ class PerformanceAnalyzer:
                 LEFT JOIN youtube_analytics_snapshots an ON an.video_id=u.video_id
             """ + where + " ORDER BY r.brand,r.region,r.job_id,s.collected_at", args).fetchall()
 
-            ledger_where = "WHERE 1=1"
-            ledger_args = []
+            ledger_where = "WHERE workspace_id IS ?"
+            ledger_args = [workspace_id]
             if brand:
                 ledger_where += " AND brand=?"
                 ledger_args.append(brand)
