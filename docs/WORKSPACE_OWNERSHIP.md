@@ -38,3 +38,11 @@ Remaining gates before general B2B/end-user rollout:
 5. Only then enable customer-owned media assets and workspace-scoped production resources.
 
 No upload, asset read, render submission or MP4 renderer endpoint is added. Browser EDL export remains rendered=false.
+
+
+## Verification checkpoint — 2026-11-20
+
+- Backend validation: [run 44675851438](https://github.com/justinhblee-prog/shorts/actions/runs/44675851438) passed 766 unit/API tests, Python compile checks, and Chromium desktop/mobile smoke.
+- Compose integration: [run 44675851532](https://github.com/justinhblee-prog/shorts/actions/runs/44675851532) passed service build, API/worker/scheduler/metrics/backup startup and readiness, then cleanup.
+- Coverage includes token-derived workspace owner, principal-scoped workspace listing, member add/revoke role enforcement, membership listing, owner/admin-only audit visibility, unauthenticated denial, durable SQLite EDL tenant isolation, and legacy-grant non-fallback in SQLite mode.
+- This validates the operator identity boundary only. It does not validate a customer login provider or authorize switching a live deployment to SQLite mode.
