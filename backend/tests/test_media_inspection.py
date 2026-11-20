@@ -19,6 +19,7 @@ class MediaInspectorTests(unittest.TestCase):
     def runner_for(self, payload, returncode=0, stderr=""):
         def runner(args, **kwargs):
             self.assertIn("-show_entries", args)
+            self.assertNotIn("-nostdin", args)
             self.assertEqual(kwargs["timeout"], 30)
             return SimpleNamespace(returncode=returncode, stdout=json.dumps(payload),
                                    stderr=stderr)
@@ -61,6 +62,7 @@ class MediaInspectorTests(unittest.TestCase):
         def runner(args, **kwargs):
             calls.append((args, kwargs))
             if args[0] == "ffprobe":
+                self.assertNotIn("-nostdin", args)
                 return SimpleNamespace(returncode=0, stdout=json.dumps(probe), stderr="")
             return SimpleNamespace(
                 returncode=0,
