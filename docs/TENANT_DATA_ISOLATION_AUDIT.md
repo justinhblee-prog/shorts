@@ -175,3 +175,12 @@ The customer identity provider and account contract must be selected before impl
 - Scored opportunities now carry nullable workspace ownership; create/list APIs resolve membership and isolate records. Existing opportunities remain in the legacy NULL namespace.
 - Shared brand profiles and externally collected public trend signals remain platform-level reference data, not customer-owned records. Their use to create production jobs propagates the selected workspace into the queue.
 - Regression coverage added for publication parent access, video analytics access, financial ledger ownership, opportunity migration/isolation, and analytics-history parent joins. Latest combined Backend/Chromium and Compose validation for the current head is pending; do not mark these latest changes validated until both workflows finish successfully.
+
+## Opt-in worker credential and lease boundary — 2026-11-20
+
+- Added a SHA-256 digest-based worker credential verifier. A worker identity is bound to explicit workspace IDs; wildcard and empty grants are invalid. Presented bearer tokens are hashed and compared with constant-time digest comparison.
+- Added opt-in worker v1 registration, production-job claim, heartbeat, completion, and failure endpoints. The worker identity is derived from the credential, never from a request body. The job's workspace is derived from the durable queue row and applied to every lease transition.
+- Worker API claim is limited to short_video_production. A server-issued process-generation token is required for claims and all lease mutations; re-registration rotates it and stale generations are rejected.
+- When NEXUS_WORKER_CREDENTIALS_JSON is configured, legacy operator-token worker claim/heartbeat/complete/fail endpoints return HTTP 410. The credential mode is disabled by default and no secret or runtime setting was added.
+- Limitation: the current production worker still accesses SQLite directly and has not migrated to the new API. Direct database access bypasses HTTP credentials; this implementation is not a complete worker isolation boundary. OS/network sandbox, worker-runtime migration, append-only worker security audit, secret rotation procedure, and real remote worker execution remain pending.
+- Authentication and API regression tests cover digest validation, explicit grants, workspace-fenced claim/lease transitions, legacy endpoint shutdown, and stale-generation rejection. Current latest CI must pass before marking this slice validated.
