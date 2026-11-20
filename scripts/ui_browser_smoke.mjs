@@ -89,6 +89,15 @@ async function waitForServer() {
     assert.equal(visualSystem.premiumStylesheet, true);
     checkpoint("premium typography and Korean text rendering verified");
     assert.equal(await page.locator(".main-nav a").count(), 9);\n    assert.equal(await page.locator(".main-nav .nav-settings").count(), 1);\n    for (const label of ["대시보드","트렌드 탐색","콘텐츠 기획","AI 제작","영상 편집","검수·정책","게시 관리","성과 분석","작업 관리"]) assert.equal(await page.locator(".main-nav a").filter({ hasText: label }).count(), 1, "missing navigation item: " + label);\n    assert.equal(await page.locator("#workspaceSearch").count(), 1);
+    await page.keyboard.press("Control+k");
+    assert.equal(await page.evaluate(() => document.activeElement.id), "workspaceSearch");
+    await page.locator("#workspaceSearch").fill("수익성 평가");
+    await page.keyboard.press("Enter");
+    assert.match(await page.evaluate(() => document.activeElement.textContent), /수익성 평가/);
+    await page.locator("#openSettingsNav").click();
+    assert.equal(await page.locator("#settingsDialog").evaluate(node => node.open), true);
+    await page.locator("#settingsDialog .dialog-close button").click();
+    checkpoint("approved navigation, keyboard search and settings entry verified");
     assert.equal(await page.locator("#studio").count(), 1);
     assert.equal(await page.locator("#discovery").count(), 1);
     assert.equal(await page.locator("#review").count(), 1);
