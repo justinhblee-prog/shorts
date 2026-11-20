@@ -31,7 +31,7 @@ WORKER_ID = resolve_worker_id(
 )
 FFMPEG_PATH = os.getenv("NEXUS_FFMPEG_PATH", "/usr/bin/ffmpeg")
 FFPROBE_PATH = os.getenv("NEXUS_FFPROBE_PATH", "/usr/bin/ffprobe")
-PRIVATE_MEDIA_ROOT = os.getenv("NEXUS_PRIVATE_MEDIA_ROOT", "data/private-media")
+PRIVATE_MEDIA_ROOT = os.getenv("NEXUS_PRIVATE_MEDIA_ROOT", str(Path("data/private-media").resolve()))
 STAGING_ROOT = os.getenv("NEXUS_RENDER_STAGING_ROOT", "data/render-staging")
 ARTIFACT_ROOT = os.getenv("NEXUS_RENDER_ARTIFACT_ROOT", "data/render-artifacts")
 
