@@ -74,6 +74,36 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "workspace ownership mismatch"):
             store.create(queued["id"], self.brief)
 
+    def test_provider_attempt_and_reconciliation_inherit_parent_workspace(self):
+        db_path = Path(self.tmp.name) / "provider-tenant.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        queued = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-provider"
+        )
+        store.create(queued["id"], self.brief)
+        key = store.begin_provider_attempt(queued["id"], "rendering", 1)
+        attempt = store.provider_attempts(queued["id"])[0]
+        self.assertEqual(attempt["workspace_id"], "workspace-provider")
+        store.confirm_provider_attempt_not_executed(
+            queued["id"], attempt["id"], "operator-1",
+            "provider-console:request-not-found",
+            "Provider history confirms the request was not executed",
+        )
+        with store.db() as conn:
+            event = conn.execute(
+                "SELECT workspace_id FROM provider_attempt_reconciliation_events WHERE job_id=?",
+                (queued["id"],),
+            ).fetchone()
+        self.assertEqual(event["workspace_id"], "workspace-provider")
+
+    def test_legacy_provider_attempt_remains_unassigned(self):
+        job_id = "legacy-provider-unassigned"
+        self.store.create(job_id, self.brief)
+        key = self.store.begin_provider_attempt(job_id, "script", 1)
+        attempt = self.store.provider_attempts(job_id)[0]
+        self.assertIsNone(attempt["workspace_id"])
+
     def test_artifact_and_provider_attempt_adoption_commit_atomically(self):
         job_id = "job-atomic-provider-adoption"
         self.store.create(job_id, self.brief)
