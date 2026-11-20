@@ -1,5 +1,7 @@
 import os
 import tempfile
+import hashlib
+import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -343,6 +345,57 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
         finally:
             for item in reversed(patches):
                 item.stop()
+
+    def test_worker_v1_credentials_fence_claim_and_lease_to_granted_workspace(self):
+        db_path = os.path.join(self.temp.name, "worker-auth.sqlite3")
+        queue = JobQueue(db_path)
+        brief = {"brand": "Future Leak", "region": "US",
+                 "language": "en", "topic": "Isolated worker test"}
+        allowed = queue.enqueue("short_video_production", brief, workspace_id="ws_alice")
+        denied = queue.enqueue("short_video_production", brief, workspace_id="ws_mallory")
+        queue_patch = patch.object(api, "queue", queue)
+        queue_patch.start()
+        token = "worker-secret-for-api-test-32-bytes-minimum"
+        config = json.dumps({
+            "worker-alpha": {
+                "token_sha256": hashlib.sha256(token.encode()).hexdigest(),
+                "workspace_ids": ["ws_alice"],
+            }
+        })
+        try:
+            with patch.dict(os.environ, {"NEXUS_WORKER_CREDENTIALS_JSON": config}):
+                registered = api.register_worker_v1(
+                    api.WorkerRegisterInput(hostname="isolated-worker"),
+                    authorization="Bearer " + token,
+                )
+                generation = registered["generation_token"]
+                claimed = api.claim_worker_v1(
+                    api.WorkerClaimInput(hostname="isolated-worker",
+                                         job_type="short_video_production"),
+                    authorization="Bearer " + token,
+                    x_nexus_worker_generation=generation,
+                )
+                self.assertEqual(claimed["job"]["id"], allowed["id"])
+                self.assertEqual(claimed["workspace_id"], "ws_alice")
+                with self.assertRaises(HTTPException) as cross_workspace:
+                    api.heartbeat_worker_v1(
+                        denied["id"], api.WorkerLeaseInput(lease_token="not-a-lease"),
+                        authorization="Bearer " + token,
+                        x_nexus_worker_generation=generation,
+                    )
+                self.assertEqual(cross_workspace.exception.status_code, 404)
+                completed = api.complete_worker_v1(
+                    allowed["id"],
+                    api.WorkerCompleteInput(
+                        lease_token=claimed["job"]["lease_token"],
+                        result={"production_status": "review_pending"},
+                    ),
+                    authorization="Bearer " + token,
+                    x_nexus_worker_generation=generation,
+                )
+                self.assertEqual(completed["status"], "review_pending")
+        finally:
+            queue_patch.stop()
 
     def test_unauthenticated_workspace_requests_are_rejected(self):
         with patch.object(api, "require_review_permission",
