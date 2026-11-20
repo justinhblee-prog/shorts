@@ -44,9 +44,10 @@ class WorkspaceAccessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = WorkspaceStore(os.path.join(directory, "db.sqlite3"))
             store.create("Studio", "alice", "ws_studio")
-            store.revoke_member("ws_studio", "alice", "alice")
+            store.add_member("ws_studio", "alice", "bob", "viewer")
+            store.revoke_member("ws_studio", "alice", "bob")
             with self.assertRaises(PermissionError):
-                resolve_workspace_access("alice", "ws_studio", mode="sqlite", store=store)
+                resolve_workspace_access("bob", "ws_studio", mode="sqlite", store=store)
 
     def test_unknown_workspace_auth_mode_fails_closed(self):
         with self.assertRaises(WorkspaceAccessConfigurationError):
