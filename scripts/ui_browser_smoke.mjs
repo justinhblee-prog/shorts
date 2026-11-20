@@ -81,7 +81,7 @@ async function waitForServer() {
       font: getComputedStyle(document.body).fontFamily,
       background: getComputedStyle(document.body).backgroundColor,
       heroColumns: getComputedStyle(document.querySelector(".hero")).gridTemplateColumns,
-      koreanReplacementGlyphs: (document.body.innerText.match(/\\uFFFD/g) || []).length,
+      koreanReplacementGlyphs: (document.body.innerText.match(/\uFFFD/g) || []).length,
       premiumStylesheet: [...document.styleSheets].some(sheet => sheet.href?.endsWith("/assets/nexus-premium.css")),
     }));
     assert.match(visualSystem.font, /Pretendard Variable|Pretendard|Noto Sans KR/);
