@@ -115,6 +115,8 @@ def validate_edl(payload: Any) -> dict:
             item["text"] = title.strip()
         normalized.append(item)
 
+    if not any(item["type"] == "video" for item in normalized):
+        raise EDLValidationError("timeline must contain at least one video clip")
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
     return {"schema": SCHEMA, "version": VERSION, "timebase": "milliseconds", "clips": normalized}
