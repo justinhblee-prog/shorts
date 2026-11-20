@@ -104,3 +104,11 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Added selected-range playback that seeks to the clip in-point and pauses at the out-point; trim changes are reflected in the preview boundary.
 - Added total timeline duration, title overlay preview, media MIME/byte metadata in the EDL, non-video upload rejection, and a 512 MiB browser-side per-file guard / 20-clip cap.
 - The timeline remains local-only and exports an EDL, not an MP4. See `docs/VIDEO_EDITOR_RENDER_INTEGRATION.md` for the secure asset-upload, EDL validation, restricted FFmpeg worker, review and retention architecture required before real rendering.
+
+
+## Exact-head validation — selected-range preview and upload guards
+
+- UI code/documentation head `003956e5509c16edf06caeedc865cdc3d90fff06` passed [Backend tests run 44670600009](https://github.com/justinhblee-prog/shorts/actions/runs/44670600009): **736 backend tests**, frontend syntax and Chromium desktop/mobile smoke. The smoke verified rejection of non-video uploads, title overlay preview, selected-range control, aggregate duration, EDL JSON structure/download, clip reorder/trim/removal, and existing authenticated review/analytics flows.
+- Compose integration smoke passed [run 44670599939](https://github.com/justinhblee-prog/shorts/actions/runs/44670599939), including service readiness and scheduled isolated backup/restore.
+- Fresh browser artifact: [14599966062](https://github.com/justinhblee-prog/shorts/actions/runs/44670600009/artifacts/14599966062) (5.39 MB).
+- The local editor remains EDL-only; actual MP4 rendering is blocked on the asset-upload/ownership/EDL-render-worker work described in `docs/VIDEO_EDITOR_RENDER_INTEGRATION.md`.
