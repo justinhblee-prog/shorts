@@ -13,6 +13,24 @@ $env:DEVFLOW_AGENT_ARGS_JSON = '["--prompt-file","{prompt_file}"]'
 
 The argument JSON must be an array and must contain `{prompt_file}`. Optional placeholders are `{task_id}` and `{worktree}`. Use the agent's documented prompt-file argument syntax.
 
+## Agent CLI configuration and preflight
+
+Configure the installed Agent CLI once from PowerShell 7 in the repository root:
+
+```powershell
+.\scripts\git-cli-agent-config.ps1 -Configure
+```
+
+The helper prompts for the executable name/full path and the Agent CLI's documented prompt-file argument syntax. The JSON argument array must contain the `{prompt_file}` placeholder exactly once; `{task_id}` and `{worktree}` are optional. It stores only the executable and argument template in the current Windows user's environment. Do not put API keys, tokens, passwords, or other credentials in the argument list. Authenticate with the Agent CLI's own login/credential flow. Open a new PowerShell 7 window after configuration if you want the saved user environment to be reloaded automatically.
+
+To verify the machine before running:
+
+```powershell
+.\scripts\git-cli-agent-config.ps1 -Check
+```
+
+The `-Run` launcher performs this preflight automatically. It checks PowerShell 7+, Git, Python, GitHub CLI authentication, repository cleanliness, the task manifest, Agent executable resolution, and the argument contract without printing the configured values or credentials.
+
 ## Run
 
 The planner checks open pull requests through the authenticated GitHub CLI. Without `gh` authentication it can display candidates, but duplicate-PR status is unverified; execution always requires authenticated `gh` access.
