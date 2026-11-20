@@ -253,7 +253,7 @@ class JobQueue:
                 or row["status"] != "online"):
             raise LeaseConflict("Worker process generation is no longer current")
 
-    def claim(self,worker_id,hostname=None,job_type=None,generation_token=None):
+    def claim(self,worker_id,hostname=None,job_type=None,generation_token=None,workspace_id=None):
         if not worker_id.strip(): raise ValueError("worker_id required")
         token=str(uuid.uuid4())
         with self.db() as c:
@@ -281,19 +281,23 @@ class JobQueue:
             if production_paused and job_type == "short_video_production":
                 c.commit()
                 return None
+            if workspace_id is not None and (not isinstance(workspace_id,str) or not workspace_id.strip() or len(workspace_id)>128):
+                raise ValueError("workspace_id must be a non-empty string of at most 128 characters")
+            filters = ["status IN ('queued','failed_retriable')","available_at<=?","attempt<max_attempts"]
+            params = [n]
+            if workspace_id is not None:
+                filters.append("workspace_id=?")
+                params.append(workspace_id)
             if job_type:
-                row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
-                  AND available_at<=? AND attempt<max_attempts AND job_type=?
-                  ORDER BY priority,created_at LIMIT 1""",(n,job_type)).fetchone()
+                filters.append("job_type=?")
+                params.append(job_type)
             elif production_paused:
-                row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
-                  AND available_at<=? AND attempt<max_attempts
-                  AND job_type!='short_video_production'
-                  ORDER BY priority,created_at LIMIT 1""",(n,)).fetchone()
-            else:
-                row=c.execute("""SELECT * FROM pipeline_jobs WHERE status IN ('queued','failed_retriable')
-                  AND available_at<=? AND attempt<max_attempts
-                  ORDER BY priority,created_at LIMIT 1""",(n,)).fetchone()
+                filters.append("job_type!='short_video_production'")
+            row=c.execute(
+                "SELECT * FROM pipeline_jobs WHERE " + " AND ".join(filters)
+                + " ORDER BY priority,created_at LIMIT 1",
+                params,
+            ).fetchone()
             if row is None: c.commit(); return None
             c.execute("""UPDATE pipeline_jobs SET status='running',worker_id=?,lease_token=?,lease_expires_at=?,
               attempt=attempt+1,started_at=COALESCE(started_at,?),updated_at=?,error_code=NULL,error_message=NULL
@@ -341,14 +345,20 @@ class JobQueue:
             self.event(c,jid,"failed","running",status,worker,{"error_code":error_code,"retryable":retry},created_at=n)
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
-    def get(self,jid):
+    def get(self,jid,workspace_id=None):
         with self.db() as c:
-            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            if workspace_id is None:
+                row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            else:
+                row=c.execute("SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id=?",(jid,workspace_id)).fetchone()
             if row is None: raise JobNotFound()
             return self.decode(row)
 
-    def events(self,jid):
+    def events(self,jid,workspace_id=None):
         with self.db() as c:
+            owner=c.execute("SELECT workspace_id FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            if owner is None or (workspace_id is not None and owner["workspace_id"] != workspace_id):
+                raise JobNotFound()
             return [{**dict(r),"details":json.loads(r["details_json"])} for r in c.execute("SELECT * FROM job_events WHERE job_id=? ORDER BY id",(jid,))]
 
     def cancel(self,jid,reason="Cancelled by operator"):
