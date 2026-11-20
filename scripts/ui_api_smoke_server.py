@@ -32,6 +32,8 @@ def main() -> None:
 
     import app  # noqa: E402 - environment and DB path must be set first
 
+    app.workspace_store.create("Browser Smoke Workspace", "operator")
+
     today = date.today()
     start_date = (today - timedelta(days=1)).isoformat()
     end_date = today.isoformat()
