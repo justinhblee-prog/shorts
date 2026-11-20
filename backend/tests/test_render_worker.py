@@ -37,9 +37,10 @@ def claimed_job(audio_asset_id=None):
 
 
 class FakeQueue:
-    def __init__(self, job, heartbeat_error=None):
+    def __init__(self, job, heartbeat_error=None, heartbeat_wait_event=None):
         self.job = job
         self.heartbeat_error = heartbeat_error
+        self.heartbeat_wait_event = heartbeat_wait_event
         self.claim_calls = []
         self.heartbeat_calls = []
         self.finish_calls = []
@@ -51,6 +52,8 @@ class FakeQueue:
 
     def heartbeat(self, *args, **kwargs):
         self.heartbeat_calls.append((args, kwargs))
+        if self.heartbeat_wait_event is not None:
+            self.heartbeat_wait_event.wait(2)
         if self.heartbeat_error:
             raise self.heartbeat_error
 
@@ -192,12 +195,15 @@ class RenderWorkerTests(unittest.TestCase):
 
     def test_lost_lease_cancels_active_render_without_stale_completion(self):
         job = claimed_job()
-        queue = FakeQueue(job, heartbeat_error=LeaseConflict("expired"))
-        assets, outputs = FakeAssetStore(), FakeOutputStore()
         renderer = FakeRenderer(wait_for_stop=True)
+        queue = FakeQueue(
+            job, heartbeat_error=LeaseConflict("expired"),
+            heartbeat_wait_event=renderer.called,
+        )
+        assets, outputs = FakeAssetStore(), FakeOutputStore()
         render_worker.queue, render_worker.asset_store = queue, assets
         render_worker.output_store, render_worker.renderer = outputs, renderer
-        render_worker.HEARTBEAT_SECONDS = 0
+        render_worker.HEARTBEAT_SECONDS = 0.01
 
         render_worker.run_once()
 
