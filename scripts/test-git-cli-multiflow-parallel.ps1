@@ -6,6 +6,7 @@ if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7+ required."}
 $repoRoot=(git rev-parse --show-toplevel 2>$null)
 if($LASTEXITCODE -ne 0 -or -not $repoRoot){throw "Run from the repository checkout."}
 $engineSource=Join-Path $repoRoot "scripts/git-cli-multiflow-parallel.ps1"
+$agentProcessHelper=Join-Path $repoRoot "scripts/devflow-agent-process.ps1"
 $temp=Join-Path ([IO.Path]::GetTempPath()) ("devflow-parallel-test-"+[guid]::NewGuid().ToString("N"))
 $origin=Join-Path $temp "origin.git";$seed=Join-Path $temp "seed";$checkout=Join-Path $temp "checkout"
 $bin=Join-Path $temp "bin";$state=Join-Path $temp "state"
@@ -17,6 +18,7 @@ try{
  & git -C $seed config user.email "multiflow-test@example.invalid"
  New-Item -ItemType Directory -Force -Path (Join-Path $seed "scripts"),(Join-Path $seed ".devflow")|Out-Null
  Copy-Item $engineSource (Join-Path $seed "scripts/git-cli-multiflow-parallel.ps1")
+ Copy-Item $agentProcessHelper (Join-Path $seed "scripts/devflow-agent-process.ps1")
  Set-Content (Join-Path $seed "scripts/devflow.py") "raise SystemExit(0)" -Encoding utf8
  $manifest=@{
   policy=@{default_base="main";max_parallel_worktrees=2;auto_merge=$false;auto_deploy=$false}
