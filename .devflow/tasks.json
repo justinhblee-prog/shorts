@@ -39,13 +39,15 @@
         "Idempotent timeline_render queue handoff carrying snapshot ID, digest and normalized EDL",
         "Lease-fenced timeline worker with heartbeat, generation-token checks and review_pending completion",
         "Shell-free FFmpeg audio-mix argv builder with bounded tracks, trims, fades, gain and limiter",
-        "Regression tests for asset isolation, snapshot immutability, queue handoff, worker transitions and audio argv validation"
+        "Regression tests for asset isolation, snapshot immutability, queue handoff, worker transitions and audio argv validation",
+        "Lease-fenced checksum-verified render artifact adoption with workspace-scoped immutable records and atomic review_pending handoff",
+        "Worker integration and regression coverage for stale generation rejection, snapshot binding, private staging boundaries, byte limits and artifact tamper detection"
       ],
       "remaining": [
         "Connect a real scanner and ffprobe probe; persist trusted media duration and reject source trims beyond actual duration",
-        "Integrate audio mixing and video rendering into a concrete EDL renderer with staged outputs and atomic adoption only after lease validation",
+        "Integrate audio mixing and video rendering into a concrete EDL renderer that produces staged MP4 outputs",
         "Run pinned FFmpeg and ffprobe binaries in an isolated worker container with CPU, memory, disk, network and process-count quotas",
-        "Add real-media integration tests and crash/lease-loss tests that prove no stale worker can adopt or publish output",
+        "Add real-media integration tests and crash/lease-loss tests against the production runtime",
         "Expose authenticated upload, render submission and review APIs with production filesystem permissions and retention cleanup"
       ]
     },
