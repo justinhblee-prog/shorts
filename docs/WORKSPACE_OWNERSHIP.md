@@ -1,6 +1,6 @@
 # Workspace Ownership and Timeline Integration
 
-**Status:** Durable registry increment; API migration remains gated.  
+**Status:** Durable registry and authenticated operator API integrated; customer identity migration remains gated.  
 **Date:** 2026-11-20
 
 ## Existing boundary
@@ -16,7 +16,7 @@ The new `backend/workspace_store.py` resolves its default database path from `NE
 
 Workspace creation and initial owner assignment are atomic. Member administration is role-gated. The last owner cannot be revoked, and every membership change is audited. The store requires callers to provide an authenticated principal; it does not treat request-body identity as authentication.
 
-Regression coverage: backend/tests/test_workspace_store.py.
+Regression coverage: `backend/tests/test_workspace_store.py`, `backend/tests/test_workspace_access.py`, and `backend/tests/test_operator_workspace_api.py`.
 
 ## Operator API integration
 
@@ -34,7 +34,7 @@ Remaining gates before general B2B/end-user rollout:
 1. Establish a trusted customer principal source for supported login/session/token flows; current principals are configured operators only.
 2. Define workspace invitations, owner recovery, suspension, tenant deletion and support access policy.
 3. Add a reviewed dry-run migration for existing operator mappings before enabling SQLite mode in production.
-4. Add full FastAPI TestClient coverage for authentication, role checks, cross-workspace access and request-body identity spoofing.
+4. Expand FastAPI TestClient coverage as customer authentication and invitation flows are implemented; current operator API tests cover authentication, role checks, cross-workspace isolation and request-body identity spoofing.
 5. Only then enable customer-owned media assets and workspace-scoped production resources.
 
 No upload, asset read, render submission or MP4 renderer endpoint is added. Browser EDL export remains rendered=false.
