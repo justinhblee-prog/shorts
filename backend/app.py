@@ -1092,7 +1092,7 @@ def decide_render_review(
         raise HTTPException(403,"An explicit workspace is required to review render output")
     decision=body.get("decision")
     note=body.get("note","")
-    if decision not in {"approved","rejected"}:
+    if not isinstance(decision,str) or decision not in {"approved","rejected"}:
         raise HTTPException(422,"Decision must be approved or rejected")
     if not isinstance(note,str) or len(note)>2000:
         raise HTTPException(422,"Review note must be at most 2000 characters")
