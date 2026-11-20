@@ -81,9 +81,14 @@ def main():
     generation_token = registration["generation_token"]
     try:
         staging_cleanup = artifact_store.reconcile_orphaned_staging_files()
+        artifact_cleanup = artifact_store.reconcile_orphaned_files()
         print(
             f"timeline_staging_reconciled files={staging_cleanup['removed_files']} "
             f"dirs={staging_cleanup['removed_dirs']} bytes={staging_cleanup['removed_bytes']}"
+        )
+        print(
+            f"timeline_artifacts_reconciled files={artifact_cleanup['removed']} "
+            f"bytes={artifact_cleanup['removed_bytes']}"
         )
         worker = TimelineRenderWorker(
             queue, renderer, WORKER_ID, generation_token,
