@@ -308,3 +308,10 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Workspace metadata listing uses a dedicated workspace.read permission; creating or managing memberships retains stronger media.manage permissions.
 - Performance insights and recommendation exposure/evaluation now use workspace-scoped production and financial evidence. Recommendation selections are linked only when the production job and exposure share the same workspace.
 - Browser smoke verifies membership loading, workspace selection header propagation, and return to the legacy default. Latest validation pending.
+
+## Queue workspace boundary refinement — 2026-11-20
+
+- Queue statistics and ambiguous reconciliation lists are workspace-filtered. Queue retry and cancel actions verify the job's workspace before mutation.
+- Generic enqueue stamps the authenticated workspace. Legacy operator-token worker routes are workspace-filtered and restricted to unassigned legacy jobs when no workspace is selected; the new worker v1 credential API remains the preferred opt-in path.
+- System-level queue pause/resume/recovery and worker registry remain privileged global operations.
+- Regression tests added for workspace queue counts and cross-workspace cancellation denial; latest validation pending.
