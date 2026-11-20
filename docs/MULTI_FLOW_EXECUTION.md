@@ -430,3 +430,10 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 - FLOW-QA inserts a higher-priority job between page requests and verifies the original snapshot remains complete without duplicates or omissions. API tests validate timezone-aware timestamps and error handling; browser smoke verifies the snapshot query is retained across the cross-page prerequisite request.
 - Exact code head `46b337bad16648a0d7ed6753c42ffe3d63033569` passed 901 backend tests, frontend syntax, both Chromium suites, and artifact upload in [run 44659993665](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665), artifact [14595685407](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665/artifacts/14595685407).
 - Production multi-process SQLite and real Windows runner persistence remain unverified.
+
+## 19. Windows path alias workstream normalization — 2026-11-20
+
+- FLOW-UI normalizes Windows-style scopes before classification: trim, slash conversion, repeated-separator collapse, leading `./` removal, and lowercase comparison. This prevents mixed-case/backslash paths from falling into the wrong lane.
+- FLOW-QA adds a `Frontend\App.js` fixture and verifies Chromium renders it in the UI workstream. Static frontend assertions cover normalization.
+- Exact code head `006805df47d5cf493a2ad5e95396f074170ce416` passed 901 backend tests, frontend syntax, both Chromium suites, and artifact upload in [run 44660726931](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931), artifact [14594589376](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931/artifacts/14594589376).
+- A hosted Windows-style path fixture does not replace real Windows runner execution.
