@@ -10,6 +10,7 @@ from timeline_edl import SCHEMA
 from workspace_store import WorkspaceStore
 from workspace_asset_store import WorkspaceAssetStore
 from timeline_render_store import TimelineRenderStore, SnapshotConflict, SnapshotError
+from render_artifact_store import RenderArtifactStore
 
 
 class TimelineRenderStoreTests(unittest.TestCase):
@@ -25,6 +26,9 @@ class TimelineRenderStoreTests(unittest.TestCase):
         self.queue = JobQueue(self.db_path)
         self.store = TimelineRenderStore(
             self.db_path, self.assets, self.workspaces, self.queue
+        )
+        self.artifacts = RenderArtifactStore(
+            self.queue, root / "render-staging", root / "render-artifacts"
         )
         asset = self.assets.register_stream(
             "ws_studio", "alice", io.BytesIO(b"video-fixture"), "clip.mp4"
