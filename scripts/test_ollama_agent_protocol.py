@@ -73,6 +73,44 @@ class ParseTextToolCallTests(unittest.TestCase):
         self.assertEqual(agent.parse_text_tool_call('{"name":"list_files","arguments":'), [])
 
 
+class ScopedPatchTests(unittest.TestCase):
+    def test_scoped_patch_rejects_paths_outside_task_scope(self):
+        import tempfile
+
+        prompt = "Task: add a test\nScope:\n- scripts/new_test.py\nAcceptance:\n- keep scope"
+        response = {
+            "message": {
+                "content": json.dumps({
+                    "summary": "attempted out-of-scope write",
+                    "files": [{"path": "outside.txt", "content": "must not be written"}],
+                })
+            }
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.object(agent, "chat", return_value=response):
+                result = agent.scoped_json_patch(Path(directory), prompt, "qwen2.5-coder:7b")
+            self.assertEqual(result, 9)
+            self.assertFalse((Path(directory) / "outside.txt").exists())
+
+    def test_scoped_patch_writes_only_declared_scope(self):
+        import tempfile
+
+        prompt = "Task: add a test\nScope:\n- scripts/new_test.py\nAcceptance:\n- keep scope"
+        response = {
+            "message": {
+                "content": json.dumps({
+                    "summary": "created scoped file",
+                    "files": [{"path": "scripts/new_test.py", "content": "VALUE = 1\n"}],
+                })
+            }
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.object(agent, "chat", return_value=response):
+                result = agent.scoped_json_patch(Path(directory), prompt, "qwen2.5-coder:7b")
+            self.assertEqual(result, 0)
+            self.assertEqual((Path(directory) / "scripts/new_test.py").read_text(), "VALUE = 1\n")
+
+
 class ChatRequestTests(unittest.TestCase):
     def test_chat_uses_local_endpoint_tools_and_no_forced_json_format(self):
         payload = {"message": {"role": "assistant", "content": "ok"}}
