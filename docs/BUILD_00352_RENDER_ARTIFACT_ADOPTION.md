@@ -193,3 +193,10 @@ its worker generation or claiming jobs. A missing, malformed, unlisted, symlinke
 or modified binary fails startup closed. Production deployments should also pin
 the built container image by immutable digest so the image-baked manifest itself
 cannot change unnoticed during rollout.
+
+
+The latest Compose CI run passed the image build and worker startup with binary
+manifest verification enabled, followed by the real-media FFmpeg/ffprobe render,
+artifact adoption, review approval and backup/restore smoke. The worker would
+not have reached healthy state if either configured media binary failed its
+image-baked checksum check.
