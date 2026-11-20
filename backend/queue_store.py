@@ -92,6 +92,7 @@ class JobQueue:
             if "workspace_id" not in job_columns:
                 c.execute("ALTER TABLE pipeline_jobs ADD COLUMN workspace_id TEXT")
             c.execute("CREATE INDEX IF NOT EXISTS idx_jobs_workspace_status ON pipeline_jobs(workspace_id,status,created_at)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_jobs_workspace_history ON pipeline_jobs(workspace_id,job_type,created_at DESC,id DESC)")
             worker_columns = {row["name"] for row in c.execute("PRAGMA table_info(worker_registry)")}
             if "generation_token" not in worker_columns:
                 c.execute("ALTER TABLE worker_registry ADD COLUMN generation_token TEXT")
