@@ -81,8 +81,11 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  }
  $remoteBranches=@(& git --git-dir=$origin branch --list "autopilot/*")
  if($remoteBranches.Count -ne 2){throw "Expected exactly two independent worker branches; dependency-gated task must not run."}
- & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 2 -MaxTasks 3 -TaskTimeoutSeconds 60
- if($LASTEXITCODE -ne 0){throw "Idempotent rerun exited with $LASTEXITCODE."}
+ Push-Location $checkout
+ try{
+  & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 2 -MaxTasks 3 -TaskTimeoutSeconds 60
+  if($LASTEXITCODE -ne 0){throw "Idempotent rerun exited with $LASTEXITCODE."}
+ }finally{Pop-Location}
  $branchesAfterRerun=@(& git --git-dir=$origin branch --list "autopilot/*")
  if($branchesAfterRerun.Count -ne 2){throw "Completed Draft PR tasks were dispatched again on rerun."}
  if($stateData.tasks."BUILD-99003"){throw "Dependency-gated task unexpectedly entered worker state."}
