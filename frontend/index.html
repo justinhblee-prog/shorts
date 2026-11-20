@@ -97,6 +97,7 @@
               <button type="button" class="button button-secondary" id="timelineAddTitle">타이틀 추가</button>
               <button type="button" class="button button-secondary" id="timelinePlaySelected">선택 구간 재생</button>
               <label class="timeline-audio-input">배경 음원 (선택)<input id="timelineAudioInput" type="file" accept="audio/mp4,.m4a" hidden><span id="timelineAudioName">M4A 음원 선택</span></label>
+              <button type="button" class="button button-quiet button-small" id="timelineClearAudio">음원 제거</button>
               <button type="button" class="button button-secondary" id="timelineExport">EDL 내보내기</button>
               <button type="button" class="button button-primary" id="timelineRenderSubmit">MP4 렌더 요청 <span>→</span></button>
             </div>
@@ -120,7 +121,7 @@
                 <div class="render-job-buttons">
                   <button type="button" class="button button-outline button-small" id="renderJobRefresh">상태 갱신</button>
                   <button type="button" class="button button-quiet button-small" id="renderJobCancel" disabled>작업 취소</button>
-                  <button type="button" class="button button-quiet button-small" id="renderJobClear">초기화</button>
+                  <button type="button" class="button button-quiet button-small" id="renderJobClear">작업 표시 지우기</button>
                 </div>
               </div>
               <p id="renderJobMeta" class="render-job-meta">MP4 클립을 추가하고 워크스페이스를 선택한 뒤 렌더 요청을 등록하세요.</p>
