@@ -486,7 +486,8 @@ class ReviewStore:
     def history(self, job_id, workspace_id=None):
         with self.db() as c:
             exists = c.execute(
-                "SELECT 1 FROM production_runs WHERE job_id=?", (job_id,)
+                "SELECT 1 FROM production_runs WHERE job_id=? AND workspace_id IS ?",
+                (job_id, workspace_id)
             ).fetchone()
             if exists is None:
                 raise ReviewNotFound(job_id)
