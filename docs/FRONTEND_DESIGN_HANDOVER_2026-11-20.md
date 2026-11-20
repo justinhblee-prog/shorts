@@ -172,4 +172,13 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - API tests cover viewer/member read boundaries and owner/admin-only audit visibility.
 - Latest implementation is being revalidated after these additions; prior green run 44675317760 covers the earlier API code revision, not these final additions.
 
-- Principal identifiers are now rejected when they contain ASCII control characters; the first CI attempt caught a multiline conditional syntax typo, which was corrected in commit `b7efea5629c3fcf4f8f7cbca7c0fefe75e7d176f`. Final CI must validate this correction.
+- Principal identifiers are now rejected when they contain ASCII control characters; the first CI attempt caught a multiline conditional syntax typo, which was corrected in commit `b7efea5629c3fcf4f8f7cbca7c0fefe75e7d176f`. The corrected code and actual newline regression test passed in [Backend tests run 44675851438](https://github.com/justinhblee-prog/shorts/actions/runs/44675851438), with 766 tests total; [Compose integration run 44675851532](https://github.com/justinhblee-prog/shorts/actions/runs/44675851532) also passed.
+
+
+## Final verification for operator workspace API — 2026-11-20
+
+- Exact tested code snapshot includes the member/audit read APIs and control-character principal validation.
+- Backend: [run 44675851438](https://github.com/justinhblee-prog/shorts/actions/runs/44675851438) — 766 tests passed; compile, frontend checks and Chromium desktop/mobile smoke passed.
+- Compose: [run 44675851532](https://github.com/justinhblee-prog/shorts/actions/runs/44675851532) — service image build, process/readiness checks and cleanup passed.
+- Test coverage includes workspace creation ownership spoofing rejection, member-scoped listing, membership administration, audit visibility, SQLite EDL cross-tenant denial, and principal control-character validation.
+- Production remains on legacy workspace config mode by default; no environment setting or production deployment was changed.
