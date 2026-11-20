@@ -75,6 +75,10 @@ jobs:
             if ($script -match "(?im)^\\s*gh\\s+pr\\s+merge") { throw "Automatic merge is forbidden: $path" }
             if ($script -match "(?im)^\\s*vercel\\s+deploy") { throw "Automatic deployment is forbidden: $path" }
           }
+          $engine = Get-Content "scripts/git-cli-multiflow-parallel.ps1" -Raw
+          if ($engine -notmatch 'FileShare\]::None') { throw "Parallel workers must use exclusive task leases." }
+          if ($engine -notmatch 'Kill\(\$true\)') { throw "Timeout handling must terminate the worker process tree." }
+          if ($engine -notmatch 'MaxParallel') { throw "Parallel worker cap is missing." }
 
   python:
     name: Git workflow helper validation
