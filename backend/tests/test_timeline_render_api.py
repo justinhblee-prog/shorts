@@ -13,6 +13,14 @@ class FakeAssetStore:
 
     def __init__(self):
         self.registered = None
+        self.scan_calls = []
+
+    def scan_pending_asset(self, workspace_id, asset_id, scanner):
+        self.scan_calls.append((workspace_id, asset_id, scanner))
+        return {
+            "asset_id": asset_id, "workspace_id": workspace_id,
+            "scan_status": "clean", "status": "active",
+        }
 
     def register_stream(self, workspace_id, principal_id, stream, original_name):
         payload = stream.read()
@@ -90,6 +98,22 @@ class TimelineRenderApiTests(unittest.TestCase):
                 ))
         self.assertEqual(raised.exception.status_code, 413)
         self.assertIsNone(store.registered)
+
+
+    def test_enabled_clamav_scan_promotes_asset_only_after_clean_result(self):
+        store = FakeAssetStore()
+        with patch.dict("os.environ", {"NEXUS_MEDIA_SCAN_ENABLED": "true"}), \
+             patch.object(api, "require_review_permission", return_value="alice"), \
+             patch.object(api, "resolve_workspace_access", return_value="ws_studio"), \
+             patch.object(api, "asset_store", store), \
+             patch.object(api, "ClamAVScanner", return_value=object()):
+            result = asyncio.run(api.upload_workspace_asset(
+                "ws_studio", make_request(b"clean media"),
+                "clean.mp4", "review-token",
+            ))
+        self.assertTrue(result["renderable"])
+        self.assertEqual(result["asset"]["scan_status"], "clean")
+        self.assertEqual(len(store.scan_calls), 1)
 
     def test_render_submission_is_workspace_scoped_and_idempotent(self):
         store = FakeTimelineStore()
