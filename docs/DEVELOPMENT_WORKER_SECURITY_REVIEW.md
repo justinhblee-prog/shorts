@@ -111,3 +111,11 @@ These source-level changes and regression tests passed on exact PR head `fb9807e
 - Current PR #416 documentation head `3b7e99ad97193e6ee95d3a0603ebf6daca7dbb9a` passed exact-head backend/workflow validation in [run 44667178175](https://github.com/justinhblee-prog/shorts/actions/runs/44667178175). The worker implementation head `e671027536d99a17ac211d223281aa103d90c810` passed [run 44667166106](https://github.com/justinhblee-prog/shorts/actions/runs/44667166106), including 620 backend tests and Windows process-tree cancellation/fallback regressions.
 - These are hosted CI/source checks only. They do not verify the Windows runner's actual identity, profile isolation, filesystem ACLs, outbound network policy, LocalAppData persistence, or real Ollama generation.
 - **Activation remains blocked** until a dedicated low-privilege runner/VM is audited, outbound egress is restricted to required GitHub endpoints and loopback Ollama, unrelated credentials/workspaces are absent, two or more isolated workflow runs prove state persistence, and a disposable Draft-PR recovery roundtrip is observed. No workflow dispatch, schedule activation, runner mutation, secret change, merge or deployment is authorized by this documentation update.
+
+
+## Latest exact-head checkpoint — 2026-11-20
+
+- Current PR #416 head `f002ce2557ce3180e3333b6674013c3d888c8b32` passed exact-head backend/workflow validation in [run 44670607500](https://github.com/justinhblee-prog/shorts/actions/runs/44670607500).
+- The worker implementation head `e671027536d99a17ac211d223281aa103d90c810` passed [run 44667166106](https://github.com/justinhblee-prog/shorts/actions/runs/44667166106), including the Windows process-tree cancellation/fallback regressions.
+- PR #416 remains Draft/open/unmerged. Hosted CI does not establish actual Windows runner isolation, account ACLs, network egress restrictions, multi-run LocalAppData persistence or real Ollama generation.
+- **Activation remains blocked** until the dedicated low-privilege runner/VM audit and every runtime gate above are completed. No workflow dispatch, schedule activation, runner setting change, secret change, merge or deployment is authorized.
