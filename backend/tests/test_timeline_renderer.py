@@ -161,7 +161,7 @@ class TimelineRendererTests(unittest.TestCase):
         self.assertIn("drawtext=fontfile=", graph)
         self.assertIn("expansion=none", graph)
         self.assertIn("textfile=", graph)
-        self.assertIn("enable='between(t\\\\,1.000\\\\,3.000)'", graph)
+        self.assertIn("enable='between(t\\,1.000\\,3.000)'", graph)
         self.assertNotIn("Hello", graph)
         self.assertTrue((self.root / result["media_path"]).is_file())
         self.assertEqual(list(self.root.glob(".*.title-*.txt")), [])
