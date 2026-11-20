@@ -10,7 +10,7 @@ $ErrorActionPreference="Stop"
 function Test-AgentConfig([string]$Command,[string]$ArgsJson){
  if([string]::IsNullOrWhiteSpace($Command)){throw "Agent executable path/name is required."}
  if([string]::IsNullOrWhiteSpace($ArgsJson)){throw 'Agent args must be a JSON array containing exactly one "{prompt_file}" or "{prompt_text}" placeholder.'}
- try{$parsed=ConvertFrom-Json -InputObject $ArgsJson -ErrorAction Stop}catch{throw "DEVFLOW_AGENT_ARGS_JSON is not valid JSON: $($_.Exception.Message)"}
+ try{$parsed=ConvertFrom-Json -InputObject $ArgsJson -NoEnumerate -ErrorAction Stop}catch{throw "DEVFLOW_AGENT_ARGS_JSON is not valid JSON: $($_.Exception.Message)"}
  if($parsed -isnot [array]){throw "DEVFLOW_AGENT_ARGS_JSON must be a JSON array, not a string or object."}
  if(@($parsed|Where-Object{$_ -isnot [string]}).Count){throw "Every Agent argument must be a string."}
  $fileCount=@($parsed|Where-Object{$_ -eq "{prompt_file}"}).Count
