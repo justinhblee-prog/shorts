@@ -72,3 +72,12 @@ PR #409 (`fix/nexus-runner-venv-outside-worktree`) addresses a startup deadlock 
 - PR #409 is Draft/unmerged. Hosted Linux validation does not prove Windows path/runtime behavior, LocalAppData persistence, or a live Ollama cycle.
 
 The next engineering gate remains the ordered Windows runner preflight and two-run persistence proof in section 4.
+
+
+## 8. Aggregate exact-head validation — 2026-11-20
+
+- Aggregate PR #415 head `cb67ee8505ca508dddbb753761d4954a8a345fc9` passed two independent exact-head hosted runs: [44601341416](https://github.com/justinhblee-prog/shorts/actions/runs/44601341416) and [44601350386](https://github.com/justinhblee-prog/shorts/actions/runs/44601350386). Each completed all 17 workflow steps successfully, including repository validation, frontend syntax, analytics Chromium smoke, dependency/recovery Chromium smoke, and artifact upload.
+- Browser artifact archive: [14566419852](https://github.com/justinhblee-prog/shorts/actions/runs/44601341416/artifacts/14566419852). Desktop and 320px mobile screenshots were retrieved and visually inspected.
+- PR #415 includes parent dashboard/API changes, workstream/dependency UI, DAG mutation guards, Windows tooling path-integrity guards, and the multi-flow handover documents.
+- This hosted validation does not prove execution on the trusted Windows self-hosted runner, persistence across two actual runner jobs, or a live Ollama generation cycle. Those remain external BLOCKED gates.
+- PR #415 remains Draft/open/unmerged. No merge or deployment was performed.
