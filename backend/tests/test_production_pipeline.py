@@ -104,6 +104,27 @@ class ProductionTests(unittest.TestCase):
         attempt = self.store.provider_attempts(job_id)[0]
         self.assertIsNone(attempt["workspace_id"])
 
+    def test_production_and_provider_journal_reads_are_workspace_scoped(self):
+        db_path = Path(self.tmp.name) / "scoped-production-reads.sqlite3"
+        queue = JobQueue(db_path)
+        store = ProductionStore(str(db_path))
+        first = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-one"
+        )
+        second = queue.enqueue(
+            "short_video_production", self.brief, workspace_id="workspace-two"
+        )
+        store.create(first["id"], self.brief)
+        store.create(second["id"], self.brief)
+        key = store.begin_provider_attempt(first["id"], "script", 1)
+        self.assertEqual(store.get(first["id"], workspace_id="workspace-one")["job_id"],
+                         first["id"])
+        self.assertIsNone(store.get(first["id"], workspace_id="workspace-two"))
+        self.assertEqual(len(store.provider_attempts(
+            first["id"], workspace_id="workspace-one")), 1)
+        self.assertEqual(store.provider_attempts(
+            first["id"], workspace_id="workspace-two"), [])
+
     def test_artifact_and_provider_attempt_adoption_commit_atomically(self):
         job_id = "job-atomic-provider-adoption"
         self.store.create(job_id, self.brief)
