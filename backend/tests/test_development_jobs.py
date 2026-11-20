@@ -114,6 +114,18 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         next_job = self.store.claim_ready("worker-b")
         self.assertEqual(next_job["id"], child["id"])
 
+    def test_list_includes_persisted_dependencies_for_dashboard_dag(self):
+        parent = self.store.create("Listed parent", scope=["frontend/app.js"])
+        child = self.store.create("Listed child", scope=["backend/app.py"])
+        independent = self.store.create("Independent job", scope=["docs/README.md"])
+        self.store.add_dependency(child["id"], parent["id"])
+
+        listed = {job["id"]: job for job in self.store.list(limit=10)}
+
+        self.assertEqual(listed[child["id"]]["dependencies"], [parent["id"]])
+        self.assertEqual(listed[parent["id"]]["dependencies"], [])
+        self.assertEqual(listed[independent["id"]]["dependencies"], [])
+
     def test_dependency_cycle_is_rejected(self):
         first = self.store.create("First")
         second = self.store.create("Second")
