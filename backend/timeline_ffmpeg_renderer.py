@@ -106,7 +106,8 @@ def workspace_asset_resolver(asset_store):
 
 class TimelineFFmpegRenderer:
     def __init__(self, staging_root, asset_resolver, ffmpeg_path, ffprobe_path,
-                 *, width=1080, height=1920, fps=30, max_output_bytes=2_000_000_000,
+                 *, width=1080, height=1920, fps=30,
+                 max_input_bytes=2_000_000_000, max_output_bytes=2_000_000_000,
                  timeout_seconds=900, process_runner=None):
         self.staging_root = Path(staging_root).resolve()
         self.staging_root.mkdir(parents=True, exist_ok=True)
@@ -120,6 +121,8 @@ class TimelineFFmpegRenderer:
                 raise ValueError(f"{name} must be an even integer from 16 to 8192")
         if isinstance(fps, bool) or not isinstance(fps, int) or not 1 <= fps <= 60:
             raise ValueError("fps must be an integer from 1 to 60")
+        if isinstance(max_input_bytes, bool) or not isinstance(max_input_bytes, int) or max_input_bytes < 1:
+            raise ValueError("max_input_bytes must be a positive integer")
         if isinstance(max_output_bytes, bool) or not isinstance(max_output_bytes, int) or max_output_bytes < 1:
             raise ValueError("max_output_bytes must be a positive integer")
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or not 1 <= timeout_seconds <= 3600:
@@ -127,6 +130,7 @@ class TimelineFFmpegRenderer:
         self.width = width
         self.height = height
         self.fps = fps
+        self.max_input_bytes = max_input_bytes
         self.max_output_bytes = max_output_bytes
         self.timeout_seconds = float(timeout_seconds)
         self.process_runner = process_runner or run_bounded_process
@@ -142,7 +146,7 @@ class TimelineFFmpegRenderer:
     def _seconds(milliseconds):
         return f"{float(milliseconds) / 1000:.3f}"
 
-    def _stage_asset(self, workspace_id, principal_id, asset_id, work_dir, index):
+    def _stage_asset(self, workspace_id, principal_id, asset_id, work_dir, index, byte_limit):
         resolved = self.asset_resolver(workspace_id, principal_id, asset_id)
         if isinstance(resolved, dict):
             source = Path(resolved.get("path", ""))
@@ -162,8 +166,8 @@ class TimelineFFmpegRenderer:
                 if not chunk:
                     break
                 size += len(chunk)
-                if size > self.max_output_bytes:
-                    raise TimelineRenderError("source asset exceeds configured byte limit")
+                if size > byte_limit:
+                    raise TimelineRenderError("aggregate source assets exceed configured byte limit")
                 digest.update(chunk)
                 dst.write(chunk)
             dst.flush()
@@ -171,7 +175,7 @@ class TimelineFFmpegRenderer:
         if size < 1 or (expected is not None and digest.hexdigest() != expected):
             staged.unlink(missing_ok=True)
             raise TimelineRenderError("source asset checksum does not match trusted metadata")
-        return staged
+        return staged, size
 
     def _run(self, argv, stop_event):
         result = self.process_runner(
@@ -218,13 +222,19 @@ class TimelineFFmpegRenderer:
         keep_final = False
         try:
             staged_video = []
-            argv = [self.ffmpeg_path, "-nostdin", "-hide_banner", "-loglevel", "error", "-y"]
+            total_input_bytes = 0
+            argv = [
+                self.ffmpeg_path, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+                "-filter_threads", "2",
+            ]
             for index, clip in enumerate(clips):
                 if stop_event is not None and stop_event.is_set():
                     raise RenderCancelled("render cancelled before video encoding")
-                staged = self._stage_asset(
-                    workspace_id, principal_id, clip["asset_id"], job_dir, index
+                staged, size = self._stage_asset(
+                    workspace_id, principal_id, clip["asset_id"], job_dir, index,
+                    self.max_input_bytes - total_input_bytes,
                 )
+                total_input_bytes += size
                 staged_video.append(staged)
                 argv.extend(["-protocol_whitelist", "file,pipe", "-i", str(staged)])
 
@@ -247,6 +257,7 @@ class TimelineFFmpegRenderer:
             argv.extend([
                 "-filter_complex", ";".join(filters), "-map", "[vout]", "-an",
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                "-threads", "2",
                 "-r", str(self.fps), "-pix_fmt", "yuv420p",
                 "-t", self._seconds(duration_ms), "-movflags", "+faststart",
                 str(video_path),
@@ -259,9 +270,11 @@ class TimelineFFmpegRenderer:
                 for index, track in enumerate(audio_tracks, start=len(staged_video)):
                     if track["start_ms"] + track["source_out_ms"] - track["source_in_ms"] > duration_ms:
                         raise TimelineRenderError("audio track extends beyond the video timeline")
-                    staged = self._stage_asset(
-                        workspace_id, principal_id, track["asset_id"], job_dir, index
+                    staged, size = self._stage_asset(
+                        workspace_id, principal_id, track["asset_id"], job_dir, index,
+                        self.max_input_bytes - total_input_bytes,
                     )
+                    total_input_bytes += size
                     prepared_audio.append({
                         "path": str(staged), "start_ms": int(track["start_ms"]),
                         "source_in_ms": int(track["source_in_ms"]),
