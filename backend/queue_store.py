@@ -361,7 +361,9 @@ class JobQueue:
             owner=c.execute("SELECT workspace_id FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
             if owner is None or (workspace_id is not None and owner["workspace_id"] != workspace_id):
                 raise JobNotFound()
-            return [{**dict(r),"details":json.loads(r["details_json"])} for r in c.execute("SELECT * FROM job_events WHERE job_id=? ORDER BY id",(jid,))]
+            return [{**dict(r),"details":json.loads(r["details_json"])} for r in c.execute(
+                "SELECT e.*,j.workspace_id FROM job_events e JOIN pipeline_jobs j ON j.id=e.job_id "
+                "WHERE e.job_id=? ORDER BY e.id",(jid,))]
 
     def cancel(self,jid,reason="Cancelled by operator"):
         reason = str(reason)[:2000]
@@ -526,8 +528,9 @@ class JobQueue:
 
     def production_reconciliation_events(self, job_id):
         with self.db() as c:
-            return [dict(row) for row in c.execute("""SELECT * FROM
-                production_reconciliation_events WHERE job_id=? ORDER BY id""",
+            return [dict(row) for row in c.execute("""SELECT e.*,j.workspace_id FROM
+                production_reconciliation_events e JOIN pipeline_jobs j ON j.id=e.job_id
+                WHERE e.job_id=? ORDER BY e.id""",
                 (job_id,)).fetchall()]
 
     def recover(self):
