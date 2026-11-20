@@ -41,7 +41,7 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
     def test_list_endpoint_passes_status_filter_and_offset(self):
         with (
             mock.patch.object(app_module, "require_review_permission"),
-            mock.patch.object(app_module.development_job_store, "list", return_value=[]) as listed,
+            mock.patch.object(app_module.development_job_store, "list", return_value=[{"id": "page-item"}]) as listed,
             mock.patch.object(app_module.development_job_store, "count", return_value=240),
             mock.patch.object(app_module.development_job_store, "summary", return_value={}),
         ):
@@ -51,7 +51,7 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         listed.assert_called_once_with(statuses=["ready", "blocked"], limit=80, offset=160)
         self.assertEqual(result["pagination"], {
             "limit": 80, "offset": 160, "total": 240,
-            "has_more": True, "next_offset": 160,
+            "has_more": True, "next_offset": 161,
         })
 
     def test_event_endpoint_omits_raw_error_details(self):
