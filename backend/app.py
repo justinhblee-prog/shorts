@@ -1210,9 +1210,11 @@ def publishing_analytics_history(
     before_collected_at:str|None=None,before_id:int|None=None,
     as_of:str|None=None,
     x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
 ):
     """Return stored, read-only metric snapshots for trend comparison."""
-    require_review_permission(x_review_token,"analytics.read")
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     if platform not in {"all","youtube","tiktok"}:
         raise HTTPException(422,"platform must be all, youtube, or tiktok")
     if video_id is not None and (
@@ -1258,12 +1260,14 @@ def publishing_analytics_history(
     if platform in {"all","youtube"}:
         result["youtube"]=youtube_analytics_store.history(
             video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset,
-            before_collected_at=before_collected_at,before_id=before_id
+            before_collected_at=before_collected_at,before_id=before_id,
+            workspace_id=workspace_id
         )
     if platform in {"all","tiktok"}:
         result["tiktok"]=tiktok_metrics_store.history(
             tiktok_publish_store,video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset,
-            before_collected_at=before_collected_at,before_id=before_id
+            before_collected_at=before_collected_at,before_id=before_id,
+            workspace_id=workspace_id
         )
     return {
         "platform":platform,"video_id":video_id,"days":bounded_days,"as_of":normalized_as_of,
