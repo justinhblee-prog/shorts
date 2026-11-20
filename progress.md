@@ -209,3 +209,14 @@
 - PR #416 main-based validation runs 44649765794 and 44649800067 completed successfully at exact tested head `20d9f522184654a11a75214a9fba81c5adabb660`. Dependency installation and `sh scripts/validate.sh` passed; the latter runs Python compileall, frontend syntax check where Node is available, and complete backend unittest discovery.
 - Follow-up commit `13f9b1308a660e2a1799aba2c5aba39212008217` adds an explicit PyYAML parse step for `.github/workflows/nexus-development-job-worker.yml`. A new Actions run for that exact head has not yet been observed; do not label that last CI-only addition as tested.
 - PR #416 remains Draft/open/unmerged; PR #415 remains Draft/open/unmerged. Windows runner, two-run LocalAppData persistence and live Ollama generation remain NOT VERIFIED.
+
+
+## 28. UI workstream board QA expansion — 2026-11-20
+
+- Corrected the prior queue interpretation: scope-based workstream grouping and prerequisite rendering were already implemented in `frontend/app.js`; the existing recovery browser smoke covered only UI and Core lanes.
+- Expanded the isolated recovery fixture to persist Automation, QA, Docs, mixed-scope Integration, and unclassified jobs.
+- Expanded Playwright checks to assert exactly one correct lane per fixture and visibility of all seven lane groups at a 320px viewport.
+- Code commits: `cb627da0ae91934ccebbcc3cb602054efd78b39c` and `03bb8a8cf23ecf5d98468696e5ca35b7cc19d029`.
+- Hosted CI runs 44652238309, 44652246574, and 44652255170 were started for these changes. Exact-head PASS remains pending until all steps, including both Chromium smoke tests and artifact upload, succeed.
+- Next UI increment: make prerequisite relationships easier to follow as a visual DAG and handle prerequisites omitted by API pagination explicitly. Keep source status authoritative and never infer execution state.
+- PR #415 remains Draft/open/unmerged; no merge, deployment, default-branch change, runner activation, or live provider action.
