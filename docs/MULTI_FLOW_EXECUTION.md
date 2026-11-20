@@ -409,3 +409,9 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 - FLOW-QA fixture exceeds 200 jobs and places a real prerequisite on the final page. Browser smoke verifies parent discovery, focus, final loaded/total counts, and the load-more control's hidden state. CSS explicitly enforces hidden on the styled button.
 - Exact aggregate head c59beaa1eb69b599b198d7a9fce3735a0235485d passed backend validation (898 tests), frontend syntax, both Chromium browser suites, and artifact upload in [run 44657078245](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245), artifact [14594141209](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245/artifacts/14594141209).
 - FLOW-CORE/FLOW-UI/FLOW-QA: PASS within hosted fixture scope. Real Windows/Ollama/provider gates remain NOT VERIFIED.
+
+## 16. Pagination request race guard — 2026-11-20
+
+- FLOW-UI identified duplicate page requests when a prerequisite or load-more control is clicked repeatedly before the response settles. Multiple requests shared the same offset and could cause a repeated page instead of forward progress.
+- Added a shared in-flight request promise and disabled pagination controls while loading. Concurrent actions reuse the current request; controls recover in `finally` after success or failure.
+- FLOW-QA now double-clicks a cross-page prerequisite against a delayed API response and asserts one request, correct disabled/re-enabled states, and parent focus. Static frontend assertions cover the guard. Exact-head CI is pending.
