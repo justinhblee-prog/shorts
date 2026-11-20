@@ -5,7 +5,7 @@
 The worker renderer accepts sequential video clips and up to eight optional audio tracks.
 
 - Video clips must begin at timeline zero and be contiguous, without gaps or overlaps.
-- Video source trims are applied with FFmpeg `trim`, then normalized to the configured output canvas, frame rate and pixel format before concat.
+- Video source trims are applied with FFmpeg `trim`, then normalized to the configured output canvas, frame rate and pixel format before concat. Before processing, the renderer recomputes the canonical normalized EDL SHA-256 and rejects a queue payload that does not match the immutable snapshot digest.
 - Audio tracks carry an opaque workspace asset ID, timeline start, source in/out, linear gain and optional fade-in/fade-out durations.
 - Audio is trimmed, timestamp-reset, gained, delayed to its timeline position, faded, mixed with `amix` and protected by `alimiter`.
 - The video-only and audio-mix outputs are muxed into a staged MP4. Video is stream-copied during the final mux.
