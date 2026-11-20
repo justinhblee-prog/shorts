@@ -86,3 +86,11 @@ A permission-gated `POST /api/timeline/edl/validate` endpoint now exposes this v
 ## Durable workspace registry increment
 
 The new `backend/workspace_store.py` adds SQLite-backed workspaces, unique principal memberships, role-gated member administration, last-owner protection, and append-only membership audit events. Regression coverage is in `backend/tests/test_workspace_store.py`. This registry is not yet connected to FastAPI authentication: existing review credentials do not establish a general end-user identity. The configuration-based membership check remains the active interim boundary until a trusted principal source and reviewed migration are implemented. No asset upload or render API is enabled.
+
+## Implemented execution guard increment — not yet a complete worker
+
+\`backend/ffmpeg_render_execution.py\` adds a bounded subprocess execution primitive for a prebuilt FFmpeg argv. It never invokes a shell, replaces a single terminal \`{output}\` placeholder with a private worker-owned temporary path, enforces a configurable wall-clock timeout and output byte ceiling, terminates the process group on failure where supported, validates the resulting H.264 1080x1920 video stream and duration through ffprobe, computes SHA-256, and atomically adopts the artifact under a validated final name. Successful output is labelled \`review_pending\`; it is not published.
+
+Unit fixtures are in \`backend/tests/test_ffmpeg_render_execution.py\`. They validate the execution contract with controlled Python subprocesses and synthetic ffprobe metadata only. They do **not** prove that a real FFmpeg binary can render media.
+
+Remaining gaps: this primitive is not yet wired to a durable EDL render queue or the existing worker lease/heartbeat lifecycle; it does not provide source asset registration/tenant authorization, audio mixing, or OS-level CPU/memory/disk/network quotas. Production must run it in a dedicated restricted container with a pinned FFmpeg/ffprobe build. Until real media integration and those controls pass, the timeline UI remains EDL-only and \`rendered: false\`.
