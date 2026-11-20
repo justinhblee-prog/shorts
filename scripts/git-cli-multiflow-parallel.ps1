@@ -117,6 +117,7 @@ foreach($t in @($eligible|Select-Object -First $MaxTasks)){
  $queue.Enqueue($t)
 }
 $active=[Collections.Generic.List[object]]::new()
+$workerFailures=[Collections.Generic.List[string]]::new()
 while($queue.Count -gt 0 -or $active.Count -gt 0){
  while($queue.Count -gt 0 -and $active.Count -lt $MaxParallel){
   $t=$queue.Dequeue();$id=[string]$t.id;$stamp=Get-Date -Format "yyyyMMdd-HHmmssfff"
