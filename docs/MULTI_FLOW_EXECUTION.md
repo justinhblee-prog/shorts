@@ -298,3 +298,65 @@ A second-pass import and call-site audit expands the promotion boundary beyond t
 
 ### Promotion rule
 Do not create a workflow-only activation change. Prepare a dependency-complete promotion branch/PR only after full import/path/test closure is enumerated against `main`, security review is complete, and main-targeted CI passes. Keep the aggregate PR Draft/unmerged; do not dispatch or enable the schedule without explicit authorization.
+
+
+## 25. Mainline promotion package boundary — 2026-11-20
+
+### Decision: do not promote aggregate PR #415 wholesale
+
+A direct main...integration/nexus-aggregate-ui-core-2026-11-20 comparison shows the integration branch is **1,307 commits ahead and 5 behind** and contains broad product/UI/production-pipeline changes in addition to the worker. PR #415 itself has 100 commits and is based on another integration branch, not main. It is therefore not a safe narrow activation vehicle. The Windows worker must be isolated into a dedicated promotion branch/PR based on main; do not change PR #415's base or merge the aggregate branch to activate it.
+
+### Minimal worker runtime package (branch-only vs main)
+- .github/workflows/nexus-development-job-worker.yml
+- backend/development_agent_executor.py
+- backend/development_backlog_service.py
+- backend/development_github_intake.py
+- backend/development_job_worker.py
+- backend/development_jobs.py
+- backend/development_security.py
+- backend/publish_development_reviews.py
+- backend/recover_development_reviews.py
+- backend/run_development_agent.py
+- backend/seed_development_jobs.py
+- backend/sync_development_backlog.py
+
+Import closure was checked from the entrypoint: run_development_agent → executor, backlog service, GitHub intake, job store, security redaction, seed; executor → job worker/security; backlog → job worker/intake; job worker and store → security; intake → store; seed/sync → store/intake; review recovery → store/review publisher; review publisher → store. These imports are repository-local modules and Python standard library; no new third-party package is imported by this runtime closure.
+
+### Focused tests to carry with the runtime package
+- backend/tests/test_development_agent_executor.py
+- backend/tests/test_development_agent_scope_normalization.py
+- backend/tests/test_development_backlog_service.py
+- backend/tests/test_development_github_intake.py
+- backend/tests/test_development_job_worker.py
+- backend/tests/test_development_jobs.py
+- backend/tests/test_development_security.py
+- backend/tests/test_development_worker_workflow_contract.py
+- backend/tests/test_publish_development_reviews.py
+- backend/tests/test_run_development_agent.py
+- backend/tests/test_seed_development_jobs.py
+- backend/tests/test_sync_development_backlog.py
+
+The API-only tests test_development_job_api_security.py and test_development_job_recovery_api.py exercise dashboard/API routes and are not prerequisites for the standalone Windows CLI worker. If those API features are included in a later UI/API promotion, their backend/app.py, authorization changes and related tests must be promoted together; do not cherry-pick those tests without their route implementation.
+
+### Required shared CI/dependency adjustments
+- backend/requirements.txt: add PyYAML>=6.0,<7.0. scripts/validate.sh imports yaml to parse compose.yaml; main currently omits PyYAML, while the integration branch includes it. This is required for the existing validation command to work from a clean main-based runner.
+- .github/workflows/backend-tests.yml: include the worker workflow path in push and pull_request filters; the workflow contract test also requires docs, README, and .gitignore changes to trigger validation. Preserve existing paths and job behavior.
+- scripts/validate.sh already exists on main and runs compileall plus full backend unittest discovery; no worker-specific replacement script is required.
+- docs/DEVELOPMENT_JOB_ORCHESTRATION.md: include as the job graph/contract reference because seeded jobs point to it. Also carry a concise operator runbook and environment/secrets contract if the worker is to be enabled.
+
+### Explicit exclusions from this narrow activation package
+Do not bring the aggregate branch's unrelated production pipeline, queue/scheduler, TikTok/YouTube integrations, recommendation/metrics, frontend dashboard, visual theme, analytics, or broad backend/app.py API changes into the worker activation PR. Those require their own product integration review. Do not include the API-only development-job tests unless their API implementation is intentionally part of a separate promotion unit.
+
+### Main-targeted verification matrix before activation
+1. Build a new branch from current main; copy only the runtime package, focused tests, orchestration/operations docs, PyYAML dependency, and CI path-filter update.
+2. Run the exact sh scripts/validate.sh command from a clean checkout; require all mainline and new worker tests to pass.
+3. Run python -m compileall -q backend, node --check frontend/app.js, and workflow YAML/contract checks.
+4. Review every workflow permission and action version; ensure read-only NEXUS_GITHUB_READ_TOKEN is used only for intake/recovery and built-in GITHUB_TOKEN is used only for bounded Draft PR/dispatch actions.
+5. Run static scope/path/symlink and child-process credential-redaction tests; review Aider's fixed command construction and clean-worktree precondition.
+6. Only after an authorized merge to default branch, dispatch a manual one-cycle run on the dedicated isolated Windows runner; then perform a separate second run to verify LocalAppData SQLite and virtualenv persistence. Verify the exact Draft PR URL/head SHA and evidence. Keep scheduled execution disabled until the manual run is reviewed.
+
+### Current status
+- Exact file boundary and runtime import graph: AUDITED.
+- Clean-main promotion branch and main-targeted CI: NOT YET CREATED/RUN.
+- Windows runner, cross-run persistence, Ollama generation: NOT VERIFIED.
+- No branch promotion, workflow dispatch, schedule activation, merge, or default-branch change performed.
