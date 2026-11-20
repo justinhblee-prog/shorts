@@ -47,6 +47,7 @@ def main() -> None:
 
     # Persist one fixture for every remaining workstream classification.
     workstream_fixtures = [
+        ("windows-ui", ["Frontend\\App.js"]),
         ("automation", [".github/workflows/backend-tests.yml"]),
         ("qa", ["backend/tests/test_frontend.py"]),
         ("docs", ["docs/MULTI_FLOW_EXECUTION.md"]),
