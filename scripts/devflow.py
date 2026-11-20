@@ -37,8 +37,11 @@ def secret_candidates(path: Path) -> list[str]:
     for item in path.rglob("*"):
         if not item.is_file() or any(x in item.parts for x in (".git", ".venv", "node_modules")):
             continue
+        relative = str(item.relative_to(path)).replace("\\", "/")
+        if relative in (".env.example", ".env.sample"):
+            continue
         if any(item.match(pattern) for pattern in patterns):
-            found.append(str(item.relative_to(path)))
+            found.append(relative)
     return found
 
 def validate(root: Path) -> None:
