@@ -29,7 +29,7 @@ class TimelineRenderStoreTests(unittest.TestCase):
         asset = self.assets.register_stream(
             "ws_studio", "alice", io.BytesIO(b"video-fixture"), "clip.mp4"
         )
-        self.assets.mark_scan_result("ws_studio", "alice", asset["asset_id"], True)
+        self._mark_clean(asset["asset_id"], has_video=True, has_audio=False)
         self.asset_id = asset["asset_id"]
         self.edl = {
             "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
@@ -41,6 +41,21 @@ class TimelineRenderStoreTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def _mark_clean(self, asset_id, *, has_video, has_audio):
+        class Scanner:
+            def scan(self, path):
+                return {"status": "clean", "engine": "test"}
+        def probe(path):
+            return {
+                "duration_ms": 6000, "byte_size": Path(path).stat().st_size,
+                "has_video": has_video, "has_audio": has_audio,
+                "video_streams": [{"codec": "h264", "width": 1280, "height": 720}] if has_video else [],
+                "audio_streams": [{"codec": "aac", "sample_rate": 48000, "channels": 2}] if has_audio else [],
+            }
+        return self.assets.scan_pending_asset(
+            "ws_studio", "alice", asset_id, Scanner(), probe
+        )
 
     def test_submit_persists_immutable_snapshot_and_queues_job(self):
         result = self.store.submit("ws_studio", "alice", self.edl, "render-try-0001")
@@ -88,7 +103,7 @@ class TimelineRenderStoreTests(unittest.TestCase):
         audio = self.assets.register_stream(
             "ws_studio", "alice", io.BytesIO(b"audio-fixture"), "bed.wav"
         )
-        self.assets.mark_scan_result("ws_studio", "alice", audio["asset_id"], True)
+        self._mark_clean(audio["asset_id"], has_video=False, has_audio=True)
         edl = {**self.edl, "clips": [
             dict(self.edl["clips"][0]),
             {"id": "audio-1", "type": "audio", "start_ms": 0, "end_ms": 5000,
