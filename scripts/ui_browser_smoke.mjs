@@ -63,10 +63,29 @@ async function waitForServer() {
       return route.continue();
     });
     const analyticsRequests = [];
+    let analyticsHistoryResponse = null;
     page.on("request", request => {
       const requestUrl = new URL(request.url());
       if (requestUrl.pathname === "/api/publishing/analytics-history") {
         analyticsRequests.push(requestUrl.toString());
+      }
+    });
+    page.on("response", async response => {
+      const responseUrl = new URL(response.url());
+      if (responseUrl.pathname !== "/api/publishing/analytics-history") return;
+      try {
+        const payload = await response.json();
+        analyticsHistoryResponse = {
+          status: response.status(),
+          counts: payload.counts || {},
+          itemCounts: Object.fromEntries(
+            Object.entries(payload.items || {}).map(([key, items]) => [
+              key, Array.isArray(items) ? items.length : null,
+            ])
+          ),
+        };
+      } catch (error) {
+        analyticsHistoryResponse = { status: response.status(), parseError: String(error) };
       }
     });
     await page.route(url => url.pathname === "/api/publishing/analytics-history", async route => {
@@ -242,7 +261,12 @@ async function waitForServer() {
       document.querySelector("#analyticsHistory").getAttribute("aria-busy") === "false" &&
       document.querySelector("#analyticsHistoryStatus").textContent.includes("기준 시각")
     );
-    assert.equal(await page.locator("#exportAnalyticsHistory").isDisabled(), false);
+    checkpoint("analytics history response " + JSON.stringify(analyticsHistoryResponse));
+    assert.equal(
+      await page.locator("#exportAnalyticsHistory").isDisabled(),
+      false,
+      "analytics export should be enabled; response=" + JSON.stringify(analyticsHistoryResponse)
+    );
     await page.screenshot({ path: "artifacts/nexus-dashboard-desktop.png", fullPage: true });
     const downloadPromise = page.waitForEvent("download");
     await page.locator("#exportAnalyticsHistory").click();
