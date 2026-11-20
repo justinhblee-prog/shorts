@@ -930,8 +930,13 @@ def resolve_late_youtube_upload(job_id:str,body:YouTubeLateSuccessResolution,
 
 
 @app.post("/api/youtube/videos/{video_id}/refresh-metrics")
-def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
+def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=None),
+                            x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    job_id=youtube_upload_store.job_for_video(video_id)
+    if not job_id:
+        raise HTTPException(404,"YouTube video not found")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     try:
         return youtube_publisher.refresh_metrics(video_id)
     except YouTubeUploadError as e:
@@ -939,8 +944,13 @@ def refresh_youtube_metrics(video_id:str,x_review_token:str|None=Header(default=
 
 
 @app.post("/api/youtube/videos/{video_id}/refresh-analytics")
-def refresh_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
+def refresh_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=None),
+                              x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    job_id=youtube_upload_store.job_for_video(video_id)
+    if not job_id:
+        raise HTTPException(404,"YouTube video not found")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     try:
         return youtube_analytics_collector.collect_video(video_id)
     except ValueError as e:
@@ -950,8 +960,13 @@ def refresh_youtube_analytics(video_id:str,x_review_token:str|None=Header(defaul
 
 
 @app.get("/api/youtube/videos/{video_id}/analytics")
-def get_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
+def get_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=None),
+                          x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    job_id=youtube_upload_store.job_for_video(video_id)
+    if not job_id:
+        raise HTTPException(404,"YouTube video not found")
+    require_production_workspace(job_id,operator_id,x_nexus_workspace_id)
     result=youtube_analytics_store.get(video_id)
     if result is None:
         raise HTTPException(404,"YouTube Analytics report has not been collected")
