@@ -25,6 +25,7 @@ class TimelineRenderWorker:
         self.heartbeat_seconds = heartbeat_seconds
         self.artifact_store = artifact_store
         self.shutdown_event = shutdown_event
+        self.shutdown_event = shutdown_event
 
     def run_once(self):
         job = self.queue.claim(
