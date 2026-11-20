@@ -162,9 +162,9 @@ def execute_ffmpeg_render(argv: Sequence[str], output_root: str | os.PathLike,
     if not command:
         raise RenderExecutionError("renderer command must be an argument array")
     try:
-        requested_output = Path(command[-1])
-        if not requested_output.is_absolute() or requested_output != temporary:
-            raise RenderExecutionError("renderer output must target the worker-owned temporary path")
+        if command[-1] != "{output}":
+            raise RenderExecutionError("renderer command must end with the {output} placeholder")
+        command[-1] = str(temporary)
         _run_bounded(command, timeout_seconds=timeout_seconds,
                      max_output_bytes=max_output_bytes, output_path=temporary)
         probe = _probe(ffprobe_path, temporary, timeout_seconds)
