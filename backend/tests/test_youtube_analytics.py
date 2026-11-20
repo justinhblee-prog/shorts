@@ -212,6 +212,8 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.store.save("video-a","2026-11-01","2026-11-19",{"views":10},[])
         self.store.save("video-b","2026-11-01","2026-11-19",{"views":20},[])
         scoped=self.store.status(workspace_id="workspace-a")
+        self.assertEqual(self.store.get("video-a",workspace_id="workspace-a")["video_id"],"video-a")
+        self.assertIsNone(self.store.get("video-a",workspace_id="workspace-b"))
         self.assertEqual(scoped["coverage"]["published_videos"],1)
         self.assertEqual(scoped["coverage"]["with_snapshot"],1)
         self.assertEqual(scoped["last_attempt_at"],None)
