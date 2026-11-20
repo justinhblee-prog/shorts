@@ -242,7 +242,7 @@ directly inside a test process.
 The CI test credentials and fixture workspace are ephemeral and are not
 production credentials. ClamAV signature freshness, actual malware scanning,
 representative customer media, and target-host compatibility remain separate
-production gates. The first integrated workflow run succeeded on commit `e9f1c124dc545a348dd40c3bd08ae559927878a8`: [Compose integration smoke #44798390154](https://github.com/justinhblee-prog/shorts/actions/runs/44798390154) and [Backend tests #44798390156](https://github.com/justinhblee-prog/shorts/actions/runs/44798390156) both passed. The Compose run completed the API upload → quarantine → trusted fixture attestation → idempotent submission → separate worker FFmpeg render/adoption → API review approval → cookie-authenticated private preview sequence, as well as service health, worker isolation, direct FFmpeg smoke and encrypted backup/restore.
+production gates. The authenticated API-to-worker E2E passed in Compose run #44798390154 and backend run #44798390156 on commit `e9f1c124dc545a348dd40c3bd08ae559927878a8`. That earlier run used an explicit trusted test-fixture scan attestation. The subsequent ClamAV-backed revision is being verified separately; its current workflow must pass before claiming real ClamAV integration.
 
 
 ### Latest authenticated E2E verification
@@ -257,6 +257,7 @@ production gates. The first integrated workflow run succeeded on commit `e9f1c12
   render status, unauthenticated status denial, upload quarantine, idempotent
   submission, actual render by the separate Compose worker, artifact-bound
   approval, and cookie-authenticated private MP4 preview.
-- The harness marks only its locally generated fixture as clean directly in
-  the asset registry. This deliberately avoids pretending ClamAV ran; real
-  scanner signature freshness and malware scan integration remain open.
+- The new ClamAV-backed revision no longer writes a clean attestation directly.
+  It starts freshclam, verifies a usable signature database, scans the generated
+  MP4 through the API, and checks EICAR rejection. Its CI result is pending.
+  Production signature freshness monitoring and operations remain separate.
