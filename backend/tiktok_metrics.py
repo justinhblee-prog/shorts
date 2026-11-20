@@ -382,15 +382,30 @@ class TikTokMetricsStore:
             params.extend((before_collected_at,before_collected_at,int(before_id)))
         where=" AND ".join(clauses)
         with self.db() as c:
-            rows=c.execute(f"""
-              SELECT DISTINCT s.*,p.status AS publication_status,
-                     COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
-              FROM tiktok_video_metric_snapshots s
-              JOIN tiktok_publications p ON p.video_id=s.video_id
-              JOIN production_runs pr ON pr.job_id=p.job_id
-              WHERE {where}
-              ORDER BY s.collected_at DESC,s.id DESC LIMIT ? OFFSET ?
-            """,(*params,limit,offset)).fetchall()
+            has_production=c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+            ).fetchone() is not None
+            if not has_production:
+                if workspace_id is not None:
+                    return []
+                rows=c.execute(f"""
+                  SELECT DISTINCT s.*,p.status AS publication_status,
+                         COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
+                  FROM tiktok_video_metric_snapshots s
+                  JOIN tiktok_publications p ON p.video_id=s.video_id
+                  WHERE {" AND ".join(clauses[:2] + clauses[3:])}
+                  ORDER BY s.collected_at DESC,s.id DESC LIMIT ? OFFSET ?
+                """,(*params[1:],limit,offset)).fetchall()
+            else:
+                rows=c.execute(f"""
+                  SELECT DISTINCT s.*,p.status AS publication_status,
+                         COALESCE(p.privacy_level,'SELF_ONLY') AS privacy_level
+                  FROM tiktok_video_metric_snapshots s
+                  JOIN tiktok_publications p ON p.video_id=s.video_id
+                  JOIN production_runs pr ON pr.job_id=p.job_id
+                  WHERE {where}
+                  ORDER BY s.collected_at DESC,s.id DESC LIMIT ? OFFSET ?
+                """,(*params,limit,offset)).fetchall()
         return [dict(row) for row in rows]
 
     def recent_metrics(self, publication_store, limit=100):
