@@ -105,5 +105,66 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
             )
 
 
+    def test_scanner_must_explicitly_confirm_clean_before_asset_is_openable(self):
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"scan-clean"), "scan.mp4"
+        )
+        class CleanScanner:
+            def scan(self, path):
+                self.assert_path = Path(path)
+                return {"status": "clean", "engine": "test"}
+        metadata = self.store.scan_pending_asset(
+            "ws_studio", "alice", result["asset_id"], CleanScanner()
+        )
+        self.assertEqual(metadata["scan_status"], "clean")
+        with self.store.open_clean_asset("ws_studio", "alice", result["asset_id"]) as handle:
+            self.assertEqual(handle.read(), b"scan-clean")
+
+    def test_infected_media_is_rejected_and_scanner_failure_stays_quarantined(self):
+        infected = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"infected-fixture"), "bad.mp4"
+        )
+        class InfectedScanner:
+            def scan(self, path):
+                raise MediaInfectedError("infected")
+        with self.assertRaisesRegex(AssetError, "rejected"):
+            self.store.scan_pending_asset(
+                "ws_studio", "alice", infected["asset_id"], InfectedScanner()
+            )
+        self.assertEqual(
+            self.store.get_asset("ws_studio", "alice", infected["asset_id"])["scan_status"],
+            "rejected",
+        )
+
+        unavailable = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"scanner-down"), "pending.mp4"
+        )
+        class UnavailableScanner:
+            def scan(self, path):
+                raise MediaScanError("database unavailable")
+        with self.assertRaisesRegex(AssetError, "remains quarantined"):
+            self.store.scan_pending_asset(
+                "ws_studio", "alice", unavailable["asset_id"], UnavailableScanner()
+            )
+        self.assertEqual(
+            self.store.get_asset("ws_studio", "alice", unavailable["asset_id"])["scan_status"],
+            "pending",
+        )
+        with self.assertRaisesRegex(AssetError, "quarantined"):
+            self.store.open_clean_asset("ws_studio", "alice", unavailable["asset_id"])
+
+    def test_asset_tampering_before_scan_blocks_scanner_and_clean_transition(self):
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"original"), "tamper.mp4"
+        )
+        binary = self.root / "private-media" / "ws_studio" / (result["asset_id"] + ".blob")
+        binary.write_bytes(b"modified")
+        class MustNotRun:
+            def scan(self, path):
+                raise AssertionError("scanner must not run on tampered bytes")
+        with self.assertRaisesRegex(AssetError, "integrity"):
+            self.store.scan_pending_asset("ws_studio", "alice", result["asset_id"], MustNotRun())
+
+
 if __name__ == "__main__":
     unittest.main()
