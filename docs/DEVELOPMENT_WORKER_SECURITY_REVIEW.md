@@ -92,3 +92,10 @@ The two source-level gaps above have been addressed on the promotion branch:
 2. **Worker presence mismatch:** when the job lease heartbeat succeeds but the worker-presence heartbeat no longer matches the active job context, the worker now treats that mismatch as uncertain ownership, cancels the executor, and returns `lease_lost`. A regression test covers this case.
 
 These source-level changes and regression tests passed on exact PR head `fb9807ee906ba2fa4039176930ac433e9485b2bc` in [Backend tests run 44662978507](https://github.com/justinhblee-prog/shorts/actions/runs/44662978507). The run completed successfully. This validates repository tests and workflow YAML parsing only. It does not remove the OS-level sandbox requirement or provide real Windows/Ollama runtime evidence.
+
+
+## Latest promotion checkpoint — 2026-11-20
+
+- Exact current PR #416 head `aa28b9d09813f65dd274ff7ec13026b0c703c876` passed [Backend tests run 44664632333](https://github.com/justinhblee-prog/shorts/actions/runs/44664632333): 618 backend tests and explicit worker workflow YAML parsing.
+- This confirms source-level regression coverage for the current promotion branch only. It does not establish a real Windows self-hosted runner execution, LocalAppData persistence across runs, Ollama generation, runner account ACLs, network egress restrictions, or OS-level containment.
+- Keep PR #416 Draft/open/unmerged. Do not dispatch the worker, enable its schedule, alter runner settings/secrets, merge, or deploy until the dedicated isolated runner and all activation gates are verified.
