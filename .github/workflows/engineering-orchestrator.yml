@@ -1,0 +1,134 @@
+name: Engineering orchestrator
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_compose:
+        description: Run the Docker Compose integration flow
+        required: true
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      include_compose:
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engineering-orchestrator-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    name: Backend validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Compile, configuration, frontend-ID and backend tests
+        run: sh scripts/validate.sh
+
+  browser:
+    name: Frontend browser smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned browser test dependency
+        run: npm install --no-save playwright@1.56.1
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run desktop and mobile browser smoke
+        run: node scripts/ui_browser_smoke.mjs
+      - name: Preserve browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-browser-screenshots
+          path: artifacts/*.png
+          if-no-files-found: ignore
+
+  compose:
+    name: Compose integration
+    if: inputs.include_compose
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare disposable encrypted-backup environment
+        run: |
+          cp .env.example .env
+          python - <<'PY'
+          import base64
+          import secrets
+          key = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii")
+          with open(".env", "a", encoding="utf-8") as env_file:
+              env_file.write("NEXUS_BACKUP_ENCRYPTION_KEY=" + key + "\n")
+              env_file.write("NEXUS_BACKUP_ENCRYPTION_REQUIRED=true\n")
+          PY
+      - name: Validate and build Compose services
+        run: |
+          docker compose config --quiet
+          docker compose build
+      - name: Start application services
+        run: docker compose up -d
+      - name: Verify service health and API readiness
+        run: |
+          set -eu
+          for service in api worker scheduler metrics-collector backup; do
+            for attempt in $(seq 1 900); do
+              cid="$(docker compose ps -q "$service")"
+              if [ -n "$cid" ] && [ "$(docker inspect --format '{{.State.Health.Status}}' "$cid")" = "healthy" ]; then
+                break
+              fi
+              if [ "$attempt" -eq 900 ]; then
+                docker compose ps
+                exit 1
+              fi
+              sleep 1
+            done
+          done
+          docker compose exec -T api python -c "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8502/api/ready',timeout=5); assert r.status == 200"
+          docker compose exec -T backup test -s /backups/.last-success
+      - name: Collect service logs
+        if: always()
+        run: docker compose logs --no-color || true
+      - name: Stop services and remove disposable volumes
+        if: always()
+        run: docker compose down -v --remove-orphans
+
+  report:
+    name: Orchestration result
+    if: always()
+    needs: [backend, browser, compose]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Write execution summary
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+          COMPOSE_RESULT: ${{ needs.compose.result }}
+        run: |
+          {
+            echo "## Engineering orchestrator"
+            echo
+            echo "| Flow | Result |"
+            echo "|---|---|"
+            echo "| Backend validation | ${BACKEND_RESULT} |"
+            echo "| Frontend browser smoke | ${BROWSER_RESULT} |"
+            echo "| Compose integration | ${COMPOSE_RESULT} |"
+            echo
+            echo "A skipped Compose flow means it was disabled at dispatch. No code was merged or deployed."
+          } >> "$GITHUB_STEP_SUMMARY"
