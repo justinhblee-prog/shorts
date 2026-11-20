@@ -46,6 +46,8 @@ class FFprobeValidationTests(unittest.TestCase):
         args, kwargs = run.call_args
         self.assertEqual(args[0][0], str(self.binary))
         self.assertIn(str(self.media), args[0])
+        self.assertIn("-protocol_whitelist", args[0])
+        self.assertIn("file,pipe", args[0])
         self.assertIs(kwargs["shell"], False)
         self.assertEqual(kwargs["timeout"], 12.0)
 
