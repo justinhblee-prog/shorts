@@ -734,21 +734,58 @@ async def upload_workspace_asset(
     scan_enabled=os.getenv("NEXUS_MEDIA_SCAN_ENABLED","false").strip().lower() in {
         "1","true","yes","on"
     }
+    scan_error=None
     if scan_enabled:
         try:
             scanner=ClamAVScanner()
             result=await run_in_threadpool(
                 asset_store.scan_pending_asset,workspace_id,result["asset_id"],scanner
             )
-        except (MediaScanError,AssetError,OSError,ValueError) as exc:
-            # Scanner failure or infection never promotes the asset out of quarantine.
-            raise HTTPException(503,"Malware scan did not attest this asset as clean") from exc
+        except (MediaScanError,AssetError,OSError,ValueError):
+            # Preserve the asset ID so an operator can retry; it remains quarantined.
+            scan_error="scan_not_cleared"
     renderable=result["scan_status"]=="clean"
     return {
-        "asset":result,"scan_required":not scan_enabled,
-        "renderable":renderable,
+        "asset":result,"scan_required":not renderable,
+        "renderable":renderable,"scan_error":scan_error,
         "scan_engine":"clamav" if scan_enabled and renderable else None,
     }
+
+
+@app.post("/api/workspaces/{workspace_id}/assets/{asset_id}/scan")
+async def rescan_workspace_asset(
+    workspace_id:str,asset_id:str,
+    x_review_token:str|None=Header(default=None),
+):
+    """Retry quarantine scanning; only ClamAV can attest an asset as clean."""
+    principal=require_review_permission(x_review_token,"media.manage")
+    try:
+        resolve_workspace_access(
+            principal,workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE","legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON",""),
+            store=workspace_store,
+        )
+        if os.getenv("NEXUS_MEDIA_SCAN_ENABLED","false").strip().lower() not in {
+            "1","true","yes","on"
+        }:
+            raise HTTPException(503,"Trusted malware scanning is not enabled")
+        scanner=ClamAVScanner()
+        result=await run_in_threadpool(
+            asset_store.scan_pending_asset,workspace_id,asset_id,scanner
+        )
+        return {"asset":result,"renderable":result["scan_status"]=="clean",
+                "scan_engine":"clamav"}
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except AssetNotFound:
+        raise HTTPException(404,"Pending asset not found")
+    except (MediaScanError,AssetError,OSError,ValueError) as exc:
+        raise HTTPException(422,"Malware scan did not attest this asset as clean") from exc
 
 
 @app.get("/api/workspaces/{workspace_id}/assets/{asset_id}")
