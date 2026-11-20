@@ -422,3 +422,11 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 - The browser test double-clicks an out-of-page prerequisite against a delayed page response and proves only one API request is sent. It also verifies disabled/re-enabled controls and focus transfer to the parent job.
 - A malformed regex in the first test-harness iteration was corrected; the final exact-head workflow passed. The failure did not indicate an application regression.
 - Real Windows/Ollama/provider/production DB validation remains outside this hosted Chromium test scope.
+
+## 18. Stable offset-page snapshot — 2026-11-20
+
+- FLOW-CORE fixed an offset pagination race caused by jobs inserted ahead of the current offset. The first page now establishes a UTC `created_at` cutoff under SQLite `BEGIN IMMEDIATE`; all subsequent list/count queries use the same cutoff.
+- The API validates and returns `pagination.snapshot_at`; FLOW-UI sends it on every subsequent page request. Refresh intentionally starts a new snapshot.
+- FLOW-QA inserts a higher-priority job between page requests and verifies the original snapshot remains complete without duplicates or omissions. API tests validate timezone-aware timestamps and error handling; browser smoke verifies the snapshot query is retained across the cross-page prerequisite request.
+- Exact code head `46b337bad16648a0d7ed6753c42ffe3d63033569` passed 901 backend tests, frontend syntax, both Chromium suites, and artifact upload in [run 44659993665](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665), artifact [14595685407](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665/artifacts/14595685407).
+- Production multi-process SQLite and real Windows runner persistence remain unverified.
