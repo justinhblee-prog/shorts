@@ -185,8 +185,11 @@ class RenderAssetStore:
 
             scan_status = "disabled"
             if self.scan_enabled:
-                scanner = self.scanner or ClamAVScanner(max_bytes=max_bytes)
-                scan = scanner.scan(temporary_path)
+                try:
+                    scanner = self.scanner or ClamAVScanner(max_bytes=max_bytes)
+                    scan = scanner.scan(temporary_path)
+                except Exception as exc:
+                    raise RenderAssetError("Malware scanner could not confirm a clean asset") from exc
                 if not isinstance(scan, dict) or scan.get("status") != "clean":
                     raise RenderAssetError("Malware scanner did not explicitly confirm a clean asset")
                 scan_status = "clean"
