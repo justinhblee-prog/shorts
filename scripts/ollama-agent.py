@@ -167,6 +167,7 @@ def main() -> int:
    if not calls and content.strip():
     preview=content.strip().replace("\\r"," ").replace("\\n"," ")[:320]
     print(f"[ollama-agent] unparsed_response={preview!r}",file=sys.stderr)
+   print(f"[ollama-agent] parsed_tool_calls={len(calls)}",file=sys.stderr)
    if not calls:
     if not content.strip():
      empty_responses += 1
@@ -182,6 +183,7 @@ def main() -> int:
   messages.append(msg)
   for call in calls:
    fn=call.get("function") or {}; name=fn.get("name",""); arguments=fn.get("arguments") or {}
+   print(f"[ollama-agent] invoking_tool={name} argument_keys={sorted(arguments.keys())}",file=sys.stderr)
    signature=json.dumps({"name":name,"arguments":arguments},sort_keys=True,ensure_ascii=False)
    repeated_calls[signature]=repeated_calls.get(signature,0)+1
    if repeated_calls[signature] > 5:
