@@ -2769,3 +2769,14 @@ Implement the secure FFmpeg/MP4 render worker rather than revisiting the already
 - Render uploads and EDL validation use a dedicated `media` rate-limit bucket (default 10/minute, configurable with `NEXUS_API_MEDIA_RATE_LIMIT_PER_MINUTE`). Video EDL IDs are type-checked and cannot resolve to audio assets.
 - ClamAV scanning was exercised only through injected unit-test adapters; no real media upload, live ClamAV database scan, or FFmpeg MP4 render was executed. With scanning disabled, uploads are marked unscanned and are not render-resolvable.
 - PR [#421](https://github.com/justinhblee-prog/shorts/pull/421) remains Draft / Open / Unmerged. No render job execution or publishing is enabled.
+
+
+## BUILD — durable render queue and isolated worker (2026-11-20)
+
+- Added `render_output_store.py` to bind output adoption to the exact running queue job, workspace, worker ID, lease token and attempt. It verifies the MP4 path, dimensions, duration, size and SHA-256 before recording the artifact.
+- Added a dedicated `render_worker.py` that claims only `timeline_render` jobs, heartbeats its lease, resolves workspace-owned video/audio assets again, invokes the restricted FFmpeg renderer, and finishes the job as `review_pending`. It does not use the production publishing worker or provider APIs.
+- FFmpeg now runs as a POSIX process group with bounded stdout/stderr, CPU/address-space/file-size limits and a wall-clock timeout. Lease loss, cancellation or shutdown terminates the process group. Stale unadopted outputs are discarded; adopted outputs are pruned if their queue attempt fails before review handoff.
+- Added workspace-scoped render job enqueue/status/events/artifact/cancel/review endpoints. Review decisions are immutable audit events; approval is not publication. Job responses never expose lease tokens, worker IDs or local filesystem paths.
+- Added an isolated Compose `render-worker` service with 2 CPU, 3 GiB memory, 64 process limit and 45-second graceful shutdown. Compose CI now runs a real FFmpeg fixture through the durable queue/worker/output-store path in a disposable DB/media directory.
+- Exact-head GitHub Actions validation is pending for this new worker slice. The Compose MP4 fixture uses a fake clean-scanner adapter; it does not validate a live ClamAV database or publish to a provider.
+- Scope still excludes title overlays, source-clip audio mixing, and any automatic publication. Human review remains the final gate.
