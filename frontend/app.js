@@ -800,8 +800,15 @@
   let developmentJobOffset=0;
   let developmentJobHasMore=false;
   const developmentJobRecords=new Map();
-  async function loadDevelopmentJobs(append=false){
-    if(!token)return;
+  let developmentJobLoadPromise=null;
+  function loadDevelopmentJobs(append=false){
+    if(!token)return Promise.resolve();
+    if(developmentJobLoadPromise)return developmentJobLoadPromise;
+    const refreshButton=$("loadDevelopmentJobs");
+    const loadMoreButton=$("loadMoreDevelopmentJobs");
+    if(refreshButton)refreshButton.disabled=true;
+    if(loadMoreButton)loadMoreButton.disabled=true;
+    const request=(async()=>{
     const offset=append?developmentJobOffset:0;
     const [data,workerData]=await Promise.all([
       api("/api/development/jobs?limit=200&offset="+offset),
@@ -873,6 +880,16 @@
     }).join("");
     $("developmentJobList").innerHTML=jobs.length?groupedMarkup:'<div class="empty-state">등록된 개발 잡이 없습니다. 현재 화면은 실제 저장소의 개발 잡 데이터만 표시합니다.</div>';
     document.querySelectorAll("[data-development-job]").forEach(item=>item.setAttribute("aria-pressed",String(item.getAttribute("data-development-job")===hostDevelopmentJobSelected)));
+    })();
+    developmentJobLoadPromise=request.finally(()=>{
+      developmentJobLoadPromise=null;
+      if(refreshButton)refreshButton.disabled=false;
+      if(loadMoreButton){
+        loadMoreButton.disabled=false;
+        loadMoreButton.hidden=!developmentJobHasMore;
+      }
+    });
+    return developmentJobLoadPromise;
   }
   let hostDevelopmentJobSelected="";
   async function refreshAll(){
