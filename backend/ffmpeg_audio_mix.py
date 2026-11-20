@@ -76,13 +76,13 @@ def build_audio_mix_argv(tracks, output_path, *, ffmpeg_path="ffmpeg",
         label = f"a{index}"
         chain = (
             f"[{index}:a]atrim=start={source_in / 1000:.3f}:duration={duration / 1000:.3f},"
-            f"asetpts=PTS-STARTPTS,volume={float(gain):.4f},"
-            f"adelay={start}|{start}"
+            f"asetpts=PTS-STARTPTS,volume={float(gain):.4f}"
         )
         if fade_in:
             chain += f",afade=t=in:st=0:d={fade_in / 1000:.3f}"
         if fade_out:
             chain += f",afade=t=out:st={(duration - fade_out) / 1000:.3f}:d={fade_out / 1000:.3f}"
+        chain += f",adelay={start}|{start}"
         filters.append(chain + f"[{label}]")
         labels.append(f"[{label}]")
         max_end = max(max_end, start + duration)
