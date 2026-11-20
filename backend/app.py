@@ -1528,11 +1528,14 @@ def list_production_reconciliation(limit:int=100,x_review_token:str|None=Header(
     return {"jobs":review_store._sanitize_review_value(queue.ambiguous_production_jobs(limit))}
 
 @app.get("/api/production/jobs/{job_id}/reconciliation")
-def get_production_reconciliation(job_id:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.read")
+def get_production_reconciliation(job_id:str,x_review_token:str|None=Header(default=None),
+                                  x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        queue.get(job_id)
-        return {"events":review_store._sanitize_review_value(queue.production_reconciliation_events(job_id))}
+        queue.get(job_id,workspace_id=workspace_id)
+        return {"events":review_store._sanitize_review_value(
+            queue.production_reconciliation_events(job_id,workspace_id=workspace_id))}
     except JobNotFound:
         raise HTTPException(404,"Job not found")
 
@@ -1626,14 +1629,21 @@ def workers(x_review_token:str|None=Header(default=None)):
     require_review_permission(x_review_token,"operations.read")
     return {"workers":queue.workers()}
 @app.get("/api/jobs/{jid}")
-def get_job(jid:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.read")
-    try: return review_store.sanitize_production_record(queue.get(jid))
+def get_job(jid:str,x_review_token:str|None=Header(default=None),
+            x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try: return review_store.sanitize_production_record(queue.get(jid,workspace_id=workspace_id))
     except JobNotFound: raise HTTPException(404,"Job not found")
 @app.get("/api/jobs/{jid}/events")
-def get_events(jid:str,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.read")
-    try: queue.get(jid); return {"events":review_store.sanitize_queue_events(queue.events(jid))}
+def get_events(jid:str,x_review_token:str|None=Header(default=None),
+               x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    try:
+        queue.get(jid,workspace_id=workspace_id)
+        return {"events":review_store.sanitize_queue_events(
+            queue.events(jid,workspace_id=workspace_id))}
     except JobNotFound: raise HTTPException(404,"Job not found")
 
 
