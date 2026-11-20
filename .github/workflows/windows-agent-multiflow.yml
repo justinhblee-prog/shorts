@@ -85,7 +85,7 @@ jobs:
         with:
           name: windows-agent-multiflow-${{ github.run_id }}
           path: |
-            *-multiflow-state/**
-            *-multiflow-logs/**
+            ../*-multiflow-state/**
+            ../*-multiflow-logs/**
           if-no-files-found: warn
           retention-days: 14
