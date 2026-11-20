@@ -64,3 +64,12 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 
 - Global search now scans visible live task/review/calendar/analytics rows as well as section headings and form labels; the browser smoke verifies Ctrl+K and an authenticated review-task result.
 - Browser smoke also checks that the approved design token stylesheet is loaded, the desktop sidebar/main offset is 258px, the violet design token is present, and no Google Fonts network requests occur.
+
+
+## Exact-head QA evidence — 2026-11-20
+
+- Verified code head: `2c351e3f0696333435227a2fd1bb9de92ddf4fe0`.
+- CI: [run 44668155728](https://github.com/justinhblee-prog/shorts/actions/runs/44668155728) passed **736 backend tests**, frontend syntax, and Chromium desktop/mobile smoke.
+- Browser checks confirmed Korean text rendering with zero replacement glyphs, approved navigation, keyboard search against authenticated review content, settings entry, authenticated review approval/audit history, analytics pagination and CSV export, partial API failure handling, and reduced-motion behavior.
+- Fresh visual artifact: [14599326297](https://github.com/justinhblee-prog/shorts/actions/runs/44668155728/artifacts/14599326297) (6 MB). Compose integration smoke also passed [44668155732](https://github.com/justinhblee-prog/shorts/actions/runs/44668155732).
+- This is a QA-verified candidate, not yet accepted by the user. PR #417 remains Draft/open/unmerged.
