@@ -17,11 +17,14 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         }
         with (
             mock.patch.object(app_module, "require_review_permission") as auth,
-            mock.patch.object(app_module.development_job_store, "list", return_value=[job]),
+            mock.patch.object(app_module.development_job_store, "list", return_value=[job]) as listed,
+            mock.patch.object(app_module.development_job_store, "count", return_value=1) as counted,
             mock.patch.object(app_module.development_job_store, "summary",
                               return_value={"total": 1, "by_status": {"running": 1}}),
         ):
             result = app_module.list_development_jobs(x_review_token="monitor-token")
+        listed.assert_called_once_with(statuses=None, limit=100, offset=0)
+        counted.assert_called_once_with(statuses=None)
         auth.assert_called_once_with("monitor-token", "operations.read")
         serialized = json.dumps(result)
         self.assertNotIn("private-lease-token", serialized)
@@ -30,6 +33,26 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
         self.assertEqual(result["jobs"][0]["scope"], ["backend/development_jobs.py"])
         self.assertEqual(result["jobs"][0]["review_url"], "https://github.com/acme/app/pull/42")
         self.assertEqual(result["jobs"][0]["review_head_sha"], "a" * 40)
+        self.assertEqual(result["pagination"], {
+            "limit": 100, "offset": 0, "total": 1,
+            "has_more": False, "next_offset": None,
+        })
+
+    def test_list_endpoint_passes_status_filter_and_offset(self):
+        with (
+            mock.patch.object(app_module, "require_review_permission"),
+            mock.patch.object(app_module.development_job_store, "list", return_value=[]) as listed,
+            mock.patch.object(app_module.development_job_store, "count", return_value=240),
+            mock.patch.object(app_module.development_job_store, "summary", return_value={}),
+        ):
+            result = app_module.list_development_jobs(
+                status="ready,blocked", limit=80, offset=160, x_review_token="monitor-token"
+            )
+        listed.assert_called_once_with(statuses=["ready", "blocked"], limit=80, offset=160)
+        self.assertEqual(result["pagination"], {
+            "limit": 80, "offset": 160, "total": 240,
+            "has_more": True, "next_offset": 160,
+        })
 
     def test_event_endpoint_omits_raw_error_details(self):
         events = [{
