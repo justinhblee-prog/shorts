@@ -113,7 +113,7 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         )
         next_job = self.store.claim_ready("worker-b")
         self.assertEqual(next_job["id"], child["id"])
-        release_event = self.store.events(child["id"])[-1]
+        release_event = self.store.events(child["id"])[-2]
         self.assertEqual(release_event["event_type"], "dependencies_satisfied")
         self.assertEqual(release_event["from_status"], "blocked")
         self.assertEqual(release_event["to_status"], "ready")
