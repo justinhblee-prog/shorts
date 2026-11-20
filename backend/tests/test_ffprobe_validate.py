@@ -114,5 +114,49 @@ class FFprobeValidationTests(unittest.TestCase):
             probe_media(self.media, self.binary, max_bytes=0)
 
 
+    def test_source_probe_accepts_audio_only_and_video_audio_inputs(self):
+        result = SimpleNamespace(
+            returncode=0, stdout=json.dumps(self.valid), stderr=""
+        )
+        with patch("ffprobe_validate.subprocess.run", return_value=result) as run:
+            metadata = probe_source_media(self.media, self.binary)
+        self.assertTrue(metadata["has_video"])
+        self.assertTrue(metadata["has_audio"])
+        self.assertEqual(metadata["duration_ms"], 12500)
+        self.assertIn("-protocol_whitelist", run.call_args.args[0])
+
+        audio_only = {
+            "format": {"duration": "3.5", "size": str(self.media.stat().st_size)},
+            "streams": [{
+                "codec_type": "audio", "codec_name": "aac",
+                "sample_rate": "48000", "channels": 2,
+            }],
+        }
+        result = SimpleNamespace(returncode=0, stdout=json.dumps(audio_only), stderr="")
+        with patch("ffprobe_validate.subprocess.run", return_value=result):
+            metadata = probe_source_media(self.media, self.binary)
+        self.assertFalse(metadata["has_video"])
+        self.assertTrue(metadata["has_audio"])
+
+    def test_source_probe_rejects_no_media_stream_invalid_audio_and_duration(self):
+        empty = {"format": {"duration": "2", "size": str(self.media.stat().st_size)}, "streams": []}
+        result = SimpleNamespace(returncode=0, stdout=json.dumps(empty), stderr="")
+        with patch("ffprobe_validate.subprocess.run", return_value=result):
+            with self.assertRaisesRegex(FFprobeValidationError, "audio or video"):
+                probe_source_media(self.media, self.binary)
+        invalid_audio = {
+            "format": {"duration": "2", "size": str(self.media.stat().st_size)},
+            "streams": [{"codec_type": "audio", "sample_rate": "bad", "channels": 2}],
+        }
+        result = SimpleNamespace(returncode=0, stdout=json.dumps(invalid_audio), stderr="")
+        with patch("ffprobe_validate.subprocess.run", return_value=result):
+            with self.assertRaisesRegex(FFprobeValidationError, "audio stream metadata"):
+                probe_source_media(self.media, self.binary)
+        with patch("ffprobe_validate.subprocess.run", return_value=SimpleNamespace(
+            returncode=0, stdout=json.dumps(self.valid), stderr=""
+        )):
+            with self.assertRaisesRegex(FFprobeValidationError, "duration"):
+                probe_source_media(self.media, self.binary, max_duration_ms=1000)
+
 if __name__ == "__main__":
     unittest.main()
