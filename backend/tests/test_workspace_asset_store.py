@@ -127,7 +127,7 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
             self.store.path_for_scan("ws_studio", "alice", result["asset_id"])
 
     def test_editor_cannot_self_certify_asset_without_scanner_verification(self):
-        self.workspaces.add_member("ws_studio", "editor", "editor", "alice")
+        self.workspaces.add_member("ws_studio", "alice", "editor", "editor")
         result = self.store.register_stream(
             "ws_studio", "editor", io.BytesIO(b"editor-media"), "clip.mp4"
         )
