@@ -5,6 +5,8 @@ Run inside the isolated timeline-render-worker image:
 """
 from __future__ import annotations
 
+import os
+
 import io
 import sqlite3
 import subprocess
