@@ -315,3 +315,10 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Generic enqueue stamps the authenticated workspace. Legacy operator-token worker routes are workspace-filtered and restricted to unassigned legacy jobs when no workspace is selected; the new worker v1 credential API remains the preferred opt-in path.
 - System-level queue pause/resume/recovery and worker registry remain privileged global operations.
 - Regression tests added for workspace queue counts and cross-workspace cancellation denial; latest validation pending.
+
+## Explicit remaining multi-tenant integrations
+
+- YouTube/TikTok OAuth credentials and creator identity remain global service connections, even though publication jobs and metric histories now enforce workspace ownership. Per-workspace encrypted provider credentials and workspace-bound OAuth flows remain a separate required milestone; no external credentials were configured.
+- Customer OIDC login/identity is not implemented. The workspace selector uses authenticated operator membership only.
+- The worker process still uses direct SQLite; the new opt-in worker API is not yet consumed by the worker runtime.
+- Tenant asset registry/retrieval and workspace-owned custom brand profiles remain future work. Existing default brand profiles and public trend/competitor signals are shared platform references.
