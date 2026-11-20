@@ -9,7 +9,7 @@ The EDL validation endpoint currently relies on fail-closed deployment configura
 
 ## Durable SQLite registry
 
-The new backend/workspace_store.py uses the shared NEXUS_DB_PATH SQLite database and creates:
+The new `backend/workspace_store.py` resolves its default database path from `NEXUS_DB_PATH`, falling back to `data/nexus.sqlite3`, matching the API, worker and scheduler stores. An explicit constructor path remains available for isolated tests. This ensures the registry does not silently create a second database when deployed with a custom shared path. It creates:
 - workspaces with opaque IDs, names and lifecycle state;
 - workspace_memberships with unique principal/workspace pairs, role and revocation status;
 - workspace_audit_events with append-only records protected by update/delete triggers.
