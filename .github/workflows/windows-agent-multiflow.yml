@@ -70,6 +70,14 @@ jobs:
           & "$PWD/scripts/test-real-agent-cli.ps1" -TimeoutSeconds 300
           if ($LASTEXITCODE -ne 0) { throw "Real Agent CLI smoke test failed with exit code $LASTEXITCODE." }
 
+      - name: Verify real local Ollama tool-call protocol
+        if: github.event_name != 'workflow_dispatch' || inputs.agent_smoke_test != true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          & python "$PWD/scripts/test_ollama_tool_protocol.py" --model "qwen2.5-coder:7b"
+          if ($LASTEXITCODE -ne 0) { throw "Local Ollama tool-call protocol verification failed with exit code $LASTEXITCODE." }
+
       - name: Run real multi-flow workers
         if: github.event_name != 'workflow_dispatch' || inputs.agent_smoke_test != true
         shell: pwsh
