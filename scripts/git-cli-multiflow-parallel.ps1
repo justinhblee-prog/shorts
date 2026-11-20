@@ -50,7 +50,9 @@ if($Worker){
   $agent=[Diagnostics.Process]::new();$agent.StartInfo=$psi
   if(-not $agent.Start()){throw "Agent did not start."}
   $stdout=$agent.StandardOutput.ReadToEndAsync();$stderr=$agent.StandardError.ReadToEndAsync()
-  if(-not $agent.WaitForExit([int]$task.timeout_seconds*1000)){try{$agent.Kill($true)}catch{};throw "Agent timeout."}
+  $agentTimeoutMs=[int]$task.timeout_seconds * 1000
+  Write-Host "[WORKER] $id agent started; timeout=${agentTimeoutMs}ms; executable=$command"
+  if(-not $agent.WaitForExit($agentTimeoutMs)){try{$agent.Kill($true)}catch{};throw "Agent timeout."}
   if($stdout.Result){Write-Output $stdout.Result};if($stderr.Result){Write-Output $stderr.Result}
   if($agent.ExitCode -ne 0){throw "Agent exit code $($agent.ExitCode)."}
   Remove-Item -LiteralPath $task.prompt -Force -ErrorAction SilentlyContinue
