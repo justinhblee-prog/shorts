@@ -47,7 +47,7 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         )
         self.payload = {
             "snapshot_id": "edl_" + "a" * 32,
-            "snapshot_sha256": "b" * 64,
+            "snapshot_sha256": "",
             "creator_principal_id": "alice",
             "edl": {
                 "schema": "nexus-edit-decision-list", "version": 1,
@@ -64,6 +64,11 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
                 }],
             },
         }
+        canonical = json.dumps(
+            self.payload["edl"], ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"), allow_nan=False,
+        ).encode("utf-8")
+        self.payload["snapshot_sha256"] = hashlib.sha256(canonical).hexdigest()
 
     def tearDown(self):
         self.temp.cleanup()
@@ -157,6 +162,16 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
             stop_event=threading.Event(),
         )
         self.assertEqual(result["returncode"], 0)
+
+
+    def test_rejects_edl_payload_that_does_not_match_snapshot_digest(self):
+        invalid = json.loads(json.dumps(self.payload))
+        invalid["edl"]["clips"][0]["source_in_ms"] = 1500
+        with self.assertRaisesRegex(TimelineRenderError, "snapshot digest"):
+            self.renderer(
+                invalid, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
 
 
 if __name__ == "__main__":
