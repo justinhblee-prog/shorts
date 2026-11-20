@@ -158,23 +158,20 @@ class WorkspaceAssetStore:
             adopted_path = final_path
             now = _utcnow()
             retention_until = now + timedelta(days=retention_days)
-            db = self.db()
             try:
-                db.execute("BEGIN IMMEDIATE")
-                db.execute("""
-                    INSERT INTO workspace_media_assets
-                    (id,workspace_id,owner_principal_id,original_name,byte_size,sha256,
-                     storage_name,scan_status,status,created_at,retention_until)
-                    VALUES(?,?,?,?,?,?,?,'pending','active',?,?)
-                """, (asset_id, workspace_id, principal_id, original_name, size,
-                      digest.hexdigest(), storage_name, now.isoformat(),
-                      retention_until.isoformat()))
-                db.commit()
+                with self.db() as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    db.execute("""
+                        INSERT INTO workspace_media_assets
+                        (id,workspace_id,owner_principal_id,original_name,byte_size,sha256,
+                         storage_name,scan_status,status,created_at,retention_until)
+                        VALUES(?,?,?,?,?,?,?,'pending','active',?,?)
+                    """, (asset_id, workspace_id, principal_id, original_name, size,
+                          digest.hexdigest(), storage_name, now.isoformat(),
+                          retention_until.isoformat()))
+                    db.commit()
             except sqlite3.IntegrityError as exc:
-                db.rollback()
                 raise AssetConflict("identical content is already registered in this workspace") from exc
-            finally:
-                db.close()
             return {
                 "asset_id": asset_id, "workspace_id": workspace_id,
                 "owner_principal_id": principal_id, "original_name": original_name,
