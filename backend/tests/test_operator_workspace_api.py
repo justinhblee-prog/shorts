@@ -394,6 +394,12 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
                     x_nexus_worker_generation=generation,
                 )
                 self.assertEqual(completed["status"], "review_pending")
+                with self.assertRaises(HTTPException) as legacy_disabled:
+                    api.claim(
+                        api.Claim(worker_id="worker-alpha", hostname="isolated-worker"),
+                        x_review_token="legacy-operator-token",
+                    )
+                self.assertEqual(legacy_disabled.exception.status_code, 410)
         finally:
             queue_patch.stop()
 
