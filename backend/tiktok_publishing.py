@@ -587,6 +587,14 @@ class TikTokPublishStore:
             ).fetchall()
         return [item for row in rows if (item := self.get(row["job_id"])) is not None]
 
+    def job_for_video(self, video_id):
+        with self.db() as c:
+            row=c.execute(
+                "SELECT job_id FROM tiktok_publications WHERE video_id=? AND status='publish_complete'",
+                (video_id,),
+            ).fetchone()
+            return row["job_id"] if row else None
+
     def get(self, job_id):
         with self.db() as c:
             row = c.execute(
