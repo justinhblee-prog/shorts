@@ -80,3 +80,11 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Sidebar destinations now resolve to distinct existing feature surfaces rather than sending several labels to the same section: trend collection, editorial recommendations, production request, production pipeline, review queue, publishing overview, analytics history and task queue.
 - Anchor scroll margins preserve the sticky workspace toolbar. Browser smoke now asserts all nine destinations exist, the links point to the correct targets, and URL/active-state updates occur after navigation clicks.
 - Exact-head CI is running on `2e6ba4f2d7e1495c45c626f3c24c56fd07652fc0`. The production pipeline anchor is not represented as a dedicated nonlinear video timeline editor.
+
+
+## Local timeline editor milestone — 2026-11-20
+
+- Added a dedicated timeline workspace under the production pipeline: local video import, browser preview, ordered video/title clips, clip selection, non-destructive in/out trim values, clip reordering/removal, and edit-decision-list JSON export.
+- The editor is local/browser-only and does not upload source media to the backend. JSON export explicitly records `rendered: false`; MP4 rendering, audio mixing, transitions, captions burn-in, and server-side render jobs remain unimplemented pending a rendering engine integration.
+- Browser smoke now exercises title clip creation, selection, removal, and empty-state recovery. Exact-head CI is running on the latest UI branch commit.
+- Removed the apt package-manager dependency from hosted UI validation. Korean text is still checked in Chromium; the browser uses installed OS fallback fonts rather than waiting on network package installation.
