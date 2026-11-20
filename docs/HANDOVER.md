@@ -1258,3 +1258,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **466 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully.
 - This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
+
+
+## 2026-11-20 — PR #416 Windows worker security follow-up
+
+- PR #416 remains Draft/Open/Unmerged. Current source head before this documentation follow-up: `6e5c2a14e7c29d6d90120303014bc5abedc44cae`.
+- Existing exact-head CI run `44651976963` passed 13/13 steps, including 615 backend tests, repository validation and workflow YAML parsing. This is not Windows runner/Ollama execution evidence.
+- Follow-up static review found that recovery mode is implemented as conditional steps in the same job that has `contents: write`, `pull-requests: write`, and `actions: write`. Although recovery's own GitHub client uses GET-only operations, the job-scoped `GITHUB_TOKEN` remains write-capable. Split recovery into a separate read-only job and add workflow-contract tests before activation.
+- Operational blockers remain: no OS-level sandbox, dedicated low-privilege Windows account/VM, verified ACL and outbound egress policy, secret inventory audit, real Windows self-hosted execution, actual Ollama generation, multi-run LocalAppData SQLite persistence, and a disposable Draft PR publication/recovery round-trip.
+- Do not dispatch, enable schedule, change runner/secrets/repository settings, merge or deploy without explicit authorization. Keep PR #416 Draft.
+- Security details: `docs/DEVELOPMENT_WORKER_SECURITY_REVIEW.md`.
