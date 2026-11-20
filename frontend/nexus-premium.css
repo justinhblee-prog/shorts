@@ -156,3 +156,5 @@ input:focus,select:focus,textarea:focus{outline:2px solid #9b8cff55;border-color
  .render-artifact-actions>*{flex:1}
  .timeline-audio-input{width:100%;justify-content:center}
 }
+
+.render-job-console [hidden]{display:none!important}
