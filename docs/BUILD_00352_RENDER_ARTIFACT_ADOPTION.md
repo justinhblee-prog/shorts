@@ -7,6 +7,21 @@ enabled, the renderer must return a `staged_path` inside a private staging
 root. The store adopts only a regular, non-symlink `.mp4`, `.m4a`, or
 `.aac` file whose size is within the configured byte limit.
 
+## Atomic snapshot-to-queue submission
+
+The render submission path now creates the immutable EDL snapshot and its
+`timeline_render` queue row inside one `BEGIN IMMEDIATE` SQLite transaction.
+The queue store accepts a caller-owned connection and never commits that
+transaction itself. The idempotency lookup is serialized under the same write
+lock, so concurrent retries return the same snapshot and job. If snapshot
+insertion fails, the queue row and its enqueue event roll back with it; a worker
+cannot claim a job whose snapshot was not committed.
+
+Regression tests inject a snapshot-insert failure and assert that both the
+snapshot and queue remain empty, then verify that an idempotent replay returns
+the same snapshot/job pair. This behavior was ported from PR #435 into the
+selected integrated implementation in PR #436.
+
 ## Adoption transaction
 
 1. Resolve the staged path and require it to remain beneath the configured
