@@ -50,7 +50,7 @@ def validate_edl(payload: Any) -> dict:
         raise EDLValidationError("unsupported EDL schema or version")
     if payload.get("timebase") != "milliseconds":
         raise EDLValidationError("timebase must be milliseconds")
-    allowed_root = {"schema", "version", "timebase", "clips"}
+    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks"}
     if set(payload) - allowed_root:
         raise EDLValidationError("EDL contains unsupported root fields")
     clips = payload.get("clips")
@@ -98,4 +98,43 @@ def validate_edl(payload: Any) -> dict:
 
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
-    return {"schema": SCHEMA, "version": VERSION, "timebase": "milliseconds", "clips": normalized}
+
+    raw_audio = payload.get("audio_tracks", [])
+    if not isinstance(raw_audio, list) or len(raw_audio) > 8:
+        raise EDLValidationError("audio_tracks must contain 0 to 8 entries")
+    audio_tracks = []
+    audio_ids = set()
+    for index, raw in enumerate(raw_audio):
+        prefix = f"audio_tracks[{index}]"
+        allowed = {"id", "asset_id", "start_ms", "source_in_ms", "source_out_ms",
+                   "gain", "fade_in_ms", "fade_out_ms"}
+        required = {"id", "asset_id", "start_ms", "source_in_ms", "source_out_ms"}
+        if not isinstance(raw, dict) or set(raw) - allowed or not required.issubset(raw):
+            raise EDLValidationError(f"{prefix} has unsupported or missing fields")
+        track_id = raw["id"]
+        asset_id = raw["asset_id"]
+        if not isinstance(track_id, str) or not _ID.fullmatch(track_id) or track_id in audio_ids:
+            raise EDLValidationError(f"{prefix}.id must be unique and valid")
+        if not isinstance(asset_id, str) or not _ID.fullmatch(asset_id):
+            raise EDLValidationError(f"{prefix}.asset_id must be an opaque identifier")
+        audio_ids.add(track_id)
+        start = _number(raw["start_ms"], f"{prefix}.start_ms")
+        source_in = _number(raw["source_in_ms"], f"{prefix}.source_in_ms")
+        source_out = _number(raw["source_out_ms"], f"{prefix}.source_out_ms")
+        gain = _number(raw.get("gain", 1.0), f"{prefix}.gain")
+        fade_in = _number(raw.get("fade_in_ms", 0), f"{prefix}.fade_in_ms")
+        fade_out = _number(raw.get("fade_out_ms", 0), f"{prefix}.fade_out_ms")
+        duration = source_out - source_in
+        if (start < 0 or source_in < 0 or duration <= 0 or start + duration > MAX_DURATION_MS
+                or not 0 <= gain <= 4 or not 0 <= fade_in <= 60000
+                or not 0 <= fade_out <= 60000 or fade_in + fade_out > duration):
+            raise EDLValidationError(f"{prefix} has invalid trim, gain or fade bounds")
+        audio_tracks.append({
+            "id": track_id, "asset_id": asset_id, "start_ms": start,
+            "source_in_ms": source_in, "source_out_ms": source_out,
+            "gain": gain, "fade_in_ms": fade_in, "fade_out_ms": fade_out,
+        })
+    return {
+        "schema": SCHEMA, "version": VERSION, "timebase": "milliseconds",
+        "clips": normalized, "audio_tracks": audio_tracks,
+    }
