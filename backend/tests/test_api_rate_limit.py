@@ -90,6 +90,14 @@ class ApiRateLimitTests(unittest.TestCase):
         self.assertEqual(middleware._policy("GET", "/api/youtube/oauth/callback"), "auth")
         self.assertEqual(middleware._policy("POST", "/api/youtube/oauth/verify"), "auth")
 
+    def test_render_asset_upload_and_edl_validation_use_media_rate_limit(self):
+        middleware = ApiRateLimitMiddleware(
+            lambda *args: None, self.store, limits={"media": 3}
+        )
+        self.assertEqual(middleware._policy("POST", "/api/render/assets"), "media")
+        self.assertEqual(middleware._policy("POST", "/api/render/validate-edl"), "media")
+        self.assertEqual(middleware.limits["media"], 3)
+
     def test_health_get_is_not_rate_limited(self):
         async def inner(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})

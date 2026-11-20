@@ -1558,3 +1558,21 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact head `1d278acc881b51742d3ffbf2b4d707e639d0b201` passed 826 backend tests plus Chromium desktop/mobile smoke [run 44702536031](https://github.com/justinhblee-prog/shorts/actions/runs/44702536031) and five-service encrypted Compose backup/restore [run 44702536014](https://github.com/justinhblee-prog/shorts/actions/runs/44702536014).
 - **Not production-enabled:** no API, durable render queue, asset registration, or lease/recovery integration exists yet. Tests use fake FFmpeg/ffprobe adapters; real MP4 rendering remains unverified.
 - Next: implement authenticated workspace-scoped source asset registration with content hash and malware scan; durable render-job records with fenced lease/heartbeat/recovery; isolated render worker integration; then safe title overlays, real audio mixing, cancellation and real MP4 fixture validation. Do not bypass the shared review-token authorization boundary.
+
+
+## BUILD — workspace render asset registry (2026-11-20)
+
+- Added workspace-owned asset registration and scoped EDL validation on branch `feat/render-asset-registry-2026-11-20` (PR candidate follows the secure renderer primitive). Asset IDs are opaque UUID hex values; storage uses a SHA-256-derived workspace namespace and server-generated filenames.
+- Uploads accept only `video/mp4` and `audio/mp4` (M4A) with streaming per-type size caps, MP4-family signature checks, SHA-256 and atomic adoption. The owner principal comes from the review token; no request-body owner or path is trusted.
+- Asset listing and EDL resolution require an explicit selected workspace and check membership. Resolution rechecks scan status, path containment, file type and SHA-256/size. Cross-workspace IDs are treated as not found.
+- When `NEXUS_MEDIA_SCAN_ENABLED` is false, uploads are marked unscanned and cannot be resolved for rendering. Enable only after the ClamAV database is configured and healthy.
+- Next: add durable render-job records and fenced lease/heartbeat/recovery; connect the isolated FFmpeg primitive to a separate resource-limited worker; then implement title overlays, audio mixing, cancellation, real MP4 integration fixtures and a human-review handoff. No render job execution or publishing is enabled by this asset-registry slice.
+
+
+## BUILD — render asset registry validation checkpoint (2026-11-20)
+
+- Exact head `ef3c40bb55bc2aedc4398c30915e224b6dd81904` passed 842 backend tests and the existing Chromium desktop/mobile smoke [run 44703693909](https://github.com/justinhblee-prog/shorts/actions/runs/44703693909); five-service encrypted Compose backup/restore passed [run 44703693898](https://github.com/justinhblee-prog/shorts/actions/runs/44703693898).
+- Asset upload/list/EDL validation APIs are workspace-scoped and use authenticated token identity. Upload accepts only MP4-family video/audio content types, checks signature and streaming size, stores under opaque workspace namespace, hashes and atomically adopts. EDL resolution enforces workspace, clean-scan status, video asset type, file containment and checksum.
+- The media upload and EDL validation POST endpoints use a dedicated 10/minute default rate-limit bucket. Temporary upload names use the existing `.nexus-*.part` cleanup convention.
+- **Validation boundary:** all new scanner tests inject a fake ClamAV scanner; real uploads and live ClamAV scanning have not been run. No actual FFmpeg MP4 render has been run. If scan is disabled, assets remain non-renderable.
+- Next: add durable render-job state with token-fenced lease/heartbeat/recovery, then connect the renderer through a dedicated resource-limited worker and run real generated MP4 fixtures. Keep title overlays, source-clip audio mixing, cancellation and review handoff explicit and fail-closed. No publishing action is enabled.
