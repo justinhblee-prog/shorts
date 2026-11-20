@@ -236,3 +236,13 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - Two exact-head hosted validation runs are active: [44601181264](https://github.com/justinhblee-prog/shorts/actions/runs/44601181264) and [44601169889](https://github.com/justinhblee-prog/shorts/actions/runs/44601169889). Both have passed initial setup/dependency steps and are executing `scripts/validate.sh`; no failures have been reported.
 - Earlier Automation-head run [44600976216](https://github.com/justinhblee-prog/shorts/actions/runs/44600976216) completed successfully (17 steps). The companion browser run [44600985186](https://github.com/justinhblee-prog/shorts/actions/runs/44600985186) is still progressing through Chromium/browser smoke. These runs target the earlier Automation-only SHA and are not substitutes for final aggregate validation.
 - Current aggregate state: **VERIFYING**. Do not mark PASS until both checks for `2493d08...` complete successfully.
+
+
+## 21. Aggregate exact-head hosted validation PASS — 2026-11-20
+
+- Aggregate candidate PR #415 is at head `cb67ee8505ca508dddbb753761d4954a8a345fc9` (77 commits, 27 changed files). Both exact-head hosted runs completed successfully: [44601341416](https://github.com/justinhblee-prog/shorts/actions/runs/44601341416) and [44601350386](https://github.com/justinhblee-prog/shorts/actions/runs/44601350386), each with all 17 steps successful.
+- The successful steps include `scripts/validate.sh`, frontend JavaScript syntax validation, analytics Chromium smoke, dependency/recovery Chromium smoke, and browser artifact upload.
+- Browser artifact archive: [14566419852](https://github.com/justinhblee-prog/shorts/actions/runs/44601341416/artifacts/14566419852). Desktop and 320px mobile screenshots were retrieved from this exact run and visually inspected.
+- FLOW-UI, FLOW-CORE, FLOW-AUTO workflow-contract coverage, and FLOW-QA are **PASS for hosted validation at this aggregate head**. This does not promote the independent Windows/Ollama runtime gate to PASS.
+- FLOW-AUTO live-runtime gate remains **BLOCKED** pending a trusted Windows runner: actual runner preflight, two separate-run LocalAppData SQLite persistence evidence, and one live Ollama-generated scoped change with verified Draft PR artifact.
+- PR #415 description was synchronized with the exact-head evidence. PR #415 remains Draft/open/unmerged; no deployment, merge, or public publishing occurred.
