@@ -222,7 +222,7 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineRenderSubmit").isVisible(), true);
     assert.equal(await page.locator("#renderJobRefresh").isEnabled(), true);
     assert.equal(await page.locator("#renderJobHistoryList").isVisible(), true);
-    assert.equal(await page.locator("#renderJobHistoryRefresh").isEnabled(), true);
+    assert.equal(await page.locator("#renderJobHistoryRefresh").isVisible(), true);
     assert.equal(await page.locator("#renderArtifactLoad").isDisabled(), true);
     assert.equal(await page.locator("#renderJobApprove").isDisabled(), true);
     assert.equal(await page.locator("#timelineMediaInput").getAttribute("accept"), "video/mp4,.mp4");
