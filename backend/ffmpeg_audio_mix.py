@@ -110,5 +110,3 @@ def build_audio_mix_argv(tracks, output_path, *, ffmpeg_path="ffmpeg",
         argv.extend(["-fs", str(max_output_bytes)])
     argv.append(str(output))
     return argv
-    ])
-    return argv
