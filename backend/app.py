@@ -520,6 +520,33 @@ def create_operator_workspace(body:WorkspaceCreateInput,
         raise HTTPException(422,str(exc))
 
 
+
+@app.get("/api/operator/workspaces/{workspace_id}/members")
+def list_operator_workspace_members(workspace_id:str,
+                                    x_review_token:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        return {"members":workspace_store.list_members(workspace_id,operator_id)}
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.get("/api/operator/workspaces/{workspace_id}/audit")
+def list_operator_workspace_audit(workspace_id:str,limit:int=50,offset:int=0,
+                                  x_review_token:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        return {"events":workspace_store.list_audit_events(
+            workspace_id,operator_id,limit=limit,offset=offset
+        )}
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
 @app.post("/api/operator/workspaces/{workspace_id}/members")
 def add_operator_workspace_member(workspace_id:str,body:WorkspaceMemberInput,
                                   x_review_token:str|None=Header(default=None)):
