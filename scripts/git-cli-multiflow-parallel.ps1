@@ -124,7 +124,7 @@ while($queue.Count -gt 0 -or $active.Count -gt 0){
   $wt=Join-Path $wtRoot "$($id.ToLowerInvariant())-$stamp";$branch="autopilot/$($id.ToLowerInvariant())-$stamp"
   New-Item -ItemType Directory -Force -Path $wtRoot|Out-Null
   & git -C $root fetch origin --prune;if($LASTEXITCODE -ne 0){throw "git fetch failed."}
-   $baseBranch=if($Base){$Base}else{[string]$manifest.policy.default_base}
+   $baseBranch=if($Base){$Base}elseif($t.base_branch){[string]$t.base_branch}else{[string]$manifest.policy.default_base}
   & git -C $root worktree add -b $branch $wt "origin/$baseBranch";if($LASTEXITCODE -ne 0){throw "worktree creation failed for $id."}
   $prompt=Join-Path $wt ".devflow-agent-task.md"
   $lines=@("# $id - $($t.title)","Scope:")+@($t.scope|ForEach-Object{"- $_"})+@("Acceptance:")+@($t.acceptance|ForEach-Object{"- $_"})+@("Do not edit task manifest, bypass gates, merge, deploy, publish, or change credentials.")
@@ -146,13 +146,15 @@ while($queue.Count -gt 0 -or $active.Count -gt 0){
   if($item.process.HasExited){
    if($item.stdout.Result){Write-Output $item.stdout.Result}
    if($item.stderr.Result){Write-Warning "$($item.id) stderr: $($item.stderr.Result)"}
-   if($item.process.ExitCode -ne 0){Write-Warning "$($item.id) failed (exit $($item.process.ExitCode)); worktree retained at $($item.worktree)."}
+   if($item.process.ExitCode -ne 0){$workerFailures.Add("$($item.id): worker exit $($item.process.ExitCode)");Write-Warning "$($item.id) failed (exit $($item.process.ExitCode)); worktree retained at $($item.worktree)."}
    $active.RemoveAt($i)
   }elseif(([DateTime]::UtcNow-$item.started).TotalSeconds -gt $TaskTimeoutSeconds+90){
    try{$item.process.Kill($true)}catch{}
    Set-State $statePath $item.id "timed_out" "worker process tree terminated; worktree retained"
+   $workerFailures.Add("$($item.id): worker timed out")
    $active.RemoveAt($i)
   }
  }
 }
 Write-Host "[MULTIFLOW] All workers exited. State: $statePath. Draft PRs only; no merge/deploy."
+if($workerFailures.Count -gt 0){Write-Error ("Multi-flow worker failures: "+($workerFailures -join "; "));exit 1}
