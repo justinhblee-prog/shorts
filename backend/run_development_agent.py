@@ -19,35 +19,44 @@ from development_security import redact_sensitive_text
 from seed_development_jobs import seed_development_jobs
 
 
-def _normalize_approved_scopes(scopes, repo_root):
-    """Mark existing directory scopes explicitly before they enter the durable store."""
+def _normalize_approved_scopes(scopes, repo_root, repository=None):
+    """Validate bounded, repository-bound approvals and canonicalize safe paths."""
+    import re
+    from pathlib import PurePosixPath, PureWindowsPath
+
+    if not isinstance(scopes, dict) or len(scopes) > 500:
+        raise ValueError("approved scopes must be an object with at most 500 issue entries")
     root = Path(repo_root).resolve()
     normalized = {}
+    source_pattern = re.compile(r"^github:issue:([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)/([A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?)#([1-9][0-9]*)$")
     for source_ref, paths in scopes.items():
-        if not isinstance(paths, list):
-            normalized[source_ref] = paths
-            continue
+        if not isinstance(source_ref, str) or len(source_ref) > 300:
+            raise ValueError("approved scope keys must be bounded GitHub issue references")
+        match = source_pattern.fullmatch(source_ref)
+        if not match or (repository and f"{match.group(1)}/{match.group(2)}".casefold() != repository.casefold()):
+            raise ValueError("approved scope key must identify an issue in the configured repository")
+        if not isinstance(paths, list) or not paths or len(paths) > 100:
+            raise ValueError("each approved issue must declare 1 to 100 paths")
         entries = []
         for raw in paths:
-            if not isinstance(raw, str) or not raw.strip():
-                entries.append(raw)
-                continue
-            candidate = Path(raw.strip())
-            if candidate.is_absolute() or ".." in candidate.parts:
-                entries.append(raw)
-                continue
+            if not isinstance(raw, str) or not raw.strip() or len(raw) > 512 or "\x00" in raw:
+                raise ValueError("approved scope paths must be non-empty strings of at most 512 characters")
+            portable = raw.strip().replace("\\\\", "/")
+            posix = PurePosixPath(portable)
+            windows = PureWindowsPath(raw.strip())
+            if posix.is_absolute() or windows.is_absolute() or windows.drive or ".." in posix.parts:
+                raise ValueError("approved scope paths must be repository-relative and traversal-free")
+            candidate = Path(*posix.parts)
             resolved = (root / candidate).resolve()
             try:
                 resolved.relative_to(root)
-            except ValueError:
-                entries.append(raw)
-                continue
-            # Persist the resolved repository-relative target, not the
-            # user-supplied symlink alias. This keeps scheduler scope
-            # reservations aligned with the physical files Aider will edit.
+            except ValueError as error:
+                raise ValueError("approved scope path resolves outside the repository") from error
             path = resolved.relative_to(root).as_posix()
             if resolved.is_dir():
                 path = path.rstrip("/") + "/"
+            if path in entries:
+                raise ValueError("approved scope paths must not contain duplicates")
             entries.append(path)
         normalized[source_ref] = entries
     return normalized
@@ -55,8 +64,11 @@ def _normalize_approved_scopes(scopes, repo_root):
 
 def _json_env(name, default, environ=None):
     source = os.environ if environ is None else environ
+    raw = source.get(name, default)
+    if not isinstance(raw, str) or len(raw) > 65536:
+        raise ValueError(f"{name} must be a JSON object no larger than 64 KiB")
     try:
-        value = json.loads(source.get(name, default))
+        value = json.loads(raw)
     except json.JSONDecodeError as error:
         raise ValueError(f"{name} must contain valid JSON") from error
     if not isinstance(value, dict):
@@ -77,7 +89,7 @@ def run_once(environ=None):
     # Validate configuration before opening the database or making network calls.
     repo_root = env.get("GITHUB_WORKSPACE", os.getcwd())
     approved_scopes = _normalize_approved_scopes(
-        _json_env("NEXUS_APPROVED_SCOPES", "{}", env), repo_root,
+        _json_env("NEXUS_APPROVED_SCOPES", "{}", env), repo_root, repository,
     )
     db_path = env.get("NEXUS_DEVELOPMENT_DB", "data/nexus-development.sqlite3")
     store = DevelopmentJobStore(db_path)
