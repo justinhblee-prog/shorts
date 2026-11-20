@@ -16,6 +16,7 @@ from pathlib import Path
 
 from ffmpeg_audio_mix import build_audio_mix_argv
 from timeline_edl import validate_edl
+from ffprobe_validate import has_audio_stream
 
 
 class EDLRenderError(RuntimeError):
@@ -120,7 +121,7 @@ class EDLFFmpegRenderer:
     track specifications for build_audio_mix_argv; it is never read from EDL.
     """
     def __init__(self, staging_root, ffmpeg_path, asset_resolver, *,
-                 audio_tracks_resolver=None, width=1080, height=1920, fps=30,
+                 audio_tracks_resolver=None, ffprobe_path=None, width=1080, height=1920, fps=30,
                  max_input_bytes=2_000_000_000, timeout_seconds=3600):
         root = Path(staging_root)
         root.mkdir(parents=True, exist_ok=True)
@@ -139,6 +140,7 @@ class EDLFFmpegRenderer:
             raise ValueError("timeout_seconds must be between 1 and 3600")
         self.asset_resolver = asset_resolver
         self.audio_tracks_resolver = audio_tracks_resolver
+        self.ffprobe_path = str(_regular_file(ffprobe_path, "ffprobe executable")) if ffprobe_path is not None else None
         self.width, self.height, self.fps = width, height, fps
         self.max_input_bytes = max_input_bytes
         self.timeout_seconds = float(timeout_seconds)
@@ -226,9 +228,30 @@ class EDLFFmpegRenderer:
             self._run(argv, stop_event, deadline, log_path)
             if not video_only.is_file() or video_only.stat().st_size < 1:
                 raise EDLRenderError("FFmpeg did not produce a non-empty video output")
-            tracks = self.audio_tracks_resolver(payload) if self.audio_tracks_resolver else []
-            if not isinstance(tracks, list) or len(tracks) > 8:
-                raise EDLRenderError("audio resolver must return at most eight trusted tracks")
+            tracks = []
+            if self.ffprobe_path is not None:
+                audio_presence = {}
+                for clip in edl["clips"]:
+                    asset_id = clip["asset_id"]
+                    if asset_id not in audio_presence:
+                        audio_presence[asset_id] = has_audio_stream(
+                            assets[asset_id], self.ffprobe_path
+                        )
+                    if audio_presence[asset_id]:
+                        tracks.append({
+                            "path": str(assets[asset_id]),
+                            "source_in_ms": round(clip["source_in_ms"]),
+                            "start_ms": round(clip["start_ms"]),
+                            "duration_ms": round(clip["end_ms"] - clip["start_ms"]),
+                            "gain": 1.0,
+                        })
+            if self.audio_tracks_resolver:
+                additional_tracks = self.audio_tracks_resolver(payload)
+                if not isinstance(additional_tracks, list):
+                    raise EDLRenderError("audio resolver must return a list of trusted tracks")
+                tracks.extend(additional_tracks)
+            if len(tracks) > 8:
+                raise EDLRenderError("combined source and bed audio is limited to eight tracks")
             for track in tracks:
                 track_path = _regular_file(track.get("path") if isinstance(track, dict) else None,
                                            "resolved audio track")
