@@ -128,7 +128,7 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineEditor").count(), 1, "local timeline editor missing");
     await page.locator("#timelineMediaInput").setInputFiles({name:"not-a-video.txt",mimeType:"text/plain",buffer:Buffer.from("invalid")});
     assert.equal(await page.locator(".timeline-clip").count(), 0, "non-video file must be rejected");
-    assert.match(await page.locator("#timelineStatus").textContent(), /동영상 형식이 아닙니다/);
+    assert.match(await page.locator("#timelineStatus").textContent(), /MP4 형식만 지원합니다/);
     await page.locator("#timelineTitleInput").fill("First title");
     await page.locator("#timelineAddTitle").click();
     await page.locator("#timelineTitleInput").fill("Second title");
