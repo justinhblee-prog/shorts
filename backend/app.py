@@ -990,10 +990,16 @@ def get_youtube_analytics(video_id:str,x_review_token:str|None=Header(default=No
 
 
 @app.get("/api/youtube/analytics/collection-status")
-def youtube_analytics_collection_status(x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
+def youtube_analytics_collection_status(
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     freshness=max(300,int(os.getenv("YOUTUBE_ANALYTICS_MIN_AGE_SECONDS","86400")))
-    return youtube_analytics_store.status(freshness_seconds=freshness)
+    return youtube_analytics_store.status(
+        freshness_seconds=freshness,workspace_id=workspace_id
+    )
 
 
 
@@ -1206,11 +1212,15 @@ def refresh_due_tiktok_publications(
 
 
 @app.get("/api/publishing/analytics-status")
-def publishing_analytics_status(x_review_token:str|None=Header(default=None)):
-    """Summarize analytics freshness and coverage without exposing provider credentials."""
-    require_review_permission(x_review_token,"analytics.read")
-    youtube=youtube_analytics_store.status()
-    tiktok=tiktok_metrics_store.status(tiktok_publish_store)
+def publishing_analytics_status(
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    """Summarize workspace-scoped analytics coverage without exposing provider credentials."""
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    youtube=youtube_analytics_store.status(workspace_id=workspace_id)
+    tiktok=tiktok_metrics_store.status(tiktok_publish_store,workspace_id=workspace_id)
     safe_fields=("platform","status","last_attempt_at","last_success_at",
                  "latest_snapshot_at","last_batch","coverage",
                  "available_metrics","unavailable_metrics","read_only")
