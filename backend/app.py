@@ -1492,8 +1492,10 @@ class OpportunityInput(BaseModel):
 
 
 @app.post("/api/opportunities/score",status_code=201)
-def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"opportunities.manage")
+def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Header(default=None),
+                             x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"opportunities.manage")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
         data=body.model_dump()
         channel_ids=data.pop("competitor_channel_ids",[])
@@ -1509,7 +1511,7 @@ def create_opportunity_score(body:OpportunityInput,x_review_token:str|None=Heade
             **benchmark,"competition_pressure_index":round(pressure,3) if pressure is not None else None,
             "score_adjustment":-penalty if observed else 0.0,
         }
-        return opportunity_store.save(result)
+        return opportunity_store.save(result,workspace_id=workspace_id)
     except ValueError as e:
         raise HTTPException(422,str(e))
 
@@ -1572,9 +1574,11 @@ def recommendation_evaluation(platform:Literal["youtube","tiktok"]="youtube",
 
 
 @app.get("/api/opportunities")
-def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"analytics.read")
-    return {"opportunities":opportunity_store.list(limit)}
+def list_opportunities(limit:int=50,x_review_token:str|None=Header(default=None),
+                       x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"analytics.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    return {"opportunities":opportunity_store.list(limit,workspace_id=workspace_id)}
 
 @app.get("/api/health")
 def health():
