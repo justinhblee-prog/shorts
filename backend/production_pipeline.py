@@ -664,7 +664,7 @@ class ProductionStore:
                        j.status AS queue_status,j.job_type,j.error_message
                 FROM production_runs r
                 JOIN pipeline_jobs j ON j.id=r.job_id
-                WHERE j.job_type='short_video_production'
+                WHERE j.job_type='short_video_production' AND r.workspace_id IS ?
                   AND r.status<>j.status
                   AND (r.status IN ('rendered','review_pending','approved','uploaded',
                                     'cancelled','failed_terminal')
@@ -725,7 +725,7 @@ class ProductionStore:
             "unresolved": len(unresolved), "unresolved_jobs": unresolved,
         }
 
-    def integrity_report(self, queue, limit=50, offset=0, cursor=None):
+    def integrity_report(self, queue, limit=50, offset=0, cursor=None, workspace_id=None):
         """Return a read-only, bounded explanation of production/queue state mismatches."""
         if Path(queue.db_path).resolve() != Path(self.db_path).resolve():
             raise ValueError("ProductionStore and JobQueue must share the same SQLite database")
@@ -756,18 +756,19 @@ class ProductionStore:
                                     'cancelled','failed_terminal')
                        OR j.status IN ('review_pending','approved','uploaded',
                                        'cancelled','failed_terminal'))
-            """).fetchone()[0]
+            """,(workspace_id,)).fetchone()[0]
             queue_orphan_total = c.execute("""
                 SELECT COUNT(*) FROM pipeline_jobs j
                 LEFT JOIN production_runs r ON r.job_id=j.id
-                WHERE j.job_type='short_video_production' AND r.job_id IS NULL
-            """).fetchone()[0]
+                WHERE j.job_type='short_video_production' AND j.workspace_id IS ?
+                  AND r.job_id IS NULL
+            """,(workspace_id,)).fetchone()[0]
             production_orphan_total = c.execute("""
                 SELECT COUNT(*) FROM production_runs r
                 LEFT JOIN pipeline_jobs j
                   ON j.id=r.job_id AND j.job_type='short_video_production'
-                WHERE j.id IS NULL
-            """).fetchone()[0]
+                WHERE r.workspace_id IS ? AND j.id IS NULL
+            """,(workspace_id,)).fetchone()[0]
             report_rows_sql = """
                 SELECT * FROM (
                   SELECT 'state_mismatch' AS record_kind,1 AS sort_group,
@@ -782,7 +783,7 @@ class ProductionStore:
                          j.updated_at AS queue_updated_at
                   FROM production_runs r
                   JOIN pipeline_jobs j ON j.id=r.job_id
-                  WHERE j.job_type='short_video_production'
+                  WHERE j.job_type='short_video_production' AND r.workspace_id IS ?
                     AND r.status<>j.status
                     AND (r.status IN ('rendered','review_pending','approved','uploaded',
                                       'cancelled','failed_terminal')
@@ -800,7 +801,8 @@ class ProductionStore:
                          j.updated_at AS queue_updated_at
                   FROM pipeline_jobs j
                   LEFT JOIN production_runs r ON r.job_id=j.id
-                  WHERE j.job_type='short_video_production' AND r.job_id IS NULL
+                  WHERE j.job_type='short_video_production' AND j.workspace_id IS ?
+                    AND r.job_id IS NULL
                   UNION ALL
                   SELECT 'production_without_queue' AS record_kind,0 AS sort_group,
                          r.job_id,r.status AS production_status,r.current_stage,
@@ -812,7 +814,7 @@ class ProductionStore:
                   FROM production_runs r
                   LEFT JOIN pipeline_jobs j
                     ON j.id=r.job_id AND j.job_type='short_video_production'
-                  WHERE j.id IS NULL
+                  WHERE r.workspace_id IS ? AND j.id IS NULL
                 )
             """
             if cursor_key is not None:
@@ -820,12 +822,13 @@ class ProductionStore:
                     report_rows_sql
                     + " WHERE sort_group>? OR (sort_group=? AND job_id>?)"
                     + " ORDER BY sort_group,job_id LIMIT ?",
-                    (cursor_key[0], cursor_key[0], cursor_key[1], bounded + 1),
+                    (workspace_id,workspace_id,workspace_id,
+                     cursor_key[0], cursor_key[0], cursor_key[1], bounded + 1),
                 ).fetchall()
             else:
                 rows = c.execute(
                     report_rows_sql + " ORDER BY sort_group,job_id LIMIT ? OFFSET ?",
-                    (bounded + 1, page_offset),
+                    (workspace_id,workspace_id,workspace_id,bounded + 1, page_offset),
                 ).fetchall()
             has_more = len(rows) > bounded
             rows = rows[:bounded]
