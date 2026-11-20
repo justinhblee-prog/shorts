@@ -127,6 +127,9 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
                         job["id"], x_nexus_workspace_id="ws_alice"
                     )
                     self.assertEqual(visible["workspace_id"], "ws_alice")
+                    with self.assertRaises(HTTPException) as missing_provider_scope:
+                        api.get_production_provider_attempts(job["id"])
+                    self.assertEqual(missing_provider_scope.exception.status_code, 403)
                     with self.assertRaises(HTTPException) as denied:
                         api.get_production_job(
                             job["id"], x_nexus_workspace_id="ws_mallory"
