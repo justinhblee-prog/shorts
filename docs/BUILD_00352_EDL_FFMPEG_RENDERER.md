@@ -31,9 +31,9 @@ On success the renderer returns a staged MP4 path. The artifact store rechecks t
 
 - CI uses fixture media and a fake process runner; it does not prove a real FFmpeg encode or validate codec availability.
 - The target host must pin and configure trusted FFmpeg/ffprobe binaries and validate their checksums.
-- The worker must run in an isolated container with CPU, memory, disk, process-count and network restrictions.
+- The render worker has aggregate input/output byte limits, a process timeout and two-thread FFmpeg encoder limits; it must still run in an isolated container with hard CPU, memory, disk, process-count and network restrictions.
 - A real malware scanner and trusted input-media probe must populate clean status and actual source duration metadata.
 - Title overlays, transitions, subtitles and richer timeline compositing need explicit schema and rendering semantics before implementation.
 - The renderer currently requires contiguous video clips. Timeline gaps/overlaps need an explicit black-frame/overlay policy.
-- The optional worker service is implemented but not enabled by default. Authenticated API upload/render submission routes and production worker orchestration are not yet wired.
+- The optional render worker service and periodic staging/artifact orphan cleanup are implemented but not enabled by default. Authenticated API upload/render submission routes and production resource/network isolation are not yet wired.
 - No real-media, production isolation or publishing success is claimed.
