@@ -640,18 +640,22 @@ def validate_timeline_edl(
 
 
 @app.get("/api/review/pending")
-def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"review.read")
+def pending_reviews(limit:int=50, x_review_token:str|None=Header(default=None),
+                    x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"review.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     production_store.reconcile_review_pending(queue)
-    return {"items":review_store.list_pending(limit)}
+    return {"items":review_store.list_pending(limit,workspace_id=workspace_id)}
 
 
 
 @app.get("/api/publishing/overview")
-def publishing_overview(x_review_token:str|None=Header(default=None)):
+def publishing_overview(x_review_token:str|None=Header(default=None),
+                        x_nexus_workspace_id:str|None=Header(default=None)):
     """Return a bounded cross-platform publication status summary."""
-    require_review_permission(x_review_token,"review.read")
-    items=review_store.list_approved(200)
+    operator_id=require_review_permission(x_review_token,"review.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    items=review_store.list_approved(200,workspace_id=workspace_id)
     summary={
         "total":len(items),
         "youtube":{"uploaded":0,"processing":0,"failed":0,"pending":0,"uncertain":0},
@@ -681,9 +685,11 @@ def publishing_overview(x_review_token:str|None=Header(default=None)):
 
 
 @app.get("/api/review/approved")
-def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"review.read")
-    items=review_store.list_approved(limit)
+def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None),
+                     x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"review.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    items=review_store.list_approved(limit,workspace_id=workspace_id)
     pending=[]
     for item in items:
         upload=youtube_upload_store.get(item["job_id"])
@@ -712,13 +718,15 @@ def approved_reviews(limit:int=50,x_review_token:str|None=Header(default=None)):
 @app.post("/api/review/{job_id}/policy-evidence")
 def update_review_policy_evidence(
     job_id:str, body:PolicyEvidenceInput,
-    x_review_token:str|None=Header(default=None)
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None)
 ):
     authenticated_reviewer=require_review_permission(x_review_token,"review.evidence")
+    workspace_id=resolve_operator_workspace_scope(authenticated_reviewer,x_nexus_workspace_id)
     declarations=body.model_dump(exclude={"reviewer_id"},exclude_none=True)
     try:
         return review_store.update_policy_evidence(
-            job_id,authenticated_reviewer,declarations
+            job_id,authenticated_reviewer,declarations,workspace_id=workspace_id
         )
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
@@ -730,10 +738,12 @@ def update_review_policy_evidence(
 
 @app.post("/api/review/{job_id}/approve")
 def approve_review(job_id:str, body:ReviewDecision,
-                   x_review_token:str|None=Header(default=None)):
+                   x_review_token:str|None=Header(default=None),
+                   x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_reviewer=require_review_permission(x_review_token,"review.decide")
+    workspace_id=resolve_operator_workspace_scope(authenticated_reviewer,x_nexus_workspace_id)
     try:
-        return review_store.decide(job_id,"approved",authenticated_reviewer,body.comment)
+        return review_store.decide(job_id,"approved",authenticated_reviewer,body.comment,workspace_id=workspace_id)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -747,7 +757,7 @@ def reject_review(job_id:str, body:ReviewDecision,
                   x_review_token:str|None=Header(default=None)):
     authenticated_reviewer=require_review_permission(x_review_token,"review.decide")
     try:
-        return review_store.decide(job_id,"rejected",authenticated_reviewer,body.comment)
+        return review_store.decide(job_id,"rejected",authenticated_reviewer,body.comment,workspace_id=workspace_id)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -761,7 +771,7 @@ def request_revision(job_id:str, body:ReviewDecision,
                      x_review_token:str|None=Header(default=None)):
     authenticated_reviewer=require_review_permission(x_review_token,"review.decide")
     try:
-        return review_store.decide(job_id,"revision_requested",authenticated_reviewer,body.comment)
+        return review_store.decide(job_id,"revision_requested",authenticated_reviewer,body.comment,workspace_id=workspace_id)
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
     except ReviewConflict as e:
@@ -771,10 +781,12 @@ def request_revision(job_id:str, body:ReviewDecision,
 
 
 @app.get("/api/review/{job_id}/history")
-def review_history(job_id:str, x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"review.read")
+def review_history(job_id:str, x_review_token:str|None=Header(default=None),
+                   x_nexus_workspace_id:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"review.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        return {"items":review_store.history(job_id)}
+        return {"items":review_store.history(job_id,workspace_id=workspace_id)}
     except ReviewNotFound:
         raise HTTPException(404,"Production job not found")
 
