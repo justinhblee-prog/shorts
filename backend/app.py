@@ -75,6 +75,7 @@ app.add_middleware(
         "control": int(os.getenv("NEXUS_API_CONTROL_RATE_LIMIT_PER_MINUTE", "30")),
         "review": int(os.getenv("NEXUS_API_REVIEW_RATE_LIMIT_PER_MINUTE", "60")),
         "production": int(os.getenv("NEXUS_API_PRODUCTION_RATE_LIMIT_PER_MINUTE", "30")),
+        "media": int(os.getenv("NEXUS_API_MEDIA_RATE_LIMIT_PER_MINUTE", "10")),
     },
 )
 trend_store=TrendStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
