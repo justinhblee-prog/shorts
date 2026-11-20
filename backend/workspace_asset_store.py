@@ -222,6 +222,28 @@ class WorkspaceAssetStore:
             handle.close()
             raise
 
+    def resolve_clean_asset_path(self, workspace_id, principal_id, asset_id):
+        """Resolve a clean, workspace-authorized asset to its verified private path.
+
+        Intended for a trusted local render worker. Callers must still run the
+        renderer in an isolated process/container with read-only source access.
+        """
+        metadata = self.get_asset(workspace_id, principal_id, asset_id)
+        if metadata["scan_status"] != "clean":
+            raise AssetError("asset is quarantined until malware scanning succeeds")
+        path = self._workspace_dir(workspace_id) / (asset_id + ".blob")
+        if path.is_symlink() or not path.is_file():
+            raise AssetNotFound("asset binary is unavailable")
+        digest = hashlib.sha256()
+        size = 0
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                size += len(chunk)
+                digest.update(chunk)
+        if digest.hexdigest() != metadata["sha256"] or size != metadata["byte_size"]:
+            raise AssetError("asset integrity verification failed")
+        return path.resolve(strict=True)
+
     def mark_scan_result(self, workspace_id, principal_id, asset_id, clean):
         """Record scanner outcome; only a workspace admin/owner may change quarantine state."""
         self.workspaces.require_membership(
