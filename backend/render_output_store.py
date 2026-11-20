@@ -100,6 +100,8 @@ class RenderOutputStore:
         connection.execute("PRAGMA busy_timeout=30000")
         try:
             yield connection
+            if connection.in_transaction:
+                connection.commit()
         except Exception:
             if connection.in_transaction:
                 connection.rollback()
@@ -121,7 +123,7 @@ class RenderOutputStore:
             workspace_output_root.relative_to(self.media_root)
             path.relative_to(workspace_output_root)
         except (OSError, ValueError) as exc:
-            raise RenderOutputError("Render output escaped its workspace media namespace") from exc
+            raise RenderOutputError("Render output escaped workspace namespace media storage") from exc
         digest = hashlib.sha256()
         size = 0
         with path.open("rb") as stream:
