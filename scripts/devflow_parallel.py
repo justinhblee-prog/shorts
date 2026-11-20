@@ -15,6 +15,13 @@ MANIFEST = ROOT / ".devflow" / "tasks.json"
 SUPERVISOR = ROOT / "scripts" / "devflow_autopilot.py"
 
 
+def scopes_overlap(left: set[str], right: set[str]) -> bool:
+    return any(
+        a == b or a.startswith(b + "/") or b.startswith(a + "/")
+        for a in left for b in right
+    )
+
+
 def select_parallel_tasks(data: dict, limit: int) -> list[dict]:
     policy_limit = int(data.get("policy", {}).get("max_parallel_worktrees", 1))
     if limit < 1 or limit > min(policy_limit, 3):
@@ -42,7 +49,7 @@ def select_parallel_tasks(data: dict, limit: int) -> list[dict]:
             continue
         if any(not item.get("scope") for item in selected):
             continue
-        if scopes & claimed_scopes:
+        if scopes_overlap(scopes, claimed_scopes):
             continue
         selected.append(task)
         claimed_scopes.update(scopes)
