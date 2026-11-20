@@ -395,3 +395,9 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 - The test asserts serialized outcomes: dependency insertion wins and the child is blocked, or worker claim wins and dependency mutation is rejected. A leased child can never silently gain an unresolved prerequisite.
 - Exact head 8a5364903526cc8ed56977bdec730206b514f778 passed backend validation, frontend syntax, both Chromium smoke tests, and artifact upload in [run 44654439190](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190), artifact [14592966229](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190/artifacts/14592966229).
 - FLOW-CORE hosted concurrency regression: PASS. Windows multi-process runner and LocalAppData persistence remain NOT VERIFIED; PR #415 remains Draft/open/unmerged.
+
+## 14. UI job selection and detail switching — 2026-11-20
+
+- FLOW-UI/FLOW-QA expanded the recovery Chromium smoke to check click selection, Enter-key selection of a second job, aria-pressed state transfer, and actual event-detail panel content switching.
+- Exact head 17ee4a515767b9e05b5c20b00eb240024365f807 passed backend validation, frontend syntax, both Chromium smoke suites, and artifact upload in [run 44654934989](https://github.com/justinhblee-prog/shorts/actions/runs/44654934989), artifact [14592123441](https://github.com/justinhblee-prog/shorts/actions/runs/44654934989/artifacts/14592123441).
+- FLOW-UI/FLOW-QA: PASS within hosted fixture/browser scope. Live production/provider validation remains separately gated.
