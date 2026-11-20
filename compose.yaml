@@ -56,6 +56,49 @@ services:
     stop_grace_period: 45s
     restart: unless-stopped
 
+  timeline-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python","timeline_worker.py"]
+    env_file: .env
+    environment:
+      NEXUS_DB_PATH: /app/data/nexus.sqlite3
+      NEXUS_PRIVATE_MEDIA_ROOT: /app/data/private-media
+      NEXUS_RENDER_STAGING_ROOT: /app/data/render-staging
+      NEXUS_RENDER_ARTIFACT_ROOT: /app/data/render-artifacts
+      NEXUS_FFMPEG_PATH: /usr/bin/ffmpeg
+      NEXUS_FFPROBE_PATH: /usr/bin/ffprobe
+      NEXUS_RENDER_FONT_PATH: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+      NEXUS_RENDER_TIMEOUT_SECONDS: ${NEXUS_RENDER_TIMEOUT_SECONDS:-900}
+      NEXUS_RENDER_MAX_OUTPUT_BYTES: ${NEXUS_RENDER_MAX_OUTPUT_BYTES:-536870912}
+      NEXUS_RENDER_MAX_INPUT_BYTES: ${NEXUS_RENDER_MAX_INPUT_BYTES:-2147483648}
+    volumes:
+      - nexus_data:/app/data
+    # Rendering is local-only: no network protocols or outbound connections.
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=1g
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    cpus: 2.0
+    mem_limit: 4g
+    pids_limit: 128
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD","python","container_health.py","process","timeline_worker.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    stop_grace_period: 45s
+    restart: unless-stopped
+
   scheduler:
     build:
       context: .
