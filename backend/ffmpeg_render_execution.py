@@ -96,13 +96,18 @@ def _run_bounded(argv: Sequence[str], *, timeout_seconds: int,
         if process.poll() is None:
             _terminate_process(process)
         raise
-    finally:
 
 
-def _probe(ffprobe_path: str, media_path: Path, timeout_seconds: int) -> dict:
-    if not isinstance(ffprobe_path, str) or not ffprobe_path or "\x00" in ffprobe_path:
+def _probe(ffprobe_path: str | Sequence[str], media_path: Path, timeout_seconds: int) -> dict:
+    if isinstance(ffprobe_path, str) and ffprobe_path and "\x00" not in ffprobe_path:
+        prefix = [ffprobe_path]
+    elif isinstance(ffprobe_path, (list, tuple)) and ffprobe_path and all(
+        isinstance(item, str) and item and "\x00" not in item for item in ffprobe_path
+    ):
+        prefix = list(ffprobe_path)
+    else:
         raise RenderExecutionError("configured ffprobe executable is invalid")
-    argv = [ffprobe_path, "-v", "error", "-show_entries",
+    argv = prefix + ["-v", "error", "-show_entries",
             "format=duration,format_name:stream=codec_type,codec_name,width,height",
             "-of", "json", str(media_path)]
     try:
