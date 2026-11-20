@@ -96,6 +96,27 @@
         "Target host access and deployment authorization",
         "YouTube OAuth and explicit private-test authorization"
       ]
+    },
+    {
+      "id": "BUILD-00355",
+      "title": "Add isolated safety and tool-contract tests for the local Ollama coding agent",
+      "priority": 4,
+      "status": "ready",
+      "depends_on": [],
+      "scope": [
+        "scripts/ollama-agent.py",
+        "scripts/test_ollama_agent.py"
+      ],
+      "acceptance": [
+        "Add standard-library unit tests for repository path traversal and protected-file write rejection",
+        "Verify blocked secret/config directories and file-size limits for reads and writes",
+        "Verify only the documented run_check allowlist executes and unknown tools are rejected",
+        "Mock subprocess and local Ollama HTTP calls so tests require no live model, network service, credentials, or paid API",
+        "Run the new tests and Python compilation successfully",
+        "Do not modify .devflow/tasks.json or unrelated project files"
+      ],
+      "external_gates": [],
+      "notes": "Automation verification task created after successful real Windows Runner + local Ollama smoke test; keep Draft PR only."
     }
   ]
 }
