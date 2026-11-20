@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   recover-reviews:
-    # Read-only recovery is isolated from the write-capable development job.
+    # Read-only recovery has a separate job and token scope.
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'recover'
     runs-on: [self-hosted, windows, nexus-local-ai]
     timeout-minutes: 30
