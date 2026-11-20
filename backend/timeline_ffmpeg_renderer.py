@@ -281,7 +281,8 @@ class TimelineFFmpegRenderer:
             if size < 1 or size > self.max_output_bytes:
                 raise TimelineRenderError("rendered output size is outside configured limits")
             probe = probe_media(
-                final_path, self.ffprobe_path, max_duration_ms=duration_ms + 1000,
+                final_path, self.ffprobe_path,
+                max_duration_ms=min(duration_ms + 1000, 3_600_000),
                 max_bytes=self.max_output_bytes, require_audio=bool(audio_tracks),
             )
             if abs(probe["duration_ms"] - duration_ms) > 1500:
