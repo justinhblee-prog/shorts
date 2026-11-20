@@ -96,8 +96,9 @@
     const queued=Number(q.queued||0)+Number(q.failed_retriable||0);
     $("metricQueued").textContent=queued.toLocaleString();
     $("metricRunning").textContent="실행 중 "+Number(q.running||0).toLocaleString();
-    $("metricReview").textContent=(r.items||[]).length.toLocaleString();
-    $("reviewCount").textContent=(r.items||[]).length+" ITEMS";
+    const reviewTotal=(r.items||[]).length+(r.timeline_renders||[]).length;
+    $("metricReview").textContent=reviewTotal.toLocaleString();
+    $("reviewCount").textContent=reviewTotal+" ITEMS";
     const revenue=Number(f.revenue||0),cost=Number(f.costs||f.cost||0),net=Number(f.net_profit??(revenue-cost));
     $("metricRevenue").textContent=money(revenue);
     setConnection(true,"API 연결됨");
@@ -113,12 +114,14 @@
   async function loadReviews(){
     const data=await api("/api/review/pending?limit=100");
     const items=data.items||[];
+    const timelineItems=data.timeline_renders||[];
+    const totalReviewItems=items.length+timelineItems.length;
     const dashboardApproval=document.getElementById("cyberApprovalList");
     if(dashboardApproval){
       dashboardApproval.innerHTML=items.length?items.slice(0,4).map(item=>'<a class="cyber-approval-item" href="#review"><span class="cyber-approval-dot"></span><span><b>'+esc(item.brand)+' · '+esc(item.topic)+'</b><small>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status||"검수 대기")+'</small></span><span class="cyber-approval-arrow">↗</span></a>').join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
     }
-    $("reviewCount").textContent=items.length+" ITEMS";
-    $("metricReview").textContent=items.length;
+    $("reviewCount").textContent=totalReviewItems+" ITEMS";
+    $("metricReview").textContent=totalReviewItems;
     $("reviewList").innerHTML=items.length?items.map(item=>{
       const artifacts=item.artifacts||[];
       const video=artifacts.find(a=>a.artifact_type==="video");
