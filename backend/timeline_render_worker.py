@@ -6,12 +6,13 @@ completion as proof of publication; successful renders enter review_pending.
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 
 
 class TimelineRenderWorker:
     def __init__(self, queue, renderer, worker_id, generation_token,
-                 heartbeat_seconds=10, artifact_store=None):
+                 heartbeat_seconds=10, artifact_store=None, shutdown_event=None):
         if not callable(renderer):
             raise TypeError("renderer callback is required")
         if not worker_id or not generation_token:
@@ -24,8 +25,11 @@ class TimelineRenderWorker:
         self.generation_token = generation_token
         self.heartbeat_seconds = heartbeat_seconds
         self.artifact_store = artifact_store
+        self.shutdown_event = shutdown_event
 
     def run_once(self):
+        if self.shutdown_event is not None and self.shutdown_event.is_set():
+            return False
         job = self.queue.claim(
             self.worker_id, job_type="timeline_render",
             generation_token=self.generation_token,
@@ -37,12 +41,19 @@ class TimelineRenderWorker:
         stop = threading.Event()
 
         def beat():
-            while not stop.wait(self.heartbeat_seconds):
+            last_heartbeat = time.monotonic()
+            while not stop.wait(0.25):
+                if self.shutdown_event is not None and self.shutdown_event.is_set():
+                    lost.set()
+                    return
+                if time.monotonic() - last_heartbeat < self.heartbeat_seconds:
+                    continue
                 try:
                     self.queue.heartbeat(
                         job["id"], self.worker_id, job["lease_token"],
                         self.generation_token, workspace_id=job["workspace_id"],
                     )
+                    last_heartbeat = time.monotonic()
                 except Exception:
                     lost.set()
                     return
