@@ -274,7 +274,7 @@ class TimelineFFmpegRenderer:
 
             filters = []
             labels = []
-            for index, clip in enumerate(clips):
+            for index, clip in enumerate(video_clips):
                 label = f"v{index}"
                 filters.append(
                     f"[{index}:v:0]trim=start={self._seconds(clip['source_in_ms'])}:"
