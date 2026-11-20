@@ -370,7 +370,10 @@ class JobQueue:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             n=stamp(now())
-            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone()
+            row=c.execute(
+                "SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id IS ?",
+                (jid,workspace_id),
+            ).fetchone()
             if row is None: raise JobNotFound()
             if row["status"] in ("uploaded","cancelled","failed_terminal"):
                 raise ValueError("Job is already terminal")
