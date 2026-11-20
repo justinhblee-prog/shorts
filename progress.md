@@ -273,3 +273,13 @@
 - Updated the direct-call test to pass the intended HTTP defaults explicitly (`limit=100, offset=0`). Existing explicit pagination test remains unchanged.
 - Fix commit: `930c978aeefac5edc4cfa52e40df9e74f63bccdb`.
 - The prior syntax-fix commit `3223682` now has no duplicate-declaration defect; a separate earlier CI run failed on this test invocation. Exact-head validation for `930c978` is pending/not yet returned. Do not mark PASS until the full suite and browser smoke complete.
+
+
+## 35. Recovery browser pagination assertion made data-driven — 2026-11-20
+
+- Exact-head PR CI runs [44656012855](https://github.com/justinhblee-prog/shorts/actions/runs/44656012855) and [44656030239](https://github.com/justinhblee-prog/shorts/actions/runs/44656030239) both passed backend validation, frontend syntax, Chromium install, and dashboard browser smoke.
+- Recovery browser smoke exposed a brittle fixture expectation: the assertion hard-coded `213 / 213`, while the fixture/API correctly returned `217 / 217개 작업 표시`. This was a test assertion defect; the load-more control was correctly hidden after all records loaded.
+- Replaced the hard-coded count with a format check and numeric equality assertion between loaded and total records. This preserves the behavioral guarantee while allowing fixture growth.
+- Fix commit: `f121b08fb61008747e8d693b3186a24ba1b34ebc`.
+- New exact-head CI is pending. Do not mark recovery browser validation PASS until both browser suites and artifact upload succeed on this commit.
+- PR #415 remains Draft/open/unmerged; PR #416 remains separate. No merge, deployment, workflow activation, or default-branch change.
