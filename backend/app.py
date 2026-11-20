@@ -533,6 +533,15 @@ def resolve_operator_workspace_scope(operator_id, workspace_id):
         raise HTTPException(403,"Operator is not a member of the requested workspace")
 
 
+def require_production_workspace(job_id, operator_id, workspace_selector):
+    """Require an existing production parent inside the authenticated workspace."""
+    workspace_id=resolve_operator_workspace_scope(operator_id,workspace_selector)
+    production=production_store.get(job_id,workspace_id=workspace_id)
+    if production is None:
+        raise HTTPException(404,"Production job not found")
+    if production.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
+    return workspace_id
 
 
 @app.get("/api/operator/workspaces")
