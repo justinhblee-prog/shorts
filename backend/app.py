@@ -754,8 +754,10 @@ def approve_review(job_id:str, body:ReviewDecision,
 
 @app.post("/api/review/{job_id}/reject")
 def reject_review(job_id:str, body:ReviewDecision,
-                  x_review_token:str|None=Header(default=None)):
+                  x_review_token:str|None=Header(default=None),
+                  x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_reviewer=require_review_permission(x_review_token,"review.decide")
+    workspace_id=resolve_operator_workspace_scope(authenticated_reviewer,x_nexus_workspace_id)
     try:
         return review_store.decide(job_id,"rejected",authenticated_reviewer,body.comment,workspace_id=workspace_id)
     except ReviewNotFound:
@@ -768,8 +770,10 @@ def reject_review(job_id:str, body:ReviewDecision,
 
 @app.post("/api/review/{job_id}/request-revision")
 def request_revision(job_id:str, body:ReviewDecision,
-                     x_review_token:str|None=Header(default=None)):
+                     x_review_token:str|None=Header(default=None),
+                     x_nexus_workspace_id:str|None=Header(default=None)):
     authenticated_reviewer=require_review_permission(x_review_token,"review.decide")
+    workspace_id=resolve_operator_workspace_scope(authenticated_reviewer,x_nexus_workspace_id)
     try:
         return review_store.decide(job_id,"revision_requested",authenticated_reviewer,body.comment,workspace_id=workspace_id)
     except ReviewNotFound:
