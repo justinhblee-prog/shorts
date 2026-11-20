@@ -159,14 +159,14 @@ class ScheduleStore:
         with self.db() as c:
             if now is None:
                 rows = c.execute("""SELECT o.*,s.workspace_id FROM schedule_dispatch_outbox o
-                    JOIN production_schedules s ON s.id=o.schedule_id
+                    LEFT JOIN production_schedules s ON s.id=o.schedule_id
                     WHERE o.status='pending' ORDER BY o.created_at LIMIT ?""",
                     (limit,)).fetchall()
             else:
                 if now.tzinfo is None:
                     raise ValueError("now must be timezone-aware")
                 rows = c.execute("""SELECT o.*,s.workspace_id FROM schedule_dispatch_outbox o
-                    JOIN production_schedules s ON s.id=o.schedule_id
+                    LEFT JOIN production_schedules s ON s.id=o.schedule_id
                     WHERE o.status='pending' AND
                     (o.next_attempt_at IS NULL OR o.next_attempt_at<=?)
                     ORDER BY o.created_at LIMIT ?""",
@@ -182,19 +182,19 @@ class ScheduleStore:
         current_s = _stamp(current)
         with self.db() as c:
             counts = {row["status"]: row["n"] for row in c.execute(
-                "SELECT o.status,COUNT(*) n FROM schedule_dispatch_outbox o JOIN production_schedules s ON s.id=o.schedule_id WHERE s.workspace_id IS ? GROUP BY o.status", (workspace_id,))}
+                "SELECT o.status,COUNT(*) n FROM schedule_dispatch_outbox o LEFT JOIN production_schedules s ON s.id=o.schedule_id WHERE s.workspace_id IS ? GROUP BY o.status", (workspace_id,))}
             pending_retries = c.execute("""SELECT COUNT(*) FROM schedule_dispatch_outbox o
-                JOIN production_schedules s ON s.id=o.schedule_id
+                LEFT JOIN production_schedules s ON s.id=o.schedule_id
                 WHERE s.workspace_id IS ? AND o.status='pending'
                 AND o.next_attempt_at IS NOT NULL AND o.next_attempt_at>?""", (workspace_id, current_s)).fetchone()[0]
             pending_ready = c.execute("""SELECT COUNT(*) FROM schedule_dispatch_outbox o
-                JOIN production_schedules s ON s.id=o.schedule_id
+                LEFT JOIN production_schedules s ON s.id=o.schedule_id
                 WHERE s.workspace_id IS ? AND o.status='pending' AND
                 (o.next_attempt_at IS NULL OR o.next_attempt_at<=?)""",
                 (workspace_id, current_s)).fetchone()[0]
             rows = c.execute("""SELECT o.id,o.schedule_id,o.scheduled_for,o.status,o.attempts,
                 o.last_error,o.created_at,o.next_attempt_at FROM schedule_dispatch_outbox o
-                JOIN production_schedules s ON s.id=o.schedule_id
+                LEFT JOIN production_schedules s ON s.id=o.schedule_id
                 WHERE s.workspace_id IS ?
                 ORDER BY CASE o.status WHEN 'dead_letter' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
                 o.created_at DESC LIMIT ?""", (workspace_id, limit)).fetchall()
