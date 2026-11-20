@@ -161,6 +161,7 @@ def main() -> int:
   msg=(response.get("message") or {})
   calls=msg.get("tool_calls") or []
   print(f"[ollama-agent] turn={turn} done_reason={response.get('done_reason','?')} content_chars={len(str(msg.get('content','')))} tool_calls={len(calls)} eval_count={response.get('eval_count','?')}",file=sys.stderr)
+  text_fallback=False
   if not calls:
    content=str(msg.get("content", ""))
    calls=parse_text_tool_call(content)
@@ -172,25 +173,27 @@ def main() -> int:
     if not content.strip():
      empty_responses += 1
      if empty_responses <= 2:
-      messages.append({"role":"assistant","content":""})
       messages.append({"role":"user","content":"Your previous response was empty. Continue the assigned implementation now. Use one available tool. If tool calling is unavailable, output exactly one JSON object such as {\\\"name\\\":\\\"list_files\\\",\\\"arguments\\\":{\\\"path\\\":\\\".\\\"}} with no Markdown."})
       continue
      print("Agent repeatedly returned an empty response; refusing to report success.",file=sys.stderr); return 4
     messages.append(msg)
     print(content); return 0
-   # Normalize JSON-in-text calls to Ollama's native tool-call message shape.
-   msg={"role":"assistant","content":"","tool_calls":calls}
-  messages.append(msg)
+   text_fallback=True
+  else:
+   messages.append(msg)
   for call in calls:
    fn=call.get("function") or {}; name=fn.get("name",""); arguments=fn.get("arguments") or {}
-   print(f"[ollama-agent] invoking_tool={name} argument_keys={sorted(arguments.keys())}",file=sys.stderr)
+   print(f"[ollama-agent] invoking_tool={name} argument_keys={sorted(arguments.keys())} text_fallback={text_fallback}",file=sys.stderr)
    signature=json.dumps({"name":name,"arguments":arguments},sort_keys=True,ensure_ascii=False)
    repeated_calls[signature]=repeated_calls.get(signature,0)+1
    if repeated_calls[signature] > 5:
     print(f"Agent repeated the same tool call more than five times: {name}; stopping to prevent a no-progress loop.",file=sys.stderr); return 5
    try: result=execute(root,name,arguments)
    except Exception as e: result=f"TOOL_ERROR: {type(e).__name__}: {e}"
-   messages.append({"role":"tool","tool_name":name,"content":clip(str(result))})
+   if text_fallback:
+    messages.append({"role":"user","content":f"Tool result for {name}:\\n{clip(str(result))}\\nUse this result to continue the assigned task. If another tool is needed, request it with exactly one JSON object containing name and arguments."})
+   else:
+    messages.append({"role":"tool","tool_name":name,"content":clip(str(result))})
  print(f"Agent stopped at configured limit of {args.max_turns} turns.",file=sys.stderr); return 3
 
 if __name__=="__main__":
