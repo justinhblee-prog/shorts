@@ -320,6 +320,17 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         self.assertEqual(self.store.get("history-video")["views"],150)
         self.assertEqual(len(self.store.history("other-video")),0)
 
+    def test_unassigned_legacy_history_remains_visible_without_tenant_scope(self):
+        self.store.save("legacy-unassigned-video","2026-11-01","2026-11-14",
+                        {"views":123},[],analytics_status="available",
+                        retention_status="no_data")
+        with self.store.db() as connection:
+            connection.execute("CREATE TABLE production_runs(job_id TEXT PRIMARY KEY,workspace_id TEXT)")
+            connection.execute("""CREATE TABLE youtube_uploads(
+                job_id TEXT PRIMARY KEY,video_id TEXT,status TEXT)""")
+        self.assertEqual(len(self.store.history("legacy-unassigned-video")),1)
+        self.assertEqual(self.store.history("legacy-unassigned-video",workspace_id="workspace-a"),[])
+
     def test_history_malformed_retention_json_fails_safe(self):
         self.store.save(
             "bad-retention-history","2026-11-01","2026-11-14",{"views":10},
