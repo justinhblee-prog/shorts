@@ -181,3 +181,15 @@ adoption completed under the worker lease, the pending review item was visible,
 and an immutable artifact-hash-bound approval was recorded. This validates the
 small synthetic fixture in CI; it does not replace production media, ClamAV
 signature freshness, binary checksum pinning, or production resource-load tests.
+
+
+## FFmpeg/ffprobe binary pinning
+
+The container image now writes SHA-256 digests for its installed
+\`/usr/bin/ffmpeg\` and \`/usr/bin/ffprobe\` binaries to
+\`/usr/share/nexus-media-binaries.sha256\` during image build. The dedicated
+render worker verifies both exact configured paths and hashes before registering
+its worker generation or claiming jobs. A missing, malformed, unlisted, symlinked
+or modified binary fails startup closed. Production deployments should also pin
+the built container image by immutable digest so the image-baked manifest itself
+cannot change unnoticed during rollout.
