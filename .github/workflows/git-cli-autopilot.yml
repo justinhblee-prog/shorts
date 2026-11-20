@@ -13,6 +13,7 @@ on:
       - "scripts/start-devflow-autopilot.ps1"
       - "scripts/start-devflow-detached.ps1"
       - "scripts/devflow-agent-process.ps1"
+      - "scripts/ollama-agent.py"
       - "scripts/devflow.py"
       - ".github/workflows/git-cli-autopilot.yml"
   workflow_dispatch:
@@ -142,8 +143,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Compile helper
-        run: python -m py_compile scripts/devflow.py
+      - name: Compile helpers and local Ollama Agent
+        run: python -m py_compile scripts/devflow.py scripts/ollama-agent.py
       - name: Validate task manifest
         run: |
           python - <<'PY'
