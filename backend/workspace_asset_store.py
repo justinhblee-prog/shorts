@@ -12,6 +12,7 @@ import re
 import sqlite3
 import tempfile
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -83,12 +84,20 @@ class WorkspaceAssetStore:
             db.execute("""CREATE INDEX IF NOT EXISTS idx_workspace_assets_owner
                           ON workspace_media_assets(workspace_id, owner_principal_id, status)""")
 
+    @contextmanager
     def db(self):
         db = sqlite3.connect(self.db_path, timeout=30, isolation_level=None)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys=ON")
         db.execute("PRAGMA busy_timeout=30000")
-        return db
+        try:
+            yield db
+        except Exception:
+            if db.in_transaction:
+                db.rollback()
+            raise
+        finally:
+            db.close()
 
     def _workspace_dir(self, workspace_id):
         target = self.storage_root / workspace_id
@@ -203,13 +212,18 @@ class WorkspaceAssetStore:
         path = self._workspace_dir(workspace_id) / (asset_id + ".blob")
         if path.is_symlink() or not path.is_file():
             raise AssetNotFound("asset binary is unavailable")
-        digest = hashlib.sha256()
-        with path.open("rb") as handle:
+        handle = path.open("rb")
+        try:
+            digest = hashlib.sha256()
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
-        if digest.hexdigest() != metadata["sha256"]:
-            raise AssetError("asset integrity verification failed")
-        return path.open("rb")
+            if digest.hexdigest() != metadata["sha256"]:
+                raise AssetError("asset integrity verification failed")
+            handle.seek(0)
+            return handle
+        except Exception:
+            handle.close()
+            raise
 
     def mark_scan_result(self, workspace_id, principal_id, asset_id, clean):
         """Record scanner outcome; only a workspace admin/owner may change quarantine state."""
