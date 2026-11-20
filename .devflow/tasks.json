@@ -128,19 +128,17 @@
       "base_branch": "fix/devflow-detached-supervisor-2026-11-20",
       "scope": [
         "scripts/ollama-agent.py",
-        "scripts/test_ollama_agent_protocol.py",
-        ".github/workflows/git-cli-autopilot.yml"
+        "scripts/test_ollama_agent_protocol.py"
       ],
       "acceptance": [
-        "Add standard-library unit tests for fenced JSON tool-call parsing, raw JSON parsing, malformed responses, and unknown tool rejection",
+        "Add standard-library offline unit tests for fenced JSON tool-call parsing, raw JSON parsing, malformed responses, and unknown tool rejection",
         "Mock urllib.request.urlopen and verify the local Ollama endpoint, model, tools payload, and absence of forced JSON response format",
-        "Verify the test suite requires no live Ollama service, network access, credentials, or paid API",
-        "Update Git CLI autopilot CI to compile and execute the new offline unit tests",
+        "Tests must not require a live Ollama service, network access, credentials, or paid API",
         "Run Python compilation and inspect the final diff; do not claim unit tests passed unless actually executed",
-        "Do not modify .devflow/tasks.json or unrelated files"
+        "Do not modify .devflow/tasks.json or unrelated project files"
       ],
       "external_gates": [],
-      "notes": "Retry after fixing Windows validation to prefer Git for Windows' bundled Bash instead of the WindowsApps WSL shim. Prior run produced the requested test file via scoped patch mode but stopped at repository validation because /bin/bash was unavailable."
+      "notes": "Retry after fixing Windows validation shell resolution and making optional PyYAML parsing non-blocking when absent. Task scope narrowed to agent and its offline regression tests; maintainer will wire the test module into CI after the worker creates it."
     }
   ]
 }
