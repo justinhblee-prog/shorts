@@ -238,3 +238,10 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Production API workspace scoping: production job creation, production detail and provider-attempt read endpoints accept `X-Nexus-Workspace-Id`. The value is resolved against the authenticated operator's configured or durable workspace membership, never trusted directly. Create persists the resolved workspace on the queue parent; production/provider journal reads apply SQL workspace filters. Omitting the header intentionally preserves legacy global operator access. This is an operator-console isolation capability, not customer identity/authentication or complete B2B tenant isolation.
 
 - Additional API coverage: `/api/jobs/{id}`, `/api/jobs/{id}/events`, and production reconciliation-event reads accept the same optional workspace selector and resolve it through authenticated operator membership before querying. Immutable queue events expose parent workspace ownership via a join, avoiding duplicated mutable tenant fields in the audit log.
+
+
+## 2026-11-20 exact-head validation and security follow-up
+
+- PR #417 head `7a749a6b20b3d858cb57085a2e1231db89d57e04` passed Backend tests (run 44681380757) and Compose integration (run 44681381054). The backend workflow includes the Chromium dashboard smoke and uploaded browser screenshots artifact 14605210220.
+- Tenant isolation remains partial: operator-scoped production detail and provider-attempt reads are implemented, but production execute and recovered-render adoption still need workspace-aware parent/child reads and workspace-aware media staging.
+- Trusted worker identity-to-workspace binding and customer identity are not implemented. Never treat body/header workspace IDs, worker_id, or lease tokens alone as customer authorization. Keep these items open and preserve Draft PR status.
