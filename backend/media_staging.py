@@ -3,6 +3,7 @@ import hashlib
 import http.client
 import ipaddress
 import os
+import re
 import socket
 import ssl
 import tempfile
@@ -89,9 +90,23 @@ class MediaStager:
             connection.close()
             raise MediaStagingError("Renderer artifact download failed") from exc
 
-    def staged_path(self, job_id):
+    @staticmethod
+    def _workspace_namespace(workspace_id):
+        """Return an opaque, path-safe workspace namespace; None is legacy-only."""
+        if workspace_id is None:
+            return None
+        if not isinstance(workspace_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", workspace_id):
+            raise MediaStagingError("A valid workspace ID is required for tenant media")
+        return hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
+
+    def _storage_dir(self, workspace_id=None):
+        namespace = self._workspace_namespace(workspace_id)
+        return self.media_dir if namespace is None else self.media_dir / namespace
+
+    def staged_path(self, job_id, workspace_id=None):
+        """Resolve a job path inside its legacy or opaque workspace namespace."""
         filename = hashlib.sha256(str(job_id).encode("utf-8")).hexdigest() + ".mp4"
-        return self.media_dir / filename
+        return self._storage_dir(workspace_id) / filename
 
     @staticmethod
     def fingerprint(path):
@@ -114,17 +129,18 @@ class MediaStager:
         return {"media_path": candidate.name, "size_bytes": total,
                 "sha256": digest.hexdigest(), "content_type": "video/mp4"}
 
-    def cleanup_uploaded(self, job_id, upload_store):
+    def cleanup_uploaded(self, job_id, upload_store, workspace_id=None):
         """Delete only this job's staged file, and only after durable upload confirmation."""
         upload = upload_store.get(job_id)
         if upload is None or upload.get("status") != "uploaded" or not upload.get("video_id"):
             raise MediaStagingError("Media can be removed only after a confirmed YouTube upload")
-        target = self.staged_path(job_id)
+        target = self.staged_path(job_id, workspace_id)
         if target.is_symlink():
             raise MediaStagingError("Refusing to remove a symlink from the media staging area")
         try:
-            if target.parent.resolve() != self.media_dir:
-                raise MediaStagingError("Staged media path escaped the media directory")
+            expected_parent = self._storage_dir(workspace_id).resolve()
+            if target.parent.resolve() != expected_parent or not target.resolve().is_relative_to(expected_parent):
+                raise MediaStagingError("Staged media path escaped its storage namespace")
             target.unlink(missing_ok=True)
         except OSError as exc:
             raise MediaStagingError("Staged media could not be removed") from exc
@@ -140,7 +156,7 @@ class MediaStager:
         removed = []
         if not self.media_dir.exists():
             return {"removed": [], "count": 0}
-        for candidate in self.media_dir.glob(".nexus-*.part"):
+        for candidate in self.media_dir.rglob(".nexus-*.part"):
             try:
                 if candidate.is_file() and candidate.stat().st_mtime <= cutoff:
                     candidate.unlink()
@@ -151,7 +167,7 @@ class MediaStager:
                 continue
         return {"removed": removed, "count": len(removed)}
 
-    def stage(self, job_id, artifact_url):
+    def stage(self, job_id, artifact_url, workspace_id=None):
         parsed = urlsplit(artifact_url or "")
         host = (parsed.hostname or "").lower().rstrip(".")
         if parsed.scheme != "https" or not host or parsed.username or parsed.password:
@@ -188,16 +204,17 @@ class MediaStager:
                     raise MediaStagingError("Artifact exceeds NEXUS_MAX_MEDIA_BYTES")
             except ValueError as exc:
                 raise MediaStagingError("Artifact has an invalid Content-Length") from exc
-        self.media_dir.mkdir(parents=True, exist_ok=True)
+        storage_dir = self._storage_dir(workspace_id)
+        storage_dir.mkdir(parents=True, exist_ok=True)
         filename = hashlib.sha256(str(job_id).encode("utf-8")).hexdigest() + ".mp4"
-        destination = (self.media_dir / filename).resolve()
-        destination.relative_to(self.media_dir)
+        destination = (storage_dir / filename).resolve()
+        destination.relative_to(storage_dir.resolve())
         temporary = None
         total = 0
         prefix = b""
         digest = hashlib.sha256()
         try:
-            with tempfile.NamedTemporaryFile(mode="wb", dir=self.media_dir,
+            with tempfile.NamedTemporaryFile(mode="wb", dir=storage_dir,
                                              prefix=".nexus-", suffix=".part", delete=False) as out:
                 temporary = Path(out.name)
                 for chunk in chunks:
@@ -235,7 +252,7 @@ class MediaStager:
                 scan_status = "clean"
             os.replace(str(temporary), str(destination))
             return {
-                "media_path": filename,
+                "media_path": destination.relative_to(self.media_dir).as_posix(),
                 "size_bytes": total,
                 "sha256": digest.hexdigest(),
                 "content_type": "video/mp4",
