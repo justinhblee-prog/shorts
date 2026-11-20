@@ -225,3 +225,5 @@ The customer identity provider and account contract must be selected before impl
 - Both analytics status routes now reject omitted workspace selectors with HTTP 403, preventing legacy operator requests from falling back to global cross-workspace aggregates. The scoped API regression test verifies explicit workspace propagation.
 
 - YouTube Analytics detail lookup now also joins through the parent production job and enforces `workspace_id` at the store query, in addition to the API membership check. Regression coverage checks same-workspace visibility and cross-workspace denial.
+
+- Direct-call regression exposed FastAPI's `Header` sentinel as a truthy default; the guard now explicitly accepts only a non-empty string. The failing CI case was fixed in code commit `3a28f0a06d6341ef61a42bcfaa32da233c5dd101`; rerun is pending.
