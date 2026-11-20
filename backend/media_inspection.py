@@ -148,7 +148,7 @@ class MediaInspector:
         try:
             result = self.runner(
                 [
-                    self.ffprobe_path, "-nostdin", "-v", "error",
+                    self.ffprobe_path, "-v", "error",
                     "-protocol_whitelist", "file,pipe",
                     "-show_entries",
                     "format=format_name,duration,size:"
