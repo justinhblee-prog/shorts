@@ -22,7 +22,7 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
             mock.patch.object(app_module.development_job_store, "summary",
                               return_value={"total": 1, "by_status": {"running": 1}}),
         ):
-            result = app_module.list_development_jobs(x_review_token="monitor-token")
+            result = app_module.list_development_jobs(limit=100, offset=0, x_review_token="monitor-token")
         listed.assert_called_once_with(statuses=None, limit=100, offset=0)
         counted.assert_called_once_with(statuses=None)
         auth.assert_called_once_with("monitor-token", "operations.read")
