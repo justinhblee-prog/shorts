@@ -67,3 +67,10 @@ The backend already has a provider-agnostic script/voice/render production pipel
 - Real renderer output and browser-to-backend end-to-end test are not yet available.
 
 Until these gates are implemented and validated, the UI must continue to label its export as an EDL only and must not imply that an MP4 has been rendered.
+
+
+## Implemented first backend increment — EDL validation only
+
+`backend/timeline_edl.py` now provides a side-effect-free validator for the explicitly supported `nexus-edit-decision-list` v1 subset. It validates the schema/version/timebase, exact field allowlists, unique opaque identifiers, clip-count and one-hour duration limits, finite non-negative timeline/source bounds, source-vs-timeline duration consistency, and bounded non-empty title text. It rejects browser paths, remote URLs, unknown renderer directives and extra fields. Regression coverage is in `backend/tests/test_timeline_edl.py`.
+
+This is deliberately **not** an upload endpoint, asset registry, ownership check, render-job API or renderer. The current API uses a shared `NEXUS_REVIEW_TOKEN` asserted by the caller and does not provide a verified multi-user workspace principal. Consequently, asset ownership and tenant isolation cannot yet be enforced; adding upload/render routes now would create a false security boundary. The validator is ready to be composed into a future authenticated submission service once a real identity/workspace model exists. The current browser EDL export remains `rendered: false`.
