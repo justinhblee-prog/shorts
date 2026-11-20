@@ -298,7 +298,13 @@ class WorkspaceAssetStore:
                   "asset.scan_clean", json.dumps({"asset_id": asset_id, "engine": engine},
                                                  sort_keys=True), now))
             db.commit()
-        return self.get_asset(workspace_id, row["owner_principal_id"], asset_id)
+        with self.db() as db:
+            clean_row = db.execute("""
+                SELECT id,workspace_id,owner_principal_id,original_name,byte_size,
+                       sha256,scan_status,status,created_at,retention_until
+                FROM workspace_media_assets WHERE id=? AND workspace_id=?
+            """, (asset_id, workspace_id)).fetchone()
+        return dict(clean_row)
 
     def mark_scan_result(self, workspace_id, principal_id, asset_id, clean):
         """Record scanner outcome; only a workspace admin/owner may change quarantine state."""
