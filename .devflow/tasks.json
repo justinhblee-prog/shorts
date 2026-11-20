@@ -46,7 +46,9 @@
         "Bounded shell-free ffprobe validation helper with timeout, file/stream/duration limits and optional artifact-adoption metadata persistence",
         "Concrete shell-free FFmpeg EDL v1 video renderer for contiguous video clips with bounded dimensions, frame rate, threads and runtime",
         "Optional trusted audio-bed mix and mux stage connected to the EDL render pipeline",
-        "Worker factory wiring queue-owned workspace identity, snapshot creator membership, verified clean asset path resolution and lease-fenced artifact adoption"
+        "Worker factory wiring queue-owned workspace identity, snapshot creator membership, verified clean asset path resolution and lease-fenced artifact adoption",
+        "Black timeline-gap segments and configured-font title-card rendering in the FFmpeg EDL graph",
+        "Optional source-clip audio discovery through bounded ffprobe, source trim and timeline offset mixing with trusted audio beds"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
@@ -55,7 +57,8 @@
         "Expose authenticated upload, render submission and review APIs with production filesystem permissions and retention cleanup",
         "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
         "Implement title overlays, gaps, overlaps, transitions and source-clip audio semantics in the EDL renderer",
-        "Configure the concrete worker factory and pinned FFmpeg/ffprobe binaries in the target worker runtime"
+        "Configure the concrete worker factory and pinned FFmpeg/ffprobe binaries in the target worker runtime",
+        "Implement overlap transitions and explicit project-duration/trailing-gap semantics in the EDL schema and renderer"
       ]
     },
     {
