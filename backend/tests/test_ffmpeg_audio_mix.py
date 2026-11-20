@@ -33,6 +33,7 @@ class FFmpegAudioMixTests(unittest.TestCase):
         self.assertIn("amix=inputs=2", graph)
         self.assertIn("alimiter=limit=0.95", graph)
         self.assertIn("volume=0.2500", graph)
+        self.assertLess(graph.index("afade=t=in"), graph.index("adelay="))
         self.assertFalse(any(";" in arg and arg != graph for arg in argv))
 
     def test_rejects_untrusted_filter_fields_invalid_gain_and_unsafe_paths(self):
