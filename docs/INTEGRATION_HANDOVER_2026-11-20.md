@@ -143,3 +143,10 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - Added regression assertions to backend/tests/test_development_jobs.py. Initial CI caught a test ordering issue because a subsequent claim event is appended after dependency release; the assertion was corrected to inspect the preceding event.
 - Exact head 07b31e6e1180bcfb1e191d2a88b079b9953cacb4 passed full backend validation (895 tests), frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation Chromium smoke, and artifact upload in run 44653917688. Artifact: https://github.com/justinhblee-prog/shorts/actions/runs/44653917688/artifacts/14591668407.
 - No Windows/Ollama/provider/live-publishing validation is implied. PR #415 remains Draft/open/unmerged.
+
+## 15. DAG mutation/claim race regression — 2026-11-20
+
+- Added a synchronized race test for add_dependency() versus claim_ready() while the prerequisite is held by another worker.
+- The invariant is that a child cannot become leased and simultaneously gain an unresolved dependency: either dependency insertion commits first and the child remains blocked, or the worker claim commits first and dependency insertion is rejected by the active-job mutation guard.
+- Exact head 8a5364903526cc8ed56977bdec730206b514f778 passed full hosted CI in [run 44654439190](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190), including backend validation, frontend syntax, both Chromium smoke suites, and artifact upload [14592966229](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190/artifacts/14592966229).
+- This proves the tested SQLite transaction boundary under concurrent test threads; it does not establish Windows runner isolation or cross-process LocalAppData persistence. PR #415 remains Draft/open/unmerged.
