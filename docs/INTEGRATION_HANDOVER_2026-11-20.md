@@ -119,3 +119,13 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - The earlier artifact [14589176582](https://github.com/justinhblee-prog/shorts/actions/runs/44646542482) contains readable Korean desktop/mobile screenshots from the same integrated UI code; both images were retrieved and visually inspected. Use that artifact for visual review.
 - The workflow no longer depends on external APT mirrors. This removes a recurring CI stall at the cost of not guaranteeing Korean glyph rendering in every hosted runner screenshot. Browser assertions remain fully active and passed.
 - Hosted CI still does not verify Windows self-hosted execution, LocalAppData two-run persistence, live Ollama generation, OAuth/provider behavior, real media rendering, or live publishing.
+
+
+## 13. UI workstream board coverage expansion — 2026-11-20
+
+- The existing dashboard already rendered real persisted job dependencies and grouped jobs by scope; prior handover queue wording understated the implementation.
+- Added persisted browser fixtures for Automation, QA, Docs, mixed-scope Integration, and unclassified jobs.
+- Expanded recovery-browser assertions for all seven workstream groups and their visibility at a 320px viewport, while retaining the dependency and recovery/audit checks.
+- Code commits: `cb627da0ae91934ccebbcc3cb602054efd78b39c`, `03bb8a8cf23ecf5d98468696e5ca35b7cc19d029`.
+- CI runs 44652238309, 44652246574, 44652255170 are pending exact-head completion; no PASS is claimed yet.
+- Remaining UI refinement: visually communicate dependency edges/ancestors and explicitly represent prerequisite IDs not included in the current API page.
