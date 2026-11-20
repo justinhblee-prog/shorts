@@ -43,15 +43,19 @@
         "Lease-fenced checksum-verified render artifact adoption with workspace-scoped immutable records and atomic review_pending handoff",
         "Worker integration and regression coverage for stale generation rejection, snapshot binding, private staging boundaries, byte limits and artifact tamper detection",
         "Grace-period reconciliation of orphaned private artifact files after process crashes, serialized against active adoption",
-        "Bounded shell-free ffprobe validation helper with timeout, file/stream/duration limits and optional artifact-adoption metadata persistence"
+        "Bounded shell-free ffprobe validation helper with timeout, file/stream/duration limits and optional artifact-adoption metadata persistence",
+        "Concrete cancellable EDL v1 FFmpeg renderer for portrait video, timed title overlays and audio beds; source assets are re-authorized, staged and probed before render",
+        "Existing FFmpeg audio-mix builder connected to EDL audio clips with source in-points, timeline delays, gain, fades and limiter",
+        "Lease-loss cancellation, bounded process execution/output size, ffprobe output validation and staged MP4 cleanup on failed artifact adoption"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
-        "Integrate audio mixing and video rendering into a concrete EDL renderer that produces staged MP4 outputs",
         "Run pinned FFmpeg and ffprobe binaries in an isolated worker container with CPU, memory, disk, network and process-count quotas",
         "Add real-media integration tests and crash/lease-loss tests against the production runtime",
         "Expose authenticated upload, render submission and review APIs with production filesystem permissions and retention cleanup",
-        "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service"
+        "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
+        "Pin actual FFmpeg/ffprobe binaries and verify supported codecs/filter capabilities on target Windows and isolated Linux worker runtimes",
+        "Run representative real-media renders, process-tree crash/lease-loss tests and resource-limit enforcement in the production worker container"
       ]
     },
     {
