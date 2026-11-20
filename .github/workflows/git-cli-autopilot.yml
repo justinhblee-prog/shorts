@@ -6,6 +6,7 @@ on:
       - "scripts/git-cli-autopilot.ps1"
       - "scripts/git-cli-multiflow.ps1"
       - "scripts/git-cli-multiflow-parallel.ps1"
+      - "scripts/test-git-cli-multiflow-parallel.ps1"
       - "scripts/start-devflow-autopilot.ps1"
       - "scripts/devflow.py"
       - ".github/workflows/git-cli-autopilot.yml"
@@ -26,6 +27,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Parse PowerShell scripts
         shell: pwsh
         run: |
@@ -33,6 +37,7 @@ jobs:
             "scripts/git-cli-autopilot.ps1",
             "scripts/git-cli-multiflow.ps1",
             "scripts/git-cli-multiflow-parallel.ps1",
+            "scripts/test-git-cli-multiflow-parallel.ps1",
             "scripts/start-devflow-autopilot.ps1"
           )
           foreach ($file in $files) {
@@ -55,6 +60,11 @@ jobs:
           }
           Write-Host "Planner correctly excludes tasks represented by open PRs."
           Write-Host $plan
+      - name: Exercise two isolated workers concurrently
+        shell: pwsh
+        run: |
+          & "$PWD/scripts/test-git-cli-multiflow-parallel.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "Parallel worker integration harness failed." }
       - name: Launcher plan ignores configured agent JSON
         shell: pwsh
         run: |
