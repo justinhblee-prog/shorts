@@ -241,3 +241,9 @@
 - The accepted outcomes are mutually exclusive: dependency insertion wins and the child remains blocked/unclaimable, or claim wins and dependency insertion is rejected because the child is already leased. The test rejects any state where a child is leased while acquiring an unresolved prerequisite.
 - Exact head 8a5364903526cc8ed56977bdec730206b514f778 passed all CI steps in [PR run 44654439190](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190): backend validation, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation Chromium smoke, and artifact upload [14592966229](https://github.com/justinhblee-prog/shorts/actions/runs/44654439190/artifacts/14592966229).
 - FLOW-CORE concurrency guard: PASS within hosted SQLite test scope. No real multi-process Windows runner or LocalAppData persistence claim. PR #415 remains Draft/open/unmerged.
+
+## 31. UI job selection and detail-panel browser regression — 2026-11-20
+
+- Extended recovery Chromium smoke beyond recovery-only inspection: clicking a job selects its detail panel, pressing Enter on another job switches the selected state, and the event panel must replace its contents with the newly selected job's history.
+- Exact head 17ee4a515767b9e05b5c20b00eb240024365f807 passed all PR CI steps in [run 44654934989](https://github.com/justinhblee-prog/shorts/actions/runs/44654934989), including full backend validation, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency-navigation and keyboard-selection/detail-switching smoke, and artifact upload [14592123441](https://github.com/justinhblee-prog/shorts/actions/runs/44654934989/artifacts/14592123441).
+- FLOW-UI/FLOW-QA selection and detail-switching behavior: PASS on hosted Chromium fixtures. No real production account or live provider behavior is implied.
