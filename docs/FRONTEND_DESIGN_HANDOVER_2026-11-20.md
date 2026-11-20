@@ -255,3 +255,11 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 
 - Added `docs/WORKER_IDENTITY_CONTRACT.md` describing independent high-entropy worker credentials (hash-only config), immutable worker identity, explicit workspace grants, process-generation fencing, workspace-scoped claim/lease operations, revocation, audit, and acceptance tests.
 - This is a design contract only. The existing direct-SQLite worker and operator-authenticated legacy HTTP job endpoints have not been silently reclassified as independently authenticated workers. No worker secret, environment setting, runner, or production execution path was activated.
+
+
+### Exact-head validation — media lifecycle and tenant scope
+
+- Code/test head `f8170009c8f1b959039b21816273d468801a1b0e` passed [Backend tests + Chromium browser smoke, run 44686718970](https://github.com/justinhblee-prog/shorts/actions/runs/44686718970).
+- Compose integration passed [run 44686719048](https://github.com/justinhblee-prog/shorts/actions/runs/44686719048), including service readiness and isolated backup/restore.
+- Fresh browser capture: [artifact 14607235689](https://github.com/justinhblee-prog/shorts/actions/runs/44686718970/artifacts/14607235689).
+- Current branch head is documentation-only after the validated code/test head; PR #417 remains Draft/Open/Unmerged.
