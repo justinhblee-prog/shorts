@@ -19,34 +19,77 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare encrypted non-production backup environment
+      - name: Prepare isolated E2E credentials and encrypted backup environment
         run: |
           cp .env.example .env
           python - <<'PY'
           import base64
+          import json
           import secrets
+          from pathlib import Path
+
           key = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii")
-          with open(".env", "a", encoding="utf-8") as env_file:
-              env_file.write("NEXUS_BACKUP_ENCRYPTION_KEY=" + key + "\n")
-              env_file.write("NEXUS_BACKUP_ENCRYPTION_REQUIRED=true\n")
+          credentials = {
+              "smoke-reviewer": secrets.token_urlsafe(48),
+              "other-smoke-reviewer": secrets.token_urlsafe(48),
+          }
+          overrides = {
+              "NEXUS_BACKUP_ENCRYPTION_KEY": key,
+              "NEXUS_BACKUP_ENCRYPTION_REQUIRED": "true",
+              "NEXUS_REVIEW_CREDENTIALS_JSON": json.dumps(credentials, separators=(",", ":")),
+              "NEXUS_REVIEW_ROLE_MAP_JSON": json.dumps({
+                  "smoke-reviewer": ["admin"],
+                  "other-smoke-reviewer": ["admin"],
+              }, separators=(",", ":")),
+              "NEXUS_WORKSPACE_AUTH_MODE": "sqlite",
+              "NEXUS_MEDIA_SCAN_ENABLED": "true",
+              "NEXUS_RENDER_WIDTH": "320",
+              "NEXUS_RENDER_HEIGHT": "568",
+              "NEXUS_RENDER_FPS": "30",
+              "NEXUS_RENDER_TIMEOUT_SECONDS": "180",
+              "NEXUS_MAX_ASSET_BYTES": "20000000",
+              "NEXUS_MAX_RENDER_BYTES": "20000000",
+          }
+          path = Path(".env")
+          lines = [
+              line for line in path.read_text(encoding="utf-8").splitlines()
+              if not any(line.startswith(name + "=") for name in overrides)
+          ]
+          lines.extend(name + "=" + value for name, value in overrides.items())
+          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
       - name: Verify Compose configuration
         run: docker compose config --quiet
       - name: Build all service images
         run: docker compose build
       - name: Start API, worker, scheduler, metrics collector and backup
-        run: docker compose up -d
+        run: docker compose --profile media-scan up -d
+      - name: Wait for current ClamAV signatures and verify scanner database
+        run: |
+          set -eu
+          ready=0
+          for attempt in $(seq 1 600); do
+            if docker compose exec -T api sh -c 'for f in "$NEXUS_CLAMAV_DATABASE_DIR"/*.cvd "$NEXUS_CLAMAV_DATABASE_DIR"/*.cld; do [ -s "$f" ] && exit 0; done; exit 1' \
+              && docker compose exec -T api sh -c 'tmp="$(mktemp)"; trap '\''rm -f "$tmp"'\'' EXIT; printf "ClamAV readiness probe\\n" > "$tmp"; clamscan --database="$NEXUS_CLAMAV_DATABASE_DIR" --no-summary "$tmp" >/dev/null'; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = "1"
+          docker compose exec -T api sh -c 'clamscan --database="$NEXUS_CLAMAV_DATABASE_DIR" --version'
       - name: Verify service processes and API readiness
         run: |
           set -eu
           running="$(docker compose ps --status running --services)"
-          for service in api worker scheduler metrics-collector backup; do
+          for service in api worker timeline-render-worker scheduler metrics-collector backup; do
             printf '%s\n' "$running" | grep -qx "$service"
           done
           docker compose exec -T api python -c "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8502/api/ready',timeout=5); assert r.status == 200"
           docker compose exec -T worker python -c "import os; assert os.path.exists('/app/data')"
+          docker compose exec -T timeline-render-worker python -c "import os; assert os.path.exists('/usr/bin/ffmpeg') and os.path.exists('/usr/bin/ffprobe')"
           docker compose exec -T scheduler python -c "import os; assert os.path.exists('/app/data')"
-          for service in api worker scheduler metrics-collector; do
+          for service in api worker timeline-render-worker scheduler metrics-collector; do
             healthy=0
             for attempt in $(seq 1 90); do
               cid="$(docker compose ps -q "$service")"
@@ -56,6 +99,41 @@ jobs:
             done
             test "$healthy" = "1"
           done
+      - name: Verify render worker isolation and resource limits
+        run: |
+          set -eu
+          cid="$(docker compose ps -q timeline-render-worker)"
+          docker inspect "$cid" > /tmp/timeline-render-worker-inspect.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          container = json.loads(Path("/tmp/timeline-render-worker-inspect.json").read_text())[0]
+          host = container["HostConfig"]
+          observed = {
+              "memory": host.get("Memory"),
+              "cpu_quota": host.get("CpuQuota"),
+              "nano_cpus": host.get("NanoCpus"),
+              "pids_limit": host.get("PidsLimit"),
+              "readonly_rootfs": host.get("ReadonlyRootfs"),
+              "cap_drop": host.get("CapDrop"),
+              "security_opt": host.get("SecurityOpt"),
+          }
+          print("timeline_render_worker_security_limits=" + json.dumps(observed, sort_keys=True))
+          assert observed["memory"] == 4 * 1024**3, observed
+          assert (
+              observed["cpu_quota"] == 200000
+              or observed["nano_cpus"] == 2_000_000_000
+          ), observed
+          assert observed["pids_limit"] == 128, observed
+          assert observed["readonly_rootfs"] is True, observed
+          assert "ALL" in (observed["cap_drop"] or []), observed
+          assert any("no-new-privileges" in item for item in (observed["security_opt"] or [])), observed
+          PY
+      - name: Verify real FFmpeg EDL render, artifact adoption and review
+        run: docker compose exec -T timeline-render-worker python timeline_render_real_media_smoke.py
+      - name: Verify authenticated API upload, shared worker render, review and private preview
+        run: docker compose exec -T timeline-render-worker python timeline_render_api_e2e_smoke.py
       - name: Verify scheduled backup and isolated restore
         run: |
           set -eu

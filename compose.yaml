@@ -8,6 +8,14 @@ services:
     environment:
       NEXUS_DB_PATH: /app/data/nexus.sqlite3
       NEXUS_MEDIA_DIR: /app/data/media
+      NEXUS_MEDIA_SCAN_ENABLED: ${NEXUS_MEDIA_SCAN_ENABLED:-false}
+      NEXUS_PRIVATE_MEDIA_ROOT: /app/data/media/private-assets
+      NEXUS_RENDER_STAGING_ROOT: /app/data/media/render-staging
+      NEXUS_RENDER_ARTIFACT_ROOT: /app/data/media/render-artifacts
+      NEXUS_FFPROBE_PATH: /usr/bin/ffprobe
+      NEXUS_MAX_ASSET_BYTES: ${NEXUS_MAX_ASSET_BYTES:-500000000}
+      NEXUS_MAX_MEDIA_BYTES: ${NEXUS_MAX_ASSET_BYTES:-500000000}
+      NEXUS_MAX_RENDER_BYTES: ${NEXUS_MAX_RENDER_BYTES:-2000000000}
     ports:
       - "8502:8502"
     volumes:
@@ -54,6 +62,52 @@ services:
       start_period: 30s
     # Allow SIGTERM handler to persist the production pause before Docker SIGKILL.
     stop_grace_period: 45s
+    restart: unless-stopped
+
+  timeline-render-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python","timeline_render_worker_main.py"]
+    env_file: .env
+    environment:
+      NEXUS_DB_PATH: /app/data/nexus.sqlite3
+      NEXUS_PRIVATE_MEDIA_ROOT: /app/data/media/private-assets
+      NEXUS_RENDER_STAGING_ROOT: /app/data/media/render-staging
+      NEXUS_RENDER_ARTIFACT_ROOT: /app/data/media/render-artifacts
+      NEXUS_FFMPEG_PATH: /usr/bin/ffmpeg
+      NEXUS_FFPROBE_PATH: /usr/bin/ffprobe
+      NEXUS_RENDER_BINARY_MANIFEST: /usr/share/nexus-media-binaries.sha256
+      NEXUS_TITLE_FONT_PATH: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+      NEXUS_RENDER_MAX_DURATION_MS: ${NEXUS_RENDER_MAX_DURATION_MS:-3600000}
+      NEXUS_MAX_ASSET_BYTES: ${NEXUS_MAX_ASSET_BYTES:-500000000}
+      NEXUS_MAX_RENDER_BYTES: ${NEXUS_MAX_RENDER_BYTES:-2000000000}
+      NEXUS_RENDER_TIMEOUT_SECONDS: ${NEXUS_RENDER_TIMEOUT_SECONDS:-3600}
+      NEXUS_RENDER_WIDTH: ${NEXUS_RENDER_WIDTH:-1080}
+      NEXUS_RENDER_HEIGHT: ${NEXUS_RENDER_HEIGHT:-1920}
+      NEXUS_RENDER_FPS: ${NEXUS_RENDER_FPS:-30}
+    volumes:
+      - nexus_data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD","python","container_health.py","process","timeline_render_worker_main.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 4g
+    cpus: 2.0
+    pids_limit: 128
+    stop_grace_period: 90s
     restart: unless-stopped
 
   scheduler:

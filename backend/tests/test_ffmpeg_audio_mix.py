@@ -20,7 +20,7 @@ class FFmpegAudioMixTests(unittest.TestCase):
 
     def test_builds_shell_free_two_track_mix_with_fades_and_gain(self):
         argv = build_audio_mix_argv([
-            {"path": str(self.one), "start_ms": 0, "duration_ms": 10000,
+            {"path": str(self.one), "source_in_ms": 250, "start_ms": 0, "duration_ms": 10000,
              "gain": 1.0, "fade_in_ms": 100, "fade_out_ms": 500},
             {"path": str(self.two), "start_ms": 500, "duration_ms": 12000,
              "gain": 0.25},
@@ -32,6 +32,7 @@ class FFmpegAudioMixTests(unittest.TestCase):
         self.assertIn("amix=inputs=2", graph)
         self.assertIn("alimiter=limit=0.95", graph)
         self.assertIn("volume=0.2500", graph)
+        self.assertIn("atrim=start=0.250:duration=10.000", graph)
         self.assertFalse(any(";" in arg and arg != graph for arg in argv))
 
     def test_rejects_untrusted_filter_fields_invalid_gain_and_unsafe_paths(self):

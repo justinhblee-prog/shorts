@@ -7,6 +7,7 @@ ready. Filesystem isolation and quotas still belong to the worker/container laye
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import sqlite3
@@ -221,6 +222,89 @@ class WorkspaceAssetStore:
         except Exception:
             handle.close()
             raise
+
+    def resolve_clean_asset_path(self, workspace_id, principal_id, asset_id):
+        """Resolve a clean, workspace-authorized asset to its verified private path.
+
+        Intended for a trusted local render worker. Callers must still run the
+        renderer in an isolated process/container with read-only source access.
+        """
+        metadata = self.get_asset(workspace_id, principal_id, asset_id)
+        if metadata["scan_status"] != "clean":
+            raise AssetError("asset is quarantined until malware scanning succeeds")
+        path = self._workspace_dir(workspace_id) / (asset_id + ".blob")
+        if path.is_symlink() or not path.is_file():
+            raise AssetNotFound("asset binary is unavailable")
+        digest = hashlib.sha256()
+        size = 0
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                size += len(chunk)
+                digest.update(chunk)
+        if digest.hexdigest() != metadata["sha256"] or size != metadata["byte_size"]:
+            raise AssetError("asset integrity verification failed")
+        return path.resolve(strict=True)
+
+    def scan_pending_asset(self, workspace_id, asset_id, scanner):
+        """Run a trusted scanner and record only its explicit clean attestation.
+
+        This is an internal service operation, not an HTTP-facing trust decision.
+        Scanner errors leave the asset quarantined.
+        """
+        if not callable(getattr(scanner, "scan", None)):
+            raise TypeError("trusted scanner with scan(path) is required")
+        if not isinstance(asset_id, str) or not _ASSET_ID.fullmatch(asset_id):
+            raise ValueError("invalid asset ID")
+        path = self._workspace_dir(workspace_id) / (asset_id + ".blob")
+        if path.is_symlink() or not path.is_file():
+            raise AssetNotFound("pending asset binary is unavailable")
+        with self.db() as db:
+            row = db.execute("""
+                SELECT owner_principal_id,byte_size,sha256,scan_status
+                FROM workspace_media_assets
+                WHERE id=? AND workspace_id=? AND status='active'
+            """, (asset_id, workspace_id)).fetchone()
+        if row is None or row["scan_status"] != "pending":
+            raise AssetNotFound("pending asset not found in this workspace")
+        digest = hashlib.sha256()
+        size = 0
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                size += len(chunk)
+                digest.update(chunk)
+        if size != row["byte_size"] or digest.hexdigest() != row["sha256"]:
+            raise AssetError("asset integrity verification failed before malware scan")
+        attestation = scanner.scan(path)
+        if not isinstance(attestation, dict) or attestation.get("status") != "clean":
+            raise AssetError("trusted scanner did not attest that the asset is clean")
+        engine = attestation.get("engine")
+        if not isinstance(engine, str) or not engine or len(engine) > 64:
+            raise AssetError("trusted scanner identity is invalid")
+        now = _utcnow().isoformat()
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            cursor = db.execute("""
+                UPDATE workspace_media_assets SET scan_status='clean'
+                WHERE id=? AND workspace_id=? AND status='active' AND scan_status='pending'
+            """, (asset_id, workspace_id))
+            if cursor.rowcount != 1:
+                db.rollback()
+                raise AssetConflict("asset scan state changed before scanner result was recorded")
+            db.execute("""
+                INSERT INTO workspace_audit_events
+                (workspace_id,actor_principal_id,subject_principal_id,event_type,details,created_at)
+                VALUES(?,?,?,?,?,?)
+            """, (workspace_id, "system:" + engine, row["owner_principal_id"],
+                  "asset.scan_clean", json.dumps({"asset_id": asset_id, "engine": engine},
+                                                 sort_keys=True), now))
+            db.commit()
+        with self.db() as db:
+            clean_row = db.execute("""
+                SELECT id,workspace_id,owner_principal_id,original_name,byte_size,
+                       sha256,scan_status,status,created_at,retention_until
+                FROM workspace_media_assets WHERE id=? AND workspace_id=?
+            """, (asset_id, workspace_id)).fetchone()
+        return dict(clean_row)
 
     def mark_scan_result(self, workspace_id, principal_id, asset_id, clean):
         """Record scanner outcome; only a workspace admin/owner may change quarantine state."""

@@ -96,8 +96,9 @@
     const queued=Number(q.queued||0)+Number(q.failed_retriable||0);
     $("metricQueued").textContent=queued.toLocaleString();
     $("metricRunning").textContent="실행 중 "+Number(q.running||0).toLocaleString();
-    $("metricReview").textContent=(r.items||[]).length.toLocaleString();
-    $("reviewCount").textContent=(r.items||[]).length+" ITEMS";
+    const reviewTotal=(r.items||[]).length+(r.timeline_renders||[]).length;
+    $("metricReview").textContent=reviewTotal.toLocaleString();
+    $("reviewCount").textContent=reviewTotal+" ITEMS";
     const revenue=Number(f.revenue||0),cost=Number(f.costs||f.cost||0),net=Number(f.net_profit??(revenue-cost));
     $("metricRevenue").textContent=money(revenue);
     setConnection(true,"API 연결됨");
@@ -113,12 +114,14 @@
   async function loadReviews(){
     const data=await api("/api/review/pending?limit=100");
     const items=data.items||[];
+    const timelineItems=data.timeline_renders||[];
+    const totalReviewItems=items.length+timelineItems.length;
     const dashboardApproval=document.getElementById("cyberApprovalList");
     if(dashboardApproval){
       dashboardApproval.innerHTML=items.length?items.slice(0,4).map(item=>'<a class="cyber-approval-item" href="#review"><span class="cyber-approval-dot"></span><span><b>'+esc(item.brand)+' · '+esc(item.topic)+'</b><small>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status||"검수 대기")+'</small></span><span class="cyber-approval-arrow">↗</span></a>').join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
     }
-    $("reviewCount").textContent=items.length+" ITEMS";
-    $("metricReview").textContent=items.length;
+    $("reviewCount").textContent=totalReviewItems+" ITEMS";
+    $("metricReview").textContent=totalReviewItems;
     $("reviewList").innerHTML=items.length?items.map(item=>{
       const artifacts=item.artifacts||[];
       const video=artifacts.find(a=>a.artifact_type==="video");
@@ -198,7 +201,44 @@
         : '';
       return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+recoverySummary+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
+    if(timelineItems.length){
+      $("reviewList").querySelector(".empty-state")?.remove();
+      const timelineCards=timelineItems.map(item=>
+        '<article class="review-card timeline-render-review-card"><div>'
+        +'<h4>서버 렌더 결과 · '+esc(item.snapshot_id)+'</h4>'
+        +'<p>타임라인 렌더 · '+esc(item.status||"검수 대기")+' · '+esc(item.creator_principal_id)+'</p>'
+        +'<div class="review-meta">JOB '+esc(item.render_job_id)+' · '+esc(item.created_at||"")+'</div>'
+        +'<video class="timeline-render-preview" data-timeline-artifact="'+esc(item.artifact_id)+'" controls playsinline preload="metadata" aria-label="서버 렌더 영상 미리보기"></video>'
+        +'<p>'+esc((Number(item.duration_ms||0)/1000).toFixed(1))+'초 · '+esc(item.video_width)+'×'+esc(item.video_height)+' · '+esc(Number(item.byte_size||0).toLocaleString())+' bytes</p>'
+        +'<p class="review-meta">SHA-256 '+esc(String(item.artifact_sha256||"").slice(0,16))+'…</p>'
+        +'<div class="inline-message" id="timeline-review-'+esc(item.snapshot_id)+'"></div>'
+        +'</div><div class="review-actions">'
+        +'<button class="button button-primary" data-action="timeline-approve" data-id="'+esc(item.snapshot_id)+'">승인</button>'
+        +'<button class="button button-outline" data-action="timeline-revision" data-id="'+esc(item.snapshot_id)+'">수정 요청</button>'
+        +'<button class="button button-quiet" data-action="timeline-reject" data-id="'+esc(item.snapshot_id)+'">반려</button>'
+        +'</div></article>'
+      ).join("");
+      $("reviewList").insertAdjacentHTML("beforeend",timelineCards);
+      await hydrateTimelineReviewPreviews();
+    }
     filterReviewCards();
+  }
+  async function hydrateTimelineReviewPreviews(){
+    const videos=Array.from(document.querySelectorAll("video[data-timeline-artifact]"));
+    await Promise.all(videos.map(async video=>{
+      const artifactId=video.dataset.timelineArtifact;
+      try{
+        const session=await api("/api/timeline/artifacts/"+encodeURIComponent(artifactId)+"/preview-session",{method:"POST"});
+        video.src=session.preview_url;
+        video.hidden=false;
+        video.load();
+      }catch(error){
+        const fallback=document.createElement("p");
+        fallback.className="inline-message error";
+        fallback.textContent="미리보기 세션을 열지 못했습니다: "+error.message;
+        video.replaceWith(fallback);
+      }
+    }));
   }
   function filterReviewCards(){
     const query=$("reviewSearch").value.trim().toLocaleLowerCase();

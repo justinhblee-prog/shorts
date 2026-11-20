@@ -1,6 +1,7 @@
 FROM python:3.12-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg clamav clamav-freshclam \
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg clamav clamav-freshclam fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
+RUN python -c "import hashlib; from pathlib import Path; binaries=[Path('/usr/bin/ffmpeg'),Path('/usr/bin/ffprobe')]; Path('/usr/share/nexus-media-binaries.sha256').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+' '+str(p)+'\n' for p in binaries), encoding='ascii')"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY backend/requirements.txt ./requirements.txt

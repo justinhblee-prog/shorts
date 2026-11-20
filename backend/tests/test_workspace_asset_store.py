@@ -97,6 +97,54 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(AssetError, "integrity"):
             self.store.open_clean_asset("ws_studio", "alice", result["asset_id"])
 
+    def test_resolves_verified_clean_asset_path_for_authorized_render_worker(self):
+        payload = b"render-source"
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(payload), "source.mp4"
+        )
+        self.store.mark_scan_result("ws_studio", "alice", result["asset_id"], True)
+        path = self.store.resolve_clean_asset_path("ws_studio", "alice", result["asset_id"])
+        self.assertTrue(path.is_absolute())
+        self.assertEqual(path.read_bytes(), payload)
+        with self.assertRaises(WorkspaceDenied):
+            self.store.resolve_clean_asset_path("ws_studio", "mallory", result["asset_id"])
+
+    def test_trusted_scanner_attestation_promotes_pending_asset_and_audits(self):
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"scan-this"), "scan.mp4"
+        )
+        class CleanScanner:
+            def scan(self, path):
+                self.assertion = path.read_bytes()
+                return {"status": "clean", "engine": "clamav"}
+        scanner = CleanScanner()
+        metadata = self.store.scan_pending_asset(
+            "ws_studio", result["asset_id"], scanner
+        )
+        self.assertEqual(scanner.assertion, b"scan-this")
+        self.assertEqual(metadata["scan_status"], "clean")
+        events = self.workspaces.list_audit_events(
+            "ws_studio", "alice", limit=10
+        )
+        self.assertTrue(any(event["event_type"] == "asset.scan_clean"
+                            for event in events))
+
+    def test_scanner_failure_keeps_asset_quarantined(self):
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"scan-failure"), "pending.mp4"
+        )
+        class FailedScanner:
+            def scan(self, path):
+                raise RuntimeError("scanner unavailable")
+        with self.assertRaisesRegex(RuntimeError, "scanner unavailable"):
+            self.store.scan_pending_asset(
+                "ws_studio", result["asset_id"], FailedScanner()
+            )
+        metadata = self.store.get_asset(
+            "ws_studio", "alice", result["asset_id"]
+        )
+        self.assertEqual(metadata["scan_status"], "pending")
+
     def test_viewer_cannot_register_or_mark_scan_result(self):
         self.workspaces.add_member("ws_studio", "alice", "viewer", "viewer")
         with self.assertRaises(WorkspaceDenied):
