@@ -327,7 +327,9 @@ class RenderArtifactStore:
                        j.status AS status
                 FROM render_artifacts a
                 JOIN pipeline_jobs j ON j.id=a.job_id AND j.workspace_id=a.workspace_id
-                WHERE a.workspace_id=? AND j.status='review_pending'
+                LEFT JOIN timeline_render_reviews r
+                  ON r.snapshot_id=a.snapshot_id AND r.workspace_id=a.workspace_id
+                WHERE a.workspace_id=? AND j.status='review_pending' AND r.id IS NULL
                 ORDER BY a.created_at DESC,a.artifact_id DESC LIMIT ?
             """, (workspace_id, limit)).fetchall()
         return [dict(row) for row in rows]
