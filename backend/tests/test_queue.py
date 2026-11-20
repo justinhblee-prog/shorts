@@ -77,6 +77,23 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(claimed["id"],queued["id"])
   self.assertEqual(claimed["workspace_id"],"workspace-a")
 
+ def test_workspace_filtered_claim_never_claims_another_workspace(self):
+  a=self.q.enqueue("render",{"tenant":"a"},workspace_id="workspace-a")
+  b=self.q.enqueue("render",{"tenant":"b"},workspace_id="workspace-b")
+  claimed=self.q.claim("worker-a",workspace_id="workspace-a")
+  self.assertEqual(claimed["id"],a["id"])
+  self.assertEqual(claimed["workspace_id"],"workspace-a")
+  self.assertEqual(self.q.get(b["id"],workspace_id="workspace-b")["id"],b["id"])
+  with self.assertRaises(queue_store.JobNotFound):
+   self.q.get(b["id"],workspace_id="workspace-a")
+  with self.assertRaises(queue_store.JobNotFound):
+   self.q.events(b["id"],workspace_id="workspace-a")
+  self.assertEqual(self.q.claim("worker-a",workspace_id="workspace-a"),None)
+
+ def test_workspace_filtered_claim_rejects_invalid_workspace(self):
+  with self.assertRaises(ValueError):
+   self.q.claim("worker-a",workspace_id=" ")
+
  def test_idempotency_key_cannot_return_another_workspaces_job(self):
   first=self.q.enqueue("short_video_production",{"topic":"same"},
                        idempotency_key="tenant-shared-key",workspace_id="workspace-a")
