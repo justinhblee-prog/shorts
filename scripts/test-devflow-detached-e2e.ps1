@@ -29,6 +29,9 @@ try{
  & git -C $seed branch -M main
  & git -C $seed remote add origin $origin
  & git -C $seed push -u origin main|Out-Null
+ # A freshly initialized bare repository may still advertise an empty remote HEAD.
+ & git --git-dir=$origin symbolic-ref HEAD refs/heads/main
+ if($LASTEXITCODE -ne 0){throw "Could not set fixture bare-remote HEAD to main."}
  & git clone $origin $repo|Out-Null
  & git -C $repo config user.name "Detached E2E Test"
  & git -C $repo config user.email "detached-e2e@example.invalid"
