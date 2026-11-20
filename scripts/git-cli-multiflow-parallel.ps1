@@ -75,6 +75,9 @@ if($Worker){
   }
   & git -C $taskData.worktree add -A;if($LASTEXITCODE -ne 0){throw "git add failed."}
   & git -C $taskData.worktree diff --cached --check;if($LASTEXITCODE -ne 0){throw "git diff check failed."}
+  # Configure identity only inside this isolated worker worktree; never alter user-global Git config.
+  & git -C $taskData.worktree config user.name "github-actions[bot]";if($LASTEXITCODE -ne 0){throw "worktree Git author name configuration failed."}
+  & git -C $taskData.worktree config user.email "41898282+github-actions[bot]@users.noreply.github.com";if($LASTEXITCODE -ne 0){throw "worktree Git author email configuration failed."}
   & git -C $taskData.worktree commit -m "BUILD: $id - $($taskData.title)";if($LASTEXITCODE -ne 0){throw "commit failed."}
   & git -C $taskData.worktree push -u origin $taskData.branch;if($LASTEXITCODE -ne 0){throw "push failed."}
   & gh pr create --draft --base $taskData.base --head $taskData.branch --title "BUILD: $id - $($taskData.title)" --body "Task $id validated by isolated worker. Draft only; no merge, deployment, publishing, or dependency completion."
