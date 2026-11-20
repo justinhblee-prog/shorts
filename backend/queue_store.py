@@ -526,12 +526,13 @@ class JobQueue:
             c.commit()
             return self.decode(result)
 
-    def production_reconciliation_events(self, job_id):
+    def production_reconciliation_events(self, job_id, workspace_id=None):
         with self.db() as c:
             return [dict(row) for row in c.execute("""SELECT e.*,j.workspace_id FROM
                 production_reconciliation_events e JOIN pipeline_jobs j ON j.id=e.job_id
-                WHERE e.job_id=? ORDER BY e.id""",
-                (job_id,)).fetchall()]
+                WHERE e.job_id=? AND (? IS NULL OR j.workspace_id=?)
+                ORDER BY e.id""",
+                (job_id,workspace_id,workspace_id)).fetchall()]
 
     def recover(self):
         recovered=0; terminal=0
