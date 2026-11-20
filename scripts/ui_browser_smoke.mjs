@@ -173,6 +173,24 @@ async function waitForServer() {
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
     checkpoint("authenticated dashboard loaded");
+    const workspaceSelector = page.locator("#workspaceSelector");
+    assert.equal(await workspaceSelector.locator("option").count(), 2,
+      "authenticated workspace membership was not loaded");
+    const workspaceId = await workspaceSelector.locator("option").nth(1).getAttribute("value");
+    assert.ok(workspaceId, "workspace option must have a stable ID");
+    const scopedWorkspaceRequest = page.waitForRequest(request =>
+      request.url().includes("/api/queue/stats") &&
+      request.headers()["x-nexus-workspace-id"] === workspaceId
+    );
+    await workspaceSelector.selectOption(workspaceId);
+    await scopedWorkspaceRequest;
+    const legacyWorkspaceRequest = page.waitForRequest(request =>
+      request.url().includes("/api/queue/stats") &&
+      !request.headers()["x-nexus-workspace-id"]
+    );
+    await workspaceSelector.selectOption("");
+    await legacyWorkspaceRequest;
+    checkpoint("workspace selector and request-level workspace isolation verified");
     const authenticatedText = await page.locator("body").innerText();
     assert.equal([...authenticatedText].filter(character => character === "\uFFFD").length, 0);
     assert.equal(await page.locator("html").getAttribute("lang"), "ko");
