@@ -5,12 +5,20 @@ on:
       - "backend/**"
       - "frontend/**"
       - "scripts/**"
+      - ".github/workflows/nexus-development-job-worker.yml"
+      - "docs/**"
+      - "README.md"
+      - ".gitignore"
       - ".github/workflows/backend-tests.yml"
   pull_request:
     paths:
       - "backend/**"
       - "frontend/**"
       - "scripts/**"
+      - ".github/workflows/nexus-development-job-worker.yml"
+      - "docs/**"
+      - "README.md"
+      - ".gitignore"
       - ".github/workflows/backend-tests.yml"
 jobs:
   test:
