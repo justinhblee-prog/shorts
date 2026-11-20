@@ -2730,3 +2730,13 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### Next engineering priority
 
 Implement the secure FFmpeg/MP4 render worker rather than revisiting the already-connected workspace toolbar. Preserve the current timeline/EDL behavior while adding: owned source-asset registration and hash-verified staging; durable render-job state and lease/recovery semantics; an allowlisted FFmpeg invocation without shell interpolation or arbitrary paths/URLs; bounded CPU, memory, input size and runtime; audio mixing; ffprobe-based output validation; checksum-backed atomic artifact adoption; and a human-review gate before any publishable output. Add regression coverage for traversal/symlink inputs, malformed EDL, oversized media, timeout/cancellation and interrupted renders. Live provider and production publishing actions remain out of scope without explicit authorization.
+
+
+## BUILD — first secure FFmpeg renderer slice (2026-11-20)
+
+- Added `backend/timeline_renderer.py` as an isolated, bounded FFmpeg rendering primitive consuming only normalized EDL v1 and caller-resolved opaque asset IDs.
+- FFmpeg invocation uses an argument array with `shell=False`, `-nostdin`, file/pipe-only input protocols, bounded thread counts, execution timeout, POSIX CPU/address-space/file-size limits, and configurable asset/output byte caps.
+- Asset paths must be regular non-symlink files contained by the media root. Output is ffprobe-validated as 1080×1920 MP4, optionally checked for a registered audio track, SHA-256 fingerprinted, fsynced and atomically adopted with status `rendered_unreviewed`.
+- Regression tests cover successful command construction, path traversal, symlink and oversized assets, unknown asset IDs, malformed EDL, title rejection, registered audio mapping, timeout cleanup, non-zero FFmpeg exit, probe failure and wrong output dimensions.
+- **Scope boundary:** this is not yet wired to the HTTP API, durable render queue, or production worker. Workspace-owned source-asset registration and hash-verified upload, durable render-job lease/recovery, safe title rendering, cancellation fencing and end-to-end MP4 fixture validation remain required before any user-facing render control is enabled. The existing shared review-token model must not be bypassed; all asset resolution and job operations must be bound to the authenticated workspace.
+- Human review remains mandatory. No publish action is part of rendering.
