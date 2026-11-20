@@ -190,3 +190,16 @@ python scripts/devflow_parallel.py --max-parallel 3
 It selects dependency-ready tasks with non-overlapping declared scopes and launches one isolated supervisor/worktree per task. It refuses tasks whose dependencies are merely `review_pending`; prerequisites must be marked `completed` after merge. It does not split a single task across multiple agents, and it cannot parallelize overlapping or undeclared scopes. The manifest's `max_parallel_worktrees` value is the hard cap (maximum three in this version).
 
 Current manifest state has only BUILD-00352 runnable; BUILD-00353 and BUILD-00354 remain blocked by external credentials/authorization. Therefore the dispatcher currently launches one flow, not three. Additional independent tasks can run concurrently when they are explicitly added to the manifest with disjoint scopes and satisfied dependencies.
+
+
+### Windows one-command launcher
+
+After checking out the automation branch and configuring Codex CLI or another compatible agent command:
+
+```powershell
+git fetch origin feat/devflow-autopilot-runner-2026-11-20
+git switch --track origin/feat/devflow-autopilot-runner-2026-11-20
+.\scripts\start-devflow-autopilot.ps1 -Task BUILD-00352
+```
+
+If that local branch already exists, use `git switch feat/devflow-autopilot-runner-2026-11-20` instead of the `--track` command. The launcher verifies a clean checkout, GitHub CLI authentication and an available agent command before it starts. It supports `-Parallel -MaxParallel 3` for the scope-aware dispatcher. It does not install software, log in, create credentials or modify GitHub secrets.
