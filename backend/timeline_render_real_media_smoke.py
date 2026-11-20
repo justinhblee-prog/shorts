@@ -103,6 +103,10 @@ def main():
             width=320, height=568, fps=30,
             max_input_bytes=20_000_000, max_output_bytes=20_000_000,
             timeout_seconds=90,
+            font_path=os.getenv(
+                "NEXUS_TITLE_FONT_PATH",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            ),
         )
         generation = queue.register_worker("real-media-smoke-worker")["generation_token"]
         worker = TimelineRenderWorker(
@@ -111,7 +115,12 @@ def main():
             principal_resolver=resolve_snapshot_creator,
         )
         if not worker.run_once():
-            raise RuntimeError("integrated real-media render worker did not complete the queued EDL")
+            failed = queue.get(submitted["render_job_id"], workspace_id="ws_render_smoke")
+            raise RuntimeError(
+                "integrated real-media render worker did not complete the queued EDL: "
+                f"status={failed['status']} error_code={failed.get('error_code')} "
+                f"error_message={failed.get('error_message')}"
+            )
         job = queue.get(submitted["render_job_id"], workspace_id="ws_render_smoke")
         if job["status"] != "review_pending":
             raise RuntimeError(f"render did not hand off for review: {job['status']}")
