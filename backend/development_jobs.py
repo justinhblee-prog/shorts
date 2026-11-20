@@ -376,26 +376,54 @@ class DevelopmentJobStore:
                 )
                 self._event(connection, item["id"], "lease_expired", item["status"], next_status,
                             "system", {"reason": "worker lease expired"}, timestamp)
-            # Promote due retries before selecting the next ready job.
-            connection.execute(
-                """UPDATE development_jobs SET status='ready',retry_after=NULL,updated_at=?
-                   WHERE status='retry_wait' AND retry_after<=? AND attempts<max_attempts""",
-                (timestamp, timestamp),
-            )
-            connection.execute(
-                """UPDATE development_jobs SET status='quarantined',updated_at=?
-                   WHERE status='retry_wait' AND attempts>=max_attempts AND retry_after<=?""",
-                (timestamp, timestamp),
-            )
-            # Unblock jobs only when every prerequisite has completed.
-            connection.execute(
-                """UPDATE development_jobs SET status='ready',updated_at=?
-                   WHERE status='blocked' AND NOT EXISTS (
-                     SELECT 1 FROM development_job_dependencies d
-                     JOIN development_jobs parent ON parent.id=d.depends_on_id
-                     WHERE d.job_id=development_jobs.id AND parent.status<>'completed'
-                   )""", (timestamp,)
-            )
+            # Promote due retries individually so every durable state transition is audited.
+            due_retries = connection.execute(
+                """SELECT id,attempts,max_attempts FROM development_jobs
+                   WHERE status='retry_wait' AND retry_after<=? ORDER BY priority,created_at""",
+                (timestamp,),
+            ).fetchall()
+            for retry in due_retries:
+                next_status = (
+                    "quarantined"
+                    if retry["attempts"] >= retry["max_attempts"] else "ready"
+                )
+                cur = connection.execute(
+                    """UPDATE development_jobs SET status=?,retry_after=NULL,updated_at=?
+                       WHERE id=? AND status='retry_wait'""",
+                    (next_status, timestamp, retry["id"]),
+                )
+                if cur.rowcount:
+                    self._event(
+                        connection, retry["id"], "retry_due",
+                        "retry_wait", next_status, "system",
+                        {"attempts": retry["attempts"],
+                         "max_attempts": retry["max_attempts"]}, timestamp,
+                    )
+            # Unblock only jobs with at least one prerequisite, after every prerequisite completes.
+            unblocked = connection.execute(
+                """SELECT j.id FROM development_jobs j
+                   WHERE j.status='blocked'
+                     AND EXISTS (
+                       SELECT 1 FROM development_job_dependencies d
+                       WHERE d.job_id=j.id
+                     )
+                     AND NOT EXISTS (
+                       SELECT 1 FROM development_job_dependencies d
+                       JOIN development_jobs parent ON parent.id=d.depends_on_id
+                       WHERE d.job_id=j.id AND parent.status<>'completed'
+                     )"""
+            ).fetchall()
+            for item in unblocked:
+                cur = connection.execute(
+                    """UPDATE development_jobs SET status='ready',updated_at=?
+                       WHERE id=? AND status='blocked'""",
+                    (timestamp, item["id"]),
+                )
+                if cur.rowcount:
+                    self._event(
+                        connection, item["id"], "dependencies_satisfied",
+                        "blocked", "ready", "system", {}, timestamp,
+                    )
             candidates = connection.execute(
                 """SELECT * FROM development_jobs
                    WHERE status='ready' AND attempts<max_attempts
