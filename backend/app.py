@@ -1,3 +1,4 @@
+import asyncio
 import os
 import logging
 import secrets
@@ -830,7 +831,9 @@ async def upload_workspace_asset(
             raise HTTPException(422, str(exc))
 
     try:
-        scan = _scan_workspace_asset(workspace_id, operator_id, asset["asset_id"])
+        scan = await asyncio.to_thread(
+            _scan_workspace_asset, workspace_id, operator_id, asset["asset_id"]
+        )
     except WorkspaceDenied:
         raise HTTPException(403, "Workspace membership is required")
     except AssetNotFound:
