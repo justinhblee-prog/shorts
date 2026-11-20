@@ -264,6 +264,7 @@ class TrendProductionDraft(BaseModel):
     recommendation_run_id:str|None=Field(default=None,min_length=1,max_length=64)
 
 class WorkspaceCreateInput(BaseModel):
+    model_config = {"extra": "forbid"}
     name:str=Field(min_length=1,max_length=120)
 
 class WorkspaceMemberInput(BaseModel):
