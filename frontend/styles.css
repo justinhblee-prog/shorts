@@ -306,3 +306,8 @@ input:focus,select:focus,textarea:focus{border-color:#9b7bff;box-shadow:0 0 0 3p
 .development-job-dependency-missing{border-color:#9c7c3f;color:var(--amber)}
 
 @media(max-width:560px){.development-workstream-heading{align-items:flex-start;flex-direction:column}.development-job-dependencies{align-items:flex-start}}
+
+.development-job-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 2px 2px;flex-wrap:wrap}
+.development-job-pagination .panel-description{margin:0;font-size:11px}
+.development-job-dependency-missing{border:1px dashed var(--line);background:transparent;color:var(--muted);font:inherit;text-align:left;cursor:pointer}
+.development-job-dependency-missing:hover,.development-job-dependency-missing:focus-visible{border-color:var(--cyan);color:var(--cyan);outline:none}
