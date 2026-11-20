@@ -878,7 +878,7 @@ def get_timeline_render_status(
             "render_job_id":snapshot["render_job_id"],
             "payload_sha256":snapshot["payload_sha256"],
             "status":job["status"],"error_code":job.get("error_code"),
-            "error_message":job.get("error_message"),
+            "error_message":review_store.SAFE_ERROR_NOTICE if job.get("error_message") else None,
             "created_at":job.get("created_at"),"updated_at":job.get("updated_at"),
             "rendered":False,"review":review,
         }
