@@ -9,6 +9,7 @@ import os
 import signal
 import socket
 import threading
+from pathlib import Path
 
 from queue_store import JobQueue, LeaseConflict
 from render_asset_store import RenderAssetStore, RenderAssetError
@@ -71,6 +72,22 @@ def _fail_if_owned(job, code, message, retryable):
     return True
 
 
+def _discard_unadopted_output(result):
+    relative_path = result.get("media_path") if isinstance(result, dict) else None
+    media_root = getattr(asset_store, "media_root", None)
+    if not isinstance(relative_path, str) or media_root is None:
+        return
+    candidate = Path(media_root) / relative_path
+    if candidate.is_symlink():
+        return
+    try:
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(Path(media_root).resolve())
+        resolved.unlink(missing_ok=True)
+    except (OSError, ValueError):
+        return
+
+
 def run_once():
     global active_job_id, active_stop_event
     job = queue.claim(
@@ -91,6 +108,8 @@ def run_once():
     active_job_id = job["id"]
     active_stop_event = stop_render
     heartbeat.start()
+    render_result = None
+    output_adopted = False
     try:
         payload = job.get("payload") or {}
         workspace_id = job.get("workspace_id")
@@ -116,12 +135,14 @@ def run_once():
             edl, asset_paths, output_dir=output_dir,
             audio_asset_id=audio_asset_id, stop_event=stop_render,
         )
+        render_result = result
         if lost_lease.is_set() or stop_render.is_set():
             raise TimelineRenderCancelled("Render lease was lost before output adoption")
         output = output_store.adopt(
             job["id"], workspace_id, WORKER_ID, job["lease_token"],
             job["attempt"], result,
         )
+        output_adopted = True
         if lost_lease.is_set() or stop_render.is_set():
             raise TimelineRenderCancelled("Render lease was lost before review handoff")
         queue.finish(
@@ -141,18 +162,26 @@ def run_once():
         )
         print(f"render_review_pending job={job['id']} render={output['render_id']}")
     except TimelineRenderCancelled as exc:
+        if render_result is not None and not output_adopted:
+            _discard_unadopted_output(render_result)
         if not lost_lease.is_set():
             _fail_if_owned(job, "render_cancelled", str(exc), retryable=True)
         print(f"render_cancelled job={job['id']}")
     except (LeaseConflict, RenderOutputLeaseConflict):
+        if render_result is not None and not output_adopted:
+            _discard_unadopted_output(render_result)
         lost_lease.set()
         stop_render.set()
         print(f"render_lease_lost job={job['id']}")
     except (RenderAssetError, TimelineRenderError, EDLValidationError) as exc:
+        if render_result is not None and not output_adopted:
+            _discard_unadopted_output(render_result)
         if not lost_lease.is_set():
             _fail_if_owned(job, "render_validation_failed", str(exc), retryable=False)
         print(f"render_failed job={job['id']} code=render_validation_failed")
     except Exception as exc:
+        if render_result is not None and not output_adopted:
+            _discard_unadopted_output(render_result)
         if not lost_lease.is_set():
             _fail_if_owned(job, "render_worker_error", "Render worker failed unexpectedly", retryable=False)
         print(f"render_failed job={job['id']} error={type(exc).__name__}")
