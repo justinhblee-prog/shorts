@@ -84,14 +84,14 @@ class EDLFFmpegRendererTests(unittest.TestCase):
     def test_renderer_runs_video_and_audio_mix_then_returns_staged_mp4(self):
         renderer = EDLFFmpegRenderer(
             self.root / "staging", str(self.binary),
-            lambda workspace, asset: self.video,
+            lambda workspace, principal, asset: self.video,
             audio_tracks_resolver=lambda payload: [
                 {"path": str(self.audio), "duration_ms": 4000, "gain": 0.5}
             ],
         )
         with patch("ffmpeg_edl_renderer.subprocess.Popen", side_effect=FakeProcess) as popen:
             result = renderer(
-                {"workspace_id": "ws1", "edl": self.edl}, threading.Event()
+                {"workspace_id": "ws1", "creator_principal_id": "principal1", "edl": self.edl}, threading.Event()
             )
         self.assertTrue(Path(result["staged_path"]).is_file())
         self.assertEqual(result["duration_ms"], 4000)
