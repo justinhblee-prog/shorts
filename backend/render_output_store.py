@@ -107,7 +107,7 @@ class RenderOutputStore:
         finally:
             connection.close()
 
-    def _verified_file(self, relative_path, expected_size, expected_sha256):
+    def _verified_file(self, relative_path, expected_size, expected_sha256, workspace_id):
         if not isinstance(relative_path, str) or not relative_path or Path(relative_path).is_absolute():
             raise RenderOutputError("Render output path is invalid")
         candidate = self.media_root / relative_path
@@ -116,8 +116,12 @@ class RenderOutputStore:
         try:
             path = candidate.resolve(strict=True)
             path.relative_to(self.media_root)
+            namespace = hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
+            workspace_output_root = (self.media_root / namespace / "render-outputs").resolve(strict=True)
+            workspace_output_root.relative_to(self.media_root)
+            path.relative_to(workspace_output_root)
         except (OSError, ValueError) as exc:
-            raise RenderOutputError("Render output escaped media storage") from exc
+            raise RenderOutputError("Render output escaped its workspace media namespace") from exc
         digest = hashlib.sha256()
         size = 0
         with path.open("rb") as stream:
@@ -153,7 +157,7 @@ class RenderOutputStore:
         duration = result["duration_seconds"]
         if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not 0 < duration <= 180:
             raise RenderOutputError("Render result duration is invalid")
-        path = self._verified_file(result["media_path"], result["size_bytes"], result["sha256"])
+        path = self._verified_file(result["media_path"], result["size_bytes"], result["sha256"], workspace_id)
         relative_path = path.relative_to(self.media_root).as_posix()
         created_at = _now()
         with self.db() as connection:
@@ -254,7 +258,7 @@ class RenderOutputStore:
             """, (job_id, workspace_id)).fetchone()
         if row is None:
             raise RenderOutputNotFound("Render output not found")
-        path = self._verified_file(row["relative_path"], row["size_bytes"], row["sha256"])
+        path = self._verified_file(row["relative_path"], row["size_bytes"], row["sha256"], workspace_id)
         return {
             "job_id": row["job_id"],
             "render_id": row["render_id"],
