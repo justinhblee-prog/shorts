@@ -159,7 +159,7 @@ class ReviewStore:
         finally:
             c.close()
 
-    def list_pending(self, limit=50):
+    def list_pending(self, limit=50, workspace_id=None):
         limit = max(1, min(int(limit), 200))
         with self.db() as c:
             has_queue = c.execute(
@@ -169,8 +169,8 @@ class ReviewStore:
             queue_join = " LEFT JOIN pipeline_jobs j ON j.id=r.job_id" if has_queue else ""
             rows = c.execute(
                 "SELECT r.*" + payload_column + " FROM production_runs r" + queue_join +
-                " WHERE r.status='review_pending' ORDER BY r.updated_at ASC LIMIT ?",
-                (limit,)
+                " WHERE r.status='review_pending' AND r.workspace_id IS ? ORDER BY r.updated_at ASC LIMIT ?",
+                (workspace_id, limit)
             ).fetchall()
             return [self._with_job_context(self._with_artifacts(c, dict(row)))
                     for row in rows]
@@ -190,7 +190,7 @@ class ReviewStore:
         return run
 
 
-    def list_approved(self, limit=50):
+    def list_approved(self, limit=50, workspace_id=None):
         limit = max(1, min(int(limit), 200))
         with self.db() as c:
             has_queue = c.execute(
@@ -200,8 +200,8 @@ class ReviewStore:
             queue_join = " LEFT JOIN pipeline_jobs j ON j.id=r.job_id" if has_queue else ""
             rows = c.execute(
                 "SELECT r.*" + payload_column + " FROM production_runs r" + queue_join +
-                " WHERE r.status='approved' ORDER BY r.updated_at DESC LIMIT ?",
-                (limit,)
+                " WHERE r.status='approved' AND r.workspace_id IS ? ORDER BY r.updated_at DESC LIMIT ?",
+                (workspace_id, limit)
             ).fetchall()
             return [self._with_job_context(self._with_artifacts(c, dict(row)))
                     for row in rows]
