@@ -611,7 +611,7 @@ The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewa
 
 Current constraints: clips must be ordered and contiguous; the total timeline is capped at 180 seconds; aggregate registered input bytes are bounded; optional audio is used as the output narration/music track (source-clip audio mixing is not implemented); title clips are rejected.
 
-This is a tested low-level primitive, **not yet an end-to-end render worker**. It is intentionally not connected to the API or queue until workspace-owned asset registration, workspace-scoped durable render-job state, lease/recovery semantics and an authenticated submission contract are implemented. Title clips are rejected for now rather than passed through unsafe text/filter interpolation. No automatic approval or publishing occurs.
+The primitive is now connected to the workspace-owned asset registry and the dedicated lease-fenced `timeline_render` queue worker described below. Compose CI exercises a real one-second MP4 render through that worker and verifies the review-pending handoff. Title clips remain rejected rather than passed through unsafe text/filter interpolation; source-clip audio mixing and automatic publishing are not implemented.
 
 
 ### BUILD — workspace-scoped render asset registry
