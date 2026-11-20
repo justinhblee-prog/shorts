@@ -27,6 +27,7 @@ STAGING_ROOT = os.getenv("NEXUS_RENDER_STAGING_ROOT", "/app/data/render-staging"
 ARTIFACT_ROOT = os.getenv("NEXUS_RENDER_ARTIFACT_ROOT", "/app/data/render-artifacts")
 FFMPEG_PATH = os.getenv("NEXUS_FFMPEG_PATH", "/usr/bin/ffmpeg")
 FFPROBE_PATH = os.getenv("NEXUS_FFPROBE_PATH", "/usr/bin/ffprobe")
+FONT_PATH = os.getenv("NEXUS_TITLE_FONT_PATH", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
 
 
 def _integer_env(name, default, minimum, maximum):
@@ -89,6 +90,7 @@ def build_worker():
         max_input_bytes=MAX_INPUT_BYTES,
         max_output_bytes=MAX_OUTPUT_BYTES,
         timeout_seconds=TIMEOUT_SECONDS,
+        font_path=FONT_PATH,
     )
     stopping = threading.Event()
     worker = TimelineRenderWorker(
