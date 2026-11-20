@@ -297,4 +297,8 @@ input:focus,select:focus,textarea:focus{border-color:#9b7bff;box-shadow:0 0 0 3p
 .development-job-dependencies>small{color:var(--muted);font-size:10px;margin-right:3px}
 .development-job-dependency{display:inline-flex;max-width:100%;padding:4px 7px;border:1px solid #35516e;border-radius:7px;background:#0a1a2d;color:#c9d8ed;font-size:10px;overflow-wrap:anywhere}
 .development-job-dependency-none{border-style:dashed;color:var(--muted)}
+.development-job-dependency-link{cursor:pointer;text-align:left;font:inherit}
+.development-job-dependency-link:hover,.development-job-dependency-link:focus-visible{border-color:var(--cyan);color:var(--cyan);outline:2px solid #7ce6dc55;outline-offset:2px}
+.development-job-dependency-missing{border-color:#9c7c3f;color:var(--amber)}
+
 @media(max-width:560px){.development-workstream-heading{align-items:flex-start;flex-direction:column}.development-job-dependencies{align-items:flex-start}}
