@@ -130,7 +130,7 @@ class EDLFFmpegRendererTests(unittest.TestCase):
             lambda workspace, principal, asset: self.video,
             ffprobe_path=str(ffprobe),
         )
-        with patch("ffmpeg_edl_renderer.has_audio_stream", return_value=True), \
+        with patch("ffmpeg_edl_renderer.probe_media", return_value={"duration_ms": 5000, "audio_streams": 1}), \
              patch("ffmpeg_edl_renderer.subprocess.Popen", side_effect=FakeProcess) as popen:
             result = renderer(
                 {"workspace_id": "ws1", "creator_principal_id": "principal1",
@@ -176,6 +176,25 @@ class EDLFFmpegRendererTests(unittest.TestCase):
         self.assertIn("drawtext=", graph)
         self.assertIn("concat=n=2:v=1:a=0", graph)
         self.assertTrue(Path(result["staged_path"]).is_file())
+
+
+    def test_rejects_source_trim_beyond_ffprobe_duration_before_ffmpeg(self):
+        ffprobe = self.root / "ffprobe"
+        ffprobe.write_bytes(b"fixture ffprobe")
+        renderer = EDLFFmpegRenderer(
+            self.root / "staging", str(self.binary),
+            lambda workspace, principal, asset: self.video,
+            ffprobe_path=str(ffprobe),
+        )
+        with patch("ffmpeg_edl_renderer.probe_media",
+                   return_value={"duration_ms": 1000, "audio_streams": 0}), \
+             patch("ffmpeg_edl_renderer.subprocess.Popen") as popen:
+            with self.assertRaisesRegex(EDLRenderError, "exceeds probed media duration"):
+                renderer(
+                    {"workspace_id": "ws1", "creator_principal_id": "principal1",
+                     "edl": self.edl}, threading.Event()
+                )
+        popen.assert_not_called()
 
     def test_renderer_cancels_before_start_when_lease_is_lost(self):
         renderer = EDLFFmpegRenderer(
