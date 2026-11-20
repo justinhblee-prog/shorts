@@ -223,3 +223,5 @@ The customer identity provider and account contract must be selected before impl
 - Added YouTube and TikTok store tests for workspace A/B coverage separation and zero-result unknown workspace behavior. CI validation pending for this change set; do not mark validated until Backend and Compose runs pass.
 
 - Both analytics status routes now reject omitted workspace selectors with HTTP 403, preventing legacy operator requests from falling back to global cross-workspace aggregates. The scoped API regression test verifies explicit workspace propagation.
+
+- YouTube Analytics detail lookup now also joins through the parent production job and enforces `workspace_id` at the store query, in addition to the API membership check. Regression coverage checks same-workspace visibility and cross-workspace denial.
