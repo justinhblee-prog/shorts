@@ -187,7 +187,7 @@ def run_once():
         if output_adopted:
             _discard_stale_adoption(job)
         elif render_result is not None:
-            _discard_unadopted_output(render_result)
+            _discard_unadopted_output(render_result, job["workspace_id"])
         lost_lease.set()
         stop_render.set()
         print(f"render_lease_lost job={job['id']}")
@@ -195,7 +195,7 @@ def run_once():
         if output_adopted:
             _discard_stale_adoption(job)
         elif render_result is not None:
-            _discard_unadopted_output(render_result)
+            _discard_unadopted_output(render_result, job["workspace_id"])
         if not lost_lease.is_set():
             _fail_if_owned(job, "render_validation_failed", str(exc), retryable=False)
         print(f"render_failed job={job['id']} code=render_validation_failed")
@@ -203,7 +203,7 @@ def run_once():
         if output_adopted:
             _discard_stale_adoption(job)
         elif render_result is not None:
-            _discard_unadopted_output(render_result)
+            _discard_unadopted_output(render_result, job["workspace_id"])
         if not lost_lease.is_set():
             _fail_if_owned(job, "render_worker_error", "Render worker failed unexpectedly", retryable=False)
         print(f"render_failed job={job['id']} error={type(exc).__name__}")
