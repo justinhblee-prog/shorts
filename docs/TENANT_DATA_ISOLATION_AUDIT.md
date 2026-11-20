@@ -174,7 +174,7 @@ The customer identity provider and account contract must be selected before impl
 - Financial ledger rows now carry nullable workspace_id with a non-destructive migration. Job-linked entries must match the production parent's workspace; reports filter by workspace. Existing source-reference idempotency collisions across workspaces fail closed rather than returning another workspace's row.
 - Scored opportunities now carry nullable workspace ownership; create/list APIs resolve membership and isolate records. Existing opportunities remain in the legacy NULL namespace.
 - Shared brand profiles and externally collected public trend signals remain platform-level reference data, not customer-owned records. Their use to create production jobs propagates the selected workspace into the queue.
-- Regression coverage added for publication parent access, video analytics access, financial ledger ownership, opportunity migration/isolation, and analytics-history parent joins. Latest combined Backend/Chromium and Compose validation for the current head is pending; do not mark these latest changes validated until both workflows finish successfully.
+- Regression coverage added for publication parent access, video analytics access, financial ledger ownership, opportunity migration/isolation, and analytics-history parent joins. Latest code head e092f8013fa07b66c355bc7fee51a21cb4b1377f passed Backend/Chromium run 44694735250 and Compose run 44694735235.
 
 ## Opt-in worker credential and lease boundary — 2026-11-20
 
