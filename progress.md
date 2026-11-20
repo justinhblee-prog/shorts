@@ -367,3 +367,11 @@
 - FLOW-UI replaced duplicate sidebar anchors with distinct destinations for trend collection, editorial recommendations, production request, production pipeline, review queue, publishing overview, analytics history, and task queue.
 - Anchor scroll margins avoid hiding destination content beneath the sticky workspace toolbar. Browser smoke now checks all nine destinations, target existence, URL changes, and active navigation state after clicks.
 - Exact-head validation for `2e6ba4f2d7e1495c45c626f3c24c56fd07652fc0` is running. The pipeline destination is not a claim that a dedicated nonlinear video timeline editor is complete.
+
+
+## 46. Local video timeline editing and render boundary — 2026-11-20
+
+- FLOW-UI added a browser-local timeline editor in the dedicated UI PR #417: local video import/preview, title clips, clip ordering, in/out trim, selected-range playback, aggregate duration, title overlay preview, and EDL JSON download. Non-video uploads are rejected; local intake is capped at 512 MiB per file and 20 clips per editor session.
+- Browser smoke covers title overlay recovery after removing a neighboring clip, overlay/empty-state cleanup, clip ordering, trim values, duration, EDL download/content and non-video rejection. Exact code head `195391211f63b21651127d7cb56bef776d09a5c8` passed [run 44670853201](https://github.com/justinhblee-prog/shorts/actions/runs/44670853201): 736 backend tests and Chromium desktop/mobile smoke; Compose passed [run 44670853253](https://github.com/justinhblee-prog/shorts/actions/runs/44670853253).
+- This remains a local EDL editor, not an MP4 renderer. Secure integration requirements (authenticated asset upload, workspace ownership, scan/probe, validated versioned EDL, restricted FFmpeg worker, human review and retention) are specified in `docs/VIDEO_EDITOR_RENDER_INTEGRATION.md` on PR #417. Do not mark real rendering complete until these implementation and end-to-end gates pass.
+- FLOW-UI: PASS for local editor behavior within Chromium smoke scope. Real source-asset upload and MP4 render: NOT IMPLEMENTED. PR #417 remains Draft/open/unmerged.
