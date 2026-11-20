@@ -4,6 +4,62 @@ from app import app
 
 ROOT = Path(__file__).resolve().parents[2]
 class FrontendPortalTests(unittest.TestCase):
+
+    def test_dashboard_refresh_reports_partial_api_failures_without_hiding_successful_modules(self):
+        app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("Promise.allSettled(tasks.map", app_js)
+        self.assertIn("API 부분 연결", app_js)
+        self.assertIn("API 연결 실패", app_js)
+        self.assertIn("일부 데이터 갱신 실패", app_js)
+        self.assertIn('["검수 대기열",loadReviews]', app_js)
+        self.assertIn('["작업 큐",loadQueue]', app_js)
+
+
+    def test_browser_smoke_exercises_real_authenticated_api_endpoints(self):
+        script = (ROOT / "scripts" / "ui_browser_smoke.mjs").read_text(encoding="utf-8")
+        server = (ROOT / "scripts" / "ui_api_smoke_server.py").read_text(encoding="utf-8")
+        self.assertIn('"/api/brands"', script)
+        self.assertIn('"/api/queue/stats"', script)
+        self.assertIn('"/api/review/pending?limit=100"', script)
+        self.assertIn('"/api/publishing/analytics-status"', script)
+        self.assertIn('assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200])', script)
+        self.assertIn("liveApiChecks[1].body.total", script)
+        self.assertIn("app.youtube_analytics_store.save(", server)
+        self.assertIn("app.tiktok_metrics_store.save_snapshot(", server)
+
+
+    def test_browser_smoke_seeds_and_approves_a_real_review_queue_job(self):
+        server = (ROOT / "scripts" / "ui_api_smoke_server.py").read_text(encoding="utf-8")
+        browser = (ROOT / "scripts" / "ui_browser_smoke.mjs").read_text(encoding="utf-8")
+        self.assertIn("app.submit_production(app.queue, app.production_store, review_brief)", server)
+        self.assertIn('app.queue.finish(', server)
+        self.assertIn('app.production_store.stage(', server)
+        self.assertIn('button[data-action="approve"]', browser)
+        self.assertIn('"/api/review/" + encodeURIComponent(jobId) + "/history"', browser)
+        self.assertIn('approvalHistory.body.items.at(-1).decision, "approved"', browser)
+        self.assertIn("const approvalResponse = page.waitForResponse", browser)
+        self.assertIn('dialog.accept("실제 미디어와 정책 경고를 확인한 뒤 승인 메모를 기록했습니다.")', browser)
+
+
+    def test_review_queue_has_live_search_for_brand_topic_job_and_status(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        css = (frontend / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('id="reviewSearch"', html)
+        self.assertIn('id="reviewSearchStatus"', html)
+        self.assertIn('role="status" aria-live="polite"', html)
+        self.assertIn("function filterReviewCards()", app_js)
+        self.assertIn('card.textContent.toLocaleLowerCase().includes(query)', app_js)
+        self.assertIn('addEventListener("input",filterReviewCards)', app_js)
+        self.assertIn(".review-card[hidden]{display:none}", css)
+
+
+    def test_browser_analytics_gate_matches_query_string_requests(self):
+        script = (ROOT / "scripts" / "ui_browser_smoke.mjs").read_text(encoding="utf-8")
+        self.assertIn('url.pathname === "/api/publishing/analytics-history"', script)
+        self.assertIn('await waitForSignal(analyticsStarted, "analytics history request")', script)
+
     def test_dashboard_assets_are_packaged(self):
         frontend = ROOT / "frontend"
         self.assertTrue((frontend / "index.html").is_file())
@@ -159,6 +215,22 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn(".analytics-trend-chart", css)
         self.assertIn(".analytics-history-controls{display:grid;grid-template-columns:1fr 1fr 1.5fr auto auto", css)
         self.assertIn('id="analyticsHistory"', html)
+        self.assertIn('id="analyticsHistoryStatus" class="analytics-history-status" role="status" aria-live="polite"', html)
+        self.assertIn("조회 중 · 선택한 기간의 YouTube · TikTok 성과 이력을 불러옵니다.", app_js)
+        self.assertIn("CSV 준비 중 · 플랫폼별 전체 이력을 페이지 단위로 조회합니다.", app_js)
+        self.assertIn("CSV 다운로드 요청 완료", app_js)
+        self.assertIn("CSV 내보내기 실패 · ", app_js)
+
+
+    def test_dashboard_has_keyboard_skip_link_and_visible_focus_styles(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        css = (frontend / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('class="skip-link" href="#home"', html)
+        self.assertIn("본문으로 건너뛰기", html)
+        self.assertIn(".skip-link:focus", css)
+        self.assertIn(":focus-visible", css)
+
 
     def test_dashboard_has_single_page_workspaces(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
@@ -221,7 +293,7 @@ class FrontendPortalTests(unittest.TestCase):
         css = (ROOT / "frontend" / "cyber-magic.css").read_text(encoding="utf-8")
         self.assertIn('/assets/cyber-magic.css', html)
         self.assertLess(html.index('/assets/styles.css'), html.index('/assets/cyber-magic.css'))
-        self.assertIn('Workspace navigation', html)
+        self.assertIn('aria-label="작업공간 메뉴"', html)
         self.assertIn('AI Content Studio', html)
         self.assertIn('Approvals & Publishing', html)
         self.assertIn('position:fixed', css)
@@ -251,6 +323,26 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn('.cyber-approval-list', css)
 
 
+
+    def test_workspace_navigation_has_localized_tooltips_and_main_landmark_label(self):
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        for title in ("대시보드", "AI 콘텐츠 제작", "콘텐츠 기획 및 시장 분석", "검수 및 게시", "분석 및 운영"):
+            self.assertIn(f'title="{title}"', html)
+        self.assertIn('<main id="home" aria-label="주요 콘텐츠" tabindex="-1">', html)
+
+
+    def test_dashboard_connection_status_and_skip_target_are_accessible(self):
+        html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="connection" class="status-pill" role="status" aria-live="polite"', html)
+        self.assertIn('<main id="home" aria-label="주요 콘텐츠" tabindex="-1">', html)
+        self.assertIn('href="#home">본문으로 건너뛰기</a>', html)
+
+    def test_mobile_workspace_navigation_preserves_minimum_touch_targets(self):
+        css = (ROOT / "frontend" / "cyber-magic.css").read_text(encoding="utf-8")
+        self.assertIn("@media(max-width:700px)", css)
+        self.assertIn(".main-nav a{min-width:48px;min-height:48px}", css)
+        self.assertIn(".top-actions .button{min-width:44px;min-height:44px}", css)
+
     def test_cyber_magic_workspace_navigation_is_accessible_and_tracks_active_section(self):
         frontend = ROOT / "frontend"
         html = (frontend / "index.html").read_text(encoding="utf-8")
@@ -264,6 +356,19 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn(".main-nav a[aria-current=\"page\"]", css)
         self.assertIn(".main-nav a:nth-child(5):before", css)
         self.assertIn("prefers-reduced-motion:reduce", css)
+
+
+
+    def test_analytics_history_exposes_busy_state_and_snapshot_as_of_time(self):
+        frontend = ROOT / "frontend"
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        css = (frontend / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('id="analyticsHistory" class="analytics-history" aria-busy="false"', html)
+        self.assertIn('setAttribute("aria-busy","true")', app_js)
+        self.assertIn('setAttribute("aria-busy","false")', app_js)
+        self.assertIn('new Date(data.as_of).toLocaleString()', app_js)
+        self.assertIn('.analytics-history[aria-busy="true"]', css)
 
 
 class AnalyticsFreshnessPresentationTests(unittest.TestCase):

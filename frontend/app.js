@@ -162,6 +162,20 @@
         : '';
       return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+recoverySummary+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
+    filterReviewCards();
+  }
+  function filterReviewCards(){
+    const query=$("reviewSearch").value.trim().toLocaleLowerCase();
+    const cards=Array.from($("reviewList").querySelectorAll(".review-card"));
+    let visible=0;
+    cards.forEach(card=>{
+      const matches=!query||card.textContent.toLocaleLowerCase().includes(query);
+      card.hidden=!matches;
+      if(matches)visible+=1;
+    });
+    $("reviewSearchStatus").textContent=query
+      ? "검색 결과 "+visible+" / "+cards.length+"건"
+      : "전체 "+cards.length+"건 표시";
   }
 
   async function loadPublishingOverview(){
@@ -229,12 +243,17 @@
 
   async function loadAnalyticsHistory(){
     if($("exportAnalyticsHistory"))$("exportAnalyticsHistory").disabled=true;
+    $("analyticsHistory").setAttribute("aria-busy","true");
+    const status=$("analyticsHistoryStatus");
+    if(status)status.textContent="조회 중 · 선택한 기간의 YouTube · TikTok 성과 이력을 불러옵니다.";
     const days=Number($("analyticsHistoryDays").value||30);
     const platform=$("analyticsHistoryPlatform").value||"all";
     const videoId=$("analyticsHistoryVideoId").value.trim();
     const query=new URLSearchParams({days:String(days),platform,limit:"500"});
     if(videoId)query.set("video_id",videoId);
-    const data=await api("/api/publishing/analytics-history?"+query.toString());
+    let data;
+    try{data=await api("/api/publishing/analytics-history?"+query.toString());}
+    catch(error){$("analyticsHistory").setAttribute("aria-busy","false");if(status)status.textContent="조회 실패 · "+error.message;throw error;}
     const rows=[];
     for(const [key,items] of Object.entries(data.items||{})){
       for(const item of items)rows.push({...item,platform:key});
@@ -375,9 +394,12 @@
       exportButton.disabled=rows.length===0;
       exportButton.onclick=rows.length?async()=>{
         exportButton.disabled=true;
+        const status=$("analyticsHistoryStatus");
+        if(status)status.textContent="CSV 준비 중 · 플랫폼별 전체 이력을 페이지 단위로 조회합니다.";
         try{
           const exportRows=[];
           const pageSize=500;
+          let exportPageCount=0;
           let exportAsOf=null;
           for(const exportPlatform of (platform==="all"?["youtube","tiktok"]:[platform])){
             let cursor=null;
@@ -388,6 +410,8 @@
               const pageQuery=new URLSearchParams(pageParams);
               if(videoId)pageQuery.set("video_id",videoId);
               const page=await api("/api/publishing/analytics-history?"+pageQuery.toString());
+              exportPageCount+=1;
+              if(status)status.textContent="CSV 준비 중 · "+(exportPlatform==="youtube"?"YouTube":"TikTok")+" "+exportPageCount+"페이지 조회 완료 · "+exportRows.length+"개 행 확보";
               if(!exportAsOf){if(typeof page.as_of!=="string"||!Number.isFinite(Date.parse(page.as_of)))throw new Error("분석 내보내기 기준 시각을 확인할 수 없습니다.");exportAsOf=page.as_of;}
               const pageItems=page.items?.[exportPlatform]||[];
               exportRows.push(...pageItems.map(item=>({...item,platform:exportPlatform})));
@@ -437,14 +461,19 @@
           link.click();
           link.remove();
           setTimeout(()=>URL.revokeObjectURL(url),1000);
+          if(status)status.textContent="CSV 다운로드 요청 완료 · "+exportRows.length+"개 행 · "+exportPageCount+"페이지 조회";
         }catch(err){
+          if(status)status.textContent="CSV 내보내기 실패 · "+err.message;
           toast("CSV 내보내기 실패: "+err.message);
         }finally{
           exportButton.disabled=false;
         }
       }:null;
     }
+    $("analyticsHistory").setAttribute("aria-busy","false");
     $("analyticsHistory").dataset.loaded="true";
+    const asOfLabel=typeof data.as_of==="string"&&Number.isFinite(Date.parse(data.as_of))?new Date(data.as_of).toLocaleString():"기준 시각 정보 없음";
+    if(status)status.textContent=rows.length?"조회 완료 · "+rows.length+"개 스냅샷 · 기준 시각 "+asOfLabel+" · CSV는 전체 페이지를 순차 조회합니다.":"조회 완료 · 선택한 기간에 저장된 스냅샷이 없습니다. · 기준 시각 "+asOfLabel;
   }
 
   async function loadApproved(){
@@ -738,10 +767,33 @@
   }
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
-    try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadPublishingOverview(),loadPublishingAnalytics(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadIntegrityReport(),loadPreflight()]);
-      toast("운영 데이터 갱신 완료");
-    }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
+    const tasks=[
+      ["핵심 지표",loadMetrics],["재무",loadFinance],["검수 대기열",loadReviews],
+      ["승인 콘텐츠",loadApproved],["게시 현황",loadPublishingOverview],
+      ["성과 수집",loadPublishingAnalytics],["YouTube 연결",loadYouTubeConnection],
+      ["TikTok 연결",loadTikTokConnection],["TikTok 분석",loadTikTokMetrics],
+      ["트렌드",loadTrends],["추천",loadTrendRecommendations],
+      ["추천 평가",loadRecommendationEvaluation],["일정",loadSchedules],
+      ["운영 인사이트",loadInsights],["기회 분석",loadOpportunities],
+      ["작업 큐",loadQueue],["무결성 검사",loadIntegrityReport],
+      ["제작 사전검사",loadPreflight]
+    ];
+    const results=await Promise.allSettled(tasks.map(([,load])=>load()));
+    const failed=results.map((result,index)=>({result,label:tasks[index][0]}))
+      .filter(item=>item.result.status==="rejected");
+    const succeeded=results.length-failed.length;
+    if(failed.length===0){
+      setConnection(true,"API 연결됨");
+      toast("운영 데이터 전체 갱신 완료");
+      return;
+    }
+    if(succeeded===0){
+      setConnection(false,"API 연결 실패");
+    }else{
+      setConnection(true,"API 부분 연결 · "+failed.length+"개 기능 오류");
+    }
+    const details=failed.map(item=>item.label+": "+(item.result.reason?.message||"조회 실패")).join(" / ");
+    toast("일부 데이터 갱신 실패 ("+failed.length+"/"+tasks.length+") · "+details);
   }
   function requireToken(){if(!token){$("settingsDialog").showModal();return false;}return true;}
   function queueControlPayload(){
@@ -777,6 +829,7 @@
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
+  $("reviewSearch").addEventListener("input",filterReviewCards);
   $("youtubeConnect").addEventListener("click",async()=>{
     if(!requireToken())return;
     try{

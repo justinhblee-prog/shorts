@@ -52,6 +52,7 @@ This runs Python bytecode compilation, unittest discovery, and (when Node.js is 
 
 - [Build status](docs/BUILD_STATUS.md)
 - [Technical handover](docs/HANDOVER.md)
+- [Parallel UI/Core workstreams](docs/WORKSTREAMS.md)
 - [Operator runbook](docs/OPERATOR_RUNBOOK.md)
 - [Backend/API reference](backend/README.md)
 
@@ -133,3 +134,15 @@ BUILD-00131 adds an optional ClamAV gate before staged renderer media is publish
 
 
 Latest verified validation: GitHub Actions run [43798901325](https://github.com/justinhblee-prog/shorts/actions/runs/43798901325), **466 backend tests passed** and `scripts/validate.sh` succeeded for BUILD-00140.
+
+
+### UI workstream checkpoint
+
+- UI-00002 adds a main-content skip link and visible keyboard focus styles.
+- Source-level regression coverage is included. Live browser and assistive-technology checks are not yet claimed.
+
+
+### UI workstream checkpoint — UI-00003
+
+- Workspace navigation now has localized tooltips, a labeled main landmark, and refined touch target sizing at compact/mobile breakpoints.
+- Source regression tests cover the navigation labels and landmark. Real-device browser validation remains outstanding.

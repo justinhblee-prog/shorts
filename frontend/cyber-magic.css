@@ -68,3 +68,24 @@ input:focus,select:focus,textarea:focus{outline:1px solid #398bff;box-shadow:0 0
 .main-nav a:focus-visible{outline:2px solid #75e6ff;outline-offset:3px}
 html{scroll-behavior:smooth;scroll-padding-top:22px}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+
+/* Compact desktop and touch-friendly mobile workspace navigation. */
+@media (min-width:701px) and (max-width:1000px){
+  main{padding-left:18px;padding-right:18px}
+  .section-heading{gap:12px}
+}
+@media (max-width:700px){
+  .main-nav a{position:relative;min-width:42px;min-height:44px}
+  .main-nav a:focus-visible{outline-offset:2px}
+  .top-actions .button{min-height:42px}
+  .top-actions .status-pill{min-height:28px;display:flex;align-items:center;justify-content:center}
+}
+
+
+/* UI-00004: reliable touch targets and a clear keyboard destination on compact screens. */
+@media(max-width:700px){
+  .main-nav a{min-width:48px;min-height:48px}
+  .top-actions .button{min-width:44px;min-height:44px}
+}
+main:focus{outline:none}
