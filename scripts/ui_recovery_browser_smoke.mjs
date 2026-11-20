@@ -57,6 +57,8 @@ async function waitForServer() {
     assert.match(dependencyBoard, /선행 작업/);
     assert.match(dependencyBoard, /Browser smoke UI dependency/);
     assert.match(dependencyBoard, /완료/);
+    assert.equal(await page.locator(".development-job-item [data-focus-development-job]").count(), 0,
+      "prerequisite controls must not be nested inside the job action button");
     const prerequisiteLink = page.locator('[data-focus-development-job="browser-smoke-ui-parent"]');
     assert.equal(await prerequisiteLink.getAttribute("role"), "button",
       "prerequisite navigation must be keyboard accessible");
