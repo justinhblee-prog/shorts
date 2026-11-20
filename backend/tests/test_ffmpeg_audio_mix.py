@@ -59,7 +59,7 @@ class FFmpegAudioMixTests(unittest.TestCase):
         argv = build_audio_mix_argv([{
             "path": str(self.one), "start_ms": 750,
             "source_in_ms": 1250, "duration_ms": 4000,
-            "gain": 0.5,
+            "gain": 0.5, "fade_out_ms": 500,
         }], str(self.output), output_duration_ms=5000)
         graph = argv[argv.index("-filter_complex") + 1]
         self.assertIn("atrim=start=1.250:duration=4.000", graph)
