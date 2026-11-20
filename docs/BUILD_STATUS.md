@@ -2730,3 +2730,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### Next engineering priority
 
 Implement the secure FFmpeg/MP4 render worker rather than revisiting the already-connected workspace toolbar. Preserve the current timeline/EDL behavior while adding: owned source-asset registration and hash-verified staging; durable render-job state and lease/recovery semantics; an allowlisted FFmpeg invocation without shell interpolation or arbitrary paths/URLs; bounded CPU, memory, input size and runtime; audio mixing; ffprobe-based output validation; checksum-backed atomic artifact adoption; and a human-review gate before any publishable output. Add regression coverage for traversal/symlink inputs, malformed EDL, oversized media, timeout/cancellation and interrupted renders. Live provider and production publishing actions remain out of scope without explicit authorization.
+
+
+## BUILD-00352 — restricted FFmpeg argv planner (initial video-only subset)
+
+- Added `backend/timeline_render_plan.py`, a side-effect-free planner that validates EDL v1, requires exact server-resolved asset-ID mappings, rejects relative paths and symlink components, confines a new `.mp4` output to an existing worker-owned directory, and returns an FFmpeg argv array without shell execution.
+- Initial render subset is deliberately limited to ordered video trims/concat, 1080x1920/30fps H.264 output, and silent output. Title clips fail closed; audio mixing and arbitrary effects are not accepted.
+- Added `backend/tests/test_timeline_render_plan.py` for command construction, asset-map completeness, title rejection, relative/symlink input rejection, output traversal, pre-existing output and filename validation.
+- This is not a worker, API, real FFmpeg execution, or a claim of rendered output. Authenticated asset ownership, durable render jobs/leases, CPU/memory/time/output limits, cancellation, ffprobe validation, checksum-backed atomic adoption, review handoff and real-media integration remain release gates. The UI must continue to state EDL only / rendered false until those are complete.

@@ -86,3 +86,11 @@ A permission-gated `POST /api/timeline/edl/validate` endpoint now exposes this v
 ## Durable workspace registry increment
 
 The new `backend/workspace_store.py` adds SQLite-backed workspaces, unique principal memberships, role-gated member administration, last-owner protection, and append-only membership audit events. Regression coverage is in `backend/tests/test_workspace_store.py`. This registry is not yet connected to FastAPI authentication: existing review credentials do not establish a general end-user identity. The configuration-based membership check remains the active interim boundary until a trusted principal source and reviewed migration are implemented. No asset upload or render API is enabled.
+
+## Implemented renderer planning increment — video-only FFmpeg argv
+
+`backend/timeline_render_plan.py` now composes the existing EDL v1 validator with a deterministic FFmpeg argument-array builder for the first video-only subset. It resolves only the exact opaque asset IDs supplied by the trusted server-side asset registry, requires absolute regular non-symlink source files, confines a new MP4 output to an existing worker-owned output directory, and emits local-file-only inputs, trim/concat filters, normalized 1080x1920/30fps H.264 output, and no audio. It never invokes a shell or executes FFmpeg.
+
+Regression coverage is in `backend/tests/test_timeline_render_plan.py`. It covers ordered trims/concat, missing and unrelated asset mappings, title-clip fail-closed behavior, relative and symlink source paths, output path escape, existing output, and unsafe output names.
+
+This is a command planner, **not** a render worker or API. Title overlays, audio mixing, durable asset ownership/registry, job persistence and lease fencing, resource limits, timeout/process-tree cancellation, output ffprobe validation, checksum-backed atomic adoption, review handoff, and real FFmpeg integration remain unimplemented. The browser continues to export EDL only (`rendered: false`); do not advertise MP4 rendering until the complete worker path and real-media acceptance tests pass.
