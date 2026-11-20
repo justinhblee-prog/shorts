@@ -63,14 +63,20 @@ class EDLFFmpegRendererTests(unittest.TestCase):
 
     def test_rejects_titles_gaps_overlaps_and_unresolved_assets(self):
         title = dict(self.edl)
-        title["clips"] = [dict(self.edl["clips"][0], type="title", text="hello")]
+        title["clips"] = [{"id": "title1", "type": "title", "start_ms": 0, "end_ms": 2000, "text": "hello"}]
         with self.assertRaises(EDLRenderError):
             build_video_argv(title, {}, self.root / "out.mp4", ffmpeg_path=str(self.binary))
         gap = dict(self.edl)
-        gap["clips"] = [dict(self.edl["clips"][0], end_ms=1000)]
+        gap["clips"] = [self.edl["clips"][0], dict(self.edl["clips"][1], start_ms=3000, end_ms=5000)]
         with self.assertRaises(EDLRenderError):
-            build_video_argv(gap, {"asset1": self.video}, self.root / "out.mp4",
-                             ffmpeg_path=str(self.binary))
+            build_video_argv(gap, {"asset1": self.video, "asset2": self.video},
+                             self.root / "out.mp4", ffmpeg_path=str(self.binary))
+        overlap = dict(self.edl)
+        overlap["clips"] = [self.edl["clips"][0],
+            dict(self.edl["clips"][1], start_ms=1000, end_ms=3000)]
+        with self.assertRaises(EDLRenderError):
+            build_video_argv(overlap, {"asset1": self.video, "asset2": self.video},
+                             self.root / "out.mp4", ffmpeg_path=str(self.binary))
         with self.assertRaises(EDLRenderError):
             build_video_argv(self.edl, {"asset1": self.video}, self.root / "out.mp4",
                              ffmpeg_path=str(self.binary))
