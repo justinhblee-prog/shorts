@@ -1,0 +1,303 @@
+"""Lease-cancellable, argv-only EDL v1 renderer for private local media assets.
+
+The renderer supports sequential video clips and optional bounded audio tracks.
+Title overlays and transitions are rejected until their visual semantics and
+font policy are specified. All source media must be resolved by a trusted
+workspace asset callback; arbitrary paths and URLs never come from the EDL.
+"""
+from __future__ import annotations
+
+import hashlib
+import os
+import shutil
+import signal
+import subprocess
+import tempfile
+import time
+import uuid
+from pathlib import Path
+
+from ffmpeg_audio_mix import build_audio_mix_argv
+from ffprobe_validate import probe_media
+from timeline_edl import validate_edl
+
+
+class TimelineRenderError(RuntimeError):
+    """The EDL could not be rendered safely."""
+
+
+class RenderCancelled(TimelineRenderError):
+    """The worker lease was lost or the render was cancelled."""
+
+
+def run_bounded_process(argv, *, timeout_seconds, stop_event=None):
+    """Run a fixed argv without a shell, bounded by time and lease cancellation."""
+    if not isinstance(argv, list) or not argv or not all(isinstance(x, str) for x in argv):
+        raise TimelineRenderError("process argv must be a non-empty string list")
+    if any("\x00" in item for item in argv):
+        raise TimelineRenderError("process argv contains a null byte")
+    if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or not 1 <= timeout_seconds <= 3600:
+        raise TimelineRenderError("process timeout must be between 1 and 3600 seconds")
+
+    flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
+    with tempfile.TemporaryFile() as stderr_file:
+        try:
+            process = subprocess.Popen(
+                argv, shell=False, stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=stderr_file,
+                creationflags=flags, start_new_session=(os.name != "nt"),
+            )
+        except OSError as exc:
+            raise TimelineRenderError("media process could not be started") from exc
+
+        started = time.monotonic()
+        cancelled = False
+        timed_out = False
+        while process.poll() is None:
+            if stop_event is not None and stop_event.is_set():
+                cancelled = True
+                break
+            if time.monotonic() - started > float(timeout_seconds):
+                timed_out = True
+                break
+            time.sleep(0.05)
+
+        if cancelled or timed_out:
+            try:
+                if os.name == "nt":
+                    process.kill()
+                else:
+                    os.killpg(process.pid, signal.SIGTERM)
+                process.wait(timeout=2)
+            except (OSError, subprocess.TimeoutExpired):
+                try:
+                    if os.name == "nt":
+                        process.kill()
+                    else:
+                        os.killpg(process.pid, signal.SIGKILL)
+                except OSError:
+                    pass
+                process.wait()
+        return_code = process.wait()
+        stderr_file.seek(0, os.SEEK_END)
+        length = stderr_file.tell()
+        stderr_file.seek(max(0, length - 4096))
+        detail = stderr_file.read(4096).decode("utf-8", errors="replace")
+        if cancelled:
+            raise RenderCancelled("render process stopped after worker lease loss")
+        if timed_out:
+            raise TimelineRenderError("media process exceeded its execution timeout")
+        if return_code != 0:
+            raise TimelineRenderError(("media process failed: " + detail)[-4200:])
+        return {"returncode": return_code}
+
+
+def workspace_asset_resolver(asset_store):
+    """Build a resolver that verifies clean asset bytes and returns path + digest."""
+    def resolve(workspace_id, principal_id, asset_id):
+        metadata = asset_store.get_asset(workspace_id, principal_id, asset_id)
+        if metadata["scan_status"] != "clean":
+            raise TimelineRenderError("asset is quarantined or rejected")
+        with asset_store.open_clean_asset(workspace_id, principal_id, asset_id) as handle:
+            return {"path": handle.name, "sha256": metadata["sha256"]}
+    return resolve
+
+
+class TimelineFFmpegRenderer:
+    def __init__(self, staging_root, asset_resolver, ffmpeg_path, ffprobe_path,
+                 *, width=1080, height=1920, fps=30, max_output_bytes=2_000_000_000,
+                 timeout_seconds=900, process_runner=None):
+        self.staging_root = Path(staging_root).resolve()
+        self.staging_root.mkdir(parents=True, exist_ok=True)
+        self.asset_resolver = asset_resolver
+        self.ffmpeg_path = self._binary(ffmpeg_path, "FFmpeg")
+        self.ffprobe_path = self._binary(ffprobe_path, "ffprobe")
+        if not callable(asset_resolver):
+            raise TypeError("asset_resolver callback is required")
+        for value, name in ((width, "width"), (height, "height")):
+            if isinstance(value, bool) or not isinstance(value, int) or not 16 <= value <= 8192 or value % 2:
+                raise ValueError(f"{name} must be an even integer from 16 to 8192")
+        if isinstance(fps, bool) or not isinstance(fps, int) or not 1 <= fps <= 60:
+            raise ValueError("fps must be an integer from 1 to 60")
+        if isinstance(max_output_bytes, bool) or not isinstance(max_output_bytes, int) or max_output_bytes < 1:
+            raise ValueError("max_output_bytes must be a positive integer")
+        if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or not 1 <= timeout_seconds <= 3600:
+            raise ValueError("timeout_seconds must be between 1 and 3600")
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.max_output_bytes = max_output_bytes
+        self.timeout_seconds = float(timeout_seconds)
+        self.process_runner = process_runner or run_bounded_process
+
+    @staticmethod
+    def _binary(value, label):
+        path = Path(value)
+        if not path.is_absolute() or path.is_symlink() or not path.is_file():
+            raise ValueError(f"{label} binary must be an absolute regular non-symlink file")
+        return str(path.resolve(strict=True))
+
+    @staticmethod
+    def _seconds(milliseconds):
+        return f"{float(milliseconds) / 1000:.3f}"
+
+    def _stage_asset(self, workspace_id, principal_id, asset_id, work_dir, index):
+        resolved = self.asset_resolver(workspace_id, principal_id, asset_id)
+        if isinstance(resolved, dict):
+            source = Path(resolved.get("path", ""))
+            expected = resolved.get("sha256")
+        else:
+            source = Path(resolved)
+            expected = None
+        if not source.is_absolute() or source.is_symlink() or not source.is_file():
+            raise TimelineRenderError("asset resolver returned an unsafe local file")
+        source = source.resolve(strict=True)
+        staged = work_dir / f"input_{index:02d}.blob"
+        digest = hashlib.sha256()
+        size = 0
+        with source.open("rb") as src, staged.open("xb") as dst:
+            while True:
+                chunk = src.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > self.max_output_bytes:
+                    raise TimelineRenderError("source asset exceeds configured byte limit")
+                digest.update(chunk)
+                dst.write(chunk)
+            dst.flush()
+            os.fsync(dst.fileno())
+        if size < 1 or (expected is not None and digest.hexdigest() != expected):
+            staged.unlink(missing_ok=True)
+            raise TimelineRenderError("source asset checksum does not match trusted metadata")
+        return staged
+
+    def _run(self, argv, stop_event):
+        result = self.process_runner(
+            argv, timeout_seconds=self.timeout_seconds, stop_event=stop_event
+        )
+        if result is False:
+            raise TimelineRenderError("media process runner reported failure")
+
+    def __call__(self, payload, *, stop_event, workspace_id, principal_id=None):
+        if not isinstance(payload, dict) or not isinstance(payload.get("edl"), dict):
+            raise TimelineRenderError("render job payload is missing its immutable EDL")
+        if not isinstance(workspace_id, str) or not workspace_id:
+            raise TimelineRenderError("workspace identity is required")
+        principal_id = principal_id or payload.get("creator_principal_id")
+        if not isinstance(principal_id, str) or not principal_id:
+            raise TimelineRenderError("asset owner principal is required")
+
+        edl = validate_edl(payload["edl"])
+        clips = sorted(edl["clips"], key=lambda item: (item["start_ms"], item["id"]))
+        if any(clip["type"] != "video" for clip in clips):
+            raise TimelineRenderError("title clips are not yet supported by the safe renderer")
+        cursor = 0.0
+        for clip in clips:
+            if abs(float(clip["start_ms"]) - cursor) > 1.0:
+                raise TimelineRenderError("video clips must be sequential without gaps or overlaps")
+            cursor = float(clip["end_ms"])
+        duration_ms = int(round(cursor))
+        if duration_ms < 1 or duration_ms > 3_600_000:
+            raise TimelineRenderError("timeline duration is outside configured limits")
+
+        job_dir = Path(tempfile.mkdtemp(prefix=".render-", dir=str(self.staging_root)))
+        final_path = self.staging_root / ("render_" + uuid.uuid4().hex + ".mp4")
+        video_path = job_dir / "video_only.mp4"
+        audio_path = job_dir / "audio_mix.m4a"
+        keep_final = False
+        try:
+            staged_video = []
+            argv = [self.ffmpeg_path, "-nostdin", "-hide_banner", "-loglevel", "error", "-y"]
+            for index, clip in enumerate(clips):
+                if stop_event is not None and stop_event.is_set():
+                    raise RenderCancelled("render cancelled before video encoding")
+                staged = self._stage_asset(
+                    workspace_id, principal_id, clip["asset_id"], job_dir, index
+                )
+                staged_video.append(staged)
+                argv.extend(["-i", str(staged)])
+
+            filters = []
+            labels = []
+            for index, clip in enumerate(clips):
+                label = f"v{index}"
+                filters.append(
+                    f"[{index}:v:0]trim=start={self._seconds(clip['source_in_ms'])}:"
+                    f"end={self._seconds(clip['source_out_ms'])},"
+                    "setpts=PTS-STARTPTS,"
+                    f"scale={self.width}:{self.height}:force_original_aspect_ratio=decrease,"
+                    f"pad={self.width}:{self.height}:(ow-iw)/2:(oh-ih)/2,"
+                    f"setsar=1,fps={self.fps},format=yuv420p[{label}]"
+                )
+                labels.append(f"[{label}]")
+            filters.append(
+                "".join(labels) + f"concat=n={len(labels)}:v=1:a=0[vout]"
+            )
+            argv.extend([
+                "-filter_complex", ";".join(filters), "-map", "[vout]", "-an",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                "-r", str(self.fps), "-pix_fmt", "yuv420p",
+                "-t", self._seconds(duration_ms), "-movflags", "+faststart",
+                str(video_path),
+            ])
+            self._run(argv, stop_event)
+
+            audio_tracks = edl["audio_tracks"]
+            if audio_tracks:
+                prepared_audio = []
+                for index, track in enumerate(audio_tracks, start=len(staged_video)):
+                    if track["start_ms"] + track["source_out_ms"] - track["source_in_ms"] > duration_ms:
+                        raise TimelineRenderError("audio track extends beyond the video timeline")
+                    staged = self._stage_asset(
+                        workspace_id, principal_id, track["asset_id"], job_dir, index
+                    )
+                    prepared_audio.append({
+                        "path": str(staged), "start_ms": int(track["start_ms"]),
+                        "source_in_ms": int(track["source_in_ms"]),
+                        "duration_ms": int(track["source_out_ms"] - track["source_in_ms"]),
+                        "gain": track["gain"], "fade_in_ms": int(track["fade_in_ms"]),
+                        "fade_out_ms": int(track["fade_out_ms"]),
+                    })
+                audio_argv = build_audio_mix_argv(
+                    prepared_audio, str(audio_path), ffmpeg_path=self.ffmpeg_path,
+                    output_duration_ms=duration_ms,
+                )
+                self._run(audio_argv, stop_event)
+                mux_argv = [
+                    self.ffmpeg_path, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+                    "-i", str(video_path), "-i", str(audio_path),
+                    "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "copy",
+                    "-t", self._seconds(duration_ms), "-movflags", "+faststart",
+                    str(final_path),
+                ]
+                self._run(mux_argv, stop_event)
+            else:
+                os.replace(video_path, final_path)
+
+            if stop_event is not None and stop_event.is_set():
+                raise RenderCancelled("render cancelled before output validation")
+            size = final_path.stat().st_size
+            if size < 1 or size > self.max_output_bytes:
+                raise TimelineRenderError("rendered output size is outside configured limits")
+            probe = probe_media(
+                final_path, self.ffprobe_path, max_duration_ms=duration_ms + 1000,
+                max_bytes=self.max_output_bytes, require_audio=bool(audio_tracks),
+            )
+            if abs(probe["duration_ms"] - duration_ms) > 1500:
+                raise TimelineRenderError("rendered output duration does not match the EDL")
+            keep_final = True
+            return {
+                "staged_path": str(final_path),
+                "byte_size": size,
+                "duration_ms": probe["duration_ms"],
+                "video_streams": probe["video_streams"],
+                "audio_streams": probe["audio_streams"],
+            }
+        except Exception:
+            final_path.unlink(missing_ok=True)
+            raise
+        finally:
+            shutil.rmtree(job_dir, ignore_errors=True)
+            if not keep_final:
+                final_path.unlink(missing_ok=True)
