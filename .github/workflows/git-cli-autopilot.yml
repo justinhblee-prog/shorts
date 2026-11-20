@@ -7,6 +7,7 @@ on:
       - "scripts/git-cli-multiflow.ps1"
       - "scripts/git-cli-multiflow-parallel.ps1"
       - "scripts/test-git-cli-multiflow-parallel.ps1"
+      - "scripts/test-devflow-detached.ps1"
       - "scripts/git-cli-agent-config.ps1"
       - "scripts/start-devflow-autopilot.ps1"
       - "scripts/start-devflow-detached.ps1"
@@ -40,6 +41,7 @@ jobs:
             "scripts/git-cli-multiflow.ps1",
             "scripts/git-cli-multiflow-parallel.ps1",
             "scripts/test-git-cli-multiflow-parallel.ps1",
+            "scripts/test-devflow-detached.ps1",
             "scripts/git-cli-agent-config.ps1",
             "scripts/start-devflow-autopilot.ps1",
             "scripts/start-devflow-detached.ps1"
@@ -89,6 +91,11 @@ jobs:
           $env:DEVFLOW_AGENT_COMMAND = 'agent-that-is-not-installed'
           & "$PWD/scripts/start-devflow-autopilot.ps1" -Plan -MaxTasks 3
           if (-not $?) { throw "Launcher plan smoke failed with agent env configured." }
+      - name: Exercise detached Windows supervisor lifecycle
+        shell: pwsh
+        run: |
+          & "$PWD/scripts/test-devflow-detached.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "Detached supervisor integration harness failed." }
       - name: Verify detached supervisor safety contract
         shell: pwsh
         run: |
