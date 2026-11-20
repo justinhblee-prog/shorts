@@ -140,7 +140,7 @@
         "Do not modify .devflow/tasks.json or unrelated files"
       ],
       "external_gates": [],
-      "notes": "Retry using a scoped one-shot JSON patch fallback when the local model repeats read-only tool discovery without writing. The fallback receives only task-scope file context and validates every output path before writing. Draft PR only."
+      "notes": "Retry after fixing Windows validation to prefer Git for Windows' bundled Bash instead of the WindowsApps WSL shim. Prior run produced the requested test file via scoped patch mode but stopped at repository validation because /bin/bash was unavailable."
     }
   ]
 }
