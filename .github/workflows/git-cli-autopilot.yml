@@ -1,0 +1,79 @@
+name: Git CLI autopilot validation
+
+on:
+  pull_request:
+    paths:
+      - "scripts/git-cli-autopilot.ps1"
+      - "scripts/start-devflow-autopilot.ps1"
+      - "scripts/devflow.py"
+      - ".github/workflows/git-cli-autopilot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: git-cli-autopilot-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  powershell:
+    name: PowerShell syntax and safe-mode checks
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $files = @(
+            "scripts/git-cli-autopilot.ps1",
+            "scripts/start-devflow-autopilot.ps1"
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $file), [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.ToString() }
+              throw "PowerShell parse failed: $file"
+            }
+            Write-Host "Parsed: $file"
+          }
+      - name: Confirm Codex is not referenced by launcher
+        shell: pwsh
+        run: |
+          $launcher = Get-Content "scripts/start-devflow-autopilot.ps1" -Raw
+          if ($launcher -match "(?i)codex") { throw "Launcher must not depend on Codex." }
+      - name: Confirm no implicit merge or deployment commands
+        shell: pwsh
+        run: |
+          $script = Get-Content "scripts/git-cli-autopilot.ps1" -Raw
+          if ($script -match "(?im)^\s*gh\s+pr\s+merge") { throw "Automatic merge is forbidden." }
+          if ($script -match "(?im)^\s*vercel\s+deploy") { throw "Automatic deployment is forbidden." }
+
+  python:
+    name: Git workflow helper validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile helper
+        run: python -m py_compile scripts/devflow.py
+      - name: Validate task manifest
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path(".devflow/tasks.json").read_text(encoding="utf-8"))
+          assert isinstance(data.get("tasks"), list)
+          assert data.get("policy", {}).get("max_parallel_worktrees", 0) == 3
+          assert data["policy"].get("auto_merge") is False
+          assert data["policy"].get("auto_deploy") is False
+          print(f"Validated {len(data['tasks'])} task entries and safety policy.")
+          PY
