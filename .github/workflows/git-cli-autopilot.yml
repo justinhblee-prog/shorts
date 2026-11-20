@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: git-cli-autopilot-validation-${{ github.ref }}
@@ -44,8 +45,14 @@ jobs:
             }
             Write-Host "Parsed: $file"
           }
-          & "$PWD/scripts/git-cli-multiflow.ps1" -Plan
-          if (-not $?) { throw "Multi-flow planner smoke failed." }
+          $env:GH_TOKEN = "${{ github.token }}"
+          $plan = & "$PWD/scripts/git-cli-multiflow.ps1" -Plan 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { throw "Multi-flow planner smoke failed: $plan" }
+          if ($plan -match "BUILD-00352") {
+            throw "Planner included BUILD-00352 even though its task already has an open PR."
+          }
+          Write-Host "Planner correctly excludes tasks represented by open PRs."
+          Write-Host $plan
       - name: Launcher plan ignores configured agent JSON
         shell: pwsh
         run: |
