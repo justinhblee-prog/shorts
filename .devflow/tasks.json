@@ -67,7 +67,8 @@
         "Compose integration workflow starts and health-checks the dedicated render worker, then runs the real-media render smoke inside its container",
         "Latest Compose CI passed the real FFmpeg/ffprobe media render, artifact adoption, pending review and immutable approval smoke",
         "Container image bakes SHA-256 manifest for FFmpeg and ffprobe; render worker verifies exact configured binary paths and hashes before worker registration",
-        "Unit tests cover correct binary hashes, tampering, unlisted binaries and unsafe manifest paths"
+        "Unit tests cover correct binary hashes, tampering, unlisted binaries and unsafe manifest paths",
+        "Latest Compose CI built the image, verified FFmpeg/ffprobe manifest at worker startup, passed real-media render/review smoke and backup/restore checks"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
@@ -79,8 +80,7 @@
         "Configure the concrete worker factory and pinned FFmpeg/ffprobe binaries in the target worker runtime",
         "Implement overlap transitions and explicit project-duration/trailing-gap semantics in the EDL schema and renderer",
         "Exercise end-to-end API upload → malware scan → render queue → worker adoption → review preview using real media",
-        "Enable and validate ClamAV database updater profile in target deployment before allowing workspace media uploads to render",
-        "Confirm binary-manifest verification and worker startup remain green in the latest Compose CI run; pin production container image by immutable registry digest"
+        "Enable and validate ClamAV database updater profile in target deployment before allowing workspace media uploads to render"
       ]
     },
     {
