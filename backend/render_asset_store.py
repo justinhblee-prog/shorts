@@ -237,6 +237,27 @@ class RenderAssetStore:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
 
+    def workspace_render_output_dir(self, workspace_id):
+        if not isinstance(workspace_id, str) or not _WORKSPACE_ID.fullmatch(workspace_id):
+            raise RenderAssetError("An explicit valid workspace is required for render output")
+        asset_directory = self._asset_directory(workspace_id)
+        directory = asset_directory.parent / "render-outputs"
+        if directory.is_symlink():
+            raise RenderAssetError("Workspace render output directory must not be a symlink")
+        try:
+            resolved = directory.resolve(strict=False)
+            resolved.relative_to(self.media_root)
+            resolved.mkdir(parents=True, exist_ok=True)
+            if directory.is_symlink():
+                raise RenderAssetError("Workspace render output directory must not be a symlink")
+            resolved = resolved.resolve(strict=True)
+            resolved.relative_to(self.media_root)
+            return resolved
+        except RenderAssetError:
+            raise
+        except (OSError, ValueError) as exc:
+            raise RenderAssetError("Workspace render output directory escaped media storage") from exc
+
     def list_assets(self, workspace_id, limit=100):
         if not isinstance(workspace_id, str) or not _WORKSPACE_ID.fullmatch(workspace_id):
             raise RenderAssetError("An explicit valid workspace is required for render assets")
