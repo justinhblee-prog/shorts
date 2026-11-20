@@ -23,6 +23,11 @@ jobs:
           python-version: "3.11"
       - run: pip install -r backend/requirements.txt
       - run: sh scripts/validate.sh
+      - name: Install CJK fallback fonts for readable browser artifacts
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes fonts-noto-cjk
+          fc-cache --force
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
