@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from workspace_store import WorkspaceStore, WorkspaceDenied
+from media_scanner import MediaInfectedError, MediaScanError
 from workspace_asset_store import (
     AssetError, AssetNotFound, WorkspaceAssetStore,
 )
