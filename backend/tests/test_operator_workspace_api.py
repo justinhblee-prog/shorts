@@ -157,6 +157,45 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
         finally:
             queue_patch.stop()
 
+    def test_production_execution_requires_matching_workspace_scope(self):
+        db_path = os.path.join(self.temp.name, "execute-scope.sqlite3")
+        queue = JobQueue(db_path)
+        job = queue.enqueue(
+            "short_video_production",
+            {"brand": "Future Leak", "region": "US",
+             "language": "en", "topic": "AI agents"},
+            workspace_id="ws_alice",
+        )
+        queue_patch = patch.object(api, "queue", queue)
+        queue_patch.start()
+        try:
+            with patch.dict(os.environ, {"NEXUS_WORKSPACE_AUTH_MODE": "sqlite"}):
+                with patch.object(api, "require_review_permission", return_value="alice"):
+                    with self.assertRaises(HTTPException) as missing_scope:
+                        api.execute_production_job(
+                            job["id"],
+                            api.ProductionExecute(worker_id="worker-a", lease_token="lease-a"),
+                        )
+                    self.assertEqual(missing_scope.exception.status_code, 403)
+                    with self.assertRaises(HTTPException) as wrong_scope:
+                        api.execute_production_job(
+                            job["id"],
+                            api.ProductionExecute(worker_id="worker-a", lease_token="lease-a"),
+                            x_nexus_workspace_id="ws_mallory",
+                        )
+                    self.assertEqual(wrong_scope.exception.status_code, 403)
+                    with self.assertRaises(HTTPException) as valid_scope:
+                        api.execute_production_job(
+                            job["id"],
+                            api.ProductionExecute(worker_id="worker-a", lease_token="lease-a"),
+                            x_nexus_workspace_id="ws_alice",
+                        )
+                    # The valid scope reaches lease validation; this queued job
+                    # intentionally has no active worker lease yet.
+                    self.assertEqual(valid_scope.exception.status_code, 409)
+        finally:
+            queue_patch.stop()
+
     def test_unauthenticated_workspace_requests_are_rejected(self):
         with patch.object(api, "require_review_permission",
                           side_effect=HTTPException(401, "Valid review token required")):
