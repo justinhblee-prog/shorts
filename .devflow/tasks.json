@@ -49,7 +49,11 @@
         "Worker factory wiring queue-owned workspace identity, snapshot creator membership, verified clean asset path resolution and lease-fenced artifact adoption",
         "Black timeline-gap segments and configured-font title-card rendering in the FFmpeg EDL graph",
         "Optional source-clip audio discovery through bounded ffprobe, source trim and timeline offset mixing with trusted audio beds",
-        "Probe source video metadata and reject EDL source trims that exceed trusted media duration when ffprobe is configured"
+        "Probe source video metadata and reject EDL source trims that exceed trusted media duration when ffprobe is configured",
+        "Authenticated workspace-scoped raw media upload API with bounded streaming and quarantine-only registration",
+        "Authenticated EDL render submission and idempotency API backed by immutable snapshots and durable queue",
+        "Workspace-scoped render status and integrity-checked private artifact preview/download API",
+        "Route-level tests for upload quarantine, upload byte limits, workspace-scoped submission and non-member denial"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
@@ -59,7 +63,10 @@
         "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
         "Implement title overlays, gaps, overlaps, transitions and source-clip audio semantics in the EDL renderer",
         "Configure the concrete worker factory and pinned FFmpeg/ffprobe binaries in the target worker runtime",
-        "Implement overlap transitions and explicit project-duration/trailing-gap semantics in the EDL schema and renderer"
+        "Implement overlap transitions and explicit project-duration/trailing-gap semantics in the EDL schema and renderer",
+        "Integrate a trusted malware scanning service that alone can transition uploaded assets from pending to clean",
+        "Deploy and validate the pinned FFmpeg/ffprobe render worker with isolated filesystem, CPU, memory and process quotas",
+        "Exercise end-to-end API upload → malware scan → render queue → worker adoption → review preview using real media"
       ]
     },
     {
