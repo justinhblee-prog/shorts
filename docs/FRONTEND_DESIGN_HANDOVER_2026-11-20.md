@@ -163,3 +163,11 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Corrected the revoked-membership test to revoke a non-owner member, preserving the invariant that the last owner cannot be removed.
 - Added explicit RBAC protection to the operator workspace list endpoint.
 - Revalidation is required on the corrected branch head; the earlier backend run failed on the initial test harness and must not be counted as a passing result.
+
+ 
+## Workspace membership and audit read APIs — 2026-11-20
+
+- Added `GET /api/operator/workspaces/{workspace_id}/members`; only an active workspace member with `media.manage` operator permission can view active membership.
+- Added `GET /api/operator/workspaces/{workspace_id}/audit`; only workspace owners/admins with `media.manage` can read immutable audit events. Pagination is bounded to 1–100 rows and a maximum offset of 1,000,000.
+- API tests cover viewer/member read boundaries and owner/admin-only audit visibility.
+- Latest implementation is being revalidated after these additions; prior green run 44675317760 covers the earlier API code revision, not these final additions.
