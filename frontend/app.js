@@ -1411,6 +1411,7 @@
       const list=$id("renderJobHistoryList"),more=$id("renderJobHistoryMore");
       const requestId=++renderHistoryRequestId;
       const requestedWorkspace=activeWorkspaceId;
+      if(!append){renderHistoryCursor=null;more.hidden=true;}
       if(!token||!activeWorkspaceId){
         if(!append)list.textContent="기록을 보려면 인증 토큰과 워크스페이스를 선택하세요.";
         more.hidden=true;return;
