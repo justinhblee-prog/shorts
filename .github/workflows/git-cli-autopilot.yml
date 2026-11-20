@@ -8,6 +8,7 @@ on:
       - "scripts/git-cli-multiflow-parallel.ps1"
       - "scripts/test-git-cli-multiflow-parallel.ps1"
       - "scripts/test-devflow-detached.ps1"
+      - "scripts/test-devflow-detached-e2e.ps1"
       - "scripts/git-cli-agent-config.ps1"
       - "scripts/start-devflow-autopilot.ps1"
       - "scripts/start-devflow-detached.ps1"
@@ -43,6 +44,7 @@ jobs:
             "scripts/git-cli-multiflow-parallel.ps1",
             "scripts/test-git-cli-multiflow-parallel.ps1",
             "scripts/test-devflow-detached.ps1",
+            "scripts/test-devflow-detached-e2e.ps1",
             "scripts/git-cli-agent-config.ps1",
             "scripts/start-devflow-autopilot.ps1",
             "scripts/start-devflow-detached.ps1",
@@ -98,6 +100,11 @@ jobs:
         run: |
           & "$PWD/scripts/test-devflow-detached.ps1"
           if ($LASTEXITCODE -ne 0) { throw "Detached supervisor integration harness failed." }
+      - name: Exercise detached supervisor end-to-end worker lifecycle
+        shell: pwsh
+        run: |
+          & "$PWD/scripts/test-devflow-detached-e2e.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "Detached supervisor end-to-end test failed." }
       - name: Verify detached supervisor safety contract
         shell: pwsh
         run: |
