@@ -4,6 +4,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 import devflow_autopilot as autopilot
+import devflow_parallel as parallel
 
 
 class DevflowAutopilotTests(unittest.TestCase):
@@ -54,6 +55,32 @@ class DevflowAutopilotTests(unittest.TestCase):
         ]}
         with self.assertRaisesRegex(RuntimeError, "no ready/in-progress task"):
             autopilot.choose_task(data, None)
+
+    def test_parallel_dispatch_selects_only_independent_ready_scopes(self):
+        data = {"policy": {"max_parallel_worktrees": 3}, "tasks": [
+            {"id": "A", "priority": 1, "status": "ready", "depends_on": [], "scope": ["backend/worker"]},
+            {"id": "B", "priority": 2, "status": "ready", "depends_on": [], "scope": ["frontend/editor"]},
+            {"id": "C", "priority": 3, "status": "ready", "depends_on": [], "scope": ["backend/worker"]},
+            {"id": "D", "priority": 0, "status": "blocked_external", "depends_on": [], "scope": ["docs"]},
+        ]}
+        self.assertEqual(
+            [task["id"] for task in parallel.select_parallel_tasks(data, 3)],
+            ["A", "B"],
+        )
+
+    def test_parallel_dispatch_requires_merged_dependencies(self):
+        data = {"policy": {"max_parallel_worktrees": 3}, "tasks": [
+            {"id": "A", "priority": 1, "status": "review_pending", "depends_on": [], "scope": ["backend"]},
+            {"id": "B", "priority": 2, "status": "ready", "depends_on": ["A"], "scope": ["docs"]},
+        ]}
+        with self.assertRaisesRegex(RuntimeError, "no dependency-ready tasks"):
+            parallel.select_parallel_tasks(data, 3)
+
+    def test_parallel_limit_cannot_exceed_policy(self):
+        with self.assertRaisesRegex(RuntimeError, "parallel limit"):
+            parallel.select_parallel_tasks(
+                {"policy": {"max_parallel_worktrees": 2}, "tasks": []}, 3
+            )
 
     def test_prompt_preserves_external_gate_and_no_publish_policy(self):
         prompt = autopilot.task_prompt({
