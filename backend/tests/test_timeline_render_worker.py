@@ -118,5 +118,42 @@ class TimelineRenderWorkerTests(unittest.TestCase):
             )
 
 
+    def test_graceful_shutdown_cancels_and_discards_unadopted_output(self):
+        root = Path(self.temp.name)
+        staging = root / "staging"
+        artifacts = root / "artifacts"
+        staging.mkdir()
+        store = RenderArtifactStore(self.queue, staging, artifacts)
+        shutdown = __import__("threading").Event()
+        staged = staging / "shutdown.mp4"
+
+        def render(payload, stop_event):
+            staged.write_bytes(b"shutdown-render")
+            shutdown.set()
+            if not stop_event.wait(1):
+                raise AssertionError("worker did not propagate shutdown to renderer")
+            return {"staged_path": str(staged)}
+
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_" + "f" * 32,
+             "snapshot_sha256": "1" * 64, "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        worker = TimelineRenderWorker(
+            self.queue, render, "timeline-worker", self.generation,
+            heartbeat_seconds=0.02, artifact_store=store,
+            shutdown_event=shutdown,
+        )
+        self.assertFalse(worker.run_once())
+        self.assertFalse(staged.exists())
+        with self.queue.db() as db:
+            self.assertEqual(
+                db.execute("SELECT COUNT(*) FROM render_artifacts WHERE job_id=?",
+                           (queued["id"],)).fetchone()[0],
+                0,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
