@@ -53,7 +53,9 @@
         "Dedicated opt-in Compose render-worker service with stable identity, graceful SIGTERM cancellation and shared private media roots",
         "Aggregate source-input byte budget, two-thread FFmpeg encoder limits and environment-validated worker configuration",
         "Periodic two-hour-grace cleanup of crash-orphaned staging directories and unindexed private artifacts",
-        "Apply FFmpeg -fs output ceilings to video intermediate, audio mix and final MP4 stages"
+        "Apply FFmpeg -fs output ceilings to video intermediate, audio mix and final MP4 stages",
+        "Backward-compatible canonical digest validation for existing EDL v1 jobs without the optional audio_tracks field",
+        "Resolve legacy render-job creator identity from the immutable workspace snapshot row and reject creator/hash mismatches"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
