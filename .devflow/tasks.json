@@ -49,7 +49,10 @@
         "Sequential EDL video renderer using shell-free bounded FFmpeg execution, staged asset checksum verification, audio source trims/mix/fades/limiter and final MP4 mux",
         "Lease-loss cancellation during FFmpeg processes and final ffprobe duration/stream/size validation",
         "Lease-loss and adoption-failure cleanup of unadopted staged MP4s, constrained to the private staging root",
-        "Recompute and verify canonical normalized EDL SHA-256 before media processing; restrict FFmpeg and ffprobe inputs to local file/pipe protocols"
+        "Recompute and verify canonical normalized EDL SHA-256 before media processing; restrict FFmpeg and ffprobe inputs to local file/pipe protocols",
+        "Dedicated opt-in Compose render-worker service with stable identity, graceful SIGTERM cancellation and shared private media roots",
+        "Aggregate source-input byte budget, two-thread FFmpeg encoder limits and environment-validated worker configuration",
+        "Periodic two-hour-grace cleanup of crash-orphaned staging directories and unindexed private artifacts"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
