@@ -1,9 +1,8 @@
 """Authenticated API -> shared worker -> FFmpeg artifact -> review E2E smoke.
 
 Runs inside the Compose timeline-render-worker container against the live API
-service and shared Compose volume. The generated fixture is explicitly trusted
-by the harness after the API has quarantined it; ClamAV itself is not exercised
-by this smoke and remains a separate integration gate.
+service and shared Compose volume. The API scans both a generated clean MP4 and
+the standard EICAR anti-malware test fixture using the current ClamAV database.
 """
 from __future__ import annotations
 
@@ -115,9 +114,26 @@ def main():
         )
         asset = uploaded["asset"]
         asset_id = asset["asset_id"]
-        assert uploaded["scan_required"] is True
-        assert uploaded["renderable"] is False
-        assert asset["scan_status"] == "pending"
+        assert uploaded["scan_required"] is False
+        assert uploaded["renderable"] is True
+        assert uploaded["scan_engine"] == "clamav"
+        assert asset["scan_status"] == "clean"
+
+        # The standard EICAR test string must be detected by the live database.
+        eicar = (
+            b"X5O!P%@AP[4\\\\PZX54(P^)7CC)7}$"
+            b"EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+        )
+        infected = request(
+            "POST", f"/api/workspaces/{workspace_id}/assets",
+            token=TOKEN, body=eicar, expected=201,
+            headers={"X-File-Name": "eicar-test.txt",
+                     "Content-Type": "application/octet-stream"},
+        )
+        assert infected["scan_required"] is True
+        assert infected["renderable"] is False
+        assert infected["scan_error"] == "scan_not_cleared"
+        assert infected["asset"]["scan_status"] == "pending"
 
         # A separate principal cannot upload into this workspace.
         request(
@@ -140,25 +156,6 @@ def main():
             ],
         }
         idempotency = "api-e2e-render-20261121-001"
-
-        # Quarantined media must not be renderable.
-        request(
-            "POST", "/api/timeline/renders", token=TOKEN,
-            workspace=workspace_id, body=edl,
-            headers={"Idempotency-Key": idempotency}, expected=422,
-        )
-
-        # This is a generated, local-only fixture. The harness records a trusted
-        # clean attestation directly; production ClamAV scanning is not claimed.
-        from workspace_store import WorkspaceStore
-        from workspace_asset_store import WorkspaceAssetStore
-        fixture_assets = WorkspaceAssetStore(
-            DB, PRIVATE_ROOT, WorkspaceStore(DB),
-            max_asset_bytes=int(os.getenv("NEXUS_MAX_ASSET_BYTES", "500000000")),
-        )
-        fixture_assets.mark_scan_result(
-            workspace_id, PRINCIPAL, asset_id, True
-        )
 
         submitted = request(
             "POST", "/api/timeline/renders", token=TOKEN,
