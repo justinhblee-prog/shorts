@@ -18,15 +18,23 @@ Workspace creation and initial owner assignment are atomic. Member administratio
 
 Regression coverage: backend/tests/test_workspace_store.py.
 
-## API integration gates
+## Operator API integration
 
-The registry is deliberately not yet wired into FastAPI authentication. Existing review credentials identify configured operators, not general end users. Automatically importing NEXUS_OPERATOR_WORKSPACES_JSON would silently convert deployment settings into persistent grants.
+The registry is now wired to the existing per-operator review-token authentication boundary through these routes:
+- `GET /api/operator/workspaces`: list only the authenticated operator's active workspaces.
+- `POST /api/operator/workspaces`: create a workspace; the owner is derived from the authenticated token, never the request body.
+- `POST /api/operator/workspaces/{workspace_id}/members`: add an operator principal with admin/editor/viewer role.
+- `DELETE /api/operator/workspaces/{workspace_id}/members/{principal_id}`: revoke a member.
 
-Before replacing the interim mapping:
-1. Establish a trusted principal source for every supported login/session/token.
-2. Define workspace invitations, owner recovery and suspension policy.
-3. Add a reviewed dry-run migration for existing operator mappings.
-4. Prove request-body identity spoofing and cross-workspace access fail in API tests.
-5. Only then enable workspace-scoped media assets.
+All mutations additionally require the `media.manage` operator permission, and the registry enforces workspace owner/admin membership. Request-body principal IDs identify only the member being added or removed; they never establish the caller's identity. This is an operator-management integration, not general end-user/B2B account authentication.
+
+The EDL endpoint supports an explicit migration switch: `NEXUS_WORKSPACE_AUTH_MODE=legacy_config` (default, preserves the existing fail-closed `NEXUS_OPERATOR_WORKSPACES_JSON` behavior) or `NEXUS_WORKSPACE_AUTH_MODE=sqlite` (uses only the durable registry and never falls back to config grants). Unknown modes fail closed. Do not switch production to SQLite mode until operator memberships are provisioned and verified. No automatic import of config mappings occurs.
+
+Remaining gates before general B2B/end-user rollout:
+1. Establish a trusted customer principal source for supported login/session/token flows; current principals are configured operators only.
+2. Define workspace invitations, owner recovery, suspension, tenant deletion and support access policy.
+3. Add a reviewed dry-run migration for existing operator mappings before enabling SQLite mode in production.
+4. Add full FastAPI TestClient coverage for authentication, role checks, cross-workspace access and request-body identity spoofing.
+5. Only then enable customer-owned media assets and workspace-scoped production resources.
 
 No upload, asset read, render submission or MP4 renderer endpoint is added. Browser EDL export remains rendered=false.
