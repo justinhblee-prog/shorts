@@ -503,7 +503,7 @@ def require_review_permission(token, permission):
 @app.get("/api/operator/workspaces")
 def list_operator_workspaces(x_review_token:str|None=Header(default=None)):
     """List only workspaces belonging to the authenticated operator principal."""
-    operator_id=require_review_access(x_review_token)
+    operator_id=require_review_permission(x_review_token,"media.manage")
     return {"workspaces":workspace_store.list_for_principal(operator_id)}
 
 
