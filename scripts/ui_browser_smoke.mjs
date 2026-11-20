@@ -244,10 +244,11 @@ async function waitForServer() {
     await page.keyboard.press("Enter");
     assert.equal(await page.evaluate(() => document.activeElement.id), "home");
 
-    for (const section of ["studio", "discovery", "review", "operations"]) {
+    for (const section of ["trendList", "trendRecommendations", "productionForm", "productionPipeline", "reviewList", "publishingOverview", "analyticsHistory", "queueDetails"]) {
       const link = page.locator('.main-nav a[href="#' + section + '"]').first();
       await link.click();
       assert.equal(await link.getAttribute("aria-current"), "page");
+      assert.equal(await page.evaluate(() => location.hash), "#" + section);
     }
 
     for (const width of [390, 320]) {
