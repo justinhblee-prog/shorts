@@ -164,6 +164,19 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
         with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "symbolic link"):
             self.executor._validated_scope({"scope": ["backend/"]})
 
+    def test_recursive_scope_rejects_nested_secret_and_database_files(self):
+        nested = self.root / "backend" / "nested"
+        nested.mkdir()
+        protected = [
+            nested / "credentials.json",
+            nested / "private_config.py",
+            nested / "runtime.sqlite3",
+        ]
+        for path in protected:
+            path.write_text("sensitive", encoding="utf-8")
+        with self.assertRaisesRegex(NonRetryableDevelopmentJobError, "protected secret or data path"):
+            self.executor._validated_scope({"scope": ["backend/"]})
+
     def test_scope_rejects_symlinked_ancestor_components(self):
         real_backend = self.root / "real-backend"
         real_backend.mkdir()
