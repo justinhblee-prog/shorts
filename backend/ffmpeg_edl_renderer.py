@@ -1,8 +1,8 @@
 """Bounded EDL v1 renderer using an allowlisted local FFmpeg executable.
 
-This renderer intentionally supports the video-clip subset of EDL v1. Title
-clips and timeline gaps/overlaps fail closed until their compositing semantics
-are implemented. Asset paths and optional audio-bed paths must be resolved by
+This renderer supports video clips, configured-font title cards and black
+segments for explicit timeline gaps. Overlaps fail closed until transition
+semantics are implemented. Asset paths and optional audio-bed paths must be resolved by
 trusted workspace services; the EDL itself never supplies filesystem paths.
 """
 from __future__ import annotations
@@ -263,6 +263,8 @@ class EDLFFmpegRenderer:
             if self.ffprobe_path is not None:
                 audio_presence = {}
                 for clip in edl["clips"]:
+                    if clip["type"] != "video":
+                        continue
                     asset_id = clip["asset_id"]
                     if asset_id not in audio_presence:
                         audio_presence[asset_id] = has_audio_stream(
