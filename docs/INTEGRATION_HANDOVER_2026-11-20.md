@@ -110,3 +110,12 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - Removed the network-dependent APT update/install from the browser-test workflow. The workflow now performs a fast, non-failing font availability check and proceeds with the runner fallback when Noto CJK is absent.
 - This affects screenshot font selection only; it does not weaken application assertions or browser test coverage. The earlier successful artifact [14589176582](https://github.com/justinhblee-prog/shorts/actions/runs/44646542482) already contains visually inspected Korean desktop/mobile screenshots.
 - The updated workflow must still pass a fresh exact-head CI run before this adjustment is considered verified. Do not mark its run PASS before both browser smoke scripts and artifact upload finish.
+
+
+## 12. Network-independent browser CI exact-head PASS — 2026-11-20
+
+- Exact aggregate workflow run [44647416771](https://github.com/justinhblee-prog/shorts/actions/runs/44647416771) passed all workflow steps on head `5412806bd2ac885211f75710a5378c8084842da5`: repository validation, frontend syntax, font-availability check, Playwright/Chromium setup, dashboard browser smoke, recovery/dependency browser smoke, and artifact upload.
+- Artifact [14589437372](https://github.com/justinhblee-prog/shorts/actions/runs/44647416771/artifacts/14589437372) was downloaded and inspected. The runner did not have Noto CJK, so this run's screenshots use the fallback font and render some Korean glyphs as tofu. Do not use this artifact as the visual typography reference.
+- The earlier artifact [14589176582](https://github.com/justinhblee-prog/shorts/actions/runs/44646542482) contains readable Korean desktop/mobile screenshots from the same integrated UI code; both images were retrieved and visually inspected. Use that artifact for visual review.
+- The workflow no longer depends on external APT mirrors. This removes a recurring CI stall at the cost of not guaranteeing Korean glyph rendering in every hosted runner screenshot. Browser assertions remain fully active and passed.
+- Hosted CI still does not verify Windows self-hosted execution, LocalAppData two-run persistence, live Ollama generation, OAuth/provider behavior, real media rendering, or live publishing.
