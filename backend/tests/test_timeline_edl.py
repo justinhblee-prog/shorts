@@ -118,5 +118,19 @@ class TimelineEDLTests(unittest.TestCase):
             validate_edl(payload)
 
 
+    def test_rejects_more_than_eight_audio_tracks(self):
+        video = {"id": "v1", "type": "video", "start_ms": 0, "end_ms": 1000,
+                 "asset_id": "asset_video", "source_in_ms": 0, "source_out_ms": 1000}
+        audios = [
+            {"id": f"a{i}", "type": "audio", "start_ms": 0, "end_ms": 1000,
+             "asset_id": f"asset_audio{i}", "source_in_ms": 0, "source_out_ms": 1000,
+             "gain": 1.0, "fade_in_ms": 0, "fade_out_ms": 0}
+            for i in range(9)
+        ]
+        with self.assertRaisesRegex(EDLValidationError, "audio track count"):
+            validate_edl({"schema": SCHEMA, "version": 1,
+                           "timebase": "milliseconds", "clips": [video, *audios]})
+
+
 if __name__ == "__main__":
     unittest.main()
