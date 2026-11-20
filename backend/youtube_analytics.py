@@ -399,12 +399,25 @@ class YouTubeAnalyticsStore:
             "read_only": True,
         }
 
-    def get(self, video_id):
+    def get(self, video_id, workspace_id=None):
         with self.db() as connection:
-            row = connection.execute(
-                "SELECT * FROM youtube_analytics_snapshots WHERE video_id=?",
-                (video_id,),
-            ).fetchone()
+            has_production = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_runs'"
+            ).fetchone() is not None
+            if workspace_id is not None and not has_production:
+                return None
+            if has_production:
+                row = connection.execute("""
+                    SELECT a.* FROM youtube_analytics_snapshots a
+                    JOIN youtube_uploads u ON u.video_id=a.video_id
+                    JOIN production_runs pr ON pr.job_id=u.job_id
+                    WHERE a.video_id=? AND pr.workspace_id IS ?
+                """, (video_id, workspace_id)).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT * FROM youtube_analytics_snapshots WHERE video_id=?",
+                    (video_id,),
+                ).fetchone()
         if row is None:
             return None
         result = dict(row)
