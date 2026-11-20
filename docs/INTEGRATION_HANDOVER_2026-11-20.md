@@ -102,3 +102,11 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - The font installation stall was resolved by bounding the font setup to five minutes, using bounded APT retries/timeouts, and allowing the fallback-font installation to fail without suppressing the subsequent browser tests. In this run the font setup itself succeeded.
 - This is hosted Linux + deterministic API-fixture browser validation, not proof of trusted Windows runner execution, LocalAppData persistence, live Ollama generation, OAuth/provider behavior, real media rendering, or live publishing.
 - PR #415 remains Draft/open/unmerged. No merge, deployment, default-branch change, or external provider action was performed.
+
+
+## 11. CI font setup reliability adjustment — 2026-11-20
+
+- The optional Noto CJK package installation caused repeatable stalls on hosted APT mirror access, even with step timeout and bounded subprocess attempts.
+- Removed the network-dependent APT update/install from the browser-test workflow. The workflow now performs a fast, non-failing font availability check and proceeds with the runner fallback when Noto CJK is absent.
+- This affects screenshot font selection only; it does not weaken application assertions or browser test coverage. The earlier successful artifact [14589176582](https://github.com/justinhblee-prog/shorts/actions/runs/44646542482) already contains visually inspected Korean desktop/mobile screenshots.
+- The updated workflow must still pass a fresh exact-head CI run before this adjustment is considered verified. Do not mark its run PASS before both browser smoke scripts and artifact upload finish.
