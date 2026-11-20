@@ -59,7 +59,10 @@
         "Compose opt-in NEXUS_MEDIA_SCAN_ENABLED wiring for API container",
         "Dedicated timeline_render_worker_main process with worker generation registration, heartbeat and graceful SIGTERM cancellation/requeue",
         "Compose timeline-render-worker service with read-only root filesystem, bounded tmpfs, dropped capabilities, no-new-privileges and CPU/memory/PID limits",
-        "DejaVu local font installed for deterministic title cards; render staging and artifacts remain under backup-covered nexus_data media tree"
+        "DejaVu local font installed for deterministic title cards; render staging and artifacts remain under backup-covered nexus_data media tree",
+        "Append-only timeline render review queue and immutable per-snapshot decisions bound to adopted artifact SHA-256",
+        "Workspace-scoped review decision API requiring review.decide permission and authenticated reviewer identity",
+        "Timeline render pending items surfaced in the existing review queue and render status includes immutable review state"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
