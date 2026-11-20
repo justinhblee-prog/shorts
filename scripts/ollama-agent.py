@@ -94,7 +94,7 @@ def execute(root: Path,name: str,a: dict[str,Any]) -> str:
  raise ValueError(f"Unknown tool: {name}")
 
 def chat(model: str,messages: list[dict[str,Any]]) -> dict[str,Any]:
- body=json.dumps({"model":model,"messages":messages,"tools":TOOLS,"stream":False,"options":{"temperature":0.1,"num_ctx":16384}}).encode()
+ body=json.dumps({"model":model,"messages":messages,"tools":TOOLS,"format":"json","stream":False,"options":{"temperature":0.1,"num_ctx":16384}}).encode()
  req=urllib.request.Request(API,data=body,headers={"Content-Type":"application/json"})
  try:
   with urllib.request.urlopen(req,timeout=300) as response: return json.loads(response.read().decode())
