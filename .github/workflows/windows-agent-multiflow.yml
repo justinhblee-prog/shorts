@@ -84,13 +84,26 @@ jobs:
           & "$PWD/scripts/start-devflow-autopilot.ps1" -Run -MaxTasks $count
           if ($LASTEXITCODE -ne 0) { throw "Real Agent multi-flow run failed with exit code $LASTEXITCODE." }
 
+      - name: Collect execution evidence
+        if: always()
+        shell: pwsh
+        run: |
+          $workspace = $env:GITHUB_WORKSPACE
+          $evidence = Join-Path $workspace "multiflow-evidence"
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          $parent = Split-Path $workspace -Parent
+          foreach ($name in @("shorts-multiflow-state", "shorts-multiflow-logs")) {
+            $source = Join-Path $parent $name
+            if (Test-Path -LiteralPath $source) {
+              Copy-Item -LiteralPath $source -Destination (Join-Path $evidence $name) -Recurse -Force
+            }
+          }
+
       - name: Upload execution evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: windows-agent-multiflow-${{ github.run_id }}
-          path: |
-            *-multiflow-state/**
-            *-multiflow-logs/**
+          path: multiflow-evidence/**
           if-no-files-found: warn
           retention-days: 14
