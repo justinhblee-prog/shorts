@@ -61,11 +61,23 @@ class DevelopmentJobApiSecurityTests(unittest.TestCase):
             statuses=["ready", "blocked"], limit=80, offset=160,
             created_before="2026-11-20T00:00:00+00:00",
         )
+        app_module.development_job_store.count.assert_called_once_with(
+            statuses=["ready", "blocked"], created_before="2026-11-20T00:00:00+00:00"
+        )
         self.assertEqual(result["pagination"], {
             "limit": 80, "offset": 160, "total": 240,
             "has_more": True, "next_offset": 161,
             "snapshot_at": "2026-11-20T00:00:00+00:00",
         })
+
+    def test_list_endpoint_rejects_invalid_snapshot_timestamp(self):
+        with mock.patch.object(app_module, "require_review_permission"):
+            with self.assertRaises(app_module.HTTPException) as raised:
+                app_module.list_development_jobs(
+                    limit=100, offset=0, created_before="not-a-timestamp",
+                    x_review_token="monitor-token",
+                )
+        self.assertEqual(raised.exception.status_code, 422)
 
     def test_event_endpoint_omits_raw_error_details(self):
         events = [{
