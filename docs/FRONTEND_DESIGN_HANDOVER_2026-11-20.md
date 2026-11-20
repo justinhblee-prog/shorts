@@ -144,3 +144,14 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Exact-head Compose integration passed: [run 44674295302](https://github.com/justinhblee-prog/shorts/actions/runs/44674295302), including service startup/readiness and scheduled backup/isolated restore.
 - Workspace registry remains a standalone persistence module; FastAPI identity integration and migration from operator workspace configuration are still gated on a trusted end-user principal source. No upload or MP4 render endpoint is claimed.
 - PR #417 remains Draft/open/unmerged.
+
+ 
+## Authenticated operator workspace API — 2026-11-20
+
+- Added token-derived operator workspace creation/listing and workspace member add/revoke endpoints under `/api/operator/workspaces`.
+- Caller identity is always resolved from the review token. Workspace creation rejects extra fields, so a caller cannot supply `owner_principal_id`; member principal IDs are only the target of a membership action.
+- All mutations require `media.manage` plus owner/admin membership in the target workspace. Listing is scoped to the authenticated principal.
+- Added explicit EDL authorization modes: `legacy_config` remains the compatibility default; `sqlite` uses only durable workspace membership and does not fall back to legacy JSON grants. Unknown modes fail closed.
+- Added FastAPI TestClient coverage for token-derived ownership, authenticated listing, member role enforcement, unauthenticated access, and SQLite-mode cross-workspace denial even when the legacy config would grant access.
+- Current principal type is still a configured operator identity, not a customer account. No production auth-mode switch, customer identity integration, migration, asset upload, or MP4 rendering is enabled.
+- Exact-head CI for this implementation: [Backend tests run 44675134276](https://github.com/justinhblee-prog/shorts/actions/runs/44675134276); [Compose integration run 44675134115](https://github.com/justinhblee-prog/shorts/actions/runs/44675134115).
