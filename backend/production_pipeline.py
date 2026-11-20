@@ -491,7 +491,7 @@ class ProductionStore:
     def provider_attempts(self, job_id, unresolved_only=False):
         where=" AND state IN ('request_started','outcome_unknown','response_received')" if unresolved_only else ""
         with self.db() as c:
-            rows=c.execute("""SELECT id,job_id,stage,attempt_number,idempotency_key,
+            rows=c.execute("""SELECT id,job_id,workspace_id,stage,attempt_number,idempotency_key,
                 state,provider_request_id,response_json,error,started_at,completed_at
                 FROM provider_execution_attempts WHERE job_id=?""" + where +
                 " ORDER BY started_at,id",(job_id,)).fetchall()
