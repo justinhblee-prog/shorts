@@ -1310,7 +1310,7 @@
     const list=$id("timelineClipList"),preview=$id("timelinePreview"),empty=$id("timelinePreviewEmpty");
     const audioInput=$id("timelineAudioInput");
     let audioFile=null,audioAssetId="",audioScanStatus="",renderArtifactUrl="",renderPollTimer=null;
-    let renderHistoryCursor=null,renderHistoryLoading=false;
+    let renderHistoryCursor=null,renderHistoryLoading=false,renderHistoryRequestId=0;
     let currentRenderJobId=localStorage.getItem("nexusRenderJobId")||"";
     let currentRenderWorkspaceId=localStorage.getItem("nexusRenderJobWorkspace")||"";
     let assetWorkspaceId=activeWorkspaceId;
@@ -1409,7 +1409,8 @@
     preview.addEventListener("timeupdate",()=>{const clip=selected();if(clip?.kind==="video"&&preview.currentTime>=clip.outPoint){preview.pause();preview.currentTime=clip.outPoint;say("선택한 클립 구간 재생이 끝났습니다.");}});
     async function loadRenderHistory(cursor=null,append=false){
       const list=$id("renderJobHistoryList"),more=$id("renderJobHistoryMore");
-      if(renderHistoryLoading)return;
+      const requestId=++renderHistoryRequestId;
+      const requestedWorkspace=activeWorkspaceId;
       if(!token||!activeWorkspaceId){
         if(!append)list.textContent="기록을 보려면 인증 토큰과 워크스페이스를 선택하세요.";
         more.hidden=true;return;
@@ -1424,6 +1425,7 @@
           params.set("before_job_id",cursor.before_job_id);
         }
         const result=await api("/api/render/jobs?"+params.toString());
+        if(requestId!==renderHistoryRequestId||requestedWorkspace!==activeWorkspaceId)return;
         if(!append)list.replaceChildren();
         const labels={queued:"대기",running:"렌더링",review_pending:"검수 대기",failed_retriable:"재시도 대기",failed_terminal:"실패",cancelled:"취소"};
         for(const job of result.items||[]){
@@ -1452,12 +1454,16 @@
           const empty=document.createElement("p");empty.className="render-history-empty";empty.textContent="이 워크스페이스에 등록된 렌더 작업이 없습니다.";list.append(empty);
         }
       }catch(error){
-        if(!append)list.textContent="렌더 작업 기록을 불러오지 못했습니다: "+error.message;
-        toast("렌더 작업 기록을 불러오지 못했습니다.");
+        if(requestId===renderHistoryRequestId&&requestedWorkspace===activeWorkspaceId){
+          if(!append)list.textContent="렌더 작업 기록을 불러오지 못했습니다: "+error.message;
+          toast("렌더 작업 기록을 불러오지 못했습니다.");
+        }
       }finally{
-        renderHistoryLoading=false;
-        $id("renderJobHistoryRefresh").disabled=false;
-        more.disabled=false;
+        if(requestId===renderHistoryRequestId){
+          renderHistoryLoading=false;
+          $id("renderJobHistoryRefresh").disabled=false;
+          more.disabled=false;
+        }
       }
     }
     async function uploadRenderAsset(file,mimeType,assetName){
