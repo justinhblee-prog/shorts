@@ -66,6 +66,7 @@ services:
     restart: unless-stopped
 
   timeline-render-worker:
+    network_mode: none
     build:
       context: .
       dockerfile: backend/Dockerfile
