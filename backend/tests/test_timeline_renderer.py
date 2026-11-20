@@ -114,6 +114,18 @@ class TimelineRendererTests(unittest.TestCase):
             self.renderer.render(self.edl, {"asset_1": self.asset})
         self.assertEqual(self.calls, [])
 
+    def test_rejects_output_directory_escape_before_creating_it(self):
+        outside = self.root.parent / ("outside-render-" + self.root.name)
+        try:
+            with self.assertRaisesRegex(TimelineRenderError, "escaped"):
+                self.renderer.render(self.edl, {"asset_1": self.asset}, output_dir=outside)
+            self.assertFalse(outside.exists())
+            self.assertEqual(self.calls, [])
+        finally:
+            if outside.exists():
+                import shutil
+                shutil.rmtree(outside)
+
     def test_rejects_title_until_safe_text_renderer_is_available(self):
         payload = {
             "schema": SCHEMA,
