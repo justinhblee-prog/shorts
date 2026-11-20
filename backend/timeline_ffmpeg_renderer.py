@@ -329,6 +329,12 @@ class TimelineFFmpegRenderer:
                 timeout_seconds=min(self.timeout_seconds, 60),
                 require_audio=bool(audio_tracks),
             )
+            video_streams = probe["video_streams"]
+            if (len(video_streams) != 1
+                    or video_streams[0]["codec"] != "h264"
+                    or video_streams[0]["width"] != 1080
+                    or video_streams[0]["height"] != 1920):
+                raise TimelineFFmpegError("render output does not match the required H.264 portrait profile")
             return {"staged_path": str(output_path), "probe": probe}
         except Exception:
             output_path.unlink(missing_ok=True)
