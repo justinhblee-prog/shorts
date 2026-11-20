@@ -1287,7 +1287,7 @@
       list.replaceChildren();
       state.clips.forEach((clip,index)=>{
         const item=document.createElement("div");item.className="timeline-clip"+(clip.id===state.selected?" is-selected":"");item.dataset.clipId=clip.id;
-        const select=document.createElement("button");select.type="button";select.className="timeline-clip-select";select.textContent=(index+1).toString().padStart(2,"0")+" · "+(clip.kind==="title"?"TITLE": "VIDEO")+" · "+clip.name;select.addEventListener("click",()=>{state.selected=clip.id;render();if(clip.kind==="video"){setPreview(clip);say(clip.name+" 선택 · "+clip.inPoint.toFixed(1)+"–"+clip.outPoint.toFixed(1)+"초");}else{setPreview(null);overlay.textContent=clip.text;overlay.hidden=false;say("타이틀 클립 미리보기: "+clip.text);}});
+        const select=document.createElement("button");select.type="button";select.className="timeline-clip-select";select.textContent=(index+1).toString().padStart(2,"0")+" · "+(clip.kind==="title"?"TITLE": "VIDEO")+" · "+clip.name;select.addEventListener("click",()=>{state.selected=clip.id;render();if(clip.kind==="video"){setPreview(clip);say(clip.name+" 선택 · "+clip.inPoint.toFixed(1)+"–"+clip.outPoint.toFixed(1)+"초");}else{overlay.textContent=clip.text;overlay.hidden=false;say("타이틀 클립 미리보기: "+clip.text);}});
         const range=document.createElement("small");range.textContent=clip.inPoint.toFixed(1)+"s — "+clip.outPoint.toFixed(1)+"s";
         item.append(select,range);list.append(item);
       });
