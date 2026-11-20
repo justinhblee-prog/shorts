@@ -878,7 +878,7 @@ def validate_render_edl(
         if any(clip["type"]!="video" for clip in normalized["clips"]):
             raise HTTPException(422,"Title clips are not yet supported by the FFmpeg renderer")
         asset_ids=[clip["asset_id"] for clip in normalized["clips"]]
-        render_asset_store.resolve_asset_paths(workspace_id,asset_ids)
+        render_asset_store.resolve_asset_paths(workspace_id,asset_ids,expected_asset_type="video")
         return {
             "status":"validated",
             "workspace_id":workspace_id,
