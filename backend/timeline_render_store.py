@@ -113,22 +113,19 @@ class TimelineRenderStore:
             )
         except IdempotencyConflict as exc:
             raise SnapshotConflict("render idempotency key conflicts with an existing queue job") from exc
-        db = self._db()
         try:
-            db.execute("BEGIN IMMEDIATE")
-            db.execute("""
-                INSERT INTO timeline_edl_snapshots
-                (id,workspace_id,creator_principal_id,idempotency_key,payload_json,
-                 payload_sha256,render_job_id,created_at)
-                VALUES(?,?,?,?,?,?,?,?)
-            """, (snapshot_id, workspace_id, principal_id, idempotency_key,
-                  serialized, digest, job["id"], now))
-            db.commit()
+            with self._db() as db:
+                db.execute("BEGIN IMMEDIATE")
+                db.execute("""
+                    INSERT INTO timeline_edl_snapshots
+                    (id,workspace_id,creator_principal_id,idempotency_key,payload_json,
+                     payload_sha256,render_job_id,created_at)
+                    VALUES(?,?,?,?,?,?,?,?)
+                """, (snapshot_id, workspace_id, principal_id, idempotency_key,
+                      serialized, digest, job["id"], now))
+                db.commit()
         except sqlite3.IntegrityError as exc:
-            db.rollback()
             raise SnapshotConflict("snapshot idempotency key already exists") from exc
-        finally:
-            db.close()
         return {
             "snapshot_id": snapshot_id, "workspace_id": workspace_id,
             "render_job_id": job["id"], "payload_sha256": digest,
