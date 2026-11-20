@@ -49,7 +49,11 @@ class TimelineRenderWorker:
         heartbeat = threading.Thread(target=beat, daemon=True)
         heartbeat.start()
         try:
-            result = self.renderer(job["payload"], stop_event=lost)
+            render_payload = dict(job["payload"])
+            # The queue owns workspace identity; expose it to the trusted
+            # asset resolver without changing the immutable stored payload.
+            render_payload["workspace_id"] = job["workspace_id"]
+            result = self.renderer(render_payload, stop_event=lost)
             if lost.is_set():
                 raise RuntimeError("timeline render lease was lost")
             if self.artifact_store is not None:
