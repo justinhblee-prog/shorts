@@ -48,7 +48,8 @@
         "EDL v1 bounded audio-track schema with workspace-scoped clean-asset validation",
         "Sequential EDL video renderer using shell-free bounded FFmpeg execution, staged asset checksum verification, audio source trims/mix/fades/limiter and final MP4 mux",
         "Lease-loss cancellation during FFmpeg processes and final ffprobe duration/stream/size validation",
-        "Lease-loss and adoption-failure cleanup of unadopted staged MP4s, constrained to the private staging root"
+        "Lease-loss and adoption-failure cleanup of unadopted staged MP4s, constrained to the private staging root",
+        "Recompute and verify canonical normalized EDL SHA-256 before media processing; restrict FFmpeg and ffprobe inputs to local file/pipe protocols"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
