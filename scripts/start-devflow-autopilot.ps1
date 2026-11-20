@@ -15,8 +15,8 @@ if($Plan -or $Run){
  $runner=Join-Path $PSScriptRoot "git-cli-multiflow.ps1"
  if(-not(Test-Path $runner)){throw "Git CLI multi-flow runner missing: $runner"}
  $argsList=@()
- if($Plan){$argsList+=" -Plan"}
- if($Run){$argsList+=" -Run"}
+ if($Plan){$argsList+="-Plan"}
+ if($Run){$argsList+="-Run"}
  if($Task){$argsList+=@("-Task",$Task)}
  if($Base){$argsList+=@("-Base",$Base)}
  if($AgentCommand){$argsList+=@("-AgentCommand",$AgentCommand)}
