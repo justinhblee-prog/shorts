@@ -242,4 +242,21 @@ directly inside a test process.
 The CI test credentials and fixture workspace are ephemeral and are not
 production credentials. ClamAV signature freshness, actual malware scanning,
 representative customer media, and target-host compatibility remain separate
-production gates. The new workflow step is pending its first successful run.
+production gates. The first integrated workflow run succeeded on commit `e9f1c124dc545a348dd40c3bd08ae559927878a8`: [Compose integration smoke #44798390154](https://github.com/justinhblee-prog/shorts/actions/runs/44798390154) and [Backend tests #44798390156](https://github.com/justinhblee-prog/shorts/actions/runs/44798390156) both passed. The Compose run completed the API upload → quarantine → trusted fixture attestation → idempotent submission → separate worker FFmpeg render/adoption → API review approval → cookie-authenticated private preview sequence, as well as service health, worker isolation, direct FFmpeg smoke and encrypted backup/restore.
+
+
+### Latest authenticated E2E verification
+
+- Compose run #44798390154: successful on commit
+  `e9f1c124dc545a348dd40c3bd08ae559927878a8`. All steps passed, including
+  authenticated API-to-worker E2E and encrypted backup/restore.
+- Backend run #44798390156: successful on the same commit, including
+  `scripts/validate.sh`, Korean font fallback and Playwright Chromium smoke.
+- The E2E uses two ephemeral admin principals and two isolated SQLite
+  workspaces. It verifies denied cross-workspace upload, denied cross-workspace
+  render status, unauthenticated status denial, upload quarantine, idempotent
+  submission, actual render by the separate Compose worker, artifact-bound
+  approval, and cookie-authenticated private MP4 preview.
+- The harness marks only its locally generated fixture as clean directly in
+  the asset registry. This deliberately avoids pretending ClamAV ran; real
+  scanner signature freshness and malware scan integration remain open.
