@@ -5,6 +5,7 @@ on:
     paths:
       - "scripts/git-cli-autopilot.ps1"
       - "scripts/git-cli-multiflow.ps1"
+      - "scripts/git-cli-multiflow-parallel.ps1"
       - "scripts/start-devflow-autopilot.ps1"
       - "scripts/devflow.py"
       - ".github/workflows/git-cli-autopilot.yml"
@@ -31,6 +32,7 @@ jobs:
           $files = @(
             "scripts/git-cli-autopilot.ps1",
             "scripts/git-cli-multiflow.ps1",
+            "scripts/git-cli-multiflow-parallel.ps1",
             "scripts/start-devflow-autopilot.ps1"
           )
           foreach ($file in $files) {
