@@ -1,6 +1,7 @@
 import hashlib
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from queue_store import JobQueue, LeaseConflict
@@ -135,6 +136,34 @@ class RenderArtifactStoreTests(unittest.TestCase):
         self.assertFalse(orphan.exists())
         self.assertTrue(unrelated.exists())
         self.assertTrue((self.artifacts / adopted["storage_key"]).exists())
+
+
+    def test_optional_ffprobe_metadata_is_persisted_with_adopted_artifact(self):
+        binary = Path(self.temp.name) / "ffprobe"
+        binary.write_bytes(b"fixture-binary")
+        store = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            ffprobe_path=binary, require_audio=True,
+        )
+        probe = {
+            "duration_ms": 12345,
+            "byte_size": self.staged.stat().st_size,
+            "video_streams": [{"width": 1280, "height": 720, "codec": "h264"}],
+            "audio_streams": 1,
+            "audio_codecs": ["aac"],
+        }
+        with patch("render_artifact_store.probe_media", return_value=probe) as mocked:
+            result = store.adopt(
+                self.job["id"], self.worker, self.claimed["lease_token"],
+                self.generation, "ws_test", self.snapshot_id,
+                self.snapshot_sha, self.staged,
+            )
+        mocked.assert_called_once()
+        record = store.get(result["artifact_id"], "ws_test")
+        self.assertEqual(record["duration_ms"], 12345)
+        self.assertEqual(record["video_width"], 1280)
+        self.assertEqual(record["video_height"], 720)
+        self.assertEqual(record["audio_streams"], 1)
 
 
 if __name__ == "__main__":
