@@ -52,7 +52,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $log = Join-Path $env:RUNNER_TEMP "agent-cli-smoke.log"
-          & "$PWD/scripts/test-real-agent-cli.ps1" -TimeoutSeconds 300 2>&1 | Tee-Object -FilePath $log
+          & "$PWD/scripts/test-real-agent-cli.ps1" -TimeoutSeconds 300 6>&1 2>&1 | Tee-Object -FilePath $log
           if ($LASTEXITCODE -ne 0) { throw "Real Agent CLI smoke test failed with exit code $LASTEXITCODE." }
 
       - name: Upload smoke evidence
