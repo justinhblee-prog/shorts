@@ -48,7 +48,8 @@
         "Optional trusted audio-bed mix and mux stage connected to the EDL render pipeline",
         "Worker factory wiring queue-owned workspace identity, snapshot creator membership, verified clean asset path resolution and lease-fenced artifact adoption",
         "Black timeline-gap segments and configured-font title-card rendering in the FFmpeg EDL graph",
-        "Optional source-clip audio discovery through bounded ffprobe, source trim and timeline offset mixing with trusted audio beds"
+        "Optional source-clip audio discovery through bounded ffprobe, source trim and timeline offset mixing with trusted audio beds",
+        "Probe source video metadata and reject EDL source trims that exceed trusted media duration when ffprobe is configured"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
