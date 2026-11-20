@@ -113,6 +113,10 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         )
         next_job = self.store.claim_ready("worker-b")
         self.assertEqual(next_job["id"], child["id"])
+        release_event = self.store.events(child["id"])[-1]
+        self.assertEqual(release_event["event_type"], "dependencies_satisfied")
+        self.assertEqual(release_event["from_status"], "blocked")
+        self.assertEqual(release_event["to_status"], "ready")
 
     def test_list_includes_persisted_dependencies_for_dashboard_dag(self):
         parent = self.store.create("Listed parent", scope=["frontend/app.js"])
@@ -232,6 +236,10 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         second = self.store.claim_ready("worker-b")
         self.assertEqual(second["id"], job["id"])
         self.assertEqual(second["attempts"], 2)
+        retry_event = self.store.events(job["id"])[-2]
+        self.assertEqual(retry_event["event_type"], "retry_due")
+        self.assertEqual(retry_event["from_status"], "retry_wait")
+        self.assertEqual(retry_event["to_status"], "ready")
         quarantined = self.store.fail(job["id"], "worker-b", second["lease_token"],
                                       "permanent validation error", retryable=False)
         self.assertEqual(quarantined["status"], "quarantined")
