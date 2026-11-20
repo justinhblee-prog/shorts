@@ -68,6 +68,21 @@ async function waitForServer() {
     await prerequisiteLink.press("Enter");
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-development-job")),
       "browser-smoke-ui-parent", "Enter must activate prerequisite navigation");
+    const crossPagePrerequisite = page.locator(
+      '#developmentJobList [data-load-prerequisite-id="browser-smoke-pagination-204"]'
+    );
+    await crossPagePrerequisite.waitFor({ state: "visible" });
+    await crossPagePrerequisite.click();
+    const crossPageParent = page.locator(
+      '[data-development-job="browser-smoke-pagination-204"]'
+    );
+    await crossPageParent.waitFor({ state: "visible" });
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-development-job")),
+      "browser-smoke-pagination-204",
+      "loading another page from a missing prerequisite must focus the persisted parent");
+    assert.match(await page.locator("#developmentJobPaginationStatus").textContent(), /213 \/ 213/);
+    assert.equal(await page.locator("#loadMoreDevelopmentJobs").isHidden(), true,
+      "the load-more control must hide after the final page");
     await page.setViewportSize({ width: 320, height: 900 });
     const mobileLayout = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
