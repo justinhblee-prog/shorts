@@ -13,9 +13,13 @@
       "id": "BUILD-00352",
       "title": "Secure FFmpeg render worker lifecycle",
       "priority": 1,
-      "status": "ready",
+      "status": "in_progress",
       "depends_on": [],
-      "scope": ["backend/render worker", "backend/tests", "docs"],
+      "scope": [
+        "backend/render worker",
+        "backend/tests",
+        "docs"
+      ],
       "acceptance": [
         "Owned source asset registration and hash-verified staging",
         "Durable render job state with lease fencing and crash recovery",
@@ -25,30 +29,62 @@
         "Checksum-backed atomic artifact adoption",
         "Review-pending handoff; no publishing"
       ],
-      "external_gates": ["Real FFmpeg runtime integration", "Production filesystem isolation and resource limits"]
+      "external_gates": [
+        "Real FFmpeg runtime integration",
+        "Production filesystem isolation and resource limits"
+      ],
+      "implemented_increment": [
+        "Bounded argv-only FFmpeg subprocess execution with timeout and output-size checks",
+        "Process-group termination on timeout or output-limit breach",
+        "ffprobe profile validation, SHA-256 fingerprint and atomic private artifact adoption",
+        "Unit fixtures cover successful adoption, destination collision and unsafe output names"
+      ],
+      "remaining": [
+        "Integrate with authenticated workspace-owned source asset registry and immutable EDL job snapshot",
+        "Integrate generic durable queue lease/heartbeat fencing and crash reconciliation",
+        "Use real pinned FFmpeg and ffprobe binaries in an isolated worker container",
+        "Enforce CPU, memory, disk, network and process-count quotas outside this Python module",
+        "Add actual audio-mix support and real-media integration tests"
+      ]
     },
     {
       "id": "BUILD-00353",
       "title": "Real provider contract and end-to-end media validation",
       "priority": 2,
       "status": "blocked_external",
-      "depends_on": ["BUILD-00352"],
-      "scope": ["provider adapters", "integration tests", "operator runbook"],
+      "depends_on": [
+        "BUILD-00352"
+      ],
+      "scope": [
+        "provider adapters",
+        "integration tests",
+        "operator runbook"
+      ],
       "acceptance": [
         "Verify each configured provider against its actual HTTPS contract",
         "Generate and inspect real script, voice track and MP4",
         "Record provider cost, latency, failure and artifact provenance",
         "Keep output in review_pending until human approval"
       ],
-      "external_gates": ["Operator-supplied credentials and approved spend ceiling", "Provider contract, licensing and data-processing review"]
+      "external_gates": [
+        "Operator-supplied credentials and approved spend ceiling",
+        "Provider contract, licensing and data-processing review"
+      ]
     },
     {
       "id": "BUILD-00354",
       "title": "Production deployment and recovery readiness",
       "priority": 3,
       "status": "blocked_external",
-      "depends_on": ["BUILD-00353"],
-      "scope": ["deployment", "monitoring", "backup", "runbook"],
+      "depends_on": [
+        "BUILD-00353"
+      ],
+      "scope": [
+        "deployment",
+        "monitoring",
+        "backup",
+        "runbook"
+      ],
       "acceptance": [
         "HTTPS and secret custody/rotation configured",
         "Persistent storage, backup retention and off-host copy verified",
@@ -56,7 +92,10 @@
         "Monitoring and actionable alerts enabled",
         "One approved private test upload and reconciliation completed"
       ],
-      "external_gates": ["Target host access and deployment authorization", "YouTube OAuth and explicit private-test authorization"]
+      "external_gates": [
+        "Target host access and deployment authorization",
+        "YouTube OAuth and explicit private-test authorization"
+      ]
     }
   ]
 }
