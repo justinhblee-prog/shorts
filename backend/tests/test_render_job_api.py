@@ -37,6 +37,52 @@ def sample_job(status="queued"):
 
 
 class RenderJobApiTests(unittest.TestCase):
+    def test_list_render_jobs_is_workspace_scoped_and_returns_cursor(self):
+        first = sample_job()
+        second = sample_job()
+        first["created_at"] = "2026-11-20T00:00:02+00:00"
+        second["created_at"] = "2026-11-20T00:00:01+00:00"
+        first["status"] = second["status"] = "review_pending"
+        cursor_id = str(uuid4())
+        with (
+            patch.object(app_module, "require_review_permission", return_value="operator-a") as auth,
+            patch.object(app_module, "resolve_operator_workspace_scope", return_value="workspace-a"),
+            patch.object(app_module.queue, "list_jobs", return_value=[first, second]) as list_jobs,
+        ):
+            result = app_module.list_render_jobs(
+                limit=2, status="review_pending",
+                before_created_at="2026-11-19T23:59:00+00:00",
+                before_job_id=cursor_id,
+                x_review_token="token", x_nexus_workspace_id="workspace-a",
+            )
+        auth.assert_called_once_with("token", "production.read")
+        list_jobs.assert_called_once_with(
+            workspace_id="workspace-a", job_type="timeline_render",
+            status="review_pending", limit=2,
+            before_created_at="2026-11-19T23:59:00+00:00",
+            before_job_id=cursor_id,
+        )
+        self.assertEqual(len(result["items"]), 2)
+        self.assertEqual(result["items"][0]["job_id"], first["id"])
+        self.assertNotIn("lease_token", result["items"][0])
+        self.assertEqual(result["next_cursor"]["before_job_id"], second["id"])
+
+    def test_list_render_jobs_rejects_missing_workspace_and_invalid_status(self):
+        with (
+            patch.object(app_module, "require_review_permission", return_value="operator-a"),
+            patch.object(app_module, "resolve_operator_workspace_scope", return_value=None),
+        ):
+            with self.assertRaises(HTTPException) as denied:
+                app_module.list_render_jobs(x_review_token="token")
+        self.assertEqual(denied.exception.status_code, 403)
+        with (
+            patch.object(app_module, "require_review_permission", return_value="operator-a"),
+            patch.object(app_module, "resolve_operator_workspace_scope", return_value="workspace-a"),
+        ):
+            with self.assertRaises(HTTPException) as invalid:
+                app_module.list_render_jobs(status="all", x_review_token="token")
+        self.assertEqual(invalid.exception.status_code, 422)
+
     def test_enqueue_uses_authenticated_workspace_and_durable_job_type(self):
         job = sample_job()
         with (

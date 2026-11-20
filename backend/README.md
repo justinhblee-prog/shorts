@@ -637,3 +637,6 @@ Exact-head validation for the durable queue/worker integration: 865 backend test
 
 
 The timeline editor now exposes the durable render API through Draft PR [#425](https://github.com/justinhblee-prog/shorts/pull/425). Its exact head passed Chromium desktop/mobile smoke and the backend suite in [run 44708689692](https://github.com/justinhblee-prog/shorts/actions/runs/44708689692), and six-service Compose/real FFmpeg integration in [run 44708689724](https://github.com/justinhblee-prog/shorts/actions/runs/44708689724). The UI uploads only MP4/M4A workspace assets, requires a clean scan, and gates approve/reject behind loading the completed MP4 preview. No automatic provider publishing is wired.
+
+
+The render console now includes workspace-scoped render job history and cursor pagination via `GET /api/render/jobs`. Exact head `cd4551d4b16aad3deafac4b66b8cd982568bdc0e` passed 869 backend tests and Chromium desktop/mobile smoke [run 44710092287](https://github.com/justinhblee-prog/shorts/actions/runs/44710092287), plus six-service Compose/real FFmpeg integration [run 44710092310](https://github.com/justinhblee-prog/shorts/actions/runs/44710092310).

@@ -92,6 +92,7 @@ class JobQueue:
             if "workspace_id" not in job_columns:
                 c.execute("ALTER TABLE pipeline_jobs ADD COLUMN workspace_id TEXT")
             c.execute("CREATE INDEX IF NOT EXISTS idx_jobs_workspace_status ON pipeline_jobs(workspace_id,status,created_at)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_jobs_workspace_history ON pipeline_jobs(workspace_id,job_type,created_at DESC,id DESC)")
             worker_columns = {row["name"] for row in c.execute("PRAGMA table_info(worker_registry)")}
             if "generation_token" not in worker_columns:
                 c.execute("ALTER TABLE worker_registry ADD COLUMN generation_token TEXT")
@@ -355,6 +356,37 @@ class JobQueue:
                 row=c.execute("SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id=?",(jid,workspace_id)).fetchone()
             if row is None: raise JobNotFound()
             return self.decode(row)
+
+    def list_jobs(
+        self, *, workspace_id, job_type=None, status=None, limit=20,
+        before_created_at=None, before_job_id=None,
+    ):
+        if not isinstance(workspace_id, str) or not workspace_id.strip():
+            raise ValueError("An explicit workspace is required to list jobs")
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 50:
+            raise ValueError("Job history limit must be between 1 and 50")
+        if bool(before_created_at) != bool(before_job_id):
+            raise ValueError("Both job history cursor fields are required")
+        clauses = ["workspace_id=?"]
+        params = [workspace_id]
+        if job_type is not None:
+            clauses.append("job_type=?")
+            params.append(job_type)
+        if status is not None:
+            clauses.append("status=?")
+            params.append(status)
+        if before_created_at is not None:
+            clauses.append("(created_at < ? OR (created_at = ? AND id < ?))")
+            params.extend([before_created_at, before_created_at, before_job_id])
+        params.append(limit)
+        with self.db() as connection:
+            rows = connection.execute(
+                "SELECT * FROM pipeline_jobs WHERE "
+                + " AND ".join(clauses)
+                + " ORDER BY created_at DESC,id DESC LIMIT ?",
+                params,
+            ).fetchall()
+        return [self.decode(row) for row in rows]
 
     def events(self,jid,workspace_id=None):
         with self.db() as c:

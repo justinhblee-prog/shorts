@@ -980,6 +980,57 @@ def _render_job_view(job, workspace_id):
     }
 
 
+@app.get("/api/render/jobs")
+def list_render_jobs(
+    limit:int=20,
+    status:str|None=None,
+    before_created_at:str|None=None,
+    before_job_id:str|None=None,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
+    if workspace_id is None:
+        raise HTTPException(403,"An explicit workspace is required to list render jobs")
+    if not 1<=limit<=50:
+        raise HTTPException(422,"History limit must be between 1 and 50")
+    if status is not None and status not in {
+        "queued","running","review_pending","failed_retriable","failed_terminal","cancelled"
+    }:
+        raise HTTPException(422,"Unsupported render job status filter")
+    if before_created_at is not None and len(before_created_at)>64:
+        raise HTTPException(422,"Invalid history cursor timestamp")
+    if before_job_id is not None and len(before_job_id)>36:
+        raise HTTPException(422,"Invalid history cursor job ID")
+    if bool(before_created_at)!=bool(before_job_id):
+        raise HTTPException(422,"Both history cursor fields are required")
+    try:
+        jobs=queue.list_jobs(
+            workspace_id=workspace_id,job_type="timeline_render",status=status,
+            limit=limit,before_created_at=before_created_at,before_job_id=before_job_id,
+        )
+        items=[{
+            "job_id":job["id"],
+            "status":job["status"],
+            "attempt":job["attempt"],
+            "max_attempts":job["max_attempts"],
+            "created_at":job["created_at"],
+            "updated_at":job["updated_at"],
+            "error_code":job["error_code"],
+            "error_message":job["error_message"],
+        } for job in jobs]
+        next_cursor=None
+        if len(jobs)==limit and jobs:
+            next_cursor={
+                "before_created_at":jobs[-1]["created_at"],
+                "before_job_id":jobs[-1]["id"],
+            }
+        return {"items":items,"next_cursor":next_cursor}
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
 @app.get("/api/render/jobs/{job_id}")
 def get_render_job(
     job_id:str,
