@@ -187,5 +187,25 @@ class ApiRateLimitTests(unittest.TestCase):
                                    trusted_proxy_cidrs="not-a-network")
 
 
+    def test_workspace_media_upload_scan_and_render_submit_use_media_rate_limit(self):
+        middleware = ApiRateLimitMiddleware(lambda *args: None, self.store)
+        self.assertEqual(
+            middleware._policy("POST", "/api/operator/workspaces/ws1/assets"),
+            "media",
+        )
+        self.assertEqual(
+            middleware._policy("POST", "/api/operator/workspaces/ws1/assets/asset_123/scan"),
+            "media",
+        )
+        self.assertEqual(
+            middleware._policy("POST", "/api/operator/workspaces/ws1/renders"),
+            "media",
+        )
+        self.assertEqual(
+            middleware._policy("GET", "/api/operator/workspaces/ws1/render-artifacts"),
+            None,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
