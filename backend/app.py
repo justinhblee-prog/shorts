@@ -1,6 +1,10 @@
 import os
 import logging
 import secrets
+import tempfile
+from workspace_asset_store import WorkspaceAssetStore, AssetError, AssetNotFound
+from timeline_render_store import TimelineRenderStore, SnapshotError, SnapshotConflict
+from render_artifact_store import RenderArtifactStore, ArtifactAdoptionError
 from typing import Any, Literal
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException, Header, Query, Request, Response
@@ -106,6 +110,23 @@ performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.s
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+private_media_root=os.getenv("NEXUS_PRIVATE_MEDIA_ROOT","data/private-media")
+render_staging_root=os.getenv("NEXUS_RENDER_STAGING_ROOT","data/render-staging")
+render_artifact_root=os.getenv("NEXUS_RENDER_ARTIFACT_ROOT","data/render-artifacts")
+asset_store=WorkspaceAssetStore(
+    os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"), private_media_root,
+    workspace_store,
+    max_asset_bytes=int(os.getenv("NEXUS_MAX_ASSET_BYTES","500000000")),
+)
+timeline_render_store=TimelineRenderStore(
+    os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"), asset_store, workspace_store, queue
+)
+render_artifact_store=RenderArtifactStore(
+    queue, render_staging_root, render_artifact_root,
+    max_bytes=int(os.getenv("NEXUS_MAX_RENDER_BYTES","2000000000")),
+    ffprobe_path=os.getenv("NEXUS_FFPROBE_PATH") or None,
+    require_audio=os.getenv("NEXUS_RENDER_REQUIRE_AUDIO","false").lower() == "true",
+)
 media_stager=MediaStager()
 
 class Enqueue(BaseModel):
@@ -662,6 +683,206 @@ def validate_timeline_edl(
     except EDLValidationError as exc:
         raise HTTPException(422,str(exc))
     return {"valid":True,"rendered":False,"workspace_id":workspace_id,"edl":normalized}
+
+
+@app.post("/api/workspaces/{workspace_id}/assets",status_code=201)
+async def upload_workspace_asset(
+    workspace_id:str,
+    request:Request,
+    x_file_name:str|None=Header(default=None),
+    x_review_token:str|None=Header(default=None),
+):
+    """Stream a private asset into quarantine; upload never marks content clean."""
+    principal=require_review_permission(x_review_token,"media.manage")
+    try:
+        resolve_workspace_access(
+            principal, workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE","legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON",""),
+            store=workspace_store,
+        )
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+    limit=asset_store.max_asset_bytes
+    content_length=request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length)<0 or int(content_length)>limit:
+                raise HTTPException(413,"Asset exceeds configured upload limit")
+        except ValueError:
+            raise HTTPException(400,"Invalid Content-Length")
+    with tempfile.SpooledTemporaryFile(max_size=8*1024*1024,mode="w+b") as stream:
+        size=0
+        async for chunk in request.stream():
+            size+=len(chunk)
+            if size>limit:
+                raise HTTPException(413,"Asset exceeds configured upload limit")
+            stream.write(chunk)
+        stream.seek(0)
+        try:
+            result=asset_store.register_stream(
+                workspace_id,principal,stream,x_file_name or "upload.bin"
+            )
+        except WorkspaceDenied as exc:
+            raise HTTPException(403,str(exc))
+        except (AssetError,ValueError) as exc:
+            raise HTTPException(422,str(exc))
+    return {"asset":result,"scan_required":True,"renderable":False}
+
+
+@app.get("/api/workspaces/{workspace_id}/assets/{asset_id}")
+def get_workspace_asset(
+    workspace_id:str,asset_id:str,
+    x_review_token:str|None=Header(default=None),
+):
+    principal=require_review_permission(x_review_token,"media.manage")
+    try:
+        resolve_workspace_access(
+            principal,workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE","legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON",""),
+            store=workspace_store,
+        )
+        return {"asset":asset_store.get_asset(workspace_id,principal,asset_id)}
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except AssetNotFound:
+        raise HTTPException(404,"Asset not found")
+    except (AssetError,ValueError) as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.post("/api/timeline/renders",status_code=202)
+def submit_timeline_render(
+    payload:dict,
+    idempotency_key:str|None=Header(default=None,alias="Idempotency-Key"),
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    principal=require_review_permission(x_review_token,"media.manage")
+    if not x_nexus_workspace_id:
+        raise HTTPException(400,"X-Nexus-Workspace-Id is required")
+    try:
+        workspace_id=resolve_workspace_access(
+            principal,x_nexus_workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE","legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON",""),
+            store=workspace_store,
+        )
+        result=timeline_render_store.submit(
+            workspace_id,principal,payload,idempotency_key
+        )
+        return {**result,"rendered":False,"status_url":f"/api/timeline/renders/{result['snapshot_id']}"}
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except SnapshotConflict as exc:
+        raise HTTPException(409,str(exc))
+    except SnapshotError as exc:
+        raise HTTPException(422,str(exc))
+    except (EDLValidationError,ValueError) as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.get("/api/timeline/renders/{snapshot_id}")
+def get_timeline_render_status(
+    snapshot_id:str,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    principal=require_review_permission(x_review_token,"review.read")
+    if not x_nexus_workspace_id:
+        raise HTTPException(400,"X-Nexus-Workspace-Id is required")
+    try:
+        workspace_id=resolve_workspace_access(
+            principal,x_nexus_workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE","legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON",""),
+            store=workspace_store,
+        )
+        snapshot=timeline_render_store.get(workspace_id,principal,snapshot_id)
+        job=queue.get(snapshot["render_job_id"],workspace_id=workspace_id)
+        response={
+            "snapshot_id":snapshot_id,"workspace_id":workspace_id,
+            "render_job_id":snapshot["render_job_id"],
+            "payload_sha256":snapshot["payload_sha256"],
+            "status":job["status"],"error_code":job.get("error_code"),
+            "error_message":job.get("error_message"),
+            "created_at":job.get("created_at"),"updated_at":job.get("updated_at"),
+            "rendered":False,
+        }
+        with queue.db() as db:
+            artifact=db.execute(
+                "SELECT artifact_id FROM render_artifacts WHERE job_id=? AND workspace_id=?",
+                (snapshot["render_job_id"],workspace_id),
+            ).fetchone()
+        if artifact:
+            metadata=render_artifact_store.get(artifact["artifact_id"],workspace_id)
+            response["artifact"]={
+                "artifact_id":metadata["artifact_id"],
+                "byte_size":metadata["byte_size"],
+                "duration_ms":metadata["duration_ms"],
+                "video_width":metadata["video_width"],
+                "video_height":metadata["video_height"],
+                "audio_streams":metadata["audio_streams"],
+                "preview_url":f"/api/timeline/artifacts/{metadata['artifact_id']}/preview",
+            }
+            response["rendered"]=True
+        return response
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except JobNotFound:
+        raise HTTPException(404,"Render job not found")
+    except SnapshotError:
+        raise HTTPException(404,"EDL snapshot not found")
+    except (ArtifactAdoptionError,ValueError) as exc:
+        raise HTTPException(409,str(exc))
+
+
+@app.get("/api/timeline/artifacts/{artifact_id}/preview")
+def preview_timeline_artifact(
+    artifact_id:str,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    principal=require_review_permission(x_review_token,"review.read")
+    if not x_nexus_workspace_id:
+        raise HTTPException(400,"X-Nexus-Workspace-Id is required")
+    try:
+        workspace_id=resolve_workspace_access(
+            principal,x_nexus_workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE","legacy_config"),
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON",""),
+            store=workspace_store,
+        )
+        metadata=render_artifact_store.get(artifact_id,workspace_id)
+        path=render_artifact_store.artifact_root/metadata["storage_key"]
+        return FileResponse(
+            path,media_type="video/mp4",
+            headers={"Content-Disposition":f'inline; filename="{artifact_id}.mp4"',
+                     "Cache-Control":"private, no-store"},
+        )
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except (ArtifactAdoptionError,ValueError):
+        raise HTTPException(404,"Render artifact not found")
 
 
 @app.get("/api/review/pending")
