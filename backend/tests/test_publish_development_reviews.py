@@ -147,7 +147,7 @@ class PublishDevelopmentReviewsTests(unittest.TestCase):
         self.assertEqual(self.store.get(self.job_id)["status"], "completed")
         self.assertEqual(client.requested, [
             ("open", "acme", "app"), ("pull", "acme", "app", 42),
-            ("files", "acme", "app", 42),
+            ("files", "acme", "app", 42), ("pull", "acme", "app", 42),
         ])
 
     def test_recovery_without_matching_pr_preserves_pending_job_and_history(self):
