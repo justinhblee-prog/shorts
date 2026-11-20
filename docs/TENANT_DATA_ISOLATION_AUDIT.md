@@ -191,7 +191,7 @@ The customer identity provider and account contract must be selected before impl
 - Recommendation exposure snapshots persist workspace_id; deduplication is workspace-aware. Linking a selected recommendation to a production job verifies the production parent has the same workspace. Holdout evaluation reads only the selected workspace's exposure records.
 - Trend recommendations and recommendation evaluation endpoints resolve the authenticated operator's workspace and pass that scope through performance evidence and exposure storage. Shared trend signals, public competitor observations, and brand profiles remain platform-level reference data.
 - Dashboard toolbar now includes a responsive active-workspace selector populated from the authenticated operator's membership list. API requests include X-Nexus-Workspace-Id only when a workspace is selected; the unselected default remains the legacy NULL/unassigned namespace. The workspace list permission is a minimal workspace.read grant for supported operator roles.
-- Browser smoke now seeds a test workspace and verifies that switching selection propagates the workspace header and returning to the default removes it. Latest CI for these changes is running; verify Backend/Chromium and Compose before marking validated.
+- Browser smoke now seeds a test workspace and verifies that switching selection propagates the workspace header and returning to the default removes it. Latest Backend validation + Chromium browser smoke passed (run 44694735250); Compose integration smoke passed (run 44694735235). Browser screenshot artifact: 14610172546.
 
 - Deployment note: the durable workspace registry is selected with NEXUS_WORKSPACE_AUTH_MODE=sqlite. The default legacy_config mode requires an explicit NEXUS_OPERATOR_WORKSPACES_JSON mapping and does not silently fall back to the registry. No environment setting was changed by this code update.
 
@@ -200,7 +200,7 @@ The customer identity provider and account contract must be selected before impl
 - Queue statistics, ambiguous production reconciliation listings, production retry authorization, and job cancellation now use the authenticated workspace scope. Generic queue enqueue also stamps the workspace resolved from membership rather than accepting client ownership.
 - Legacy operator-token claim/heartbeat/complete/fail endpoints now accept a workspace selector and pass the resolved workspace into every queue lease operation. Without a workspace selector they can only access legacy NULL-owned jobs; credential mode disables these legacy routes entirely.
 - Queue worker control, global recovery, and worker registry remain system-level operational controls protected by queue-control/operations permissions; they are not tenant-facing workspace data.
-- Added queue store regression coverage for workspace-scoped statistics and cancellation. Latest CI for the import/test fix is running.
+- Added queue store regression coverage for workspace-scoped statistics and cancellation. Latest Backend validation + Chromium browser smoke passed (run 44694735250); Compose integration smoke passed (run 44694735235).
 
 ## Remaining tenant boundary gaps (explicitly not complete)
 
