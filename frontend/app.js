@@ -798,6 +798,7 @@
     }).join(""):'<div class="empty-state">기록된 변경 이력이 없습니다.</div>';
   }
   let developmentJobOffset=0;
+  let developmentJobSnapshotAt=null;
   let developmentJobHasMore=false;
   const developmentJobRecords=new Map();
   let developmentJobLoadPromise=null;
@@ -810,8 +811,10 @@
     if(loadMoreButton)loadMoreButton.disabled=true;
     const request=(async()=>{
     const offset=append?developmentJobOffset:0;
+    const snapshotQuery=append&&developmentJobSnapshotAt
+      ? "&created_before="+encodeURIComponent(developmentJobSnapshotAt) : "";
     const [data,workerData]=await Promise.all([
-      api("/api/development/jobs?limit=200&offset="+offset),
+      api("/api/development/jobs?limit=200&offset="+offset+snapshotQuery),
       api("/api/development/workers?limit=50")
     ]);
     const pageJobs=data.jobs||[];
@@ -819,6 +822,7 @@
     pageJobs.forEach(job=>developmentJobRecords.set(String(job.id),job));
     const jobs=[...developmentJobRecords.values()];
     const pagination=data.pagination||{};
+    developmentJobSnapshotAt=pagination.snapshot_at||developmentJobSnapshotAt;
     developmentJobOffset=Number(pagination.next_offset??(offset+pageJobs.length));
     developmentJobHasMore=Boolean(pagination.has_more);
     const summary=data.summary||{},counts=summary.by_status||{};
