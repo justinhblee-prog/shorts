@@ -116,19 +116,25 @@ class OpportunityStore:
   os.makedirs(os.path.dirname(path) or ".",exist_ok=True)
   with connection(path) as db:
    db.execute("""CREATE TABLE IF NOT EXISTS scored_opportunities(
-    id TEXT PRIMARY KEY,title TEXT NOT NULL,priority_score REAL NOT NULL,
+    id TEXT PRIMARY KEY,title TEXT NOT NULL,priority_score REAL NOT NULL,workspace_id TEXT,
     currency TEXT NOT NULL,scenario_json TEXT NOT NULL,created_at TEXT NOT NULL)""")
- def save(self,result):
+   columns={row[1] for row in db.execute("PRAGMA table_info(scored_opportunities)")}
+   if "workspace_id" not in columns:
+    db.execute("ALTER TABLE scored_opportunities ADD COLUMN workspace_id TEXT")
+   db.execute("CREATE INDEX IF NOT EXISTS idx_opportunities_workspace_score ON scored_opportunities(workspace_id,priority_score,created_at)")
+ def save(self,result,workspace_id=None):
   oid=str(uuid.uuid4()); created=now()
   with connection(self.path) as db:
-   db.execute("INSERT INTO scored_opportunities VALUES(?,?,?,?,?,?)",
+   db.execute("""INSERT INTO scored_opportunities
+    (id,title,priority_score,currency,scenario_json,created_at,workspace_id)
+    VALUES(?,?,?,?,?,?,?)""",
     (oid,result.get("title") or "Untitled opportunity",result["priority_score"],
-     result["currency"],json.dumps(result,ensure_ascii=False),created))
+     result["currency"],json.dumps(result,ensure_ascii=False),created,workspace_id))
   return {"id":oid,"created_at":created,**result}
- def list(self,limit=50):
+ def list(self,limit=50,workspace_id=None):
   with connection(self.path) as db:
    db.row_factory=sqlite3.Row
    return [{"id":r["id"],"title":r["title"],"priority_score":r["priority_score"],
     "currency":r["currency"],"created_at":r["created_at"],"scenario":json.loads(r["scenario_json"])}
-    for r in db.execute("SELECT * FROM scored_opportunities ORDER BY priority_score DESC,created_at DESC LIMIT ?",
-                         (max(1,min(int(limit),200)),))]
+    for r in db.execute("SELECT * FROM scored_opportunities WHERE workspace_id IS ? ORDER BY priority_score DESC,created_at DESC LIMIT ?",
+                         (workspace_id,max(1,min(int(limit),200))))]
