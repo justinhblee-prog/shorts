@@ -133,3 +133,14 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - The project is intentionally not linked to Git; subsequent commits do not auto-deploy. Refresh the preview only after a new snapshot is explicitly built from a verified branch/commit.
 - Vercel also registered an initial protected production-target bootstrap deployment during project initialization. It has no custom domain and is covered by the same project-wide Vercel Authentication protection. **Do not use it as the review URL**; the preview URL above is the intended review target.
 - No production repository, main branch, secrets, or existing Vercel project was modified.
+
+
+## Exact-head verification — workspace DB path and EDL validation hardening (2026-11-20)
+
+- Current PR head: `9ebc36e4b692a70d51c5ab6a4ef1709578b6b54c`.
+- Fixed `WorkspaceStore` default database resolution to honor `NEXUS_DB_PATH` (falling back to `data/nexus.sqlite3`), matching the API, worker and scheduler. Explicit test database paths still take precedence. Added regression tests for both configuration paths.
+- Hardened EDL v1 validation: boolean values are no longer accepted as integer schema versions, and integer-to-float overflow is converted into a controlled validation error rather than an unhandled exception. Added regression cases and updated the render integration design record.
+- Exact-head backend validation and Chromium desktop/mobile smoke passed: [run 44674295290](https://github.com/justinhblee-prog/shorts/actions/runs/44674295290). Browser artifact: [14602255338](https://github.com/justinhblee-prog/shorts/actions/runs/44674295290/artifacts/14602255338) (5.37 MB).
+- Exact-head Compose integration passed: [run 44674295302](https://github.com/justinhblee-prog/shorts/actions/runs/44674295302), including service startup/readiness and scheduled backup/isolated restore.
+- Workspace registry remains a standalone persistence module; FastAPI identity integration and migration from operator workspace configuration are still gated on a trusted end-user principal source. No upload or MP4 render endpoint is claimed.
+- PR #417 remains Draft/open/unmerged.
