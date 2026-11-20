@@ -561,7 +561,7 @@ def require_production_workspace(job_id, operator_id, workspace_selector):
 @app.get("/api/operator/workspaces")
 def list_operator_workspaces(x_review_token:str|None=Header(default=None)):
     """List only workspaces belonging to the authenticated operator principal."""
-    operator_id=require_review_permission(x_review_token,"media.manage")
+    operator_id=require_review_permission(x_review_token,"workspace.read")
     return {"workspaces":workspace_store.list_for_principal(operator_id)}
 
 
