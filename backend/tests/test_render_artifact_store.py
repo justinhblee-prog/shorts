@@ -166,5 +166,15 @@ class RenderArtifactStoreTests(unittest.TestCase):
         self.assertEqual(record["audio_streams"], 1)
 
 
+    def test_discard_staged_only_removes_files_inside_private_staging_root(self):
+        self.assertTrue(self.store.discard_staged(self.staged))
+        self.assertFalse(self.staged.exists())
+        outside = Path(self.temp.name) / "outside.mp4"
+        outside.write_bytes(b"keep")
+        with self.assertRaisesRegex(ArtifactAdoptionError, "escaped"):
+            self.store.discard_staged(outside)
+        self.assertTrue(outside.exists())
+
+
 if __name__ == "__main__":
     unittest.main()
