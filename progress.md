@@ -336,3 +336,12 @@
 - The first regression-smoke attempt failed because the test's Playwright route matcher was incorrectly escaped as a regular-expression literal. Corrected the matcher and reran the full exact-head workflow; the final run above passed. This was a test-harness syntax issue, not an application runtime failure.
 - The delayed-response double-click regression now confirms one page request for two rapid prerequisite clicks, disabled pagination controls while pending, re-enabled controls after settlement, and correct parent-card focus.
 - FLOW-UI/FLOW-QA: PASS for hosted Chromium fixture. No production/Windows/Ollama claims are implied.
+
+## 42. Stable development-job pagination snapshot — 2026-11-20
+
+- FLOW-CORE review found an offset-pagination race: a newly inserted high-priority job could shift existing rows between page requests. A later offset page could then repeat rows already loaded and permanently omit other jobs while `has_more` became false.
+- Added `snapshot_created_at()` which captures a UTC insertion boundary while holding SQLite `BEGIN IMMEDIATE`. Because job creation samples `created_at` only after acquiring the same writer lock, jobs created after the first page are guaranteed to sort beyond this snapshot and cannot shift subsequent offset pages.
+- The API accepts a timezone-aware `created_before`, validates/canonicalizes it, and applies the same snapshot to both list and count queries. The response includes `pagination.snapshot_at`; the UI carries that exact value across all additional pages. Refresh starts a new snapshot.
+- Regression test inserts a higher-priority job between page requests and verifies the original three-job snapshot is returned exactly once with a stable total. API tests cover snapshot metadata, offset/status propagation, and malformed timestamp rejection. Chromium recovery smoke asserts the next-page request carries the initial snapshot.
+- Exact code head `46b337bad16648a0d7ed6753c42ffe3d63033569` passed [run 44659993665](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665): 901 backend tests, frontend syntax, dashboard Chromium smoke, recovery/workstream/dependency/pagination Chromium smoke, and artifact [14595685407](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665/artifacts/14595685407).
+- FLOW-CORE/FLOW-UI/FLOW-QA: PASS within hosted SQLite + Chromium fixture scope. Production multi-process SQLite and real Windows runner persistence remain NOT VERIFIED.
