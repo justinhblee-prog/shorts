@@ -111,3 +111,104 @@ def probe_media(path, ffprobe_path, *, max_duration_ms=3_600_000,
         "audio_streams": len(audio),
         "audio_codecs": [item.get("codec_name") for item in audio],
     }
+
+
+def probe_source_media(path, ffprobe_path, *, max_duration_ms=3_600_000,
+                       max_bytes=2_000_000_000, timeout_seconds=15):
+    """Validate a source audio/video asset and return trusted stream metadata."""
+    media, binary = Path(path), Path(ffprobe_path)
+    if not media.is_absolute() or media.is_symlink() or not media.is_file():
+        raise FFprobeValidationError("source media must be an absolute regular non-symlink file")
+    if not binary.is_absolute() or binary.is_symlink() or not binary.is_file():
+        raise FFprobeValidationError("ffprobe binary must be an absolute regular non-symlink file")
+    if (isinstance(max_duration_ms, bool) or not isinstance(max_duration_ms, int)
+            or not 1 <= max_duration_ms <= 3_600_000):
+        raise FFprobeValidationError("max_duration_ms must be between 1 and 3600000")
+    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1:
+        raise FFprobeValidationError("max_bytes must be a positive integer")
+    if (isinstance(timeout_seconds, bool)
+            or not isinstance(timeout_seconds, (int, float))
+            or not math.isfinite(timeout_seconds)
+            or not 1 <= timeout_seconds <= 60):
+        raise FFprobeValidationError("timeout_seconds must be between 1 and 60")
+    actual_size = media.stat().st_size
+    if actual_size < 1 or actual_size > max_bytes:
+        raise FFprobeValidationError("source media size is outside configured limits")
+    argv = [
+        str(binary), "-protocol_whitelist", "file,pipe", "-v", "error",
+        "-show_entries",
+        "format=duration,size,format_name:stream=codec_type,codec_name,width,height,sample_rate,channels",
+        "-of", "json", str(media),
+    ]
+    try:
+        completed = subprocess.run(
+            argv, shell=False, check=False, capture_output=True,
+            text=True, timeout=float(timeout_seconds),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise FFprobeValidationError("source ffprobe exceeded its execution timeout") from exc
+    except OSError as exc:
+        raise FFprobeValidationError("source ffprobe could not be started") from exc
+    if completed.returncode != 0:
+        raise FFprobeValidationError("source media was rejected by ffprobe")
+    try:
+        result = json.loads(completed.stdout)
+    except (TypeError, ValueError) as exc:
+        raise FFprobeValidationError("source ffprobe returned invalid JSON") from exc
+    if not isinstance(result, dict) or not isinstance(result.get("format"), dict):
+        raise FFprobeValidationError("source ffprobe output is missing format metadata")
+    streams = result.get("streams")
+    if not isinstance(streams, list) or not 1 <= len(streams) <= 16:
+        raise FFprobeValidationError("source media stream count is outside configured limits")
+    try:
+        duration_seconds = float(result["format"]["duration"])
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        raise FFprobeValidationError("source media duration is missing or invalid") from exc
+    if (not math.isfinite(duration_seconds) or duration_seconds <= 0
+            or duration_seconds * 1000 > max_duration_ms):
+        raise FFprobeValidationError("source media duration is outside configured limits")
+    video_streams, audio_streams = [], []
+    for stream in streams:
+        if not isinstance(stream, dict):
+            raise FFprobeValidationError("source media stream metadata is invalid")
+        kind = stream.get("codec_type")
+        if kind == "video":
+            width, height = stream.get("width"), stream.get("height")
+            if (isinstance(width, bool) or not isinstance(width, int) or not 1 <= width <= 8192
+                    or isinstance(height, bool) or not isinstance(height, int) or not 1 <= height <= 8192):
+                raise FFprobeValidationError("source video dimensions are outside configured limits")
+            video_streams.append({
+                "codec": stream.get("codec_name"), "width": width, "height": height,
+            })
+        elif kind == "audio":
+            try:
+                sample_rate, channels = int(stream.get("sample_rate")), int(stream.get("channels"))
+            except (TypeError, ValueError) as exc:
+                raise FFprobeValidationError("source audio metadata is invalid") from exc
+            if not 1 <= sample_rate <= 384000 or not 1 <= channels <= 16:
+                raise FFprobeValidationError("source audio metadata is outside configured limits")
+            audio_streams.append({
+                "codec": stream.get("codec_name"),
+                "sample_rate": sample_rate, "channels": channels,
+            })
+    if not video_streams and not audio_streams:
+        raise FFprobeValidationError("source media must contain audio or video")
+    reported_size = result["format"].get("size")
+    if reported_size is not None:
+        try:
+            if int(reported_size) != actual_size:
+                raise FFprobeValidationError("source ffprobe size does not match the uploaded file")
+        except (TypeError, ValueError) as exc:
+            if isinstance(exc, FFprobeValidationError):
+                raise
+            raise FFprobeValidationError("source ffprobe returned invalid size metadata") from exc
+    return {
+        "duration_ms": round(duration_seconds * 1000),
+        "byte_size": actual_size,
+        "format_name": str(result["format"].get("format_name", ""))[:120],
+        "has_video": bool(video_streams),
+        "has_audio": bool(audio_streams),
+        "video_streams": video_streams,
+        "audio_streams": audio_streams,
+    }
+
