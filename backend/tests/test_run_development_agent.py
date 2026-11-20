@@ -79,6 +79,37 @@ class RunDevelopmentAgentTests(unittest.TestCase):
                 ["backend/real/", "backend/real.py"],
             )
 
+    def test_approved_scopes_are_bound_to_the_configured_repository(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(ValueError, "configured repository"):
+                _normalize_approved_scopes(
+                    {"github:issue:other/repo#1": ["backend/a.py"]}, temp, "acme/app"
+                )
+
+    def test_approved_scopes_reject_traversal_absolute_and_malformed_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            for path in ("../outside.py", r"backend\\..\\outside.py", "/etc/passwd", "C:\\secrets.txt", "", "x" * 513):
+                with self.subTest(path=path):
+                    with self.assertRaises(ValueError):
+                        _normalize_approved_scopes(
+                            {"github:issue:acme/app#1": [path]}, temp, "acme/app"
+                        )
+
+    def test_approved_scopes_reject_duplicate_or_unbounded_entries(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(ValueError, "duplicates"):
+                _normalize_approved_scopes(
+                    {"github:issue:acme/app#1": ["backend/a.py", "backend/a.py"]}, temp, "acme/app"
+                )
+            with self.assertRaisesRegex(ValueError, "1 to 100"):
+                _normalize_approved_scopes(
+                    {"github:issue:acme/app#1": ["backend/" for _ in range(101)]}, temp, "acme/app"
+                )
+            with self.assertRaisesRegex(ValueError, "500"):
+                _normalize_approved_scopes(
+                    {f"github:issue:acme/app#{i}": ["backend/"] for i in range(1, 502)}, temp, "acme/app"
+                )
+
     def test_rejects_non_object_scope_configuration(self):
         env = {
             "GITHUB_TOKEN": "token", "GITHUB_REPOSITORY": "acme/app",
