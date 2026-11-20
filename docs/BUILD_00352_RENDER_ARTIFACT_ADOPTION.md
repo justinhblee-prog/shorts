@@ -97,3 +97,29 @@ renderer. Trailing timeline duration cannot be inferred from the current EDL
 schema because it has no explicit project-duration field. The tests use fake
 FFmpeg/ffprobe processes; a pinned real-media render is still an external
 runtime validation gate.
+
+
+## Authenticated media and render API
+
+The FastAPI application now wires the workspace asset registry, immutable EDL
+snapshot store and private render artifact store to the shared application
+SQLite database. The following workspace-scoped endpoints are available:
+
+- \`POST /api/workspaces/{workspace_id}/assets\`: accepts a bounded raw request
+  body and \`X-File-Name\`; streams it to private storage and returns a quarantined
+  asset record. The upload endpoint never marks an asset clean.
+- \`GET /api/workspaces/{workspace_id}/assets/{asset_id}\`: returns metadata
+  after reviewer permission and active workspace membership checks.
+- \`POST /api/timeline/renders\`: accepts the EDL JSON, requires
+  \`X-Nexus-Workspace-Id\` and \`Idempotency-Key\`, validates assets and creates
+  an immutable snapshot plus durable render queue job.
+- \`GET /api/timeline/renders/{snapshot_id}\`: returns workspace-scoped job
+  status and, after artifact adoption, verified artifact metadata and preview URL.
+- \`GET /api/timeline/artifacts/{artifact_id}/preview\`: streams the verified
+  private MP4 inline after reviewer permission and workspace membership checks.
+
+Uploads remain quarantined until a trusted malware-scanning integration records
+a clean result. No user-facing endpoint accepts a caller's assertion that a file
+is clean. The scanner integration and production worker process must be deployed
+separately; the API queues work but does not synchronously render it. Artifact
+preview is only available after the lease-fenced worker has adopted the output.
