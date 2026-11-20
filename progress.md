@@ -293,3 +293,13 @@
 - Fix commit: `5c875d25c64b252ce84553f663aee15ef1eb920e`.
 - Exact-head CI for this correction has not yet been returned. Do not mark recovery browser validation PASS until the new run completes both browser suites and artifact upload.
 - PR #415 remains Draft/open/unmerged; PR #416 remains separate. No merge, deployment, workflow activation, or default-branch change.
+
+
+## 37. Development-job pagination button hidden-state CSS defect — 2026-11-20
+
+- Exact-head CI run [44656527780](https://github.com/justinhblee-prog/shorts/actions/runs/44656527780) passed backend validation, frontend syntax, Chromium installation, and the full dashboard browser smoke, but recovery browser smoke failed at the assertion that the load-more control becomes hidden after the final page.
+- The loaded/total status was equal (`217 / 217`), and the API correctly returned `has_more=false`. The defect was CSS cascade: `.button` sets `display:inline-flex`, overriding the browser's user-agent `[hidden] { display:none }` rule. The application correctly set the element's `hidden` property, but the button remained rendered.
+- Fixed by adding the explicit author rule `#loadMoreDevelopmentJobs[hidden]{display:none}` before the shared button styles. This preserves the API pagination contract and the existing button styling when more pages exist.
+- Fix commit: `b9d1a23eda3522c07404d89f662f3d2e0bf9a0ad`.
+- Exact-head CI has not yet been observed. Do not mark browser validation PASS until the recovery smoke and artifact upload succeed on this exact commit.
+- PR #415 remains Draft/open/unmerged; PR #416 remains separate. No merge, deployment, workflow activation, or default-branch change.
