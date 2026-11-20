@@ -225,6 +225,73 @@ class TimelineRenderApiTests(unittest.TestCase):
         ))
         self.assertEqual(result["reviewer_id"], "reviewer-1")
 
+
+    def test_preview_session_sets_short_lived_path_scoped_httponly_cookie(self):
+        from fastapi import Response
+        artifact_id = "rart_" + "a" * 32
+        class FakeArtifactStore:
+            def get(self, requested_id, workspace_id):
+                self.assertion = (requested_id, workspace_id)
+                return {"artifact_id": requested_id}
+        store = FakeArtifactStore()
+        request = Request({
+            "type": "http", "asgi": {"version": "3.0"},
+            "http_version": "1.1", "method": "POST", "scheme": "https",
+            "path": "/preview-session", "raw_path": b"/preview-session",
+            "query_string": b"", "headers": [], "server": ("test", 443),
+            "client": ("test", 1234),
+        })
+        response = Response()
+        with (
+            patch.object(api, "require_review_permission", return_value="alice"),
+            patch.object(api, "resolve_workspace_access", return_value="ws_studio"),
+            patch.object(api, "render_artifact_store", store),
+        ):
+            result = api.create_timeline_preview_session(
+                artifact_id, request, response, "review-secret", "ws_studio"
+            )
+        self.assertEqual(store.assertion, (artifact_id, "ws_studio"))
+        self.assertEqual(result["expires_in_seconds"], 120)
+        self.assertIn("workspace_id=ws_studio", result["preview_url"])
+        cookie = response.headers["set-cookie"].lower()
+        self.assertIn("httponly", cookie)
+        self.assertIn("secure", cookie)
+        self.assertIn("samesite=strict", cookie)
+        self.assertIn("max-age=120", cookie)
+        self.assertIn(f"/api/timeline/artifacts/{artifact_id}/preview", cookie)
+
+    def test_preview_uses_scoped_cookie_for_native_video_requests(self):
+        import tempfile
+        from pathlib import Path
+        artifact_id = "rart_" + "b" * 32
+        with tempfile.TemporaryDirectory() as temp:
+            media = Path(temp) / (artifact_id + ".mp4")
+            media.write_bytes(b"private-preview")
+            class FakeArtifactStore:
+                artifact_root = Path(temp)
+                def get(self, requested_id, workspace_id):
+                    return {"storage_key": media.name}
+            store = FakeArtifactStore()
+            cookie_name = "nexus_preview_" + artifact_id
+            request = Request({
+                "type": "http", "asgi": {"version": "3.0"},
+                "http_version": "1.1", "method": "GET", "scheme": "https",
+                "path": "/preview", "raw_path": b"/preview",
+                "query_string": b"workspace_id=ws_studio",
+                "headers": [(b"cookie", f"{cookie_name}=review-secret".encode())],
+                "server": ("test", 443), "client": ("test", 1234),
+            })
+            with (
+                patch.object(api, "require_review_permission", return_value="alice") as auth,
+                patch.object(api, "resolve_workspace_access", return_value="ws_studio"),
+                patch.object(api, "render_artifact_store", store),
+            ):
+                response = api.preview_timeline_artifact(
+                    artifact_id, request, "ws_studio", None, None
+                )
+            auth.assert_called_once_with("review-secret", "review.read")
+            self.assertEqual(Path(response.path), media)
+
     def test_render_submission_denies_non_member_before_queueing(self):
         store = FakeTimelineStore()
         with patch.object(api, "require_review_permission", return_value="mallory"), \
