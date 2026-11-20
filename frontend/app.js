@@ -1275,7 +1275,8 @@
     function setPreview(clip){
       preview.pause();
       overlay.hidden=true;overlay.textContent="";
-      if(!clip||clip.kind!=="video"){preview.removeAttribute("src");preview.load();empty.hidden=false;return;}
+      if(!clip){preview.removeAttribute("src");preview.load();empty.hidden=false;return;}
+      if(clip.kind==="title"){preview.removeAttribute("src");preview.load();empty.hidden=true;overlay.textContent=clip.text;overlay.hidden=false;return;}
       preview.src=clip.url;empty.hidden=true;
       const seek=()=>{try{preview.currentTime=clip.inPoint;}catch{}};
       if(preview.readyState>=1)seek();else preview.addEventListener("loadedmetadata",seek,{once:true});
@@ -1331,6 +1332,7 @@
       const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"})),a=document.createElement("a");a.href=url;a.download="nexus-edit-decision-list.json";a.click();URL.revokeObjectURL(url);say("편집 구성표(JSON)를 내보냈습니다. MP4 렌더링 파일은 생성하지 않았습니다.");
     });
     preview.addEventListener("loadedmetadata",()=>{empty.hidden=true;});
+    window.addEventListener("beforeunload",()=>{for(const clip of state.clips){if(clip.url)URL.revokeObjectURL(clip.url);}});
     render();
   })();
   loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
