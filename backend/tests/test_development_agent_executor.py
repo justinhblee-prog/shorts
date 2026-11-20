@@ -82,7 +82,7 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
 
         process = Mock()
         process.pid = 4321
-        process.send_signal.side_effect = OSError("console control unavailable")
+        process.send_signal.side_effect = AssertionError("Windows cancellation must use process-tree termination")
         process.wait.return_value = 0
         taskkill = Mock(return_value=subprocess.CompletedProcess(
             ["taskkill"], 0, "", ""
