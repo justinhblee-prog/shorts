@@ -506,7 +506,7 @@ def require_review_permission(token, permission):
 
 def resolve_operator_workspace_scope(operator_id, workspace_id):
     """Resolve an optional workspace selector against the authenticated operator membership."""
-    if workspace_id is None:
+    if workspace_id is None or not isinstance(workspace_id, str):
         return None
     try:
         return resolve_workspace_access(
