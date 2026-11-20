@@ -277,3 +277,11 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Review decisions and policy-evidence changes are workspace-fenced in the store transaction; omitted scope can see/act only on legacy unassigned rows.
 - Regression coverage verifies workspace A cannot list, decide, or alter policy evidence for workspace B's review job, while a matching workspace can complete the review.
 - Code head `7dc2b1742256832a744810188fdff1638668e6d7` passed Backend tests and Chromium browser smoke (run `44687938486`) plus Compose integration build/readiness/backup/restore (run `44687938515`).
+
+
+## Scheduled production workspace scope — 2026-11-20
+
+- Schedule records are now workspace-owned; existing records migrate as legacy unassigned (`workspace_id = NULL`).
+- Schedule creation, listing, activation, outbox status, and dead-letter retry use the authenticated operator's resolved workspace scope.
+- Due dispatch propagates the schedule's workspace ID into the durable queue job; outbox rows inherit scope from their parent schedule.
+- Regression coverage added for workspace A/B schedule isolation, dispatch propagation, and legacy outbox preservation. CI for `effc7a497b9c64b2fbcef1b8d1b7bb3c004f5117` was pending at handover update.
