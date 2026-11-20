@@ -19,16 +19,44 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare encrypted non-production backup environment
+      - name: Prepare isolated E2E credentials and encrypted backup environment
         run: |
           cp .env.example .env
           python - <<'PY'
           import base64
+          import json
           import secrets
+          from pathlib import Path
+
           key = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii")
-          with open(".env", "a", encoding="utf-8") as env_file:
-              env_file.write("NEXUS_BACKUP_ENCRYPTION_KEY=" + key + "\n")
-              env_file.write("NEXUS_BACKUP_ENCRYPTION_REQUIRED=true\n")
+          credentials = {
+              "smoke-reviewer": secrets.token_urlsafe(48),
+              "other-smoke-reviewer": secrets.token_urlsafe(48),
+          }
+          overrides = {
+              "NEXUS_BACKUP_ENCRYPTION_KEY": key,
+              "NEXUS_BACKUP_ENCRYPTION_REQUIRED": "true",
+              "NEXUS_REVIEW_CREDENTIALS_JSON": json.dumps(credentials, separators=(",", ":")),
+              "NEXUS_REVIEW_ROLE_MAP_JSON": json.dumps({
+                  "smoke-reviewer": ["admin"],
+                  "other-smoke-reviewer": ["admin"],
+              }, separators=(",", ":")),
+              "NEXUS_WORKSPACE_AUTH_MODE": "sqlite",
+              "NEXUS_MEDIA_SCAN_ENABLED": "false",
+              "NEXUS_RENDER_WIDTH": "320",
+              "NEXUS_RENDER_HEIGHT": "568",
+              "NEXUS_RENDER_FPS": "30",
+              "NEXUS_RENDER_TIMEOUT_SECONDS": "180",
+              "NEXUS_MAX_ASSET_BYTES": "20000000",
+              "NEXUS_MAX_RENDER_BYTES": "20000000",
+          }
+          path = Path(".env")
+          lines = [
+              line for line in path.read_text(encoding="utf-8").splitlines()
+              if not any(line.startswith(name + "=") for name in overrides)
+          ]
+          lines.extend(name + "=" + value for name, value in overrides.items())
+          path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
           PY
       - name: Verify Compose configuration
         run: docker compose config --quiet
@@ -90,6 +118,8 @@ jobs:
           PY
       - name: Verify real FFmpeg EDL render, artifact adoption and review
         run: docker compose exec -T timeline-render-worker python timeline_render_real_media_smoke.py
+      - name: Verify authenticated API upload, shared worker render, review and private preview
+        run: docker compose exec -T timeline-render-worker python timeline_render_api_e2e_smoke.py
       - name: Verify scheduled backup and isolated restore
         run: |
           set -eu
