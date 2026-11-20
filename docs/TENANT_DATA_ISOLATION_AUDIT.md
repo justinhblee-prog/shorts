@@ -36,7 +36,7 @@ This is a storage primitive only, not an end-to-end tenant boundary:
 - Queue, upload-store lookups, worker leases, and production records are still not workspace-scoped.
 - No tenant asset registry or authorized asset retrieval API exists.
 - Legacy root-level files are not moved or assigned to a workspace.
-- Cleanup must not be treated as tenant-safe until upload records themselves are workspace-scoped.
+- Workspace-scoped cleanup deliberately fails closed until upload records themselves support workspace-scoped reads; a global `get(job_id)` result is not sufficient ownership evidence.
 
 Tests added for same-job cross-workspace path separation, opaque directory names, invalid-ID rejection before network access, and cleanup isolation.
 
