@@ -213,3 +213,11 @@ The customer identity provider and account contract must be selected before impl
 
 
 - Workspace provider-connection architecture and migration requirements are specified in docs/WORKSPACE_PROVIDER_CONNECTION_CONTRACT.md. Implementation is intentionally blocked on provider account cardinality, approved KMS/key vault, OAuth app ownership, and authorized first tenant; no credentials or external connection were activated.
+
+
+## Analytics coverage tenant isolation — 2026-11-20
+
+- YouTube Analytics coverage now joins uploaded video identities through `youtube_uploads.job_id` to `production_runs.workspace_id`; scoped status never returns global collector counters/errors.
+- TikTok analytics coverage now joins publication job IDs to `production_runs.workspace_id`; scoped status omits global collector state and reports only the selected workspace's publication/snapshot counts.
+- `/api/youtube/analytics/collection-status` and `/api/publishing/analytics-status` now require the authenticated operator's resolved workspace scope. Historical analytics endpoints were already workspace-filtered; these status surfaces previously exposed cross-workspace aggregate coverage and collector state.
+- Added YouTube and TikTok store tests for workspace A/B coverage separation and zero-result unknown workspace behavior. CI validation pending for this change set; do not mark validated until Backend and Compose runs pass.
