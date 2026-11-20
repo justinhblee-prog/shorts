@@ -3,7 +3,8 @@
 Date: 2026-11-20  
 Promotion PR: #416  
 Branch: `promotion/nexus-worker-mainline-2026-11-20`  
-Status: Static review complete; operational activation blocked.
+Reviewed head: `4320759c2bf4719e086b6e42ca661d722b42f18e`  
+Status: Static review and repository CI complete; operational activation blocked.
 
 ## Review scope
 
@@ -26,6 +27,7 @@ Status: Static review complete; operational activation blocked.
 7. Job completion is gated on an exact, open, unmerged Draft PR whose repository, base/head refs, head SHA, and changed-file set are checked.
 8. Recovery only inspects an existing matching Draft PR. Ambiguous or missing matches leave jobs pending; recovery does not create, merge, approve, or close PRs.
 9. Workflow continuation is bounded by a 1–10 run counter and does not run in recovery mode.
+10. The workflow's only configured triggers are manual `workflow_dispatch` and a repository schedule. It has no `pull_request`, `pull_request_target`, or `workflow_run` execution trigger. Keep it that way: untrusted fork PR content must never be an execution trigger.
 
 ## Residual risks — activation blockers
 
@@ -54,14 +56,12 @@ The job requests `contents: write`, `pull-requests: write`, and `actions: write`
 
 ## CI evidence
 
-Latest PR head: `13f9b1308a660e2a1799aba2c5aba39212008217`
-
-Run [44649909418](https://github.com/justinhblee-prog/shorts/actions/runs/44649909418) passed on that exact head:
+Latest PR head `4320759c2bf4719e086b6e42ca661d722b42f18e` was validated by [Backend tests run 44650657207](https://github.com/justinhblee-prog/shorts/actions/runs/44650657207), which completed successfully on that exact commit. All job steps passed:
 - dependency installation
-- `sh scripts/validate.sh`
+- `sh scripts/validate.sh` (Python compile check and full backend unittest discovery)
 - explicit PyYAML parse of the worker workflow
 
-This CI run validates the repository test environment, not the Windows self-hosted runner or Ollama runtime.
+This CI run validates the repository test environment, not the Windows self-hosted runner, OS isolation, or Ollama runtime.
 
 ## Operational decision
 
