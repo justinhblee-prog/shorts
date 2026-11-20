@@ -84,6 +84,7 @@ class QueueTests(unittest.TestCase):
   self.assertEqual(claimed["id"],a["id"])
   self.assertEqual(claimed["workspace_id"],"workspace-a")
   self.assertEqual(self.q.get(b["id"],workspace_id="workspace-b")["id"],b["id"])
+  self.assertEqual(self.q.events(a["id"])[0]["workspace_id"],"workspace-a")
   with self.assertRaises(queue_store.JobNotFound):
    self.q.get(b["id"],workspace_id="workspace-a")
   with self.assertRaises(queue_store.JobNotFound):
