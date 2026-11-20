@@ -193,8 +193,15 @@ class TimelineRenderApiTests(unittest.TestCase):
             with patch.object(api, "require_review_permission", return_value="alice"), \
                  patch.object(api, "resolve_workspace_access", return_value="ws_studio"), \
                  patch.object(api, "render_artifact_store", store):
+                request = Request({
+                    "type": "http", "asgi": {"version": "3.0"},
+                    "http_version": "1.1", "method": "GET", "scheme": "https",
+                    "path": "/preview", "raw_path": b"/preview",
+                    "query_string": b"", "headers": [],
+                    "server": ("test", 443), "client": ("test", 1234),
+                })
                 response = api.preview_timeline_artifact(
-                    artifact_id, "review-token", "ws_studio"
+                    artifact_id, request, "ws_studio", "review-token", None
                 )
             self.assertEqual(Path(response.path), media)
             self.assertEqual(store.assertion, (artifact_id, "ws_studio"))
