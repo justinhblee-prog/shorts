@@ -53,7 +53,10 @@
         "Authenticated workspace-scoped raw media upload API with bounded streaming and quarantine-only registration",
         "Authenticated EDL render submission and idempotency API backed by immutable snapshots and durable queue",
         "Workspace-scoped render status and integrity-checked private artifact preview/download API",
-        "Route-level tests for upload quarantine, upload byte limits, workspace-scoped submission and non-member denial"
+        "Route-level tests for upload quarantine, upload byte limits, workspace-scoped submission and non-member denial",
+        "Optional fail-closed ClamAV scan gate for private workspace uploads; only trusted clean attestation promotes assets from pending",
+        "Workspace-scoped scan retry endpoint and audit event for successful ClamAV promotion",
+        "Compose opt-in NEXUS_MEDIA_SCAN_ENABLED wiring for API container"
       ],
       "remaining": [
         "Connect a real scanner; configure and validate the pinned ffprobe binary in the target worker runtime",
@@ -64,9 +67,9 @@
         "Implement title overlays, gaps, overlaps, transitions and source-clip audio semantics in the EDL renderer",
         "Configure the concrete worker factory and pinned FFmpeg/ffprobe binaries in the target worker runtime",
         "Implement overlap transitions and explicit project-duration/trailing-gap semantics in the EDL schema and renderer",
-        "Integrate a trusted malware scanning service that alone can transition uploaded assets from pending to clean",
         "Deploy and validate the pinned FFmpeg/ffprobe render worker with isolated filesystem, CPU, memory and process quotas",
-        "Exercise end-to-end API upload → malware scan → render queue → worker adoption → review preview using real media"
+        "Exercise end-to-end API upload → malware scan → render queue → worker adoption → review preview using real media",
+        "Enable and validate ClamAV database updater profile in target deployment before allowing workspace media uploads to render"
       ]
     },
     {
