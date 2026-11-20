@@ -73,3 +73,10 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Browser checks confirmed Korean text rendering with zero replacement glyphs, approved navigation, keyboard search against authenticated review content, settings entry, authenticated review approval/audit history, analytics pagination and CSV export, partial API failure handling, and reduced-motion behavior.
 - Fresh visual artifact: [14599326297](https://github.com/justinhblee-prog/shorts/actions/runs/44668155728/artifacts/14599326297) (6 MB). Compose integration smoke also passed [44668155732](https://github.com/justinhblee-prog/shorts/actions/runs/44668155732).
 - This is a QA-verified candidate, not yet accepted by the user. PR #417 remains Draft/open/unmerged.
+
+
+## Feature navigation follow-up — 2026-11-20
+
+- Sidebar destinations now resolve to distinct existing feature surfaces rather than sending several labels to the same section: trend collection, editorial recommendations, production request, production pipeline, review queue, publishing overview, analytics history and task queue.
+- Anchor scroll margins preserve the sticky workspace toolbar. Browser smoke now asserts all nine destinations exist, the links point to the correct targets, and URL/active-state updates occur after navigation clicks.
+- Exact-head CI is running on `2e6ba4f2d7e1495c45c626f3c24c56fd07652fc0`. The production pipeline anchor is not represented as a dedicated nonlinear video timeline editor.
