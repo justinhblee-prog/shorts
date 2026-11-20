@@ -63,9 +63,27 @@ class EDLFFmpegRendererTests(unittest.TestCase):
 
     def test_renders_black_gaps_and_rejects_titles_overlaps_and_unresolved_assets(self):
         title = dict(self.edl)
-        title["clips"] = [{"id": "title1", "type": "title", "start_ms": 0, "end_ms": 2000, "text": "hello"}]
-        with self.assertRaises(EDLRenderError):
-            build_video_argv(title, {}, self.root / "out.mp4", ffmpeg_path=str(self.binary))
+        title["clips"] = [
+            self.edl["clips"][0],
+            {"id": "title1", "type": "title", "start_ms": 2000,
+             "end_ms": 2500, "text": "hello: world, [safe]"},
+            dict(self.edl["clips"][1], start_ms=2500, end_ms=4500),
+        ]
+        with self.assertRaisesRegex(EDLRenderError, "configured trusted font"):
+            build_video_argv(title, {"asset1": self.video, "asset2": self.video},
+                             self.root / "out.mp4", ffmpeg_path=str(self.binary))
+        font = self.root / "font.ttf"
+        font.write_bytes(b"fixture font")
+        title_argv, title_duration = build_video_argv(
+            title, {"asset1": self.video, "asset2": self.video},
+            self.root / "title.mp4", ffmpeg_path=str(self.binary),
+            title_font_path=str(font),
+        )
+        self.assertEqual(title_duration, 4500)
+        title_graph = title_argv[title_argv.index("-filter_complex") + 1]
+        self.assertIn("drawtext=fontfile=", title_graph)
+        self.assertIn("expansion=none", title_graph)
+        self.assertIn(r"hello\: world\, \[safe\]", title_graph)
         gap = dict(self.edl)
         gap["clips"] = [self.edl["clips"][0], dict(self.edl["clips"][1], start_ms=3000, end_ms=5000)]
         gap_argv, gap_duration = build_video_argv(
