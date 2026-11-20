@@ -102,7 +102,7 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     start = sub.add_parser("start", help="create isolated Git worktree and task branch")
     start.add_argument("task")
-    start.add_argument("--base", default="fix/ui-417-workspace-analytics-smoke")
+    start.add_argument("--base", default="feat/engineering-orchestrator-2026-11-20")
     start.add_argument("--branch")
     start.set_defaults(func=cmd_start)
     val = sub.add_parser("validate", help="run repository validation in this worktree")
@@ -111,7 +111,7 @@ def main() -> int:
     finish.add_argument("--message", required=True)
     finish.add_argument("--title")
     finish.add_argument("--body")
-    finish.add_argument("--base", default="fix/ui-417-workspace-analytics-smoke")
+    finish.add_argument("--base", default="feat/engineering-orchestrator-2026-11-20")
     finish.set_defaults(func=cmd_finish)
     args = parser.parse_args()
     try:
