@@ -101,7 +101,7 @@
       "id": "BUILD-00355",
       "title": "Add isolated safety and tool-contract tests for the local Ollama coding agent",
       "priority": 4,
-      "status": "ready",
+      "status": "completed",
       "depends_on": [],
       "base_branch": "fix/devflow-detached-supervisor-2026-11-20",
       "scope": [
@@ -117,13 +117,13 @@
         "Do not modify .devflow/tasks.json or unrelated project files"
       ],
       "external_gates": [],
-      "notes": "Reattempt after removing JSON-constrained mode from Ollama tool requests. A real local model tool-call diagnostic now runs before worker scheduling and reports done_reason, output length, and tool-call counts. Repeated identical tool calls are bounded to prevent no-progress loops. Draft PR only; no merge or deployment."
+      "notes": "Implemented and submitted as Draft PR #441. Verified 16 standard-library safety/tool-contract tests and Python compilation in GitHub Actions. No merge or deployment."
     },
     {
       "id": "BUILD-00356",
       "title": "Add offline regression tests for Ollama tool-call protocol",
       "priority": 5,
-      "status": "ready",
+      "status": "completed",
       "depends_on": [],
       "base_branch": "fix/devflow-detached-supervisor-2026-11-20",
       "scope": [
@@ -138,7 +138,7 @@
         "Do not modify .devflow/tasks.json or unrelated project files"
       ],
       "external_gates": [],
-      "notes": "Retry after configuring Git author identity locally inside each isolated worker worktree. Prior run generated the requested test file and passed repository validation; commit was blocked only because the self-hosted Windows account has no Git identity configured."
+      "notes": "Real Windows Runner/Ollama worker generated and committed the offline protocol regression suite in Draft PR #442. Completed suite and scoped-patch sandbox coverage verified in stacked Draft PR #443: 8 tests passed; Git CLI automation checks and backend/UI CI passed. No merge or deployment."
     }
   ]
 }
