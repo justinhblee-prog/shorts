@@ -33,6 +33,7 @@ from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
 from preflight import build_preflight
 from timeline_edl import validate_edl, EDLValidationError
+from workspace_access import resolve_workspace_membership, WorkspaceAccessConfigurationError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 class TikTokOAuthAccessLogRedaction(logging.Filter):
@@ -489,14 +490,26 @@ def require_review_permission(token, permission):
 
 
 @app.post("/api/timeline/edl/validate")
-def validate_timeline_edl(payload:dict, x_review_token:str|None=Header(default=None)):
-    """Validate an EDL without storing assets, creating jobs, or invoking a renderer."""
-    require_review_permission(x_review_token,"media.manage")
+def validate_timeline_edl(
+    payload:dict,
+    x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
+):
+    """Validate an EDL within an explicitly configured operator workspace."""
+    operator_id=require_review_permission(x_review_token,"media.manage")
     try:
+        workspace_id=resolve_workspace_membership(
+            operator_id, x_nexus_workspace_id,
+            memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON", ""),
+        )
         normalized=validate_edl(payload)
+    except WorkspaceAccessConfigurationError as exc:
+        raise HTTPException(503,str(exc))
+    except PermissionError:
+        raise HTTPException(403,"Operator is not a member of the requested workspace")
     except EDLValidationError as exc:
         raise HTTPException(422,str(exc))
-    return {"valid":True,"rendered":False,"edl":normalized}
+    return {"valid":True,"rendered":False,"workspace_id":workspace_id,"edl":normalized}
 
 
 @app.get("/api/review/pending")
