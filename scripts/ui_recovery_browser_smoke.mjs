@@ -49,6 +49,10 @@ async function waitForServer() {
       "UI-scoped jobs must appear in their own workstream lane");
     assert.equal(await page.locator('#developmentJobList [data-workstream="CORE"]').count(), 1,
       "backend-scoped jobs must appear in the Core workstream lane");
+    for (const lane of ["AUTOMATION", "QA", "DOCS", "INTEGRATION", "UNCLASSIFIED"]) {
+      assert.equal(await page.locator('#developmentJobList [data-workstream="' + lane + '"]').count(), 1,
+        lane + " scoped jobs must appear in exactly one matching workstream lane");
+    }
     const dependencyBoard = await page.locator("#developmentJobList").textContent();
     assert.match(dependencyBoard, /선행 작업/);
     assert.match(dependencyBoard, /Browser smoke UI dependency/);
@@ -60,7 +64,10 @@ async function waitForServer() {
     }));
     assert.ok(mobileLayout.content <= mobileLayout.viewport,
       "multi-flow workstream board must not overflow a 320px mobile viewport");
-    assert.equal(await page.locator('#developmentJobList [data-workstream="UI"]').count(), 1);
+    for (const lane of ["UI", "CORE", "AUTOMATION", "QA", "DOCS", "INTEGRATION", "UNCLASSIFIED"]) {
+      assert.equal(await page.locator('#developmentJobList [data-workstream="' + lane + '"]').count(), 1,
+        lane + " workstream must remain visible at 320px");
+    }
     await page.setViewportSize({ width: 1440, height: 960 });
 
     page.on("dialog", async dialog => {
