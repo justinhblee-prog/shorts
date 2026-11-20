@@ -1296,7 +1296,9 @@
     }
     input.addEventListener("change",()=>{
       for(const file of Array.from(input.files||[])){
-        if(!file.type.startsWith("video/"))continue;
+        if(!file.type.startsWith("video/")){say(file.name+" 파일은 동영상 형식이 아닙니다.");continue;}
+        if(file.size>512*1024*1024){say(file.name+" 파일이 512MB 제한을 초과합니다.");continue;}
+        if(state.clips.length>=20){say("한 프로젝트에는 최대 20개 클립까지 추가할 수 있습니다.");break;}
         const url=URL.createObjectURL(file),clip={id:"clip-"+Math.random().toString(36).slice(2),kind:"video",name:file.name,url,mimeType:file.type,sizeBytes:file.size,duration:0,inPoint:0,outPoint:0};
         state.clips.push(clip);state.selected=clip.id;
         const probe=document.createElement("video");probe.preload="metadata";probe.src=url;
