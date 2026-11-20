@@ -9,6 +9,7 @@ import os
 import signal
 import socket
 import threading
+import time
 
 from queue_store import JobQueue
 from render_artifact_store import RenderArtifactStore
@@ -79,11 +80,11 @@ def build_worker():
         artifact_store=artifact_store,
         shutdown_event=stopping,
     )
-    return queue, worker, stopping
+    return queue, worker, stopping, artifact_store
 
 
 def main():
-    queue, worker, stopping = build_worker()
+    queue, worker, stopping, artifact_store = build_worker()
     generation = None
 
     def handle_shutdown(signum, frame):
@@ -99,7 +100,12 @@ def main():
             f"timeline_render_worker_started id={WORKER_ID} "
             f"lease_seconds={LEASE_SECONDS} heartbeat_seconds={HEARTBEAT_SECONDS}"
         )
+        last_cleanup = 0.0
         while not stopping.is_set():
+            if time.monotonic() - last_cleanup >= 300:
+                artifact_store.reconcile_orphaned_files(grace_seconds=7200)
+                artifact_store.reconcile_orphaned_staging(grace_seconds=7200)
+                last_cleanup = time.monotonic()
             if queue.is_paused():
                 stopping.wait(IDLE_SECONDS)
                 continue
