@@ -44,7 +44,7 @@ Required before activation:
 
 ### GitHub permissions
 
-The job requests `contents: write`, `pull-requests: write`, and `actions: write`. These are used for pushing the stable automation branch, creating/updating a Draft PR, and bounded workflow continuation. Review whether repository policy and a dedicated GitHub App/token can reduce the permission surface before activation. Keep intake/recovery credentials read-only and separately scoped.
+The workflow-level token requests `contents: read`, `pull-requests: write`, and `actions: write`; the job elevates `contents` to `write` only for the development job that pushes the stable automation branch. The write permissions support Draft PR publication and bounded workflow continuation. Unused `issues` permissions were removed from both scopes. Keep intake/recovery credentials read-only and separately scoped. Before activation, verify that repository policy and the selected token model preserve this least-privilege boundary.
 
 ### Runtime evidence still missing
 
