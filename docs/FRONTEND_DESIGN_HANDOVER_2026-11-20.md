@@ -263,3 +263,9 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Compose integration passed [run 44686719048](https://github.com/justinhblee-prog/shorts/actions/runs/44686719048), including service readiness and isolated backup/restore.
 - Fresh browser capture: [artifact 14607235689](https://github.com/justinhblee-prog/shorts/actions/runs/44686718970/artifacts/14607235689).
 - Current branch head is documentation-only after the validated code/test head; PR #417 remains Draft/Open/Unmerged.
+
+
+### Default-deny for omitted tenant read scope — 2026-11-20
+
+- Production detail/provider-attempt reads and queue job/event reads now deny workspace-owned records if no workspace selector is supplied; a selector is resolved against the authenticated operator's membership first.
+- Regression tests cover omitted selector (403), mismatched membership (403), and valid workspace scope. This closes the legacy global-read fallback for these job-level endpoints only; other resource families remain under audit.
