@@ -90,3 +90,15 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - Important activation dependency: the worker workflow currently exists on the unmerged integration branch. GitHub requires a `workflow_dispatch` workflow to exist on the default branch for manual dispatch; scheduled workflow evaluation also uses the default branch. Therefore the Windows/Ollama workflow cannot be triggered from this candidate until an authorized default-branch change makes it available.
 - The available repository connection supports run inspection and reruns but does not expose workflow dispatch. No Windows run, LocalAppData two-run persistence, or live Ollama generation is claimed.
 - PR #415 remains Draft/open/unmerged. Default-branch workflow activation, merge, deployment, and external provider operations remain gated; no changes to the default branch were made.
+
+
+## 10. Aggregate browser verification — 2026-11-20
+
+- Aggregate browser workflow run [44646542482](https://github.com/justinhblee-prog/shorts/actions/runs/44646542482) completed successfully on code head `8b45c77f54439819073de8f631097d3963b1bd20`; every workflow step succeeded.
+- Passed `scripts/validate.sh`, `node --check frontend/app.js`, Playwright installation, Chromium installation, `scripts/ui_browser_smoke.mjs`, `scripts/ui_recovery_browser_smoke.mjs`, and browser artifact upload.
+- Dashboard browser coverage: authenticated dashboard/API fixture, all 19 modules connected, review approval and audit history, analytics history pagination and full CSV download, partial API failure feedback, keyboard navigation, browser back/forward, reduced motion, responsive desktop/mobile layout and 320px overflow/touch-target checks.
+- Recovery browser coverage: UI/Core workstream lanes, persisted completed prerequisite and dependent quarantined job, 320px dependency-board layout, operator-confirmed recovery, ready-state transition, and immutable audit attribution.
+- Artifact [14589176582](https://github.com/justinhblee-prog/shorts/actions/runs/44646542482/artifacts/14589176582) contains `nexus-dashboard-desktop.png` (1440px) and `nexus-dashboard-mobile.png` (320px). Both screenshots were retrieved and visually inspected.
+- The font installation stall was resolved by bounding the font setup to five minutes, using bounded APT retries/timeouts, and allowing the fallback-font installation to fail without suppressing the subsequent browser tests. In this run the font setup itself succeeded.
+- This is hosted Linux + deterministic API-fixture browser validation, not proof of trusted Windows runner execution, LocalAppData persistence, live Ollama generation, OAuth/provider behavior, real media rendering, or live publishing.
+- PR #415 remains Draft/open/unmerged. No merge, deployment, default-branch change, or external provider action was performed.
