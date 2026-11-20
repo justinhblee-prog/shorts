@@ -99,3 +99,8 @@ These source-level changes and regression tests passed on exact PR head `fb9807e
 - Exact current PR #416 head `aa28b9d09813f65dd274ff7ec13026b0c703c876` passed [Backend tests run 44664632333](https://github.com/justinhblee-prog/shorts/actions/runs/44664632333): 618 backend tests and explicit worker workflow YAML parsing.
 - This confirms source-level regression coverage for the current promotion branch only. It does not establish a real Windows self-hosted runner execution, LocalAppData persistence across runs, Ollama generation, runner account ACLs, network egress restrictions, or OS-level containment.
 - Keep PR #416 Draft/open/unmerged. Do not dispatch the worker, enable its schedule, alter runner settings/secrets, merge, or deploy until the dedicated isolated runner and all activation gates are verified.
+
+
+### Windows process-tree cancellation hardening — 2026-11-20
+- On lease loss or executor cancellation, the Windows executor now invokes `taskkill /PID <pid> /T /F` before waiting for Aider, so child processes in the Aider process tree are terminated rather than only the root process. If taskkill fails, it falls back to terminating the root process; this remains best-effort and is not an OS sandbox.
+- Added unit coverage for successful process-tree termination and fallback when taskkill fails. Hosted CI validates the code path with mocked Windows process behavior; it does not substitute for real Windows runner execution.
