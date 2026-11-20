@@ -374,3 +374,5 @@ Do not bring the aggregate branch's unrelated production pipeline, queue/schedul
 - Exact-head hosted CI for `03bb8a8c...` is running (runs 44652238309 / 44652246574 / 44652255170). Do not mark PASS until the backend suite, both browser smoke scripts, and artifact upload complete.
 - UI lane code already exists; prior documentation incorrectly listed it as not yet implemented. Next UI increment is richer visual DAG edge/ancestor presentation and explicit missing-prerequisite handling, subject to API contract review.
 - PR #415 remains Draft/open/unmerged. No merge, deploy, workflow dispatch, runner change, secret change, or default-branch change.
+
+- Follow-up implementation: prerequisite chips now act as accessible keyboard-operable links to their persisted parent job card; unavailable parent IDs are explicitly labeled as outside the current page. CSS focus treatment and frontend static assertions were added. Chromium recovery smoke now verifies click and Enter navigation.
