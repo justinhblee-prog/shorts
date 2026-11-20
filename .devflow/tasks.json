@@ -74,14 +74,15 @@
         "Latest Compose CI built the image, verified FFmpeg/ffprobe manifest at worker startup, passed real-media render/review smoke and backup/restore checks",
         "Authenticated private media, render submission/status, preview-session and artifact-bound review APIs are covered by route tests",
         "Preview session cookie path and generated preview URL now use the actual artifact/workspace identifiers; native video preview accepts scoped cookie auth",
-        "Compose render-worker CPU quota smoke accepts either Docker CpuQuota or NanoCpus while preserving the two-CPU assertion"
+        "Compose render-worker CPU quota smoke accepts either Docker CpuQuota or NanoCpus while preserving the two-CPU assertion",
+        "Authenticated Compose HTTP E2E creates isolated operator workspaces, uploads and quarantines a generated MP4, proves cross-workspace denial, submits an idempotent EDL render through the API, waits for the separate Compose worker to render/adopt, records artifact-bound approval and fetches the private preview through its short-lived cookie"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
         "Run crash/restart and lease-loss fault injection against the target persistent filesystem",
         "Configure and validate ClamAV signature freshness and fail-closed scanning before enabling production uploads",
         "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
-        "Run end-to-end authenticated API upload → malware scan → render queue → worker adoption → review preview using production-like storage",
+        "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like storage; CI API E2E uses a generated fixture and trusted test-harness scan attestation, not ClamAV",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
         "Implement EDL overlap transitions and explicit project-duration/trailing-gap semantics"
       ]
