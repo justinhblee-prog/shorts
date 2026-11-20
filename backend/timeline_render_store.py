@@ -10,6 +10,7 @@ import json
 import re
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from queue_store import JobQueue, IdempotencyConflict
@@ -56,12 +57,20 @@ class TimelineRenderStore:
                 BEFORE DELETE ON timeline_edl_snapshots
                 BEGIN SELECT RAISE(ABORT,'EDL snapshots are immutable'); END""")
 
+    @contextmanager
     def _db(self):
         db = sqlite3.connect(self.db_path, timeout=30, isolation_level=None)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys=ON")
         db.execute("PRAGMA busy_timeout=30000")
-        return db
+        try:
+            yield db
+        except Exception:
+            if db.in_transaction:
+                db.rollback()
+            raise
+        finally:
+            db.close()
 
     def submit(self, workspace_id, principal_id, payload, idempotency_key):
         self.workspaces.require_membership(
