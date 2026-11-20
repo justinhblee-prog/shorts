@@ -8,7 +8,6 @@ param(
  [string]$AgentCommand=$env:DEVFLOW_AGENT_COMMAND,
  [string]$AgentArgsJson=$env:DEVFLOW_AGENT_ARGS_JSON,
  [ValidateRange(1,20)][int]$MaxTasks=3,
- [switch]$IncludeInProgress
 )
 $ErrorActionPreference="Stop"
 if($Plan -or $Run){
@@ -22,7 +21,6 @@ if($Plan -or $Run){
  if($AgentCommand){$argsList+=@("-AgentCommand",$AgentCommand)}
  if($AgentArgsJson){$argsList+=@("-AgentArgsJson",$AgentArgsJson)}
  $argsList+=@("-MaxTasks",$MaxTasks)
- if($IncludeInProgress){$argsList+="-IncludeInProgress"}
  & $runner @argsList
  if($LASTEXITCODE -ne 0){throw "Multi-flow runner failed (exit $LASTEXITCODE)."}
  exit 0
