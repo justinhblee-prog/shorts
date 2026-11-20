@@ -1602,3 +1602,10 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact UI head `35aede3ebf2659d6f6a24b60e2b116cf5184bc37` passed 865 backend tests and Chromium desktop/mobile smoke [run 44708689692](https://github.com/justinhblee-prog/shorts/actions/runs/44708689692). The smoke verifies the new controls and that preview/review actions remain disabled until a completed artifact is loaded.
 - The same UI head passed Compose integration [run 44708689724](https://github.com/justinhblee-prog/shorts/actions/runs/44708689724), including actual FFmpeg render-worker output and backup/restore.
 - Next engineering priorities: source-clip audio mixing, safe title overlays, durable render job history/listing, streaming preview instead of Blob buffering, and live ClamAV operational validation. Keep human review and provider publishing as separate gates.
+
+
+## BUILD — workspace render job history handoff (2026-11-20)
+
+- Draft PR [#428](https://github.com/justinhblee-prog/shorts/pull/428) adds cursor-paginated render history scoped to the authenticated workspace, with status filtering and no lease/path data in responses. The timeline render console now lists recent jobs, supports loading more history, and restores a selected job for status/artifact review.
+- Exact head `cd4551d4b16aad3deafac4b66b8cd982568bdc0e` passed 869 backend tests and Chromium desktop/mobile smoke [run 44710092287](https://github.com/justinhblee-prog/shorts/actions/runs/44710092287). Six-service Compose integration passed [run 44710092310](https://github.com/justinhblee-prog/shorts/actions/runs/44710092310), including actual MP4 render and encrypted backup/restore.
+- Next: safe title-card/overlay rendering, source-clip audio mixing, and authenticated streaming preview to avoid buffering large MP4s in browser memory.
