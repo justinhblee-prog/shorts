@@ -13,7 +13,8 @@ if($Run){
  if($AgentCommand){$env:DEVFLOW_AGENT_COMMAND=$AgentCommand}
  if($AgentArgsJson){$env:DEVFLOW_AGENT_ARGS_JSON=$AgentArgsJson}
  & $engine -StateRoot $stateRoot -MaxParallel ([Math]::Min(3,[int]$manifest.policy.max_parallel_worktrees)) -MaxTasks $MaxTasks -TaskId $Task -Base $Base
-
+ $engineExit=$LASTEXITCODE
+ if($engineExit -ne 0){throw "Parallel worker engine failed (exit $engineExit)."}
  exit 0
 }
 function Invoke-GitCli($repo,[string[]]$GitArgs){ & git -C $repo @GitArgs; if($LASTEXITCODE -ne 0){throw "git failed (exit $LASTEXITCODE)"} }
