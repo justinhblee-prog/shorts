@@ -311,6 +311,39 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
             for item in reversed(patches):
                 item.stop()
 
+    def test_youtube_analytics_video_reads_require_parent_workspace(self):
+        class ScopedProductionStore:
+            def get(self, job_id, workspace_id=None):
+                if workspace_id != "ws_alice":
+                    return None
+                return {"job_id": job_id, "workspace_id": "ws_alice"}
+
+        patches = [
+            patch.object(api, "production_store", ScopedProductionStore()),
+            patch.object(api.youtube_upload_store, "job_for_video", return_value="job-video"),
+            patch.object(api.youtube_analytics_store, "get", return_value={"video_id": "video-1"}),
+        ]
+        for item in patches:
+            item.start()
+        try:
+            with patch.dict(os.environ, {"NEXUS_WORKSPACE_AUTH_MODE": "sqlite"}):
+                with patch.object(api, "require_review_permission", return_value="alice"):
+                    with self.assertRaises(HTTPException) as missing:
+                        api.get_youtube_analytics("video-1")
+                    self.assertEqual(missing.exception.status_code, 404)
+                    with self.assertRaises(HTTPException) as wrong:
+                        api.get_youtube_analytics(
+                            "video-1", x_nexus_workspace_id="ws_mallory"
+                        )
+                    self.assertEqual(wrong.exception.status_code, 403)
+                    result = api.get_youtube_analytics(
+                        "video-1", x_nexus_workspace_id="ws_alice"
+                    )
+                    self.assertEqual(result["video_id"], "video-1")
+        finally:
+            for item in reversed(patches):
+                item.stop()
+
     def test_unauthenticated_workspace_requests_are_rejected(self):
         with patch.object(api, "require_review_permission",
                           side_effect=HTTPException(401, "Valid review token required")):
