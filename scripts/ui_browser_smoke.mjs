@@ -195,7 +195,7 @@ async function waitForServer() {
     assert.equal([...authenticatedText].filter(character => character === "\uFFFD").length, 0);
     assert.equal(await page.locator("html").getAttribute("lang"), "ko");
     checkpoint("authenticated Korean content has no replacement glyphs");
-    const liveApiChecks = await page.evaluate(async token => {
+    const liveApiChecks = await page.evaluate(async ({ token, workspaceId }) => {
       const paths = [
         "/api/brands",
         "/api/queue/stats",
@@ -211,7 +211,7 @@ async function waitForServer() {
         const body = await response.json();
         return { path, status: response.status, body };
       }));
-    }, "nexus-ui-browser-smoke-token-2026-11-19-32chars", workspaceId);
+    }, { token: "nexus-ui-browser-smoke-token-2026-11-19-32chars", workspaceId });
     assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200]);
     assert.ok(Array.isArray(liveApiChecks[0].body.brands));
     assert.ok(Number.isFinite(Number(liveApiChecks[1].body.total)));
