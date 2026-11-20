@@ -327,6 +327,8 @@ def get_production_job(job_id:str,x_review_token:str|None=Header(default=None),
     workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     result=production_store.get(job_id,workspace_id=workspace_id)
     if result is None: raise HTTPException(404,"Production job not found")
+    if result.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
     return review_store.sanitize_production_record(result)
 
 @app.get("/api/production/integrity-report")
@@ -356,6 +358,8 @@ def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(d
     result=production_store.get(job_id,workspace_id=workspace_id)
     if result is None:
         raise HTTPException(404,"Production job not found")
+    if result.get("workspace_id") is not None and workspace_id is None:
+        raise HTTPException(403,"Workspace scope is required for this production job")
     attempts=production_store.provider_attempts(job_id,workspace_id=workspace_id)
     # Provider response bodies and transport errors may contain credentials,
     # signed artifact URLs, or customer data. Expose only operational metadata;
@@ -1657,7 +1661,11 @@ def get_job(jid:str,x_review_token:str|None=Header(default=None),
             x_nexus_workspace_id:str|None=Header(default=None)):
     operator_id=require_review_permission(x_review_token,"production.read")
     workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
-    try: return review_store.sanitize_production_record(queue.get(jid,workspace_id=workspace_id))
+    try:
+        result=queue.get(jid,workspace_id=workspace_id)
+        if result.get("workspace_id") is not None and workspace_id is None:
+            raise HTTPException(403,"Workspace scope is required for this job")
+        return review_store.sanitize_production_record(result)
     except JobNotFound: raise HTTPException(404,"Job not found")
 @app.get("/api/jobs/{jid}/events")
 def get_events(jid:str,x_review_token:str|None=Header(default=None),
@@ -1665,7 +1673,9 @@ def get_events(jid:str,x_review_token:str|None=Header(default=None),
     operator_id=require_review_permission(x_review_token,"production.read")
     workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     try:
-        queue.get(jid,workspace_id=workspace_id)
+        job=queue.get(jid,workspace_id=workspace_id)
+        if job.get("workspace_id") is not None and workspace_id is None:
+            raise HTTPException(403,"Workspace scope is required for this job")
         return {"events":review_store.sanitize_queue_events(
             queue.events(jid,workspace_id=workspace_id))}
     except JobNotFound: raise HTTPException(404,"Job not found")
