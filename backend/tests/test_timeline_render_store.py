@@ -66,6 +66,68 @@ class TimelineRenderStoreTests(unittest.TestCase):
         with self.assertRaises(SnapshotConflict):
             self.store.submit("ws_studio", "alice", changed, "render-try-0002")
 
+
+    def _complete_render_and_adopt_fixture(self, idempotency_key):
+        result = self.store.submit(
+            "ws_studio", "alice", self.edl, idempotency_key
+        )
+        generation = self.queue.register_worker("timeline-review-fixture")["generation_token"]
+        job = self.queue.claim(
+            "timeline-review-fixture", job_type="timeline_render",
+            generation_token=generation,
+        )
+        self.queue.finish(
+            job["id"], "timeline-review-fixture", job["lease_token"],
+            {"snapshot_id": result["snapshot_id"], "review_required": True},
+            generation_token=generation, workspace_id="ws_studio",
+        )
+        with self.queue.db() as db:
+            db.execute("""
+                INSERT INTO render_artifacts
+                (artifact_id,job_id,workspace_id,snapshot_id,snapshot_sha256,
+                 artifact_sha256,byte_size,media_suffix,storage_key,created_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?)
+            """, (
+                "rart_" + "f" * 32, job["id"], "ws_studio",
+                result["snapshot_id"], result["payload_sha256"], "e" * 64,
+                128, ".mp4", "rart_" + "f" * 32 + ".mp4", "2026-11-20T00:00:00+00:00",
+            ))
+        return result
+
+    def test_review_queue_exposes_only_adopted_unreviewed_timeline_outputs(self):
+        result = self._complete_render_and_adopt_fixture("render-review-0001")
+        pending = self.store.list_pending_reviews("ws_studio", "alice")
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["snapshot_id"], result["snapshot_id"])
+        self.assertIn("/preview", pending[0]["preview_url"])
+        decision = self.store.review_decide(
+            "ws_studio", "alice", result["snapshot_id"], "approved", "Looks good"
+        )
+        self.assertEqual(decision["decision"], "approved")
+        self.assertEqual(decision["artifact_sha256"], "e" * 64)
+        self.assertEqual(
+            self.store.review_status("ws_studio", "alice", result["snapshot_id"])["status"],
+            "approved",
+        )
+        self.assertEqual(self.store.list_pending_reviews("ws_studio", "alice"), [])
+
+    def test_review_decision_is_single_immutable_record_bound_to_artifact(self):
+        result = self._complete_render_and_adopt_fixture("render-review-0002")
+        self.store.review_decide(
+            "ws_studio", "alice", result["snapshot_id"], "revision_requested", "Fix timing"
+        )
+        with self.assertRaisesRegex(SnapshotConflict, "already has a review decision"):
+            self.store.review_decide(
+                "ws_studio", "alice", result["snapshot_id"], "approved", "Second decision"
+            )
+        with self.store._db() as db:
+            row = db.execute(
+                "SELECT decision,artifact_sha256 FROM timeline_render_reviews WHERE snapshot_id=?",
+                (result["snapshot_id"],),
+            ).fetchone()
+            self.assertEqual(row["decision"], "revision_requested")
+            self.assertEqual(row["artifact_sha256"], "e" * 64)
+
     def test_snapshot_rows_reject_update_and_delete(self):
         result = self.store.submit("ws_studio", "alice", self.edl, "render-try-0003")
         with self.store._db() as db:
