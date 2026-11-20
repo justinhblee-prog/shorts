@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param()
 $ErrorActionPreference="Stop"
+$originalPath=$env:PATH
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7+ required."}
 $repoRoot=(git rev-parse --show-toplevel 2>$null)
 if($LASTEXITCODE -ne 0 -or -not $repoRoot){throw "Run from the repository checkout."}
@@ -30,6 +31,7 @@ try{
  & git -C $seed branch -M main
  & git -C $seed remote add origin $origin
  & git -C $seed push -u origin main
+ & git --git-dir=$origin symbolic-ref HEAD refs/heads/main
  & git clone $origin $checkout|Out-Null
  & git -C $checkout config user.name "Multiflow Test"
  & git -C $checkout config user.email "multiflow-test@example.invalid"
@@ -80,6 +82,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  if($remoteBranches.Count -lt 2){throw "Expected both worker branches to be pushed to the local bare origin."}
  Write-Host "PASS: two fake agents overlapped (start delta $($delta)ms), produced Draft PR states, and pushed isolated branches."
 }finally{
+ $env:PATH=$originalPath
  Remove-Item Env:DEVFLOW_TEST_LOG,Env:DEVFLOW_AGENT_COMMAND,Env:DEVFLOW_AGENT_ARGS_JSON -ErrorAction SilentlyContinue
  if($temp -and (Test-Path $temp)){Remove-Item -LiteralPath $temp -Recurse -Force}
 }
