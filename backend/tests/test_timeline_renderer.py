@@ -151,6 +151,40 @@ class TimelineRendererTests(unittest.TestCase):
         self.assertIn("1:a:0", args)
         self.assertTrue((self.root / result["media_path"]).is_file())
 
+    def test_rejects_gaps_or_overlaps_in_timeline_order(self):
+        payload = {
+            "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+            "clips": [
+                {"id": "clip-1", "type": "video", "start_ms": 0, "end_ms": 5000,
+                 "asset_id": "asset_1", "source_in_ms": 0, "source_out_ms": 5000},
+                {"id": "clip-2", "type": "video", "start_ms": 6000, "end_ms": 7000,
+                 "asset_id": "asset_1", "source_in_ms": 0, "source_out_ms": 1000},
+            ],
+        }
+        with self.assertRaisesRegex(TimelineRenderError, "ordered and contiguous"):
+            self.renderer.render(payload, {"asset_1": self.asset})
+        self.assertEqual(self.calls, [])
+
+    def test_rejects_combined_assets_over_total_limit(self):
+        audio = self.root / "voice.m4a"
+        audio.write_bytes(b"trusted audio")
+        self.renderer.max_total_asset_bytes = 25
+        with self.assertRaisesRegex(TimelineRenderError, "total size limit"):
+            self.renderer.render(
+                self.edl, {"asset_1": self.asset, "voice_1": audio},
+                audio_asset_id="voice_1",
+            )
+        self.assertEqual(self.calls, [])
+
+    def test_rejects_output_duration_mismatch(self):
+        self.renderer.inspector = FakeInspector({
+            "status": "inspected", "width": 1080, "height": 1920,
+            "duration_seconds": 9.0, "audio_track_present": False,
+        })
+        with self.assertRaisesRegex(TimelineRenderError, "duration"):
+            self.renderer.render(self.edl, {"asset_1": self.asset})
+        self.assertEqual(list(self.root.glob(".*.part.mp4")), [])
+
     def test_rejects_audio_asset_outside_registry(self):
         with self.assertRaisesRegex(TimelineRenderError, "not registered"):
             self.renderer.render(self.edl, {"asset_1": self.asset}, audio_asset_id="remote")
