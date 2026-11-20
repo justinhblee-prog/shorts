@@ -303,3 +303,13 @@
 - Fix commit: `b9d1a23eda3522c07404d89f662f3d2e0bf9a0ad`.
 - Exact-head CI has not yet been observed. Do not mark browser validation PASS until the recovery smoke and artifact upload succeed on this exact commit.
 - PR #415 remains Draft/open/unmerged; PR #416 remains separate. No merge, deployment, workflow activation, or default-branch change.
+
+
+## 38. Exact-head aggregate CI passed after pagination CSS fix — 2026-11-20
+
+- CSS fix commit `b9d1a23eda3522c07404d89f662f3d2e0bf9a0ad` passed exact-head PR workflow [44656809713](https://github.com/justinhblee-prog/shorts/actions/runs/44656809713), all 17 steps successful.
+- Verified on that exact code head: backend validation (`scripts/validate.sh`), frontend syntax, Korean font fallback, Playwright installation, Chromium installation, dashboard browser smoke, recovery/workstream/dependency-navigation/recovery audit browser smoke, and artifact upload.
+- Browser evidence artifact: [14594293817](https://github.com/justinhblee-prog/shorts/actions/runs/44656809713/artifacts/14594293817) (confirm artifact ID from run metadata before relying on this link; CI job confirms successful upload).
+- The regression now verifies the load-more control is actually hidden once all records are loaded; the CSS explicitly honors the `hidden` attribute despite the shared `.button { display:inline-flex }` rule.
+- Exact code-head validation: PASS. Documentation-only follow-up commit may become the PR head and is not represented as a separately executed code test; the tested code tree is unchanged.
+- PR #415 remains Draft/open/unmerged. PR #416 remains separate. No merge, deployment, workflow activation, or default-branch change.
