@@ -97,3 +97,10 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Exact code head `c34bc061f887d66bb699961f337c572462ecd4cc` passed [run 44669819398](https://github.com/justinhblee-prog/shorts/actions/runs/44669819398): 736 backend tests, frontend syntax, Chromium desktop/mobile, Korean glyph checks, authenticated review/analytics workflows and timeline interaction coverage.
 - Timeline checks verify two title clips, selection, reorder, in/out trim values, downloaded JSON EDL structure (`rendered: false`), deletion and empty-state recovery.
 - Fresh browser artifact: [14599428350](https://github.com/justinhblee-prog/shorts/actions/runs/44669819398/artifacts/14599428350). Compose integration smoke [44669819487](https://github.com/justinhblee-prog/shorts/actions/runs/44669819487) passed service startup/readiness and scheduled isolated backup/restore.
+
+
+## Timeline preview refinement — 2026-11-20
+
+- Added selected-range playback that seeks to the clip in-point and pauses at the out-point; trim changes are reflected in the preview boundary.
+- Added total timeline duration, title overlay preview, media MIME/byte metadata in the EDL, non-video upload rejection, and a 512 MiB browser-side per-file guard / 20-clip cap.
+- The timeline remains local-only and exports an EDL, not an MP4. See `docs/VIDEO_EDITOR_RENDER_INTEGRATION.md` for the secure asset-upload, EDL validation, restricted FFmpeg worker, review and retention architecture required before real rendering.
