@@ -44,6 +44,22 @@ def main() -> None:
         job_id="browser-smoke-quarantine-001",
     )
     app.development_job_store.add_dependency(job["id"], parent["id"])
+
+    # Persist one fixture for every remaining workstream classification.
+    workstream_fixtures = [
+        ("automation", [".github/workflows/backend-tests.yml"]),
+        ("qa", ["backend/tests/test_frontend.py"]),
+        ("docs", ["docs/MULTI_FLOW_EXECUTION.md"]),
+        ("integration", ["frontend/app.js", "backend/app.py"]),
+        ("unclassified", []),
+    ]
+    for lane, scope in workstream_fixtures:
+        app.development_job_store.create(
+            f"Browser smoke {lane.upper()} workstream",
+            description=f"Persisted scope fixture for {lane} lane classification",
+            scope=scope,
+            job_id=f"browser-smoke-{lane}-fixture",
+        )
     parent_claim = app.development_job_store.claim_ready("recovery-smoke-worker")
     if not parent_claim or parent_claim["id"] != parent["id"]:
         raise RuntimeError("Failed to claim the seeded upstream dependency")
