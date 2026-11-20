@@ -308,7 +308,11 @@ class RenderAssetStore:
                 path = candidate.resolve(strict=True)
                 path.relative_to(self.media_root)
                 namespace = hashlib.sha256(workspace_id.encode("utf-8")).hexdigest()
-                workspace_asset_root = (self.media_root / namespace / "render-assets").resolve(strict=True)
+                namespace_dir = self.media_root / namespace
+                workspace_asset_candidate = namespace_dir / "render-assets"
+                if namespace_dir.is_symlink() or workspace_asset_candidate.is_symlink():
+                    raise RenderAssetError("Workspace asset namespace must not be a symlink")
+                workspace_asset_root = workspace_asset_candidate.resolve(strict=True)
                 workspace_asset_root.relative_to(self.media_root)
                 path.relative_to(workspace_asset_root)
             except (OSError, ValueError) as exc:
