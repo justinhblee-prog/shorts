@@ -33,7 +33,8 @@ from media_staging import MediaStager, MediaStagingError
 from media_inspection import MediaInspector, MediaInspectionError
 from preflight import build_preflight
 from timeline_edl import validate_edl, EDLValidationError
-from workspace_access import resolve_workspace_membership, WorkspaceAccessConfigurationError
+from workspace_access import resolve_workspace_membership, resolve_workspace_access, WorkspaceAccessConfigurationError
+from workspace_store import WorkspaceStore, WorkspaceDenied, WorkspaceConflict, WorkspaceNotFound
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 class TikTokOAuthAccessLogRedaction(logging.Filter):
@@ -103,6 +104,7 @@ ledger_store=LedgerStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
+workspace_store=WorkspaceStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
 
 class Enqueue(BaseModel):
@@ -260,6 +262,13 @@ class TrendProductionDraft(BaseModel):
     platform:Literal["youtube","tiktok"]="youtube"
     idempotency_key:str|None=None
     recommendation_run_id:str|None=Field(default=None,min_length=1,max_length=64)
+
+class WorkspaceCreateInput(BaseModel):
+    name:str=Field(min_length=1,max_length=120)
+
+class WorkspaceMemberInput(BaseModel):
+    principal_id:str=Field(min_length=1,max_length=128)
+    role:Literal["admin","editor","viewer"]="editor"
 
 @app.get("/api/brands")
 def list_brands(active_only:bool=False):
@@ -489,6 +498,59 @@ def require_review_permission(token, permission):
     return operator_id
 
 
+
+@app.get("/api/operator/workspaces")
+def list_operator_workspaces(x_review_token:str|None=Header(default=None)):
+    """List only workspaces belonging to the authenticated operator principal."""
+    operator_id=require_review_access(x_review_token)
+    return {"workspaces":workspace_store.list_for_principal(operator_id)}
+
+
+@app.post("/api/operator/workspaces",status_code=201)
+def create_operator_workspace(body:WorkspaceCreateInput,
+                              x_review_token:str|None=Header(default=None)):
+    """Create an operator-owned workspace; owner identity always comes from the token."""
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        return workspace_store.create(body.name,operator_id)
+    except WorkspaceConflict as exc:
+        raise HTTPException(409,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.post("/api/operator/workspaces/{workspace_id}/members")
+def add_operator_workspace_member(workspace_id:str,body:WorkspaceMemberInput,
+                                  x_review_token:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        return workspace_store.add_member(workspace_id,operator_id,body.principal_id,body.role)
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except WorkspaceNotFound as exc:
+        raise HTTPException(404,str(exc))
+    except WorkspaceConflict as exc:
+        raise HTTPException(409,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
+@app.delete("/api/operator/workspaces/{workspace_id}/members/{principal_id}")
+def revoke_operator_workspace_member(workspace_id:str,principal_id:str,
+                                     x_review_token:str|None=Header(default=None)):
+    operator_id=require_review_permission(x_review_token,"media.manage")
+    try:
+        return workspace_store.revoke_member(workspace_id,operator_id,principal_id)
+    except WorkspaceDenied as exc:
+        raise HTTPException(403,str(exc))
+    except WorkspaceNotFound as exc:
+        raise HTTPException(404,str(exc))
+    except WorkspaceConflict as exc:
+        raise HTTPException(409,str(exc))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
+
+
 @app.post("/api/timeline/edl/validate")
 def validate_timeline_edl(
     payload:dict,
@@ -498,9 +560,11 @@ def validate_timeline_edl(
     """Validate an EDL within an explicitly configured operator workspace."""
     operator_id=require_review_permission(x_review_token,"media.manage")
     try:
-        workspace_id=resolve_workspace_membership(
+        workspace_id=resolve_workspace_access(
             operator_id, x_nexus_workspace_id,
+            mode=os.getenv("NEXUS_WORKSPACE_AUTH_MODE", "legacy_config"),
             memberships_json=os.getenv("NEXUS_OPERATOR_WORKSPACES_JSON", ""),
+            store=workspace_store,
         )
         normalized=validate_edl(payload)
     except WorkspaceAccessConfigurationError as exc:
