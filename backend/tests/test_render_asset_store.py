@@ -63,6 +63,19 @@ class RenderAssetStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(paths[result["asset_id"]].read_bytes(), PAYLOAD)
         self.assertEqual(self.store.list_assets("workspace-a")[0]["asset_id"], result["asset_id"])
 
+    async def test_asset_type_is_enforced_when_resolving_edl_ids(self):
+        result = await self.store.register_stream(
+            "workspace-a", "operator-a", "audio/mp4", "voice.m4a", stream_of(PAYLOAD)
+        )
+        with self.assertRaisesRegex(RenderAssetError, "type"):
+            self.store.resolve_asset_paths(
+                "workspace-a", [result["asset_id"]], expected_asset_type="video"
+            )
+        resolved = self.store.resolve_asset_paths(
+            "workspace-a", [result["asset_id"]], expected_asset_type="audio"
+        )
+        self.assertTrue(resolved[result["asset_id"]].is_file())
+
     async def test_asset_is_not_visible_or_resolvable_from_another_workspace(self):
         result = await self.register()
         self.assertEqual(self.store.list_assets("workspace-b"), [])
