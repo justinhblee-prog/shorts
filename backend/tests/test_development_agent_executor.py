@@ -76,6 +76,47 @@ class AiderDevelopmentExecutorTests(unittest.TestCase):
                 ["backend/actual.py"],
             )
 
+    def test_windows_termination_uses_taskkill_to_stop_entire_process_tree(self):
+        from unittest.mock import Mock
+        import development_agent_executor as executor_module
+
+        process = Mock()
+        process.pid = 4321
+        process.send_signal.side_effect = OSError("console control unavailable")
+        process.wait.return_value = 0
+        taskkill = Mock(return_value=subprocess.CompletedProcess(
+            ["taskkill"], 0, "", ""
+        ))
+        with patch.object(executor_module.os, "name", "nt"), patch.object(
+            executor_module.subprocess, "run", taskkill
+        ):
+            executor_module.AiderDevelopmentExecutor._terminate_process(process)
+
+        args, kwargs = taskkill.call_args
+        self.assertEqual(args[0], ["taskkill", "/PID", "4321", "/T", "/F"])
+        self.assertEqual(kwargs["timeout"], 5)
+        process.wait.assert_called_once_with(timeout=3)
+        process.kill.assert_not_called()
+
+    def test_windows_termination_falls_back_to_parent_kill_if_taskkill_fails(self):
+        from unittest.mock import Mock
+        import development_agent_executor as executor_module
+
+        process = Mock()
+        process.pid = 4322
+        process.send_signal.side_effect = OSError("console control unavailable")
+        process.wait.return_value = 0
+        taskkill = Mock(return_value=subprocess.CompletedProcess(
+            ["taskkill"], 1, "", "taskkill unavailable"
+        ))
+        with patch.object(executor_module.os, "name", "nt"), patch.object(
+            executor_module.subprocess, "run", taskkill
+        ):
+            executor_module.AiderDevelopmentExecutor._terminate_process(process)
+
+        process.kill.assert_called_once()
+        process.wait.assert_called_once_with(timeout=3)
+
     def test_cancel_terminates_active_child_process(self):
         finished = threading.Event()
         errors = []
