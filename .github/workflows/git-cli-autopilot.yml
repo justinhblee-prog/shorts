@@ -46,8 +46,6 @@ jobs:
           }
           & "$PWD/scripts/git-cli-multiflow.ps1" -Plan
           if ($LASTEXITCODE -ne 0) { throw "Multi-flow planner smoke failed." }
-          foreach ($file in @("scripts/git-cli-autopilot.ps1", "scripts/git-cli-multiflow.ps1")) {
-          }
       - name: Confirm Codex is not referenced by launcher
         shell: pwsh
         run: |
