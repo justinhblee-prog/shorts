@@ -88,7 +88,10 @@ async function waitForServer() {
     assert.equal(visualSystem.koreanReplacementGlyphs, 0);
     assert.equal(visualSystem.premiumStylesheet, true);
     checkpoint("premium typography and Korean text rendering verified");
-    assert.equal(await page.locator(".main-nav a").count(), 9);\n    assert.equal(await page.locator(".main-nav .nav-settings").count(), 1);\n    for (const label of ["대시보드","트렌드 탐색","콘텐츠 기획","AI 제작","영상 편집","검수·정책","게시 관리","성과 분석","작업 관리"]) assert.equal(await page.locator(".main-nav a").filter({ hasText: label }).count(), 1, "missing navigation item: " + label);\n    assert.equal(await page.locator("#workspaceSearch").count(), 1);
+    assert.equal(await page.locator(".main-nav a").count(), 9);
+    assert.equal(await page.locator(".main-nav .nav-settings").count(), 1);
+    for (const label of ["대시보드","트렌드 탐색","콘텐츠 기획","AI 제작","영상 편집","검수·정책","게시 관리","성과 분석","작업 관리"]) assert.equal(await page.locator(".main-nav a").filter({ hasText: label }).count(), 1, "missing navigation item: " + label);
+    assert.equal(await page.locator("#workspaceSearch").count(), 1);
     await page.keyboard.press("Control+k");
     assert.equal(await page.evaluate(() => document.activeElement.id), "workspaceSearch");
     await page.locator("#workspaceSearch").fill("수익성 평가");
@@ -209,7 +212,7 @@ async function waitForServer() {
     assert.equal(await page.evaluate(() => document.activeElement.id), "home");
 
     for (const section of ["studio", "discovery", "review", "operations"]) {
-      const link = page.locator('.main-nav a[href="#' + section + '"]');
+      const link = page.locator('.main-nav a[href="#' + section + '"]').first();
       await link.click();
       assert.equal(await link.getAttribute("aria-current"), "page");
     }
