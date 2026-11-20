@@ -77,6 +77,16 @@ def build_timeline_ffmpeg_argv(edl, staged_assets, output_path, *,
                                title_files=None):
     """Build a deterministic 1080x1920 H.264 command for normalized EDL clips."""
     normalized = validate_edl(edl)
+    ffmpeg_path = _configured_binary(ffmpeg_path, "FFmpeg")
+    output = Path(output_path)
+    if (not output.is_absolute() or output.is_symlink()
+            or output.suffix.lower() != ".mp4" or not output.parent.is_dir()
+            or output.exists()):
+        raise TimelineFFmpegError("output must be a new absolute .mp4 file in an existing directory")
+    if audio_mix_path is not None:
+        audio_file = Path(audio_mix_path)
+        if not audio_file.is_absolute() or audio_file.is_symlink() or not audio_file.is_file():
+            raise TimelineFFmpegError("audio mix must be an absolute regular non-symlink file")
     videos = [clip for clip in normalized["clips"] if clip["type"] == "video"]
     titles = [clip for clip in normalized["clips"] if clip["type"] == "title"]
     total_ms = max(clip["end_ms"] for clip in normalized["clips"])
@@ -93,10 +103,13 @@ def build_timeline_ffmpeg_argv(edl, staged_assets, output_path, *,
         asset_path = staged_assets.get(clip["asset_id"])
         if not asset_path:
             raise TimelineFFmpegError("video clip asset was not staged")
+        asset_file = Path(asset_path)
+        if not asset_file.is_absolute() or asset_file.is_symlink() or not asset_file.is_file():
+            raise TimelineFFmpegError("staged video input must be an absolute regular non-symlink file")
         key = clip["asset_id"]
         if key not in input_indexes:
             input_indexes[key] = len(input_indexes)
-            argv.extend(["-protocol_whitelist", "file,pipe", "-i", str(asset_path)])
+            argv.extend(["-protocol_whitelist", "file,pipe", "-i", str(asset_file.resolve(strict=True))])
     if audio_mix_path is not None:
         audio_index = len(input_indexes)
         argv.extend(["-protocol_whitelist", "file,pipe", "-i", str(audio_mix_path)])
@@ -127,7 +140,7 @@ def build_timeline_ffmpeg_argv(edl, staged_assets, output_path, *,
         current = next_label
 
     if titles:
-        font = _filter_path(font_path)
+        font = _filter_path(_configured_binary(font_path, "font", executable=False))
         for index, clip in enumerate(titles):
             text_path = (title_files or {}).get(clip["id"])
             if not text_path:
