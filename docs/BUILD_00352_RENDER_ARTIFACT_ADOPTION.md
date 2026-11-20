@@ -53,3 +53,26 @@ for compatibility.
 - CI tests use generated fixture bytes and a mocked ffprobe process. The actual
   ffprobe binary, real FFmpeg rendering and production filesystem isolation
   still require target-runtime validation.
+
+## Concrete EDL renderer increment
+
+`EDLFFmpegRenderer` now builds and runs an argv-only FFmpeg video pipeline.
+It resolves every opaque asset ID through a trusted workspace resolver using
+the snapshot creator's membership, normalizes clips to a bounded output size,
+frame rate and H.264/yuv420p format, and can mix up to eight separately resolved
+audio-bed tracks before muxing the final MP4. The worker passes its queue-owned
+workspace ID into the renderer and the snapshot creator principal ID is carried
+in the internal queue payload. The `create_edl_render_worker` factory wires
+the resolver, renderer and lease-fenced artifact store together.
+
+This renderer is deliberately fail-closed and currently supports only
+contiguous, non-overlapping video clips beginning at timeline zero. It rejects
+title clips, gaps and overlaps rather than silently producing incorrect timing.
+Source-clip audio is currently omitted; audio is supplied only through the
+trusted audio-track resolver. Those EDL features need explicit semantics and
+separate implementation.
+
+The CI renderer tests use a fake subprocess executable and generated fixture
+bytes. They prove argv construction, audio-mix/mux orchestration, cancellation
+before process launch and worker wiring; they do not prove that a real FFmpeg
+binary can decode the supplied media or produce a playable MP4.
