@@ -53,22 +53,24 @@ class TimelineRenderWorker:
         adopted = False
         try:
             try:
-                parameters = inspect.signature(self.renderer).parameters.values()
-                accepts_context = any(
-                    item.name in {"workspace_id", "principal_id"}
-                    or item.kind == inspect.Parameter.VAR_KEYWORD
-                    for item in parameters
+                parameters = inspect.signature(self.renderer).parameters
+                accepts_kwargs = any(
+                    item.kind == inspect.Parameter.VAR_KEYWORD
+                    for item in parameters.values()
                 )
+                context = {
+                    "workspace_id": job["workspace_id"],
+                    "principal_id": job["payload"].get("creator_principal_id"),
+                }
+                context = {
+                    key: value for key, value in context.items()
+                    if accepts_kwargs or key in parameters
+                }
             except (TypeError, ValueError):
-                accepts_context = False
-            if accepts_context:
-                result = self.renderer(
-                    job["payload"], stop_event=lost,
-                    workspace_id=job["workspace_id"],
-                    principal_id=job["payload"].get("creator_principal_id"),
-                )
-            else:
-                result = self.renderer(job["payload"], stop_event=lost)
+                context = {}
+            result = self.renderer(
+                job["payload"], stop_event=lost, **context
+            )
             if isinstance(result, dict):
                 staged_path = result.get("staged_path")
             if lost.is_set():
