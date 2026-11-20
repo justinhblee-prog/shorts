@@ -26,7 +26,10 @@ class EDLValidationError(ValueError):
 def _number(value: Any, field: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise EDLValidationError(f"{field} must be a finite number")
-    result = float(value)
+    try:
+        result = float(value)
+    except (OverflowError, ValueError):
+        raise EDLValidationError(f"{field} must be a finite number")
     if not math.isfinite(result):
         raise EDLValidationError(f"{field} must be a finite number")
     return result
@@ -42,7 +45,8 @@ def validate_edl(payload: Any) -> dict:
     """
     if not isinstance(payload, dict):
         raise EDLValidationError("EDL must be a JSON object")
-    if payload.get("schema") != SCHEMA or payload.get("version") != VERSION:
+    version = payload.get("version")
+    if payload.get("schema") != SCHEMA or isinstance(version, bool) or not isinstance(version, int) or version != VERSION:
         raise EDLValidationError("unsupported EDL schema or version")
     if payload.get("timebase") != "milliseconds":
         raise EDLValidationError("timebase must be milliseconds")
