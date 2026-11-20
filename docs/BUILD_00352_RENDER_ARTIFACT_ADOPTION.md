@@ -217,3 +217,29 @@ image-baked FFmpeg/ffprobe checksum manifest was verified. It then passed the
 render/review and encrypted backup/restore smoke. The independent backend,
 Playwright Chromium browser smoke and Korean font fallback checks also passed
 in backend run #44754249154.
+
+
+## Authenticated Compose API-to-worker E2E
+
+The Compose smoke now provisions ephemeral, least-lived CI-only reviewer
+credentials and enables SQLite workspace membership. It creates two separate
+workspaces through authenticated HTTP requests, uploads a generated MP4 through
+the private asset API, confirms the upload remains quarantined, and verifies
+that a different principal cannot upload into that workspace. The harness then
+records a trusted clean attestation for that generated fixture only; this step
+does not exercise or claim ClamAV scanning.
+
+The render is submitted through the authenticated API with an idempotency key.
+The smoke verifies replay returns the same snapshot/job, then waits for the
+separate Compose `timeline-render-worker` service to claim the job, render the
+MP4 with the pinned FFmpeg/ffprobe binaries, and adopt the artifact. It checks
+workspace isolation and unauthenticated denial, records an artifact-bound
+review decision through the API, creates a short-lived preview session, and
+downloads the private MP4 using the scoped cookie. This covers the real
+container-to-container API/worker handoff, rather than only calling stores
+directly inside a test process.
+
+The CI test credentials and fixture workspace are ephemeral and are not
+production credentials. ClamAV signature freshness, actual malware scanning,
+representative customer media, and target-host compatibility remain separate
+production gates. The new workflow step is pending its first successful run.
