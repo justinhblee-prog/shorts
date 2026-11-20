@@ -98,7 +98,7 @@ class RenderAssetStoreTests(unittest.IsolatedAsyncioTestCase):
             scan_enabled=True,
             max_video_bytes=1024,
         )
-        with self.assertRaisesRegex(RenderAssetError, "malware scanning"):
+        with self.assertRaisesRegex(RenderAssetError, "Malware scanner"):
             await store.register_stream(
                 "workspace-a", "operator-a", "video/mp4", "clip.mp4", stream_of(PAYLOAD)
             )
