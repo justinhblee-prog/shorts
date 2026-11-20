@@ -325,6 +325,42 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         self.assertEqual(next_claim["id"], job["id"])
         self.assertEqual(next_claim["attempts"], 1)
 
+    def test_quarantine_recovery_keeps_job_blocked_when_prerequisite_is_incomplete(self):
+        parent = self.store.create("Unfinished prerequisite")
+        child = self.store.create("Quarantined dependent")
+        self.store.add_dependency(child["id"], parent["id"])
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE development_jobs SET status='quarantined' WHERE id=?",
+                (child["id"],),
+            )
+
+        recovered = self.store.recover_quarantined(
+            child["id"], "ops-admin", "verified the prior failure and requeued safely"
+        )
+        self.assertEqual(recovered["status"], "blocked")
+        self.assertIsNone(self.store.claim_ready("worker-child"))
+        parent_claim = self.store.claim_ready("worker-parent")
+        self.assertEqual(parent_claim["id"], parent["id"])
+        self.assertEqual(self.store.get(child["id"])["status"], "blocked")
+        event = self.store.events(child["id"])[-1]
+        self.assertEqual(event["event_type"], "quarantine_recovered")
+        self.assertEqual(event["to_status"], "blocked")
+        self.assertEqual(event["metadata"]["unresolved_dependencies"], 1)
+
+    def test_ready_job_with_unresolved_dependency_is_never_claimed(self):
+        parent = self.store.create("Pending parent")
+        child = self.store.create("Ready-looking dependent")
+        self.store.add_dependency(child["id"], parent["id"])
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE development_jobs SET status='ready' WHERE id=?",
+                (child["id"],),
+            )
+        claim = self.store.claim_ready("worker-a")
+        self.assertEqual(claim["id"], parent["id"])
+        self.assertEqual(self.store.get(child["id"])["status"], "ready")
+
     def test_operator_recovery_rejects_non_quarantined_jobs_and_invalid_reasons(self):
         job = self.store.create("Not quarantined")
         with self.assertRaisesRegex(DevelopmentJobConflict, "only quarantined"):
