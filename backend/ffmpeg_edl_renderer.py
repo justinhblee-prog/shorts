@@ -16,7 +16,7 @@ from pathlib import Path
 
 from ffmpeg_audio_mix import build_audio_mix_argv
 from timeline_edl import validate_edl
-from ffprobe_validate import has_audio_stream
+from ffprobe_validate import probe_media
 
 
 class EDLRenderError(RuntimeError):
@@ -261,16 +261,21 @@ class EDLFFmpegRenderer:
                 raise EDLRenderError("FFmpeg did not produce a non-empty video output")
             tracks = []
             if self.ffprobe_path is not None:
-                audio_presence = {}
+                source_metadata = {}
                 for clip in edl["clips"]:
                     if clip["type"] != "video":
                         continue
                     asset_id = clip["asset_id"]
-                    if asset_id not in audio_presence:
-                        audio_presence[asset_id] = has_audio_stream(
-                            assets[asset_id], self.ffprobe_path
+                    if asset_id not in source_metadata:
+                        source_metadata[asset_id] = probe_media(
+                            assets[asset_id], self.ffprobe_path,
+                            max_duration_ms=3_600_000,
+                            max_bytes=self.max_input_bytes,
                         )
-                    if audio_presence[asset_id]:
+                    metadata = source_metadata[asset_id]
+                    if clip["source_out_ms"] > metadata["duration_ms"] + 1:
+                        raise EDLRenderError("EDL source trim exceeds probed media duration")
+                    if metadata["audio_streams"]:
                         tracks.append({
                             "path": str(assets[asset_id]),
                             "source_in_ms": round(clip["source_in_ms"]),
