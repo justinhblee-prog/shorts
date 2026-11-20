@@ -351,13 +351,15 @@ def production_integrity_report(
     offset:int=Query(default=0, ge=0, le=1000000),
     cursor:str|None=Query(default=None, max_length=512),
     x_review_token:str|None=Header(default=None),
+    x_nexus_workspace_id:str|None=Header(default=None),
 ):
-    require_review_permission(x_review_token,"production.read")
+    operator_id=require_review_permission(x_review_token,"production.read")
+    workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     if cursor is not None and offset != 0:
         raise HTTPException(422,"offset cannot be combined with cursor pagination")
     try:
         return production_store.integrity_report(
-            queue,limit=limit,offset=offset,cursor=cursor
+            queue,limit=limit,offset=offset,cursor=cursor,workspace_id=workspace_id
         )
     except ValueError as e:
         if str(e) == "Invalid integrity report cursor":
