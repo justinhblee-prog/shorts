@@ -430,8 +430,8 @@ class YouTubeAnalyticsStore:
                 where=" WHERE "+" AND ".join(clauses)
                 rows=connection.execute(
                     "SELECT h.* FROM youtube_analytics_history h "
-                    "JOIN youtube_uploads u ON u.video_id=h.video_id "
-                    "JOIN production_runs pr ON pr.job_id=u.job_id"+where+
+                    "LEFT JOIN youtube_uploads u ON u.video_id=h.video_id "
+                    "LEFT JOIN production_runs pr ON pr.job_id=u.job_id"+where+
                     " ORDER BY h.collected_at DESC,h.id DESC LIMIT ? OFFSET ?",
                     (*params,limit,offset),
                 ).fetchall()
