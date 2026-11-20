@@ -23,7 +23,7 @@ To verify the machine before running:
 .\scripts\git-cli-agent-config.ps1 -Check
 ```
 
-The `-Run` launcher performs this preflight automatically. It checks PowerShell 7+, Git, Python, GitHub CLI authentication, repository cleanliness, the task manifest, Agent executable resolution, and the argument contract without printing the configured values or credentials.
+A single `-Run` invocation drains up to 20 currently eligible independent tasks; no extra confirmation is required between tasks. At most three workers run concurrently, as bounded by the task manifest. Tasks represented by open Draft PRs remain excluded, and dependent tasks remain blocked until their dependency is explicitly marked completed. The `-Run` launcher performs this preflight automatically. It checks PowerShell 7+, Git, Python, GitHub CLI authentication, repository cleanliness, the task manifest, Agent executable resolution, and the argument contract without printing the configured values or credentials.
 
 
 ### Claude CLI (Codex excluded)
