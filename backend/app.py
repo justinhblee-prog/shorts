@@ -5,6 +5,8 @@ import tempfile
 from workspace_asset_store import WorkspaceAssetStore, AssetError, AssetNotFound
 from timeline_render_store import TimelineRenderStore, SnapshotError, SnapshotConflict
 from render_artifact_store import RenderArtifactStore, ArtifactAdoptionError
+from media_scanner import ClamAVScanner, MediaScanError
+from starlette.concurrency import run_in_threadpool
 from typing import Any, Literal
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException, Header, Query, Request, Response
@@ -729,7 +731,24 @@ async def upload_workspace_asset(
             raise HTTPException(403,str(exc))
         except (AssetError,ValueError) as exc:
             raise HTTPException(422,str(exc))
-    return {"asset":result,"scan_required":True,"renderable":False}
+    scan_enabled=os.getenv("NEXUS_MEDIA_SCAN_ENABLED","false").strip().lower() in {
+        "1","true","yes","on"
+    }
+    if scan_enabled:
+        try:
+            scanner=ClamAVScanner()
+            result=await run_in_threadpool(
+                asset_store.scan_pending_asset,workspace_id,result["asset_id"],scanner
+            )
+        except (MediaScanError,AssetError,OSError,ValueError) as exc:
+            # Scanner failure or infection never promotes the asset out of quarantine.
+            raise HTTPException(503,"Malware scan did not attest this asset as clean") from exc
+    renderable=result["scan_status"]=="clean"
+    return {
+        "asset":result,"scan_required":not scan_enabled,
+        "renderable":renderable,
+        "scan_engine":"clamav" if scan_enabled and renderable else None,
+    }
 
 
 @app.get("/api/workspaces/{workspace_id}/assets/{asset_id}")
