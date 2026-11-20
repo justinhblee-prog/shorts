@@ -79,6 +79,11 @@ def main():
     signal.signal(signal.SIGINT, handle_shutdown)
     registration = queue.register_worker(WORKER_ID, socket.gethostname())
     generation_token = registration["generation_token"]
+    staging_cleanup = artifact_store.reconcile_orphaned_staging_files()
+    print(
+        f"timeline_staging_reconciled files={staging_cleanup['removed_files']} "
+        f"dirs={staging_cleanup['removed_dirs']} bytes={staging_cleanup['removed_bytes']}"
+    )
     worker = TimelineRenderWorker(
         queue, renderer, WORKER_ID, generation_token,
         heartbeat_seconds=HEARTBEAT_SECONDS,
