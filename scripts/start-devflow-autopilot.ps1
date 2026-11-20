@@ -20,8 +20,13 @@ if($Plan -or $Run){
  if($Run){$runnerParams.Run=$true}
  if($Task){$runnerParams.Task=$Task}
  if($Base){$runnerParams.Base=$Base}
- if($Run -and $AgentCommand){$runnerParams.AgentCommand=$AgentCommand}
- if($Run -and $AgentArgsJson){$runnerParams.AgentArgsJson=$AgentArgsJson}
+ if($Run -and $AgentCommand){$runnerParams.AgentCommand=$AgentCommand;$env:DEVFLOW_AGENT_COMMAND=$AgentCommand}
+ if($Run -and $AgentArgsJson){$runnerParams.AgentArgsJson=$AgentArgsJson;$env:DEVFLOW_AGENT_ARGS_JSON=$AgentArgsJson}
+ if($Run){
+  $preflight=Join-Path $PSScriptRoot "git-cli-agent-config.ps1"
+  if(-not(Test-Path $preflight)){throw "Agent CLI preflight missing: $preflight"}
+  & $preflight -Check
+ }
  & $runner @runnerParams
  if($LASTEXITCODE -ne 0){throw "Multi-flow runner failed (exit $LASTEXITCODE)."}
  exit 0
