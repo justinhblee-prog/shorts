@@ -104,16 +104,19 @@ class WorkspaceRenderApiTests(unittest.TestCase):
             "audio_streams": [{"codec": "aac", "sample_rate": 48000, "channels": 2}],
         }
         verified = {"scan_status": "clean", "media_metadata": probe}
-        with (
-            patch.object(app_module.media_stager, "scan_enabled", True),
-            patch.object(app_module.workspace_asset_store, "path_for_scan", return_value=Path("/tmp/source.mp4")),
-            patch.object(app_module, "ClamAVScanner") as scanner_cls,
-            patch.object(app_module, "_configured_ffprobe_binary", return_value=Path("/usr/bin/ffprobe")),
-            patch.object(app_module, "probe_source_media", return_value=probe),
-            patch.object(app_module.workspace_asset_store, "mark_scan_result", return_value=verified) as mark,
-        ):
-            scanner_cls.return_value.scan.return_value = None
-            result = app_module._scan_workspace_asset("ws_studio", "alice", "asset_" + "a" * 32)
+        with tempfile.TemporaryDirectory() as directory:
+            ffprobe = Path(directory) / "ffprobe"
+            ffprobe.write_bytes(b"fixture-binary")
+            with (
+                patch.object(app_module.media_stager, "scan_enabled", True),
+                patch.object(app_module.workspace_asset_store, "path_for_scan", return_value=Path(directory) / "source.mp4"),
+                patch.object(app_module, "ClamAVScanner") as scanner_cls,
+                patch.object(app_module, "_configured_ffprobe_binary", return_value=ffprobe),
+                patch.object(app_module, "probe_source_media", return_value=probe),
+                patch.object(app_module.workspace_asset_store, "mark_scan_result", return_value=verified) as mark,
+            ):
+                scanner_cls.return_value.scan.return_value = None
+                result = app_module._scan_workspace_asset("ws_studio", "alice", "asset_" + "a" * 32)
         self.assertEqual(result["scan_status"], "clean")
         mark.assert_called_once()
         self.assertTrue(mark.call_args.kwargs["scanner_verified"])
