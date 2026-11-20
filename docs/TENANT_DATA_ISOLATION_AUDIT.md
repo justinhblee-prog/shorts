@@ -220,7 +220,7 @@ The customer identity provider and account contract must be selected before impl
 - YouTube Analytics coverage now joins uploaded video identities through `youtube_uploads.job_id` to `production_runs.workspace_id`; scoped status never returns global collector counters/errors.
 - TikTok analytics coverage now joins publication job IDs to `production_runs.workspace_id`; scoped status omits global collector state and reports only the selected workspace's publication/snapshot counts.
 - `/api/youtube/analytics/collection-status` and `/api/publishing/analytics-status` now require the authenticated operator's resolved workspace scope. Historical analytics endpoints were already workspace-filtered; these status surfaces previously exposed cross-workspace aggregate coverage and collector state.
-- Added YouTube and TikTok store tests for workspace A/B coverage separation and zero-result unknown workspace behavior. CI validation pending for this change set; do not mark validated until Backend and Compose runs pass.
+- Added YouTube and TikTok store tests for workspace A/B coverage separation and zero-result unknown workspace behavior. Code head `fb85fb68af395796c901e9392b3c6fa43a7a686d` passed `scripts/validate.sh`, Korean font fallback, Chromium browser smoke and screenshot upload (Backend run `44696462688`, artifact `14611580399`), plus Compose service readiness and isolated backup/restore (run `44696462695`).
 
 - Both analytics status routes now reject omitted workspace selectors with HTTP 403, preventing legacy operator requests from falling back to global cross-workspace aggregates. The scoped API regression test verifies explicit workspace propagation.
 
@@ -228,4 +228,4 @@ The customer identity provider and account contract must be selected before impl
 
 - Direct-call regression exposed FastAPI's `Header` sentinel as a truthy default; the guard now explicitly accepts only a non-empty string. The failing CI case was fixed in code commit `3a28f0a06d6341ef61a42bcfaa32da233c5dd101`; rerun is pending.
 
-- Browser smoke now sends the selected workspace header to `/api/publishing/analytics-status`; the first run correctly surfaced the new default-deny contract as a stale smoke fixture (HTTP 403). Updated fixture validation is pending.
+- Browser smoke now sends the selected workspace header to `/api/publishing/analytics-status`; the updated fixture passed on Backend run `44696462688`.
