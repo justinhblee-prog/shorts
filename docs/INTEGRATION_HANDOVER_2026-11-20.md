@@ -164,3 +164,12 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - Artifact [14592023791](https://github.com/justinhblee-prog/shorts/actions/runs/44655164155/artifacts/14592023791) contains desktop and mobile dashboard screenshots. The archive was downloaded and both images were visually inspected for layout/coverage.
 - This remains hosted Linux + deterministic API fixture validation. It does not prove trusted Windows runner execution, two-run LocalAppData persistence, live Ollama generation, OAuth/provider behavior, real media rendering, or live publishing.
 - PR #415 remains Draft/open/unmerged. No merge, deployment, default-branch modification, workflow activation, or external provider action was performed.
+
+## 18. Development-job pagination and cross-page prerequisite lookup — 2026-11-20
+
+- Backend: DevelopmentJobStore.list() accepts bounded offset and uses deterministic priority/created_at/id ordering; count(statuses) supplies total records. GET /api/development/jobs accepts offset and returns pagination metadata (limit, offset, total, has_more, next_offset).
+- Frontend: loadDevelopmentJobs(append) merges page records by job ID, shows loaded/total counts, and provides a load-more control. An unresolved prerequisite is now actionable: it loads one additional page, then scrolls to and focuses the parent when found. Once loaded, the normal dependency-card navigation is available.
+- QA fixture seeds over 200 jobs and one child whose prerequisite is on the final page. Chromium smoke verifies page loading, parent discovery/focus, loaded equals total, and the load-more control becomes hidden.
+- Browser QA found CSS cascade overriding the native hidden attribute because .button sets display:inline-flex. Fixed with #loadMoreDevelopmentJobs[hidden]{display:none}.
+- Exact aggregate head c59beaa1eb69b599b198d7a9fce3735a0235485d passed all 17 steps in [run 44657078245](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245), including 898 backend tests, frontend syntax, both Chromium smoke suites, and artifact upload [14594141209](https://github.com/justinhblee-prog/shorts/actions/runs/44657078245/artifacts/14594141209).
+- Hosted fixture validation does not establish production multi-process SQLite behavior, Windows runner isolation, LocalAppData persistence, live Ollama, or provider behavior. PR #415 remains Draft/open/unmerged.
