@@ -2730,3 +2730,22 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### Next engineering priority
 
 Implement the secure FFmpeg/MP4 render worker rather than revisiting the already-connected workspace toolbar. Preserve the current timeline/EDL behavior while adding: owned source-asset registration and hash-verified staging; durable render-job state and lease/recovery semantics; an allowlisted FFmpeg invocation without shell interpolation or arbitrary paths/URLs; bounded CPU, memory, input size and runtime; audio mixing; ffprobe-based output validation; checksum-backed atomic artifact adoption; and a human-review gate before any publishable output. Add regression coverage for traversal/symlink inputs, malformed EDL, oversized media, timeout/cancellation and interrupted renders. Live provider and production publishing actions remain out of scope without explicit authorization.
+
+
+## BUILD — first secure FFmpeg renderer slice (2026-11-20)
+
+- Added `backend/timeline_renderer.py` as an isolated, bounded FFmpeg rendering primitive consuming only normalized EDL v1 and caller-resolved opaque asset IDs.
+- FFmpeg invocation uses an argument array with `shell=False`, `-nostdin`, file/pipe-only input protocols, bounded thread counts, execution timeout, POSIX CPU/address-space/file-size limits applied through `prlimit` (avoiding threaded `preexec_fn`), and per-asset, aggregate-input and output byte caps. It requires ordered contiguous clips and caps output duration at 180 seconds.
+- Asset paths must be regular non-symlink files contained by the media root. Output is ffprobe-validated as 1080×1920 MP4, checked for matching duration and optionally for a registered narration/music track (source-clip audio mixing is not yet implemented), SHA-256 fingerprinted, fsynced and atomically adopted with status `rendered_unreviewed`.
+- Regression tests cover successful command construction, path traversal, symlink and oversized assets, unknown asset IDs, malformed EDL, title rejection, registered audio mapping, timeout cleanup, non-zero FFmpeg exit, probe failure and wrong output dimensions.
+- **Scope boundary:** this is not yet wired to the HTTP API, durable render queue, or production worker. Workspace-owned source-asset registration and hash-verified upload, durable render-job lease/recovery, safe title rendering, cancellation fencing and end-to-end MP4 fixture validation remain required before any user-facing render control is enabled. The existing shared review-token model must not be bypassed; all asset resolution and job operations must be bound to the authenticated workspace.
+- Human review remains mandatory. No publish action is part of rendering.
+
+
+## BUILD — bounded FFmpeg renderer exact-head validation (2026-11-20)
+
+- Exact head `1d278acc881b51742d3ffbf2b4d707e639d0b201` passed **826 backend tests** in [Backend run 44702536031](https://github.com/justinhblee-prog/shorts/actions/runs/44702536031).
+- The same head passed Chromium desktop/mobile smoke in that backend run: Korean glyph rendering, premium typography, workspace selector/request header isolation, authenticated API and review approval/audit history, analytics response (500 YouTube + 1 TikTok), 502-row CSV export, partial API failure handling, keyboard and responsive checks.
+- The same head passed five-service Compose integration in [Compose run 44702536014](https://github.com/justinhblee-prog/shorts/actions/runs/44702536014): all services healthy, encrypted backup created, isolated restore succeeded, wrong-key restore rejected, and test volumes cleaned.
+- These Actions runs validate the repository and surrounding integration. The new renderer tests use injected FFmpeg/ffprobe adapters; **no real FFmpeg MP4 render has yet been executed**.
+- PR [#420](https://github.com/justinhblee-prog/shorts/pull/420) remains Draft / Open / Unmerged. No deployment, live provider action, or publish action was performed.
