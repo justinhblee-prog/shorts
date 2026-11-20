@@ -74,7 +74,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  if($timer.Elapsed.TotalSeconds -gt 12){throw "Parallel run took too long ($($timer.Elapsed.TotalSeconds)s), expected overlapping workers."}
  $stateData=Get-Content (Join-Path $state "state.json") -Raw|ConvertFrom-Json
  foreach($id in @("BUILD-99001","BUILD-99002")){
-  if($stateData.tasks.$id.status -ne "draft_pr_created"){throw "Unexpected final state for $id: $($stateData.tasks.$id.status)"}
+  if($stateData.tasks.$id.status -ne "draft_pr_created"){throw "Unexpected final state for ${id}: $($stateData.tasks.$id.status)"}
  }
  $remoteBranches=@(& git --git-dir=$origin branch --list "autopilot/*")
  if($remoteBranches.Count -lt 2){throw "Expected both worker branches to be pushed to the local bare origin."}
