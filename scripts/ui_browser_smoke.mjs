@@ -42,6 +42,8 @@ async function waitForServer() {
     const checkpoint = message => process.stdout.write("[ui-smoke] " + message + "\\n");
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
+    const remoteFontRequests = [];
+    page.on("request", request => { if (/fonts\\.(googleapis|gstatic)\\.com/i.test(request.url())) remoteFontRequests.push(request.url()); });
     await page.route("https://fonts.googleapis.com/**", route =>
       route.fulfill({ status: 200, contentType: "text/css", body: "" })
     );
@@ -83,10 +85,19 @@ async function waitForServer() {
       heroColumns: getComputedStyle(document.querySelector(".hero")).gridTemplateColumns,
       koreanReplacementGlyphs: (document.body.innerText.match(/\uFFFD/g) || []).length,
       premiumStylesheet: [...document.styleSheets].some(sheet => sheet.href?.endsWith("/assets/nexus-premium.css")),
+      approvedStylesheet: [...document.styleSheets].some(sheet => sheet.href?.endsWith("/assets/nexus-approved-design.css")),
+      sidebarWidth: getComputedStyle(document.querySelector(".topbar")).width,
+      mainOffset: getComputedStyle(document.querySelector("main")).marginLeft,
+      violetAccent: getComputedStyle(document.body).getPropertyValue("--violet").trim(),
     }));
     assert.match(visualSystem.font, /Pretendard Variable|Pretendard|Noto Sans KR/);
     assert.equal(visualSystem.koreanReplacementGlyphs, 0);
     assert.equal(visualSystem.premiumStylesheet, true);
+    assert.equal(visualSystem.approvedStylesheet, true);
+    assert.equal(visualSystem.sidebarWidth, "258px");
+    assert.equal(visualSystem.mainOffset, "258px");
+    assert.equal(visualSystem.violetAccent, "#a58bff");
+    assert.deepEqual(remoteFontRequests, [], "Korean UI fonts must not depend on Google Fonts network requests");
     checkpoint("premium typography and Korean text rendering verified");
     assert.equal(await page.locator(".main-nav a").count(), 9);
     assert.equal(await page.locator(".main-nav .nav-settings").count(), 1);
