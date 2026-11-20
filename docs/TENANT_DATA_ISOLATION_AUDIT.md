@@ -210,3 +210,6 @@ The customer identity provider and account contract must be selected before impl
 - The current worker process still accesses SQLite directly and does not consume the new credential-backed worker API. Dedicated OS/network isolation remains mandatory.
 - A tenant asset registry and authorized asset retrieval API are not implemented; legacy media files remain unassigned and workspace media cleanup remains fail-closed where upload ownership cannot be proven.
 - Default brand profiles and public trend/competitor signals are shared platform reference data. Workspace-owned custom brand profile management is not implemented.
+
+
+- Workspace provider-connection architecture and migration requirements are specified in docs/WORKSPACE_PROVIDER_CONNECTION_CONTRACT.md. Implementation is intentionally blocked on provider account cardinality, approved KMS/key vault, OAuth app ownership, and authorized first tenant; no credentials or external connection were activated.
