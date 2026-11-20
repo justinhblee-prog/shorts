@@ -243,5 +243,5 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 ## 2026-11-20 exact-head validation and security follow-up
 
 - PR #417 head `7a749a6b20b3d858cb57085a2e1231db89d57e04` passed Backend tests (run 44681380757) and Compose integration (run 44681381054). The backend workflow includes the Chromium dashboard smoke and uploaded browser screenshots artifact 14605210220.
-- Tenant isolation remains partial: operator-scoped production detail and provider-attempt reads are implemented, but production execute and recovered-render adoption still need workspace-aware parent/child reads and workspace-aware media staging.
+- Tenant isolation remains partial: production detail/provider reads, production execution, and recovered-render adoption now resolve operator workspace membership and apply scoped parent/child reads; recovered media staging also uses the resolved workspace namespace. This is operator-only authorization, not a customer or independently authenticated worker boundary.
 - Trusted worker identity-to-workspace binding and customer identity are not implemented. Never treat body/header workspace IDs, worker_id, or lease tokens alone as customer authorization. Keep these items open and preserve Draft PR status.
