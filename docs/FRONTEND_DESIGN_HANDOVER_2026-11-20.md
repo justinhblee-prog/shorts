@@ -293,3 +293,11 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Financial ledger and scored opportunity records now persist nullable workspace ownership. Finance writes with a job ID must match its production parent; finance reports and opportunity lists are workspace-scoped. Legacy rows stay in the unassigned NULL namespace.
 - Public trend signals and default brand profiles are treated as shared platform reference data; generated production work retains workspace ownership.
 - Latest CI for these additions is pending at handover update; recheck backend validation/Chromium and Compose integration before marking complete.
+
+## Worker identity API slice — 2026-11-20
+
+- Added opt-in SHA-256 digest-based worker authentication in backend/worker_auth.py. Worker identity and explicit workspace grants come only from NEXUS_WORKER_CREDENTIALS_JSON; no plaintext credential is stored in source.
+- Added /api/worker/v1/register, /claim, and per-job /heartbeat, /complete, /fail endpoints. The API derives workspace ownership from queue rows, filters claims by the worker's allow-list, and requires a server-issued process-generation token for lease mutations.
+- Legacy operator-token worker endpoints are rejected with HTTP 410 once worker credential mode is configured. With no worker credential configuration, legacy compatibility remains unchanged.
+- The existing worker process still accesses SQLite directly and has not been migrated to this API. The new protocol is not a claim of full worker isolation; no credentials, runner settings, or production execution were activated.
+- Added unit and API tests for digest validation, explicit grants, workspace-fenced claim/lease behavior, and legacy-mode guard. Verify latest Backend/Chromium and Compose workflows before marking validated.
