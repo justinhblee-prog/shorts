@@ -423,9 +423,9 @@ class ReviewStore:
                   json.dumps(snapshot, ensure_ascii=False), timestamp))
             updated=c.execute("""
               UPDATE production_runs SET status=?,current_stage='review',
-                error=?,updated_at=? WHERE job_id=? AND status='review_pending'
+                error=?,updated_at=? WHERE job_id=? AND status='review_pending' AND workspace_id IS ?
             """, (decision, comment if decision != "approved" else None,
-                  timestamp, job_id))
+                  timestamp, job_id, workspace_id))
             if updated.rowcount != 1:
                 raise ReviewConflict("Review state changed concurrently")
 
