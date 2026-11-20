@@ -178,8 +178,9 @@ def publish_pending_reviews(
         return (
             value.get("number"), value.get("html_url"), value.get("state"),
             value.get("draft"), value.get("merged_at"), value_head.get("ref"),
-            value_head.get("sha"), head_repo.get("full_name"), value_base.get("ref"),
-            base_repo.get("full_name"),
+            value_head.get("sha"), head_repo.get("full_name"), head_repo.get("id"),
+            value_base.get("ref"), value_base.get("sha"), base_repo.get("full_name"),
+            base_repo.get("id"),
         )
 
     if not isinstance(verified_pr, dict) or pr_snapshot(verified_pr) != pr_snapshot(pr):
