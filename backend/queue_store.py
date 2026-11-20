@@ -306,23 +306,25 @@ class JobQueue:
             self.event(c,row["id"],"claimed",row["status"],"running",worker_id,{"attempt":claimed["attempt"],"lease_expires_at":expiry},created_at=n)
             c.commit(); return self.decode(claimed)
 
-    def assert_lease(self,row,worker,token,n):
+    def assert_lease(self,row,worker,token,n,workspace_id=None):
         if row is None: raise JobNotFound()
+        if workspace_id is not None and row["workspace_id"] != workspace_id:
+            raise LeaseConflict("Worker lease belongs to a different workspace")
         if row["status"]!="running" or row["worker_id"]!=worker or row["lease_token"]!=token or not row["lease_expires_at"] or row["lease_expires_at"]<=n:
             raise LeaseConflict("Lease expired or no longer owned by this worker")
 
-    def heartbeat(self,jid,worker,token,generation_token=None):
+    def heartbeat(self,jid,worker,token,generation_token=None,workspace_id=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             dt=now(); n=stamp(dt); expiry=stamp(dt+timedelta(seconds=self.lease_seconds))
             self._assert_worker_generation(c, worker, generation_token)
-            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); self.assert_lease(row,worker,token,n)
+            row=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); self.assert_lease(row,worker,token,n,workspace_id)
             c.execute("UPDATE pipeline_jobs SET lease_expires_at=?,updated_at=? WHERE id=?",(expiry,n,jid))
             c.execute("UPDATE worker_registry SET last_seen_at=? WHERE worker_id=?",(n,worker))
             self.event(c,jid,"heartbeat","running","running",worker,{"lease_expires_at":expiry},created_at=n)
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
-    def finish(self,jid,worker,token,result=None,generation_token=None):
+    def finish(self,jid,worker,token,result=None,generation_token=None,workspace_id=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE"); n=stamp(now())
             self._assert_worker_generation(c, worker, generation_token)
@@ -333,7 +335,7 @@ class JobQueue:
             self.event(c,jid,"completed","running","review_pending",worker,{"result":result or {}},created_at=n)
             out=c.execute("SELECT * FROM pipeline_jobs WHERE id=?",(jid,)).fetchone(); c.commit(); return self.decode(out)
 
-    def fail(self,jid,worker,token,error_code,error_message,retryable=True,generation_token=None):
+    def fail(self,jid,worker,token,error_code,error_message,retryable=True,generation_token=None,workspace_id=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE"); n=stamp(now())
             self._assert_worker_generation(c, worker, generation_token)
