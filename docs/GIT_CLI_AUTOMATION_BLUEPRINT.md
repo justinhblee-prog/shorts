@@ -2,7 +2,7 @@
 
 Repository: justinhblee-prog/shorts  
 Primary workflow: Git CLI + isolated Git worktrees + GitHub CLI (gh)  
-Default PR base: fix/ui-417-workspace-analytics-smoke  
+Default PR base: feat/engineering-orchestrator-2026-11-20  
 Safety: Draft PR only; no auto-merge, deploy, or public publishing.
 
 ## 1. Whole lifecycle map
@@ -57,9 +57,9 @@ From a clean primary checkout:
 
     git status --short
     git fetch origin --prune
-    git switch fix/ui-417-workspace-analytics-smoke
+    git switch feat/engineering-orchestrator-2026-11-20
     git pull --ff-only
-    python scripts/devflow.py start BUILD-00352 --base fix/ui-417-workspace-analytics-smoke
+    python scripts/devflow.py start BUILD-00352 --base feat/engineering-orchestrator-2026-11-20
 
 The helper prints the isolated worktree path. Run the coding agent in that path only. From inside that worktree:
 
