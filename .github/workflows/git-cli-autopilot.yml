@@ -45,7 +45,14 @@ jobs:
             Write-Host "Parsed: $file"
           }
           & "$PWD/scripts/git-cli-multiflow.ps1" -Plan
-          if ($LASTEXITCODE -ne 0) { throw "Multi-flow planner smoke failed." }
+          if (-not $?) { throw "Multi-flow planner smoke failed." }
+      - name: Launcher plan ignores configured agent JSON
+        shell: pwsh
+        run: |
+          $env:DEVFLOW_AGENT_ARGS_JSON = '["--prompt-file","{prompt_file}"]'
+          $env:DEVFLOW_AGENT_COMMAND = 'agent-that-is-not-installed'
+          & "$PWD/scripts/start-devflow-autopilot.ps1" -Plan -MaxTasks 3
+          if (-not $?) { throw "Launcher plan smoke failed with agent env configured." }
       - name: Confirm Codex is not referenced by launcher
         shell: pwsh
         run: |
@@ -56,8 +63,8 @@ jobs:
         run: |
           foreach ($path in @("scripts/git-cli-autopilot.ps1", "scripts/git-cli-multiflow.ps1")) {
             $script = Get-Content $path -Raw
-            if ($script -match "(?im)^\s*gh\s+pr\s+merge") { throw "Automatic merge is forbidden: $path" }
-            if ($script -match "(?im)^\s*vercel\s+deploy") { throw "Automatic deployment is forbidden: $path" }
+            if ($script -match "(?im)^\\s*gh\\s+pr\\s+merge") { throw "Automatic merge is forbidden: $path" }
+            if ($script -match "(?im)^\\s*vercel\\s+deploy") { throw "Automatic deployment is forbidden: $path" }
           }
 
   python:
