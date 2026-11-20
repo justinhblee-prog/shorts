@@ -50,7 +50,9 @@
         "Dedicated timeline_worker.py runtime registered with generation fencing and shutdown cancellation; Compose timeline-worker service shares private media, staging and artifact volume",
         "Compose integration smoke now starts and health-checks the dedicated timeline render worker",
         "Crash cleanup for abandoned staged MP4s and per-job working directories on timeline worker startup, with a grace period longer than maximum render timeout",
-        "FFmpeg and ffprobe input protocols restricted to local file and pipe; output profile checked for one H.264 1080x1920 video stream"
+        "FFmpeg and ffprobe input protocols restricted to local file and pipe; output profile checked for one H.264 1080x1920 video stream",
+        "Startup reconciliation of stale staging files, crashed per-job work directories and unindexed private artifact files",
+        "EDL audio track cap of eight and source-relative audio trim/fade ordering to preserve timing"
       ],
       "remaining": [
         "Connect an actual malware scanner to the asset quarantine transition and fail closed when scanner health is unavailable",
