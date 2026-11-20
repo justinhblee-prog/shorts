@@ -186,3 +186,12 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - The regression test deliberately delays the next-page API and double-clicks the same cross-page prerequisite. It verifies one request, disabled controls during loading, control recovery afterward, and focus on the discovered parent.
 - An initial run exposed an incorrectly escaped Playwright regex in the new test harness; corrected it and reran the complete workflow successfully. The failure was in the test matcher, not application code.
 - The docs update after this validated code head is documentation-only; production multi-process SQLite, Windows runner isolation, LocalAppData persistence, live Ollama, and provider behavior remain NOT VERIFIED.
+
+## 21. Stable pagination snapshot boundary — 2026-11-20
+
+- Fixed offset pagination under concurrent job insertion. Previously, a newly created higher-priority row could shift the order between page requests, causing duplicates and permanently skipped jobs.
+- `DevelopmentJobStore.snapshot_created_at()` captures a UTC cutoff under `BEGIN IMMEDIATE`. Job creation uses the same write lock and samples its timestamp after lock acquisition, so all later jobs receive a timestamp after the snapshot.
+- `GET /api/development/jobs` now accepts a validated timezone-aware `created_before`, filters both list and count with the same cutoff, and returns `pagination.snapshot_at`. The UI retains this boundary across pages and starts a fresh one on refresh.
+- Tests insert a higher-priority job between pages and prove the snapshot still returns each original job once. API tests cover invalid timestamp rejection and pagination metadata; Chromium verifies the snapshot is sent on cross-page prerequisite lookup.
+- Exact code head `46b337bad16648a0d7ed6753c42ffe3d63033569` passed [run 44659993665](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665): 901 backend tests, frontend syntax, both Chromium suites, and artifact [14595685407](https://github.com/justinhblee-prog/shorts/actions/runs/44659993665/artifacts/14595685407).
+- Hosted CI does not prove production multi-process SQLite behavior or Windows runner persistence; those remain separate gates.
