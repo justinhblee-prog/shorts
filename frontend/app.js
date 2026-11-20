@@ -2,6 +2,7 @@
   const $ = (id) => document.getElementById(id);
   let token = "";
   let reviewer = "operator";
+  let activeWorkspaceId = localStorage.getItem("nexusWorkspaceId") || "";
   let brands = [];
   let toastTimer;
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -40,12 +41,44 @@
   async function api(path,options={}){
     const headers={"Content-Type":"application/json",...(options.headers||{})};
     if(token) headers["X-Review-Token"]=token;
+    if(activeWorkspaceId) headers["X-Nexus-Workspace-Id"]=activeWorkspaceId;
     const response=await fetch(path,{...options,headers});
     const raw=await response.text();let data={};
     try{data=raw?JSON.parse(raw):{};}catch{data={detail:raw};}
     if(!response.ok) throw new Error(typeof data.detail==="string"?data.detail:JSON.stringify(data.detail||data));
     return data;
   }
+  async function loadWorkspaces(){
+    const selector=$("workspaceSelector");
+    if(!selector)return;
+    try{
+      const data=await api("/api/operator/workspaces");
+      const workspaces=Array.isArray(data.workspaces)?data.workspaces:[];
+      const valid=workspaces.some(item=>item.id===activeWorkspaceId);
+      if(activeWorkspaceId&&!valid){
+        activeWorkspaceId="";
+        localStorage.removeItem("nexusWorkspaceId");
+      }
+      selector.innerHTML='<option value="">기본 공간 · 미지정 데이터</option>'+
+        workspaces.map(item=>'<option value="'+esc(item.id)+'">'+esc(item.name||item.id)+'</option>').join("");
+      selector.value=activeWorkspaceId;
+      selector.disabled=workspaces.length===0;
+      selector.title=workspaces.length
+        ? "선택한 워크스페이스의 데이터만 표시합니다."
+        : "사용 가능한 워크스페이스가 없습니다.";
+    }catch(error){
+      selector.innerHTML='<option value="">워크스페이스 권한 확인 필요</option>';
+      selector.disabled=true;
+      selector.title=error.message;
+    }
+  }
+  $("workspaceSelector")?.addEventListener("change",async event=>{
+    activeWorkspaceId=event.target.value;
+    if(activeWorkspaceId)localStorage.setItem("nexusWorkspaceId",activeWorkspaceId);
+    else localStorage.removeItem("nexusWorkspaceId");
+    await refreshAll();
+    toast(activeWorkspaceId?"워크스페이스가 전환되었습니다.":"기본 공간으로 전환되었습니다.");
+  });
   function setConnection(connected,label){$("connection").classList.toggle("connected",connected);$("connection").innerHTML='<i></i> '+esc(label);}
   function populateBrandSelects(){
     const opts=brands.filter(b=>b.active).map(b=>'<option value="'+esc(b.slug)+'">'+esc(b.name)+'</option>').join("");
@@ -841,8 +874,12 @@
 
   $("saveToken").addEventListener("click",async()=>{
     token=$("tokenInput").value.trim();reviewer=$("reviewerInput").value.trim()||"operator";
-    try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await refreshAll();}
-    catch(e){token="";msg("tokenMessage",e.message,true);}
+    try{
+      await api("/api/queue/stats");
+      await loadWorkspaces();
+      $("settingsDialog").close();msg("tokenMessage","인증 성공");
+      await refreshAll();
+    }catch(e){token="";msg("tokenMessage",e.message,true);}
   });
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
