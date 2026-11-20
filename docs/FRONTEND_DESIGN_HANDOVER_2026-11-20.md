@@ -190,3 +190,12 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - Confirmed that most tenant-owned records do not yet carry `workspace_id`; workspace membership on the EDL validator alone is not multi-tenant data isolation.
 - Added `docs/TENANT_DATA_ISOLATION_AUDIT.md` with phased, additive migration and rollout gates. No existing data was changed or backfilled.
 - Customer identity provider selection is an external security/service contract. No customer login provider was guessed, configured, or activated.
+
+## Customer identity contract — 2026-11-20
+
+- Added `docs/CUSTOMER_IDENTITY_CONTRACT.md` as the provider-neutral application contract for future customer login and workspace ownership.
+- Canonical identity is the exact verified `issuer + subject` pair, mapped to an opaque internal principal. Email and display names are profile attributes, never identity keys.
+- Defines token verification, explicit workspace membership, secure account linking/invitations, revocation, worker/resource tenant propagation, migration gates and cross-tenant test requirements.
+- Existing reviewer/operator credentials remain a separate trust domain. The current SQLite workspace registry is not customer authentication and does not establish complete tenant isolation.
+- Identity provider selection, login/recovery methods, data residency and contractual/security settings remain unresolved external decisions. No provider or live login integration was activated.
+- Shared database path review: `backend/app.py` passes `NEXUS_DB_PATH` to `WorkspaceStore`; the store's no-argument constructor also honors `NEXUS_DB_PATH`. Existing tests cover both environment-based default selection and explicit-path precedence. No path mismatch was found; no code change was warranted.
