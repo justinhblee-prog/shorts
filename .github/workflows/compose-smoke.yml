@@ -42,7 +42,7 @@ jobs:
                   "other-smoke-reviewer": ["admin"],
               }, separators=(",", ":")),
               "NEXUS_WORKSPACE_AUTH_MODE": "sqlite",
-              "NEXUS_MEDIA_SCAN_ENABLED": "false",
+              "NEXUS_MEDIA_SCAN_ENABLED": "true",
               "NEXUS_RENDER_WIDTH": "320",
               "NEXUS_RENDER_HEIGHT": "568",
               "NEXUS_RENDER_FPS": "30",
@@ -63,7 +63,21 @@ jobs:
       - name: Build all service images
         run: docker compose build
       - name: Start API, worker, scheduler, metrics collector and backup
-        run: docker compose up -d
+        run: docker compose --profile media-scan up -d
+      - name: Wait for current ClamAV signatures and verify scanner database
+        run: |
+          set -eu
+          ready=0
+          for attempt in $(seq 1 600); do
+            if docker compose exec -T api sh -c 'find "$NEXUS_CLAMAV_DATABASE_DIR" -maxdepth 1 -type f \\( -name "*.cvd" -o -name "*.cld" \\) -size +0c | grep -q .' \
+              && docker compose exec -T api sh -c 'clamscan --database="$NEXUS_CLAMAV_DATABASE_DIR" --no-summary /dev/null >/dev/null'; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = "1"
+          docker compose exec -T api sh -c 'clamscan --database="$NEXUS_CLAMAV_DATABASE_DIR" --version'
       - name: Verify service processes and API readiness
         run: |
           set -eu
