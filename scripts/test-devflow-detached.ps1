@@ -51,6 +51,7 @@ try{
   if(-not $shimProc.Start()){throw "Could not start PowerShell CLI shim."}
   $shimOut=$shimProc.StandardOutput.ReadToEndAsync();$shimErr=$shimProc.StandardError.ReadToEndAsync();$shimProc.WaitForExit()
   if($shimProc.ExitCode -ne 0 -or $shimOut.Result -notmatch "SHIM:probe"){throw "PowerShell CLI shim invocation failed: $($shimErr.Result)"}
+  Remove-Item -LiteralPath $shim -Force
   $env:DEVFLOW_AGENT_COMMAND=Join-Path $repo "scripts/missing-agent.ps1"
   $env:DEVFLOW_AGENT_ARGS_JSON='["-p","{prompt_file}"]'
   $logPath=Join-Path (Split-Path $repo -Parent) "shorts-fixture-multiflow-logs"
