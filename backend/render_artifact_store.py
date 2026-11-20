@@ -223,6 +223,22 @@ class RenderArtifactStore:
         }
 
 
+
+    def discard_staged(self, staged_path):
+        """Delete a failed or lease-abandoned staged output inside the private root."""
+        candidate = Path(staged_path)
+        if candidate.is_symlink():
+            raise ArtifactAdoptionError("refusing to discard a staged symlink")
+        try:
+            source = candidate.resolve(strict=False)
+            source.relative_to(self.staging_root)
+        except (OSError, ValueError) as exc:
+            raise ArtifactAdoptionError("staged cleanup path escaped the private staging root") from exc
+        if source.exists() and source.is_file():
+            source.unlink()
+            return True
+        return False
+
     def reconcile_orphaned_files(self, grace_seconds=3600):
         """Remove unindexed generated files after a crash-safe grace period.
 
