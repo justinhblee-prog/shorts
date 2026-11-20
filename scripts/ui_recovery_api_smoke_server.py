@@ -29,6 +29,12 @@ def main() -> None:
 
     import app  # noqa: E402
 
+    parent = app.development_job_store.create(
+        "Browser smoke UI dependency",
+        description="Completed upstream job for the multi-flow dependency board",
+        scope=["frontend/app.js"],
+        job_id="browser-smoke-ui-parent",
+    )
     job = app.development_job_store.create(
         "Browser smoke quarantined job",
         description="Disposable fixture for the audited recovery browser flow",
@@ -37,9 +43,47 @@ def main() -> None:
         max_attempts=1,
         job_id="browser-smoke-quarantine-001",
     )
+    app.development_job_store.add_dependency(job["id"], parent["id"])
+
+    # Persist one fixture for every remaining workstream classification.
+    workstream_fixtures = [
+        ("windows-ui", ["Frontend\\App.js"]),
+        ("automation", [".github/workflows/backend-tests.yml"]),
+        ("qa", ["backend/tests/test_frontend.py"]),
+        ("docs", ["docs/MULTI_FLOW_EXECUTION.md"]),
+        ("integration", ["frontend/app.js", "backend/app.py"]),
+        ("unclassified", []),
+    ]
+    for lane, scope in workstream_fixtures:
+        app.development_job_store.create(
+            f"Browser smoke {lane.upper()} workstream",
+            description=f"Persisted scope fixture for {lane} lane classification",
+            scope=scope,
+            job_id=f"browser-smoke-{lane}-fixture",
+        )
+    # Force the board beyond its first 200-row page and place one real prerequisite
+    # on the final page so the UI must discover it through the missing-parent action.
+    for index in range(205):
+        app.development_job_store.create(
+            f"Browser smoke pagination {index:03d}",
+            scope=["docs/pagination/"],
+            priority=200,
+            job_id=f"browser-smoke-pagination-{index:03d}",
+        )
+    parent_claim = app.development_job_store.claim_ready("recovery-smoke-worker")
+    if not parent_claim or parent_claim["id"] != parent["id"]:
+        raise RuntimeError("Failed to claim the seeded upstream dependency")
+    app.development_job_store.mark_review_pending(
+        parent["id"], "recovery-smoke-worker", parent_claim["lease_token"],
+        ["frontend/app.js"], True, "ci://browser-smoke/workstream-dependency",
+    )
+    app.development_job_store.publish_review_artifact(
+        parent["id"], "https://github.com/example/nexus/pull/1", "a" * 40,
+        ["frontend/app.js"], is_draft=True, is_open=True,
+    )
     claim = app.development_job_store.claim_ready("recovery-smoke-worker")
     if not claim or claim["id"] != job["id"]:
-        raise RuntimeError("Failed to claim the seeded development job")
+        raise RuntimeError("Failed to claim the seeded development job after its dependency completed")
     quarantined = app.development_job_store.fail(
         job["id"],
         "recovery-smoke-worker",
@@ -49,6 +93,15 @@ def main() -> None:
     )
     if quarantined["status"] != "quarantined":
         raise RuntimeError("Seeded development job did not enter quarantine")
+    cross_page_child = app.development_job_store.create(
+        "Browser smoke cross-page prerequisite child",
+        scope=["frontend/cross-page-child.js"],
+        priority=-10,
+        job_id="browser-smoke-cross-page-child",
+    )
+    app.development_job_store.add_dependency(
+        cross_page_child["id"], "browser-smoke-pagination-204"
+    )
 
     print("Recovery browser fixture seeded: browser-smoke-quarantine-001", flush=True)
     import uvicorn  # noqa: E402

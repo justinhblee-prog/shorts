@@ -68,6 +68,8 @@ API:
 - `POST /api/production/jobs/{id}/execute` — execute only with the current
   `worker_id` and `lease_token`.
 - `GET /api/production/jobs/{id}` — inspect stages and artifacts.
+- `GET /api/publishing/overview` — return a bounded (latest 200 approved jobs) YouTube/TikTok publication-state summary; requires `review.read` and excludes provider credentials.
+- `POST /api/production/jobs/{job_id}/provider-attempts/{provider_attempt_id}/reconcile` — resolve an ambiguous provider attempt only with `confirmed_not_executed=true`, operator ID matching the token-authenticated principal, evidence reference and note; requires `production.provider_reconcile`. This appends an immutable reconciliation event and does not retry the provider call or resume production.
 - `python worker.py` — run the long-lived worker. It claims only `short_video_production` jobs, renews its lease while provider calls run, and finalizes the queue into `review_pending` after successful rendering.
 
 A completed render transitions the queue job to `review_pending`. This is not
@@ -165,7 +167,7 @@ YouTube upload accepts only staged files resolved inside `NEXUS_MEDIA_DIR` (defa
 
 ### API authentication
 
-Operational endpoints require `X-Review-Token: <NEXUS_REVIEW_TOKEN>`. This includes production, trends, competitor intelligence, opportunities, schedules, review, YouTube, finance, performance, queue and worker operations, plus brand activation. Public endpoints are limited to health and read-only brand catalog/detail. Configure a long random secret and protect it; the shared token is not multi-user authentication.
+Operational endpoints require `X-Review-Token: <NEXUS_REVIEW_TOKEN>` (or an individual operator credential). `GET /api/session` returns only the operator ID resolved from that credential and requires `session.read`, which is granted to every role. The dashboard uses this server-resolved identity for audit-bearing actions; operator ID inputs are read-only. Queue pause/resume, production retry reconciliation, TikTok publishing and provider-attempt reconciliation reject caller-supplied IDs that differ from the authenticated principal. Public endpoints are limited to health and read-only brand catalog/detail. Configure a long random secret and protect it; the legacy shared token maps to the fixed `legacy-operator` identity and is not multi-user authentication.
 
 ### Secure renderer artifact staging
 
@@ -190,7 +192,7 @@ The integrated single-page control center is served from the backend:
 http://localhost:8502/
 ```
 
-The UI includes production job intake, trends, competitors, profitability scoring, human review, approved/private upload, schedules, financial ledger and performance insights. Enter the configured `NEXUS_REVIEW_TOKEN` using the settings button. The token is kept in browser memory only and is cleared on reload. Public publishing is not offered by the UI; YouTube uploads remain private.
+The UI includes production job intake, trends, competitors, profitability scoring, human review, approved/private upload, schedules, financial ledger and performance insights. Enter the configured `NEXUS_REVIEW_TOKEN` or individual operator token using the settings button. The server resolves the operator ID through `GET /api/session`; the UI displays it read-only and reuses it for audit-bearing actions. The token is kept in browser memory only and is cleared on reload. Public publishing is not offered by the UI; YouTube uploads remain private.
 
 ### Integration preflight
 
@@ -540,7 +542,7 @@ NEXUS_REVIEW_ROLE_MAP_JSON='{"alice":["admin"],"bob":["reviewer"]}'
 
 Tokens must be unique and 32–512 ASCII characters. If `NEXUS_REVIEW_CREDENTIALS_JSON` is configured, it replaces the legacy shared `NEXUS_REVIEW_TOKEN`; legacy mode maps to the fixed identity `legacy-operator`. Per-operator credentials require an explicit role map; if it is missing, role-protected requests fail closed with HTTP 503. Only legacy single-token migration mode without a role map retains wildcard permissions. Configure the role map before switching to individual operator tokens.
 
-Available roles: admin, producer, reviewer, publisher, analyst, operator, finance and worker. Every protected route has an explicit permission guard. Review actions use the authenticated operator identity rather than caller-supplied reviewer IDs.
+Available roles: admin, producer, reviewer, publisher, analyst, operator, finance and worker. Every protected route has an explicit permission guard. All audit-bearing queue, production reconciliation, TikTok publishing and provider reconciliation actions bind the recorded actor to the authenticated principal; a mismatched caller-supplied operator ID is rejected with HTTP 403. The `session.read` permission is available to every role so the portal can display its own authenticated identity without granting additional operational privileges.
 
 Persistent per-client rate limits default to 120 requests/minute overall, 20 auth, 10 publish, 30 queue control, 60 review and 30 production requests. Tune with the `NEXUS_API_*_RATE_LIMIT_PER_MINUTE` variables. `NEXUS_TRUSTED_PROXY_CIDRS` is empty by default; only list the exact reverse-proxy networks you control. Untrusted X-Forwarded-For headers never affect rate-limit identity.
 

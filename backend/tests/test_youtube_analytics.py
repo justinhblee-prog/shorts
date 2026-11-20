@@ -532,5 +532,71 @@ class YouTubeAnalyticsTests(unittest.TestCase):
         )
 
 
+
+    def test_analytics_history_appends_snapshots_while_latest_remains_current(self):
+        first={"views":100,"engagedViews":60,"estimatedMinutesWatched":10,
+               "averageViewDuration":6,"averageViewPercentage":50}
+        second={"views":150,"engagedViews":90,"estimatedMinutesWatched":15,
+                "averageViewDuration":7,"averageViewPercentage":55}
+        first_curve=[{"elapsedVideoTimeRatio":0.25,"audienceWatchRatio":0.8,"relativeRetentionPerformance":0.1}]
+        second_curve=[{"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.45,"relativeRetentionPerformance":0.2}]
+        self.store.save("history-video","2026-11-01","2026-11-14",first,first_curve)
+        self.store.save("history-video","2026-11-01","2026-11-15",second,second_curve)
+        history=self.store.history("history-video")
+        self.assertEqual(len(history),2)
+        self.assertEqual({row["views"] for row in history},{100,150})
+        by_views={row["views"]:row["retention_curve"] for row in history}
+        self.assertEqual(by_views[100][0]["audience_watch_ratio"],0.8)
+        self.assertEqual(by_views[150][0]["relative_retention_performance"],0.2)
+        self.assertEqual(self.store.get("history-video")["views"],150)
+        self.assertEqual(len(self.store.history("other-video")),0)
+
+    def test_history_malformed_retention_json_fails_safe(self):
+        self.store.save(
+            "bad-retention-history","2026-11-01","2026-11-14",{"views":10},
+            [{"elapsedVideoTimeRatio":0.5,"audienceWatchRatio":0.4}],
+        )
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE youtube_analytics_history SET retention_json='{' WHERE video_id=?",
+                ("bad-retention-history",),
+            )
+        history=self.store.history("bad-retention-history")
+        self.assertEqual(history[0]["retention_curve"],[])
+
+    def test_history_has_global_time_index(self):
+        with self.store.db() as connection:
+            indexes={
+                row["name"] for row in connection.execute(
+                    "PRAGMA index_list(youtube_analytics_history)"
+                ).fetchall()
+            }
+        self.assertIn("idx_youtube_analytics_history_time",indexes)
+        self.assertIn("idx_youtube_analytics_history_video_time",indexes)
+
+    def test_history_since_filters_before_applying_limit(self):
+        for views, collected_at in (
+            (10,"2026-11-01T00:00:00+00:00"),
+            (20,"2026-11-02T00:00:00+00:00"),
+            (30,"2026-11-03T00:00:00+00:00"),
+        ):
+            self.store.save("range-video","2026-11-01","2026-11-03",{"views":views},[])
+            with self.store.db() as connection:
+                connection.execute(
+                    "UPDATE youtube_analytics_history SET collected_at=? "
+                    "WHERE id=(SELECT MAX(id) FROM youtube_analytics_history WHERE video_id=?)",
+                    (collected_at,"range-video"),
+                )
+        recent=self.store.history("range-video",limit=1,since="2026-11-02")
+        self.assertEqual(len(recent),1)
+        self.assertEqual(recent[0]["views"],30)
+        older=self.store.history("range-video",limit=5,since="2026-11-02")
+        self.assertEqual({row["views"] for row in older},{20,30})
+        cursor=next(row for row in older if row["views"]==20)
+        stable=self.store.history(
+            "range-video",limit=5,before_collected_at=cursor["collected_at"],before_id=cursor["id"]
+        )
+        self.assertEqual([row["views"] for row in stable],[10])
+
 if __name__ == "__main__":
     unittest.main()

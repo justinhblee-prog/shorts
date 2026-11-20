@@ -35,15 +35,91 @@ async function waitForServer() {
 
     await page.locator("#openSettings").click();
     await page.locator("#tokenInput").fill(token);
-    await page.locator("#reviewerInput").fill("recovery-smoke-operator");
     await page.locator("#saveToken").click();
     await page.locator("#settingsDialog").waitFor({ state: "hidden" });
+    assert.equal(await page.locator("#reviewerInput").inputValue(), "legacy-operator");
+    assert.equal(await page.locator("#queueOperator").inputValue(), "legacy-operator");
     await page.locator("#loadDevelopmentJobs").click();
 
     const recoverButton = page.locator('[data-recover-development-job="' + jobId + '"]');
     await recoverButton.waitFor({ state: "visible" });
     assert.equal(await recoverButton.isEnabled(), true);
     assert.match(await page.locator("#developmentJobList").textContent(), /격리/);
+    assert.equal(await page.locator('#developmentJobList [data-workstream="UI"]').count(), 1,
+      "UI-scoped jobs must appear in their own workstream lane");
+    assert.match(await page.locator('#developmentJobList [data-workstream="UI"]').textContent(),
+      /WINDOWS-UI workstream/,
+      "case-insensitive Windows backslash paths must classify into the UI lane");
+    assert.equal(await page.locator('#developmentJobList [data-workstream="CORE"]').count(), 1,
+      "backend-scoped jobs must appear in the Core workstream lane");
+    for (const lane of ["AUTOMATION", "QA", "DOCS", "INTEGRATION", "UNCLASSIFIED"]) {
+      assert.equal(await page.locator('#developmentJobList [data-workstream="' + lane + '"]').count(), 1,
+        lane + " scoped jobs must appear in exactly one matching workstream lane");
+    }
+    const dependencyBoard = await page.locator("#developmentJobList").textContent();
+    assert.match(dependencyBoard, /선행 작업/);
+    assert.match(dependencyBoard, /Browser smoke UI dependency/);
+    assert.match(dependencyBoard, /완료/);
+    assert.equal(await page.locator(".development-job-item [data-focus-development-job]").count(), 0,
+      "prerequisite controls must not be nested inside the job action button");
+    const prerequisiteLink = page.locator('[data-focus-development-job="browser-smoke-ui-parent"]');
+    assert.equal(await prerequisiteLink.getAttribute("role"), "button",
+      "prerequisite navigation must be keyboard accessible");
+    await prerequisiteLink.click();
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-development-job")),
+      "browser-smoke-ui-parent", "prerequisite link must focus its persisted parent job");
+    await prerequisiteLink.press("Enter");
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-development-job")),
+      "browser-smoke-ui-parent", "Enter must activate prerequisite navigation");
+    const crossPagePrerequisite = page.locator(
+      '#developmentJobList [data-load-prerequisite-id="browser-smoke-pagination-204"]'
+    );
+    await crossPagePrerequisite.waitFor({ state: "visible" });
+    let crossPageRequestCount = 0;
+    await page.route(/\/api\/development\/jobs\?limit=200&offset=200&created_before=[^&]+$/, async route => {
+      crossPageRequestCount += 1;
+      await new Promise(resolve => setTimeout(resolve, 250));
+      await route.continue();
+    });
+    await page.evaluate(() => {
+      const button = document.querySelector(
+        '#developmentJobList [data-load-prerequisite-id="browser-smoke-pagination-204"]'
+      );
+      button.click();
+      button.click();
+    });
+    assert.equal(await page.locator("#loadMoreDevelopmentJobs").isDisabled(), true,
+      "pagination controls must be disabled while a page request is in flight");
+    const crossPageParent = page.locator(
+      '[data-development-job="browser-smoke-pagination-204"]'
+    );
+    await crossPageParent.waitFor({ state: "visible" });
+    assert.equal(crossPageRequestCount, 1,
+      "rapid duplicate prerequisite clicks must share one in-flight page request");
+    assert.equal(await page.locator("#loadMoreDevelopmentJobs").isDisabled(), false,
+      "pagination controls must be re-enabled after the page request settles");
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-development-job")),
+      "browser-smoke-pagination-204",
+      "loading another page from a missing prerequisite must focus the persisted parent");
+    const paginationStatus = (await page.locator("#developmentJobPaginationStatus").textContent()).trim();
+    const paginationMatch = paginationStatus.match(/^([0-9]+) \/ ([0-9]+)개 작업 표시$/);
+    assert.ok(paginationMatch, "pagination status must expose loaded and total job counts");
+    assert.equal(Number(paginationMatch[1]), Number(paginationMatch[2]),
+      "all persisted jobs must be loaded before the load-more control hides");
+    assert.equal(await page.locator("#loadMoreDevelopmentJobs").isHidden(), true,
+      "the load-more control must hide after the final page");
+    await page.setViewportSize({ width: 320, height: 900 });
+    const mobileLayout = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }));
+    assert.ok(mobileLayout.content <= mobileLayout.viewport,
+      "multi-flow workstream board must not overflow a 320px mobile viewport");
+    for (const lane of ["UI", "CORE", "AUTOMATION", "QA", "DOCS", "INTEGRATION", "UNCLASSIFIED"]) {
+      assert.equal(await page.locator('#developmentJobList [data-workstream="' + lane + '"]').count(), 1,
+        lane + " workstream must remain visible at 320px");
+    }
+    await page.setViewportSize({ width: 1440, height: 960 });
 
     page.on("dialog", async dialog => {
       if (dialog.type() === "prompt") {
@@ -68,10 +144,71 @@ async function waitForServer() {
       return card && card.textContent.includes("대기") &&
         !card.querySelector("[data-recover-development-job]");
     }, jobId);
-    await page.locator('[data-development-job="' + jobId + '"]').click();
+    const recoveredJobButton = page.locator('[data-development-job="' + jobId + '"]');
+    await recoveredJobButton.click();
     await page.waitForFunction(() =>
       document.querySelector("#developmentJobEvents").textContent.includes("quarantine_recovered")
     );
+    assert.equal(await recoveredJobButton.getAttribute("aria-pressed"), "true",
+      "clicking a job must select its detail panel");
+    const previousEventPanel = await page.locator("#developmentJobEvents").textContent();
+    const parentJobButton = page.locator('[data-development-job="browser-smoke-ui-parent"]');
+    await parentJobButton.press("Enter");
+    await page.waitForFunction(previous => {
+      const button = document.querySelector('[data-development-job="browser-smoke-ui-parent"]');
+      const panel = document.querySelector("#developmentJobEvents");
+      return button?.getAttribute("aria-pressed") === "true" &&
+        panel && panel.textContent !== previous;
+    }, previousEventPanel);
+    assert.equal(await recoveredJobButton.getAttribute("aria-pressed"), "false",
+      "selecting another job must clear the previous selection");
+
+    // A late response for the previously selected job must never replace the new selection.
+    await page.route("**/api/development/jobs/" + jobId + "/events?limit=100", async route => {
+      await new Promise(resolve => setTimeout(resolve, 350));
+      await route.continue();
+    });
+    await page.route("**/api/development/jobs/browser-smoke-ui-parent/events?limit=100", async route => {
+      await new Promise(resolve => setTimeout(resolve, 30));
+      await route.continue();
+    });
+    await recoveredJobButton.click();
+    await parentJobButton.click();
+    await page.waitForFunction(() =>
+      document.querySelector("#developmentJobEvents").textContent.includes("review_published")
+    );
+    await new Promise(resolve => setTimeout(resolve, 450));
+    const selectedParentEvents = await page.locator("#developmentJobEvents").textContent();
+    assert.match(selectedParentEvents, /review_published/);
+    assert.doesNotMatch(selectedParentEvents, /quarantine_recovered/,
+      "a stale response must not overwrite the currently selected job's events");
+    await page.unroute("**/api/development/jobs/" + jobId + "/events?limit=100");
+    await page.unroute("**/api/development/jobs/browser-smoke-ui-parent/events?limit=100");
+
+    // Failed audit history requests must render an actionable inline error and retry.
+    let eventRequestAttempts = 0;
+    const parentEventsRoute = "**/api/development/jobs/browser-smoke-ui-parent/events?limit=100";
+    await page.route(parentEventsRoute, async route => {
+      eventRequestAttempts += 1;
+      if (eventRequestAttempts === 1) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "simulated audit event service failure" }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+    await parentJobButton.click();
+    await page.locator("#developmentJobEvents [role=alert]").waitFor({ state: "visible" });
+    assert.match(await page.locator("#developmentJobEvents").textContent(), /불러오지 못했습니다/);
+    await page.locator('[data-retry-development-events="browser-smoke-ui-parent"]').click();
+    await page.waitForFunction(() =>
+      document.querySelector("#developmentJobEvents").textContent.includes("review_published")
+    );
+    assert.equal(eventRequestAttempts, 2, "retry action must issue a new event-history request");
+    await page.unroute(parentEventsRoute);
     const events = await page.evaluate(async ({ tokenValue, id }) => {
       const result = await fetch("/api/development/jobs/" + encodeURIComponent(id) + "/events?limit=100", {
         headers: { "X-Review-Token": tokenValue },

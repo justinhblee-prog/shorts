@@ -1,6 +1,7 @@
 import os
 import logging
 import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Header, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
@@ -110,6 +111,18 @@ def initialize_development_job_registry():
 
 app.router.on_startup.append(initialize_development_job_registry)
 media_stager=MediaStager()
+
+
+def require_canonical_staged_media(job_id, supplied_media_path):
+    """Resolve only this job's deterministic staged file; never trust a client path."""
+    canonical_path=media_stager.staged_path(job_id)
+    if not isinstance(supplied_media_path,str) or supplied_media_path != canonical_path.name:
+        raise HTTPException(409,"Only the canonical staged media for this job may be published")
+    try:
+        media_stager.fingerprint(canonical_path)
+    except MediaStagingError as exc:
+        raise HTTPException(409,str(exc))
+    return canonical_path
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -372,6 +385,34 @@ def get_production_provider_attempts(job_id:str,x_review_token:str|None=Header(d
         })
     return {"job_id":job_id,"attempts":safe_attempts}
 
+@app.post("/api/production/jobs/{job_id}/provider-attempts/{provider_attempt_id}/reconcile")
+def reconcile_provider_attempt(
+    job_id:str,
+    body:ProviderAttemptReconciliationAction,
+    provider_attempt_id:str,
+    x_review_token:str|None=Header(default=None),
+):
+    """Resolve an ambiguous provider call only after explicit operator evidence."""
+    authenticated_operator=require_review_permission(x_review_token,"production.provider_reconcile")
+    if body.operator_id != authenticated_operator:
+        raise HTTPException(403,"Operator ID must match the authenticated principal")
+    if not body.confirmed_not_executed:
+        raise HTTPException(422,"Explicit confirmation that the provider did not execute is required")
+    try:
+        result=production_store.confirm_provider_attempt_not_executed(
+            job_id,provider_attempt_id,authenticated_operator,
+            body.evidence_reference,body.note,
+        )
+    except KeyError:
+        raise HTTPException(404,"Provider attempt not found")
+    except ValueError as exc:
+        raise HTTPException(409,str(exc))
+    return {
+        "reconciliation":result,
+        "warning":"This records a separate operator-controlled provider reconciliation; it does not retry or resume production.",
+    }
+
+
 @app.post("/api/production/jobs/{job_id}/adopt-recovered-render")
 def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionAction,
                                       x_review_token:str|None=Header(default=None)):
@@ -407,24 +448,26 @@ def adopt_recovered_production_render(job_id:str,body:ProviderResultAdoptionActi
 
 @app.post("/api/production/jobs/{job_id}/execute")
 def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"production.execute")
+    authenticated_worker=require_review_permission(x_review_token,"production.execute")
+    if body.worker_id.strip() != authenticated_worker:
+        raise HTTPException(403,"Worker ID must match the authenticated principal")
     try:
         job=queue.get(job_id)
         if job["job_type"]!="short_video_production":
             raise HTTPException(409,"Job is not a short-video production job")
-        if job["status"]!="running" or job["worker_id"]!=body.worker_id or job["lease_token"]!=body.lease_token:
+        if job["status"]!="running" or job["worker_id"]!=authenticated_worker or job["lease_token"]!=body.lease_token:
             raise HTTPException(409,"Current worker lease is required")
         result=production_pipeline.execute(
-            job_id,job["payload"],worker_id=body.worker_id,lease_token=body.lease_token
+            job_id,job["payload"],worker_id=authenticated_worker,lease_token=body.lease_token
         )
-        queue.finish(job_id,body.worker_id,body.lease_token,{"production_status":"review_pending"})
+        queue.finish(job_id,authenticated_worker,body.lease_token,{"production_status":"review_pending"})
         production_store.reconcile_review_pending(queue)
         return production_store.get(job_id)
     except PolicyBlocked as e:
         # A deterministic preflight block is local to this job; it must not
         # pause unrelated production workers.
         try:
-            queue.fail(job_id,body.worker_id,body.lease_token,
+            queue.fail(job_id,authenticated_worker,body.lease_token,
                        "policy_blocked",str(e),False)
         except Exception:
             pass
@@ -435,7 +478,7 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
         })
     except ProviderError as e:
         try:
-            queue.fail(job_id,body.worker_id,body.lease_token,
+            queue.fail(job_id,authenticated_worker,body.lease_token,
                        "provider_"+e.stage,str(e),e.retryable)
         except Exception:
             pass
@@ -466,7 +509,7 @@ def execute_production_job(job_id:str,body:ProductionExecute,x_review_token:str|
         raise
     except Exception as e:
         try:
-            queue.fail(job_id,body.worker_id,body.lease_token,
+            queue.fail(job_id,authenticated_worker,body.lease_token,
                        "pipeline_internal_error",type(e).__name__,False)
         except Exception:
             pass
@@ -496,6 +539,12 @@ def require_review_permission(token, permission):
     if not allowed:
         raise HTTPException(403,"Operator role does not grant this action")
     return operator_id
+
+
+@app.get("/api/session")
+def get_operator_session(x_review_token:str|None=Header(default=None)):
+    """Return the principal bound to the supplied operator credential."""
+    return {"operator_id":require_review_permission(x_review_token,"session.read")}
 
 
 @app.get("/api/review/pending")
@@ -867,11 +916,13 @@ def get_tiktok_creator_info(x_review_token:str|None=Header(default=None)):
 @app.post("/api/tiktok/publish/{job_id}",status_code=201)
 def publish_tiktok_video(job_id:str,body:TikTokPublishRequest,
                          x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"publish.execute")
+    authenticated_operator=require_review_permission(x_review_token,"publish.execute")
+    if body.operator_id != authenticated_operator:
+        raise HTTPException(403,"Operator ID must match the authenticated principal")
     staged_path=require_canonical_staged_media(job_id,body.media_path)
     try:
         return tiktok_publisher.publish_private_approved(
-            job_id,staged_path,review_store,body.title,body.operator_id,
+            job_id,staged_path,review_store,body.title,authenticated_operator,
             explicit_consent=body.explicit_consent,privacy_level=body.privacy_level,
             brand_content_toggle=body.brand_content_toggle,
             brand_organic_toggle=body.brand_organic_toggle)
@@ -911,6 +962,124 @@ def refresh_tiktok_publication_status(job_id:str,x_review_token:str|None=Header(
         return tiktok_publisher.refresh_status(job_id)
     except TikTokPublishError as e:
         raise HTTPException(409,str(e))
+
+
+@app.get("/api/publishing/overview")
+def publishing_overview(x_review_token:str|None=Header(default=None)):
+    """Return a bounded cross-platform publication status summary."""
+    require_review_permission(x_review_token,"review.read")
+    items=review_store.list_approved(200)
+    summary={
+        "total":len(items),
+        "youtube":{"uploaded":0,"processing":0,"failed":0,"pending":0,"uncertain":0},
+        "tiktok":{"published":0,"processing":0,"failed":0,"pending":0,"uncertain":0},
+    }
+    for item in items:
+        job_id=item["job_id"]
+        yt=youtube_upload_store.get(job_id)
+        yt=review_store.sanitize_production_record(yt) if yt else None
+        ys=yt.get("status") if yt else "pending"
+        if ys=="uploaded": summary["youtube"]["uploaded"]+=1
+        elif ys in ("uploading","processing"): summary["youtube"]["processing"]+=1
+        elif ys=="failed": summary["youtube"]["failed"]+=1
+        elif ys in ("reconciliation_required","late_success_review_required"):
+            summary["youtube"]["uncertain"]+=1
+        else: summary["youtube"]["pending"]+=1
+        tt=tiktok_publish_store.get(job_id)
+        tt=review_store.sanitize_production_record(tt) if tt else None
+        ts=tt.get("status") if tt else "pending"
+        if ts=="publish_complete": summary["tiktok"]["published"]+=1
+        elif ts in ("initializing","uploading","processing","send_to_inbox"):
+            summary["tiktok"]["processing"]+=1
+        elif ts=="failed": summary["tiktok"]["failed"]+=1
+        elif ts=="reconciliation_required": summary["tiktok"]["uncertain"]+=1
+        else: summary["tiktok"]["pending"]+=1
+    return summary
+
+
+@app.get("/api/publishing/analytics-status")
+def publishing_analytics_status(x_review_token:str|None=Header(default=None)):
+    """Summarize analytics freshness and coverage without exposing provider credentials."""
+    require_review_permission(x_review_token,"analytics.read")
+    youtube=youtube_analytics_store.status()
+    tiktok=tiktok_metrics_store.status(tiktok_publish_store)
+    safe_fields=("platform","status","last_attempt_at","last_success_at",
+                 "latest_snapshot_at","last_batch","coverage",
+                 "available_metrics","unavailable_metrics","read_only")
+    return {
+        "youtube":{key:youtube[key] for key in safe_fields if key in youtube},
+        "tiktok":{key:tiktok[key] for key in safe_fields if key in tiktok},
+    }
+
+
+@app.get("/api/publishing/analytics-history")
+def publishing_analytics_history(
+    platform:str="all",video_id:str|None=None,days:int=30,limit:int=200,offset:int=0,
+    before_collected_at:str|None=None,before_id:int|None=None,
+    as_of:str|None=None,
+    x_review_token:str|None=Header(default=None),
+):
+    """Return stored, read-only metric snapshots for trend comparison."""
+    require_review_permission(x_review_token,"analytics.read")
+    if platform not in {"all","youtube","tiktok"}:
+        raise HTTPException(422,"platform must be all, youtube, or tiktok")
+    if video_id is not None and (
+        not video_id.strip() or video_id != video_id.strip() or len(video_id)>256
+        or any(ord(char)<32 or ord(char)==127 for char in video_id)
+    ):
+        raise HTTPException(422,"video_id is invalid")
+    bounded_days=max(1,min(days,365))
+    bounded_limit=max(1,min(limit,500))
+    bounded_offset=max(0,min(offset,10000000))
+    if (before_collected_at is None)!=(before_id is None):
+        raise HTTPException(422,"before_collected_at and before_id must be provided together")
+    if before_collected_at is not None:
+        if (
+            not before_collected_at.strip() or len(before_collected_at)>64
+            or any(ord(char)<32 or ord(char)==127 for char in before_collected_at)
+            or before_id is None or before_id<1
+        ):
+            raise HTTPException(422,"history cursor is invalid")
+        try:
+            cursor_time=datetime.fromisoformat(before_collected_at.replace("Z","+00:00"))
+            if cursor_time.tzinfo is None or cursor_time.utcoffset() is None:
+                raise ValueError("timezone required")
+        except (TypeError,ValueError,OverflowError):
+            raise HTTPException(
+                422,"before_collected_at must be a timezone-aware ISO-8601 timestamp"
+            )
+    if as_of is None:
+        as_of_time=datetime.now(timezone.utc)
+    else:
+        if len(as_of)>64 or any(ord(char)<32 or ord(char)==127 for char in as_of):
+            raise HTTPException(422,"as_of is invalid")
+        try:
+            as_of_time=datetime.fromisoformat(as_of.replace("Z","+00:00"))
+            if as_of_time.tzinfo is None or as_of_time.utcoffset() is None:
+                raise ValueError("timezone required")
+            as_of_time=as_of_time.astimezone(timezone.utc)
+        except (TypeError,ValueError,OverflowError):
+            raise HTTPException(422,"as_of must be a timezone-aware ISO-8601 timestamp")
+    normalized_as_of=as_of_time.isoformat()
+    cutoff=(as_of_time-timedelta(days=bounded_days)).isoformat()
+    result={}
+    if platform in {"all","youtube"}:
+        result["youtube"]=youtube_analytics_store.history(
+            video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset,
+            before_collected_at=before_collected_at,before_id=before_id
+        )
+    if platform in {"all","tiktok"}:
+        result["tiktok"]=tiktok_metrics_store.history(
+            tiktok_publish_store,video_id=video_id,limit=bounded_limit,since=cutoff,offset=bounded_offset,
+            before_collected_at=before_collected_at,before_id=before_id
+        )
+    return {
+        "platform":platform,"video_id":video_id,"days":bounded_days,"as_of":normalized_as_of,
+        "limit":bounded_limit,"offset":bounded_offset,
+        "items":result,
+        "counts":{key:len(value) for key,value in result.items()},
+        "read_only":True,
+    }
 
 
 @app.get("/api/tiktok/metrics")
@@ -1262,12 +1431,14 @@ def get_production_reconciliation(job_id:str,x_review_token:str|None=Header(defa
 @app.post("/api/production/jobs/{job_id}/reconcile-retry")
 def reconcile_production_retry(job_id:str,body:ProductionReconciliationAction,
                                 x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.control")
+    authenticated_operator=require_review_permission(x_review_token,"queue.control")
     if not body.operator_id.strip() or not body.evidence_reference.strip() or not body.note.strip():
         raise HTTPException(422,"operator_id, evidence_reference and note must not be blank")
+    if body.operator_id.strip() != authenticated_operator:
+        raise HTTPException(403,"Operator ID must match the authenticated principal")
     try:
         job=queue.reconcile_production_retry(
-            job_id,body.operator_id,body.evidence_reference,body.note)
+            job_id,authenticated_operator,body.evidence_reference.strip(),body.note.strip())
         return {
             "job":review_store.sanitize_production_record(job),
             "production_paused":queue.is_paused(),
@@ -1280,12 +1451,14 @@ def reconcile_production_retry(job_id:str,body:ProductionReconciliationAction,
 
 @app.post("/api/queue/pause")
 def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.control")
+    authenticated_operator=require_review_permission(x_review_token,"queue.control")
     operator_id=body.operator_id.strip()
     note=body.note.strip()
     if not operator_id or not note:
         raise HTTPException(422,"operator_id and note must not be blank")
-    control=queue.pause(note,actor=operator_id)
+    if operator_id != authenticated_operator:
+        raise HTTPException(403,"Operator ID must match the authenticated principal")
+    control=queue.pause(note,actor=authenticated_operator)
     return {
         "control":review_store.sanitize_worker_control(control),
         "events":review_store.sanitize_worker_control_events(queue.worker_control_events(30)),
@@ -1293,11 +1466,13 @@ def pause_queue(body:QueueControlAction,x_review_token:str|None=Header(default=N
 
 @app.post("/api/queue/resume")
 def resume_queue(body:QueueControlAction,x_review_token:str|None=Header(default=None)):
-    require_review_permission(x_review_token,"queue.control")
+    authenticated_operator=require_review_permission(x_review_token,"queue.control")
     if not body.operator_id.strip() or not body.note.strip():
         raise HTTPException(422,"operator_id and note must not be blank")
+    if body.operator_id.strip() != authenticated_operator:
+        raise HTTPException(403,"Operator ID must match the authenticated principal")
     try:
-        control=queue.resume(actor=body.operator_id.strip(),note=body.note.strip())
+        control=queue.resume(actor=authenticated_operator,note=body.note.strip())
         return {
             "control":review_store.sanitize_worker_control(control),
             "events":review_store.sanitize_worker_control_events(queue.worker_control_events(30)),
@@ -1408,12 +1583,34 @@ def list_development_workers(
 def list_development_jobs(
     status:str|None=None,
     limit:int=Query(default=100,ge=1,le=500),
+    offset:int=Query(default=0,ge=0,le=100000),
+    created_before:str|None=Query(default=None,max_length=64),
     x_review_token:str|None=Header(default=None),
 ):
     require_review_permission(x_review_token,"operations.read")
     statuses=[item.strip() for item in status.split(",") if item.strip()] if status else None
-    return {"jobs":[_public_development_job(job) for job in development_job_store.list(statuses=statuses,limit=limit)],
-            "summary":development_job_store.summary()}
+    try:
+        snapshot_at=(
+            development_job_store.normalize_snapshot_timestamp(created_before)
+            if created_before is not None else development_job_store.snapshot_created_at()
+        )
+        jobs=development_job_store.list(
+            statuses=statuses,limit=limit,offset=offset,created_before=snapshot_at
+        )
+        total=development_job_store.count(statuses=statuses,created_before=snapshot_at)
+    except ValueError as error:
+        raise HTTPException(422,str(error))
+    next_offset=offset+len(jobs)
+    return {
+        "jobs":[_public_development_job(job) for job in jobs],
+        "summary":development_job_store.summary(),
+        "pagination":{
+            "limit":limit,"offset":offset,"total":total,
+            "has_more":bool(jobs) and next_offset<total,
+            "next_offset":next_offset if next_offset<total else None,
+            "snapshot_at":snapshot_at,
+        },
+    }
 
 
 @app.get("/api/development/jobs/{job_id}/events")

@@ -164,6 +164,28 @@ def publish_pending_reviews(
         item.get("filename") for item in raw_files
         if isinstance(item.get("filename"), str) and item.get("filename")
     }
+
+    # The PR can advance while its paginated file list is being read. Bind the
+    # evidence to one stable PR snapshot instead of pairing an old head SHA
+    # with files returned for a newer head (or vice versa).
+    verified_pr = client.get_pull_request(owner, repo_name, number)
+
+    def pr_snapshot(value):
+        value_head = value.get("head") if isinstance(value.get("head"), dict) else {}
+        value_base = value.get("base") if isinstance(value.get("base"), dict) else {}
+        head_repo = value_head.get("repo") if isinstance(value_head.get("repo"), dict) else {}
+        base_repo = value_base.get("repo") if isinstance(value_base.get("repo"), dict) else {}
+        return (
+            value.get("number"), value.get("html_url"), value.get("state"),
+            value.get("draft"), value.get("merged_at"), value_head.get("ref"),
+            value_head.get("sha"), head_repo.get("full_name"), head_repo.get("id"),
+            value_base.get("ref"), value_base.get("sha"), base_repo.get("full_name"),
+            base_repo.get("id"),
+        )
+
+    if not isinstance(verified_pr, dict) or pr_snapshot(verified_pr) != pr_snapshot(pr):
+        raise RuntimeError("pull request changed while its review artifact was being verified")
+
     published = []
     skipped = []
     for job in pending:

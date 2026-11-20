@@ -7,22 +7,22 @@ import os
 ROLE_PERMISSIONS = {
     "admin": {"*"},
     "producer": {
-        "production.create", "production.execute", "trends.collect",
+        "session.read", "production.create", "production.execute", "trends.collect",
         "schedules.manage", "queue.enqueue", "media.manage", "trends.read",
         "intelligence.read", "recommendations.read", "production.read", "opportunities.manage",
     },
-    "reviewer": {"review.read", "review.decide", "review.evidence", "production.read"},
-    "publisher": {"publish.execute", "publish.reconcile", "publish.manage", "publishing.read"},
-    "analyst": {"analytics.read", "finance.read", "trends.read", "intelligence.read",
+    "reviewer": {"session.read", "review.read", "review.decide", "review.evidence", "production.read"},
+    "publisher": {"session.read", "publish.execute", "publish.reconcile", "publish.manage", "publishing.read"},
+    "analyst": {"session.read", "analytics.read", "finance.read", "trends.read", "intelligence.read",
         "recommendations.read", "publishing.read", "opportunities.manage"},
     "operator": {
-        "operations.read", "operations.manage", "queue.control", "queue.enqueue", "production.create",
+        "session.read", "operations.read", "operations.manage", "queue.control", "queue.enqueue", "production.create",
         "production.execute", "trends.collect", "schedules.manage", "brand.manage",
         "media.manage", "recommendations.manage", "queue.read", "publishing.read",
         "trends.read", "intelligence.read", "recommendations.read", "production.read",
     },
-    "finance": {"finance.read", "finance.write"},
-    "worker": {"worker.execute"},
+    "finance": {"session.read", "finance.read", "finance.write"},
+    "worker": {"session.read", "worker.execute", "production.execute"},
 }
 
 

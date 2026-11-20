@@ -219,10 +219,19 @@ class DevelopmentJobStore:
         with self.db() as connection:
             connection.execute("BEGIN IMMEDIATE")
             rows = connection.execute(
-                "SELECT id FROM development_jobs WHERE id IN (?,?)", (job_id, depends_on_id)
+                "SELECT id,status FROM development_jobs WHERE id IN (?,?)", (job_id, depends_on_id)
             ).fetchall()
             if len(rows) != 2:
                 raise DevelopmentJobNotFound("job or dependency not found")
+            by_id = {row["id"]: row["status"] for row in rows}
+            child_status = by_id[job_id]
+            parent_status = by_id[depends_on_id]
+            if child_status not in {"ready", "blocked"}:
+                raise DevelopmentJobConflict(
+                    "dependencies can only be changed while a job is ready or blocked"
+                )
+            if parent_status == "cancelled":
+                raise DevelopmentJobConflict("a job cannot depend on a cancelled prerequisite")
             # Adding job -> parent is invalid if parent already depends (transitively) on job.
             cycle = connection.execute(
                 """WITH RECURSIVE ancestors(id) AS (
@@ -242,12 +251,19 @@ class DevelopmentJobStore:
                 (job_id, depends_on_id, timestamp),
             ).rowcount
             if inserted:
-                row = connection.execute("SELECT status FROM development_jobs WHERE id=?", (job_id,)).fetchone()
-                connection.execute(
-                    "UPDATE development_jobs SET status='blocked',updated_at=? WHERE id=? AND status='ready'",
-                    (timestamp, job_id),
-                )
-                self._event(connection, job_id, "dependency_added", row["status"], "blocked",
+                next_status = child_status
+                if parent_status != "completed" and child_status == "ready":
+                    connection.execute(
+                        "UPDATE development_jobs SET status='blocked',updated_at=? WHERE id=? AND status='ready'",
+                        (timestamp, job_id),
+                    )
+                    next_status = "blocked"
+                else:
+                    connection.execute(
+                        "UPDATE development_jobs SET updated_at=? WHERE id=?",
+                        (timestamp, job_id),
+                    )
+                self._event(connection, job_id, "dependency_added", child_status, next_status,
                             "system", {"depends_on": depends_on_id}, timestamp)
             connection.commit()
         return self.get(job_id)
@@ -274,22 +290,84 @@ class DevelopmentJobStore:
                 (safe_source_ref,),
             ).fetchone() is not None
 
-    def list(self, statuses=None, limit=100):
+    @staticmethod
+    def normalize_snapshot_timestamp(value):
+        if not isinstance(value, str) or not value.strip() or len(value) > 64:
+            raise ValueError("created_before must be an ISO-8601 timestamp")
+        try:
+            parsed = _parse(value.strip())
+        except (TypeError, ValueError) as error:
+            raise ValueError("created_before must be an ISO-8601 timestamp") from error
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("created_before must include a timezone")
+        return _stamp(parsed)
+
+    def snapshot_created_at(self):
+        """Capture a stable insertion boundary while holding SQLite's writer lock."""
+        with self.db() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            snapshot_at = _stamp(_now())
+            connection.commit()
+            return snapshot_at
+
+    def list(self, statuses=None, limit=100, offset=0, created_before=None):
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
             raise ValueError("limit must be an integer from 1 to 500")
+        if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 100000:
+            raise ValueError("offset must be an integer from 0 to 100000")
+        snapshot = self.normalize_snapshot_timestamp(created_before) if created_before is not None else None
+        clauses = []
+        values = []
+        if statuses:
+            marks = ",".join("?" for _ in statuses)
+            clauses.append(f"status IN ({marks})")
+            values.extend(statuses)
+        if snapshot is not None:
+            clauses.append("created_at<=?")
+            values.append(snapshot)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
         with self.db() as connection:
-            if statuses:
-                values = tuple(statuses)
-                marks = ",".join("?" for _ in values)
-                rows = connection.execute(
-                    f"SELECT * FROM development_jobs WHERE status IN ({marks}) ORDER BY priority,created_at LIMIT ?",
-                    (*values, limit),
-                ).fetchall()
-            else:
-                rows = connection.execute(
-                    "SELECT * FROM development_jobs ORDER BY priority,created_at LIMIT ?", (limit,)
-                ).fetchall()
-            return [self._decode(row) for row in rows]
+            rows = connection.execute(
+                "SELECT * FROM development_jobs" + where
+                + " ORDER BY priority,created_at,id LIMIT ? OFFSET ?",
+                (*values, limit, offset),
+            ).fetchall()
+            jobs = [self._decode(row) for row in rows]
+            if not jobs:
+                return jobs
+            job_ids = [job["id"] for job in jobs]
+            marks = ",".join("?" for _ in job_ids)
+            dependencies = connection.execute(
+                f"""SELECT job_id,depends_on_id
+                    FROM development_job_dependencies
+                    WHERE job_id IN ({marks})
+                    ORDER BY job_id,depends_on_id""",
+                tuple(job_ids),
+            ).fetchall()
+            by_job = {job_id: [] for job_id in job_ids}
+            for dependency in dependencies:
+                by_job[dependency["job_id"]].append(dependency["depends_on_id"])
+            for job in jobs:
+                job["dependencies"] = by_job[job["id"]]
+            return jobs
+
+    def count(self, statuses=None, created_before=None):
+        snapshot = self.normalize_snapshot_timestamp(created_before) if created_before is not None else None
+        clauses = []
+        values = []
+        if statuses:
+            marks = ",".join("?" for _ in statuses)
+            clauses.append(f"status IN ({marks})")
+            values.extend(statuses)
+        if snapshot is not None:
+            clauses.append("created_at<=?")
+            values.append(snapshot)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        with self.db() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS total FROM development_jobs" + where, tuple(values)
+            ).fetchone()
+            return int(row["total"])
 
     @staticmethod
     def _scope_key(scope):
@@ -335,38 +413,88 @@ class DevelopmentJobStore:
                 attempts = connection.execute(
                     "SELECT attempts,max_attempts FROM development_jobs WHERE id=?", (item["id"],)
                 ).fetchone()
-                next_status = "quarantined" if attempts["attempts"] >= attempts["max_attempts"] else "ready"
+                unresolved = connection.execute(
+                    """SELECT COUNT(*) AS total FROM development_job_dependencies d
+                       JOIN development_jobs parent ON parent.id=d.depends_on_id
+                       WHERE d.job_id=? AND parent.status<>'completed'""",
+                    (item["id"],),
+                ).fetchone()["total"]
+                next_status = (
+                    "quarantined" if attempts["attempts"] >= attempts["max_attempts"]
+                    else ("blocked" if unresolved else "ready")
+                )
                 connection.execute(
                     """UPDATE development_jobs SET status=?,worker_id=NULL,lease_token=NULL,
                        lease_expires_at=NULL,updated_at=? WHERE id=?""",
                     (next_status, timestamp, item["id"]),
                 )
                 self._event(connection, item["id"], "lease_expired", item["status"], next_status,
-                            "system", {"reason": "worker lease expired"}, timestamp)
-            # Promote due retries before selecting the next ready job.
-            connection.execute(
-                """UPDATE development_jobs SET status='ready',retry_after=NULL,updated_at=?
-                   WHERE status='retry_wait' AND retry_after<=? AND attempts<max_attempts""",
-                (timestamp, timestamp),
-            )
-            connection.execute(
-                """UPDATE development_jobs SET status='quarantined',updated_at=?
-                   WHERE status='retry_wait' AND attempts>=max_attempts AND retry_after<=?""",
-                (timestamp, timestamp),
-            )
-            # Unblock jobs only when every prerequisite has completed.
-            connection.execute(
-                """UPDATE development_jobs SET status='ready',updated_at=?
-                   WHERE status='blocked' AND NOT EXISTS (
-                     SELECT 1 FROM development_job_dependencies d
-                     JOIN development_jobs parent ON parent.id=d.depends_on_id
-                     WHERE d.job_id=development_jobs.id AND parent.status<>'completed'
-                   )""", (timestamp,)
-            )
+                            "system", {"reason": "worker lease expired",
+                                       "unresolved_dependencies": unresolved}, timestamp)
+            # Promote due retries individually so every durable state transition is audited.
+            due_retries = connection.execute(
+                """SELECT id,attempts,max_attempts FROM development_jobs
+                   WHERE status='retry_wait' AND retry_after<=? ORDER BY priority,created_at""",
+                (timestamp,),
+            ).fetchall()
+            for retry in due_retries:
+                unresolved = connection.execute(
+                    """SELECT COUNT(*) AS total FROM development_job_dependencies d
+                       JOIN development_jobs parent ON parent.id=d.depends_on_id
+                       WHERE d.job_id=? AND parent.status<>'completed'""",
+                    (retry["id"],),
+                ).fetchone()["total"]
+                next_status = (
+                    "quarantined" if retry["attempts"] >= retry["max_attempts"]
+                    else ("blocked" if unresolved else "ready")
+                )
+                cur = connection.execute(
+                    """UPDATE development_jobs SET status=?,retry_after=NULL,updated_at=?
+                       WHERE id=? AND status='retry_wait'""",
+                    (next_status, timestamp, retry["id"]),
+                )
+                if cur.rowcount:
+                    self._event(
+                        connection, retry["id"], "retry_due",
+                        "retry_wait", next_status, "system",
+                        {"attempts": retry["attempts"],
+                         "max_attempts": retry["max_attempts"],
+                         "unresolved_dependencies": unresolved}, timestamp,
+                    )
+            # Unblock only jobs with at least one prerequisite, after every prerequisite completes.
+            unblocked = connection.execute(
+                """SELECT j.id FROM development_jobs j
+                   WHERE j.status='blocked'
+                     AND EXISTS (
+                       SELECT 1 FROM development_job_dependencies d
+                       WHERE d.job_id=j.id
+                     )
+                     AND NOT EXISTS (
+                       SELECT 1 FROM development_job_dependencies d
+                       JOIN development_jobs parent ON parent.id=d.depends_on_id
+                       WHERE d.job_id=j.id AND parent.status<>'completed'
+                     )"""
+            ).fetchall()
+            for item in unblocked:
+                cur = connection.execute(
+                    """UPDATE development_jobs SET status='ready',updated_at=?
+                       WHERE id=? AND status='blocked'""",
+                    (timestamp, item["id"]),
+                )
+                if cur.rowcount:
+                    self._event(
+                        connection, item["id"], "dependencies_satisfied",
+                        "blocked", "ready", "system", {}, timestamp,
+                    )
             candidates = connection.execute(
-                """SELECT * FROM development_jobs
-                   WHERE status='ready' AND attempts<max_attempts
-                   ORDER BY priority,created_at"""
+                """SELECT * FROM development_jobs j
+                   WHERE j.status='ready' AND j.attempts<j.max_attempts
+                     AND NOT EXISTS (
+                       SELECT 1 FROM development_job_dependencies d
+                       JOIN development_jobs parent ON parent.id=d.depends_on_id
+                       WHERE d.job_id=j.id AND parent.status<>'completed'
+                     )
+                   ORDER BY j.priority,j.created_at"""
             ).fetchall()
             active_rows = connection.execute(
                 """SELECT scope_json FROM development_jobs
@@ -578,16 +706,24 @@ class DevelopmentJobStore:
             if row["status"] != "quarantined":
                 raise DevelopmentJobConflict("only quarantined jobs can be manually recovered")
             timestamp = _stamp(_now())
+            unresolved = connection.execute(
+                """SELECT COUNT(*) AS total FROM development_job_dependencies d
+                   JOIN development_jobs parent ON parent.id=d.depends_on_id
+                   WHERE d.job_id=? AND parent.status<>'completed'""",
+                (job_id,),
+            ).fetchone()["total"]
+            next_status = "blocked" if unresolved else "ready"
             connection.execute(
-                """UPDATE development_jobs SET status='ready',attempts=0,
+                """UPDATE development_jobs SET status=?,attempts=0,
                    worker_id=NULL,lease_token=NULL,lease_expires_at=NULL,retry_after=NULL,
                    changed_files_json=NULL,tests_passed=NULL,validation_ref=NULL,
                    result_summary=?,updated_at=? WHERE id=? AND status='quarantined'""",
-                ("Operator recovery: " + safe_reason, timestamp, job_id),
+                (next_status, "Operator recovery: " + safe_reason, timestamp, job_id),
             )
             self._event(
-                connection, job_id, "quarantine_recovered", "quarantined", "ready",
-                actor, {"reason": safe_reason, "previous_attempts": row["attempts"]}, timestamp,
+                connection, job_id, "quarantine_recovered", "quarantined", next_status,
+                actor, {"reason": safe_reason, "previous_attempts": row["attempts"],
+                        "unresolved_dependencies": unresolved}, timestamp,
             )
             connection.commit()
         return self.get(job_id)

@@ -347,3 +347,32 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 The trusted runner now requires a second worktree read after executor completion. The worker requires an executor verification hook, compares its actual tracked/untracked Git paths with the claimed list, and quarantines missing or mismatched evidence before review-pending.
 
 Exact-head validation: head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and frontend syntax validation in [run 44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). Hosted Linux only; Windows local runner and live autonomous continuation remain unverified.
+
+## Current aggregate integration checkpoint — 2026-11-20
+
+The current dashboard/core follow-up is maintained in PR #415:
+https://github.com/justinhblee-prog/shorts/pull/415
+
+- Development-job listing now uses a stable insertion snapshot. The first page captures a UTC cutoff under SQLite `BEGIN IMMEDIATE`; later pages carry the same `created_before` boundary so newly inserted high-priority jobs cannot shift offsets and cause duplicate/missing rows.
+- The dashboard serializes concurrent page requests through one in-flight promise. Rapid repeated prerequisite clicks share one API request, and pagination controls remain disabled until the request settles.
+- Cross-page prerequisite navigation fetches the parent page and focuses the parent card. Browser coverage verifies one request under rapid double-click, final-page completion, and keyboard-accessible focus transfer.
+- Workstream classification normalizes Windows-style separators and case. A mixed-case `Frontend\\App.js` fixture is verified in the UI lane.
+- Exact application/test head `006805df47d5cf493a2ad5e95396f074170ce416` passed [GitHub Actions run 44660726931](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931): 901 backend tests, frontend syntax, dashboard Chromium smoke, recovery/workstream/DAG/pagination Chromium smoke, and artifact [14594589376](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931/artifacts/14594589376).
+- Exact documentation head `95a2b6969eccbf0d308e4fb47d234a3aae246722` passed [run 44661022116](https://github.com/justinhblee-prog/shorts/actions/runs/44661022116), including 901 backend tests, frontend syntax, both Chromium suites, and artifact [14595406964](https://github.com/justinhblee-prog/shorts/actions/runs/44661022116/artifacts/14595406964).
+- PR #415 remains Draft/open/unmerged. The isolated Windows worker remains a separate Draft PR #416 and is not activated. Hosted CI does not prove Windows self-hosted runner isolation, LocalAppData persistence across runs, live Ollama generation, production database behavior, or provider publishing.
+
+### Worker scope and review-artifact hardening — 2026-11-20
+
+- The Aider executor now rejects symbolic links in every declared scope component and throughout recursively scoped directories. This closes the repository-local alias gap where a nested symlink could expose files outside the declared tree. Pre/post scope checks still do not replace an OS-level sandbox; a malicious process can perform external side effects before Git evidence is collected.
+- Review publication now re-reads the PR metadata after paginated file enumeration and compares the PR identity, head SHA/ref, base repository/ref, state, Draft flag, and merge state. If the PR changes while its files are being read, the job stays `review_pending` instead of binding mismatched file evidence to a stale SHA.
+- Exact PR #415 head `724e6d96ac51456aafa1bea972caaff9da4e9c7b` passed **903 backend tests**, frontend syntax, dashboard Chromium smoke, recovery Chromium smoke, and Compose integration in [run 44664154255](https://github.com/justinhblee-prog/shorts/actions/runs/44664154255).
+- Exact PR #416 head `0093970caf426798840db748234e41cfa6b03eff` passed **617 backend tests** and worker workflow YAML validation in [run 44664146137](https://github.com/justinhblee-prog/shorts/actions/runs/44664146137).
+- Both PRs remain Draft/open/unmerged. Windows self-hosted runner isolation, LocalAppData persistence, real Ollama generation, and live provider behavior remain unverified.
+
+
+### Recovery cannot bypass DAG prerequisites — 2026-11-20
+- Manual quarantine recovery now checks persisted prerequisite edges inside the same `BEGIN IMMEDIATE` transaction. If any parent is not completed, recovery transitions `quarantined → blocked`; otherwise it transitions to `ready` as before. The immutable `quarantine_recovered` event records the resulting state and unresolved dependency count.
+- `claim_ready` now independently excludes any `ready` row with an incomplete prerequisite. This is defense in depth against inconsistent persisted state and prevents a corrupted/manual state from bypassing the DAG.
+- Added regressions for recovery of a quarantined child with an incomplete parent and for a ready-looking child with an unresolved dependency. Exact-head CI is running on PR #415.
+
+- Lease expiry and due-retry promotion now preserve the same DAG invariant: if any prerequisite is incomplete, the job transitions to `blocked` (rather than appearing `ready`). The event records the unresolved prerequisite count. Added regressions for both paths; claim-time dependency filtering remains defense in depth.

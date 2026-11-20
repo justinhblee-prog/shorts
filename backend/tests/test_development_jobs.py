@@ -113,6 +113,74 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         )
         next_job = self.store.claim_ready("worker-b")
         self.assertEqual(next_job["id"], child["id"])
+        release_event = self.store.events(child["id"])[-2]
+        self.assertEqual(release_event["event_type"], "dependencies_satisfied")
+        self.assertEqual(release_event["from_status"], "blocked")
+        self.assertEqual(release_event["to_status"], "ready")
+
+    def test_list_includes_persisted_dependencies_for_dashboard_dag(self):
+        parent = self.store.create("Listed parent", scope=["frontend/app.js"])
+        child = self.store.create("Listed child", scope=["backend/app.py"])
+        independent = self.store.create("Independent job", scope=["docs/README.md"])
+        self.store.add_dependency(child["id"], parent["id"])
+
+        listed = {job["id"]: job for job in self.store.list(limit=10)}
+
+        self.assertEqual(listed[child["id"]]["dependencies"], [parent["id"]])
+        self.assertEqual(listed[parent["id"]]["dependencies"], [])
+        self.assertEqual(listed[independent["id"]]["dependencies"], [])
+
+    def test_list_offset_and_count_preserve_stable_page_order(self):
+        first = self.store.create("Page one", priority=10)
+        second = self.store.create("Page two", priority=10)
+        third = self.store.create("Page three", priority=20)
+
+        page_one = self.store.list(limit=2, offset=0)
+        page_two = self.store.list(limit=2, offset=2)
+
+        expected_first_page = sorted(
+            [first, second], key=lambda job: (job["created_at"], job["id"])
+        )
+        self.assertEqual(
+            [job["id"] for job in page_one],
+            [job["id"] for job in expected_first_page],
+        )
+        self.assertEqual([job["id"] for job in page_two], [third["id"]])
+        self.assertEqual(self.store.count(), 3)
+        self.assertEqual(self.store.count(statuses=["ready"]), 3)
+        self.assertEqual(self.store.count(statuses=["completed"]), 0)
+        with self.assertRaisesRegex(ValueError, "offset"):
+            self.store.list(limit=10, offset=-1)
+        with self.assertRaisesRegex(ValueError, "offset"):
+            self.store.list(limit=10, offset=100001)
+
+    def test_snapshot_pagination_excludes_jobs_inserted_after_first_page(self):
+        first = self.store.create("Snapshot page one", priority=10)
+        second = self.store.create("Snapshot page two", priority=10)
+        third = self.store.create("Snapshot page three", priority=20)
+        snapshot = self.store.snapshot_created_at()
+
+        page_one = self.store.list(limit=2, offset=0, created_before=snapshot)
+        inserted_ahead = self.store.create("Inserted after snapshot", priority=1)
+        page_two = self.store.list(limit=2, offset=2, created_before=snapshot)
+
+        self.assertEqual({job["id"] for job in page_one}, {first["id"], second["id"]})
+        self.assertEqual([job["id"] for job in page_two], [third["id"]])
+        self.assertEqual(self.store.count(created_before=snapshot), 3)
+        self.assertNotIn(inserted_ahead["id"], {
+            job["id"] for job in page_one + page_two
+        })
+
+    def test_snapshot_timestamp_requires_timezone_aware_iso8601(self):
+        for value in ("not-a-date", "2026-11-20T10:00:00", "", "x" * 65):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "created_before"):
+                    self.store.normalize_snapshot_timestamp(value)
+
+        normalized = self.store.normalize_snapshot_timestamp(
+            "2026-11-20T10:00:00+09:00"
+        )
+        self.assertEqual(normalized, "2026-11-20T01:00:00+00:00")
 
     def test_dependency_cycle_is_rejected(self):
         first = self.store.create("First")
@@ -211,6 +279,45 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                 connection.execute("UPDATE development_job_events SET actor='tampered' WHERE id=?",
                                    (event_id,))
 
+    def test_expired_lease_with_unfinished_prerequisite_returns_to_blocked(self):
+        parent = self.store.create("Expired child prerequisite")
+        child = self.store.create("Expired dependent")
+        self.store.add_dependency(child["id"], parent["id"])
+        with self.store.db() as connection:
+            connection.execute(
+                """UPDATE development_jobs SET status='running',worker_id='stale-worker',
+                   lease_token='stale-token',lease_expires_at='2000-01-01T00:00:00+00:00',
+                   attempts=1 WHERE id=?""",
+                (child["id"],),
+            )
+
+        claimed = self.store.claim_ready("new-worker")
+        self.assertEqual(claimed["id"], parent["id"])
+        self.assertEqual(self.store.get(child["id"])["status"], "blocked")
+        event = self.store.events(child["id"])[-1]
+        self.assertEqual(event["event_type"], "lease_expired")
+        self.assertEqual(event["to_status"], "blocked")
+        self.assertEqual(event["details"]["unresolved_dependencies"], 1)
+
+    def test_due_retry_with_unfinished_prerequisite_returns_to_blocked(self):
+        parent = self.store.create("Retry child prerequisite")
+        child = self.store.create("Retry dependent")
+        self.store.add_dependency(child["id"], parent["id"])
+        with self.store.db() as connection:
+            connection.execute(
+                """UPDATE development_jobs SET status='retry_wait',attempts=1,
+                   retry_after='2000-01-01T00:00:00+00:00' WHERE id=?""",
+                (child["id"],),
+            )
+
+        claimed = self.store.claim_ready("retry-worker")
+        self.assertEqual(claimed["id"], parent["id"])
+        self.assertEqual(self.store.get(child["id"])["status"], "blocked")
+        event = self.store.events(child["id"])[-1]
+        self.assertEqual(event["event_type"], "retry_due")
+        self.assertEqual(event["to_status"], "blocked")
+        self.assertEqual(event["details"]["unresolved_dependencies"], 1)
+
     def test_retry_wait_is_reclaimed_and_non_retryable_failure_quarantines(self):
         job = self.store.create("Retry", max_attempts=3)
         first = self.store.claim_ready("worker-a")
@@ -220,6 +327,10 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         second = self.store.claim_ready("worker-b")
         self.assertEqual(second["id"], job["id"])
         self.assertEqual(second["attempts"], 2)
+        retry_event = self.store.events(job["id"])[-2]
+        self.assertEqual(retry_event["event_type"], "retry_due")
+        self.assertEqual(retry_event["from_status"], "retry_wait")
+        self.assertEqual(retry_event["to_status"], "ready")
         quarantined = self.store.fail(job["id"], "worker-b", second["lease_token"],
                                       "permanent validation error", retryable=False)
         self.assertEqual(quarantined["status"], "quarantined")
@@ -252,6 +363,42 @@ class DevelopmentJobStoreTests(unittest.TestCase):
         next_claim = self.store.claim_ready("worker-b")
         self.assertEqual(next_claim["id"], job["id"])
         self.assertEqual(next_claim["attempts"], 1)
+
+    def test_quarantine_recovery_keeps_job_blocked_when_prerequisite_is_incomplete(self):
+        parent = self.store.create("Unfinished prerequisite")
+        child = self.store.create("Quarantined dependent")
+        self.store.add_dependency(child["id"], parent["id"])
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE development_jobs SET status='quarantined' WHERE id=?",
+                (child["id"],),
+            )
+
+        recovered = self.store.recover_quarantined(
+            child["id"], "ops-admin", "verified the prior failure and requeued safely"
+        )
+        self.assertEqual(recovered["status"], "blocked")
+        next_claim = self.store.claim_ready("worker-child")
+        self.assertEqual(next_claim["id"], parent["id"])
+        self.assertNotEqual(next_claim["id"], child["id"])
+        self.assertEqual(self.store.get(child["id"])["status"], "blocked")
+        event = self.store.events(child["id"])[-1]
+        self.assertEqual(event["event_type"], "quarantine_recovered")
+        self.assertEqual(event["to_status"], "blocked")
+        self.assertEqual(event["details"]["unresolved_dependencies"], 1)
+
+    def test_ready_job_with_unresolved_dependency_is_never_claimed(self):
+        parent = self.store.create("Pending parent")
+        child = self.store.create("Ready-looking dependent")
+        self.store.add_dependency(child["id"], parent["id"])
+        with self.store.db() as connection:
+            connection.execute(
+                "UPDATE development_jobs SET status='ready' WHERE id=?",
+                (child["id"],),
+            )
+        claim = self.store.claim_ready("worker-a")
+        self.assertEqual(claim["id"], parent["id"])
+        self.assertEqual(self.store.get(child["id"])["status"], "ready")
 
     def test_operator_recovery_rejects_non_quarantined_jobs_and_invalid_reasons(self):
         job = self.store.create("Not quarantined")
@@ -353,6 +500,44 @@ class DevelopmentJobStoreTests(unittest.TestCase):
             self.store.mark_review_pending(job["id"], "worker-a", first["lease_token"],
                                 ["backend/file.py"], True, "ci://run/stale")
         self.assertEqual(self.store.get(job["id"])["worker_id"], "worker-b")
+
+    def test_dependency_insert_racing_with_claim_cannot_lease_blocked_child(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+
+        parent = self.store.create("Active prerequisite", scope=["docs/parent.md"])
+        parent_claim = self.store.claim_ready("worker-parent")
+        self.assertEqual(parent_claim["id"], parent["id"])
+        child = self.store.create("Racing dependent", scope=["backend/child.py"])
+        barrier = Barrier(2)
+
+        def add_dependency():
+            barrier.wait()
+            try:
+                self.store.add_dependency(child["id"], parent["id"])
+                return "added"
+            except DevelopmentJobConflict:
+                return "conflict"
+
+        def claim_child():
+            barrier.wait()
+            return self.store.claim_ready("worker-child")
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            dependency_result = pool.submit(add_dependency)
+            claim_result = pool.submit(claim_child)
+            dependency_outcome = dependency_result.result()
+            claimed = claim_result.result()
+
+        persisted = self.store.get(child["id"])
+        if dependency_outcome == "added":
+            self.assertEqual(persisted["status"], "blocked")
+            self.assertEqual(persisted["dependencies"], [parent["id"]])
+            self.assertIsNone(claimed)
+        else:
+            self.assertEqual(persisted["status"], "leased")
+            self.assertEqual(persisted["dependencies"], [])
+            self.assertEqual(claimed["id"], child["id"])
 
     def test_parallel_workers_claim_distinct_jobs(self):
         from concurrent.futures import ThreadPoolExecutor
@@ -540,6 +725,63 @@ class DevelopmentJobStoreTests(unittest.TestCase):
                 job["id"], "https://github.com/acme/app/pull/5", "f" * 40,
                 ["backend/review.py"], is_draft=True, is_open=True,
             )
+
+
+
+class DependencyMutationGuardTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = DevelopmentJobStore(os.path.join(self.tmp.name, "jobs.sqlite3"), lease_seconds=30)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_cannot_add_dependency_after_child_has_been_claimed(self):
+        child = self.store.create("Claimed child")
+        parent = self.store.create("Late prerequisite")
+        claim = self.store.claim_ready("worker-a")
+        self.assertEqual(claim["id"], child["id"])
+        with self.assertRaisesRegex(DevelopmentJobConflict, "ready or blocked"):
+            self.store.add_dependency(child["id"], parent["id"])
+        persisted = self.store.get(child["id"])
+        self.assertEqual(persisted["status"], "leased")
+        self.assertEqual(persisted["dependencies"], [])
+        self.assertFalse(any(event["event_type"] == "dependency_added"
+                             for event in self.store.events(child["id"])))
+
+    def test_completed_prerequisite_does_not_block_new_ready_child(self):
+        parent = self.store.create("Already completed prerequisite",
+                                   scope=["backend/parent.py"])
+        claim = self.store.claim_ready("worker-parent")
+        self.assertEqual(claim["id"], parent["id"])
+        self.store.mark_review_pending(
+            parent["id"], "worker-parent", claim["lease_token"],
+            ["backend/parent.py"], True, "ci://dependency/completed-parent",
+        )
+        self.store.publish_review_artifact(
+            parent["id"], "https://github.com/example/repo/pull/12", "b" * 40,
+            ["backend/parent.py"], is_draft=True, is_open=True,
+        )
+        child = self.store.create("Late child")
+        updated = self.store.add_dependency(child["id"], parent["id"])
+        self.assertEqual(updated["status"], "ready")
+        self.assertEqual(updated["dependencies"], [parent["id"]])
+        dependency_event = self.store.events(child["id"])[-1]
+        self.assertEqual(dependency_event["from_status"], "ready")
+        self.assertEqual(dependency_event["to_status"], "ready")
+        next_claim = self.store.claim_ready("worker-child")
+        self.assertEqual(next_claim["id"], child["id"])
+
+    def test_cannot_add_cancelled_prerequisite(self):
+        parent = self.store.create("Cancelled prerequisite")
+        child = self.store.create("Dependent child")
+        with self.store.db() as connection:
+            connection.execute("UPDATE development_jobs SET status='cancelled' WHERE id=?",
+                               (parent["id"],))
+        with self.assertRaisesRegex(DevelopmentJobConflict, "cancelled prerequisite"):
+            self.store.add_dependency(child["id"], parent["id"])
+        self.assertEqual(self.store.get(child["id"])["status"], "ready")
+        self.assertEqual(self.store.get(child["id"])["dependencies"], [])
 
 
 if __name__ == "__main__":

@@ -84,7 +84,24 @@ class PublishDevelopmentReviewsTests(unittest.TestCase):
         self.assertEqual(job["review_head_sha"], HEAD_SHA)
         self.assertTrue(job["review_published_at"])
         self.assertEqual(client.requested, [
-            ("pull", "acme", "app", 42), ("files", "acme", "app", 42)
+            ("pull", "acme", "app", 42), ("files", "acme", "app", 42),
+            ("pull", "acme", "app", 42),
+        ])
+
+    def test_pr_head_change_during_file_read_leaves_job_review_pending(self):
+        class MovingHeadClient(FakeReviewClient):
+            def list_pull_request_files(self, owner, repository, number):
+                files = super().list_pull_request_files(owner, repository, number)
+                self.pull_request = make_pr(head_sha="b" * 40)
+                return files
+
+        client = MovingHeadClient()
+        with self.assertRaisesRegex(RuntimeError, "changed while"):
+            self.publish(client)
+        self.assertEqual(self.store.get(self.job_id)["status"], "review_pending")
+        self.assertEqual(client.requested, [
+            ("pull", "acme", "app", 42), ("files", "acme", "app", 42),
+            ("pull", "acme", "app", 42),
         ])
 
     def test_head_sha_mismatch_leaves_job_review_pending(self):
@@ -130,7 +147,7 @@ class PublishDevelopmentReviewsTests(unittest.TestCase):
         self.assertEqual(self.store.get(self.job_id)["status"], "completed")
         self.assertEqual(client.requested, [
             ("open", "acme", "app"), ("pull", "acme", "app", 42),
-            ("files", "acme", "app", 42),
+            ("files", "acme", "app", 42), ("pull", "acme", "app", 42),
         ])
 
     def test_recovery_without_matching_pr_preserves_pending_job_and_history(self):
